@@ -1,0 +1,41 @@
+﻿platform,entity,platform_field,local_table,local_field,type,constraints,transform,required,notes
+ozon,orders,order_id,orders,external_id,string,"unique with (platform, shop_id)",as-is,Y,业务幂等键的一部分
+ozon,orders,posting_number,orders,posting_number,string,index,as-is,Y,平台显示编号
+ozon,orders,created_at,orders,platform_created_ts,timestamp,not null,to UTC,Y,
+ozon,orders,updated_at,orders,platform_updated_ts,timestamp,not null,to UTC,Y,
+ozon,orders,status,orders,platform_status,string,check in known set,as-is,Y,原始平台状态；同时映射到本地状态机
+ozon,orders,financial_status,orders,financial_status,string,,as-is,N,如 COD 等
+ozon,orders,customer.name,orders,buyer_name,string,,trim,N,PII；日志脱敏
+ozon,orders,customer.phone,orders,buyer_phone_raw,string,,as-is,N,原始；另存 e164
+ozon,orders,customer.phone,orders,buyer_phone_e164,string,"regex ^\+[1-9]\d{6,14}$",to E.164,N,派送/通知用
+ozon,orders,customer.email,orders,buyer_email,string,,lowercase,N,
+ozon,orders,delivery.address.country,orders,ship_country,string,= 'RU',as-is,Y,
+ozon,orders,delivery.address.postal_code,orders,ship_postal_code,string,regex ^\d{6}$,as-is,Y,俄罗斯 6 位邮编
+ozon,orders,delivery.address.city,orders,ship_city,string,,as-is,Y,
+ozon,orders,delivery.address.region,orders,ship_region,string,,as-is,N,
+ozon,orders,delivery.address.street,orders,ship_address1,string,,as-is,Y,UTF-8 长度预留
+ozon,orders,delivery.address.house,orders,ship_address2,string,,concat to address2,N,门牌/楼栋等
+ozon,orders,currency,orders,currency,string,= 'RUB',as-is,Y,
+ozon,orders,amount.total,orders,amount_total_rub,"decimal(18,4)",,to Decimal,Y,
+ozon,orders,amount.items_total,orders,amount_items_rub,"decimal(18,4)",,to Decimal,Y,
+ozon,orders,payment.method,orders,payment_method,string,,as-is,N,含 COD 标识
+ozon,orders,shipment.delivery_method,orders,delivery_method,string,,normalize enum,N,
+ozon,orders,posting_number,shipments,posting_number,string,fk->orders(posting_number),as-is,Y,发运与订单关联键
+ozon,order_items,sku,order_items,sku,string,index,as-is,Y,
+ozon,order_items,name,order_items,title,string,,as-is,Y,
+ozon,order_items,quantity,order_items,qty,integer,qty>0,as-is,Y,
+ozon,order_items,price,order_items,price_rub,"decimal(18,4)",,to Decimal,Y,
+ozon,shipments,carrier_code,shipments,carrier_code,string,"in {CDEK,BOXBERRY,POCHTA}",map enum,Y,
+ozon,shipments,tracking_number,shipments,tracking_no,string,unique index,as-is,Y,
+ozon,shipments,packages[].weight,packages,weight_kg,"decimal(10,3)",>=0,grams→kg,N,
+ozon,shipments,packages[].dimensions,packages,dim_l_cm/dim_w_cm/dim_h_cm,"decimal(10,2)",>=0,mm→cm,N,
+ozon,inventories,sku,inventories,sku,string,pk with (shop_id),as-is,Y,
+ozon,inventories,quantity,inventories,qty_available,integer,>=0,as-is,Y,含安全阈值校验
+ozon,listings,sku,listings,sku,string,pk with (shop_id),as-is,Y,
+ozon,listings,price,listings,price_rub,"decimal(18,4)",not null,to Decimal,Y,毛利阈值守护
+ozon,listings,old_price,listings,price_old_rub,"decimal(18,4)",>= price_rub,to Decimal,N,
+ozon,refunds,refund_id,refunds,external_id,string,"unique with (platform, shop_id)",as-is,Y,
+ozon,refunds,amount,refunds,amount_rub,"decimal(18,4)",,to Decimal,Y,
+ozon,returns,return_id,returns,external_id,string,"unique with (platform, shop_id)",as-is,Y,
+ozon,returns,reason,returns,reason,string,,as-is,N,
+ozon,orders,fx_rate(CNY→RUB),orders,fx_rate,"decimal(18,6)",,from ef.fx.rates,Y,下单时快照

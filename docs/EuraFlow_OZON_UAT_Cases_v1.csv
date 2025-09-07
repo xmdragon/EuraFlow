@@ -1,0 +1,21 @@
+﻿id,area,title,preconditions,steps,expected,severity,tags
+UAT-001,orders.pull,增量拉单（updated_since）基本路径,店铺已授权；存在近24h新单,调用 /ozon/orders/sync from=now-24h,返回 202；orders 表新增 >=1；状态映射正确；指标计数+1,P0,"positive,incremental"
+UAT-002,orders.pull,分页连续性（大样本）,存在 > 500 单,触发全量窗口拉取；校验游标,无丢单/重复；deduped 计数=0；next_cursor null 结束,P0,pagination
+UAT-003,orders.pull,幂等去重,相同窗口重复触发,连续两次调用同参数,第二次 deduped>0；无重复写；日志幂等键命中,P0,idempotency
+UAT-004,orders.pull,异常状态入 on_hold,模拟未知平台状态,注入未知 status 的响应,订单本地状态=on_hold；记录原始状态并产生告警,P1,"negative,mapping"
+UAT-005,shipments.push,发货回传成功（标准承运商）,订单处于可发货状态，承运商=CDEK,POST /ozon/shipments/push,平台回执成功；写回执；指标 latency_ms 有值,P0,positive
+UAT-006,shipments.push,回传失败分类（4xx 不重试）,缺少运单号,POST 缺少 tracking_no,422 校验失败；不进入重试队列；ProblemDetails.code 合规,P0,"validation,negative"
+UAT-007,shipments.push,回传重试（5xx/429）,模拟 500,POST 触发 500,进入重试队列；指数退避<=5次；最终成功或告警,P0,retry
+UAT-008,inventory.push,库存回传（安全阈值）,SKU 库存变更,POST inventory/push qty=1,回传成功；低于阈值触发告警,P1,inventory
+UAT-009,price.push,价格回传（毛利守护）,设置毛利阈值,POST price/push 使毛利低于阈值,被阻断；ProblemDetails.code=PRICE_GUARD; 无平台写入,P0,"pricing,guard"
+UAT-010,orders.pull,长地址/俄文字符校验,存在长地址订单,拉单,UTF-8 正常入库；截断保原值；日志脱敏,P1,i18n
+UAT-011,orders.pull,电话 E.164 规范化,存在多格式电话,拉单,buyer_phone_e164 合法；raw 保留,P1,normalization
+UAT-012,returns.read,退货读取,存在退货记录,GET /ozon/returns,返回 Return[]；状态/金额正确,P2,returns
+UAT-013,refunds.read,退款读取,存在退款记录,GET /ozon/refunds,返回 Refund[]；金额 Decimal,P2,refunds
+UAT-014,orders.pull,汇率快照写入,开启 fx 服务,拉单,订单 fx_rate 填充；金额换算正确,P1,fx
+UAT-015,shipments.push,部分发货,多行项目订单，部分出库,回传部分包裹,平台显示部分发货；后续补齐发货成功,P1,partial
+UAT-016,orders.pull,429 限流自适应,模拟平台 429,拉单,自动下调并发/速率；无雪崩；错误率恢复,P0,ratelimit
+UAT-017,orders.pull,窗口重叠防丢单,并发触发多个窗口,T1/T2 窗口拉取重叠 1 分钟,无丢单；去重命中,P0,windowing
+UAT-018,price.push,old_price 合法性,存在促销,提交 old_price < price,422；提示 old_price >= price,P1,validation
+UAT-019,inventory.push,负库存保护,库存调整为负,提交 qty=-1,422；提示 qty>=0,P1,validation
+UAT-020,observability,指标/日志/Trace 完整性,系统运行,触发拉单/回传各一次,指标写入；日志字段齐全；Trace 可串联,P0,observability
