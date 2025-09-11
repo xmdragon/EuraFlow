@@ -1,0 +1,215 @@
+"""
+Ozon 商品相关数据模型
+"""
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional, Dict, Any, List
+
+from sqlalchemy import (
+    Column, String, Integer, BigInteger, Numeric, 
+    Boolean, DateTime, JSON, ForeignKey, Index, UniqueConstraint
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import JSONB
+
+from ef_core.database import Base
+
+
+class OzonProduct(Base):
+    """Ozon 商品映射表"""
+    __tablename__ = "ozon_products"
+    
+    # 主键
+    id = Column(BigInteger, primary_key=True)
+    
+    # 店铺隔离
+    shop_id = Column(Integer, nullable=False, index=True)
+    
+    # SKU 映射（三个ID体系）
+    sku = Column(String(100), nullable=False, comment="本地SKU")
+    offer_id = Column(String(100), nullable=False, comment="卖家SKU")
+    ozon_product_id = Column(BigInteger, comment="Ozon商品ID")
+    ozon_sku = Column(BigInteger, comment="Ozon SKU")
+    
+    # 商品基本信息
+    title = Column(String(500), nullable=False)
+    description = Column(String(5000))
+    barcode = Column(String(50))
+    category_id = Column(Integer)
+    brand = Column(String(200))
+    
+    # 状态
+    status = Column(String(50), default="draft")  # draft/active/inactive/deleted
+    visibility = Column(Boolean, default=True)
+    is_archived = Column(Boolean, default=False)
+    
+    # 价格信息（使用Decimal避免精度问题）
+    price = Column(Numeric(18, 4), comment="售价")
+    old_price = Column(Numeric(18, 4), comment="原价")
+    premium_price = Column(Numeric(18, 4), comment="会员价")
+    cost = Column(Numeric(18, 4), comment="成本")
+    min_price = Column(Numeric(18, 4), comment="最低价")
+    
+    # 库存信息
+    stock = Column(Integer, default=0)
+    reserved = Column(Integer, default=0)
+    available = Column(Integer, default=0)
+    
+    # 商品属性
+    weight = Column(Numeric(10, 3), comment="重量(kg)")
+    width = Column(Numeric(10, 2), comment="宽度(cm)")
+    height = Column(Numeric(10, 2), comment="高度(cm)")
+    depth = Column(Numeric(10, 2), comment="深度(cm)")
+    
+    # 原始数据
+    raw_payload = Column(JSONB, comment="Ozon原始数据")
+    
+    # 同步信息
+    last_sync_at = Column(DateTime)
+    sync_status = Column(String(50), default="pending")  # pending/syncing/success/failed
+    sync_error = Column(String(1000))
+    
+    # 时间戳
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系
+    variants = relationship("OzonProductVariant", back_populates="product", cascade="all, delete-orphan")
+    attributes = relationship("OzonProductAttribute", back_populates="product", cascade="all, delete-orphan")
+    price_history = relationship("OzonPriceHistory", back_populates="product", cascade="all, delete-orphan")
+    
+    # 索引
+    __table_args__ = (
+        UniqueConstraint("shop_id", "sku", name="uq_ozon_products_shop_sku"),
+        UniqueConstraint("shop_id", "offer_id", name="uq_ozon_products_shop_offer"),
+        Index("idx_ozon_products_ozon_product_id", "ozon_product_id"),
+        Index("idx_ozon_products_status", "status"),
+        Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at")
+    )
+
+
+class OzonProductVariant(Base):
+    """商品变体（颜色、尺码等）"""
+    __tablename__ = "ozon_product_variants"
+    
+    id = Column(BigInteger, primary_key=True)
+    product_id = Column(BigInteger, ForeignKey("ozon_products.id"), nullable=False)
+    
+    # 变体信息
+    variant_id = Column(String(100), nullable=False)
+    variant_type = Column(String(50))  # color/size/material等
+    variant_value = Column(String(200))
+    
+    # SKU
+    variant_sku = Column(String(100))
+    variant_barcode = Column(String(50))
+    
+    # 价格和库存（变体级别）
+    price = Column(Numeric(18, 4))
+    stock = Column(Integer, default=0)
+    
+    # 图片
+    images = Column(JSONB)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系
+    product = relationship("OzonProduct", back_populates="variants")
+    
+    __table_args__ = (
+        UniqueConstraint("product_id", "variant_id", name="uq_ozon_variants"),
+        Index("idx_ozon_variants_sku", "variant_sku")
+    )
+
+
+class OzonProductAttribute(Base):
+    """商品属性（类目特定属性）"""
+    __tablename__ = "ozon_product_attributes"
+    
+    id = Column(BigInteger, primary_key=True)
+    product_id = Column(BigInteger, ForeignKey("ozon_products.id"), nullable=False)
+    
+    # 属性信息
+    attribute_id = Column(Integer, nullable=False)
+    attribute_name = Column(String(200))
+    attribute_type = Column(String(50))  # text/number/boolean/select等
+    
+    # 属性值（使用JSON存储不同类型的值）
+    value = Column(JSONB)
+    
+    # 是否必填
+    is_required = Column(Boolean, default=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # 关系
+    product = relationship("OzonProduct", back_populates="attributes")
+    
+    __table_args__ = (
+        UniqueConstraint("product_id", "attribute_id", name="uq_ozon_attributes"),
+    )
+
+
+class OzonPriceHistory(Base):
+    """价格历史记录"""
+    __tablename__ = "ozon_price_history"
+    
+    id = Column(BigInteger, primary_key=True)
+    product_id = Column(BigInteger, ForeignKey("ozon_products.id"), nullable=False)
+    shop_id = Column(Integer, nullable=False)
+    
+    # 价格变更
+    price_before = Column(Numeric(18, 4))
+    price_after = Column(Numeric(18, 4), nullable=False)
+    old_price_before = Column(Numeric(18, 4))
+    old_price_after = Column(Numeric(18, 4))
+    
+    # 变更信息
+    change_reason = Column(String(200))
+    changed_by = Column(String(100))  # user_id or "system"
+    source = Column(String(50))  # manual/rule/competitor/promotion
+    
+    # 生效时间
+    effective_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # 关系
+    product = relationship("OzonProduct", back_populates="price_history")
+    
+    __table_args__ = (
+        Index("idx_ozon_price_history", "product_id", "effective_at"),
+        Index("idx_ozon_price_history_shop", "shop_id", "created_at")
+    )
+
+
+class OzonInventorySnapshot(Base):
+    """库存快照（用于对账）"""
+    __tablename__ = "ozon_inventory_snapshots"
+    
+    id = Column(BigInteger, primary_key=True)
+    shop_id = Column(Integer, nullable=False)
+    warehouse_id = Column(Integer)
+    
+    # 快照时间
+    snapshot_date = Column(DateTime, nullable=False)
+    
+    # 库存数据（JSON数组）
+    inventory_data = Column(JSONB, nullable=False)
+    # 格式: [{"sku": "xxx", "offer_id": "xxx", "stock": 100, "reserved": 10}, ...]
+    
+    # 统计
+    total_skus = Column(Integer, default=0)
+    total_stock = Column(Integer, default=0)
+    total_value = Column(Numeric(18, 4))
+    
+    # 对账状态
+    reconciliation_status = Column(String(50))  # pending/matched/mismatched
+    discrepancies = Column(JSONB)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        Index("idx_ozon_inventory_snapshot", "shop_id", "snapshot_date"),
+        Index("idx_ozon_inventory_warehouse", "warehouse_id", "snapshot_date")
+    )

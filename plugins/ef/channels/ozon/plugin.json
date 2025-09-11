@@ -1,0 +1,46 @@
+{
+  "name": "ef.channels.ozon",
+  "version": "1.0.0",
+  "enabled": true,
+  "capabilities": [
+    "orders.pull",
+    "orders.validate",
+    "shipments.push",
+    "inventory.sync",
+    "listings.sync"
+  ],
+  "required_services": [
+    "orders",
+    "shipments",
+    "inventory",
+    "listings"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "api_key": {
+        "type": "string",
+        "description": "Ozon API key"
+      },
+      "client_id": {
+        "type": "string",
+        "description": "Ozon client ID"
+      },
+      "warehouse_id": {
+        "type": "integer",
+        "description": "Default warehouse ID"
+      },
+      "pull_interval_minutes": {
+        "type": "integer",
+        "default": 5,
+        "description": "Order pull interval in minutes"
+      },
+      "max_retry_count": {
+        "type": "integer",
+        "default": 5,
+        "description": "Maximum retry count for API calls"
+      }
+    },
+    "required": ["api_key", "client_id"]
+  }
+}

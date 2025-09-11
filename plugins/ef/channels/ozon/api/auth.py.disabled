@@ -1,0 +1,243 @@
+"""
+Ozon 认证管理
+处理 API 密钥管理、轮换等
+"""
+import os
+import json
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
+from cryptography.fernet import Fernet
+
+from ef_core.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+class OzonAuthManager:
+    """Ozon 认证管理器"""
+    
+    def __init__(self, shop_id: int):
+        """
+        初始化认证管理器
+        
+        Args:
+            shop_id: 店铺ID
+        """
+        self.shop_id = shop_id
+        self._credentials = None
+        self._cipher = None
+        self._init_cipher()
+    
+    def _init_cipher(self):
+        """初始化加密器"""
+        # 从环境变量获取加密密钥
+        encryption_key = os.getenv("EF__ENCRYPTION_KEY")
+        
+        if not encryption_key:
+            # 生成新密钥（仅用于开发）
+            logger.warning("No encryption key found, generating new one (DEV ONLY)")
+            encryption_key = Fernet.generate_key().decode()
+            os.environ["EF__ENCRYPTION_KEY"] = encryption_key
+        
+        self._cipher = Fernet(encryption_key.encode())
+    
+    def encrypt_credentials(self, client_id: str, api_key: str) -> str:
+        """
+        加密凭据
+        
+        Args:
+            client_id: Ozon 客户端 ID
+            api_key: Ozon API 密钥
+            
+        Returns:
+            加密后的凭据字符串
+        """
+        credentials = {
+            "client_id": client_id,
+            "api_key": api_key,
+            "shop_id": self.shop_id,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        json_bytes = json.dumps(credentials).encode()
+        encrypted = self._cipher.encrypt(json_bytes)
+        
+        return encrypted.decode()
+    
+    def decrypt_credentials(self, encrypted: str) -> Dict[str, Any]:
+        """
+        解密凭据
+        
+        Args:
+            encrypted: 加密的凭据字符串
+            
+        Returns:
+            解密后的凭据字典
+        """
+        try:
+            decrypted = self._cipher.decrypt(encrypted.encode())
+            credentials = json.loads(decrypted.decode())
+            
+            # 验证店铺ID
+            if credentials.get("shop_id") != self.shop_id:
+                raise ValueError("Shop ID mismatch")
+            
+            return credentials
+            
+        except Exception as e:
+            logger.error(f"Failed to decrypt credentials: {e}")
+            raise ValueError("Invalid credentials")
+    
+    async def get_credentials(self) -> Dict[str, str]:
+        """
+        获取当前凭据
+        
+        Returns:
+            包含 client_id 和 api_key 的字典
+        """
+        if self._credentials:
+            return self._credentials
+        
+        # 从数据库加载凭据
+        from ef_core.database import get_session
+        from ef_core.models import ShopConfig
+        
+        async with get_session() as session:
+            shop_config = await session.get(ShopConfig, self.shop_id)
+            
+            if not shop_config or not shop_config.api_credentials:
+                raise ValueError(f"No credentials found for shop {self.shop_id}")
+            
+            # 解密凭据
+            credentials = self.decrypt_credentials(shop_config.api_credentials)
+            
+            self._credentials = {
+                "client_id": credentials["client_id"],
+                "api_key": credentials["api_key"]
+            }
+            
+            return self._credentials
+    
+    async def update_credentials(self, client_id: str, api_key: str):
+        """
+        更新凭据
+        
+        Args:
+            client_id: 新的客户端 ID
+            api_key: 新的 API 密钥
+        """
+        # 加密新凭据
+        encrypted = self.encrypt_credentials(client_id, api_key)
+        
+        # 保存到数据库
+        from ef_core.database import get_session
+        from ef_core.models import ShopConfig
+        
+        async with get_session() as session:
+            shop_config = await session.get(ShopConfig, self.shop_id)
+            
+            if not shop_config:
+                shop_config = ShopConfig(
+                    shop_id=self.shop_id,
+                    platform="ozon"
+                )
+                session.add(shop_config)
+            
+            shop_config.api_credentials = encrypted
+            shop_config.updated_at = datetime.utcnow()
+            
+            await session.commit()
+            
+            # 更新缓存
+            self._credentials = {
+                "client_id": client_id,
+                "api_key": api_key
+            }
+            
+            logger.info(f"Updated credentials for shop {self.shop_id}")
+    
+    async def validate_credentials(self) -> bool:
+        """
+        验证凭据是否有效
+        
+        Returns:
+            凭据是否有效
+        """
+        try:
+            credentials = await self.get_credentials()
+            
+            # 调用一个简单的 API 来验证
+            from .client import OzonAPIClient
+            
+            async with OzonAPIClient(
+                client_id=credentials["client_id"],
+                api_key=credentials["api_key"],
+                shop_id=self.shop_id
+            ) as client:
+                # 获取商品列表（限制1个）来测试凭据
+                result = await client.get_products(limit=1)
+                
+                return "result" in result
+                
+        except Exception as e:
+            logger.error(f"Credential validation failed: {e}")
+            return False
+    
+    async def rotate_api_key(self) -> Dict[str, str]:
+        """
+        轮换 API 密钥
+        注意：需要在 Ozon 后台手动创建新密钥
+        
+        Returns:
+            新的凭据
+        """
+        # TODO: 实现密钥轮换逻辑
+        # 1. 在 Ozon 后台创建新密钥
+        # 2. 测试新密钥
+        # 3. 更新本地存储
+        # 4. 废弃旧密钥
+        
+        raise NotImplementedError("API key rotation not implemented")
+
+
+class CredentialVault:
+    """
+    凭据保管库
+    集中管理多个店铺的凭据
+    """
+    
+    def __init__(self):
+        self._managers = {}
+    
+    def get_manager(self, shop_id: int) -> OzonAuthManager:
+        """
+        获取指定店铺的认证管理器
+        
+        Args:
+            shop_id: 店铺ID
+            
+        Returns:
+            认证管理器实例
+        """
+        if shop_id not in self._managers:
+            self._managers[shop_id] = OzonAuthManager(shop_id)
+        
+        return self._managers[shop_id]
+    
+    async def validate_all(self) -> Dict[int, bool]:
+        """
+        验证所有店铺的凭据
+        
+        Returns:
+            店铺ID到验证结果的映射
+        """
+        results = {}
+        
+        for shop_id, manager in self._managers.items():
+            results[shop_id] = await manager.validate_credentials()
+        
+        return results
+
+
+# 全局凭据保管库实例
+credential_vault = CredentialVault()

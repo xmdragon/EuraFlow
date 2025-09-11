@@ -1,0 +1,809 @@
+/**
+ * Ozon 订单列表页面
+ */
+import React, { useState, useEffect } from 'react'
+import {
+  List, Button, Space, Card, Row, Col, Statistic,
+  Input, Select, Tag, Modal, message, DatePicker,
+  Tooltip, Badge, Descriptions, Timeline, Tabs, Form,
+  Divider, Alert, Dropdown, Menu, Typography, Progress,
+  Avatar, Flex, Table
+} from 'antd'
+import {
+  SyncOutlined, PrinterOutlined, TruckOutlined,
+  DownloadOutlined, SearchOutlined, ClockCircleOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, ShoppingCartOutlined,
+  PhoneOutlined, EnvironmentOutlined, DollarOutlined,
+  ExclamationCircleOutlined, FileTextOutlined, UserOutlined,
+  MoreOutlined
+} from '@ant-design/icons'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import moment from 'moment'
+import * as ozonApi from '@/services/ozonApi'
+
+const { RangePicker } = DatePicker
+const { Option } = Select
+const { confirm } = Modal
+const { Text } = Typography
+
+const OrderList: React.FC = () => {
+  const queryClient = useQueryClient()
+  
+  // 状态管理
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [selectedOrders, setSelectedOrders] = useState<ozonApi.Order[]>([])
+  const [filterForm] = Form.useForm()
+  const [detailModalVisible, setDetailModalVisible] = useState(false)
+  const [shipModalVisible, setShipModalVisible] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null)
+  const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null)
+  const [activeTab, setActiveTab] = useState('all')
+  const [syncTaskId, setSyncTaskId] = useState<string | null>(null)
+  const [syncStatus, setSyncStatus] = useState<any>(null)
+
+  // 状态配置
+  const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
+    pending: { color: 'default', text: '待确认', icon: <ClockCircleOutlined /> },
+    confirmed: { color: 'processing', text: '已确认', icon: <CheckCircleOutlined /> },
+    processing: { color: 'processing', text: '处理中', icon: <SyncOutlined spin /> },
+    shipped: { color: 'cyan', text: '已发货', icon: <TruckOutlined /> },
+    delivered: { color: 'success', text: '已送达', icon: <CheckCircleOutlined /> },
+    cancelled: { color: 'error', text: '已取消', icon: <CloseCircleOutlined /> }
+  }
+
+  // 查询订单列表
+  const { data: ordersData, isLoading, refetch } = useQuery({
+    queryKey: ['ozonOrders', currentPage, pageSize, activeTab],
+    queryFn: () => {
+      const filters = filterForm.getFieldsValue()
+      const dateRange = filters.dateRange
+      
+      return ozonApi.getOrders(currentPage, pageSize, {
+        ...filters,
+        status: activeTab === 'all' ? undefined : activeTab,
+        date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
+        date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
+        dateRange: undefined
+      })
+    },
+    refetchInterval: 60000 // 1分钟自动刷新
+  })
+
+  // 查询商品列表用于获取图片信息
+  const { data: productsData } = useQuery({
+    queryKey: ['ozonProducts', 'for-images'],
+    queryFn: () => ozonApi.getProducts(1, 100), // API限制最大100条
+    staleTime: 5 * 60 * 1000 // 5分钟缓存
+  })
+
+  // 创建SKU到图片的映射
+  const skuImageMap = React.useMemo(() => {
+    const map: Record<string, string> = {}
+    if (productsData?.data) {
+      productsData.data.forEach((product: any) => {
+        if (product.sku && product.images?.primary) {
+          map[product.sku] = product.images.primary
+        }
+      })
+    }
+    return map
+  }, [productsData])
+
+  // 获取订单项的图片
+  const getOrderItemImage = (order: ozonApi.Order): string => {
+    if (!order.items || order.items.length === 0) {
+      return ''
+    }
+    
+    // 尝试获取第一个商品的图片
+    const firstItem = order.items[0]
+    if (firstItem.sku && skuImageMap[firstItem.sku]) {
+      return skuImageMap[firstItem.sku]
+    }
+    
+    // 如果没有找到，返回空字符串使用占位符
+    return ''
+  }
+
+  // 同步订单
+  const syncOrdersMutation = useMutation({
+    mutationFn: ({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) => 
+      ozonApi.syncOrders(dateFrom, dateTo),
+    onSuccess: (data) => {
+      message.success('订单同步任务已启动')
+      setSyncTaskId(data.task_id)
+      setSyncStatus({ status: 'running', progress: 0, message: '正在启动同步...' })
+    },
+    onError: (error: any) => {
+      message.error(`同步失败: ${error.message}`)
+    }
+  })
+  
+  // 轮询同步任务状态
+  useEffect(() => {
+    if (!syncTaskId || syncStatus?.status === 'completed' || syncStatus?.status === 'failed') {
+      return
+    }
+    
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/ef/v1/ozon/sync/status/${syncTaskId}`)
+        if (response.ok) {
+          const status = await response.json()
+          setSyncStatus(status)
+          
+          if (status.status === 'completed') {
+            message.success('同步完成！')
+            queryClient.invalidateQueries({ queryKey: ['ozonOrders'] })
+            setSyncTaskId(null)
+          } else if (status.status === 'failed') {
+            message.error(`同步失败: ${status.error || '未知错误'}`)
+            setSyncTaskId(null)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch sync status:', error)
+      }
+    }, 2000) // 每2秒检查一次
+    
+    return () => clearInterval(interval)
+  }, [syncTaskId, syncStatus?.status, queryClient])
+
+  // 发货
+  const shipOrderMutation = useMutation({
+    mutationFn: ozonApi.shipOrder,
+    onSuccess: () => {
+      message.success('发货成功')
+      setShipModalVisible(false)
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] })
+    },
+    onError: (error: any) => {
+      message.error(`发货失败: ${error.message}`)
+    }
+  })
+
+  // 取消订单
+  const cancelOrderMutation = useMutation({
+    mutationFn: ({ postingNumber, reason }: { postingNumber: string; reason: string }) =>
+      ozonApi.cancelOrder(postingNumber, reason),
+    onSuccess: () => {
+      message.success('订单已取消')
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] })
+    },
+    onError: (error: any) => {
+      message.error(`取消失败: ${error.message}`)
+    }
+  })
+
+  // 渲染订单卡片项
+  const renderOrderItem = (order: ozonApi.Order) => {
+    const items = order.items || []
+    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
+    const statusConfig_item = statusConfig[order.status] || statusConfig.pending
+    const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(order.status)
+    const canCancel = order.status !== 'cancelled' && order.status !== 'delivered'
+    
+    // 获取主要商品的图片
+    const productImage = getOrderItemImage(order)
+    
+    return (
+      <List.Item style={{ padding: 0 }}>
+        <Card 
+          style={{ 
+            width: '100%', 
+            marginBottom: 8,
+            borderRadius: 8,
+            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
+          }}
+          styles={{ body: { padding: '16px' } }}
+        >
+          <Flex gap={16} align="flex-start" wrap="wrap">
+            {/* 商品图片 */}
+            <Avatar 
+              size={80} 
+              src={productImage || undefined}
+              icon={<ShoppingCartOutlined />}
+              style={{ 
+                flexShrink: 0,
+                borderRadius: 8,
+                backgroundColor: '#f5f5f5'
+              }}
+            />
+            
+            {/* 订单信息 */}
+            <div style={{ flex: 1, minWidth: 280 }}>
+              <div style={{ marginBottom: 8 }}>
+                <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+                  <div>
+                    <Text strong style={{ fontSize: 16, color: '#1890ff', cursor: 'pointer' }}
+                          onClick={() => showOrderDetail(order)}>
+                      {order.order_number || order.order_id}
+                    </Text>
+                    <div style={{ marginTop: 4 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        Posting: {order.posting_number}
+                      </Text>
+                    </div>
+                  </div>
+                  
+                  {/* 状态标签 */}
+                  <Tag 
+                    color={statusConfig_item.color}
+                    icon={statusConfig_item.icon}
+                    style={{ 
+                      borderRadius: 16,
+                      padding: '4px 12px',
+                      fontSize: 12,
+                      border: 'none'
+                    }}
+                  >
+                    {statusConfig_item.text}
+                  </Tag>
+                </Space>
+              </div>
+              
+              {/* 商品信息 */}
+              <div style={{ marginBottom: 8 }}>
+                <Space>
+                  <ShoppingCartOutlined style={{ color: '#666' }} />
+                  <Text type="secondary">{items.length} 种商品，共 {totalItems} 件</Text>
+                </Space>
+                <div style={{ marginTop: 4 }}>
+                  {items.slice(0, 2).map((item, index) => (
+                    <div key={index}>
+                      <Text 
+                        ellipsis 
+                        style={{ 
+                          fontSize: 13, 
+                          color: '#333',
+                          display: 'block'
+                        }}
+                        title={`${item.name || item.sku} × ${item.quantity} - ₽${item.price}`}
+                      >
+                        {item.name || item.sku} × {item.quantity} - ₽{item.price}
+                      </Text>
+                    </div>
+                  ))}
+                  {items.length > 2 && (
+                    <Text style={{ fontSize: 12, color: '#1890ff' }}>
+                      还有 {items.length - 2} 个商品...
+                    </Text>
+                  )}
+                </div>
+              </div>
+              
+              {/* 客户和配送信息 */}
+              <div style={{ marginBottom: 8 }}>
+                <Row gutter={[16, 8]}>
+                  <Col xs={24} sm={12}>
+                    {order.customer_phone && (
+                      <Space size="small">
+                        <PhoneOutlined style={{ color: '#666' }} />
+                        <Text copyable style={{ fontSize: 13 }}>{order.customer_phone}</Text>
+                      </Space>
+                    )}
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    {order.delivery_address && (
+                      <Tooltip title={`${order.delivery_address.city}, ${order.delivery_address.address}`}>
+                        <Space size="small">
+                          <EnvironmentOutlined style={{ color: '#666' }} />
+                          <Text ellipsis style={{ fontSize: 13, maxWidth: 150 }}>
+                            {order.delivery_address.city}
+                          </Text>
+                        </Space>
+                      </Tooltip>
+                    )}
+                  </Col>
+                </Row>
+              </div>
+              
+              {/* 金额和时间信息 */}
+              <div>
+                <Row gutter={[16, 12]} align="middle">
+                  <Col xs={24} lg="auto" flex="auto">
+                    <Row gutter={[16, 8]} wrap>
+                      <Col xs={8} sm={6} lg="auto">
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 12 }}>商品金额</Text>
+                          <div>
+                            <Text strong style={{ color: '#52c41a', fontSize: 14 }}>
+                              ₽ {order.products_price || order.products_amount || order.total_amount}
+                            </Text>
+                          </div>
+                        </div>
+                      </Col>
+                      {order.commission_amount && (
+                        <Col xs={8} sm={6} lg="auto">
+                          <div>
+                            <Text type="secondary" style={{ fontSize: 12 }}>平台佣金</Text>
+                            <div>
+                              <Text style={{ fontSize: 13, color: '#666' }}>
+                                ₽ {order.commission_amount}
+                              </Text>
+                            </div>
+                          </div>
+                        </Col>
+                      )}
+                      <Col xs={8} sm={6} lg="auto">
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 12 }}>处理时间</Text>
+                          <div>
+                            <Text style={{ fontSize: 13 }}>
+                              {order.in_process_at ? moment(order.in_process_at).format('MM-DD HH:mm') : '-'}
+                            </Text>
+                          </div>
+                        </div>
+                      </Col>
+                    </Row>
+                  </Col>
+                  
+                  {/* 操作按钮 */}
+                  <Col xs={24} lg="auto">
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        ghost
+                        size="small"
+                        onClick={() => showOrderDetail(order)}
+                      >
+                        查看
+                      </Button>
+                      {canShip && (
+                        <Button
+                          type="primary"
+                          size="small"
+                          icon={<TruckOutlined />}
+                          onClick={() => handleShip(order)}
+                        >
+                          发货
+                        </Button>
+                      )}
+                      <Dropdown
+                        menu={{
+                          items: [
+                            {
+                              key: 'detail',
+                              icon: <FileTextOutlined />,
+                              label: '订单详情',
+                              onClick: () => showOrderDetail(order)
+                            },
+                            {
+                              key: 'print',
+                              icon: <PrinterOutlined />,
+                              label: '打印面单',
+                            },
+                            canCancel && {
+                              key: 'cancel',
+                              icon: <CloseCircleOutlined />,
+                              label: '取消订单',
+                              danger: true,
+                              onClick: () => handleCancel(order)
+                            },
+                          ].filter(Boolean)
+                        }}
+                      >
+                        <Button size="small" icon={<MoreOutlined />} />
+                      </Dropdown>
+                    </Space>
+                  </Col>
+                </Row>
+              </div>
+            </div>
+          </Flex>
+        </Card>
+      </List.Item>
+    )
+  }
+
+  // 处理函数
+  const showOrderDetail = (order: ozonApi.Order) => {
+    setSelectedOrder(order)
+    setDetailModalVisible(true)
+  }
+
+  const handleShip = (order: ozonApi.Order) => {
+    setSelectedOrder(order)
+    setSelectedPosting({ posting_number: order.posting_number } as any)
+    setShipModalVisible(true)
+  }
+
+  const handleCancel = (order: ozonApi.Order) => {
+    confirm({
+      title: '确认取消订单？',
+      content: `订单号: ${order.order_number}`,
+      onOk: () => {
+        cancelOrderMutation.mutate({
+          postingNumber: order.posting_number,
+          reason: '卖家取消'
+        })
+      }
+    })
+  }
+
+  const handleSync = () => {
+    const dateRange = filterForm.getFieldValue('dateRange')
+    syncOrdersMutation.mutate({
+      dateFrom: dateRange?.[0]?.format('YYYY-MM-DD'),
+      dateTo: dateRange?.[1]?.format('YYYY-MM-DD')
+    })
+  }
+
+  const handleBatchPrint = () => {
+    if (selectedOrders.length === 0) {
+      message.warning('请先选择订单')
+      return
+    }
+    message.info('批量打印功能开发中')
+  }
+
+  const handleBatchShip = () => {
+    if (selectedOrders.length === 0) {
+      message.warning('请先选择订单')
+      return
+    }
+    message.info('批量发货功能开发中')
+  }
+
+  // 统计数据 - 使用API返回的总数，详细分类从当前页数据计算
+  const orders = ordersData?.data || []
+  const stats = {
+    total: ordersData?.total || 0, // 使用API返回的真实总数
+    pending: orders.filter(o => o.status === 'pending').length,
+    processing: orders.filter(o => o.status === 'processing').length,
+    shipped: orders.filter(o => o.status === 'shipped').length,
+    delivered: orders.filter(o => o.status === 'delivered').length,
+    cancelled: orders.filter(o => o.status === 'cancelled').length,
+  }
+
+  return (
+    <div style={{ padding: 24 }}>
+      {/* 同步进度显示 */}
+      {syncStatus && syncStatus.status === 'running' && (
+        <Alert
+          message="订单同步中"
+          description={
+            <div>
+              <p>{syncStatus.message}</p>
+              <Progress percent={Math.round(syncStatus.progress)} status="active" />
+            </div>
+          }
+          type="info"
+          showIcon
+          closable
+          onClose={() => {
+            setSyncStatus(null)
+            setSyncTaskId(null)
+          }}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      
+      {/* 统计卡片 */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="总订单数"
+              value={stats.total || 0}
+              prefix={<ShoppingCartOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="待处理"
+              value={stats.pending || 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="处理中"
+              value={stats.processing || 0}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="已发货"
+              value={stats.shipped || 0}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="已送达"
+              value={stats.delivered || 0}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card>
+            <Statistic
+              title="已取消"
+              value={stats.cancelled || 0}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 搜索过滤 */}
+      <Card style={{ marginBottom: 16 }}>
+        <Form
+          form={filterForm}
+          layout="inline"
+          onFinish={() => refetch()}
+        >
+          <Form.Item name="dateRange">
+            <RangePicker />
+          </Form.Item>
+          <Form.Item name="posting_number">
+            <Input placeholder="Posting号" prefix={<SearchOutlined />} />
+          </Form.Item>
+          <Form.Item name="customer_phone">
+            <Input placeholder="客户电话" />
+          </Form.Item>
+          <Form.Item name="order_type">
+            <Select placeholder="订单类型" style={{ width: 120 }} allowClear>
+              <Option value="FBS">FBS</Option>
+              <Option value="FBO">FBO</Option>
+              <Option value="CrossDock">CrossDock</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit">
+                查询
+              </Button>
+              <Button onClick={() => {
+                filterForm.resetFields()
+                refetch()
+              }}>
+                重置
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Card>
+
+      {/* 订单列表 */}
+      <Card>
+        {/* 状态标签页 */}
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          items={[
+            { label: '全部', key: 'all' },
+            { label: <Badge count={stats.pending} offset={[10, 0]}>待处理</Badge>, key: 'pending' },
+            { label: <Badge count={stats.processing} offset={[10, 0]}>处理中</Badge>, key: 'processing' },
+            { label: '已发货', key: 'shipped' },
+            { label: '已送达', key: 'delivered' },
+            { label: '已取消', key: 'cancelled' }
+          ]}
+        />
+
+        {/* 操作按钮 */}
+        <Space style={{ marginBottom: 16 }}>
+          <Button
+            type="primary"
+            icon={<SyncOutlined />}
+            onClick={handleSync}
+            loading={syncOrdersMutation.isPending}
+          >
+            同步订单
+          </Button>
+          <Button
+            icon={<TruckOutlined />}
+            onClick={handleBatchShip}
+            disabled={selectedOrders.length === 0}
+          >
+            批量发货
+          </Button>
+          <Button
+            icon={<PrinterOutlined />}
+            onClick={handleBatchPrint}
+            disabled={selectedOrders.length === 0}
+          >
+            批量打印
+          </Button>
+          <Button icon={<DownloadOutlined />}>
+            导出订单
+          </Button>
+        </Space>
+
+        {/* 订单列表 */}
+        <List
+          loading={isLoading}
+          dataSource={ordersData?.data || []}
+          renderItem={renderOrderItem}
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: ordersData?.total || 0,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total) => `共 ${total} 条订单`,
+            onChange: (page, size) => {
+              setCurrentPage(page)
+              setPageSize(size || 50)
+            },
+            style: { marginTop: 16, textAlign: 'center' }
+          }}
+        />
+      </Card>
+
+      {/* 订单详情弹窗 */}
+      <Modal
+        title={`订单详情 - ${selectedOrder?.order_id}`}
+        open={detailModalVisible}
+        onCancel={() => setDetailModalVisible(false)}
+        footer={null}
+        width={900}
+      >
+        {selectedOrder && (
+          <Tabs 
+            defaultActiveKey="1"
+            items={[
+              {
+                label: '基本信息',
+                key: '1',
+                children: (
+                  <Descriptions bordered column={2}>
+                <Descriptions.Item label="订单号">{selectedOrder.order_id}</Descriptions.Item>
+                <Descriptions.Item label="Ozon订单号">{selectedOrder.ozon_order_id}</Descriptions.Item>
+                <Descriptions.Item label="状态">
+                  <Tag color={statusConfig[selectedOrder.status]?.color}>
+                    {statusConfig[selectedOrder.status]?.text}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="订单类型">{selectedOrder.order_type}</Descriptions.Item>
+                <Descriptions.Item label="总金额">₽ {selectedOrder.total_amount}</Descriptions.Item>
+                <Descriptions.Item label="商品金额">₽ {selectedOrder.products_amount}</Descriptions.Item>
+                <Descriptions.Item label="运费">₽ {selectedOrder.delivery_amount}</Descriptions.Item>
+                <Descriptions.Item label="佣金">₽ {selectedOrder.commission_amount}</Descriptions.Item>
+                <Descriptions.Item label="下单时间">
+                  {moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')}
+                </Descriptions.Item>
+                <Descriptions.Item label="配送方式">{selectedOrder.delivery_method}</Descriptions.Item>
+                  </Descriptions>
+                )
+              },
+              {
+                label: '商品明细',
+                key: '2',
+                children: (
+                  <Table
+                dataSource={selectedOrder.items}
+                rowKey="sku"
+                pagination={false}
+                columns={[
+                  { title: 'SKU', dataIndex: 'sku', key: 'sku' },
+                  { title: '商品名称', dataIndex: 'name', key: 'name' },
+                  { title: '数量', dataIndex: 'quantity', key: 'quantity' },
+                  { title: '单价', dataIndex: 'price', key: 'price', render: (price) => `₽ ${price}` },
+                  { title: '小计', dataIndex: 'total_amount', key: 'total_amount', render: (amount) => `₽ ${amount}` }
+                ]}
+                  />
+                )
+              },
+              {
+                label: '客户信息',
+                key: '3',
+                children: (
+                  <Descriptions bordered>
+                <Descriptions.Item label="客户ID">{selectedOrder.customer_id}</Descriptions.Item>
+                <Descriptions.Item label="电话">{selectedOrder.customer_phone}</Descriptions.Item>
+                <Descriptions.Item label="邮箱">{selectedOrder.customer_email}</Descriptions.Item>
+                <Descriptions.Item label="收货地址" span={3}>
+                  {selectedOrder.delivery_address && (
+                    <div>
+                      {selectedOrder.delivery_address.region}, {selectedOrder.delivery_address.city}<br />
+                      {selectedOrder.delivery_address.address}<br />
+                      邮编: {selectedOrder.delivery_address.postal_code}
+                    </div>
+                  )}
+                </Descriptions.Item>
+                  </Descriptions>
+                )
+              },
+              {
+                label: '物流信息',
+                key: '4',
+                children: selectedOrder.postings?.map((posting) => (
+                <Card key={posting.id} style={{ marginBottom: 16 }}>
+                  <Descriptions bordered size="small">
+                    <Descriptions.Item label="Posting号">{posting.posting_number}</Descriptions.Item>
+                    <Descriptions.Item label="状态">{posting.status}</Descriptions.Item>
+                    <Descriptions.Item label="仓库">{posting.warehouse_name}</Descriptions.Item>
+                    <Descriptions.Item label="配送方式">{posting.delivery_method_name}</Descriptions.Item>
+                    <Descriptions.Item label="发货时间">
+                      {posting.shipped_at ? moment(posting.shipped_at).format('YYYY-MM-DD HH:mm') : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="送达时间">
+                      {posting.delivered_at ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm') : '-'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Card>
+                ))
+              }
+            ]}
+          />
+        )}
+      </Modal>
+
+      {/* 发货弹窗 */}
+      <Modal
+        title={`发货 - ${selectedOrder?.order_id}`}
+        open={shipModalVisible}
+        onCancel={() => setShipModalVisible(false)}
+        footer={null}
+        width={600}
+      >
+        <Form
+          layout="vertical"
+          onFinish={(values) => {
+            if (!selectedPosting) return
+            shipOrderMutation.mutate({
+              posting_number: selectedPosting.posting_number,
+              tracking_number: values.tracking_number,
+              carrier_code: values.carrier_code
+            })
+          }}
+        >
+          <Alert
+            message="发货信息"
+            description={`Posting号: ${selectedPosting?.posting_number}`}
+            type="info"
+            style={{ marginBottom: 16 }}
+          />
+          
+          <Form.Item
+            name="tracking_number"
+            label="物流单号"
+            rules={[{ required: true, message: '请输入物流单号' }]}
+          >
+            <Input placeholder="请输入物流单号" />
+          </Form.Item>
+          
+          <Form.Item
+            name="carrier_code"
+            label="物流公司"
+            rules={[{ required: true, message: '请选择物流公司' }]}
+          >
+            <Select placeholder="请选择物流公司">
+              <Option value="CDEK">CDEK</Option>
+              <Option value="BOXBERRY">Boxberry</Option>
+              <Option value="POCHTA">俄罗斯邮政</Option>
+              <Option value="DPD">DPD</Option>
+              <Option value="OZON">Ozon物流</Option>
+            </Select>
+          </Form.Item>
+          
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={shipOrderMutation.isPending}>
+                确认发货
+              </Button>
+              <Button onClick={() => setShipModalVisible(false)}>
+                取消
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  )
+}
+
+export default OrderList
