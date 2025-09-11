@@ -2,24 +2,41 @@
 Ozon API 路由 - 简化版本
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func
 import uuid
 import asyncio
 
 from ef_core.database import get_async_session
 from ef_core.utils.logging import get_logger
+from pydantic import BaseModel, Field
+from typing import Dict, Any
 
 logger = get_logger(__name__)
 
 # 创建路由器
 router = APIRouter(prefix="/ozon", tags=["Ozon"])
 
-# 模拟同步任务存储
+# 同步任务存储（内存缓存）
 sync_tasks = {}
+
+
+# DTO 模型
+class ShopCreateDTO(BaseModel):
+    shop_name: str
+    platform: str = "ozon"
+    api_credentials: Dict[str, str]
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ShopUpdateDTO(BaseModel):
+    shop_name: Optional[str] = None
+    status: Optional[str] = None
+    api_credentials: Optional[Dict[str, str]] = None
+    config: Optional[Dict[str, Any]] = None
 
 
 @router.get("/shops")
@@ -59,7 +76,7 @@ async def get_shops(db: AsyncSession = Depends(get_async_session), owner_user_id
             order_count_result = await db.execute(select(func.count(OzonOrder.id)).where(OzonOrder.shop_id == shop.id))
             order_count = order_count_result.scalar() or 0
 
-            shop_dict = shop.to_dict()
+            shop_dict = shop.to_dict(include_credentials=True)
             shop_dict["stats"] = {
                 "total_products": product_count,
                 "active_products": product_stats.active_count if product_stats else 0,
@@ -77,6 +94,170 @@ async def get_shops(db: AsyncSession = Depends(get_async_session), owner_user_id
 
     except Exception as e:
         logger.error(f"Failed to get shops: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/shops")
+async def create_shop(shop_data: ShopCreateDTO, db: AsyncSession = Depends(get_async_session)):
+    """创建新的 Ozon 店铺"""
+    try:
+        from plugins.ef.channels.ozon.models import OzonShop
+
+        # 创建新店铺
+        new_shop = OzonShop(
+            shop_name=shop_data.shop_name,
+            platform="ozon",
+            status="active",
+            owner_user_id=1,  # 临时硬编码
+            client_id=shop_data.api_credentials.get("client_id", ""),
+            api_key_enc=shop_data.api_credentials.get("api_key", ""),  # 实际应该加密
+            config=shop_data.config or {},
+        )
+
+        db.add(new_shop)
+        await db.commit()
+        await db.refresh(new_shop)
+
+        # 返回店铺数据（使用内置的 to_dict 方法，它会处理凭证）
+        shop_dict = new_shop.to_dict(include_credentials=True)
+        return {"ok": True, "data": shop_dict}
+
+    except Exception as e:
+        logger.error(f"Failed to create shop: {e}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/shops/{shop_id}")
+async def update_shop(shop_id: int, shop_data: ShopUpdateDTO, db: AsyncSession = Depends(get_async_session)):
+    """更新 Ozon 店铺配置"""
+    try:
+        from plugins.ef.channels.ozon.models import OzonShop
+
+        # 查找店铺
+        result = await db.execute(select(OzonShop).where(OzonShop.id == shop_id))
+        shop = result.scalar_one_or_none()
+
+        if not shop:
+            raise HTTPException(status_code=404, detail="Shop not found")
+
+        # 更新店铺信息
+        if shop_data.shop_name is not None:
+            shop.shop_name = shop_data.shop_name
+        if shop_data.status is not None:
+            shop.status = shop_data.status
+        if shop_data.api_credentials is not None:
+            shop.client_id = shop_data.api_credentials.get("client_id", shop.client_id)
+            # 只有当提供了非掩码的API key时才更新
+            api_key = shop_data.api_credentials.get("api_key")
+            if api_key and api_key != "******":
+                shop.api_key_enc = api_key  # 实际应该加密
+        if shop_data.config is not None:
+            # 合并配置
+            # 确保config是可变的字典
+            current_config = dict(shop.config) if shop.config else {}
+            current_config.update(shop_data.config)
+            shop.config = current_config
+
+        shop.updated_at = datetime.utcnow()
+
+        await db.commit()
+        await db.refresh(shop)
+
+        # 返回店铺数据（使用内置的 to_dict 方法，它会处理凭证）
+        shop_dict = shop.to_dict(include_credentials=True)
+        return {"ok": True, "data": shop_dict}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update shop: {e}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/shops/{shop_id}")
+async def delete_shop(shop_id: int, db: AsyncSession = Depends(get_async_session)):
+    """删除 Ozon 店铺"""
+    try:
+        from plugins.ef.channels.ozon.models import OzonShop
+
+        result = await db.execute(select(OzonShop).where(OzonShop.id == shop_id))
+        shop = result.scalar_one_or_none()
+
+        if not shop:
+            raise HTTPException(status_code=404, detail="Shop not found")
+
+        await db.delete(shop)
+        await db.commit()
+
+        return {"ok": True, "message": "Shop deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete shop: {e}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/shops/{shop_id}/test-connection")
+async def test_connection(shop_id: int, db: AsyncSession = Depends(get_async_session)):
+    """测试店铺 API 连接"""
+    try:
+        from plugins.ef.channels.ozon.models import OzonShop
+        from plugins.ef.channels.ozon.api.client import OzonAPIClient
+
+        # 获取店铺信息
+        result = await db.execute(select(OzonShop).where(OzonShop.id == shop_id))
+        shop = result.scalar_one_or_none()
+
+        if not shop:
+            raise HTTPException(status_code=404, detail="Shop not found")
+
+        # 验证API凭证是否存在
+        if not shop.client_id or not shop.api_key_enc:
+            return {
+                "ok": True,
+                "success": False,
+                "message": "API credentials not configured",
+                "details": {"error": "Missing client_id or api_key"},
+            }
+
+        # 测试连接
+        try:
+            async with OzonAPIClient(client_id=shop.client_id, api_key=shop.api_key_enc) as client:
+                result = await client.test_connection()
+
+                if result["success"]:
+                    # 直接返回result的内容，避免嵌套
+                    return {
+                        "ok": True,
+                        "success": True,
+                        "message": result.get("message", "Connection successful"),
+                        "details": result.get("details", {}),
+                    }
+                else:
+                    return {
+                        "ok": True,
+                        "success": False,
+                        "message": result.get("message", "Connection failed"),
+                        "details": result.get("details", {}),
+                    }
+
+        except Exception as api_error:
+            logger.error(f"API connection test failed: {api_error}")
+            return {
+                "ok": True,
+                "success": False,
+                "message": f"Connection failed: {str(api_error)}",
+                "details": {"error": str(api_error)},
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to test connection: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -102,8 +283,8 @@ async def sync_shop(
             "created_at": datetime.utcnow().isoformat(),
         }
 
-        # 异步执行同步任务
-        asyncio.create_task(_run_sync_task(task_id, shop_id, sync_type, full_sync, db))
+        # 异步执行同步任务（不传递db会话，让任务自己创建）
+        asyncio.create_task(_run_sync_task(task_id, shop_id, sync_type, full_sync))
 
         return {"ok": True, "task_id": task_id, "message": f"同步任务已启动 (类型: {sync_type}, 全量: {full_sync})"}
 
@@ -112,32 +293,49 @@ async def sync_shop(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _run_sync_task(task_id: str, shop_id: int, sync_type: str, full_sync: bool, db: AsyncSession):
-    """执行同步任务"""
+async def _run_sync_task(task_id: str, shop_id: int, sync_type: str, full_sync: bool):
+    """执行同步任务 - 调用真正的同步服务"""
     try:
-        # 模拟同步过程
-        steps = [
-            (10, "连接到Ozon API..."),
-            (30, "获取商品列表..."),
-            (50, "同步商品数据..."),
-            (70, "获取订单列表..."),
-            (90, "同步订单数据..."),
-            (100, "同步完成"),
-        ]
+        # 导入真正的同步服务
+        from plugins.ef.channels.ozon.services import OzonSyncService
 
-        for progress, message in steps:
-            await asyncio.sleep(2)  # 模拟处理时间
-            if task_id in sync_tasks:
-                sync_tasks[task_id].update({"progress": progress, "message": message})
+        # 更新任务状态
+        sync_tasks[task_id] = {
+            "id": task_id,
+            "shop_id": shop_id,
+            "sync_type": sync_type,
+            "full_sync": full_sync,
+            "status": "running",
+            "progress": 0,
+            "message": "正在启动同步...",
+            "created_at": datetime.utcnow().isoformat(),
+        }
 
-        # 更新店铺最后同步时间
-        from plugins.ef.channels.ozon.models import OzonShop
+        # 创建新的数据库会话用于异步任务
+        async for db in get_async_session():
+            try:
+                # 执行真正的同步
+                if sync_type in ["all", "products"]:
+                    logger.info(f"Starting products sync for shop {shop_id}, task {task_id}")
+                    await OzonSyncService.sync_products(shop_id, db, task_id)
 
-        await db.execute(update(OzonShop).where(OzonShop.id == shop_id).values(last_sync_at=datetime.utcnow()))
-        await db.commit()
+                if sync_type in ["all", "orders"]:
+                    logger.info(f"Starting orders sync for shop {shop_id}, task {task_id}")
+                    # 如果是全部同步，为订单生成新的任务ID
+                    order_task_id = task_id if sync_type == "orders" else f"task_{uuid.uuid4().hex[:12]}"
+                    await OzonSyncService.sync_orders(shop_id, db, order_task_id)
 
-        # 标记任务完成
-        if task_id in sync_tasks:
+                await db.commit()
+            finally:
+                await db.close()
+            break  # 只需要一个会话
+
+        # 获取最终的任务状态
+        final_status = OzonSyncService.get_task_status(task_id)
+        if final_status:
+            sync_tasks[task_id] = final_status
+        else:
+            # 如果没有状态，设置为完成
             sync_tasks[task_id].update(
                 {
                     "status": "completed",
@@ -149,13 +347,33 @@ async def _run_sync_task(task_id: str, shop_id: int, sync_type: str, full_sync: 
 
     except Exception as e:
         logger.error(f"Sync task failed: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
         if task_id in sync_tasks:
-            sync_tasks[task_id].update({"status": "failed", "message": f"同步失败: {str(e)}", "error": str(e)})
+            sync_tasks[task_id].update(
+                {
+                    "status": "failed",
+                    "message": f"同步失败: {str(e)}",
+                    "error": str(e),
+                    "failed_at": datetime.utcnow().isoformat(),
+                }
+            )
 
 
 @router.get("/sync/status/{task_id}")
 async def get_sync_status(task_id: str):
     """获取同步任务状态"""
+    # 先尝试从真正的同步服务获取状态
+    from plugins.ef.channels.ozon.services import OzonSyncService
+
+    real_status = OzonSyncService.get_task_status(task_id)
+    if real_status:
+        # 更新本地缓存
+        sync_tasks[task_id] = real_status
+        return {"ok": True, "data": real_status}
+
+    # 如果真正的服务没有，从本地缓存获取
     if task_id not in sync_tasks:
         raise HTTPException(status_code=404, detail="任务不存在")
 
@@ -306,21 +524,4 @@ async def get_sync_logs(
 
     except Exception as e:
         logger.error(f"Failed to get sync logs: {e}")
-        # 返回模拟数据
-        return {
-            "ok": True,
-            "activities": [
-                {
-                    "type": "orders",
-                    "content": "同步了 5 个新订单",
-                    "status": "success",
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                },
-                {
-                    "type": "products",
-                    "content": "更新了 10 个商品库存",
-                    "status": "success",
-                    "time": (datetime.now() - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S"),
-                },
-            ],
-        }
+        raise HTTPException(status_code=500, detail=str(e))

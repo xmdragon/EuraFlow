@@ -59,6 +59,7 @@ class OzonSyncService:
             while True:
                 # 调用API获取商品
                 SYNC_TASKS[task_id]["message"] = f"正在获取第{page}页商品..."
+                logger.info(f"Fetching page {page} with last_id: {last_id}")
 
                 try:
                     products_data = await client.get_products(limit=100, last_id=last_id)
@@ -69,8 +70,50 @@ class OzonSyncService:
                 result = products_data.get("result", {})
                 items = result.get("items", [])
 
+                logger.info(
+                    f"Page {page}: Got {len(items)} products, last_id in response: {result.get('last_id', 'None')}"
+                )
+
                 if not items:
                     break
+
+                # 收集所有offer_id用于批量查询
+                offer_ids = [item.get("offer_id") for item in items if item.get("offer_id")]
+
+                # 批量获取商品详细信息（包含图片）
+                products_detail_map = {}
+                if offer_ids:
+                    try:
+                        # 分批处理，每批最多100个
+                        batch_size = 100
+                        for i in range(0, len(offer_ids), batch_size):
+                            batch_ids = offer_ids[i : i + batch_size]
+                            detail_response = await client.get_product_info_list(offer_ids=batch_ids)
+
+                            if detail_response.get("items"):
+                                for product_detail in detail_response["items"]:
+                                    if product_detail.get("offer_id"):
+                                        products_detail_map[product_detail["offer_id"]] = product_detail
+
+                                        # 调试第一个商品的响应
+                                        if i == 0 and product_detail == detail_response["items"][0]:
+                                            logger.info(
+                                                f"Product detail from v3 API keys: {list(product_detail.keys())}"
+                                            )
+                                            if product_detail.get("images"):
+                                                logger.info(
+                                                    f"Found images array with {len(product_detail['images'])} items"
+                                                )
+                                            if product_detail.get("primary_image"):
+                                                logger.info(f"Found primary_image: {product_detail['primary_image']}")
+                                            # 调试状态相关字段
+                                            visibility_details = product_detail.get("visibility_details", {})
+                                            logger.info(f"Visibility details: {visibility_details}")
+                                            logger.info(
+                                                f"is_archived: {product_detail.get('is_archived')}, is_autoarchived: {product_detail.get('is_autoarchived')}"
+                                            )
+                    except Exception as e:
+                        logger.error(f"Failed to get products details batch: {e}")
 
                 # 处理每个商品
                 for idx, item in enumerate(items):
@@ -78,15 +121,8 @@ class OzonSyncService:
                     SYNC_TASKS[task_id]["progress"] = min(progress, 90)
                     SYNC_TASKS[task_id]["message"] = f"正在同步商品 {item.get('offer_id', 'unknown')}..."
 
-                    # 获取商品详细信息（包含图片）
-                    product_details = None
-                    try:
-                        if item.get("offer_id"):
-                            detail_response = await client.get_product_info(offer_id=item.get("offer_id"))
-                            if detail_response.get("result"):
-                                product_details = detail_response["result"]
-                    except Exception as e:
-                        logger.warning(f"Failed to get product details for {item.get('offer_id')}: {e}")
+                    # 从批量查询结果中获取商品详情
+                    product_details = products_detail_map.get(item.get("offer_id")) if item.get("offer_id") else None
 
                     # 检查商品是否存在
                     existing = await db.execute(
@@ -98,26 +134,42 @@ class OzonSyncService:
 
                     # 处理图片信息
                     images_data = None
-                    if product_details:
-                        # 从详细信息中获取图片
-                        images = product_details.get("images", [])
-                        primary_images = product_details.get("primary_image", "")
 
-                        if images or primary_images:
-                            images_data = {
-                                "primary": primary_images or (images[0] if images else None),
-                                "additional": images[1:] if len(images) > 1 else [],
-                                "count": len(images),
-                            }
+                    # 从v3 API响应中获取图片
+                    if product_details:
+                        # 优先使用primary_image字段
+                        if product_details.get("primary_image") and isinstance(product_details["primary_image"], list):
+                            primary_images = product_details["primary_image"]
+                            # 使用images字段作为所有图片
+                            all_images = product_details.get("images", [])
+
+                            if primary_images and len(primary_images) > 0:
+                                images_data = {
+                                    "primary": primary_images[0],  # 使用primary_image的第一个
+                                    "additional": all_images[1:] if len(all_images) > 1 else [],
+                                    "count": len(all_images) if all_images else 1,
+                                }
+                                if idx == 0:
+                                    logger.info(f"Using primary_image as main image, total {len(all_images)} images")
+                        # 如果没有primary_image，使用images字段
+                        elif product_details.get("images") and isinstance(product_details["images"], list):
+                            images_list = product_details["images"]
+                            if images_list and len(images_list) > 0:
+                                images_data = {
+                                    "primary": images_list[0],  # 第一张作为主图
+                                    "additional": images_list[1:] if len(images_list) > 1 else [],
+                                    "count": len(images_list),
+                                }
+                                if idx == 0:
+                                    logger.info(f"Extracted {len(images_list)} image URLs from images field")
 
                     # 获取价格信息（优先使用详细信息中的价格）
                     price = None
                     old_price = None
                     if product_details:
-                        # 从详细信息获取价格
-                        price_info = product_details.get("price_info", {})
-                        price = price_info.get("price") or product_details.get("price")
-                        old_price = price_info.get("old_price") or product_details.get("old_price")
+                        # 从v3 API获取价格（v3返回的是字符串格式）
+                        price = product_details.get("price")
+                        old_price = product_details.get("old_price")
 
                     # 如果详细信息没有价格，使用列表中的价格
                     if not price and "price" in item:
@@ -138,9 +190,29 @@ class OzonSyncService:
                         )
                         product.brand = product_details.get("brand") if product_details else None
                         product.description = product_details.get("description") if product_details else None
-                        product.status = "active" if item.get("is_visible") else "inactive"
-                        product.visibility = item.get("is_visible", False)
-                        product.is_archived = item.get("is_archived", False)
+
+                        # 从product_details获取状态信息
+                        if product_details:
+                            # visibility_details.visible 表示商品是否可见
+                            visibility_details = product_details.get("visibility_details", {})
+                            is_visible = visibility_details.get("visible", False)
+                            product.visibility = is_visible
+                            product.is_archived = product_details.get("is_archived", False) or product_details.get(
+                                "is_autoarchived", False
+                            )
+
+                            # 根据可见性和归档状态判断商品状态
+                            if product.is_archived:
+                                product.status = "inactive"
+                            elif is_visible:
+                                product.status = "active"
+                            else:
+                                product.status = "inactive"
+                        else:
+                            # 如果没有详细信息，使用item中的信息（可能不准确）
+                            product.status = "active" if item.get("is_visible", True) else "inactive"
+                            product.visibility = item.get("is_visible", True)
+                            product.is_archived = item.get("is_archived", False)
 
                         # 更新价格
                         if price:
@@ -185,9 +257,9 @@ class OzonSyncService:
                             category_id=item.get("category_id")
                             or (product_details.get("category_id") if product_details else None),
                             brand=product_details.get("brand") if product_details else None,
-                            status="active" if item.get("is_visible") else "inactive",
-                            visibility=item.get("is_visible", False),
-                            is_archived=item.get("is_archived", False),
+                            status="active",  # 默认设为active，后面会根据详情更新
+                            visibility=True,  # 默认设为可见
+                            is_archived=False,  # 默认未归档
                             price=Decimal(str(price)) if price else Decimal("0"),
                             old_price=Decimal(str(old_price)) if old_price else None,
                             stock=item.get("stocks", {}).get("present", 0) + item.get("stocks", {}).get("reserved", 0),
@@ -207,6 +279,22 @@ class OzonSyncService:
                                 product.height = dimensions.get("height")
                                 product.depth = dimensions.get("depth")
 
+                            # 更新状态信息
+                            visibility_details = product_details.get("visibility_details", {})
+                            is_visible = visibility_details.get("visible", False)
+                            product.visibility = is_visible
+                            product.is_archived = product_details.get("is_archived", False) or product_details.get(
+                                "is_autoarchived", False
+                            )
+
+                            # 根据可见性和归档状态判断商品状态
+                            if product.is_archived:
+                                product.status = "inactive"
+                            elif is_visible:
+                                product.status = "active"
+                            else:
+                                product.status = "inactive"
+
                         db.add(product)
 
                 # 提交当前批次
@@ -214,12 +302,20 @@ class OzonSyncService:
                 total_synced += len(items)
 
                 # 检查是否有更多页
-                has_next = result.get("has_next", False)
-                if not has_next or len(items) < 100:
+                # 如果返回的商品数量小于请求的数量，说明没有更多数据了
+                if len(items) < 100:
+                    logger.info(f"No more products to sync (got {len(items)} items)")
                     break
 
-                # 使用API响应中的last_id用于下一页分页
-                last_id = result.get("last_id", "")
+                # 获取下一页的last_id
+                new_last_id = result.get("last_id", "")
+                if not new_last_id or new_last_id == last_id:
+                    # 如果没有新的last_id或者last_id没变化，说明没有更多数据
+                    logger.info("No more pages available (no last_id)")
+                    break
+
+                last_id = new_last_id
+                logger.info(f"Moving to next page with last_id: {last_id}")
                 page += 1
 
                 # 避免请求过快
@@ -282,9 +378,9 @@ class OzonSyncService:
 
             # 获取订单列表（最近30天）
             total_synced = 0
-            # 使用UTC时间并格式化为RFC3339标准（Ozon API protobuf要求）
-            date_from = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
-            date_to = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            # 使用UTC时间，传递datetime对象
+            date_from = datetime.utcnow() - timedelta(days=30)
+            date_to = datetime.utcnow()
 
             SYNC_TASKS[task_id]["message"] = "正在获取订单列表..."
 

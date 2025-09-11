@@ -193,7 +193,14 @@ ef_ozon_shipments_push_fail_total (counter)
 
 ---
 
-## 15) 术语表（Glossary）
+## 15) OZON API 文档
+- **文档位置**：`@docs/OzonSellerAPI.html`
+- 查询 OZON API 接口规范、字段说明、请求/响应格式时，请参考此文档
+- 文档包含所有 OZON Seller API 的详细说明
+
+---
+
+## 16) 术语表（Glossary）
 - **TTD**：新单平台到达系统的延迟。
 - **金丝雀/灰度**：按店铺/渠道/地区逐步放量。
 - **悬挂账**：对账差异暂存池，需人工闭环。
