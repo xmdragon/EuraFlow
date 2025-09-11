@@ -195,7 +195,9 @@ class OzonSyncService:
                         if product_details:
                             # visibility_details.visible 表示商品是否可见
                             visibility_details = product_details.get("visibility_details", {})
-                            is_visible = visibility_details.get("visible", False)
+                            # 重要：如果没有visibility_details或visible字段，默认为True（可见）
+                            # 因为大部分正常商品都是可见的
+                            is_visible = visibility_details.get("visible", True)
                             product.visibility = is_visible
                             product.is_archived = product_details.get("is_archived", False) or product_details.get(
                                 "is_autoarchived", False
@@ -281,7 +283,9 @@ class OzonSyncService:
 
                             # 更新状态信息
                             visibility_details = product_details.get("visibility_details", {})
-                            is_visible = visibility_details.get("visible", False)
+                            # 重要：如果没有visibility_details或visible字段，默认为True（可见）
+                            # 因为大部分正常商品都是可见的
+                            is_visible = visibility_details.get("visible", True)
                             product.visibility = is_visible
                             product.is_archived = product_details.get("is_archived", False) or product_details.get(
                                 "is_autoarchived", False
