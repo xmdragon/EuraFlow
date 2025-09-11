@@ -1,0 +1,90 @@
+# Pre-commit hooks for EuraFlow
+# 自动在提交前检查代码质量和语法错误
+
+repos:
+  # Python hooks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        exclude: ^(migrations/|alembic/versions/)
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        language_version: python3.12
+        args: [--line-length=120]
+        exclude: ^(migrations/|alembic/versions/)
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        args: [--strict, --ignore-missing-imports]
+        additional_dependencies: 
+          - types-redis
+          - types-requests
+          - sqlalchemy[mypy]
+        exclude: ^(migrations/|alembic/versions/|tests/)
+        files: \.py$
+
+  # TypeScript/JavaScript hooks (for web directory)
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.18.0
+    hooks:
+      - id: eslint
+        files: \.(js|jsx|ts|tsx)$
+        types: [file]
+        additional_dependencies:
+          - eslint@9.18.0
+          - typescript@5.7.3
+          - '@typescript-eslint/parser@8.20.0'
+          - '@typescript-eslint/eslint-plugin@8.20.0'
+        args: [--fix]
+        exclude: ^(web/dist/|web/node_modules/)
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or: [javascript, jsx, ts, tsx, css, json]
+        exclude: ^(web/dist/|web/node_modules/|package-lock\.json)
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.(md|markdown)$
+      - id: end-of-file-fixer
+        exclude: \.(md|markdown)$
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+        exclude: ^(\.vscode/|tsconfig\.json|package-lock\.json)
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  # Security checks
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(\.secrets\.baseline|web/package-lock\.json)
+
+# Configuration
+default_language_version:
+  python: python3.12
+  node: 22.11.0
+
+fail_fast: false
+minimum_pre_commit_version: '3.0.0'
