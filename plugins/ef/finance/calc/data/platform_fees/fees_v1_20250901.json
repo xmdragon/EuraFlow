@@ -1,0 +1,126 @@
+{
+  "meta": {
+    "version": "v1",
+    "effective_from": "2025-09-01",
+    "effective_to": null,
+    "currency": "RUB",
+    "description": "平台费率配置"
+  },
+  "platforms": {
+    "OZON": {
+      "name": "OZON",
+      "default_rate": 0.14,
+      "categories": {
+        "default": {
+          "name": "默认类目",
+          "fbo_rate": 0.14,
+          "fbs_rate": 0.12,
+          "min_fee": 0,
+          "max_fee": null,
+          "fixed_fee": 0
+        },
+        "electronics": {
+          "name": "电子产品",
+          "fbo_rate": 0.15,
+          "fbs_rate": 0.13,
+          "min_fee": 10,
+          "max_fee": 5000,
+          "fixed_fee": 0
+        },
+        "clothing": {
+          "name": "服装",
+          "fbo_rate": 0.2,
+          "fbs_rate": 0.18,
+          "min_fee": 5,
+          "max_fee": null,
+          "fixed_fee": 0
+        },
+        "premium": {
+          "name": "高价值商品",
+          "fbo_rate": 0.1,
+          "fbs_rate": 0.08,
+          "min_fee": 100,
+          "max_fee": 10000,
+          "fixed_fee": 50,
+          "notes": "价值超过7000卢布的商品"
+        }
+      }
+    },
+    "WILDBERRIES": {
+      "name": "Wildberries",
+      "default_rate": 0.15,
+      "categories": {
+        "default": {
+          "name": "默认类目",
+          "fbo_rate": 0.15,
+          "fbs_rate": 0.13,
+          "min_fee": 0,
+          "max_fee": null,
+          "fixed_fee": 0
+        },
+        "electronics": {
+          "name": "电子产品",
+          "fbo_rate": 0.16,
+          "fbs_rate": 0.14,
+          "min_fee": 15,
+          "max_fee": 6000,
+          "fixed_fee": 0
+        },
+        "clothing": {
+          "name": "服装",
+          "fbo_rate": 0.22,
+          "fbs_rate": 0.2,
+          "min_fee": 8,
+          "max_fee": null,
+          "fixed_fee": 0
+        }
+      }
+    },
+    "YANDEX": {
+      "name": "Yandex Market",
+      "default_rate": 0.12,
+      "categories": {
+        "default": {
+          "name": "默认类目",
+          "fbo_rate": 0.12,
+          "fbs_rate": 0.1,
+          "min_fee": 0,
+          "max_fee": null,
+          "fixed_fee": 0
+        },
+        "electronics": {
+          "name": "电子产品",
+          "fbo_rate": 0.13,
+          "fbs_rate": 0.11,
+          "min_fee": 12,
+          "max_fee": 4500,
+          "fixed_fee": 0
+        },
+        "clothing": {
+          "name": "服装",
+          "fbo_rate": 0.18,
+          "fbs_rate": 0.16,
+          "min_fee": 6,
+          "max_fee": null,
+          "fixed_fee": 0
+        }
+      }
+    }
+  },
+  "fulfillment_extras": {
+    "FBO": {
+      "description": "Fulfillment by Operator - 平台代发货",
+      "services": ["仓储管理", "订单处理", "包装服务", "客户服务", "退货处理"],
+      "extra_fees": {
+        "storage_per_day_per_m3": 10,
+        "picking_per_item": 5,
+        "packing_per_order": 15
+      }
+    },
+    "FBS": {
+      "description": "Fulfillment by Seller - 卖家自发货",
+      "services": ["平台流量", "支付处理", "基础客服"],
+      "extra_fees": {}
+    }
+  }
+}

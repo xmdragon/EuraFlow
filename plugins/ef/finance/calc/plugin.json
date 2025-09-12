@@ -1,0 +1,13 @@
+{
+  "name": "ef.finance.calc",
+  "version": "1.0.0",
+  "enabled": true,
+  "capabilities": ["shipping_calc", "profit_calc"],
+  "required_services": ["database", "event_bus"],
+  "config_schema": {
+    "rate_cache_ttl": 3600,
+    "decimal_precision": 2,
+    "weight_step_kg": 0.5,
+    "volumetric_divisor": 12000
+  }
+}

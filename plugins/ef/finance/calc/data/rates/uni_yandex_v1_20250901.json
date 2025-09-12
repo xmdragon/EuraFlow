@@ -1,0 +1,176 @@
+{
+  "meta": {
+    "carrier_service": "uni_yandex",
+    "origin": "cn_mainland",
+    "currency": "RUB",
+    "volumetric_divisor": 12000,
+    "effective_from": "2025-09-01",
+    "effective_to": null,
+    "version": "v1",
+    "description": "UNI-Yandex线上物流运费表（中国大陆）"
+  },
+  "services": {
+    "EXPRESS": {
+      "name": "UNI Express",
+      "name_zh": "标准快递",
+      "delivery_days": { "min": 8, "max": 12 },
+      "weight_step_kg": 1.0,
+      "rounding": "ceil",
+      "min_charge": 191.0,
+      "tiers": [
+        {
+          "min_kg": 0,
+          "max_kg": 25,
+          "base": 191.0,
+          "per_kg": 595.0,
+          "description": "191卢布起 + 595卢布/kg"
+        }
+      ],
+      "size_limits": {
+        "max_length_cm": 150,
+        "max_three_sides_cm": 310,
+        "max_weight_kg": 25,
+        "max_compensation_rub": 150000
+      },
+      "surcharges": {
+        "battery": {
+          "rate": 0.05,
+          "min": 50,
+          "description": "电池运输附加费5%，最低50卢布"
+        },
+        "insurance": {
+          "rate": 0.01,
+          "min": 20,
+          "max": 1500,
+          "description": "保价费1%，最低20卢布，最高1500卢布"
+        }
+      },
+      "notes": ["不需要提供MSDS", "最大功率100Wh", "最高可赔偿150,000卢布"]
+    },
+    "SUPER_EXPRESS": {
+      "name": "UNI Super Express",
+      "name_zh": "超级快递",
+      "delivery_days": { "min": 7, "max": 10 },
+      "weight_step_kg": 1.0,
+      "rounding": "ceil",
+      "min_charge": 191.0,
+      "tiers": [
+        {
+          "min_kg": 0,
+          "max_kg": 25,
+          "base": 191.0,
+          "per_kg": 811.0,
+          "description": "191卢布起 + 811卢布/kg"
+        }
+      ],
+      "size_limits": {
+        "max_length_cm": 150,
+        "max_three_sides_cm": 310,
+        "max_weight_kg": 25,
+        "max_compensation_rub": 150000
+      },
+      "surcharges": {
+        "battery": {
+          "rate": 0.05,
+          "min": 50,
+          "description": "电池运输附加费5%，最低50卢布"
+        },
+        "insurance": {
+          "rate": 0.01,
+          "min": 20,
+          "max": 1500,
+          "description": "保价费1%，最低20卢布，最高1500卢布"
+        }
+      },
+      "notes": ["时效更快，价格更高", "优先处理和派送"]
+    },
+    "ECONOMY": {
+      "name": "UNI Economy",
+      "name_zh": "经济服务",
+      "delivery_days": { "min": 20, "max": 25 },
+      "weight_step_kg": 1.0,
+      "rounding": "ceil",
+      "min_charge": 191.0,
+      "tiers": [
+        {
+          "min_kg": 0,
+          "max_kg": 25,
+          "base": 191.0,
+          "per_kg": 433.0,
+          "description": "191卢布起 + 433卢布/kg"
+        }
+      ],
+      "size_limits": {
+        "max_length_cm": 150,
+        "max_three_sides_cm": 310,
+        "max_weight_kg": 25,
+        "max_compensation_rub": 150000
+      },
+      "surcharges": {
+        "battery": {
+          "rate": 0.05,
+          "min": 50,
+          "description": "电池运输附加费5%，最低50卢布"
+        },
+        "insurance": {
+          "rate": 0.01,
+          "min": 20,
+          "max": 1500,
+          "description": "保价费1%，最低20卢布，最高1500卢布"
+        }
+      },
+      "notes": ["时效较长，价格优惠", "适合对时效要求不高的商品"]
+    }
+  },
+  "special_services": {
+    "EXPRESS_HK": {
+      "name": "UNI Express (中国香港)",
+      "origin": "hk",
+      "delivery_days": { "min": 10, "max": 15 },
+      "weight_step_kg": 1.0,
+      "rounding": "ceil",
+      "min_weight_kg": 0.158,
+      "tiers": [
+        {
+          "min_kg": 0.158,
+          "max_kg": 25,
+          "base": 0,
+          "per_kg": 1675.0,
+          "description": "1675卢布/kg"
+        }
+      ],
+      "notes": ["香港发货专线", "最小计费重量158g"]
+    }
+  },
+  "scenario_rules": {
+    "weight_thresholds": {
+      "super_light": 500,
+      "light": 2000,
+      "standard": 5000,
+      "large": 25000
+    },
+    "value_thresholds": {
+      "low": 1500,
+      "medium": 7000,
+      "high": 15000
+    },
+    "dimension_rules": {
+      "super_small": {
+        "max_three_sides": 90,
+        "max_side": 60
+      },
+      "small": {
+        "max_three_sides": 150,
+        "max_side": 60
+      },
+      "medium": {
+        "max_three_sides": 250,
+        "max_side": 150
+      },
+      "large": {
+        "max_three_sides": 310,
+        "max_side": 150
+      }
+    }
+  }
+}
