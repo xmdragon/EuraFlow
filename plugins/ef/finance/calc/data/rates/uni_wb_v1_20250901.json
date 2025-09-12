@@ -1,0 +1,210 @@
+{
+  "meta": {
+    "carrier": "UNI_WB",
+    "version": "1",
+    "effective_from": "2025-09-01",
+    "effective_to": null,
+    "currency": "RUB",
+    "volumetric_divisor": 12000,
+    "source": "UNI-Wildberries官方费率表",
+    "last_updated": "2025-09-01"
+  },
+  "services": {
+    "EXPRESS": {
+      "name": "快速配送",
+      "delivery_days": {
+        "min": 1,
+        "max": 3
+      },
+      "weight_step_kg": 0.5,
+      "rounding": "ceil",
+      "tiers": [
+        {
+          "min_kg": 0,
+          "max_kg": 1,
+          "base": 210,
+          "per_kg": 0
+        },
+        {
+          "min_kg": 1.01,
+          "max_kg": 5,
+          "base": 210,
+          "per_kg": 328
+        },
+        {
+          "min_kg": 5.01,
+          "max_kg": 10,
+          "base": 210,
+          "per_kg": 393
+        },
+        {
+          "min_kg": 10.01,
+          "max_kg": 25,
+          "base": 210,
+          "per_kg": 458
+        }
+      ],
+      "size_limits": {
+        "max_length_cm": 120,
+        "max_three_sides_cm": 200,
+        "max_weight_kg": 25
+      },
+      "surcharges": {
+        "battery": {
+          "rate": 0.2,
+          "min": 60
+        },
+        "fragile": {
+          "fee": 120
+        },
+        "liquid": {
+          "fee": 180
+        },
+        "insurance": {
+          "rate": 0.015,
+          "min": 40,
+          "max": 600
+        }
+      }
+    },
+    "STANDARD": {
+      "name": "标准配送",
+      "delivery_days": {
+        "min": 3,
+        "max": 7
+      },
+      "weight_step_kg": 1,
+      "rounding": "ceil",
+      "tiers": [
+        {
+          "min_kg": 0,
+          "max_kg": 1,
+          "base": 178,
+          "per_kg": 0
+        },
+        {
+          "min_kg": 1.01,
+          "max_kg": 5,
+          "base": 178,
+          "per_kg": 262
+        },
+        {
+          "min_kg": 5.01,
+          "max_kg": 10,
+          "base": 178,
+          "per_kg": 314
+        },
+        {
+          "min_kg": 10.01,
+          "max_kg": 25,
+          "base": 178,
+          "per_kg": 366
+        }
+      ],
+      "size_limits": {
+        "max_length_cm": 120,
+        "max_three_sides_cm": 200,
+        "max_weight_kg": 25
+      },
+      "surcharges": {
+        "battery": {
+          "rate": 0.15,
+          "min": 50
+        },
+        "fragile": {
+          "fee": 100
+        },
+        "liquid": {
+          "fee": 150
+        },
+        "insurance": {
+          "rate": 0.01,
+          "min": 30,
+          "max": 600
+        }
+      }
+    },
+    "ECONOMY": {
+      "name": "经济配送",
+      "delivery_days": {
+        "min": 7,
+        "max": 14
+      },
+      "weight_step_kg": 1,
+      "rounding": "ceil",
+      "tiers": [
+        {
+          "min_kg": 0,
+          "max_kg": 1,
+          "base": 146,
+          "per_kg": 0
+        },
+        {
+          "min_kg": 1.01,
+          "max_kg": 5,
+          "base": 146,
+          "per_kg": 209
+        },
+        {
+          "min_kg": 5.01,
+          "max_kg": 10,
+          "base": 146,
+          "per_kg": 251
+        },
+        {
+          "min_kg": 10.01,
+          "max_kg": 25,
+          "base": 146,
+          "per_kg": 293
+        }
+      ],
+      "size_limits": {
+        "max_length_cm": 120,
+        "max_three_sides_cm": 200,
+        "max_weight_kg": 25
+      },
+      "surcharges": {
+        "battery": {
+          "rate": 0.1,
+          "min": 40
+        },
+        "fragile": {
+          "fee": 80
+        },
+        "liquid": {
+          "fee": 120
+        },
+        "insurance": {
+          "rate": 0.01,
+          "min": 20,
+          "max": 600
+        }
+      }
+    }
+  },
+  "special_services": {
+    "MARKETPLACE_EXPRESS": {
+      "name": "WB仓库快速配送",
+      "delivery_days": {
+        "min": 1,
+        "max": 2
+      },
+      "weight_step_kg": 0.5,
+      "rounding": "ceil",
+      "min_charge": 250,
+      "tiers": [
+        {
+          "min_kg": 0,
+          "max_kg": 10,
+          "base": 250,
+          "per_kg": 350
+        }
+      ],
+      "size_limits": {
+        "max_length_cm": 80,
+        "max_three_sides_cm": 150,
+        "max_weight_kg": 10
+      }
+    }
+  }
+}
