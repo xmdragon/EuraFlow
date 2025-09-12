@@ -6,7 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP, ROUND_UP
 from typing import Optional
 from uuid import uuid4
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 
 from ..models.enums import ServiceType, Platform, CarrierService
 from ..models.profit import ProfitRequest, ProfitResult, ProfitOptimization, MarginAnalysis
@@ -234,7 +234,7 @@ class ProfitCalculator:
             margin_level=margin_level,
         )
 
-    def _add_optimizations(self, result: ProfitResult, request: ProfitRequest):
+    def _add_optimizations(self, result: ProfitResult, request: ProfitRequest) -> None:
         """
         添加优化建议
 
@@ -287,7 +287,7 @@ class ProfitCalculator:
 
                     result.add_optimization(optimization)
 
-    def _add_warnings(self, result: ProfitResult):
+    def _add_warnings(self, result: ProfitResult) -> None:
         """
         添加警告信息
 

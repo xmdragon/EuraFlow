@@ -4,10 +4,10 @@
 
 from decimal import Decimal, ROUND_UP, ROUND_HALF_UP
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any, Tuple
 from uuid import uuid4
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 
 from ..models.enums import ServiceType, ScenarioType
 from ..models.shipping import ShippingRequest, ShippingResult
@@ -72,7 +72,7 @@ class ShippingCalculator:
                 request.dimensions, request.weight_g, size_limits
             )
 
-            if not is_valid:
+            if not is_valid and rejection_reason is not None:
                 return self._create_rejected_result(
                     request, rejection_reason, actual_weight_kg, volume_weight_kg, chargeable_weight_kg, rates
                 )
@@ -224,7 +224,9 @@ class ShippingCalculator:
 
         return (weight / step).quantize(Decimal("1"), ROUND_UP) * step
 
-    def _calculate_tiered_cost(self, weight_kg: Decimal, tiers: List[Dict], min_charge: float) -> tuple[Decimal, Dict]:
+    def _calculate_tiered_cost(
+        self, weight_kg: Decimal, tiers: List[Dict[str, Any]], min_charge: float
+    ) -> Tuple[Decimal, Dict[str, Any]]:
         """
         计算阶梯费用
 
@@ -276,7 +278,7 @@ class ShippingCalculator:
         return cost, tier_info
 
     def _calculate_surcharges(
-        self, request: ShippingRequest, surcharge_rules: Dict, base_cost: Decimal
+        self, request: ShippingRequest, surcharge_rules: Dict[str, Any], base_cost: Decimal
     ) -> Dict[str, Decimal]:
         """
         计算附加费
@@ -335,7 +337,7 @@ class ShippingCalculator:
         actual_weight_kg: Decimal,
         volume_weight_kg: Decimal,
         chargeable_weight_kg: Decimal,
-        rates: Dict,
+        rates: Dict[str, Any],
     ) -> ShippingResult:
         """
         创建拒绝结果

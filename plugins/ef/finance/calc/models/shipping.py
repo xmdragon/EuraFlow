@@ -45,7 +45,7 @@ class ShippingFlags(BaseModel):
     insurance_value: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
 
     @field_validator("insurance_value")
-    def validate_insurance_value(cls, v, values):
+    def validate_insurance_value(cls, v: Optional[Decimal], values: Dict[str, Any]) -> Optional[Decimal]:
         """验证保险金额"""
         if values.get("insurance") and not v:
             raise ValueError("保险金额必须在启用保险时提供")
@@ -82,10 +82,10 @@ class ShippingRequest(BaseModel):
         """重量（千克）"""
         return Decimal(self.weight_g) / 1000
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]
 
 
 class ShippingResult(BaseModel):
@@ -135,13 +135,13 @@ class ShippingResult(BaseModel):
         return f"{self.delivery_days_min}-{self.delivery_days_max}天"
 
     @field_validator("delivery_days_max")
-    def validate_delivery_days(cls, v, values):
+    def validate_delivery_days(cls, v: int, values: Dict[str, Any]) -> int:
         """验证时效范围"""
         if "delivery_days_min" in values and v < values["delivery_days_min"]:
             raise ValueError("最大时效不能小于最小时效")
         return v
 
-    def quantize_amounts(self):
+    def quantize_amounts(self) -> None:
         """量化所有金额到2位小数"""
         self.base_rate = self.base_rate.quantize(Decimal("0.01"), ROUND_HALF_UP)
         self.weight_rate = self.weight_rate.quantize(Decimal("0.01"), ROUND_HALF_UP)
@@ -150,7 +150,7 @@ class ShippingResult(BaseModel):
         for key in self.surcharges:
             self.surcharges[key] = self.surcharges[key].quantize(Decimal("0.01"), ROUND_HALF_UP)
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]

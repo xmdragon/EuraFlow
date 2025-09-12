@@ -3,7 +3,7 @@
 """
 
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from uuid import uuid4
 from pydantic import BaseModel, Field
 
@@ -35,10 +35,10 @@ class ProfitRequest(BaseModel):
     compare_shipping: bool = True  # 是否比较多种运费方案
     preferred_service: Optional[str] = None  # 首选服务类型
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]
 
 
 class ProfitOptimization(BaseModel):
@@ -50,10 +50,10 @@ class ProfitOptimization(BaseModel):
     price_adjustment: Decimal = Field(..., decimal_places=2)
     optimization_reason: str
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]
 
 
 class MarginAnalysis(BaseModel):
@@ -64,10 +64,10 @@ class MarginAnalysis(BaseModel):
     cost_breakdown: Dict[str, Decimal]
     margin_level: str  # "excellent", "good", "acceptable", "poor"
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]
 
 
 class ProfitResult(BaseModel):
@@ -124,16 +124,16 @@ class ProfitResult(BaseModel):
             return (total_cost / (1 - self.platform_fee_rate)).quantize(Decimal("0.01"), ROUND_HALF_UP)
         return total_cost
 
-    def add_warning(self, warning: str):
+    def add_warning(self, warning: str) -> None:
         """添加警告信息"""
         if warning not in self.warnings:
             self.warnings.append(warning)
 
-    def add_optimization(self, optimization: ProfitOptimization):
+    def add_optimization(self, optimization: ProfitOptimization) -> None:
         """添加优化建议"""
         self.optimizations.append(optimization)
 
-    def quantize_amounts(self):
+    def quantize_amounts(self) -> None:
         """量化所有金额到2位小数"""
         self.cost = self.cost.quantize(Decimal("0.01"), ROUND_HALF_UP)
         self.selling_price = self.selling_price.quantize(Decimal("0.01"), ROUND_HALF_UP)
@@ -141,7 +141,7 @@ class ProfitResult(BaseModel):
         self.selected_shipping_cost = self.selected_shipping_cost.quantize(Decimal("0.01"), ROUND_HALF_UP)
         self.profit_amount = self.profit_amount.quantize(Decimal("0.01"), ROUND_HALF_UP)
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]

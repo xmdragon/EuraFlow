@@ -33,7 +33,7 @@ class RateManager:
         self.platform_fees_dir = self.data_dir / "platform_fees"
 
         # 缓存配置
-        self._cache = {}
+        self._cache: Dict[str, Any] = {}
         self._cache_ttl = 3600  # 1小时
         self._last_cache_clear = datetime.now()
 
@@ -65,7 +65,7 @@ class RateManager:
         # 检查缓存
         cache_key = f"shipping:{carrier_service}:{service_type.value}:{calc_date.date()}"
         if cache_key in self._cache:
-            return self._cache[cache_key]
+            return self._cache[cache_key]  # type: ignore[no-any-return]
 
         # 查找有效的费率文件
         rate_file = self._find_effective_rate_file(self.rates_dir, carrier_service, calc_date)
@@ -89,7 +89,7 @@ class RateManager:
         self._cache[cache_key] = rates
         self._check_cache_expiry()
 
-        return rates
+        return rates  # type: ignore[no-any-return]
 
     def get_platform_fee(
         self,
@@ -115,7 +115,7 @@ class RateManager:
         # 检查缓存
         cache_key = f"platform_fee:{platform.value}:{category_code}:{fulfillment_model.value}:{calc_date.date()}"
         if cache_key in self._cache:
-            return self._cache[cache_key]
+            return self._cache[cache_key]  # type: ignore[no-any-return]
 
         # 查找有效的费率文件
         fee_file = self._find_effective_rate_file(self.platform_fees_dir, "fees", calc_date)
@@ -196,14 +196,14 @@ class RateManager:
         valid_files.sort(key=lambda x: x[0], reverse=True)
         return valid_files[0][1]
 
-    def get_versions(self) -> Dict[str, List[str]]:
+    def get_versions(self) -> Dict[str, List[Dict[str, str]]]:
         """
         获取所有费率版本信息
 
         Returns:
             版本信息字典
         """
-        versions = {"shipping_rates": [], "platform_fees": []}
+        versions: Dict[str, List[Dict[str, str]]] = {"shipping_rates": [], "platform_fees": []}
 
         # 获取运费费率版本
         for file in self.rates_dir.glob("*.json"):
@@ -297,7 +297,7 @@ class RateManager:
 
         return len(errors) == 0, errors
 
-    def _check_cache_expiry(self):
+    def _check_cache_expiry(self) -> None:
         """检查并清理过期缓存"""
         now = datetime.now()
         if (now - self._last_cache_clear).total_seconds() > self._cache_ttl:
@@ -305,7 +305,7 @@ class RateManager:
             self._last_cache_clear = now
             logger.debug("Rate cache cleared")
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """手动清理缓存"""
         self._cache.clear()
         logger.info("Rate cache manually cleared")

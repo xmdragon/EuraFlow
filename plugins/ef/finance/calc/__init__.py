@@ -3,10 +3,12 @@ EuraFlow 财务计算插件
 提供利润计算和运费计算功能
 """
 
+from typing import Any
+
 __version__ = "1.0.0"
 
 
-async def setup(hooks) -> None:
+async def setup(hooks: Any) -> None:
     """
     插件初始化函数
 

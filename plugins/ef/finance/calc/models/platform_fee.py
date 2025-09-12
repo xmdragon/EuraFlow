@@ -4,7 +4,7 @@
 
 from decimal import Decimal
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 from pydantic import BaseModel, Field
 
 from .enums import Platform, FulfillmentModel
@@ -83,10 +83,10 @@ class PlatformFee(BaseModel):
 
         return True
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]
 
 
 class PlatformFeeRequest(BaseModel):
@@ -97,7 +97,7 @@ class PlatformFeeRequest(BaseModel):
     fulfillment_model: FulfillmentModel = FulfillmentModel.FBO
     calc_date: Optional[datetime] = None
 
-    def model_dump_json(self, **kwargs):
+    def model_dump_json(self, **kwargs: Any) -> str:
         """序列化时确保Decimal正确处理"""
         kwargs.setdefault("default", str)
-        return super().model_dump_json(**kwargs)
+        return super().model_dump_json(**kwargs)  # type: ignore[no-any-return]

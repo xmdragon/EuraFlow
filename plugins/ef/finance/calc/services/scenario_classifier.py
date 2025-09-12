@@ -3,7 +3,7 @@
 """
 
 from decimal import Decimal
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 from ..models.enums import ScenarioType
 from ..models.shipping import Dimensions
@@ -118,7 +118,7 @@ class ScenarioClassifier:
 
     def check_size_limits(
         self, dimensions: Dimensions, weight_g: int, size_limits: Dict[str, Any]
-    ) -> tuple[bool, Optional[str]]:
+    ) -> Tuple[bool, Optional[str]]:
         """
         检查尺寸限制
 
@@ -164,7 +164,7 @@ class ScenarioClassifier:
         Returns:
             包装建议
         """
-        recommendations = {"scenario": scenario.value, "packaging_tips": []}
+        recommendations: Dict[str, Any] = {"scenario": scenario.value, "packaging_tips": []}
 
         # 根据场景给出建议
         if scenario == ScenarioType.SUPER_LIGHT_SMALL:
