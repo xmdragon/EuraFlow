@@ -18,9 +18,11 @@ import {
   LogoutOutlined,
   UserOutlined,
   ShopOutlined,
+  CalculatorOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/hooks/useAuth";
 import OzonManagement from "./ozon";
+import FinanceCalculator from "./finance";
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -67,12 +69,19 @@ const Dashboard: React.FC = () => {
       label: "Ozon管理",
       onClick: () => navigate("/dashboard/ozon"),
     },
+    {
+      key: "finance",
+      icon: <CalculatorOutlined />,
+      label: "财务计算",
+      onClick: () => navigate("/dashboard/finance"),
+    },
   ];
 
   // 根据路径获取选中的菜单项
   const getSelectedKey = () => {
     const path = location.pathname;
     if (path.includes("/ozon")) return "ozon";
+    if (path.includes("/finance")) return "finance";
     return "dashboard";
   };
 
@@ -146,6 +155,7 @@ const Dashboard: React.FC = () => {
           <Routes>
             <Route path="/" element={<DashboardHome user={user} />} />
             <Route path="/ozon/*" element={<OzonManagement />} />
+            <Route path="/finance" element={<FinanceCalculator />} />
           </Routes>
         </Content>
       </Layout>
