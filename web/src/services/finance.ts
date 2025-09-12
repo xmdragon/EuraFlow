@@ -140,17 +140,33 @@ class FinanceService {
     return response.data;
   }
 
-  async getRateVersions(): Promise<any> {
+  async getRateVersions(): Promise<{
+    shipping_rates: Array<{
+      carrier: string;
+      version: string;
+      effective_date: string;
+    }>;
+    platform_fees: Array<{
+      type: string;
+      version: string;
+      effective_date: string;
+    }>;
+  }> {
     const response = await apiClient.get(`${this.baseUrl}/rates/versions`);
     return response.data;
   }
 
-  async reloadRates(): Promise<any> {
+  async reloadRates(): Promise<{ ok: boolean; message: string }> {
     const response = await apiClient.get(`${this.baseUrl}/rates/reload`);
     return response.data;
   }
 
-  async healthCheck(): Promise<any> {
+  async healthCheck(): Promise<{
+    ok: boolean;
+    service: string;
+    version: string;
+    status: string;
+  }> {
     const response = await apiClient.get(`${this.baseUrl}/health`);
     return response.data;
   }

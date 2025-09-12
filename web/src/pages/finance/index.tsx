@@ -22,7 +22,6 @@ import {
   CalculatorOutlined,
   DollarOutlined,
   TruckOutlined,
-  PercentageOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
 import { financeService } from "@/services/finance";
@@ -70,7 +69,7 @@ const FinanceCalculator: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   // 计算运费
-  const calculateShipping = async (values: any) => {
+  const calculateShipping = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
       const results = await financeService.calculateMultipleShipping({
@@ -81,15 +80,15 @@ const FinanceCalculator: React.FC = () => {
       });
       setShippingResults(results);
       message.success("运费计算完成");
-    } catch (error: any) {
-      message.error(error.message || "计算失败");
+    } catch (error) {
+      message.error((error as Error).message || "计算失败");
     } finally {
       setLoading(false);
     }
   };
 
   // 计算利润
-  const calculateProfit = async (values: any) => {
+  const calculateProfit = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
       const result = await financeService.calculateProfit({
@@ -98,8 +97,8 @@ const FinanceCalculator: React.FC = () => {
       });
       setProfitResult(result);
       message.success("利润计算完成");
-    } catch (error: any) {
-      message.error(error.message || "计算失败");
+    } catch (error) {
+      message.error((error as Error).message || "计算失败");
     } finally {
       setLoading(false);
     }

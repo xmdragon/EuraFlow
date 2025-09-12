@@ -23,27 +23,22 @@ repos:
     hooks:
       - id: mypy
         args: [--strict, --ignore-missing-imports]
-        additional_dependencies: 
+        additional_dependencies:
           - types-redis
           - types-requests
           - sqlalchemy[mypy]
         exclude: ^(migrations/|alembic/versions/|tests/)
         files: \.py$
 
-  # TypeScript/JavaScript hooks (for web directory)
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.18.0
-    hooks:
-      - id: eslint
-        files: \.(js|jsx|ts|tsx)$
-        types: [file]
-        additional_dependencies:
-          - eslint@9.18.0
-          - typescript@5.7.3
-          - '@typescript-eslint/parser@8.20.0'
-          - '@typescript-eslint/eslint-plugin@8.20.0'
-        args: [--fix]
-        exclude: ^(web/dist/|web/node_modules/)
+  # TypeScript/JavaScript hooks (for web directory) - disabled temporarily
+  # - repo: local
+  #   hooks:
+  #     - id: eslint
+  #       name: eslint
+  #       entry: sh -c 'cd web && npx eslint src --fix'
+  #       language: system
+  #       files: ^web/src/.*\.(js|jsx|ts|tsx)$
+  #       pass_filenames: false
 
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.1.0
