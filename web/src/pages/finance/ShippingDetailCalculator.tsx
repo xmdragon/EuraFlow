@@ -359,31 +359,39 @@ const ShippingDetailCalculator: React.FC = () => {
       </Card>
 
       {/* 6个标签页 */}
-      <Card>
-        <Tabs defaultActiveKey="extra-small">
-          {OZON_UNI_DATA.map(category => (
-            <Tabs.TabPane 
-              tab={
-                <Space>
-                  <Text strong>{category.nameEN}</Text>
-                  <Text type="secondary">({category.name})</Text>
-                  <Tag>{category.weightRange}</Tag>
-                </Space>
-              } 
-              key={category.id}
-            >
-              {renderServiceTable(category)}
-            </Tabs.TabPane>
-          ))}
-        </Tabs>
+      <Card 
+        styles={{
+          body: { 
+            padding: '16px'
+          }
+        }}
+      >
+        <style>{`
+          .disabled-row {
+            opacity: 0.5;
+            background-color: #f5f5f5;
+          }
+          .ant-table-thead > tr > th {
+            background-color: #e6f4ff;
+            color: #1890ff;
+            font-weight: 600;
+          }
+        `}</style>
+        <Tabs 
+          defaultActiveKey="extra-small"
+          items={OZON_UNI_DATA.map(category => ({
+            key: category.id,
+            label: (
+              <Space>
+                <Text strong>{category.nameEN}</Text>
+                <Text type="secondary">({category.name})</Text>
+                <Tag>{category.weightRange}</Tag>
+              </Space>
+            ),
+            children: renderServiceTable(category)
+          }))}
+        />
       </Card>
-      
-      <style jsx>{`
-        .disabled-row {
-          opacity: 0.5;
-          background-color: #f5f5f5;
-        }
-      `}</style>
     </div>
   );
 };
