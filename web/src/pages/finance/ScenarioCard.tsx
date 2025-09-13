@@ -26,13 +26,13 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
 
   // 当重量变化时，自动计算运费
   useEffect(() => {
-    if (data.weight && !data.shipping) {
+    if (data.weight) {
       const defaultShipping = calculateDefaultShipping(data.weight, scenario);
       if (defaultShipping !== undefined) {
         setData(prev => ({ ...prev, shipping: defaultShipping }));
       }
     }
-  }, [data.weight, data.shipping, scenario]);
+  }, [data.weight, scenario]);
 
   // 实时计算利润
   useEffect(() => {
