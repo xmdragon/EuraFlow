@@ -20,6 +20,7 @@ interface ScenarioCardProps {
 const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
   const [data, setData] = useState<CalculationData>({
     platformRate: scenario.defaultPlatformRate,
+    packingFee: scenario.packingFee,
   });
 
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -44,7 +45,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
     // 验证输入
     const validation = validateInput(data, scenario);
     setWarnings(validation.warnings);
-  }, [data.cost, data.price, data.weight, data.platformRate, data.shipping, scenario]);
+  }, [data.cost, data.price, data.weight, data.platformRate, data.shipping, data.packingFee, scenario]);
 
   const handleInputChange = (field: keyof CalculationData, value: number | null) => {
     setData(prev => ({
@@ -63,6 +64,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
   const handleReset = () => {
     setData({
       platformRate: scenario.defaultPlatformRate,
+      packingFee: scenario.packingFee,
     });
     setWarnings([]);
   };
@@ -189,6 +191,18 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
               suffix="卢布"
               value={data.shipping}
               onChange={(value) => handleInputChange('shipping', value)}
+              min={0}
+              precision={2}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text>打包费:</Text>
+            <InputNumber
+              size="small"
+              style={{ width: 120 }}
+              suffix="卢布"
+              value={data.packingFee}
+              onChange={(value) => handleInputChange('packingFee', value)}
               min={0}
               precision={2}
             />

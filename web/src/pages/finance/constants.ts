@@ -9,6 +9,7 @@ export interface ScenarioConfig {
   weightRange: string;
   priceRange: string;
   defaultPlatformRate: number; // 默认平台扣点率（小数形式）
+  packingFee: number;          // 打包费（卢布）
   shipping: {
     base: number;      // 基础运费
     rate: number;      // 每克费率
@@ -39,6 +40,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '≤500g',
     priceRange: '<1500卢布',
     defaultPlatformRate: 0.14,
+    packingFee: 2,
     shipping: {
       base: 3,
       rate: 0.035,
@@ -65,6 +67,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '501g-25kg',
     priceRange: '<1500卢布',
     defaultPlatformRate: 0.14,
+    packingFee: 2,
     shipping: {
       base: 23,
       rate: 0.017,
@@ -92,6 +95,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '1g-2kg',
     priceRange: '1500-7000卢布',
     defaultPlatformRate: 0.20,
+    packingFee: 2,
     shipping: {
       base: 16,
       rate: 0.025,
@@ -120,6 +124,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '2.1kg-25kg',
     priceRange: '1501-7000卢布',
     defaultPlatformRate: 0.20,
+    packingFee: 2,
     shipping: {
       base: 36,
       rate: 0.025,
@@ -148,6 +153,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '1g-5kg',
     priceRange: '>7000卢布',
     defaultPlatformRate: 0.20,
+    packingFee: 5,
     shipping: {
       base: 22,
       rate: 0.035,
@@ -175,6 +181,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '5.1kg-25kg',
     priceRange: '>7000卢布',
     defaultPlatformRate: 0.20,
+    packingFee: 5,
     shipping: {
       base: 62,
       rate: 0.028,

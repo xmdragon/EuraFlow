@@ -13,6 +13,7 @@ export interface CalculationData {
   // 可编辑的费用
   platformRate?: number; // 平台扣点率（小数形式，如0.14表示14%）
   shipping?: number;     // 运费（卢布）
+  packingFee?: number;   // 打包费（卢布）
   
   // 自动计算结果
   platformFee?: number;  // 平台扣点金额
@@ -36,10 +37,10 @@ export function calculateDefaultShipping(weight: number | undefined, scenario: S
  * 计算利润和利润率
  */
 export function calculateProfit(data: CalculationData): CalculationData {
-  const { cost, price, platformRate, shipping } = data;
+  const { cost, price, platformRate, shipping, packingFee } = data;
   
   // 如果缺少必要参数，返回原数据
-  if (!price || !cost || platformRate === undefined || !shipping) {
+  if (!price || !cost || platformRate === undefined || !shipping || packingFee === undefined) {
     return {
       ...data,
       platformFee: price && platformRate !== undefined ? Number((price * platformRate).toFixed(2)) : undefined,
@@ -51,8 +52,8 @@ export function calculateProfit(data: CalculationData): CalculationData {
   // 计算平台扣点金额
   const platformFee = Number((price * platformRate).toFixed(2));
   
-  // 计算利润 = 售价 - 成本 - 运费 - 平台扣点
-  const profit = Number((price - cost - shipping - platformFee).toFixed(2));
+  // 计算利润 = 售价 - 成本 - 运费 - 平台扣点 - 打包费
+  const profit = Number((price - cost - shipping - platformFee - packingFee).toFixed(2));
   
   // 计算利润率 = 利润 / 售价
   const profitRate = price > 0 ? Number((profit / price).toFixed(4)) : 0;
