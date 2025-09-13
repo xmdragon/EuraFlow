@@ -1,33 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-unused-vars, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 /**
  * Ozon 商品列表页面
  */
-import React, { useState, useEffect } from "react";
-import {
-  Table,
-  Button,
-  Space,
-  Card,
-  Row,
-  Col,
-  Statistic,
-  Input,
-  Select,
-  Tag,
-  Dropdown,
-  Menu,
-  Modal,
-  message,
-  Tooltip,
-  Badge,
-  Spin,
-  Empty,
-  Switch,
-  InputNumber,
-  Form,
-  Progress,
-  Alert,
-  Upload,
-} from "antd";
 import {
   ReloadOutlined,
   UploadOutlined,
@@ -41,10 +15,35 @@ import {
   ExclamationCircleOutlined,
   SearchOutlined,
   FileImageOutlined,
-} from "@ant-design/icons";
-import { ColumnsType } from "antd/es/table";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import * as ozonApi from "@/services/ozonApi";
+} from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Table,
+  Button,
+  Space,
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Input,
+  Select,
+  Tag,
+  Dropdown,
+  Modal,
+  message,
+  Tooltip,
+  Badge,
+  Switch,
+  InputNumber,
+  Form,
+  Progress,
+  Alert,
+  Upload,
+} from 'antd';
+import { ColumnsType } from 'antd/es/table';
+import React, { useState, useEffect } from 'react';
+
+import * as ozonApi from '@/services/ozonApi';
 
 const { Option } = Select;
 const { confirm } = Modal;
@@ -61,8 +60,7 @@ const ProductList: React.FC = () => {
   const [stockModalVisible, setStockModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [selectedProduct, setSelectedProduct] =
-    useState<ozonApi.Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
 
@@ -72,7 +70,7 @@ const ProductList: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["ozonProducts", currentPage, pageSize],
+    queryKey: ['ozonProducts', currentPage, pageSize],
     queryFn: () => ozonApi.getProducts(currentPage, pageSize, {}),
     refetchInterval: 30000, // 30秒自动刷新
   });
@@ -81,12 +79,12 @@ const ProductList: React.FC = () => {
   const syncProductsMutation = useMutation({
     mutationFn: (fullSync: boolean) => ozonApi.syncProducts(fullSync),
     onSuccess: (data) => {
-      message.success("商品同步任务已启动");
+      message.success('商品同步任务已启动');
       setSyncTaskId(data.task_id);
       setSyncStatus({
-        status: "running",
+        status: 'running',
         progress: 0,
-        message: "正在启动同步...",
+        message: '正在启动同步...',
       });
     },
     onError: (error: any) => {
@@ -98,9 +96,9 @@ const ProductList: React.FC = () => {
   const updatePricesMutation = useMutation({
     mutationFn: ozonApi.updatePrices,
     onSuccess: () => {
-      message.success("价格更新成功");
+      message.success('价格更新成功');
       setPriceModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ["ozonProducts"] });
+      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
     onError: (error: any) => {
       message.error(`价格更新失败: ${error.message}`);
@@ -109,35 +107,29 @@ const ProductList: React.FC = () => {
 
   // 轮询同步任务状态
   useEffect(() => {
-    if (
-      !syncTaskId ||
-      syncStatus?.status === "completed" ||
-      syncStatus?.status === "failed"
-    ) {
+    if (!syncTaskId || syncStatus?.status === 'completed' || syncStatus?.status === 'failed') {
       return;
     }
 
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(
-          `/api/ef/v1/ozon/sync/status/${syncTaskId}`,
-        );
+        const response = await fetch(`/api/ef/v1/ozon/sync/status/${syncTaskId}`);
         if (response.ok) {
           const result = await response.json();
           const status = result.data || result; // 兼容不同响应格式
           setSyncStatus(status);
 
-          if (status.status === "completed") {
-            message.success("同步完成！");
-            queryClient.invalidateQueries({ queryKey: ["ozonProducts"] });
+          if (status.status === 'completed') {
+            message.success('同步完成！');
+            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
             setSyncTaskId(null);
-          } else if (status.status === "failed") {
-            message.error(`同步失败: ${status.error || "未知错误"}`);
+          } else if (status.status === 'failed') {
+            message.error(`同步失败: ${status.error || '未知错误'}`);
             setSyncTaskId(null);
           }
         }
       } catch (error) {
-        console.error("Failed to fetch sync status:", error);
+        console.error('Failed to fetch sync status:', error);
       }
     }, 2000); // 每2秒检查一次
 
@@ -148,9 +140,9 @@ const ProductList: React.FC = () => {
   const updateStocksMutation = useMutation({
     mutationFn: ozonApi.updateStocks,
     onSuccess: () => {
-      message.success("库存更新成功");
+      message.success('库存更新成功');
       setStockModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ["ozonProducts"] });
+      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
     onError: (error: any) => {
       message.error(`库存更新失败: ${error.message}`);
@@ -160,27 +152,27 @@ const ProductList: React.FC = () => {
   // 表格列定义
   const columns: ColumnsType<ozonApi.Product> = [
     {
-      title: "SKU",
-      dataIndex: "sku",
-      key: "sku",
+      title: 'SKU',
+      dataIndex: 'sku',
+      key: 'sku',
       width: 150,
-      fixed: "left",
+      fixed: 'left',
       render: (text, record) => (
         <Space direction="vertical" size="small">
-          <span style={{ fontWeight: "bold" }}>{text}</span>
-          <span style={{ fontSize: 12, color: "#999" }}>
+          <span style={{ fontWeight: 'bold' }}>{text}</span>
+          <span style={{ fontSize: 12, color: '#999' }}>
             ID: {record.ozon_product_id || record.offer_id}
           </span>
         </Space>
       ),
     },
     {
-      title: "商品信息",
-      dataIndex: "title",
-      key: "title",
+      title: '商品信息',
+      dataIndex: 'title',
+      key: 'title',
       width: 350,
       render: (text, record) => (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
           {/* 商品图片 */}
           <div style={{ flexShrink: 0 }}>
             {record.images?.primary ? (
@@ -188,89 +180,83 @@ const ProductList: React.FC = () => {
                 src={record.images.primary}
                 alt={text}
                 style={{
-                  width: "60px",
-                  height: "60px",
-                  objectFit: "cover",
-                  borderRadius: "4px",
-                  border: "1px solid #f0f0f0",
+                  width: '60px',
+                  height: '60px',
+                  objectFit: 'cover',
+                  borderRadius: '4px',
+                  border: '1px solid #f0f0f0',
                 }}
                 onError={(e) => {
                   // 图片加载失败时显示占位符
                   const img = e.target as HTMLImageElement;
-                  img.style.display = "none";
+                  img.style.display = 'none';
                   const placeholder = img.nextElementSibling as HTMLElement;
-                  if (placeholder) placeholder.style.display = "flex";
+                  if (placeholder) placeholder.style.display = 'flex';
                 }}
               />
             ) : null}
             <div
               style={{
-                width: "60px",
-                height: "60px",
-                backgroundColor: "#f5f5f5",
-                border: "1px dashed #d9d9d9",
-                borderRadius: "4px",
-                display: record.images?.primary ? "none" : "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#bfbfbf",
+                width: '60px',
+                height: '60px',
+                backgroundColor: '#f5f5f5',
+                border: '1px dashed #d9d9d9',
+                borderRadius: '4px',
+                display: record.images?.primary ? 'none' : 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#bfbfbf',
               }}
             >
-              <FileImageOutlined style={{ fontSize: "20px" }} />
+              <FileImageOutlined style={{ fontSize: '20px' }} />
             </div>
           </div>
 
           {/* 商品信息 */}
           <Space direction="vertical" size="small" style={{ flex: 1 }}>
-            <span style={{ fontWeight: 500, wordBreak: "break-word" }}>
-              {text}
-            </span>
+            <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>{text}</span>
             <Space size="small" wrap>
               {record.category_name && (
-                <Tag color="blue" size="small">
+                <Tag color="blue">
                   {record.category_name}
                 </Tag>
               )}
-              {record.brand && <Tag size="small">{record.brand}</Tag>}
+              {record.brand && <Tag>{record.brand}</Tag>}
               {record.images?.count && record.images.count > 1 && (
                 <Tooltip title={`共有 ${record.images.count} 张图片`}>
-                  <Tag icon={<FileImageOutlined />} size="small">
+                  <Tag icon={<FileImageOutlined />}>
                     {record.images.count}张
                   </Tag>
                 </Tooltip>
               )}
             </Space>
             {record.barcode && (
-              <span style={{ fontSize: 12, color: "#999" }}>
-                条码: {record.barcode}
-              </span>
+              <span style={{ fontSize: 12, color: '#999' }}>条码: {record.barcode}</span>
             )}
           </Space>
         </div>
       ),
     },
     {
-      title: "价格",
-      key: "price",
+      title: '价格',
+      key: 'price',
       width: 150,
       render: (_, record) => {
         // 确保价格格式正确
-        const price = parseFloat(record.price || "0");
+        const price = parseFloat(record.price || '0');
         const oldPrice = record.old_price ? parseFloat(record.old_price) : null;
         const cost = record.cost ? parseFloat(record.cost) : null;
 
         return (
           <Space direction="vertical" size="small">
-            <span
-              style={{ fontWeight: "bold", color: "#52c41a", fontSize: 16 }}
-            >
+            <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 16 }}>
               ₽ {price.toFixed(2)}
             </span>
             {oldPrice && oldPrice > price && (
               <span
                 style={{
-                  textDecoration: "line-through",
-                  color: "#999",
+                  textDecoration: 'line-through',
+                  color: '#999',
                   fontSize: 12,
                 }}
               >
@@ -282,7 +268,7 @@ const ProductList: React.FC = () => {
                 <span
                   style={{
                     fontSize: 12,
-                    color: price > cost ? "#52c41a" : "#ff4d4f",
+                    color: price > cost ? '#52c41a' : '#ff4d4f',
                   }}
                 >
                   毛利: {(((price - cost) / price) * 100).toFixed(1)}%
@@ -294,20 +280,16 @@ const ProductList: React.FC = () => {
       },
     },
     {
-      title: "库存",
-      key: "stock",
+      title: '库存',
+      key: 'stock',
       width: 120,
       render: (_, record) => {
         const stockLevel =
-          record.available > 10
-            ? "success"
-            : record.available > 0
-              ? "warning"
-              : "error";
+          record.available > 10 ? 'success' : record.available > 0 ? 'warning' : 'error';
         return (
           <Space direction="vertical" size="small">
             <Badge status={stockLevel} text={`可售: ${record.available}`} />
-            <span style={{ fontSize: 12, color: "#999" }}>
+            <span style={{ fontSize: 12, color: '#999' }}>
               总库存: {record.stock} | 预留: {record.reserved}
             </span>
           </Space>
@@ -315,23 +297,21 @@ const ProductList: React.FC = () => {
       },
     },
     {
-      title: "状态",
-      dataIndex: "status",
-      key: "status",
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
       width: 100,
       render: (status, record) => {
         const statusMap: Record<string, { color: string; text: string }> = {
-          draft: { color: "default", text: "草稿" },
-          active: { color: "success", text: "在售" },
-          inactive: { color: "warning", text: "下架" },
-          deleted: { color: "error", text: "已删除" },
+          draft: { color: 'default', text: '草稿' },
+          active: { color: 'success', text: '在售' },
+          inactive: { color: 'warning', text: '下架' },
+          deleted: { color: 'error', text: '已删除' },
         };
         return (
           <Space direction="vertical" size="small">
-            <Tag color={statusMap[status]?.color}>
-              {statusMap[status]?.text || status}
-            </Tag>
-            {record.sync_status === "failed" && (
+            <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
+            {record.sync_status === 'failed' && (
               <Tooltip title={record.sync_error}>
                 <Tag color="error" icon={<ExclamationCircleOutlined />}>
                   同步失败
@@ -343,44 +323,43 @@ const ProductList: React.FC = () => {
       },
     },
     {
-      title: "可见性",
-      dataIndex: "visibility",
-      key: "visibility",
+      title: '可见性',
+      dataIndex: 'visibility',
+      key: 'visibility',
       width: 80,
       render: (visible) => <Switch checked={visible} disabled />,
     },
     {
-      title: "创建时间",
-      dataIndex: "created_at",
-      key: "created_at",
+      title: '创建时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
       width: 150,
       render: (date) => {
-        if (!date) return "-";
+        if (!date) return '-';
         const createDate = new Date(date);
         return (
-          <Tooltip title={createDate.toLocaleString("zh-CN")}>
-            <span>{createDate.toLocaleDateString("zh-CN")}</span>
+          <Tooltip title={createDate.toLocaleString('zh-CN')}>
+            <span>{createDate.toLocaleDateString('zh-CN')}</span>
           </Tooltip>
         );
       },
     },
     {
-      title: "最后同步",
-      dataIndex: "last_sync_at",
-      key: "last_sync_at",
+      title: '最后同步',
+      dataIndex: 'last_sync_at',
+      key: 'last_sync_at',
       width: 120,
       render: (date) => {
-        if (!date) return "-";
+        if (!date) return '-';
         const syncDate = new Date(date);
         const now = new Date();
-        const diffHours =
-          (now.getTime() - syncDate.getTime()) / (1000 * 60 * 60);
+        const diffHours = (now.getTime() - syncDate.getTime()) / (1000 * 60 * 60);
 
         return (
           <Tooltip title={syncDate.toLocaleString()}>
-            <span style={{ color: diffHours > 24 ? "#ff4d4f" : "#52c41a" }}>
+            <span style={{ color: diffHours > 24 ? '#ff4d4f' : '#52c41a' }}>
               {diffHours < 1
-                ? "刚刚"
+                ? '刚刚'
                 : diffHours < 24
                   ? `${Math.floor(diffHours)}小时前`
                   : `${Math.floor(diffHours / 24)}天前`}
@@ -390,10 +369,10 @@ const ProductList: React.FC = () => {
       },
     },
     {
-      title: "操作",
-      key: "action",
+      title: '操作',
+      key: 'action',
       width: 150,
-      fixed: "right",
+      fixed: 'right',
       render: (_, record) => (
         <Space>
           <Tooltip title="编辑">
@@ -424,34 +403,34 @@ const ProductList: React.FC = () => {
             menu={{
               items: [
                 {
-                  key: "sync",
+                  key: 'sync',
                   icon: <SyncOutlined />,
-                  label: "立即同步",
+                  label: '立即同步',
                 },
                 {
-                  key: "archive",
+                  key: 'archive',
                   icon: <DeleteOutlined />,
-                  label: "归档",
+                  label: '归档',
                 },
                 {
-                  type: "divider",
+                  type: 'divider',
                 },
                 {
-                  key: "delete",
+                  key: 'delete',
                   icon: <DeleteOutlined />,
-                  label: "删除",
+                  label: '删除',
                   danger: true,
                 },
               ],
               onClick: ({ key }) => {
                 switch (key) {
-                  case "sync":
+                  case 'sync':
                     handleSyncSingle(record);
                     break;
-                  case "archive":
+                  case 'archive':
                     handleArchive(record);
                     break;
-                  case "delete":
+                  case 'delete':
                     handleDelete(record);
                     break;
                 }
@@ -483,7 +462,7 @@ const ProductList: React.FC = () => {
 
   const handleBatchPriceUpdate = () => {
     if (selectedRows.length === 0) {
-      message.warning("请先选择商品");
+      message.warning('请先选择商品');
       return;
     }
     setPriceModalVisible(true);
@@ -491,7 +470,7 @@ const ProductList: React.FC = () => {
 
   const handleBatchStockUpdate = () => {
     if (selectedRows.length === 0) {
-      message.warning("请先选择商品");
+      message.warning('请先选择商品');
       return;
     }
     setStockModalVisible(true);
@@ -499,10 +478,8 @@ const ProductList: React.FC = () => {
 
   const handleSync = (fullSync: boolean = false) => {
     confirm({
-      title: fullSync ? "确认执行全量同步？" : "确认执行增量同步？",
-      content: fullSync
-        ? "全量同步将拉取所有商品数据，耗时较长"
-        : "增量同步将只拉取最近更新的商品",
+      title: fullSync ? '确认执行全量同步？' : '确认执行增量同步？',
+      content: fullSync ? '全量同步将拉取所有商品数据，耗时较长' : '增量同步将只拉取最近更新的商品',
       onOk: () => {
         syncProductsMutation.mutate(fullSync);
       },
@@ -522,10 +499,10 @@ const ProductList: React.FC = () => {
 
   const handleSyncSingle = (product: ozonApi.Product) => {
     confirm({
-      title: "确认同步商品？",
+      title: '确认同步商品？',
       content: `商品SKU: ${product.sku}`,
       onOk: () => {
-        message.info("单个商品同步功能开发中...");
+        message.info('单个商品同步功能开发中...');
         // TODO: 实现单个商品同步
       },
     });
@@ -533,10 +510,10 @@ const ProductList: React.FC = () => {
 
   const handleArchive = (product: ozonApi.Product) => {
     confirm({
-      title: "确认归档商品？",
+      title: '确认归档商品？',
       content: `商品SKU: ${product.sku}`,
       onOk: () => {
-        message.info("商品归档功能开发中...");
+        message.info('商品归档功能开发中...');
         // TODO: 实现商品归档
       },
     });
@@ -544,11 +521,11 @@ const ProductList: React.FC = () => {
 
   const handleDelete = (product: ozonApi.Product) => {
     confirm({
-      title: "确认删除商品？",
+      title: '确认删除商品？',
       content: `商品SKU: ${product.sku}，此操作不可恢复！`,
-      okType: "danger",
+      okType: 'danger',
       onOk: () => {
-        message.info("商品删除功能开发中...");
+        message.info('商品删除功能开发中...');
         // TODO: 实现商品删除
       },
     });
@@ -560,7 +537,7 @@ const ProductList: React.FC = () => {
 
   const handleExport = () => {
     if (!productsData?.data || productsData.data.length === 0) {
-      message.warning("没有商品数据可以导出");
+      message.warning('没有商品数据可以导出');
       return;
     }
 
@@ -568,23 +545,23 @@ const ProductList: React.FC = () => {
       // 准备CSV数据
       const csvData = productsData.data.map((product) => ({
         SKU: product.sku,
-        商品标题: product.title || "",
-        品牌: product.brand || "",
-        条形码: product.barcode || "",
+        商品标题: product.title || '',
+        品牌: product.brand || '',
+        条形码: product.barcode || '',
         状态: product.status,
-        可见性: product.visibility ? "可见" : "不可见",
-        售价: product.price || "0",
-        原价: product.old_price || "",
-        成本价: product.cost || "",
+        可见性: product.visibility ? '可见' : '不可见',
+        售价: product.price || '0',
+        原价: product.old_price || '',
+        成本价: product.cost || '',
         总库存: product.stock,
         可售库存: product.available,
         预留库存: product.reserved,
-        "重量(g)": product.weight || "",
-        "宽度(mm)": product.width || "",
-        "高度(mm)": product.height || "",
-        "深度(mm)": product.depth || "",
+        '重量(g)': product.weight || '',
+        '宽度(mm)': product.width || '',
+        '高度(mm)': product.height || '',
+        '深度(mm)': product.depth || '',
         同步状态: product.sync_status,
-        最后同步时间: product.last_sync_at || "",
+        最后同步时间: product.last_sync_at || '',
         创建时间: product.created_at,
         更新时间: product.updated_at,
       }));
@@ -592,31 +569,26 @@ const ProductList: React.FC = () => {
       // 转换为CSV格式
       const headers = Object.keys(csvData[0]);
       const csvContent = [
-        headers.join(","),
+        headers.join(','),
         ...csvData.map((row) =>
           headers
             .map((header) => {
               const value = row[header as keyof typeof row];
               // 处理包含逗号的值，用双引号包围
-              return typeof value === "string" && value.includes(",")
-                ? `"${value}"`
-                : value;
+              return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
             })
-            .join(","),
+            .join(',')
         ),
-      ].join("\n");
+      ].join('\n');
 
       // 创建下载
-      const blob = new Blob(["\uFEFF" + csvContent], {
-        type: "text/csv;charset=utf-8;",
+      const blob = new Blob(['\uFEFF' + csvContent], {
+        type: 'text/csv;charset=utf-8;',
       });
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute(
-        "download",
-        `商品数据_${new Date().toISOString().slice(0, 10)}.csv`,
-      );
+      link.setAttribute('href', url);
+      link.setAttribute('download', `商品数据_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -624,24 +596,21 @@ const ProductList: React.FC = () => {
 
       message.success(`成功导出 ${csvData.length} 个商品的数据`);
     } catch (error) {
-      console.error("Export error:", error);
-      message.error("导出失败，请重试");
+      console.error('Export error:', error);
+      message.error('导出失败，请重试');
     }
   };
 
   return (
     <div style={{ padding: 24 }}>
       {/* 同步进度显示 */}
-      {syncStatus && syncStatus.status === "running" && (
+      {syncStatus && syncStatus.status === 'running' && (
         <Alert
           message="商品同步中"
           description={
             <div>
               <p>{syncStatus.message}</p>
-              <Progress
-                percent={Math.round(syncStatus.progress)}
-                status="active"
-              />
+              <Progress percent={Math.round(syncStatus.progress)} status="active" />
             </div>
           }
           type="info"
@@ -671,7 +640,7 @@ const ProductList: React.FC = () => {
             <Statistic
               title="在售商品"
               value={productsData?.stats?.active || 0}
-              valueStyle={{ color: "#3f8600" }}
+              valueStyle={{ color: '#3f8600' }}
             />
           </Card>
         </Col>
@@ -680,7 +649,7 @@ const ProductList: React.FC = () => {
             <Statistic
               title="缺货商品"
               value={productsData?.stats?.out_of_stock || 0}
-              valueStyle={{ color: "#cf1322" }}
+              valueStyle={{ color: '#cf1322' }}
             />
           </Card>
         </Col>
@@ -689,7 +658,7 @@ const ProductList: React.FC = () => {
             <Statistic
               title="已下架"
               value={productsData?.stats?.inactive || 0}
-              valueStyle={{ color: "#faad14" }}
+              valueStyle={{ color: '#faad14' }}
             />
           </Card>
         </Col>
@@ -797,9 +766,7 @@ const ProductList: React.FC = () => {
 
       {/* 价格更新弹窗 */}
       <Modal
-        title={
-          selectedProduct ? `更新价格 - ${selectedProduct.sku}` : "批量更新价格"
-        }
+        title={selectedProduct ? `更新价格 - ${selectedProduct.sku}` : '批量更新价格'}
         open={priceModalVisible}
         onCancel={() => setPriceModalVisible(false)}
         footer={null}
@@ -822,13 +789,9 @@ const ProductList: React.FC = () => {
             updatePricesMutation.mutate(updates);
           }}
         >
-          <Form.Item
-            name="price"
-            label="售价"
-            rules={[{ required: true, message: "请输入售价" }]}
-          >
+          <Form.Item name="price" label="售价" rules={[{ required: true, message: '请输入售价' }]}>
             <InputNumber
-              style={{ width: "100%" }}
+              style={{ width: '100%' }}
               min={0}
               precision={2}
               prefix="₽"
@@ -837,7 +800,7 @@ const ProductList: React.FC = () => {
           </Form.Item>
           <Form.Item name="old_price" label="原价">
             <InputNumber
-              style={{ width: "100%" }}
+              style={{ width: '100%' }}
               min={0}
               precision={2}
               prefix="₽"
@@ -849,11 +812,7 @@ const ProductList: React.FC = () => {
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={updatePricesMutation.isPending}
-              >
+              <Button type="primary" htmlType="submit" loading={updatePricesMutation.isPending}>
                 确认更新
               </Button>
               <Button onClick={() => setPriceModalVisible(false)}>取消</Button>
@@ -864,9 +823,7 @@ const ProductList: React.FC = () => {
 
       {/* 库存更新弹窗 */}
       <Modal
-        title={
-          selectedProduct ? `更新库存 - ${selectedProduct.sku}` : "批量更新库存"
-        }
+        title={selectedProduct ? `更新库存 - ${selectedProduct.sku}` : '批量更新库存'}
         open={stockModalVisible}
         onCancel={() => setStockModalVisible(false)}
         footer={null}
@@ -892,13 +849,9 @@ const ProductList: React.FC = () => {
           <Form.Item
             name="stock"
             label="库存数量"
-            rules={[{ required: true, message: "请输入库存数量" }]}
+            rules={[{ required: true, message: '请输入库存数量' }]}
           >
-            <InputNumber
-              style={{ width: "100%" }}
-              min={0}
-              placeholder="请输入库存数量"
-            />
+            <InputNumber style={{ width: '100%' }} min={0} placeholder="请输入库存数量" />
           </Form.Item>
           <Form.Item name="warehouse_id" label="仓库">
             <Select placeholder="选择仓库">
@@ -908,11 +861,7 @@ const ProductList: React.FC = () => {
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={updateStocksMutation.isPending}
-              >
+              <Button type="primary" htmlType="submit" loading={updateStocksMutation.isPending}>
                 确认更新
               </Button>
               <Button onClick={() => setStockModalVisible(false)}>取消</Button>
@@ -945,9 +894,9 @@ const ProductList: React.FC = () => {
               height: selectedProduct.height,
               depth: selectedProduct.depth,
             }}
-            onFinish={(values) => {
-              message.info("商品信息更新功能开发中...");
-              console.log("Update product:", selectedProduct.id, values);
+            onFinish={(_values) => {
+              message.info('商品信息更新功能开发中...');
+              // TODO: 更新商品信息
               // TODO: 实现商品信息更新
               setEditModalVisible(false);
             }}
@@ -957,7 +906,7 @@ const ProductList: React.FC = () => {
                 <Form.Item
                   name="title"
                   label="商品标题"
-                  rules={[{ required: true, message: "请输入商品标题" }]}
+                  rules={[{ required: true, message: '请输入商品标题' }]}
                 >
                   <Input placeholder="请输入商品标题" />
                 </Form.Item>
@@ -982,7 +931,7 @@ const ProductList: React.FC = () => {
               <Col span={8}>
                 <Form.Item name="price" label="售价">
                   <InputNumber
-                    style={{ width: "100%" }}
+                    style={{ width: '100%' }}
                     min={0}
                     precision={2}
                     prefix="₽"
@@ -993,7 +942,7 @@ const ProductList: React.FC = () => {
               <Col span={8}>
                 <Form.Item name="old_price" label="原价">
                   <InputNumber
-                    style={{ width: "100%" }}
+                    style={{ width: '100%' }}
                     min={0}
                     precision={2}
                     prefix="₽"
@@ -1007,7 +956,7 @@ const ProductList: React.FC = () => {
               <Col span={6}>
                 <Form.Item name="cost" label="成本价">
                   <InputNumber
-                    style={{ width: "100%" }}
+                    style={{ width: '100%' }}
                     min={0}
                     precision={2}
                     prefix="₽"
@@ -1017,38 +966,22 @@ const ProductList: React.FC = () => {
               </Col>
               <Col span={6}>
                 <Form.Item name="weight" label="重量(g)">
-                  <InputNumber
-                    style={{ width: "100%" }}
-                    min={0}
-                    placeholder="重量"
-                  />
+                  <InputNumber style={{ width: '100%' }} min={0} placeholder="重量" />
                 </Form.Item>
               </Col>
               <Col span={4}>
                 <Form.Item name="width" label="宽(mm)">
-                  <InputNumber
-                    style={{ width: "100%" }}
-                    min={0}
-                    placeholder="宽度"
-                  />
+                  <InputNumber style={{ width: '100%' }} min={0} placeholder="宽度" />
                 </Form.Item>
               </Col>
               <Col span={4}>
                 <Form.Item name="height" label="高(mm)">
-                  <InputNumber
-                    style={{ width: "100%" }}
-                    min={0}
-                    placeholder="高度"
-                  />
+                  <InputNumber style={{ width: '100%' }} min={0} placeholder="高度" />
                 </Form.Item>
               </Col>
               <Col span={4}>
                 <Form.Item name="depth" label="深(mm)">
-                  <InputNumber
-                    style={{ width: "100%" }}
-                    min={0}
-                    placeholder="深度"
-                  />
+                  <InputNumber style={{ width: '100%' }} min={0} placeholder="深度" />
                 </Form.Item>
               </Col>
             </Row>
@@ -1073,47 +1006,44 @@ const ProductList: React.FC = () => {
         footer={null}
         width={600}
       >
-        <div style={{ textAlign: "center", padding: "20px 0" }}>
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <Upload.Dragger
             name="file"
             accept=".csv,.xlsx,.xls"
             showUploadList={false}
             beforeUpload={(file) => {
               const isValidType =
-                file.type === "text/csv" ||
-                file.type === "application/vnd.ms-excel" ||
-                file.type ===
-                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                file.type === 'text/csv' ||
+                file.type === 'application/vnd.ms-excel' ||
+                file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
               if (!isValidType) {
-                message.error("只支持 CSV 和 Excel 文件格式");
+                message.error('只支持 CSV 和 Excel 文件格式');
                 return false;
               }
 
               const isLt10M = file.size / 1024 / 1024 < 10;
               if (!isLt10M) {
-                message.error("文件大小不能超过 10MB");
+                message.error('文件大小不能超过 10MB');
                 return false;
               }
 
               // 这里可以添加文件解析逻辑
               message.success(`${file.name} 文件上传成功，导入功能开发中...`);
-              console.log("Import file:", file);
+              // TODO: 处理文件导入
 
               setImportModalVisible(false);
               return false; // 阻止自动上传
             }}
           >
             <p className="ant-upload-drag-icon">
-              <UploadOutlined style={{ fontSize: 48, color: "#1890ff" }} />
+              <UploadOutlined style={{ fontSize: 48, color: '#1890ff' }} />
             </p>
             <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-            <p className="ant-upload-hint">
-              支持 CSV 和 Excel 格式，文件大小不超过 10MB
-            </p>
+            <p className="ant-upload-hint">支持 CSV 和 Excel 格式，文件大小不超过 10MB</p>
           </Upload.Dragger>
 
-          <div style={{ marginTop: 24, textAlign: "left" }}>
+          <div style={{ marginTop: 24, textAlign: 'left' }}>
             <Alert
               message="导入说明"
               description={
@@ -1129,7 +1059,7 @@ const ProductList: React.FC = () => {
             />
           </div>
 
-          <div style={{ marginTop: 16, textAlign: "right" }}>
+          <div style={{ marginTop: 16, textAlign: 'right' }}>
             <Space>
               <Button onClick={() => setImportModalVisible(false)}>取消</Button>
               <Button type="link" onClick={handleExport}>

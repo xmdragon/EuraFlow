@@ -11,7 +11,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_session
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import BusinessError
 
 from ..api.client import OzonAPIClient

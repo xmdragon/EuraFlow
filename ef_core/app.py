@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from ef_core.config import get_settings
-from ef_core.utils.logging import setup_logging, get_logger
+from ef_core.utils.logger import setup_logging, get_logger
 from ef_core.utils.errors import EuraFlowException
 from ef_core.database import get_db_manager
 from ef_core.event_bus import get_event_bus

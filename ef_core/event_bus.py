@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 from ef_core.config import get_settings
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import EuraFlowException
 
 logger = get_logger(__name__)

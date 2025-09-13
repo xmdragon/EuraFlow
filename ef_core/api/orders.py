@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from ef_core.services import OrdersService
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import EuraFlowException
 from .models import ApiResponse, PaginatedResponse, OrderResponse, CreateOrderRequest
 

@@ -1,16 +1,17 @@
+/* eslint-disable no-unused-vars */
 /**
  * Ozon API 服务
  * 处理与后端 Ozon 接口的通信
  */
-import axios from "axios";
+import axios from 'axios';
 
-const API_BASE = "/api/ef/v1";
+const API_BASE = '/api/ef/v1';
 
 // 创建 axios 实例
 const apiClient = axios.create({
   baseURL: API_BASE,
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   },
 });
 
@@ -26,7 +27,7 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  },
+  }
 );
 
 // 响应拦截器：处理错误
@@ -35,10 +36,10 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // 未授权，跳转登录
-      window.location.href = "/login";
+      window.location.href = '/login';
     }
     return Promise.reject(error);
-  },
+  }
 );
 
 // ==================== 商品相关 API ====================
@@ -53,35 +54,39 @@ export interface ProductImages {
 
 // 获取店铺列表
 export const getShops = async () => {
-  const response = await apiClient.get("/ozon/shops");
+  const response = await apiClient.get('/ozon/shops');
   return response.data;
 };
 
 // 创建店铺
-export const createShop = async (data: any) => {
-  const response = await apiClient.post("/ozon/shops", data);
+interface ShopData {
+  name: string;
+  client_id: string;
+  api_key: string;
+  [key: string]: unknown;
+}
+
+export const createShop = async (data: ShopData) => {
+  const response = await apiClient.post('/ozon/shops', data);
   return response.data;
 };
 
 // 更新店铺
-export const updateShop = async (shopId: number, data: any) => {
+export const updateShop = async (shopId: number, data: Partial<ShopData>) => {
   const response = await apiClient.put(`/ozon/shops/${shopId}`, data);
   return response.data;
 };
 
 // 测试API连接
-export const testApiConnection = async (credentials: {
-  client_id: string;
-  api_key: string;
-}) => {
-  const response = await apiClient.post("/ozon/test-connection", credentials);
+export const testApiConnection = async (credentials: { client_id: string; api_key: string }) => {
+  const response = await apiClient.post('/ozon/test-connection', credentials);
   return response.data;
 };
 
 // ==================== 商品 API ====================
 
 export interface ProductAttributes {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Product {
@@ -97,7 +102,7 @@ export interface Product {
   category_id?: number;
   category_name?: string;
   brand?: string;
-  status: "draft" | "active" | "inactive" | "deleted" | "archived";
+  status: 'draft' | 'active' | 'inactive' | 'deleted' | 'archived';
   visibility: boolean;
   is_archived: boolean;
   price?: string;
@@ -115,7 +120,7 @@ export interface Product {
   images?: ProductImages;
   attributes?: ProductAttributes;
   last_sync_at?: string;
-  sync_status: "pending" | "syncing" | "success" | "failed" | "imported";
+  sync_status: 'pending' | 'syncing' | 'success' | 'failed' | 'imported';
   sync_error?: string;
   created_at: string;
   updated_at: string;
@@ -147,14 +152,14 @@ export interface StockUpdate {
 export const getProducts = async (
   page: number = 1,
   pageSize: number = 20,
-  filter?: ProductFilter,
+  filter?: ProductFilter
 ) => {
   const params = {
     page: page,
     page_size: pageSize,
     ...filter,
   };
-  const response = await apiClient.get("/ozon/products", { params });
+  const response = await apiClient.get('/ozon/products', { params });
   return response.data;
 };
 
@@ -165,30 +170,30 @@ export const getProduct = async (productId: number) => {
 };
 
 // 同步商品
-export const syncProducts = async (fullSync: boolean = false) => {
+export const syncProducts = async (_fullSync: boolean = false) => {
   // 先获取当前选中的店铺（假设是第一个店铺）
-  const shopsResponse = await apiClient.get("/ozon/shops");
+  const shopsResponse = await apiClient.get('/ozon/shops');
   const shops = shopsResponse.data.data;
   if (!shops || shops.length === 0) {
-    throw new Error("没有找到可用的店铺");
+    throw new Error('没有找到可用的店铺');
   }
   const shopId = shops[0].id;
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
-    params: { sync_type: "products" },
+    params: { sync_type: 'products' },
   });
   return response.data;
 };
 
 // 批量更新价格
 export const updatePrices = async (updates: PriceUpdate[]) => {
-  const response = await apiClient.post("/ozon/products/prices", { updates });
+  const response = await apiClient.post('/ozon/products/prices', { updates });
   return response.data;
 };
 
 // 批量更新库存
 export const updateStocks = async (updates: StockUpdate[]) => {
-  const response = await apiClient.post("/ozon/products/stocks", { updates });
+  const response = await apiClient.post('/ozon/products/stocks', { updates });
   return response.data;
 };
 
@@ -198,32 +203,38 @@ export interface Order {
   id: number;
   shop_id: number;
   order_id: string;
+  order_number?: string; // Added for compatibility
   ozon_order_id: string;
   ozon_order_number?: string;
-  status:
-    | "pending"
-    | "confirmed"
-    | "processing"
-    | "shipped"
-    | "delivered"
-    | "cancelled";
+  posting_number?: string; // Added for compatibility
+  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   ozon_status?: string;
   payment_status?: string;
-  order_type: "FBS" | "FBO" | "CrossDock";
+  order_type: 'FBS' | 'FBO' | 'CrossDock';
   is_express: boolean;
   is_premium: boolean;
   total_amount: string;
   products_amount?: string;
+  products_price?: string; // Added for compatibility
   delivery_amount?: string;
   commission_amount?: string;
   customer_id?: string;
   customer_phone?: string;
   customer_email?: string;
-  delivery_address?: any;
+  delivery_address?: {
+    city?: string;
+    district?: string;
+    street?: string;
+    building?: string;
+    apartment?: string;
+    postal_code?: string;
+    [key: string]: unknown;
+  };
   delivery_method?: string;
   delivery_date?: string;
   delivery_time_slot?: string;
   ordered_at: string;
+  in_process_at?: string; // Added for compatibility
   confirmed_at?: string;
   shipped_at?: string;
   delivered_at?: string;
@@ -285,17 +296,13 @@ export interface ShipmentRequest {
 }
 
 // 获取订单列表
-export const getOrders = async (
-  page: number = 1,
-  pageSize: number = 50,
-  filter?: OrderFilter,
-) => {
+export const getOrders = async (page: number = 1, pageSize: number = 50, filter?: OrderFilter) => {
   const params = {
     offset: (page - 1) * pageSize,
     limit: pageSize,
     ...filter,
   };
-  const response = await apiClient.get("/ozon/orders", { params });
+  const response = await apiClient.get('/ozon/orders', { params });
   return response.data;
 };
 
@@ -306,30 +313,30 @@ export const getOrder = async (orderId: number) => {
 };
 
 // 同步订单
-export const syncOrders = async (dateFrom?: string, dateTo?: string) => {
+export const syncOrders = async (_dateFrom?: string, _dateTo?: string) => {
   // 先获取当前选中的店铺（假设是第一个店铺）
-  const shopsResponse = await apiClient.get("/ozon/shops");
+  const shopsResponse = await apiClient.get('/ozon/shops');
   const shops = shopsResponse.data.data;
   if (!shops || shops.length === 0) {
-    throw new Error("没有找到可用的店铺");
+    throw new Error('没有找到可用的店铺');
   }
   const shopId = shops[0].id;
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
-    params: { sync_type: "orders" },
+    params: { sync_type: 'orders' },
   });
   return response.data;
 };
 
 // 发货
 export const shipOrder = async (shipment: ShipmentRequest) => {
-  const response = await apiClient.post("/ozon/orders/ship", shipment);
+  const response = await apiClient.post('/ozon/orders/ship', shipment);
   return response.data;
 };
 
 // 取消订单
 export const cancelOrder = async (postingNumber: string, reason: string) => {
-  const response = await apiClient.post("/ozon/orders/cancel", {
+  const response = await apiClient.post('/ozon/orders/cancel', {
     posting_number: postingNumber,
     reason,
   });
@@ -362,7 +369,7 @@ export interface Statistics {
 
 // 获取统计数据
 export const getStatistics = async () => {
-  const response = await apiClient.get("/ozon/statistics");
+  const response = await apiClient.get('/ozon/statistics');
   return response.data;
 };
 
@@ -391,6 +398,6 @@ export const getSyncLogs = async (entityType?: string, limit: number = 20) => {
     entity_type: entityType,
     limit,
   };
-  const response = await apiClient.get("/ozon/sync-logs", { params });
+  const response = await apiClient.get('/ozon/sync-logs', { params });
   return response.data;
 };

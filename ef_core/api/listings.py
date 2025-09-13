@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Depends, Request
 
 from ef_core.services import ListingsService
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from .models import ApiResponse, UpdatePricesRequest
 
 router = APIRouter()

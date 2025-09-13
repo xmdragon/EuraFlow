@@ -11,7 +11,7 @@ import uuid
 import asyncio
 
 from ef_core.database import get_async_session
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from pydantic import BaseModel, Field
 from typing import Dict, Any
 

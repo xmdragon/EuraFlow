@@ -30,15 +30,16 @@ repos:
         exclude: ^(migrations/|alembic/versions/|tests/)
         files: \.py$
 
-  # TypeScript/JavaScript hooks (for web directory) - disabled temporarily
-  # - repo: local
-  #   hooks:
-  #     - id: eslint
-  #       name: eslint
-  #       entry: sh -c 'cd web && npx eslint src --fix'
-  #       language: system
-  #       files: ^web/src/.*\.(js|jsx|ts|tsx)$
-  #       pass_filenames: false
+  # TypeScript/JavaScript hooks - ESLint 9+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: npx eslint --fix
+        language: system
+        files: \.(js|jsx|ts|tsx)$
+        pass_filenames: true
+        require_serial: true
 
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.1.0

@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 
 from ..models.enums import ServiceType, Platform, FulfillmentModel
 

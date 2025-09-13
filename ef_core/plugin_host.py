@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ValidationError
 from ef_core.config import get_settings
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import EuraFlowException, ValidationError as EFValidationError
 
 logger = get_logger(__name__)

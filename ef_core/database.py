@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, text
 
 from ef_core.config import get_settings
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.models.base import Base
 
 logger = get_logger(__name__)

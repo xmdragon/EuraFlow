@@ -4,7 +4,7 @@ Celery 应用配置
 from celery import Celery, signals
 from celery.schedules import crontab
 from ef_core.config import get_settings
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

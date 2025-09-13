@@ -4,7 +4,7 @@
 
 from decimal import Decimal
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, Annotated
 from pydantic import BaseModel, Field
 
 from .enums import Platform, FulfillmentModel
@@ -18,14 +18,14 @@ class PlatformFee(BaseModel):
     fulfillment_model: FulfillmentModel
 
     # 费率配置
-    fee_rate: Decimal = Field(..., decimal_places=4, ge=0, le=1)  # 0.1400 = 14%
-    min_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    max_fee: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
-    fixed_fee: Decimal = Field(default=Decimal("0"), decimal_places=2, ge=0)
+    fee_rate: Annotated[Decimal, Field(ge=0, le=1)] = Field(...)  # 0.1400 = 14%
+    min_fee: Optional[Annotated[Decimal, Field(ge=0)]] = Field(None)
+    max_fee: Optional[Annotated[Decimal, Field(ge=0)]] = Field(None)
+    fixed_fee: Annotated[Decimal, Field(ge=0)] = Field(default=Decimal("0"))
 
     # FBO/FBS差异
-    fbo_extra_rate: Decimal = Field(default=Decimal("0"), decimal_places=4, ge=0)
-    fbs_extra_rate: Decimal = Field(default=Decimal("0"), decimal_places=4, ge=0)
+    fbo_extra_rate: Annotated[Decimal, Field(ge=0)] = Field(default=Decimal("0"))
+    fbs_extra_rate: Annotated[Decimal, Field(ge=0)] = Field(default=Decimal("0"))
 
     # 版本控制
     version: str

@@ -11,7 +11,7 @@ import hmac
 
 import httpx
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from .rate_limiter import RateLimiter
 
 logger = get_logger(__name__)

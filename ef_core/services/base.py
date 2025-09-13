@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import EuraFlowException, InternalServerError
 from ef_core.database import get_db_manager
 

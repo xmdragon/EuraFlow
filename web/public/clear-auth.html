@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>清理认证信息</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>清理认证信息</h1>
+    <p>正在清理无效的认证信息...</p>
+    <script>
+        // 清理所有认证相关的localStorage
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        console.log('已清理认证token');
+        
+        // 3秒后跳转到登录页
+        setTimeout(() => {
+            window.location.href = '/login';
+        }, 1000);
+    </script>
+    <p>清理完成，即将跳转到登录页...</p>
+</body>
+</html>

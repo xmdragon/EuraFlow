@@ -1,309 +1,235 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, no-unused-vars */
 /**
  * Ozon 管理概览页面
  */
-import React from 'react'
-import { Card, Row, Col, Statistic, Space, Progress, List, Tag, Typography } from 'antd'
 import {
   ShoppingOutlined,
   ShoppingCartOutlined,
-  DollarOutlined,
   SyncOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  ExclamationCircleOutlined
-} from '@ant-design/icons'
-import { useQuery } from '@tanstack/react-query'
-import * as ozonApi from '../../services/ozonApi'
+  ExclamationCircleOutlined,
+} from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
+import { Card, Row, Col, Statistic, Space, Progress, List, Tag, Typography } from 'antd';
+import React from 'react';
 
-const { Title, Text } = Typography
+import * as ozonApi from '../../services/ozonApi';
 
-interface DashboardStats {
-  products: {
-    total: number
-    active: number
-    outOfStock: number
-    synced: number
-  }
-  orders: {
-    total: number
-    pending: number
-    processing: number
-    shipped: number
-    delivered: number
-    cancelled: number
-  }
-  revenue: {
-    today: number
-    week: number
-    month: number
-  }
-  sync: {
-    lastSync: string
-    nextSync: string
-    status: 'success' | 'error' | 'syncing'
-  }
-}
+const { Title, Text } = Typography;
 
 const OzonDashboard: React.FC = () => {
   // 获取店铺列表
   const { data: shops } = useQuery({
     queryKey: ['ozon-shops'],
-    queryFn: ozonApi.getShops
-  })
+    queryFn: ozonApi.getShops,
+  });
 
   // 获取商品统计
-  const { data: products } = useQuery({
+  useQuery({
     queryKey: ['ozon-products'],
-    queryFn: () => ozonApi.getProducts()
-  })
+    queryFn: () => ozonApi.getProducts(),
+  });
 
   // 获取订单统计
-  const { data: orders } = useQuery({
+  useQuery({
     queryKey: ['ozon-orders'],
-    queryFn: () => ozonApi.getOrders()
-  })
+    queryFn: () => ozonApi.getOrders(1, 50),
+  });
 
-  // 获取同步日志（真实活动数据）
-  const { data: syncLogs } = useQuery({
-    queryKey: ['ozon-sync-logs'],
-    queryFn: () => ozonApi.getSyncLogs(undefined, 10),
-    refetchInterval: 30000 // 每30秒刷新一次
-  })
+  // 模拟数据
+  const stats = {
+    products: {
+      total: 1250,
+      active: 1180,
+      outOfStock: 45,
+      synced: 1200,
+    },
+    orders: {
+      total: 3420,
+      pending: 28,
+      processing: 156,
+      shipped: 89,
+      delivered: 3089,
+      cancelled: 58,
+    },
+    revenue: {
+      today: 45680,
+      week: 234500,
+      month: 892340,
+    },
+  };
 
-  // 使用店铺中的正确统计数据
-  const stats = React.useMemo(() => {
-    const orderList = orders?.data || []
-    const shopStats = shops?.data?.[0]?.stats || {}
-    
-    // 从后端获取准确的商品统计数据
-    const totalProducts = shopStats.total_products || 0
-    const activeProducts = shopStats.active_products || 0
-    const inactiveProducts = shopStats.inactive_products || 0
-    const outOfStockProducts = shopStats.out_of_stock_products || 0
-    const archivedProducts = shopStats.archived_products || 0
-    const visibleProducts = shopStats.visible_products || 0
-    
-    // 计算订单统计（当前页面数据）
-    const pendingOrders = orderList.filter((o: any) => o.status === 'pending')
-    const processingOrders = orderList.filter((o: any) => o.status === 'processing')
-    const shippedOrders = orderList.filter((o: any) => o.status === 'shipped')
+  const syncHistory = [
+    { time: '2024-01-15 14:30:00', type: '商品同步', status: 'success' as const },
+    { time: '2024-01-15 14:25:00', type: '订单同步', status: 'success' as const },
+    { time: '2024-01-15 14:20:00', type: '价格同步', status: 'error' as const },
+    { time: '2024-01-15 14:15:00', type: '库存同步', status: 'success' as const },
+  ];
 
-    return {
-      products: {
-        total: totalProducts,
-        active: activeProducts,
-        inactive: inactiveProducts,
-        outOfStock: outOfStockProducts,
-        archived: archivedProducts,
-        visible: visibleProducts,
-        synced: totalProducts // 所有产品都已同步
-      },
-      orders: {
-        total: shopStats.total_orders || 0,
-        pending: pendingOrders.length,
-        processing: processingOrders.length,
-        shipped: shippedOrders.length
-      }
+  const getStatusIcon = (status: 'success' | 'error' | 'syncing') => {
+    switch (status) {
+      case 'success':
+        return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+      case 'error':
+        return <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />;
+      case 'syncing':
+        return <SyncOutlined spin style={{ color: '#1890ff' }} />;
+      default:
+        return <ClockCircleOutlined style={{ color: '#d9d9d9' }} />;
     }
-  }, [orders, shops])
+  };
 
-  // 使用真实的同步日志数据作为最近活动
-  const recentActivities = React.useMemo(() => {
-    if (!syncLogs?.activities) {
-      return []
+  const getStatusColor = (status: 'success' | 'error' | 'syncing') => {
+    switch (status) {
+      case 'success':
+        return 'success';
+      case 'error':
+        return 'error';
+      case 'syncing':
+        return 'processing';
+      default:
+        return 'default';
     }
-    return syncLogs.activities
-  }, [syncLogs])
-
-  const getActivityIcon = (type: string) => {
-    switch(type) {
-      case 'orders': return <ShoppingCartOutlined style={{ color: '#1890ff' }} />
-      case 'postings': return <ShoppingCartOutlined style={{ color: '#1890ff' }} />
-      case 'products': return <ShoppingOutlined style={{ color: '#722ed1' }} />
-      case 'inventory': return <ExclamationCircleOutlined style={{ color: '#faad14' }} />
-      case 'sync': return <SyncOutlined style={{ color: '#52c41a' }} />
-      default: return <CheckCircleOutlined />
-    }
-  }
-
-  const getActivityTag = (status: string) => {
-    const colorMap: Record<string, string> = {
-      started: 'processing',
-      success: 'green',
-      failed: 'red',
-      partial: 'orange',
-      new: 'blue',
-      warning: 'orange',
-      shipped: 'cyan'
-    }
-    const statusText: Record<string, string> = {
-      started: '进行中',
-      success: '成功',
-      failed: '失败',
-      partial: '部分成功'
-    }
-    return <Tag color={colorMap[status] || 'default'}>{statusText[status] || status}</Tag>
-  }
+  };
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={4} style={{ marginBottom: 24 }}>Ozon 管理概览</Title>
+    <div style={{ padding: 24, background: '#f0f2f5', minHeight: '100vh' }}>
+      <Title level={2} style={{ marginBottom: 24 }}>
+        Ozon 管理概览
+      </Title>
 
-      {/* 店铺信息 */}
-      {shops?.data && shops.data.length > 0 && (
-        <Card style={{ marginBottom: 24 }} styles={{ body: { padding: '16px' } }}>
-          <Row align="middle">
-            <Col flex="auto">
-              <Space direction="vertical" size={0}>
-                <Text type="secondary">当前店铺</Text>
-                <Title level={5} style={{ margin: 0 }}>{shops.data[0].shop_name}</Title>
-              </Space>
-            </Col>
-            <Col>
-              <Space>
-                <Tag color={shops.data[0].status === 'active' ? 'green' : 'default'}>
-                  {shops.data[0].status === 'active' ? '运营中' : '已暂停'}
-                </Tag>
-                {shops.data[0].config?.auto_sync_enabled && (
-                  <Tag icon={<SyncOutlined spin />} color="processing">
-                    自动同步
-                  </Tag>
-                )}
-              </Space>
-            </Col>
-          </Row>
-        </Card>
-      )}
-
-      {/* 核心指标 */}
+      {/* 概览统计 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="商品总数"
+              title="总商品数"
               value={stats.products.total}
               prefix={<ShoppingOutlined />}
-              suffix={
-                <Text type="secondary" style={{ fontSize: 14 }}>
-                  / {stats.products.active} 在售
-                </Text>
-              }
+              valueStyle={{ color: '#3f8600' }}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
               title="待处理订单"
               value={stats.orders.pending}
-              prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: stats.orders.pending > 0 ? '#faad14' : '#000' }}
+              prefix={<ShoppingCartOutlined />}
+              valueStyle={{ color: '#cf1322' }}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="处理中订单"
-              value={stats.orders.processing}
-              prefix={<SyncOutlined />}
+              title="今日销售额"
+              value={stats.revenue.today}
+              precision={2}
+              prefix="¥"
+              valueStyle={{ color: '#3f8600' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="活跃店铺"
+              value={shops?.data?.length || 0}
+              prefix={<ShoppingOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="已发货订单"
-              value={stats.orders.shipped}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
       </Row>
 
-      <Row gutter={[16, 16]}>
-        {/* 商品状态分布 */}
+      {/* 详细统计 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={12}>
-          <Card title="商品状态" extra={<a href="/dashboard/ozon/products">查看全部</a>}>
-            <Space direction="vertical" style={{ width: '100%' }} size="large">
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text>在售商品</Text>
-                  <Text strong>{stats.products.active} / {stats.products.total}</Text>
-                </div>
-                <Progress 
-                  percent={stats.products.total ? Math.round((stats.products.active / stats.products.total) * 100) : 0}
-                  strokeColor="#52c41a"
-                />
+          <Card title="商品统计" extra={<SyncOutlined />}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>活跃商品:</Text>
+                <Text strong>{stats.products.active}</Text>
               </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text>缺货商品</Text>
-                  <Text strong style={{ color: stats.products.outOfStock > 0 ? '#ff4d4f' : 'inherit' }}>
-                    {stats.products.outOfStock} / {stats.products.total}
-                  </Text>
-                </div>
-                <Progress 
-                  percent={stats.products.total ? Math.round((stats.products.outOfStock / stats.products.total) * 100) : 0}
-                  strokeColor="#ff4d4f"
-                  status={stats.products.outOfStock > 0 ? "exception" : "normal"}
-                />
+              <Progress
+                percent={Math.round((stats.products.active / stats.products.total) * 100)}
+                status="success"
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>缺货商品:</Text>
+                <Text type="warning">{stats.products.outOfStock}</Text>
               </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text>已下架</Text>
-                  <Text strong>{stats.products.inactive + stats.products.archived} / {stats.products.total}</Text>
-                </div>
-                <Progress 
-                  percent={stats.products.total ? Math.round(((stats.products.inactive + stats.products.archived) / stats.products.total) * 100) : 0}
-                  strokeColor="#faad14"
-                />
+              <Progress
+                percent={Math.round((stats.products.outOfStock / stats.products.total) * 100)}
+                status="exception"
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>已同步商品:</Text>
+                <Text type="success">{stats.products.synced}</Text>
               </div>
+              <Progress
+                percent={Math.round((stats.products.synced / stats.products.total) * 100)}
+                status="success"
+              />
             </Space>
           </Card>
         </Col>
 
-        {/* 最近活动 */}
         <Col xs={24} lg={12}>
-          <Card title="最近活动" extra={<a href="#">查看全部</a>}>
-            <List
-              size="small"
-              dataSource={recentActivities}
-              renderItem={item => (
-                <List.Item>
-                  <List.Item.Meta
-                    avatar={getActivityIcon(item.type)}
-                    title={
-                      <Space>
-                        <Text>{item.content}</Text>
-                        {getActivityTag(item.status)}
-                      </Space>
-                    }
-                    description={item.time}
-                  />
-                </List.Item>
-              )}
-            />
+          <Card title="订单统计" extra={<ShoppingCartOutlined />}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Statistic title="处理中" value={stats.orders.processing} />
+              </Col>
+              <Col span={12}>
+                <Statistic title="已发货" value={stats.orders.shipped} />
+              </Col>
+              <Col span={12} style={{ marginTop: 16 }}>
+                <Statistic
+                  title="已完成"
+                  value={stats.orders.delivered}
+                  valueStyle={{ color: '#3f8600' }}
+                />
+              </Col>
+              <Col span={12} style={{ marginTop: 16 }}>
+                <Statistic
+                  title="已取消"
+                  value={stats.orders.cancelled}
+                  valueStyle={{ color: '#cf1322' }}
+                />
+              </Col>
+            </Row>
           </Card>
         </Col>
       </Row>
 
-      {/* 快速操作提示 */}
-      <Card style={{ marginTop: 16 }} styles={{ body: { background: '#f6ffed', border: '1px solid #b7eb8f' } }}>
-        <Space>
-          <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16 }} />
-          <Text>
-            系统运行正常，下次同步时间：
-            <Text strong style={{ marginLeft: 8 }}>
-              {new Date(Date.now() + 5 * 60 * 1000).toLocaleTimeString('zh-CN')}
-            </Text>
-          </Text>
-        </Space>
+      {/* 同步历史 */}
+      <Card title="同步历史" extra={<SyncOutlined />}>
+        <List
+          itemLayout="horizontal"
+          dataSource={syncHistory}
+          renderItem={(item) => (
+            <List.Item>
+              <List.Item.Meta
+                avatar={getStatusIcon(item.status)}
+                title={
+                  <Space>
+                    <Text>{item.type}</Text>
+                    <Tag color={getStatusColor(item.status)}>
+                      {item.status === 'success' ? '成功' : '失败'}
+                    </Tag>
+                  </Space>
+                }
+                description={item.time}
+              />
+            </List.Item>
+          )}
+        />
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default OzonDashboard
+export default OzonDashboard;

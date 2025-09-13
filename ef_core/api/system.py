@@ -4,7 +4,7 @@
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.middleware.metrics import get_metrics_handler
 from .models import ApiResponse
 

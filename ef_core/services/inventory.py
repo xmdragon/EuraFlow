@@ -13,7 +13,7 @@ from ef_core.models import Inventory
 from ef_core.utils.errors import (
     EuraFlowException, ValidationError
 )
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.event_bus import get_event_bus
 from .base import BaseService, ServiceResult, RepositoryMixin
 

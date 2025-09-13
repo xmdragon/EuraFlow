@@ -6,7 +6,7 @@ from typing import Dict, List, Callable, Awaitable, Optional
 from celery.schedules import crontab
 from croniter import croniter
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from .celery_app import celery_app
 from .base import BaseTask
 

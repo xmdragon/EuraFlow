@@ -3,7 +3,7 @@
 """
 
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Annotated
 from uuid import uuid4
 from pydantic import BaseModel, Field
 
@@ -19,8 +19,8 @@ class ProfitRequest(BaseModel):
     platform: Platform
 
     # 成本与价格
-    cost: Decimal = Field(..., decimal_places=2, ge=0)
-    selling_price: Decimal = Field(..., decimal_places=2, gt=0)
+    cost: Annotated[Decimal, Field(ge=0)] = Field(...)
+    selling_price: Annotated[Decimal, Field(gt=0)] = Field(...)
 
     # 物理属性
     weight_g: int = Field(..., gt=0, le=25000)
@@ -29,7 +29,7 @@ class ProfitRequest(BaseModel):
     # 扩展信息
     fulfillment_model: FulfillmentModel = FulfillmentModel.FBO
     category_code: Optional[str] = None
-    platform_fee_rate: Optional[Decimal] = Field(None, decimal_places=4, ge=0, le=1)
+    platform_fee_rate: Optional[Annotated[Decimal, Field(ge=0, le=1)]] = Field(None)
 
     # 运费选项
     compare_shipping: bool = True  # 是否比较多种运费方案
@@ -44,10 +44,10 @@ class ProfitRequest(BaseModel):
 class ProfitOptimization(BaseModel):
     """利润优化建议"""
 
-    suggested_price: Decimal = Field(..., decimal_places=2)
-    expected_profit: Decimal = Field(..., decimal_places=2)
-    expected_profit_rate: Decimal = Field(..., decimal_places=4)
-    price_adjustment: Decimal = Field(..., decimal_places=2)
+    suggested_price: Decimal = Field(...)
+    expected_profit: Decimal = Field(...)
+    expected_profit_rate: Decimal = Field(...)
+    price_adjustment: Decimal = Field(...)
     optimization_reason: str
 
     def model_dump_json(self, **kwargs: Any) -> str:
@@ -59,8 +59,8 @@ class ProfitOptimization(BaseModel):
 class MarginAnalysis(BaseModel):
     """毛利分析"""
 
-    gross_margin: Decimal = Field(..., decimal_places=2)
-    gross_margin_rate: Decimal = Field(..., decimal_places=4)
+    gross_margin: Decimal = Field(...)
+    gross_margin_rate: Decimal = Field(...)
     cost_breakdown: Dict[str, Decimal]
     margin_level: str  # "excellent", "good", "acceptable", "poor"
 
@@ -79,21 +79,21 @@ class ProfitResult(BaseModel):
     platform: Platform
 
     # 输入值
-    cost: Decimal = Field(..., decimal_places=2)
-    selling_price: Decimal = Field(..., decimal_places=2)
+    cost: Decimal = Field(...)
+    selling_price: Decimal = Field(...)
 
     # 平台费
-    platform_fee: Decimal = Field(..., decimal_places=2)
-    platform_fee_rate: Decimal = Field(..., decimal_places=4)
+    platform_fee: Decimal = Field(...)
+    platform_fee_rate: Decimal = Field(...)
 
     # 运费方案
     shipping_options: Dict[str, ShippingResult] = Field(default_factory=dict)
     recommended_shipping: Optional[str] = None
-    selected_shipping_cost: Decimal = Field(..., decimal_places=2)
+    selected_shipping_cost: Decimal = Field(...)
 
     # 利润计算
-    profit_amount: Decimal = Field(..., decimal_places=2)
-    profit_rate: Decimal = Field(..., decimal_places=4)
+    profit_amount: Decimal = Field(...)
+    profit_rate: Decimal = Field(...)
 
     # 场景与分析
     scenario: ScenarioType

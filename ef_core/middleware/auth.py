@@ -6,7 +6,7 @@ from typing import Callable, Optional
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import UnauthorizedError, ForbiddenError
 from ef_core.services.auth_service import get_auth_service
 

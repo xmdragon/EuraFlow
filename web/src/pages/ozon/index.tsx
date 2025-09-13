@@ -1,35 +1,35 @@
 /**
  * Ozon 管理主页面
  */
-import React from 'react'
-import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
-import { Layout, Menu } from 'antd'
 import {
   ShoppingOutlined,
   ShoppingCartOutlined,
   SettingOutlined,
   DashboardOutlined,
-  ShopOutlined
-} from '@ant-design/icons'
+  ShopOutlined,
+} from '@ant-design/icons';
+import { Layout, Menu } from 'antd';
+import React from 'react';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 
-import Dashboard from './Dashboard'
-import ProductList from './ProductList'
-import OrderList from './OrderList'
-import ShopSettings from './ShopSettings'
+import Dashboard from './Dashboard';
+import OrderList from './OrderList';
+import ProductList from './ProductList';
+import ShopSettings from './ShopSettings';
 
-const { Sider, Content } = Layout
+const { Sider, Content } = Layout;
 
 const OzonManagement: React.FC = () => {
-  const location = useLocation()
-  
+  const location = useLocation();
+
   // 根据当前路径确定选中的菜单项
   const getSelectedKey = () => {
-    const path = location.pathname
-    if (path.includes('products')) return 'products'
-    if (path.includes('orders')) return 'orders'
-    if (path.includes('settings')) return 'settings'
-    return 'dashboard'
-  }
+    const path = location.pathname;
+    if (path.includes('products')) return 'products';
+    if (path.includes('orders')) return 'orders';
+    if (path.includes('settings')) return 'settings';
+    return 'dashboard';
+  };
 
   const menuItems = [
     {
@@ -51,19 +51,21 @@ const OzonManagement: React.FC = () => {
       key: 'settings',
       icon: <SettingOutlined />,
       label: <Link to="/dashboard/ozon/settings">店铺设置</Link>,
-    }
-  ]
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider theme="light" width={200}>
-        <div style={{ 
-          padding: '16px',
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8
-        }}>
+        <div
+          style={{
+            padding: '16px',
+            borderBottom: '1px solid #f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
           <ShopOutlined style={{ fontSize: 20, color: '#1890ff' }} />
           <span style={{ fontSize: 16, fontWeight: 'bold' }}>Ozon管理</span>
         </div>
@@ -83,7 +85,7 @@ const OzonManagement: React.FC = () => {
         </Routes>
       </Content>
     </Layout>
-  )
-}
+  );
+};
 
-export default OzonManagement
+export default OzonManagement;

@@ -13,7 +13,7 @@ try:
 except ImportError:
     PROMETHEUS_AVAILABLE = False
 
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):

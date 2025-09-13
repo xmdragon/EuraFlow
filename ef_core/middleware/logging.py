@@ -8,7 +8,7 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ef_core.utils.logging import get_logger, LogContext
+from ef_core.utils.logger import get_logger, LogContext
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

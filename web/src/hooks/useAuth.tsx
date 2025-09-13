@@ -1,13 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import authService from '@/services/authService'
-import type { AuthContextValue, LoginRequest, User } from '@/types/auth'
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+import authService from '@/services/authService';
+import type { AuthContextValue, LoginRequest, User } from '@/types/auth';
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null)
-  const queryClient = useQueryClient()
+  const [user, setUser] = useState<User | null>(null);
+  const queryClient = useQueryClient();
 
   // Query to fetch current user
   const { data, isLoading, error } = useQuery({
@@ -16,41 +17,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     enabled: authService.isAuthenticated(),
     retry: false,
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
-  })
+  });
 
   // Update user state when data changes
   useEffect(() => {
     if (data) {
-      setUser(data)
+      setUser(data);
     } else if (error) {
-      setUser(null)
+      setUser(null);
+      // Clear tokens on 401
+      if ((error as any)?.response?.status === 401) {
+        authService.clearTokens();
+      }
     }
-  }, [data, error])
+  }, [data, error]);
 
   const login = async (credentials: LoginRequest) => {
     try {
-      const response = await authService.login(credentials)
-      setUser(response.user)
-      
+      const response = await authService.login(credentials);
+      setUser(response.user);
+
       // Invalidate and refetch user data
-      await queryClient.invalidateQueries({ queryKey: ['currentUser'] })
+      await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
     } catch (error) {
-      console.error('Login failed:', error)
-      throw error
+      console.error('Login failed:', error);
+      throw error;
     }
-  }
+  };
 
   const logout = async () => {
-    await authService.logout()
-    setUser(null)
-    queryClient.clear()
-    window.location.href = '/login'
-  }
+    await authService.logout();
+    setUser(null);
+    queryClient.clear();
+    window.location.href = '/login';
+  };
 
   const refreshToken = async () => {
-    await authService.refresh()
-    await queryClient.invalidateQueries({ queryKey: ['currentUser'] })
-  }
+    await authService.refresh();
+    await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+  };
 
   const value: AuthContextValue = {
     user,
@@ -58,17 +63,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     refreshToken,
-  }
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context
-}
+  return context;
+};
 
-export default useAuth
+export default useAuth;

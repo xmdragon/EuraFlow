@@ -1,4 +1,4 @@
-import { apiClient } from "@/utils/api";
+import apiClient from './simpleAxios';
 
 export interface ShippingRequest {
   platform: string;
@@ -89,51 +89,37 @@ export interface ProfitResult {
 }
 
 class FinanceService {
-  private baseUrl = "/api/ef/v1/finance";
+  private baseUrl = '/api/ef/v1/finance';
 
   async calculateShipping(request: ShippingRequest): Promise<ShippingResult> {
-    const response = await apiClient.post(
-      `${this.baseUrl}/shipping/calculate`,
-      request,
-    );
+    const response = await apiClient.post(`${this.baseUrl}/shipping/calculate`, request);
     return response.data;
   }
 
   async calculateMultipleShipping(
     request: ShippingRequest,
-    serviceTypes?: string[],
+    serviceTypes?: string[]
   ): Promise<ShippingResult[]> {
-    const params = serviceTypes
-      ? { service_types: serviceTypes.join(",") }
-      : undefined;
-    const response = await apiClient.post(
-      `${this.baseUrl}/shipping/calculate-multiple`,
-      request,
-      { params },
-    );
+    const params = serviceTypes ? { service_types: serviceTypes.join(',') } : undefined;
+    const response = await apiClient.post(`${this.baseUrl}/shipping/calculate-multiple`, request, {
+      params,
+    });
     return response.data;
   }
 
   async calculateProfit(request: ProfitRequest): Promise<ProfitResult> {
-    const response = await apiClient.post(
-      `${this.baseUrl}/profit/calculate`,
-      request,
-    );
+    const response = await apiClient.post(`${this.baseUrl}/profit/calculate`, request);
     return response.data;
   }
 
-  async batchCalculateShipping(
-    requests: ShippingRequest[],
-  ): Promise<ShippingResult[]> {
+  async batchCalculateShipping(requests: ShippingRequest[]): Promise<ShippingResult[]> {
     const response = await apiClient.post(`${this.baseUrl}/shipping/batch`, {
       requests,
     });
     return response.data;
   }
 
-  async batchCalculateProfit(
-    requests: ProfitRequest[],
-  ): Promise<ProfitResult[]> {
+  async batchCalculateProfit(requests: ProfitRequest[]): Promise<ProfitResult[]> {
     const response = await apiClient.post(`${this.baseUrl}/profit/batch`, {
       requests,
     });

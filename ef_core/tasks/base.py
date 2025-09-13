@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Callable, Awaitable
 from functools import wraps
 
 from celery import Task
-from ef_core.utils.logging import get_logger, LogContext
+from ef_core.utils.logger import get_logger, LogContext
 from ef_core.utils.errors import EuraFlowException
 
 logger = get_logger(__name__)

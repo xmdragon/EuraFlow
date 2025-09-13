@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from ef_core.database import get_db_manager
 from ef_core.event_bus import get_event_bus
-from ef_core.utils.logging import get_logger
+from ef_core.utils.logger import get_logger
 from .base import task_with_context, retry_task
 
 logger = get_logger(__name__)

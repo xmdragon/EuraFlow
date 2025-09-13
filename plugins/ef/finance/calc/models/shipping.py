@@ -4,7 +4,7 @@
 
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Annotated
 from uuid import uuid4
 from pydantic import BaseModel, Field, field_validator
 
@@ -14,9 +14,9 @@ from .enums import Platform, ServiceType, FulfillmentModel, Origin, CarrierServi
 class Dimensions(BaseModel):
     """包裹尺寸"""
 
-    length_cm: Decimal = Field(..., decimal_places=2, gt=0)
-    width_cm: Decimal = Field(..., decimal_places=2, gt=0)
-    height_cm: Decimal = Field(..., decimal_places=2, gt=0)
+    length_cm: Annotated[Decimal, Field(gt=0)] = Field(...)
+    width_cm: Annotated[Decimal, Field(gt=0)] = Field(...)
+    height_cm: Annotated[Decimal, Field(gt=0)] = Field(...)
 
     @property
     def three_sides_sum(self) -> Decimal:
@@ -42,7 +42,7 @@ class ShippingFlags(BaseModel):
     liquid: bool = False  # 液体
     cod: bool = False  # 货到付款
     insurance: bool = False  # 需要保险
-    insurance_value: Optional[Decimal] = Field(None, decimal_places=2, ge=0)
+    insurance_value: Optional[Annotated[Decimal, Field(ge=0)]] = Field(None)
 
     @field_validator("insurance_value")
     def validate_insurance_value(cls, v: Optional[Decimal], values: Dict[str, Any]) -> Optional[Decimal]:
@@ -65,8 +65,8 @@ class ShippingRequest(BaseModel):
     dimensions: Dimensions
 
     # 商业信息
-    declared_value: Decimal = Field(..., decimal_places=2, ge=0)
-    selling_price: Decimal = Field(..., decimal_places=2, ge=0)
+    declared_value: Annotated[Decimal, Field(ge=0)] = Field(...)
+    selling_price: Annotated[Decimal, Field(ge=0)] = Field(...)
 
     # 扩展信息
     origin: Origin = "cn_mainland"
@@ -98,17 +98,17 @@ class ShippingResult(BaseModel):
     service_type: ServiceType
 
     # 重量计算
-    actual_weight_kg: Decimal = Field(..., decimal_places=3)
-    volume_weight_kg: Decimal = Field(..., decimal_places=3)
-    chargeable_weight_kg: Decimal = Field(..., decimal_places=3)
-    weight_step_kg: Decimal = Field(..., decimal_places=2)  # 步进单位
-    rounded_weight_kg: Decimal = Field(..., decimal_places=2)  # 步进后重量
+    actual_weight_kg: Decimal = Field(...)
+    volume_weight_kg: Decimal = Field(...)
+    chargeable_weight_kg: Decimal = Field(...)
+    weight_step_kg: Decimal = Field(...)
+    rounded_weight_kg: Decimal = Field(...)
 
     # 费用明细
-    base_rate: Decimal = Field(..., decimal_places=2)
-    weight_rate: Decimal = Field(..., decimal_places=2)
+    base_rate: Decimal = Field(...)
+    weight_rate: Decimal = Field(...)
     surcharges: Dict[str, Decimal] = Field(default_factory=dict)  # 附加费
-    total_cost: Decimal = Field(..., decimal_places=2)
+    total_cost: Decimal = Field(...)
 
     # 时效信息
     delivery_days_min: int = Field(..., ge=1)
