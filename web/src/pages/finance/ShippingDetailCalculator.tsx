@@ -1,243 +1,390 @@
-import {
-  TruckOutlined,
-  InfoCircleOutlined,
-} from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Form,
-  Input,
   InputNumber,
   Select,
-  Button,
-  Space,
+  Tabs,
   Table,
   Tag,
   Row,
   Col,
-  Alert,
-  Divider,
+  Space,
   Typography,
-  message,
+  Divider,
+  Radio,
+  Alert,
 } from 'antd';
-import React, { useState } from 'react';
-
-import { financeService } from '@/services/finance';
+import { 
+  OZON_UNI_DATA, 
+  calculateVolumeWeight, 
+  calculateChargeableWeight,
+  calculateShippingFee,
+  checkServiceAvailable,
+  type UNIService,
+  type UNICategory
+} from './ozonUniShippingData';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-interface ShippingResult {
-  service_type: string;
-  total_cost: number;
-  delivery_days_min: number;
-  delivery_days_max: number;
-  actual_weight_kg: number;
-  volume_weight_kg: number;
-  chargeable_weight_kg: number;
-  rejected: boolean;
-  rejection_reason?: string;
+interface CalculationData {
+  weight: number;          // 重量(克)
+  length: number;          // 长(cm)
+  width: number;           // 宽(cm)
+  height: number;          // 高(cm)
+  value: number;          // 货值(卢布)
+  deliveryType: 'pickup' | 'delivery';  // 自提点/送货上门
 }
 
 const ShippingDetailCalculator: React.FC = () => {
-  const [shippingForm] = Form.useForm();
-  const [shippingResults, setShippingResults] = useState<ShippingResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [form] = Form.useForm();
+  const [calculationData, setCalculationData] = useState<CalculationData>({
+    weight: 530,
+    length: 30,
+    width: 30,
+    height: 30,
+    value: 1500,
+    deliveryType: 'pickup'
+  });
+  
+  const [volumeWeight, setVolumeWeight] = useState(0);
+  const [chargeableWeight, setChargeableWeight] = useState(0);
+  const [sumDimension, setSumDimension] = useState(0);
+  const [maxDimension, setMaxDimension] = useState(0);
 
-  // 计算运费
-  const calculateShipping = async (values: Record<string, unknown>) => {
-    setLoading(true);
-    try {
-      const results = await financeService.calculateMultipleShipping({
-        platform: String(values.platform || 'OZON'),
-        carrier_service: 'STANDARD',
-        service_type: String(values.service_type || 'STANDARD'),
-        weight_g: Number(values.weight_g || 0),
-        dimensions: {
-          length_cm: Number(values.length_cm || 0),
-          width_cm: Number(values.width_cm || 0),
-          height_cm: Number(values.height_cm || 0),
-        },
-        declared_value: Number(values.declared_value || 0),
-        selling_price: Number(values.selling_price || 0),
-        origin: String(values.origin || 'cn_mainland'),
-        fulfillment_model: 'FBO',
-      } as any);
-      setShippingResults(results);
-      message.success('运费计算完成');
-    } catch (error) {
-      message.error((error as Error).message || '计算失败');
-    } finally {
-      setLoading(false);
-    }
+  // 计算体积重量和尺寸
+  useEffect(() => {
+    const { weight, length, width, height } = calculationData;
+    const volWeight = calculateVolumeWeight(length, width, height);
+    const charWeight = calculateChargeableWeight(weight, volWeight);
+    const sum = length + width + height;
+    const max = Math.max(length, width, height);
+    
+    setVolumeWeight(volWeight);
+    setChargeableWeight(charWeight);
+    setSumDimension(sum);
+    setMaxDimension(max);
+  }, [calculationData]);
+
+  // 处理表单值变化
+  const handleFormChange = (changedValues: any) => {
+    setCalculationData(prev => ({
+      ...prev,
+      ...changedValues
+    }));
   };
 
-  const shippingColumns = [
-    {
-      title: '服务类型',
-      dataIndex: 'service_type',
-      key: 'service_type',
-      render: (type: string) => {
-        const typeMap: Record<string, { text: string; color: string }> = {
-          STANDARD: { text: '标准服务', color: 'blue' },
-          EXPRESS: { text: '快速服务', color: 'green' },
-          ECONOMY: { text: '经济服务', color: 'orange' },
-        };
-        const config = typeMap[type] || { text: type, color: 'default' };
-        return <Tag color={config.color}>{config.text}</Tag>;
+  // 渲染服务表格
+  const renderServiceTable = (category: UNICategory) => {
+    const columns = [
+      {
+        title: '渠道名称',
+        dataIndex: 'name',
+        key: 'name',
+        width: 200,
       },
-    },
-    {
-      title: '运费',
-      dataIndex: 'total_cost',
-      key: 'total_cost',
-      render: (cost: number) => `¥${cost.toFixed(2)}`,
-    },
-    {
-      title: '时效',
-      key: 'delivery',
-      render: (_: unknown, record: ShippingResult) =>
-        `${record.delivery_days_min}-${record.delivery_days_max}天`,
-    },
-    {
-      title: '计费重量(kg)',
-      dataIndex: 'chargeable_weight_kg',
-      key: 'chargeable_weight_kg',
-      render: (weight: number) => weight.toFixed(3),
-    },
-    {
-      title: '状态',
-      dataIndex: 'rejected',
-      key: 'rejected',
-      render: (rejected: boolean, record: ShippingResult) =>
-        rejected ? (
-          <Tag color="error">{record.rejection_reason || '不可用'}</Tag>
-        ) : (
-          <Tag color="success">可用</Tag>
+      {
+        title: '代码',
+        dataIndex: 'code',
+        key: 'code',
+        width: 60,
+        render: (code: string) => <Tag color="blue">{code}</Tag>,
+      },
+      {
+        title: '时效(天)',
+        key: 'timeRange',
+        width: 100,
+        render: (record: UNIService) => (
+          <Space direction="vertical" size={0}>
+            <Text>{record.minDays}-{record.maxDays}天</Text>
+            {record.avgDays > 0 && <Text type="secondary">{record.avgDays}天</Text>}
+          </Space>
         ),
-    },
-  ];
+      },
+      {
+        title: 'UNI费用公式',
+        dataIndex: 'formula',
+        key: 'formula',
+        width: 150,
+        render: (formula: string, record: UNIService) => (
+          <Space direction="vertical" size={0}>
+            <Text>{formula}</Text>
+            {record.additionalFee && calculationData.deliveryType === 'delivery' && (
+              <Text type="secondary">送货: {record.additionalFee}</Text>
+            )}
+          </Space>
+        ),
+      },
+      {
+        title: '运费计算结果',
+        key: 'fee',
+        width: 120,
+        render: (record: UNIService) => {
+          const availability = checkServiceAvailable(
+            record, 
+            chargeableWeight,
+            calculationData.value,
+            sumDimension,
+            maxDimension
+          );
+          
+          if (!availability.available) {
+            return <Text type="secondary">--</Text>;
+          }
+          
+          const fee = calculateShippingFee(
+            record, 
+            chargeableWeight, 
+            calculationData.deliveryType === 'delivery'
+          );
+          return <Text strong style={{ color: '#52c41a' }}>¥{fee.toFixed(2)}</Text>;
+        },
+      },
+      {
+        title: '最大重量',
+        dataIndex: 'maxWeight',
+        key: 'maxWeight',
+        width: 100,
+        render: (weight: number) => weight ? `${weight}克` : '不限',
+      },
+      {
+        title: '货值限制',
+        dataIndex: 'maxValue',
+        key: 'maxValue',
+        width: 120,
+        render: (value: number) => value ? `${value}卢布` : '不限',
+      },
+      {
+        title: '尺寸限制',
+        key: 'dimension',
+        width: 150,
+        render: (record: UNIService) => {
+          const { sumLimit, maxSide } = record.dimensionLimit;
+          if (!sumLimit && !maxSide) return '不限';
+          
+          const limits = [];
+          if (sumLimit) limits.push(`三边≤${sumLimit}cm`);
+          if (maxSide) limits.push(`最长边≤${maxSide}cm`);
+          return (
+            <Space direction="vertical" size={0}>
+              {limits.map((limit, index) => (
+                <Text key={index} style={{ fontSize: 12 }}>{limit}</Text>
+              ))}
+            </Space>
+          );
+        },
+      },
+      {
+        title: '注意事项',
+        key: 'notes',
+        width: 150,
+        render: (record: UNIService) => {
+          const availability = checkServiceAvailable(
+            record, 
+            chargeableWeight,
+            calculationData.value,
+            sumDimension,
+            maxDimension
+          );
+          
+          if (!availability.available) {
+            return <Tag color="error">{availability.reason}</Tag>;
+          }
+          
+          if (record.msds) {
+            return <Tag color="orange">需要MSDS</Tag>;
+          }
+          
+          return record.notes?.join(', ') || '--';
+        },
+      },
+    ];
+
+    return (
+      <Table
+        columns={columns}
+        dataSource={category.services}
+        rowKey="code"
+        pagination={false}
+        size="small"
+        scroll={{ x: 1200 }}
+        rowClassName={(record) => {
+          const availability = checkServiceAvailable(
+            record, 
+            chargeableWeight,
+            calculationData.value,
+            sumDimension,
+            maxDimension
+          );
+          return !availability.available ? 'disabled-row' : '';
+        }}
+      />
+    );
+  };
 
   return (
-    <Card>
-      <Form
-        form={shippingForm}
-        layout="vertical"
-        onFinish={calculateShipping}
-        initialValues={{
-          platform: 'OZON',
-          service_type: 'STANDARD',
-          battery: false,
-          fragile: false,
-          liquid: false,
-          insurance: false,
-        }}
-      >
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
-              <Select>
-                <Option value="OZON">OZON</Option>
-                <Option value="ALIEXPRESS">AliExpress</Option>
-                <Option value="WILDBERRIES">Wildberries</Option>
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="service_type" label="服务类型" rules={[{ required: true }]}>
-              <Select>
-                <Option value="STANDARD">标准服务</Option>
-                <Option value="EXPRESS">快速服务</Option>
-                <Option value="ECONOMY">经济服务</Option>
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="origin" label="发货地">
-              <Select>
-                <Option value="cn_mainland">中国大陆</Option>
-                <Option value="cn_hongkong">中国香港</Option>
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
+    <div>
+      {/* 价格测算表 */}
+      <Card title="价格测算表" style={{ marginBottom: 16 }}>
+        <Form
+          form={form}
+          layout="horizontal"
+          initialValues={calculationData}
+          onValuesChange={handleFormChange}
+        >
+          <Row gutter={24}>
+            <Col span={12}>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item label="重量(克)" name="weight">
+                    <InputNumber 
+                      style={{ width: '100%' }} 
+                      min={1} 
+                      max={25000}
+                      precision={0}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="货值(卢布)" name="value">
+                    <InputNumber 
+                      style={{ width: '100%' }} 
+                      min={0}
+                      precision={0}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item label="长(cm)" name="length">
+                    <InputNumber 
+                      style={{ width: '100%' }} 
+                      min={1} 
+                      max={150}
+                      precision={0}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="宽(cm)" name="width">
+                    <InputNumber 
+                      style={{ width: '100%' }} 
+                      min={1} 
+                      max={150}
+                      precision={0}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="高(cm)" name="height">
+                    <InputNumber 
+                      style={{ width: '100%' }} 
+                      min={1} 
+                      max={150}
+                      precision={0}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              
+              <Form.Item label="配送方式" name="deliveryType">
+                <Radio.Group>
+                  <Radio value="pickup">自提点</Radio>
+                  <Radio value="delivery">送货上门</Radio>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+            
+            <Col span={12}>
+              <Card size="small" title="体积重量" type="inner">
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Row justify="space-between">
+                    <Col>
+                      <Text>体积重量：</Text>
+                    </Col>
+                    <Col>
+                      <Text strong>{volumeWeight.toFixed(2)} 克</Text>
+                    </Col>
+                  </Row>
+                  <Row justify="space-between">
+                    <Col>
+                      <Text>实际重量：</Text>
+                    </Col>
+                    <Col>
+                      <Text strong>{calculationData.weight} 克</Text>
+                    </Col>
+                  </Row>
+                  <Divider style={{ margin: '8px 0' }} />
+                  <Row justify="space-between">
+                    <Col>
+                      <Text>计费重量：</Text>
+                    </Col>
+                    <Col>
+                      <Text strong style={{ color: '#1890ff' }}>
+                        {chargeableWeight.toFixed(2)} 克
+                      </Text>
+                    </Col>
+                  </Row>
+                  <Row justify="space-between">
+                    <Col>
+                      <Text>三边之和：</Text>
+                    </Col>
+                    <Col>
+                      <Text strong>{sumDimension} cm</Text>
+                    </Col>
+                  </Row>
+                  <Row justify="space-between">
+                    <Col>
+                      <Text>最长边：</Text>
+                    </Col>
+                    <Col>
+                      <Text strong>{maxDimension} cm</Text>
+                    </Col>
+                  </Row>
+                </Space>
+              </Card>
+              
+              <Alert
+                message="体积重量 = (长×宽×高) / 5000"
+                type="info"
+                showIcon
+                style={{ marginTop: 16 }}
+              />
+            </Col>
+          </Row>
+        </Form>
+      </Card>
 
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item
-              name="weight_g"
-              label="重量(克)"
-              rules={[{ required: true, min: 1, max: 25000 }]}
+      {/* 6个标签页 */}
+      <Card>
+        <Tabs defaultActiveKey="extra-small">
+          {OZON_UNI_DATA.map(category => (
+            <Tabs.TabPane 
+              tab={
+                <Space>
+                  <Text strong>{category.nameEN}</Text>
+                  <Text type="secondary">({category.name})</Text>
+                  <Tag>{category.weightRange}</Tag>
+                </Space>
+              } 
+              key={category.id}
             >
-              <InputNumber style={{ width: '100%' }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="declared_value"
-              label="申报价值"
-              rules={[{ required: true, min: 0 }]}
-            >
-              <InputNumber style={{ width: '100%' }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="selling_price" label="售价" rules={[{ required: true, min: 0 }]}>
-              <InputNumber style={{ width: '100%' }} />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Title level={5}>包裹尺寸</Title>
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item
-              name="length_cm"
-              label="长度(cm)"
-              rules={[{ required: true, min: 1, max: 150 }]}
-            >
-              <InputNumber style={{ width: '100%' }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="width_cm"
-              label="宽度(cm)"
-              rules={[{ required: true, min: 1, max: 150 }]}
-            >
-              <InputNumber style={{ width: '100%' }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="height_cm"
-              label="高度(cm)"
-              rules={[{ required: true, min: 1, max: 150 }]}
-            >
-              <InputNumber style={{ width: '100%' }} />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Form.Item>
-          <Button type="primary" htmlType="submit" loading={loading}>
-            计算运费
-          </Button>
-        </Form.Item>
-      </Form>
-
-      {shippingResults.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <Divider />
-          <Title level={4}>运费计算结果</Title>
-          <Table
-            columns={shippingColumns}
-            dataSource={shippingResults}
-            rowKey="service_type"
-            pagination={false}
-          />
-        </div>
-      )}
-    </Card>
+              {renderServiceTable(category)}
+            </Tabs.TabPane>
+          ))}
+        </Tabs>
+      </Card>
+      
+      <style jsx>{`
+        .disabled-row {
+          opacity: 0.5;
+          background-color: #f5f5f5;
+        }
+      `}</style>
+    </div>
   );
 };
 
