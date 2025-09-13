@@ -52,10 +52,45 @@ const ShippingDetailCalculator: React.FC = () => {
   const [chargeableWeight, setChargeableWeight] = useState(0);
   const [sumDimension, setSumDimension] = useState(0);
   const [maxDimension, setMaxDimension] = useState(0);
+  const [activeKey, setActiveKey] = useState<string>('extra-small');
+
+  // 根据重量自动选择合适的标签页
+  const getActiveTabByWeight = (weight: number, value: number): string => {
+    // UNI Extra Small: 1g-500g
+    if (weight >= 1 && weight <= 500) {
+      return 'extra-small';
+    }
+    // UNI Budget: 501g-25kg (只适用于501g以上，价值≤1500卢布)
+    if (weight >= 501 && weight <= 25000 && value <= 1500) {
+      return 'budget';
+    }
+    // UNI Small: 1g-2kg (价值1500-7000卢布)
+    if (weight >= 1 && weight <= 2000 && value > 1500 && value <= 7000) {
+      return 'small';
+    }
+    // UNI Big: 2.001kg-25kg (价值1501-7000卢布)
+    if (weight >= 2001 && weight <= 25000 && value > 1500 && value <= 7000) {
+      return 'big';
+    }
+    // UNI Premium Small: 1g-5kg (高客单价>7000)
+    if (weight >= 1 && weight <= 5000 && value > 7000) {
+      return 'premium-small';
+    }
+    // UNI Premium Big: 5.001kg-25kg (高客单价>7000)
+    if (weight >= 5001 && weight <= 25000 && value > 7000) {
+      return 'premium-big';
+    }
+    
+    // 默认返回最合适的
+    if (weight <= 500) return 'extra-small';
+    if (weight <= 2000) return 'small';
+    if (weight <= 5000) return value > 7000 ? 'premium-small' : 'big';
+    return value > 7000 ? 'premium-big' : 'budget';
+  };
 
   // 计算体积重量和尺寸
   useEffect(() => {
-    const { weight, length, width, height } = calculationData;
+    const { weight, length, width, height, value } = calculationData;
     const volWeight = calculateVolumeWeight(length, width, height);
     const charWeight = calculateChargeableWeight(weight, volWeight);
     const sum = length + width + height;
@@ -65,6 +100,10 @@ const ShippingDetailCalculator: React.FC = () => {
     setChargeableWeight(charWeight);
     setSumDimension(sum);
     setMaxDimension(max);
+    
+    // 自动切换到合适的标签页
+    const newActiveKey = getActiveTabByWeight(weight, value);
+    setActiveKey(newActiveKey);
   }, [calculationData]);
 
   // 处理表单值变化
@@ -378,7 +417,8 @@ const ShippingDetailCalculator: React.FC = () => {
           }
         `}</style>
         <Tabs 
-          defaultActiveKey="extra-small"
+          activeKey={activeKey}
+          onChange={setActiveKey}
           items={OZON_UNI_DATA.map(category => ({
             key: category.id,
             label: (
