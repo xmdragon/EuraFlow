@@ -99,9 +99,16 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
     >
       {/* 条件说明 */}
       <div style={{ marginBottom: 12 }}>
-        <Space size="small">
-          <Tag color="blue">{scenario.weightRange}</Tag>
-          <Tag color="green">{scenario.priceRange}</Tag>
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Space size="small">
+            <Tag color="blue">{scenario.weightRange}</Tag>
+            <Tag color="green">{scenario.priceRange}</Tag>
+          </Space>
+          <div style={{ width: '100%' }}>
+            <Tag color="orange" style={{ width: '100%', textAlign: 'center' }}>
+              📏 {scenario.dimensionLimit.description}
+            </Tag>
+          </div>
         </Space>
       </div>
 

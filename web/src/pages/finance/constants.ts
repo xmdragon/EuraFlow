@@ -20,6 +20,11 @@ export interface ScenarioConfig {
     minPrice?: number;   // 卢布
     maxPrice?: number;   // 卢布
   };
+  dimensionLimit: {
+    sumLimit: number;      // 三边之和限制（厘米）
+    maxSideLimit: number;  // 最长边限制（厘米）
+    description: string;   // 显示文本
+  };
   color: {
     primary: string;    // 主色
     background: string; // 背景色
@@ -35,13 +40,18 @@ export const SCENARIOS: ScenarioConfig[] = [
     priceRange: '<1500卢布',
     defaultPlatformRate: 0.14,
     shipping: {
-      base: 0,
+      base: 3,
       rate: 0.035,
-      formula: '0.035 × 重量(克)'
+      formula: '3 + 0.035 × 重量(克)'
     },
     conditions: {
       maxWeight: 500,
       maxPrice: 1500
+    },
+    dimensionLimit: {
+      sumLimit: 90,
+      maxSideLimit: 60,
+      description: '三边之和≤90厘米，最长边≤60厘米'
     },
     color: {
       primary: '#1890ff',
@@ -64,6 +74,11 @@ export const SCENARIOS: ScenarioConfig[] = [
       minWeight: 501,
       maxWeight: 25000,
       maxPrice: 1500
+    },
+    dimensionLimit: {
+      sumLimit: 150,
+      maxSideLimit: 60,
+      description: '三边之和≤150厘米，最长边≤60厘米'
     },
     color: {
       primary: '#52c41a',
@@ -88,6 +103,11 @@ export const SCENARIOS: ScenarioConfig[] = [
       minPrice: 1500,
       maxPrice: 7000
     },
+    dimensionLimit: {
+      sumLimit: 150,
+      maxSideLimit: 60,
+      description: '三边之和≤150厘米，最长边≤60厘米'
+    },
     color: {
       primary: '#722ed1',
       background: '#f9f0ff'
@@ -111,6 +131,11 @@ export const SCENARIOS: ScenarioConfig[] = [
       minPrice: 1501,
       maxPrice: 7000
     },
+    dimensionLimit: {
+      sumLimit: 250,
+      maxSideLimit: 150,
+      description: '三边之和≤250厘米，最长边≤150厘米'
+    },
     color: {
       primary: '#fa8c16',
       background: '#fff7e6'
@@ -133,6 +158,11 @@ export const SCENARIOS: ScenarioConfig[] = [
       maxWeight: 5000,
       minPrice: 7000
     },
+    dimensionLimit: {
+      sumLimit: 250,
+      maxSideLimit: 150,
+      description: '三边之和≤250厘米，最长边≤150厘米'
+    },
     color: {
       primary: '#eb2f96',
       background: '#fff0f6'
@@ -154,6 +184,11 @@ export const SCENARIOS: ScenarioConfig[] = [
       minWeight: 5100,
       maxWeight: 25000,
       minPrice: 7000
+    },
+    dimensionLimit: {
+      sumLimit: 310,
+      maxSideLimit: 150,
+      description: '三边之和≤310厘米，最长边≤150厘米'
     },
     color: {
       primary: '#13c2c2',
