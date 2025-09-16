@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any */
 /**
  * Ozon 订单列表页面
  */
@@ -49,6 +49,7 @@ import moment from 'moment';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
+import ShopSelector from '@/components/ozon/ShopSelector';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -62,6 +63,7 @@ const OrderList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
+  const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [shipModalVisible, setShipModalVisible] = useState(false);
@@ -87,13 +89,14 @@ const OrderList: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonOrders', currentPage, pageSize, activeTab],
+    queryKey: ['ozonOrders', currentPage, pageSize, activeTab, selectedShop],
     queryFn: () => {
       const filters = filterForm.getFieldsValue();
       const dateRange = filters.dateRange;
 
       return ozonApi.getOrders(currentPage, pageSize, {
         ...filters,
+        shop_id: selectedShop,
         status: activeTab === 'all' ? undefined : activeTab,
         date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
         date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
@@ -142,7 +145,7 @@ const OrderList: React.FC = () => {
   // 同步订单
   const syncOrdersMutation = useMutation({
     mutationFn: ({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) =>
-      ozonApi.syncOrders(dateFrom, dateTo),
+      ozonApi.syncOrders(selectedShop, dateFrom, dateTo),
     onSuccess: (data) => {
       message.success('订单同步任务已启动');
       setSyncTaskId(data.task_id);
@@ -169,6 +172,8 @@ const OrderList: React.FC = () => {
           if (status.status === 'completed') {
             message.success('同步完成！');
             queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+            // 刷新页面数据
+            refetch();
             setSyncTaskId(null);
           } else if (status.status === 'failed') {
             message.error(`同步失败: ${status.error || '未知错误'}`);
@@ -592,6 +597,19 @@ const OrderList: React.FC = () => {
 
       {/* 搜索过滤 */}
       <Card style={{ marginBottom: 16 }}>
+        <Row style={{ marginBottom: 16 }}>
+          <Col flex="auto">
+            <Space size="large">
+              <span style={{ fontWeight: 500 }}>选择店铺:</span>
+              <ShopSelector
+                value={selectedShop}
+                onChange={setSelectedShop}
+                showAllOption={true}
+                style={{ minWidth: 200 }}
+              />
+            </Space>
+          </Col>
+        </Row>
         <Form form={filterForm} layout="inline" onFinish={() => refetch()}>
           <Form.Item name="dateRange">
             <RangePicker />
@@ -809,8 +827,10 @@ const OrderList: React.FC = () => {
                           {selectedOrder.delivery_address.street && (
                             <>
                               {selectedOrder.delivery_address.street}
-                              {selectedOrder.delivery_address.building && `, ${selectedOrder.delivery_address.building}`}
-                              {selectedOrder.delivery_address.apartment && `, кв. ${selectedOrder.delivery_address.apartment}`}
+                              {selectedOrder.delivery_address.building &&
+                                `, ${selectedOrder.delivery_address.building}`}
+                              {selectedOrder.delivery_address.apartment &&
+                                `, кв. ${selectedOrder.delivery_address.apartment}`}
                               <br />
                             </>
                           )}

@@ -44,6 +44,7 @@ import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
+import ShopSelector from '@/components/ozon/ShopSelector';
 
 const { Option } = Select;
 const { confirm } = Modal;
@@ -55,6 +56,7 @@ const ProductList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRows, setSelectedRows] = useState<ozonApi.Product[]>([]);
+  const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [stockModalVisible, setStockModalVisible] = useState(false);
@@ -70,14 +72,14 @@ const ProductList: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonProducts', currentPage, pageSize],
-    queryFn: () => ozonApi.getProducts(currentPage, pageSize, {}),
+    queryKey: ['ozonProducts', currentPage, pageSize, selectedShop],
+    queryFn: () => ozonApi.getProducts(currentPage, pageSize, { shop_id: selectedShop }),
     refetchInterval: 30000, // 30秒自动刷新
   });
 
   // 同步商品
   const syncProductsMutation = useMutation({
-    mutationFn: (fullSync: boolean) => ozonApi.syncProducts(fullSync),
+    mutationFn: (fullSync: boolean) => ozonApi.syncProducts(selectedShop, fullSync),
     onSuccess: (data) => {
       message.success('商品同步任务已启动');
       setSyncTaskId(data.task_id);
@@ -94,7 +96,7 @@ const ProductList: React.FC = () => {
 
   // 批量更新价格
   const updatePricesMutation = useMutation({
-    mutationFn: ozonApi.updatePrices,
+    mutationFn: (updates: ozonApi.PriceUpdate[]) => ozonApi.updatePrices(updates, selectedShop || undefined),
     onSuccess: () => {
       message.success('价格更新成功');
       setPriceModalVisible(false);
@@ -122,6 +124,8 @@ const ProductList: React.FC = () => {
           if (status.status === 'completed') {
             message.success('同步完成！');
             queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+            // 刷新页面数据
+            refetch();
             setSyncTaskId(null);
           } else if (status.status === 'failed') {
             message.error(`同步失败: ${status.error || '未知错误'}`);
@@ -138,7 +142,7 @@ const ProductList: React.FC = () => {
 
   // 批量更新库存
   const updateStocksMutation = useMutation({
-    mutationFn: ozonApi.updateStocks,
+    mutationFn: (updates: ozonApi.StockUpdate[]) => ozonApi.updateStocks(updates, selectedShop || undefined),
     onSuccess: () => {
       message.success('库存更新成功');
       setStockModalVisible(false);
@@ -711,6 +715,19 @@ const ProductList: React.FC = () => {
 
       {/* 搜索过滤 */}
       <Card style={{ marginBottom: 16 }}>
+        <Row style={{ marginBottom: 16 }}>
+          <Col flex="auto">
+            <Space size="large">
+              <span style={{ fontWeight: 500 }}>选择店铺:</span>
+              <ShopSelector
+                value={selectedShop}
+                onChange={setSelectedShop}
+                showAllOption={true}
+                style={{ minWidth: 200 }}
+              />
+            </Space>
+          </Col>
+        </Row>
         <Form form={filterForm} layout="inline" onFinish={handleFilter}>
           <Form.Item name="sku">
             <Input placeholder="SKU" prefix={<SearchOutlined />} />
