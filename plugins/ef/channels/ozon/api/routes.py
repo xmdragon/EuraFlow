@@ -327,7 +327,7 @@ async def get_products(
     # 计算统计信息
     stats_query = select(
         func.count().filter(OzonProduct.status == 'active').label('active'),
-        func.count().filter(OzonProduct.available == 0).label('out_of_stock'),
+        func.count().filter(OzonProduct.status == 'inactive').label('out_of_stock'),
         func.count().filter(OzonProduct.sync_status == 'failed').label('sync_failed')
     ).select_from(OzonProduct)
     
@@ -1487,7 +1487,7 @@ async def get_statistics(
 
         product_out_of_stock_result = await db.execute(
             select(func.count(OzonProduct.id))
-            .where(OzonProduct.available == 0, *product_filter)
+            .where(OzonProduct.status == "inactive", *product_filter)
         )
         product_out_of_stock = product_out_of_stock_result.scalar() or 0
 
