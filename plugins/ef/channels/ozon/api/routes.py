@@ -1,23 +1,20 @@
 """
 Ozon 平台 API 端点
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
-from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from typing import Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
-from ef_core.database import get_async_session, get_db_manager
+from ef_core.database import get_async_session
 
 # 使用 get_async_session 作为 get_session 的别名
 get_session = get_async_session
-from ef_core.models.users import User
-from ef_core.models.shops import Shop
 from ..models import OzonShop, OzonProduct, OzonOrder
-from sqlalchemy import select, update, delete, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func
 # from .auth import get_current_user  # Временно отключено для разработки
 
 router = APIRouter(prefix="/ozon", tags=["Ozon"])
@@ -238,7 +235,6 @@ async def trigger_sync(
     import uuid
     import asyncio
     from ..services import OzonSyncService
-    from ef_core.database import get_db_manager
     
     # 生成真实的任务ID
     task_id = f"task_{uuid.uuid4().hex[:12]}"
@@ -565,14 +561,107 @@ async def update_prices(
 ):
     """批量更新商品价格"""
     updates = request.get("updates", [])
-    
-    # TODO: 实现真实的价格更新逻辑
-    
-    return {
-        "success": True,
-        "message": f"成功更新 {len(updates)} 个商品价格",
-        "updated_count": len(updates)
-    }
+    shop_id = request.get("shop_id", 1)
+
+    if not updates:
+        return {
+            "success": False,
+            "message": "未提供价格更新数据"
+        }
+
+    try:
+        # 获取店铺信息
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+
+        if not shop:
+            return {
+                "success": False,
+                "message": "店铺不存在"
+            }
+
+        updated_count = 0
+        errors = []
+
+        # 创建Ozon API客户端
+        from ..api.client import OzonAPIClient
+        client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc
+        )
+
+        for update in updates:
+            sku = update.get("sku")
+            new_price = update.get("price")
+            old_price = update.get("old_price")
+
+            if not sku or new_price is None:
+                errors.append(f"SKU {sku}: 缺少必要字段")
+                continue
+
+            try:
+                # 查找本地商品
+                product_result = await db.execute(
+                    select(OzonProduct).where(
+                        OzonProduct.shop_id == shop_id,
+                        OzonProduct.sku == sku
+                    )
+                )
+                product = product_result.scalar_one_or_none()
+
+                if not product:
+                    errors.append(f"SKU {sku}: 商品不存在")
+                    continue
+
+                # 调用Ozon API更新价格
+                price_data = {
+                    "prices": [{
+                        "offer_id": product.offer_id,
+                        "price": str(new_price),
+                        "old_price": str(old_price) if old_price else "",
+                        "product_id": product.ozon_product_id
+                    }]
+                }
+
+                api_result = await client.update_prices(price_data)
+
+                if api_result.get("result"):
+                    # 更新本地数据库
+                    product.price = Decimal(str(new_price))
+                    if old_price:
+                        product.old_price = Decimal(str(old_price))
+                    product.updated_at = datetime.now()
+
+                    updated_count += 1
+                else:
+                    errors.append(f"SKU {sku}: Ozon API更新失败")
+
+            except Exception as e:
+                errors.append(f"SKU {sku}: {str(e)}")
+
+        await db.commit()
+
+        result = {
+            "success": True,
+            "message": f"成功更新 {updated_count} 个商品价格",
+            "updated_count": updated_count
+        }
+
+        if errors:
+            result["errors"] = errors[:10]  # 最多显示10个错误
+            if len(errors) > 10:
+                result["errors"].append(f"还有 {len(errors) - 10} 个错误未显示...")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Price update failed: {e}")
+        return {
+            "success": False,
+            "message": f"价格更新失败: {str(e)}"
+        }
 
 @router.post("/products/stocks")
 async def update_stocks(
@@ -582,14 +671,106 @@ async def update_stocks(
 ):
     """批量更新商品库存"""
     updates = request.get("updates", [])
-    
-    # TODO: 实现真实的库存更新逻辑
-    
-    return {
-        "success": True,
-        "message": f"成功更新 {len(updates)} 个商品库存",
-        "updated_count": len(updates)
-    }
+    shop_id = request.get("shop_id", 1)
+
+    if not updates:
+        return {
+            "success": False,
+            "message": "未提供库存更新数据"
+        }
+
+    try:
+        # 获取店铺信息
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+
+        if not shop:
+            return {
+                "success": False,
+                "message": "店铺不存在"
+            }
+
+        updated_count = 0
+        errors = []
+
+        # 创建Ozon API客户端
+        from ..api.client import OzonAPIClient
+        client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc
+        )
+
+        for update in updates:
+            sku = update.get("sku")
+            stock = update.get("stock")
+            warehouse_id = update.get("warehouse_id", 1)
+
+            if not sku or stock is None:
+                errors.append(f"SKU {sku}: 缺少必要字段")
+                continue
+
+            try:
+                # 查找本地商品
+                product_result = await db.execute(
+                    select(OzonProduct).where(
+                        OzonProduct.shop_id == shop_id,
+                        OzonProduct.sku == sku
+                    )
+                )
+                product = product_result.scalar_one_or_none()
+
+                if not product:
+                    errors.append(f"SKU {sku}: 商品不存在")
+                    continue
+
+                # 调用Ozon API更新库存
+                stock_data = {
+                    "stocks": [{
+                        "offer_id": product.offer_id,
+                        "product_id": product.ozon_product_id,
+                        "stock": int(stock),
+                        "warehouse_id": warehouse_id
+                    }]
+                }
+
+                api_result = await client.update_stocks(stock_data)
+
+                if api_result.get("result"):
+                    # 更新本地数据库
+                    product.stock = int(stock)
+                    product.available = int(stock)  # 简化：认为所有库存都可用
+                    product.updated_at = datetime.now()
+
+                    updated_count += 1
+                else:
+                    errors.append(f"SKU {sku}: Ozon API更新失败")
+
+            except Exception as e:
+                errors.append(f"SKU {sku}: {str(e)}")
+
+        await db.commit()
+
+        result = {
+            "success": True,
+            "message": f"成功更新 {updated_count} 个商品库存",
+            "updated_count": updated_count
+        }
+
+        if errors:
+            result["errors"] = errors[:10]  # 最多显示10个错误
+            if len(errors) > 10:
+                result["errors"].append(f"还有 {len(errors) - 10} 个错误未显示...")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Stock update failed: {e}")
+        return {
+            "success": False,
+            "message": f"库存更新失败: {str(e)}"
+        }
 
 # 单个商品操作端点
 @router.post("/products/{product_id}/sync")

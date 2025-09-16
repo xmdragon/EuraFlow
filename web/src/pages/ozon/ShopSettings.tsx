@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any */
 /**
  * Ozon 店铺设置页面
  */
@@ -111,6 +111,44 @@ const ShopSettings: React.FC = () => {
 
       const data = await response.json();
       return data;
+    },
+  });
+
+  // 添加店铺
+  const addShopMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const response = await fetch('/api/ef/v1/ozon/shops', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          shop_name: values.shop_name,
+          platform: 'ozon',
+          api_credentials: {
+            client_id: values.client_id,
+            api_key: values.api_key,
+          },
+          config: {},
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || '添加店铺失败');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      message.success('店铺添加成功');
+      setAddShopModalVisible(false);
+      queryClient.invalidateQueries({ queryKey: ['ozonShops'] });
+      // 自动选择新添加的店铺
+      setSelectedShop(data);
+    },
+    onError: (error: any) => {
+      message.error(`添加失败: ${error.message}`);
     },
   });
 
@@ -277,9 +315,29 @@ const ShopSettings: React.FC = () => {
       okText: '确认删除',
       okType: 'danger',
       onOk: async () => {
-        // TODO: 调用删除API
-        message.success('店铺已删除');
-        queryClient.invalidateQueries({ queryKey: ['ozonShops'] });
+        try {
+          const response = await fetch(`/api/ef/v1/ozon/shops/${shop.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '删除失败');
+          }
+
+          message.success('店铺已删除');
+          queryClient.invalidateQueries({ queryKey: ['ozonShops'] });
+
+          // 如果删除的是当前选中的店铺，清空选择
+          if (selectedShop?.id === shop.id) {
+            setSelectedShop(null);
+          }
+        } catch (error: any) {
+          message.error(`删除失败: ${error.message}`);
+        }
       },
     });
   };
@@ -744,11 +802,8 @@ const ShopSettings: React.FC = () => {
       >
         <Form
           layout="vertical"
-          onFinish={(_values) => {
-            // TODO: 调用添加店铺API
-            message.success('店铺添加成功');
-            setAddShopModalVisible(false);
-            queryClient.invalidateQueries({ queryKey: ['ozonShops'] });
+          onFinish={(values) => {
+            addShopMutation.mutate(values);
           }}
         >
           <Form.Item
@@ -792,7 +847,7 @@ const ShopSettings: React.FC = () => {
 
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <Button type="primary" htmlType="submit" loading={addShopMutation.isPending}>
                 确认添加
               </Button>
               <Button onClick={() => setAddShopModalVisible(false)}>取消</Button>

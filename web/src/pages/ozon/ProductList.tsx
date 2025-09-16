@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, no-unused-vars, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Ozon 商品列表页面
  */
@@ -216,17 +216,11 @@ const ProductList: React.FC = () => {
           <Space direction="vertical" size="small" style={{ flex: 1 }}>
             <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>{text}</span>
             <Space size="small" wrap>
-              {record.category_name && (
-                <Tag color="blue">
-                  {record.category_name}
-                </Tag>
-              )}
+              {record.category_name && <Tag color="blue">{record.category_name}</Tag>}
               {record.brand && <Tag>{record.brand}</Tag>}
               {record.images?.count && record.images.count > 1 && (
                 <Tooltip title={`共有 ${record.images.count} 张图片`}>
-                  <Tag icon={<FileImageOutlined />}>
-                    {record.images.count}张
-                  </Tag>
+                  <Tag icon={<FileImageOutlined />}>{record.images.count}张</Tag>
                 </Tooltip>
               )}
             </Space>
@@ -497,13 +491,30 @@ const ProductList: React.FC = () => {
     refetch();
   };
 
-  const handleSyncSingle = (product: ozonApi.Product) => {
+  const handleSyncSingle = async (product: ozonApi.Product) => {
     confirm({
       title: '确认同步商品？',
       content: `商品SKU: ${product.sku}`,
-      onOk: () => {
-        message.info('单个商品同步功能开发中...');
-        // TODO: 实现单个商品同步
+      onOk: async () => {
+        try {
+          const response = await fetch(`/api/ef/v1/ozon/products/${product.id}/sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            message.success(result.message || '商品同步成功');
+            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+          } else {
+            message.error(result.message || '商品同步失败');
+          }
+        } catch (error: any) {
+          message.error(`同步失败: ${error.message}`);
+        }
       },
     });
   };
@@ -512,9 +523,26 @@ const ProductList: React.FC = () => {
     confirm({
       title: '确认归档商品？',
       content: `商品SKU: ${product.sku}`,
-      onOk: () => {
-        message.info('商品归档功能开发中...');
-        // TODO: 实现商品归档
+      onOk: async () => {
+        try {
+          const response = await fetch(`/api/ef/v1/ozon/products/${product.id}/archive`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            message.success(result.message || '商品归档成功');
+            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+          } else {
+            message.error(result.message || '商品归档失败');
+          }
+        } catch (error: any) {
+          message.error(`归档失败: ${error.message}`);
+        }
       },
     });
   };
@@ -524,9 +552,26 @@ const ProductList: React.FC = () => {
       title: '确认删除商品？',
       content: `商品SKU: ${product.sku}，此操作不可恢复！`,
       okType: 'danger',
-      onOk: () => {
-        message.info('商品删除功能开发中...');
-        // TODO: 实现商品删除
+      onOk: async () => {
+        try {
+          const response = await fetch(`/api/ef/v1/ozon/products/${product.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            message.success(result.message || '商品删除成功');
+            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+          } else {
+            message.error(result.message || '商品删除失败');
+          }
+        } catch (error: any) {
+          message.error(`删除失败: ${error.message}`);
+        }
       },
     });
   };
@@ -894,11 +939,28 @@ const ProductList: React.FC = () => {
               height: selectedProduct.height,
               depth: selectedProduct.depth,
             }}
-            onFinish={(_values) => {
-              message.info('商品信息更新功能开发中...');
-              // TODO: 更新商品信息
-              // TODO: 实现商品信息更新
-              setEditModalVisible(false);
+            onFinish={async (values) => {
+              try {
+                const response = await fetch(`/api/ef/v1/ozon/products/${selectedProduct.id}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(values),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                  message.success(result.message || '商品信息更新成功');
+                  queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+                  setEditModalVisible(false);
+                } else {
+                  message.error(result.message || '商品信息更新失败');
+                }
+              } catch (error: any) {
+                message.error(`更新失败: ${error.message}`);
+              }
             }}
           >
             <Row gutter={16}>
@@ -1028,10 +1090,45 @@ const ProductList: React.FC = () => {
                 return false;
               }
 
-              // 这里可以添加文件解析逻辑
-              message.success(`${file.name} 文件上传成功，导入功能开发中...`);
-              // TODO: 处理文件导入
+              // 处理文件导入
+              const reader = new FileReader();
+              reader.onload = async (e) => {
+                try {
+                  const content = e.target?.result as string;
+                  const base64Content = btoa(unescape(encodeURIComponent(content)));
 
+                  const response = await fetch('/api/ef/v1/ozon/products/import', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      file_content: base64Content,
+                      shop_id: 1, // 默认使用第一个店铺
+                    }),
+                  });
+
+                  const result = await response.json();
+
+                  if (result.success) {
+                    message.success(result.message || '商品导入成功');
+                    if (result.warnings && result.warnings.length > 0) {
+                      setTimeout(() => {
+                        message.warning(
+                          `导入过程中发现问题：${result.warnings.slice(0, 3).join('; ')}`
+                        );
+                      }, 1000);
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+                  } else {
+                    message.error(result.message || '商品导入失败');
+                  }
+                } catch (error: any) {
+                  message.error(`导入失败: ${error.message}`);
+                }
+              };
+
+              reader.readAsText(file, 'UTF-8');
               setImportModalVisible(false);
               return false; // 阻止自动上传
             }}
