@@ -115,14 +115,49 @@ class OzonSyncService:
                     except Exception as e:
                         logger.error(f"Failed to get products details batch: {e}")
 
+                # 批量获取库存信息
+                products_stock_map = {}
+                if offer_ids:
+                    try:
+                        # 分批处理库存查询，每批最多1000个（API限制）
+                        stock_batch_size = 1000
+                        for i in range(0, len(offer_ids), stock_batch_size):
+                            batch_ids = offer_ids[i : i + stock_batch_size]
+                            stock_response = await client.get_product_stocks(offer_ids=batch_ids)
+
+                            if stock_response.get("result", {}).get("items"):
+                                for stock_item in stock_response["result"]["items"]:
+                                    if stock_item.get("offer_id"):
+                                        # 获取所有仓库的库存
+                                        total_present = 0
+                                        total_reserved = 0
+
+                                        if stock_item.get("stocks"):
+                                            for stock_info in stock_item["stocks"]:
+                                                total_present += stock_info.get("present", 0)
+                                                total_reserved += stock_info.get("reserved", 0)
+
+                                        products_stock_map[stock_item["offer_id"]] = {
+                                            "present": total_present,
+                                            "reserved": total_reserved,
+                                            "total": total_present + total_reserved
+                                        }
+
+                                        # 调试第一个库存信息
+                                        if i == 0 and stock_item == stock_response["result"]["items"][0]:
+                                            logger.info(f"Stock info from v4 API: offer_id={stock_item.get('offer_id')}, present={total_present}, reserved={total_reserved}")
+                    except Exception as e:
+                        logger.error(f"Failed to get products stock batch: {e}")
+
                 # 处理每个商品
                 for idx, item in enumerate(items):
                     progress = 10 + (80 * (total_synced + idx + 1) / (total_synced + len(items)))
                     SYNC_TASKS[task_id]["progress"] = min(progress, 90)
                     SYNC_TASKS[task_id]["message"] = f"正在同步商品 {item.get('offer_id', 'unknown')}..."
 
-                    # 从批量查询结果中获取商品详情
+                    # 从批量查询结果中获取商品详情和库存信息
                     product_details = products_detail_map.get(item.get("offer_id")) if item.get("offer_id") else None
+                    stock_info = products_stock_map.get(item.get("offer_id")) if item.get("offer_id") else None
 
                     # 检查商品是否存在
                     existing = await db.execute(
@@ -212,15 +247,15 @@ class OzonSyncService:
                             product.visibility = item.get("is_visible", True)
                             product.is_archived = item.get("is_archived", False)
 
-                        # 基于库存和归档状态设置商品状态
+                        # 基于OZON原生状态设置商品状态
                         if product.ozon_archived:
                             product.status = "archived"
                         elif not product.visibility:
                             product.status = "inactive"  # 不可见商品
-                        elif product.available > 0:
-                            product.status = "active"    # 有可售库存
+                        elif product.ozon_has_fbo_stocks or product.ozon_has_fbs_stocks:
+                            product.status = "active"    # 有FBO或FBS库存
                         else:
-                            product.status = "inactive"  # 无库存
+                            product.status = "inactive"  # 无任何库存
 
                         # 更新价格
                         if price:
@@ -228,11 +263,17 @@ class OzonSyncService:
                         if old_price:
                             product.old_price = Decimal(str(old_price))
 
-                        # 更新库存
-                        stocks = item.get("stocks", {})
-                        product.stock = stocks.get("present", 0) + stocks.get("reserved", 0)
-                        product.reserved = stocks.get("reserved", 0)
-                        product.available = stocks.get("present", 0)
+                        # 更新库存 - 使用v4 API的真实库存数据
+                        if stock_info:
+                            product.stock = stock_info["total"]
+                            product.reserved = stock_info["reserved"]
+                            product.available = stock_info["present"]
+                        else:
+                            # 如果没有库存信息，使用原有的逻辑作为后备
+                            stocks = item.get("stocks", {})
+                            product.stock = stocks.get("present", 0) + stocks.get("reserved", 0)
+                            product.reserved = stocks.get("reserved", 0)
+                            product.available = stocks.get("present", 0)
 
                         # 更新图片
                         if images_data:
@@ -275,9 +316,10 @@ class OzonSyncService:
                             ozon_is_discounted=item.get("is_discounted", False),
                             price=Decimal(str(price)) if price else Decimal("0"),
                             old_price=Decimal(str(old_price)) if old_price else None,
-                            stock=item.get("stocks", {}).get("present", 0) + item.get("stocks", {}).get("reserved", 0),
-                            reserved=item.get("stocks", {}).get("reserved", 0),
-                            available=item.get("stocks", {}).get("present", 0),
+                            # 使用v4 API的库存数据
+                            stock=stock_info["total"] if stock_info else item.get("stocks", {}).get("present", 0) + item.get("stocks", {}).get("reserved", 0),
+                            reserved=stock_info["reserved"] if stock_info else item.get("stocks", {}).get("reserved", 0),
+                            available=stock_info["present"] if stock_info else item.get("stocks", {}).get("present", 0),
                             images=images_data,
                             sync_status="success",
                             last_sync_at=datetime.utcnow(),
@@ -303,15 +345,15 @@ class OzonSyncService:
                             if product_details.get("is_archived") or product_details.get("is_autoarchived"):
                                 product.ozon_archived = True
 
-                        # 基于库存和归档状态设置商品状态
+                        # 基于OZON原生状态设置商品状态
                         if product.ozon_archived:
                             product.status = "archived"
                         elif not product.visibility:
                             product.status = "inactive"  # 不可见商品
-                        elif product.available > 0:
-                            product.status = "active"    # 有可售库存
+                        elif product.ozon_has_fbo_stocks or product.ozon_has_fbs_stocks:
+                            product.status = "active"    # 有FBO或FBS库存
                         else:
-                            product.status = "inactive"  # 无库存
+                            product.status = "inactive"  # 无任何库存
 
                         db.add(product)
 
