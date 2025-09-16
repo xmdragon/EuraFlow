@@ -525,7 +525,7 @@ async def get_statistics(
 
         product_out_of_stock_result = await db.execute(
             select(func.count(OzonProduct.id))
-            .where(OzonProduct.available == 0, *product_filter)
+            .where(OzonProduct.status == "inactive", *product_filter)
         )
         product_out_of_stock = product_out_of_stock_result.scalar() or 0
 
