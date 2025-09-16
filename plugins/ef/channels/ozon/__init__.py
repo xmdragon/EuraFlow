@@ -97,18 +97,103 @@ async def pull_orders_task() -> None:
     拉取 Ozon 订单的定时任务
     """
     try:
-        # TODO: 实现订单拉取逻辑
-        # 1. 调用 Ozon API 获取新订单
-        # 2. 转换为内部订单格式
-        # 3. 通过 orders service 保存
-        # 4. 发布订单创建事件
-        
-        current_time = datetime.now(UTC).isoformat()
-        print(f"[{current_time}] Pulling orders from Ozon...")
-        
-        # 模拟拉取订单
-        await asyncio.sleep(0.1)
-        
+        from ef_core.database import get_async_session
+        from .models import OzonShop, OzonOrder
+        from .api.client import OzonAPIClient
+        from sqlalchemy import select
+        from decimal import Decimal
+
+        current_time = datetime.now(UTC)
+        print(f"[{current_time.isoformat()}] Pulling orders from Ozon...")
+
+        # 获取所有活跃店铺
+        async with get_async_session() as db:
+            result = await db.execute(
+                select(OzonShop).where(OzonShop.status == "active")
+            )
+            shops = result.scalars().all()
+
+            for shop in shops:
+                try:
+                    # 创建API客户端
+                    client = OzonAPIClient(
+                        client_id=shop.client_id,
+                        api_key=shop.api_key_enc
+                    )
+
+                    # 计算时间范围（最近24小时的订单）
+                    date_to = current_time
+                    date_from = current_time - timedelta(days=1)
+
+                    # 获取订单数据
+                    orders_data = await client.get_orders(
+                        date_from=date_from.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                        date_to=date_to.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                    )
+
+                    if orders_data.get("result"):
+                        postings = orders_data["result"].get("postings", [])
+                        new_orders = 0
+
+                        for posting in postings:
+                            # 检查订单是否已存在
+                            existing = await db.execute(
+                                select(OzonOrder).where(
+                                    OzonOrder.shop_id == shop.id,
+                                    OzonOrder.posting_number == posting.get("posting_number", "")
+                                )
+                            )
+
+                            if not existing.scalar_one_or_none():
+                                # 计算总价
+                                total_price = Decimal("0")
+                                items_data = []
+
+                                for product in posting.get("products", []):
+                                    price = Decimal(str(product.get("price", "0")))
+                                    quantity = product.get("quantity", 0)
+                                    total_price += price * quantity
+                                    items_data.append({
+                                        "sku": product.get("sku"),
+                                        "name": product.get("name"),
+                                        "quantity": quantity,
+                                        "price": str(price)
+                                    })
+
+                                # 创建新订单
+                                order = OzonOrder(
+                                    shop_id=shop.id,
+                                    order_id=posting.get("order_id", ""),
+                                    order_number=posting.get("order_number", ""),
+                                    posting_number=posting.get("posting_number", ""),
+                                    status=posting.get("status", "pending"),
+                                    substatus=posting.get("substatus"),
+                                    delivery_type=posting.get("delivery_method", {}).get("tpl_provider", "FBS"),
+                                    is_express=posting.get("is_express", False),
+                                    is_premium=posting.get("is_premium", False),
+                                    total_price=total_price,
+                                    delivery_method=posting.get("delivery_method", {}).get("name"),
+                                    tracking_number=posting.get("tracking_number"),
+                                    items=items_data,
+                                    in_process_at=datetime.fromisoformat(posting["in_process_at"].replace("Z", "+00:00")) if posting.get("in_process_at") else None,
+                                    shipment_date=datetime.fromisoformat(posting["shipment_date"].replace("Z", "+00:00")) if posting.get("shipment_date") else None,
+                                    analytics_data=posting.get("analytics_data"),
+                                    financial_data=posting.get("financial_data"),
+                                    sync_status="success",
+                                    last_sync_at=current_time
+                                )
+                                db.add(order)
+                                new_orders += 1
+
+                        if new_orders > 0:
+                            await db.commit()
+                            print(f"[{shop.shop_name}] Pulled {new_orders} new orders")
+
+                    await client.close()
+
+                except Exception as e:
+                    print(f"Error pulling orders for shop {shop.shop_name}: {e}")
+
     except Exception as e:
         print(f"Error pulling orders: {e}")
 
@@ -118,17 +203,74 @@ async def sync_inventory_task() -> None:
     同步库存的定时任务
     """
     try:
-        # TODO: 实现库存同步逻辑
-        # 1. 从 inventory service 获取当前库存
-        # 2. 调用 Ozon API 更新库存
-        # 3. 记录同步结果
-        
-        current_time = datetime.now(UTC).isoformat()
-        print(f"[{current_time}] Syncing inventory to Ozon...")
-        
-        # 模拟库存同步
-        await asyncio.sleep(0.1)
-        
+        from ef_core.database import get_async_session
+        from .models import OzonShop, OzonProduct
+        from .api.client import OzonAPIClient
+        from sqlalchemy import select
+
+        current_time = datetime.now(UTC)
+        print(f"[{current_time.isoformat()}] Syncing inventory to Ozon...")
+
+        # 获取所有活跃店铺
+        async with get_async_session() as db:
+            result = await db.execute(
+                select(OzonShop).where(OzonShop.status == "active")
+            )
+            shops = result.scalars().all()
+
+            for shop in shops:
+                try:
+                    # 创建API客户端
+                    client = OzonAPIClient(
+                        client_id=shop.client_id,
+                        api_key=shop.api_key_enc
+                    )
+
+                    # 获取该店铺所有需要同步库存的商品
+                    products_result = await db.execute(
+                        select(OzonProduct).where(
+                            OzonProduct.shop_id == shop.id,
+                            OzonProduct.status == "active"
+                        ).limit(100)  # 批量处理，每次最多100个
+                    )
+                    products = products_result.scalars().all()
+
+                    if products:
+                        # 准备批量库存更新数据
+                        stocks_data = []
+                        for product in products:
+                            if product.offer_id and product.stock is not None:
+                                stocks_data.append({
+                                    "offer_id": product.offer_id,
+                                    "product_id": product.ozon_product_id,
+                                    "stock": int(product.stock),
+                                    "warehouse_id": 1  # 默认仓库ID
+                                })
+
+                        if stocks_data:
+                            # 批量更新库存到Ozon
+                            stock_update = {
+                                "stocks": stocks_data
+                            }
+
+                            result = await client.update_stocks(stock_update)
+
+                            if result.get("result"):
+                                # 更新本地同步状态
+                                for product in products:
+                                    product.sync_status = "success"
+                                    product.last_sync_at = current_time
+
+                                await db.commit()
+                                print(f"[{shop.shop_name}] Synced inventory for {len(stocks_data)} products")
+                            else:
+                                print(f"[{shop.shop_name}] Failed to sync inventory: {result}")
+
+                    await client.close()
+
+                except Exception as e:
+                    print(f"Error syncing inventory for shop {shop.shop_name}: {e}")
+
     except Exception as e:
         print(f"Error syncing inventory: {e}")
 
@@ -136,29 +278,93 @@ async def sync_inventory_task() -> None:
 async def handle_shipment_request(payload: Dict[str, Any]) -> None:
     """
     处理发货请求事件
-    
+
     Args:
         payload: 事件载荷，包含订单和发货信息
     """
     try:
+        from ef_core.database import get_async_session
+        from .models import OzonShop, OzonOrder
+        from .api.client import OzonAPIClient
+        from sqlalchemy import select
+
         order_id = payload.get("order_id")
         tracking_number = payload.get("tracking_number")
-        
+        carrier = payload.get("carrier", "OTHER")
+
         if not order_id or not tracking_number:
             print("Invalid shipment request: missing order_id or tracking_number")
             return
-        
-        # TODO: 实现发货推送逻辑
-        # 1. 验证订单状态
-        # 2. 调用 Ozon API 推送发货信息
-        # 3. 更新本地发货状态
-        # 4. 发布发货完成事件
-        
+
         print(f"Processing shipment for order {order_id} with tracking {tracking_number}")
-        
-        # 模拟发货处理
-        await asyncio.sleep(0.1)
-        
+
+        async with get_async_session() as db:
+            # 查找订单
+            order_result = await db.execute(
+                select(OzonOrder).where(
+                    (OzonOrder.order_id == order_id) |
+                    (OzonOrder.posting_number == order_id)
+                )
+            )
+            order = order_result.scalar_one_or_none()
+
+            if not order:
+                print(f"Order {order_id} not found in database")
+                return
+
+            # 验证订单状态
+            if order.status not in ["awaiting_packaging", "awaiting_deliver"]:
+                print(f"Order {order_id} is not ready for shipment. Status: {order.status}")
+                return
+
+            # 获取店铺信息
+            shop_result = await db.execute(
+                select(OzonShop).where(OzonShop.id == order.shop_id)
+            )
+            shop = shop_result.scalar_one_or_none()
+
+            if not shop:
+                print(f"Shop {order.shop_id} not found")
+                return
+
+            # 创建API客户端
+            client = OzonAPIClient(
+                client_id=shop.client_id,
+                api_key=shop.api_key_enc
+            )
+
+            # 准备发货数据
+            packages = []
+            for item in order.items or []:
+                packages.append({
+                    "quantity": item.get("quantity", 1),
+                    "sku": item.get("sku", "")
+                })
+
+            shipment_data = {
+                "packages": [{
+                    "products": packages
+                }],
+                "posting_number": order.posting_number,
+                "tracking_number": tracking_number
+            }
+
+            # 调用Ozon API推送发货信息
+            result = await client.ship_order(shipment_data)
+
+            if result.get("result"):
+                # 更新本地发货状态
+                order.status = "delivering"
+                order.tracking_number = tracking_number
+                order.updated_at = datetime.now(UTC)
+                await db.commit()
+
+                print(f"Successfully shipped order {order_id}")
+            else:
+                print(f"Failed to ship order {order_id}: {result}")
+
+            await client.close()
+
     except Exception as e:
         print(f"Error handling shipment request: {e}")
 
@@ -178,16 +384,77 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
             print("Invalid inventory change: missing sku")
             return
         
-        # TODO: 实现库存变更处理逻辑
-        # 1. 验证 SKU 映射关系
-        # 2. 计算实际可售库存
-        # 3. 调用 Ozon API 更新库存
-        # 4. 记录更新结果
-        
+        from ef_core.database import get_async_session
+        from .models import OzonShop, OzonProduct
+        from .api.client import OzonAPIClient
+        from sqlalchemy import select
+
         print(f"Processing inventory change for SKU {sku}: {quantity}")
-        
-        # 模拟库存更新
-        await asyncio.sleep(0.1)
+
+        async with get_async_session() as db:
+            # 查找商品
+            shop_id = payload.get("shop_id", 1)  # 默认使用第一个店铺
+            product_result = await db.execute(
+                select(OzonProduct).where(
+                    OzonProduct.shop_id == shop_id,
+                    OzonProduct.sku == sku
+                )
+            )
+            product = product_result.scalar_one_or_none()
+
+            if not product:
+                print(f"Product with SKU {sku} not found")
+                return
+
+            # 获取店铺信息
+            shop_result = await db.execute(
+                select(OzonShop).where(OzonShop.id == shop_id)
+            )
+            shop = shop_result.scalar_one_or_none()
+
+            if not shop:
+                print(f"Shop {shop_id} not found")
+                return
+
+            # 创建API客户端
+            client = OzonAPIClient(
+                client_id=shop.client_id,
+                api_key=shop.api_key_enc
+            )
+
+            # 计算实际可售库存（可以根据业务逻辑调整）
+            available_stock = max(0, int(quantity))  # 确保库存非负
+
+            # 准备库存更新数据
+            stock_data = {
+                "stocks": [{
+                    "offer_id": product.offer_id,
+                    "product_id": product.ozon_product_id,
+                    "stock": available_stock,
+                    "warehouse_id": 1  # 默认仓库ID
+                }]
+            }
+
+            # 调用Ozon API更新库存
+            result = await client.update_stocks(stock_data)
+
+            if result.get("result"):
+                # 更新本地库存记录
+                product.stock = available_stock
+                product.available = available_stock
+                product.sync_status = "success"
+                product.last_sync_at = datetime.now(UTC)
+                await db.commit()
+
+                print(f"Successfully updated inventory for SKU {sku} to {available_stock}")
+            else:
+                # 记录同步失败
+                product.sync_status = "failed"
+                product.sync_error = str(result)
+                await db.commit()
+                print(f"Failed to update inventory for SKU {sku}: {result}")
+
+            await client.close()
         
     except Exception as e:
         print(f"Error handling inventory change: {e}")
@@ -199,4 +466,43 @@ async def teardown() -> None:
     在插件关闭时调用
     """
     print("Ozon plugin shutting down...")
-    # TODO: 清理资源，关闭连接等
+
+    try:
+        from ef_core.database import get_async_session
+        from .models import OzonShop
+        from sqlalchemy import select, update, func
+
+        # 关闭所有活跃的API客户端连接
+        async with get_async_session() as db:
+            # 更新所有店铺的同步状态
+            await db.execute(
+                update(OzonShop)
+                .where(OzonShop.status == "active")
+                .values(
+                    stats=func.jsonb_set(
+                        OzonShop.stats,
+                        '{sync_status}',
+                        '"stopped"',
+                        create_missing=True
+                    )
+                )
+            )
+            await db.commit()
+            print("Updated all shops sync status to stopped")
+
+        # 取消所有待处理的异步任务
+        pending_tasks = asyncio.all_tasks()
+        for task in pending_tasks:
+            if not task.done() and task != asyncio.current_task():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        print("Cancelled all pending tasks")
+
+    except Exception as e:
+        print(f"Error during teardown: {e}")
+
+    print("Ozon plugin shutdown complete")

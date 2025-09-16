@@ -219,9 +219,58 @@ class OzonWebhookHandler:
             else:
                 # Posting不存在，触发同步
                 logger.warning(f"Posting {posting_number} not found, triggering sync")
-                # TODO: 触发订单同步任务
+
+                # 触发订单同步任务
+                import asyncio
+                from ..services.order_sync import OzonOrderSyncService
+
+                # 异步触发同步任务（不等待完成）
+                asyncio.create_task(self._trigger_order_sync(posting_number))
+
                 return {"message": "Posting not found, sync triggered"}
     
+    async def _trigger_order_sync(self, posting_number: str) -> None:
+        """触发特定订单的同步"""
+        try:
+            from ..models import OzonShop
+            from ..api.client import OzonAPIClient
+            from ef_core.database import get_async_session
+            from sqlalchemy import select
+
+            async with get_async_session() as db:
+                # 获取所有活跃店铺
+                result = await db.execute(
+                    select(OzonShop).where(OzonShop.status == "active")
+                )
+                shops = result.scalars().all()
+
+                for shop in shops:
+                    try:
+                        # 创建API客户端
+                        client = OzonAPIClient(
+                            client_id=shop.client_id,
+                            api_key=shop.api_key_enc
+                        )
+
+                        # 尝试获取特定订单的详情
+                        order_info = await client.get_order_info(posting_number)
+
+                        if order_info.get("result"):
+                            # 保存订单到数据库
+                            from ..services.order_sync import OzonOrderSyncService
+                            service = OzonOrderSyncService()
+                            await service.save_order(shop.id, order_info["result"])
+                            logger.info(f"Successfully synced order {posting_number} from webhook")
+                            break
+
+                        await client.close()
+
+                    except Exception as e:
+                        logger.error(f"Failed to sync order {posting_number} for shop {shop.id}: {e}")
+
+        except Exception as e:
+            logger.error(f"Failed to trigger order sync for {posting_number}: {e}")
+
     async def _handle_posting_cancelled(
         self,
         payload: Dict[str, Any],
