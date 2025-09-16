@@ -191,30 +191,36 @@ class OzonSyncService:
                         product.brand = product_details.get("brand") if product_details else None
                         product.description = product_details.get("description") if product_details else None
 
-                        # 从product_details获取状态信息
+                        # 保存OZON原生状态字段
+                        product.ozon_archived = item.get("archived", False)
+                        product.ozon_has_fbo_stocks = item.get("has_fbo_stocks", False)
+                        product.ozon_has_fbs_stocks = item.get("has_fbs_stocks", False)
+                        product.ozon_is_discounted = item.get("is_discounted", False)
+
+                        # 从product_details获取额外状态信息
                         if product_details:
-                            # visibility_details.visible 表示商品是否可见
                             visibility_details = product_details.get("visibility_details", {})
-                            # 重要：如果没有visibility_details或visible字段，默认为True（可见）
-                            # 因为大部分正常商品都是可见的
                             is_visible = visibility_details.get("visible", True)
                             product.visibility = is_visible
                             product.is_archived = product_details.get("is_archived", False) or product_details.get(
                                 "is_autoarchived", False
                             )
-
-                            # 根据可见性和归档状态判断商品状态
-                            if product.is_archived:
-                                product.status = "inactive"
-                            elif is_visible:
-                                product.status = "active"
-                            else:
-                                product.status = "inactive"
+                            # 更新OZON归档状态（详细信息中可能更准确）
+                            if product_details.get("is_archived") or product_details.get("is_autoarchived"):
+                                product.ozon_archived = True
                         else:
-                            # 如果没有详细信息，使用item中的信息（可能不准确）
-                            product.status = "active" if item.get("is_visible", True) else "inactive"
                             product.visibility = item.get("is_visible", True)
                             product.is_archived = item.get("is_archived", False)
+
+                        # 基于库存和归档状态设置商品状态
+                        if product.ozon_archived:
+                            product.status = "archived"
+                        elif not product.visibility:
+                            product.status = "inactive"  # 不可见商品
+                        elif product.available > 0:
+                            product.status = "active"    # 有可售库存
+                        else:
+                            product.status = "inactive"  # 无库存
 
                         # 更新价格
                         if price:
@@ -262,6 +268,11 @@ class OzonSyncService:
                             status="active",  # 默认设为active，后面会根据详情更新
                             visibility=True,  # 默认设为可见
                             is_archived=False,  # 默认未归档
+                            # OZON原生状态字段
+                            ozon_archived=item.get("archived", False),
+                            ozon_has_fbo_stocks=item.get("has_fbo_stocks", False),
+                            ozon_has_fbs_stocks=item.get("has_fbs_stocks", False),
+                            ozon_is_discounted=item.get("is_discounted", False),
                             price=Decimal(str(price)) if price else Decimal("0"),
                             old_price=Decimal(str(old_price)) if old_price else None,
                             stock=item.get("stocks", {}).get("present", 0) + item.get("stocks", {}).get("reserved", 0),
@@ -283,21 +294,24 @@ class OzonSyncService:
 
                             # 更新状态信息
                             visibility_details = product_details.get("visibility_details", {})
-                            # 重要：如果没有visibility_details或visible字段，默认为True（可见）
-                            # 因为大部分正常商品都是可见的
                             is_visible = visibility_details.get("visible", True)
                             product.visibility = is_visible
                             product.is_archived = product_details.get("is_archived", False) or product_details.get(
                                 "is_autoarchived", False
                             )
+                            # 更新OZON归档状态（详细信息中可能更准确）
+                            if product_details.get("is_archived") or product_details.get("is_autoarchived"):
+                                product.ozon_archived = True
 
-                            # 根据可见性和归档状态判断商品状态
-                            if product.is_archived:
-                                product.status = "inactive"
-                            elif is_visible:
-                                product.status = "active"
-                            else:
-                                product.status = "inactive"
+                        # 基于库存和归档状态设置商品状态
+                        if product.ozon_archived:
+                            product.status = "archived"
+                        elif not product.visibility:
+                            product.status = "inactive"  # 不可见商品
+                        elif product.available > 0:
+                            product.status = "active"    # 有可售库存
+                        else:
+                            product.status = "inactive"  # 无库存
 
                         db.add(product)
 

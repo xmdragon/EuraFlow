@@ -29,7 +29,7 @@ echo ""
 echo "Step 2: Starting backend server..."
 cd /home/grom/EuraFlow
 source ~/.venvs/euraflow/bin/activate
-nohup uvicorn ef_core.app:app --reload --port 8000 > backend.log 2>&1 &
+nohup uvicorn ef_core.app:app --reload --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
 BACKEND_PID=$!
 echo "Backend server starting with PID $BACKEND_PID (logs in backend.log)"
 

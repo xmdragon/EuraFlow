@@ -1,8 +1,9 @@
-import React from 'react';
-import { Row, Col, Typography, Space } from 'antd';
 import { CalculatorOutlined } from '@ant-design/icons';
-import ScenarioCard from './ScenarioCard';
+import { Row, Col, Typography, Space } from 'antd';
+import React from 'react';
+
 import { SCENARIOS } from './constants';
+import ScenarioCard from './ScenarioCard';
 
 const { Title } = Typography;
 
@@ -18,11 +19,11 @@ const ProfitCalculatorV2: React.FC = () => {
 
       <Row gutter={[16, 16]}>
         {SCENARIOS.map((scenario) => (
-          <Col 
+          <Col
             key={scenario.id}
-            xs={24}    // 手机：1列
-            sm={12}     // 平板：2列
-            lg={8}      // 桌面：3列
+            xs={24} // 手机：1列
+            sm={12} // 平板：2列
+            lg={8} // 桌面：3列
           >
             <ScenarioCard scenario={scenario} />
           </Col>

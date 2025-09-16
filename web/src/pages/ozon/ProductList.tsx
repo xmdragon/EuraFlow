@@ -304,11 +304,23 @@ const ProductList: React.FC = () => {
           draft: { color: 'default', text: '草稿' },
           active: { color: 'success', text: '在售' },
           inactive: { color: 'warning', text: '下架' },
+          archived: { color: 'default', text: '已归档' },
           deleted: { color: 'error', text: '已删除' },
         };
+        // 构建OZON状态详情
+        const ozonStatusDetails = [
+          record.ozon_archived && '已归档',
+          record.ozon_has_fbo_stocks && '有FBO库存',
+          record.ozon_has_fbs_stocks && '有FBS库存',
+          record.ozon_is_discounted && '促销中',
+          record.ozon_visibility_status && `可见性: ${record.ozon_visibility_status}`,
+        ].filter(Boolean).join(', ');
+
         return (
           <Space direction="vertical" size="small">
-            <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
+            <Tooltip title={ozonStatusDetails || 'OZON原生状态信息'}>
+              <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
+            </Tooltip>
             {record.sync_status === 'failed' && (
               <Tooltip title={record.sync_error}>
                 <Tag color="error" icon={<ExclamationCircleOutlined />}>
@@ -316,6 +328,14 @@ const ProductList: React.FC = () => {
                 </Tag>
               </Tooltip>
             )}
+            {/* 显示OZON库存状态 */}
+            {(record.ozon_has_fbo_stocks || record.ozon_has_fbs_stocks) && (
+              <Space size={4}>
+                {record.ozon_has_fbo_stocks && <Tag size="small" color="blue">FBO</Tag>}
+                {record.ozon_has_fbs_stocks && <Tag size="small" color="cyan">FBS</Tag>}
+              </Space>
+            )}
+            {record.ozon_is_discounted && <Tag size="small" color="red">促销</Tag>}
           </Space>
         );
       },

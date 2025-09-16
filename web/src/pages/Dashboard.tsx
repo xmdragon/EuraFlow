@@ -132,7 +132,16 @@ const Dashboard: React.FC = () => {
 
         <Content style={{ margin: 24, padding: 24, background: '#f5f5f5' }}>
           <Routes>
-            <Route path="/" element={<DashboardHome user={user || { id: 0, username: 'Guest', email: '', role: 'guest', is_active: false }} />} />
+            <Route
+              path="/"
+              element={
+                <DashboardHome
+                  user={
+                    user || { id: 0, username: 'Guest', email: '', role: 'guest', is_active: false }
+                  }
+                />
+              }
+            />
             <Route path="/ozon/*" element={<OzonManagement />} />
             <Route path="/finance" element={<FinanceCalculator />} />
           </Routes>

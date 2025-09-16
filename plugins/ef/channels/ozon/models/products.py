@@ -39,9 +39,16 @@ class OzonProduct(Base):
     brand = Column(String(200))
     
     # 状态
-    status = Column(String(50), default="draft")  # draft/active/inactive/deleted
+    status = Column(String(50), default="draft")  # draft/active/inactive/archived/failed
     visibility = Column(Boolean, default=True)
     is_archived = Column(Boolean, default=False)
+
+    # OZON原生状态字段
+    ozon_archived = Column(Boolean, default=False, comment="OZON归档状态")
+    ozon_has_fbo_stocks = Column(Boolean, default=False, comment="是否有FBO库存")
+    ozon_has_fbs_stocks = Column(Boolean, default=False, comment="是否有FBS库存")
+    ozon_is_discounted = Column(Boolean, default=False, comment="是否打折")
+    ozon_visibility_status = Column(String(100), comment="OZON可见性状态")
     
     # 价格信息（使用Decimal避免精度问题）
     price = Column(Numeric(18, 4), comment="售价")
@@ -84,6 +91,8 @@ class OzonProduct(Base):
         UniqueConstraint("shop_id", "offer_id", name="uq_ozon_products_shop_offer"),
         Index("idx_ozon_products_ozon_product_id", "ozon_product_id"),
         Index("idx_ozon_products_status", "status"),
+        Index("idx_ozon_products_ozon_archived", "ozon_archived"),
+        Index("idx_ozon_products_ozon_visibility", "ozon_visibility_status"),
         Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at")
     )
 

@@ -1444,41 +1444,199 @@ async def get_sync_logs(
         }
 
 
+@router.get("/statistics")
+async def get_statistics(
+    shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取统计数据
+
+    Args:
+        shop_id: 店铺ID，可选
+        db: 数据库会话
+
+    Returns:
+        统计数据
+    """
+    from ..models import OzonShop, OzonProduct, OzonOrder
+    from sqlalchemy import select, func
+    from decimal import Decimal
+
+    try:
+        # 构建查询条件
+        product_filter = []
+        order_filter = []
+
+        if shop_id:
+            product_filter.append(OzonProduct.shop_id == shop_id)
+            order_filter.append(OzonOrder.shop_id == shop_id)
+
+        # 商品统计
+        product_total_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(*product_filter)
+        )
+        product_total = product_total_result.scalar() or 0
+
+        product_active_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(OzonProduct.status == 'active', *product_filter)
+        )
+        product_active = product_active_result.scalar() or 0
+
+        product_out_of_stock_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(OzonProduct.available == 0, *product_filter)
+        )
+        product_out_of_stock = product_out_of_stock_result.scalar() or 0
+
+        product_synced_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(OzonProduct.sync_status == 'success', *product_filter)
+        )
+        product_synced = product_synced_result.scalar() or 0
+
+        # 订单统计
+        order_total_result = await db.execute(
+            select(func.count(OzonOrder.id))
+            .where(*order_filter)
+        )
+        order_total = order_total_result.scalar() or 0
+
+        order_pending_result = await db.execute(
+            select(func.count(OzonOrder.id))
+            .where(OzonOrder.status == 'pending', *order_filter)
+        )
+        order_pending = order_pending_result.scalar() or 0
+
+        order_processing_result = await db.execute(
+            select(func.count(OzonOrder.id))
+            .where(OzonOrder.status == 'processing', *order_filter)
+        )
+        order_processing = order_processing_result.scalar() or 0
+
+        order_shipped_result = await db.execute(
+            select(func.count(OzonOrder.id))
+            .where(OzonOrder.status == 'shipped', *order_filter)
+        )
+        order_shipped = order_shipped_result.scalar() or 0
+
+        order_delivered_result = await db.execute(
+            select(func.count(OzonOrder.id))
+            .where(OzonOrder.status == 'delivered', *order_filter)
+        )
+        order_delivered = order_delivered_result.scalar() or 0
+
+        order_cancelled_result = await db.execute(
+            select(func.count(OzonOrder.id))
+            .where(OzonOrder.status == 'cancelled', *order_filter)
+        )
+        order_cancelled = order_cancelled_result.scalar() or 0
+
+        # 收入统计（今日、本周、本月）
+        from datetime import datetime, timedelta
+
+        now = datetime.utcnow()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=now.weekday())
+        month_start = today_start.replace(day=1)
+
+        # 今日收入
+        today_revenue_result = await db.execute(
+            select(func.sum(OzonOrder.total_price))
+            .where(
+                OzonOrder.created_at >= today_start,
+                OzonOrder.status.in_(['delivered', 'shipped']),
+                *order_filter
+            )
+        )
+        today_revenue = today_revenue_result.scalar() or Decimal('0')
+
+        # 本周收入
+        week_revenue_result = await db.execute(
+            select(func.sum(OzonOrder.total_price))
+            .where(
+                OzonOrder.created_at >= week_start,
+                OzonOrder.status.in_(['delivered', 'shipped']),
+                *order_filter
+            )
+        )
+        week_revenue = week_revenue_result.scalar() or Decimal('0')
+
+        # 本月收入
+        month_revenue_result = await db.execute(
+            select(func.sum(OzonOrder.total_price))
+            .where(
+                OzonOrder.created_at >= month_start,
+                OzonOrder.status.in_(['delivered', 'shipped']),
+                *order_filter
+            )
+        )
+        month_revenue = month_revenue_result.scalar() or Decimal('0')
+
+        return {
+            "products": {
+                "total": product_total,
+                "active": product_active,
+                "out_of_stock": product_out_of_stock,
+                "synced": product_synced
+            },
+            "orders": {
+                "total": order_total,
+                "pending": order_pending,
+                "processing": order_processing,
+                "shipped": order_shipped,
+                "delivered": order_delivered,
+                "cancelled": order_cancelled
+            },
+            "revenue": {
+                "today": str(today_revenue),
+                "week": str(week_revenue),
+                "month": str(month_revenue)
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get statistics: {e}")
+        raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}")
+
+
 @router.post("/test-connection")
 async def test_connection(
     credentials: Dict[str, str] = Body(..., description="API凭证")
 ):
     """
     测试Ozon API连接
-    
+
     Args:
         credentials: 包含client_id和api_key的字典
-    
+
     Returns:
         连接测试结果
     """
     from ..api.client import OzonAPIClient
-    
+
     try:
         client_id = credentials.get("client_id")
         api_key = credentials.get("api_key")
-        
+
         if not client_id or not api_key:
             return {
                 "success": False,
                 "message": "缺少必要的API凭证"
             }
-        
+
         # 创建临时客户端测试连接
         client = OzonAPIClient(client_id=client_id, api_key=api_key)
-        
+
         # 调用测试连接方法
         result = await client.test_connection()
-        
+
         await client.close()
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Connection test failed: {e}")
         return {

@@ -1,4 +1,3 @@
-import React, { useState, useEffect } from 'react';
 import {
   Card,
   Form,
@@ -15,26 +14,28 @@ import {
   Radio,
   Alert,
 } from 'antd';
-import { 
-  OZON_UNI_DATA, 
-  calculateVolumeWeight, 
+import React, { useState, useEffect } from 'react';
+
+import {
+  OZON_UNI_DATA,
+  calculateVolumeWeight,
   calculateChargeableWeight,
   calculateShippingFee,
   checkServiceAvailable,
   type UNIService,
-  type UNICategory
+  type UNICategory,
 } from './ozonUniShippingData';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 interface CalculationData {
-  weight: number;          // 重量(克)
-  length: number;          // 长(cm)
-  width: number;           // 宽(cm)
-  height: number;          // 高(cm)
-  value: number;          // 货值(卢布)
-  deliveryType: 'pickup' | 'delivery';  // 自提点/送货上门
+  weight: number; // 重量(克)
+  length: number; // 长(cm)
+  width: number; // 宽(cm)
+  height: number; // 高(cm)
+  value: number; // 货值(卢布)
+  deliveryType: 'pickup' | 'delivery'; // 自提点/送货上门
 }
 
 const ShippingDetailCalculator: React.FC = () => {
@@ -45,9 +46,9 @@ const ShippingDetailCalculator: React.FC = () => {
     width: 30,
     height: 30,
     value: 1500,
-    deliveryType: 'pickup'
+    deliveryType: 'pickup',
   });
-  
+
   const [volumeWeight, setVolumeWeight] = useState(0);
   const [chargeableWeight, setChargeableWeight] = useState(0);
   const [sumDimension, setSumDimension] = useState(0);
@@ -80,7 +81,7 @@ const ShippingDetailCalculator: React.FC = () => {
     if (weight >= 5001 && weight <= 25000 && value > 7000) {
       return 'premium-big';
     }
-    
+
     // 默认返回最合适的
     if (weight <= 500) return 'extra-small';
     if (weight <= 2000) return 'small';
@@ -95,12 +96,12 @@ const ShippingDetailCalculator: React.FC = () => {
     const charWeight = calculateChargeableWeight(weight, volWeight);
     const sum = length + width + height;
     const max = Math.max(length, width, height);
-    
+
     setVolumeWeight(volWeight);
     setChargeableWeight(charWeight);
     setSumDimension(sum);
     setMaxDimension(max);
-    
+
     // 自动切换到合适的标签页
     const newActiveKey = getActiveTabByWeight(weight, value);
     setActiveKey(newActiveKey);
@@ -108,9 +109,9 @@ const ShippingDetailCalculator: React.FC = () => {
 
   // 处理表单值变化
   const handleFormChange = (changedValues: any) => {
-    setCalculationData(prev => ({
+    setCalculationData((prev) => ({
       ...prev,
-      ...changedValues
+      ...changedValues,
     }));
   };
 
@@ -136,7 +137,9 @@ const ShippingDetailCalculator: React.FC = () => {
         width: 100,
         render: (record: UNIService) => (
           <Space direction="vertical" size={0}>
-            <Text>{record.minDays}-{record.maxDays}天</Text>
+            <Text>
+              {record.minDays}-{record.maxDays}天
+            </Text>
             {record.avgDays > 0 && <Text type="secondary">{record.avgDays}天</Text>}
           </Space>
         ),
@@ -161,23 +164,27 @@ const ShippingDetailCalculator: React.FC = () => {
         width: 120,
         render: (record: UNIService) => {
           const availability = checkServiceAvailable(
-            record, 
+            record,
             chargeableWeight,
             calculationData.value,
             sumDimension,
             maxDimension
           );
-          
+
           if (!availability.available) {
             return <Text type="secondary">--</Text>;
           }
-          
+
           const fee = calculateShippingFee(
-            record, 
-            chargeableWeight, 
+            record,
+            chargeableWeight,
             calculationData.deliveryType === 'delivery'
           );
-          return <Text strong style={{ color: '#52c41a' }}>¥{fee.toFixed(2)}</Text>;
+          return (
+            <Text strong style={{ color: '#52c41a' }}>
+              ¥{fee.toFixed(2)}
+            </Text>
+          );
         },
       },
       {
@@ -185,14 +192,14 @@ const ShippingDetailCalculator: React.FC = () => {
         dataIndex: 'maxWeight',
         key: 'maxWeight',
         width: 100,
-        render: (weight: number) => weight ? `${weight}克` : '不限',
+        render: (weight: number) => (weight ? `${weight}克` : '不限'),
       },
       {
         title: '货值限制',
         dataIndex: 'maxValue',
         key: 'maxValue',
         width: 120,
-        render: (value: number) => value ? `${value}卢布` : '不限',
+        render: (value: number) => (value ? `${value}卢布` : '不限'),
       },
       {
         title: '尺寸限制',
@@ -201,14 +208,16 @@ const ShippingDetailCalculator: React.FC = () => {
         render: (record: UNIService) => {
           const { sumLimit, maxSide } = record.dimensionLimit;
           if (!sumLimit && !maxSide) return '不限';
-          
+
           const limits = [];
           if (sumLimit) limits.push(`三边≤${sumLimit}cm`);
           if (maxSide) limits.push(`最长边≤${maxSide}cm`);
           return (
             <Space direction="vertical" size={0}>
               {limits.map((limit, index) => (
-                <Text key={index} style={{ fontSize: 12 }}>{limit}</Text>
+                <Text key={index} style={{ fontSize: 12 }}>
+                  {limit}
+                </Text>
               ))}
             </Space>
           );
@@ -220,21 +229,21 @@ const ShippingDetailCalculator: React.FC = () => {
         width: 150,
         render: (record: UNIService) => {
           const availability = checkServiceAvailable(
-            record, 
+            record,
             chargeableWeight,
             calculationData.value,
             sumDimension,
             maxDimension
           );
-          
+
           if (!availability.available) {
             return <Tag color="error">{availability.reason}</Tag>;
           }
-          
+
           if (record.msds) {
             return <Tag color="orange">需要MSDS</Tag>;
           }
-          
+
           return record.notes?.join(', ') || '--';
         },
       },
@@ -250,7 +259,7 @@ const ShippingDetailCalculator: React.FC = () => {
         scroll={{ x: 1200 }}
         rowClassName={(record) => {
           const availability = checkServiceAvailable(
-            record, 
+            record,
             chargeableWeight,
             calculationData.value,
             sumDimension,
@@ -277,58 +286,34 @@ const ShippingDetailCalculator: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="重量(克)" name="weight">
-                    <InputNumber 
-                      style={{ width: '100%' }} 
-                      min={1} 
-                      max={25000}
-                      precision={0}
-                    />
+                    <InputNumber style={{ width: '100%' }} min={1} max={25000} precision={0} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item label="货值(卢布)" name="value">
-                    <InputNumber 
-                      style={{ width: '100%' }} 
-                      min={0}
-                      precision={0}
-                    />
+                    <InputNumber style={{ width: '100%' }} min={0} precision={0} />
                   </Form.Item>
                 </Col>
               </Row>
-              
+
               <Row gutter={16}>
                 <Col span={8}>
                   <Form.Item label="长(cm)" name="length">
-                    <InputNumber 
-                      style={{ width: '100%' }} 
-                      min={1} 
-                      max={150}
-                      precision={0}
-                    />
+                    <InputNumber style={{ width: '100%' }} min={1} max={150} precision={0} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="宽(cm)" name="width">
-                    <InputNumber 
-                      style={{ width: '100%' }} 
-                      min={1} 
-                      max={150}
-                      precision={0}
-                    />
+                    <InputNumber style={{ width: '100%' }} min={1} max={150} precision={0} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="高(cm)" name="height">
-                    <InputNumber 
-                      style={{ width: '100%' }} 
-                      min={1} 
-                      max={150}
-                      precision={0}
-                    />
+                    <InputNumber style={{ width: '100%' }} min={1} max={150} precision={0} />
                   </Form.Item>
                 </Col>
               </Row>
-              
+
               <Form.Item label="配送方式" name="deliveryType">
                 <Radio.Group>
                   <Radio value="pickup">自提点</Radio>
@@ -336,7 +321,7 @@ const ShippingDetailCalculator: React.FC = () => {
                 </Radio.Group>
               </Form.Item>
             </Col>
-            
+
             <Col span={12}>
               <Card size="small" title="体积重量" type="inner">
                 <Space direction="vertical" style={{ width: '100%' }}>
@@ -385,7 +370,7 @@ const ShippingDetailCalculator: React.FC = () => {
                   </Row>
                 </Space>
               </Card>
-              
+
               <Alert
                 message="体积重量 = (长×宽×高) / 5000"
                 type="info"
@@ -398,11 +383,11 @@ const ShippingDetailCalculator: React.FC = () => {
       </Card>
 
       {/* 6个标签页 */}
-      <Card 
+      <Card
         styles={{
-          body: { 
-            padding: '16px'
-          }
+          body: {
+            padding: '16px',
+          },
         }}
       >
         <style>{`
@@ -416,10 +401,10 @@ const ShippingDetailCalculator: React.FC = () => {
             font-weight: 600;
           }
         `}</style>
-        <Tabs 
+        <Tabs
           activeKey={activeKey}
           onChange={setActiveKey}
-          items={OZON_UNI_DATA.map(category => ({
+          items={OZON_UNI_DATA.map((category) => ({
             key: category.id,
             label: (
               <Space>
@@ -428,7 +413,7 @@ const ShippingDetailCalculator: React.FC = () => {
                 <Tag>{category.weightRange}</Tag>
               </Space>
             ),
-            children: renderServiceTable(category)
+            children: renderServiceTable(category),
           }))}
         />
       </Card>

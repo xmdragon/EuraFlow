@@ -127,6 +127,7 @@ export interface Product {
 }
 
 export interface ProductFilter {
+  shop_id?: number | null;
   status?: string;
   sku?: string;
   title?: string;
@@ -154,11 +155,15 @@ export const getProducts = async (
   pageSize: number = 20,
   filter?: ProductFilter
 ) => {
-  const params = {
+  const params: any = {
     page: page,
     page_size: pageSize,
     ...filter,
   };
+  // 如果shop_id为null（全部店铺），不传递该参数
+  if (params.shop_id === null) {
+    delete params.shop_id;
+  }
   const response = await apiClient.get('/ozon/products', { params });
   return response.data;
 };
@@ -170,14 +175,16 @@ export const getProduct = async (productId: number) => {
 };
 
 // 同步商品
-export const syncProducts = async (_fullSync: boolean = false) => {
-  // 先获取当前选中的店铺（假设是第一个店铺）
-  const shopsResponse = await apiClient.get('/ozon/shops');
-  const shops = shopsResponse.data.data;
-  if (!shops || shops.length === 0) {
-    throw new Error('没有找到可用的店铺');
+export const syncProducts = async (shopId?: number | null, _fullSync: boolean = false) => {
+  // 如果没有指定店铺，获取第一个店铺
+  if (!shopId) {
+    const shopsResponse = await apiClient.get('/ozon/shops');
+    const shops = shopsResponse.data.data;
+    if (!shops || shops.length === 0) {
+      throw new Error('没有找到可用的店铺');
+    }
+    shopId = shops[0].id;
   }
-  const shopId = shops[0].id;
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
     params: { sync_type: 'products' },
@@ -186,14 +193,22 @@ export const syncProducts = async (_fullSync: boolean = false) => {
 };
 
 // 批量更新价格
-export const updatePrices = async (updates: PriceUpdate[]) => {
-  const response = await apiClient.post('/ozon/products/prices', { updates });
+export const updatePrices = async (updates: PriceUpdate[], shopId?: number) => {
+  const data: any = { updates };
+  if (shopId) {
+    data.shop_id = shopId;
+  }
+  const response = await apiClient.post('/ozon/products/prices', data);
   return response.data;
 };
 
 // 批量更新库存
-export const updateStocks = async (updates: StockUpdate[]) => {
-  const response = await apiClient.post('/ozon/products/stocks', { updates });
+export const updateStocks = async (updates: StockUpdate[], shopId?: number) => {
+  const data: any = { updates };
+  if (shopId) {
+    data.shop_id = shopId;
+  }
+  const response = await apiClient.post('/ozon/products/stocks', data);
   return response.data;
 };
 
@@ -277,6 +292,7 @@ export interface Posting {
 }
 
 export interface OrderFilter {
+  shop_id?: number | null;
   status?: string;
   order_type?: string;
   date_from?: string;
@@ -297,11 +313,15 @@ export interface ShipmentRequest {
 
 // 获取订单列表
 export const getOrders = async (page: number = 1, pageSize: number = 50, filter?: OrderFilter) => {
-  const params = {
+  const params: any = {
     offset: (page - 1) * pageSize,
     limit: pageSize,
     ...filter,
   };
+  // 如果shop_id为null（全部店铺），不传递该参数
+  if (params.shop_id === null) {
+    delete params.shop_id;
+  }
   const response = await apiClient.get('/ozon/orders', { params });
   return response.data;
 };
@@ -313,14 +333,16 @@ export const getOrder = async (orderId: number) => {
 };
 
 // 同步订单
-export const syncOrders = async (_dateFrom?: string, _dateTo?: string) => {
-  // 先获取当前选中的店铺（假设是第一个店铺）
-  const shopsResponse = await apiClient.get('/ozon/shops');
-  const shops = shopsResponse.data.data;
-  if (!shops || shops.length === 0) {
-    throw new Error('没有找到可用的店铺');
+export const syncOrders = async (shopId?: number | null, _dateFrom?: string, _dateTo?: string) => {
+  // 如果没有指定店铺，获取第一个店铺
+  if (!shopId) {
+    const shopsResponse = await apiClient.get('/ozon/shops');
+    const shops = shopsResponse.data.data;
+    if (!shops || shops.length === 0) {
+      throw new Error('没有找到可用的店铺');
+    }
+    shopId = shops[0].id;
   }
-  const shopId = shops[0].id;
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
     params: { sync_type: 'orders' },
@@ -368,8 +390,12 @@ export interface Statistics {
 }
 
 // 获取统计数据
-export const getStatistics = async () => {
-  const response = await apiClient.get('/ozon/statistics');
+export const getStatistics = async (shopId?: number | null) => {
+  const params: any = {};
+  if (shopId) {
+    params.shop_id = shopId;
+  }
+  const response = await apiClient.get('/ozon/statistics', { params });
   return response.data;
 };
 

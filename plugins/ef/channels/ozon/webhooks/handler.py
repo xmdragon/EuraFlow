@@ -16,7 +16,6 @@ from ef_core.utils.logger import get_logger
 
 from ..models.sync import OzonWebhookEvent
 from ..services.order_sync import OrderSyncService
-from ..services.product_sync import ProductSyncService
 
 logger = get_logger(__name__)
 

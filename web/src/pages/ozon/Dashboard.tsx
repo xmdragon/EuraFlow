@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, no-unused-vars */
 /**
  * Ozon 管理概览页面
  */
@@ -12,51 +11,71 @@ import {
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Row, Col, Statistic, Space, Progress, List, Tag, Typography } from 'antd';
-import React from 'react';
+import React, { useState } from 'react';
 
 import * as ozonApi from '../../services/ozonApi';
+import ShopSelector from '../../components/ozon/ShopSelector';
 
 const { Title, Text } = Typography;
 
 const OzonDashboard: React.FC = () => {
+  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+
   // 获取店铺列表
   const { data: shops } = useQuery({
     queryKey: ['ozon-shops'],
     queryFn: ozonApi.getShops,
   });
 
-  // 获取商品统计
-  useQuery({
-    queryKey: ['ozon-products'],
-    queryFn: () => ozonApi.getProducts(),
+  // 获取商品统计（根据选中的店铺）
+  const { data: productsData } = useQuery({
+    queryKey: ['ozon-products', selectedShop],
+    queryFn: () => ozonApi.getProducts(1, 50, { shop_id: selectedShop }),
+    enabled: shops?.data?.length > 0,
   });
 
-  // 获取订单统计
-  useQuery({
-    queryKey: ['ozon-orders'],
-    queryFn: () => ozonApi.getOrders(1, 50),
+  // 获取订单统计（根据选中的店铺）
+  const { data: ordersData } = useQuery({
+    queryKey: ['ozon-orders', selectedShop],
+    queryFn: () => ozonApi.getOrders(1, 50, { shop_id: selectedShop }),
+    enabled: shops?.data?.length > 0,
   });
 
-  // 模拟数据
+  // 获取统计数据（根据选中的店铺）
+  const { data: statisticsData } = useQuery({
+    queryKey: ['ozon-statistics', selectedShop],
+    queryFn: () => ozonApi.getStatistics(selectedShop),
+    enabled: shops?.data?.length > 0,
+  });
+
+  // 使用真实数据或模拟数据
   const stats = {
     products: {
-      total: 1250,
-      active: 1180,
-      outOfStock: 45,
-      synced: 1200,
+      total: productsData?.data?.length || statisticsData?.data?.products?.total || 0,
+      active: statisticsData?.data?.products?.active ||
+        productsData?.data?.filter((p: any) => p.status === 'active').length || 0,
+      outOfStock: statisticsData?.data?.products?.out_of_stock ||
+        productsData?.data?.filter((p: any) => p.stock === 0).length || 0,
+      synced: statisticsData?.data?.products?.synced ||
+        productsData?.data?.filter((p: any) => p.sync_status === 'success').length || 0,
     },
     orders: {
-      total: 3420,
-      pending: 28,
-      processing: 156,
-      shipped: 89,
-      delivered: 3089,
-      cancelled: 58,
+      total: ordersData?.data?.length || statisticsData?.data?.orders?.total || 0,
+      pending: statisticsData?.data?.orders?.pending ||
+        ordersData?.data?.filter((o: any) => o.status === 'pending').length || 0,
+      processing: statisticsData?.data?.orders?.processing ||
+        ordersData?.data?.filter((o: any) => o.status === 'processing').length || 0,
+      shipped: statisticsData?.data?.orders?.shipped ||
+        ordersData?.data?.filter((o: any) => o.status === 'shipped').length || 0,
+      delivered: statisticsData?.data?.orders?.delivered ||
+        ordersData?.data?.filter((o: any) => o.status === 'delivered').length || 0,
+      cancelled: statisticsData?.data?.orders?.cancelled ||
+        ordersData?.data?.filter((o: any) => o.status === 'cancelled').length || 0,
     },
     revenue: {
-      today: 45680,
-      week: 234500,
-      month: 892340,
+      today: statisticsData?.data?.revenue?.today || 0,
+      week: statisticsData?.data?.revenue?.week || 0,
+      month: statisticsData?.data?.revenue?.month || 0,
     },
   };
 
@@ -95,9 +114,21 @@ const OzonDashboard: React.FC = () => {
 
   return (
     <div style={{ padding: 24, background: '#f0f2f5', minHeight: '100vh' }}>
-      <Title level={2} style={{ marginBottom: 24 }}>
-        Ozon 管理概览
-      </Title>
+      <Row style={{ marginBottom: 24 }} align="middle" justify="space-between">
+        <Col>
+          <Title level={2} style={{ marginBottom: 0 }}>
+            Ozon 管理概览
+          </Title>
+        </Col>
+        <Col>
+          <ShopSelector
+            value={selectedShop}
+            onChange={setSelectedShop}
+            showAllOption={true}
+            style={{ minWidth: 200 }}
+          />
+        </Col>
+      </Row>
 
       {/* 概览统计 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -135,10 +166,23 @@ const OzonDashboard: React.FC = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="活跃店铺"
-              value={shops?.data?.length || 0}
-              prefix={<ShoppingOutlined />}
+              title={selectedShop ? "当前店铺" : "活跃店铺"}
+              value={
+                selectedShop
+                  ? shops?.data?.find((s: any) => s.id === selectedShop)?.shop_name || '-'
+                  : shops?.data?.length || 0
+              }
+              prefix={selectedShop ? null : <ShoppingOutlined />}
               valueStyle={{ color: '#1890ff' }}
+              valueRender={(value) =>
+                typeof value === 'string' && isNaN(Number(value)) ? (
+                  <Text style={{ color: '#1890ff', fontSize: 20, fontWeight: 600 }}>
+                    {value}
+                  </Text>
+                ) : (
+                  value
+                )
+              }
             />
           </Card>
         </Col>

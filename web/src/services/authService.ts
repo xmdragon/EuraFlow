@@ -44,12 +44,12 @@ class AuthService {
           const isAuthMeRequest = error.config?.url?.includes('/auth/me');
           const isRefreshRequest = error.config?.url?.includes('/auth/refresh');
           const isLoginRequest = error.config?.url?.includes('/auth/login');
-          
+
           // Don't try to refresh for login or refresh requests
           if (isLoginRequest || isRefreshRequest) {
             return Promise.reject(error);
           }
-          
+
           // If we have a refresh token and it's not already a refresh attempt
           if (this._refreshToken && !error.config?._retry) {
             error.config._retry = true;
@@ -70,7 +70,7 @@ class AuthService {
           } else {
             // No refresh token or already retried, clear tokens
             this.clearTokens();
-            // Only redirect to login for non-auth/me requests  
+            // Only redirect to login for non-auth/me requests
             if (!isAuthMeRequest) {
               window.location.href = '/login';
             }
@@ -147,7 +147,7 @@ class AuthService {
     if (!this._accessToken) {
       return false;
     }
-    
+
     // Basic JWT format validation (three parts separated by dots)
     const parts = this._accessToken.split('.');
     if (parts.length !== 3) {
@@ -155,7 +155,7 @@ class AuthService {
       this.clearTokens();
       return false;
     }
-    
+
     // Try to decode and check expiration
     try {
       const payload = JSON.parse(atob(parts[1]));

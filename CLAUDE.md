@@ -225,7 +225,27 @@ ef_ozon_shipments_push_fail_total (counter)
 
 ---
 
-## 17) 术语表（Glossary）
+## 17) 架构规则（避免重复实现）
+
+### 单一服务原则
+- **每个功能只能有一个服务类**：避免创建功能重复的服务
+- **禁止重复**：新功能开发前必须检查是否已存在类似服务
+- **统一调用链**：前端 → API路由 → 单一服务类
+
+### OZON服务组织
+- **商品同步**：使用 `OzonSyncService.sync_products()` (ozon_sync.py)
+- **订单同步**：使用 `OzonSyncService.sync_orders()`
+- **价格/库存更新**：通过现有服务方法，不要创建新服务
+- **状态管理**：基于OZON原生字段（has_fbo_stocks, has_fbs_stocks, archived）判断
+
+### 服务启动与重启规范
+- **统一使用脚本**：`./stop-all.sh && ./start-all.sh` 或 `./restart-all.sh`
+- **禁止**：`cd web && npm run dev` 方式启动（会在新端口启动）
+- **日志查看**：backend.log 和 frontend.log
+
+---
+
+## 18) 术语表（Glossary）
 - **TTD**：新单平台到达系统的延迟。
 - **金丝雀/灰度**：按店铺/渠道/地区逐步放量。
 - **悬挂账**：对账差异暂存池，需人工闭环。

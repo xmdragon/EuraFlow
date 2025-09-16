@@ -3,22 +3,23 @@
  */
 
 export interface UNIService {
-  code: string;           // 服务代码
-  name: string;           // 渠道名称
-  minDays: number;        // 最短时效(天)
-  maxDays: number;        // 最长时效(天)
-  avgDays: number;        // 平均时效(天)
-  baseFee: number;        // 基础费用(元)
-  rateFee: number;        // 费率(元/克)
-  formula: string;        // 费用公式显示
-  maxWeight?: number;     // 最大重量限制(克)
-  maxValue?: number;      // 最大货值限制(卢布)
-  dimensionLimit: {       // 尺寸限制
-    sumLimit?: number;    // 三边之和(cm)
-    maxSide?: number;     // 最长边(cm)
+  code: string; // 服务代码
+  name: string; // 渠道名称
+  minDays: number; // 最短时效(天)
+  maxDays: number; // 最长时效(天)
+  avgDays: number; // 平均时效(天)
+  baseFee: number; // 基础费用(元)
+  rateFee: number; // 费率(元/克)
+  formula: string; // 费用公式显示
+  maxWeight?: number; // 最大重量限制(克)
+  maxValue?: number; // 最大货值限制(卢布)
+  dimensionLimit: {
+    // 尺寸限制
+    sumLimit?: number; // 三边之和(cm)
+    maxSide?: number; // 最长边(cm)
   };
-  notes?: string[];       // 注意事项
-  msds?: boolean;         // 是否需要MSDS
+  notes?: string[]; // 注意事项
+  msds?: boolean; // 是否需要MSDS
   additionalFee?: string; // 送货上门额外费用公式
 }
 
@@ -48,7 +49,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         rateFee: 0.045,
         formula: '3元 + 0.045元/1克',
         dimensionLimit: {},
-        notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS']
+        notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
       },
       {
         code: 'UNI',
@@ -63,9 +64,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         maxValue: 1500,
         dimensionLimit: {
           sumLimit: 90,
-          maxSide: 60
+          maxSide: 60,
         },
-        notes: ['没有预制，不需要提供', 'MSDS']
+        notes: ['没有预制，不需要提供', 'MSDS'],
       },
       {
         code: 'UNW',
@@ -77,9 +78,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         rateFee: 0.025,
         formula: '3元 + 0.025元/1克',
         dimensionLimit: {},
-        notes: []
-      }
-    ]
+        notes: [],
+      },
+    ],
   },
   {
     id: 'budget',
@@ -98,7 +99,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         formula: '23元 + 0.033元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNQ',
@@ -113,10 +114,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         maxValue: 1500,
         dimensionLimit: {
           sumLimit: 150,
-          maxSide: 60
+          maxSide: 60,
         },
         notes: ['没有预制，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNZ',
@@ -128,9 +129,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         rateFee: 0.017,
         formula: '23元 +0.0170元/1克',
         dimensionLimit: {},
-        notes: []
-      }
-    ]
+        notes: [],
+      },
+    ],
   },
   {
     id: 'small',
@@ -150,7 +151,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         additionalFee: '19.5元 + 0.045元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNY',
@@ -166,10 +167,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         maxValue: 7000,
         dimensionLimit: {
           sumLimit: 150,
-          maxSide: 60
+          maxSide: 60,
         },
         notes: ['没有预制，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNV',
@@ -182,9 +183,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         formula: '16元 + 0.025元/1克',
         additionalFee: '19.5元 + 0.025元/1克',
         dimensionLimit: {},
-        notes: []
-      }
-    ]
+        notes: [],
+      },
+    ],
   },
   {
     id: 'big',
@@ -204,7 +205,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         additionalFee: '39.5元 + 0.033元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNQ',
@@ -220,10 +221,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         maxValue: 7000,
         dimensionLimit: {
           sumLimit: 250,
-          maxSide: 150
+          maxSide: 150,
         },
         notes: ['没有预制，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNZ',
@@ -236,9 +237,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         formula: '36元 +0.017元/1克',
         additionalFee: '39.5元 + 0.017元/1克',
         dimensionLimit: {},
-        notes: []
-      }
-    ]
+        notes: [],
+      },
+    ],
   },
   {
     id: 'premium-small',
@@ -258,7 +259,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         additionalFee: '25.5元 +0.045元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNL',
@@ -274,10 +275,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         maxValue: 250000,
         dimensionLimit: {
           sumLimit: 250,
-          maxSide: 150
+          maxSide: 150,
         },
         notes: ['没有预制，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNM',
@@ -290,9 +291,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         formula: '22元 + 0.0250元/1克',
         additionalFee: '25.5元 +0.0250元/1克',
         dimensionLimit: {},
-        notes: []
-      }
-    ]
+        notes: [],
+      },
+    ],
   },
   {
     id: 'premium-big',
@@ -312,7 +313,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         additionalFee: '65.5元 +0.033元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNO',
@@ -328,10 +329,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         maxValue: 250000,
         dimensionLimit: {
           sumLimit: 310,
-          maxSide: 150
+          maxSide: 150,
         },
         notes: ['没有预制，不需要提供', 'MSDS'],
-        msds: true
+        msds: true,
       },
       {
         code: 'UNZ',
@@ -344,10 +345,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         formula: '62元 + 0.023元/1克',
         additionalFee: '65.5元 + 0.023元/1克',
         dimensionLimit: {},
-        notes: []
-      }
-    ]
-  }
+        notes: [],
+      },
+    ],
+  },
 ];
 
 // 计算体积重量（长×宽×高/5000）
@@ -361,18 +362,23 @@ export function calculateChargeableWeight(actualWeight: number, volumeWeight: nu
 }
 
 // 计算运费
-export function calculateShippingFee(service: UNIService, weight: number, isDelivery: boolean = false): number {
-  const baseFee = isDelivery && service.additionalFee ? 
-    parseFloat(service.additionalFee.split('+')[0]) : 
-    service.baseFee;
-  return baseFee + (weight * service.rateFee);
+export function calculateShippingFee(
+  service: UNIService,
+  weight: number,
+  isDelivery: boolean = false
+): number {
+  const baseFee =
+    isDelivery && service.additionalFee
+      ? parseFloat(service.additionalFee.split('+')[0])
+      : service.baseFee;
+  return baseFee + weight * service.rateFee;
 }
 
 // 检查服务是否适用
 export function checkServiceAvailable(
-  service: UNIService, 
-  weight: number, 
-  value: number, 
+  service: UNIService,
+  weight: number,
+  value: number,
   sumDimension: number,
   maxDimension: number
 ): { available: boolean; reason?: string } {
@@ -380,20 +386,20 @@ export function checkServiceAvailable(
   if (service.maxWeight && weight > service.maxWeight) {
     return { available: false, reason: `超过最大重量限制 ${service.maxWeight}g` };
   }
-  
+
   // 检查货值限制
   if (service.maxValue && value > service.maxValue) {
     return { available: false, reason: `超过最大货值限制 ${service.maxValue}卢布` };
   }
-  
+
   // 检查尺寸限制
   if (service.dimensionLimit.sumLimit && sumDimension > service.dimensionLimit.sumLimit) {
     return { available: false, reason: `三边之和超过限制 ${service.dimensionLimit.sumLimit}cm` };
   }
-  
+
   if (service.dimensionLimit.maxSide && maxDimension > service.dimensionLimit.maxSide) {
     return { available: false, reason: `最长边超过限制 ${service.dimensionLimit.maxSide}cm` };
   }
-  
+
   return { available: true };
 }

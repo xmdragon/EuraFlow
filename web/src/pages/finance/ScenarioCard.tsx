@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Card, InputNumber, Space, Typography, Tooltip, Button, Tag } from 'antd';
 import { CalculatorOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Card, InputNumber, Space, Typography, Tooltip, Button, Tag } from 'antd';
+import React, { useState, useEffect } from 'react';
+
 import { ScenarioConfig } from './constants';
-import { 
-  CalculationData, 
-  calculateDefaultShipping, 
-  calculateProfit, 
-  formatPercentage, 
+import {
+  CalculationData,
+  calculateDefaultShipping,
+  calculateProfit,
+  formatPercentage,
   formatMoney,
-  validateInput 
+  validateInput,
 } from './utils';
 
 const { Text, Title } = Typography;
@@ -30,7 +31,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
     if (data.weight) {
       const defaultShipping = calculateDefaultShipping(data.weight, scenario);
       if (defaultShipping !== undefined) {
-        setData(prev => ({ ...prev, shipping: defaultShipping }));
+        setData((prev) => ({ ...prev, shipping: defaultShipping }));
       }
     }
   }, [data.weight, scenario]);
@@ -45,19 +46,27 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
     // 验证输入
     const validation = validateInput(data, scenario);
     setWarnings(validation.warnings);
-  }, [data.cost, data.price, data.weight, data.platformRate, data.shipping, data.packingFee, scenario]);
+  }, [
+    data.cost,
+    data.price,
+    data.weight,
+    data.platformRate,
+    data.shipping,
+    data.packingFee,
+    scenario,
+  ]);
 
   const handleInputChange = (field: keyof CalculationData, value: number | null) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      [field]: value ?? undefined
+      [field]: value ?? undefined,
     }));
   };
 
   const handleCalculateShipping = () => {
     const defaultShipping = calculateDefaultShipping(data.weight, scenario);
     if (defaultShipping !== undefined) {
-      setData(prev => ({ ...prev, shipping: defaultShipping }));
+      setData((prev) => ({ ...prev, shipping: defaultShipping }));
     }
   };
 
@@ -69,9 +78,8 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
     setWarnings([]);
   };
 
-  const profitColor = data.profit !== undefined 
-    ? data.profit > 0 ? '#52c41a' : '#ff4d4f'
-    : undefined;
+  const profitColor =
+    data.profit !== undefined ? (data.profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
 
   return (
     <Card
@@ -81,20 +89,18 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
         header: {
           background: `linear-gradient(135deg, ${scenario.color.background} 0%, white 100%)`,
           borderBottom: `2px solid ${scenario.color.primary}`,
-        }
+        },
       }}
       title={
         <Space>
           <span style={{ fontSize: '20px' }}>{scenario.icon}</span>
-          <Title level={5} style={{ margin: 0 }}>{scenario.title}</Title>
+          <Title level={5} style={{ margin: 0 }}>
+            {scenario.title}
+          </Title>
         </Space>
       }
       extra={
-        <Button 
-          size="small" 
-          icon={<ReloadOutlined />} 
-          onClick={handleReset}
-        >
+        <Button size="small" icon={<ReloadOutlined />} onClick={handleReset}>
           重置
         </Button>
       }
@@ -211,14 +217,13 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
       </div>
 
       {/* 结果区域 */}
-      <div 
-        style={{ 
-          background: data.profit !== undefined 
-            ? (data.profit > 0 ? '#e8f5e9' : '#ffebee')
-            : '#fafafa',
-          padding: 8, 
+      <div
+        style={{
+          background:
+            data.profit !== undefined ? (data.profit > 0 ? '#e8f5e9' : '#ffebee') : '#fafafa',
+          padding: 8,
           borderRadius: 4,
-          border: '1px solid #e0e0e0'
+          border: '1px solid #e0e0e0',
         }}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="small">

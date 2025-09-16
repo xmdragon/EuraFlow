@@ -64,6 +64,13 @@ class OzonProduct(Base):
 
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="是否归档")
 
+    # OZON原生状态字段
+    ozon_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="OZON归档状态")
+    ozon_has_fbo_stocks: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="是否有FBO库存")
+    ozon_has_fbs_stocks: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="是否有FBS库存")
+    ozon_is_discounted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="是否打折")
+    ozon_visibility_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="OZON可见性状态")
+
     # 价格（使用Decimal类型）
     price: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True, comment="当前价格")
 
@@ -142,6 +149,11 @@ class OzonProduct(Base):
             "status": self.status,
             "visibility": self.visibility,
             "is_archived": self.is_archived,
+            "ozon_archived": self.ozon_archived,
+            "ozon_has_fbo_stocks": self.ozon_has_fbo_stocks,
+            "ozon_has_fbs_stocks": self.ozon_has_fbs_stocks,
+            "ozon_is_discounted": self.ozon_is_discounted,
+            "ozon_visibility_status": self.ozon_visibility_status,
             "price": str(self.price) if self.price else None,
             "old_price": str(self.old_price) if self.old_price else None,
             "premium_price": str(self.premium_price) if self.premium_price else None,
