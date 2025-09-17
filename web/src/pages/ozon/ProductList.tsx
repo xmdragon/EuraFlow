@@ -765,7 +765,7 @@ const ProductList: React.FC = () => {
         </Row>
         <Form form={filterForm} layout="inline" onFinish={handleFilter}>
           <Form.Item name="search">
-            <Input placeholder="搜索 (SKU/标题/条码)" prefix={<SearchOutlined />} style={{ width: 200 }} />
+            <Input placeholder="搜索 (SKU/标题/条码/产品ID)" prefix={<SearchOutlined />} style={{ width: 200 }} />
           </Form.Item>
           <Form.Item name="sku">
             <Input placeholder="精确SKU" />

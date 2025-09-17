@@ -385,7 +385,7 @@ async def get_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     shop_id: Optional[int] = None,
-    search: Optional[str] = Query(None, description="搜索 (SKU/标题/条码)"),
+    search: Optional[str] = Query(None, description="搜索 (SKU/标题/条码/产品ID)"),
     sku: Optional[str] = Query(None, description="精确SKU"),
     title: Optional[str] = Query(None, description="商品名称"),
     status: Optional[str] = Query(None, description="商品状态"),
@@ -406,14 +406,21 @@ async def get_products(
         # 通用搜索 - 在多个字段中搜索
         if search:
             search_term = f"%{search}%"
-            query = query.where(
-                or_(
-                    OzonProduct.sku.ilike(search_term),
-                    OzonProduct.title.ilike(search_term),
-                    OzonProduct.offer_id.ilike(search_term),
-                    OzonProduct.barcode.ilike(search_term) if OzonProduct.barcode else False
-                )
-            )
+            conditions = [
+                OzonProduct.sku.ilike(search_term),
+                OzonProduct.title.ilike(search_term),
+                OzonProduct.offer_id.ilike(search_term),
+            ]
+
+            # 添加条码搜索（如果条码字段不为空）
+            if OzonProduct.barcode:
+                conditions.append(OzonProduct.barcode.ilike(search_term))
+
+            # 如果搜索词是纯数字，也在 ozon_product_id 中搜索
+            if search.isdigit():
+                conditions.append(OzonProduct.ozon_product_id == int(search))
+
+            query = query.where(or_(*conditions))
 
         # 精确筛选
         if sku:
@@ -450,14 +457,21 @@ async def get_products(
             # 通用搜索
             if search:
                 search_term = f"%{search}%"
-                conditions.append(
-                    or_(
-                        OzonProduct.sku.ilike(search_term),
-                        OzonProduct.title.ilike(search_term),
-                        OzonProduct.offer_id.ilike(search_term),
-                        OzonProduct.barcode.ilike(search_term) if OzonProduct.barcode else False
-                    )
-                )
+                search_conditions = [
+                    OzonProduct.sku.ilike(search_term),
+                    OzonProduct.title.ilike(search_term),
+                    OzonProduct.offer_id.ilike(search_term),
+                ]
+
+                # 添加条码搜索（如果条码字段不为空）
+                if OzonProduct.barcode:
+                    search_conditions.append(OzonProduct.barcode.ilike(search_term))
+
+                # 如果搜索词是纯数字，也在 ozon_product_id 中搜索
+                if search.isdigit():
+                    search_conditions.append(OzonProduct.ozon_product_id == int(search))
+
+                conditions.append(or_(*search_conditions))
 
             # 精确筛选
             if sku:
