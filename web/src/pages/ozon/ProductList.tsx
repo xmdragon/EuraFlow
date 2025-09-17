@@ -65,6 +65,7 @@ const ProductList: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({});
 
   // 查询商品列表
   const {
@@ -72,8 +73,8 @@ const ProductList: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonProducts', currentPage, pageSize, selectedShop],
-    queryFn: () => ozonApi.getProducts(currentPage, pageSize, { shop_id: selectedShop }),
+    queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues],
+    queryFn: () => ozonApi.getProducts(currentPage, pageSize, { ...filterValues, shop_id: selectedShop }),
     refetchInterval: 30000, // 30秒自动刷新
   });
 
@@ -505,12 +506,26 @@ const ProductList: React.FC = () => {
   };
 
   const handleFilter = () => {
+    const values = filterForm.getFieldsValue();
+    // 过滤掉空值
+    const cleanedValues: ozonApi.ProductFilter = {};
+    if (values.search) cleanedValues.search = values.search;
+    if (values.sku) cleanedValues.sku = values.sku;
+    if (values.title) cleanedValues.title = values.title;
+    if (values.status) cleanedValues.status = values.status;
+    if (values.has_stock !== undefined && values.has_stock !== null) {
+      cleanedValues.has_stock = values.has_stock === 'true';
+    }
+    if (values.sync_status) cleanedValues.sync_status = values.sync_status;
+
+    setFilterValues(cleanedValues);
     setCurrentPage(1);
     refetch();
   };
 
   const handleReset = () => {
     filterForm.resetFields();
+    setFilterValues({});
     setCurrentPage(1);
     refetch();
   };
@@ -749,8 +764,11 @@ const ProductList: React.FC = () => {
           </Col>
         </Row>
         <Form form={filterForm} layout="inline" onFinish={handleFilter}>
+          <Form.Item name="search">
+            <Input placeholder="搜索 (SKU/标题/条码)" prefix={<SearchOutlined />} style={{ width: 200 }} />
+          </Form.Item>
           <Form.Item name="sku">
-            <Input placeholder="SKU" prefix={<SearchOutlined />} />
+            <Input placeholder="精确SKU" />
           </Form.Item>
           <Form.Item name="title">
             <Input placeholder="商品名称" />
@@ -760,6 +778,12 @@ const ProductList: React.FC = () => {
               <Option value="active">在售</Option>
               <Option value="inactive">下架</Option>
               <Option value="draft">草稿</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="has_stock">
+            <Select placeholder="库存状态" style={{ width: 120 }} allowClear>
+              <Option value="true">有库存</Option>
+              <Option value="false">无库存</Option>
             </Select>
           </Form.Item>
           <Form.Item name="sync_status">

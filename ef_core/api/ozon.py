@@ -385,16 +385,50 @@ async def get_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     shop_id: Optional[int] = None,
+    search: Optional[str] = Query(None, description="搜索 (SKU/标题/条码)"),
+    sku: Optional[str] = Query(None, description="精确SKU"),
+    title: Optional[str] = Query(None, description="商品名称"),
+    status: Optional[str] = Query(None, description="商品状态"),
+    has_stock: Optional[bool] = Query(None, description="是否有库存"),
+    sync_status: Optional[str] = Query(None, description="同步状态"),
     db: AsyncSession = Depends(get_async_session),
 ):
     """获取商品列表"""
     try:
         from plugins.ef.channels.ozon.models import OzonProduct
+        from sqlalchemy import or_
 
         # 构建查询 - 按创建时间倒序排序，显示最新商品
         query = select(OzonProduct)
         if shop_id:
             query = query.where(OzonProduct.shop_id == shop_id)
+
+        # 通用搜索 - 在多个字段中搜索
+        if search:
+            search_term = f"%{search}%"
+            query = query.where(
+                or_(
+                    OzonProduct.sku.ilike(search_term),
+                    OzonProduct.title.ilike(search_term),
+                    OzonProduct.offer_id.ilike(search_term),
+                    OzonProduct.barcode.ilike(search_term) if OzonProduct.barcode else False
+                )
+            )
+
+        # 精确筛选
+        if sku:
+            query = query.where(OzonProduct.sku.ilike(f"%{sku}%"))
+        if title:
+            query = query.where(OzonProduct.title.ilike(f"%{title}%"))
+        if status:
+            query = query.where(OzonProduct.status == status)
+        if has_stock is not None:
+            if has_stock:
+                query = query.where(OzonProduct.stock > 0)
+            else:
+                query = query.where(OzonProduct.stock <= 0)
+        if sync_status:
+            query = query.where(OzonProduct.sync_status == sync_status)
 
         # 按创建时间倒序排序，最新的商品在前
         query = query.order_by(OzonProduct.created_at.desc())
@@ -407,10 +441,45 @@ async def get_products(
         result = await db.execute(query)
         products = result.scalars().all()
 
+        # 构建筛选条件（用于总数和统计）
+        def build_base_filters():
+            conditions = []
+            if shop_id:
+                conditions.append(OzonProduct.shop_id == shop_id)
+
+            # 通用搜索
+            if search:
+                search_term = f"%{search}%"
+                conditions.append(
+                    or_(
+                        OzonProduct.sku.ilike(search_term),
+                        OzonProduct.title.ilike(search_term),
+                        OzonProduct.offer_id.ilike(search_term),
+                        OzonProduct.barcode.ilike(search_term) if OzonProduct.barcode else False
+                    )
+                )
+
+            # 精确筛选
+            if sku:
+                conditions.append(OzonProduct.sku.ilike(f"%{sku}%"))
+            if title:
+                conditions.append(OzonProduct.title.ilike(f"%{title}%"))
+            if status:
+                conditions.append(OzonProduct.status == status)
+            if has_stock is not None:
+                if has_stock:
+                    conditions.append(OzonProduct.stock > 0)
+                else:
+                    conditions.append(OzonProduct.stock <= 0)
+            if sync_status:
+                conditions.append(OzonProduct.sync_status == sync_status)
+
+            return conditions
+
         # 获取总数
         count_query = select(func.count(OzonProduct.id))
-        if shop_id:
-            count_query = count_query.where(OzonProduct.shop_id == shop_id)
+        for condition in build_base_filters():
+            count_query = count_query.where(condition)
         count_result = await db.execute(count_query)
         total = count_result.scalar() or 0
 
@@ -420,8 +489,8 @@ async def get_products(
             func.count(OzonProduct.id).filter(OzonProduct.status == "inactive").label("inactive"),
             func.count(OzonProduct.id).filter(OzonProduct.status == "out_of_stock").label("out_of_stock"),
         )
-        if shop_id:
-            stats_query = stats_query.where(OzonProduct.shop_id == shop_id)
+        for condition in build_base_filters():
+            stats_query = stats_query.where(condition)
 
         stats_result = await db.execute(stats_query)
         stats = stats_result.first()

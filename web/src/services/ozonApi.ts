@@ -133,6 +133,13 @@ export interface ProductFilter {
   title?: string;
   category_id?: number;
   sync_status?: string;
+  search?: string;  // 通用搜索
+  price_min?: number;
+  price_max?: number;
+  has_stock?: boolean;
+  visibility?: string;
+  archived?: boolean;
+  brand?: string;
 }
 
 export interface PriceUpdate {
