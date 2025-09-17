@@ -55,6 +55,10 @@ class OzonSyncService:
             total_synced = 0
             page = 1
             last_id = ""
+            total_products = 0  # 总商品数，用于准确计算进度
+            estimated_total = 0  # 估计的总数
+            inactive_count = 0  # 统计不活跃商品数量
+            archived_count = 0  # 统计归档商品数量
 
             while True:
                 # 调用API获取商品
@@ -70,8 +74,17 @@ class OzonSyncService:
                 result = products_data.get("result", {})
                 items = result.get("items", [])
 
+                # 第一页时，尝试获取总数（API可能返回total字段）
+                if page == 1:
+                    total_products = result.get("total", 0)
+                    if total_products == 0:
+                        # 如果API没有返回总数，根据第一页数量估算
+                        # 假设平均每页100个，最多10页
+                        estimated_total = len(items) * 10 if len(items) == 100 else len(items)
+                        total_products = estimated_total
+
                 logger.info(
-                    f"Page {page}: Got {len(items)} products, last_id in response: {result.get('last_id', 'None')}"
+                    f"Page {page}: Got {len(items)} products, last_id in response: {result.get('last_id', 'None')}, total: {total_products}"
                 )
 
                 if not items:
@@ -151,9 +164,19 @@ class OzonSyncService:
 
                 # 处理每个商品
                 for idx, item in enumerate(items):
-                    progress = 10 + (80 * (total_synced + idx + 1) / (total_synced + len(items)))
+                    # 使用总商品数计算更准确的进度
+                    if total_products > 0:
+                        # 基于总数的准确进度计算
+                        current_item_index = total_synced + idx + 1
+                        progress = 10 + (80 * current_item_index / total_products)
+                    else:
+                        # 降级到原有的进度计算（但改进了公式）
+                        # 假设最多有1000个商品，避免进度跳跃太快
+                        max_expected = max(1000, total_synced + len(items))
+                        progress = 10 + (80 * (total_synced + idx + 1) / max_expected)
+
                     SYNC_TASKS[task_id]["progress"] = min(progress, 90)
-                    SYNC_TASKS[task_id]["message"] = f"正在同步商品 {item.get('offer_id', 'unknown')}..."
+                    SYNC_TASKS[task_id]["message"] = f"正在同步商品 {item.get('offer_id', 'unknown')} ({total_synced + idx + 1}/{total_products if total_products else '?'})..."
 
                     # 从批量查询结果中获取商品详情和库存信息
                     product_details = products_detail_map.get(item.get("offer_id")) if item.get("offer_id") else None
@@ -235,7 +258,16 @@ class OzonSyncService:
                         # 从product_details获取额外状态信息
                         if product_details:
                             visibility_details = product_details.get("visibility_details", {})
-                            is_visible = visibility_details.get("visible", True)
+                            # 根据OZON API文档，visibility_details包含has_price和has_stock
+                            # 商品可见的条件是：既有价格又有库存
+                            has_price = visibility_details.get("has_price", True)
+                            has_stock = visibility_details.get("has_stock", True)
+                            is_visible = has_price and has_stock
+
+                            # 调试日志：检查visibility_details的实际数据
+                            if visibility_details or not is_visible:
+                                logger.info(f"Product {product.sku} visibility_details: {visibility_details}, has_price: {has_price}, has_stock: {has_stock}, is_visible: {is_visible}")
+
                             product.visibility = is_visible
                             product.is_archived = product_details.get("is_archived", False) or product_details.get(
                                 "is_autoarchived", False
@@ -248,14 +280,22 @@ class OzonSyncService:
                             product.is_archived = item.get("is_archived", False)
 
                         # 基于OZON原生状态设置商品状态
-                        if product.ozon_archived:
+                        # 优先级：归档 > 不可见(基于visibility_details) > 价格异常 > 无库存 > 有库存
+                        if product.ozon_archived or product.is_archived:
                             product.status = "archived"
+                            archived_count += 1
                         elif not product.visibility:
-                            product.status = "inactive"  # 不可见商品
-                        elif product.ozon_has_fbo_stocks or product.ozon_has_fbs_stocks:
-                            product.status = "active"    # 有FBO或FBS库存
+                            # visibility为False表示has_price=false或has_stock=false
+                            product.status = "inactive"  # 不可见商品（无价格或无库存）
+                            inactive_count += 1
+                        elif not price or price == "0" or price == "0.0000":
+                            product.status = "inactive"  # 价格为0或无价格的商品
+                            inactive_count += 1
+                        elif not product.ozon_has_fbo_stocks and not product.ozon_has_fbs_stocks:
+                            product.status = "inactive"  # 无任何库存标志
+                            inactive_count += 1
                         else:
-                            product.status = "inactive"  # 无任何库存
+                            product.status = "active"    # 其他情况为活跃
 
                         # 更新价格
                         if price:
@@ -346,20 +386,32 @@ class OzonSyncService:
                                 product.ozon_archived = True
 
                         # 基于OZON原生状态设置商品状态
-                        if product.ozon_archived:
+                        # 优先级：归档 > 不可见(基于visibility_details) > 价格异常 > 无库存 > 有库存
+                        if product.ozon_archived or product.is_archived:
                             product.status = "archived"
+                            archived_count += 1
                         elif not product.visibility:
-                            product.status = "inactive"  # 不可见商品
-                        elif product.ozon_has_fbo_stocks or product.ozon_has_fbs_stocks:
-                            product.status = "active"    # 有FBO或FBS库存
+                            # visibility为False表示has_price=false或has_stock=false
+                            product.status = "inactive"  # 不可见商品（无价格或无库存）
+                            inactive_count += 1
+                        elif not price or price == "0" or price == "0.0000":
+                            product.status = "inactive"  # 价格为0或无价格的商品
+                            inactive_count += 1
+                        elif not product.ozon_has_fbo_stocks and not product.ozon_has_fbs_stocks:
+                            product.status = "inactive"  # 无任何库存标志
+                            inactive_count += 1
                         else:
-                            product.status = "inactive"  # 无任何库存
+                            product.status = "active"    # 其他情况为活跃
 
                         db.add(product)
 
                 # 提交当前批次
                 await db.commit()
                 total_synced += len(items)
+
+                # 更新真实的总数（如果是估算的话）
+                if estimated_total > 0 and total_synced > total_products:
+                    total_products = total_synced + 100  # 动态调整估算值
 
                 # 检查是否有更多页
                 # 如果返回的商品数量小于请求的数量，说明没有更多数据了
@@ -385,14 +437,22 @@ class OzonSyncService:
             shop.last_sync_at = datetime.utcnow()
             await db.commit()
 
+            # 记录最终统计
+            logger.info(f"同步完成统计: 总计={total_synced}, 不活跃={inactive_count}, 归档={archived_count}, 活跃={total_synced - inactive_count - archived_count}")
+
             # 完成
             SYNC_TASKS[task_id] = {
                 "status": "completed",
                 "progress": 100,
-                "message": f"同步完成，共同步{total_synced}个商品",
+                "message": f"同步完成，共同步{total_synced}个商品（不活跃: {inactive_count}, 归档: {archived_count}）",
                 "completed_at": datetime.utcnow().isoformat(),
                 "type": "products",
-                "result": {"total_synced": total_synced},
+                "result": {
+                    "total_synced": total_synced,
+                    "inactive_count": inactive_count,
+                    "archived_count": archived_count,
+                    "active_count": total_synced - inactive_count - archived_count
+                },
             }
 
             return SYNC_TASKS[task_id]

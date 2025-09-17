@@ -338,6 +338,41 @@ class OzonAPIClient:
             "POST", "/v2/products/stocks", data={"stocks": stocks_data}, resource_type="products"  # 使用正确的v2端点
         )
 
+    async def get_product_stocks(self, offer_ids: List[str] = None, product_ids: List[int] = None, limit: int = 1000, cursor: str = "") -> Dict[str, Any]:
+        """
+        获取商品库存信息
+        使用 /v4/product/info/stocks API
+
+        Args:
+            offer_ids: 商品offer_id列表
+            product_ids: 商品product_id列表
+            limit: 每页商品数量，最大1000
+            cursor: 分页游标
+
+        Returns:
+            库存信息响应
+        """
+        data = {
+            "limit": min(limit, 1000),
+            "filter": {}
+        }
+
+        if cursor:
+            data["cursor"] = cursor
+
+        # 设置筛选条件
+        if offer_ids:
+            data["filter"]["offer_id"] = offer_ids[:1000]  # 限制最多1000个
+        elif product_ids:
+            data["filter"]["product_id"] = product_ids[:1000]  # 限制最多1000个
+        else:
+            # 如果都没有提供，获取所有商品
+            data["filter"] = {}
+
+        return await self._request(
+            "POST", "/v4/product/info/stocks", data=data, resource_type="products"
+        )
+
     async def archive_products(self, product_ids: List[int]) -> Dict[str, Any]:
         """
         将商品归档
