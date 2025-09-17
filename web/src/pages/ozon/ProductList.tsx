@@ -15,7 +15,6 @@ import {
   ExclamationCircleOutlined,
   SearchOutlined,
   FileImageOutlined,
-  CopyOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -170,7 +169,28 @@ const ProductList: React.FC = () => {
             <Button
               type="text"
               size="small"
-              icon={<CopyOutlined />}
+              icon={
+                <div style={{ position: 'relative', width: '12px', height: '12px' }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '2px',
+                    left: '2px',
+                    width: '8px',
+                    height: '8px',
+                    border: '1px solid #666',
+                    backgroundColor: 'white'
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    top: '0px',
+                    left: '0px',
+                    width: '8px',
+                    height: '8px',
+                    border: '1px solid #666',
+                    backgroundColor: 'white'
+                  }} />
+                </div>
+              }
               onClick={() => handleCopyToClipboard(text, 'SKU')}
               style={{ padding: '0 4px', height: '20px', minWidth: '20px' }}
               title="复制SKU"
@@ -183,7 +203,28 @@ const ProductList: React.FC = () => {
             <Button
               type="text"
               size="small"
-              icon={<CopyOutlined />}
+              icon={
+                <div style={{ position: 'relative', width: '10px', height: '10px' }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '2px',
+                    left: '2px',
+                    width: '6px',
+                    height: '6px',
+                    border: '1px solid #666',
+                    backgroundColor: 'white'
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    top: '0px',
+                    left: '0px',
+                    width: '6px',
+                    height: '6px',
+                    border: '1px solid #666',
+                    backgroundColor: 'white'
+                  }} />
+                </div>
+              }
               onClick={() => handleCopyToClipboard(String(record.ozon_product_id || record.offer_id), '产品ID')}
               style={{ padding: '0 4px', height: '16px', minWidth: '16px', fontSize: '10px' }}
               title="复制产品ID"
