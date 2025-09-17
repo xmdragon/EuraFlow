@@ -15,6 +15,7 @@ import {
   ExclamationCircleOutlined,
   SearchOutlined,
   FileImageOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -164,10 +165,30 @@ const ProductList: React.FC = () => {
       fixed: 'left',
       render: (text, record) => (
         <Space direction="vertical" size="small">
-          <span style={{ fontWeight: 'bold' }}>{text}</span>
-          <span style={{ fontSize: 12, color: '#999' }}>
-            ID: {record.ozon_product_id || record.offer_id}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontWeight: 'bold' }}>{text}</span>
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => handleCopyToClipboard(text, 'SKU')}
+              style={{ padding: '0 4px', height: '20px', minWidth: '20px' }}
+              title="复制SKU"
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: 12, color: '#999' }}>
+              ID: {record.ozon_product_id || record.offer_id}
+            </span>
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => handleCopyToClipboard(String(record.ozon_product_id || record.offer_id), '产品ID')}
+              style={{ padding: '0 4px', height: '16px', minWidth: '16px', fontSize: '10px' }}
+              title="复制产品ID"
+            />
+          </div>
         </Space>
       ),
     },
@@ -528,6 +549,23 @@ const ProductList: React.FC = () => {
     setFilterValues({});
     setCurrentPage(1);
     refetch();
+  };
+
+  // 复制到剪贴板
+  const handleCopyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success(`${label} 已复制到剪贴板`);
+    } catch (error) {
+      // 降级方案：创建临时输入框
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      message.success(`${label} 已复制到剪贴板`);
+    }
   };
 
   const handleSyncSingle = async (product: ozonApi.Product) => {
