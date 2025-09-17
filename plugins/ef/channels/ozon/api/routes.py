@@ -289,36 +289,123 @@ async def get_products(
     offset: int = 0,
     limit: int = Query(50, le=100),
     shop_id: Optional[int] = None,
+    search: Optional[str] = Query(None, description="通用搜索（SKU、标题、offer_id、条码）"),
     sku: Optional[str] = None,
     title: Optional[str] = None,
     status: Optional[str] = None,
+    price_min: Optional[float] = Query(None, description="最低价格"),
+    price_max: Optional[float] = Query(None, description="最高价格"),
+    stock_min: Optional[int] = Query(None, description="最低库存"),
+    stock_max: Optional[int] = Query(None, description="最高库存"),
+    has_stock: Optional[bool] = Query(None, description="是否有库存"),
+    visibility: Optional[bool] = Query(None, description="是否可见"),
+    archived: Optional[bool] = Query(None, description="是否归档"),
+    category_id: Optional[int] = Query(None, description="类目ID"),
+    brand: Optional[str] = Query(None, description="品牌"),
+    sort_by: Optional[str] = Query("updated_at", description="排序字段：price,stock,created_at,updated_at,title"),
+    sort_order: Optional[str] = Query("desc", description="排序方向：asc,desc"),
     db: AsyncSession = Depends(get_async_session)
     # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
 ):
-    """获取 Ozon 商品列表"""
+    """
+    获取 Ozon 商品列表
+
+    支持多种搜索和筛选方式：
+    - 通用搜索：在SKU、标题、offer_id、条码中搜索
+    - 精确筛选：按状态、价格范围、库存范围等
+    - 灵活排序：支持多字段排序
+    """
+    from sqlalchemy import or_, and_, cast, Numeric
+
     # 构建查询
     query = select(OzonProduct)
-    
+
     # 应用过滤条件
     if shop_id:
         query = query.where(OzonProduct.shop_id == shop_id)
     else:
         # 默认获取第一个店铺的商品
         query = query.where(OzonProduct.shop_id == 1)
-    
+
+    # 通用搜索 - 在多个字段中搜索
+    if search:
+        search_term = f"%{search}%"
+        query = query.where(
+            or_(
+                OzonProduct.sku.ilike(search_term),
+                OzonProduct.title.ilike(search_term),
+                OzonProduct.offer_id.ilike(search_term),
+                OzonProduct.barcode.ilike(search_term) if OzonProduct.barcode else False
+            )
+        )
+
+    # 特定字段搜索（优先级高于通用搜索）
     if sku:
-        query = query.where(OzonProduct.sku.contains(sku))
+        query = query.where(OzonProduct.sku.ilike(f"%{sku}%"))
     if title:
-        query = query.where(OzonProduct.title.contains(title))
+        query = query.where(OzonProduct.title.ilike(f"%{title}%"))
     if status:
         query = query.where(OzonProduct.status == status)
+
+    # 价格范围筛选
+    if price_min is not None:
+        query = query.where(OzonProduct.price >= cast(price_min, Numeric))
+    if price_max is not None:
+        query = query.where(OzonProduct.price <= cast(price_max, Numeric))
+
+    # 库存范围筛选
+    if stock_min is not None:
+        query = query.where(OzonProduct.stock >= stock_min)
+    if stock_max is not None:
+        query = query.where(OzonProduct.stock <= stock_max)
+
+    # 库存状态筛选
+    if has_stock is not None:
+        if has_stock:
+            query = query.where(OzonProduct.stock > 0)
+        else:
+            query = query.where(OzonProduct.stock == 0)
+
+    # 可见性筛选
+    if visibility is not None:
+        query = query.where(OzonProduct.visibility == visibility)
+
+    # 归档状态筛选
+    if archived is not None:
+        if archived:
+            query = query.where(or_(OzonProduct.is_archived == True, OzonProduct.ozon_archived == True))
+        else:
+            query = query.where(and_(OzonProduct.is_archived == False, OzonProduct.ozon_archived == False))
+
+    # 类目筛选
+    if category_id:
+        query = query.where(OzonProduct.category_id == category_id)
+
+    # 品牌筛选
+    if brand:
+        query = query.where(OzonProduct.brand.ilike(f"%{brand}%"))
     
     # 执行查询获取总数
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()
-    
-    # 添加分页
-    query = query.offset(offset).limit(limit).order_by(OzonProduct.updated_at.desc())
+
+    # 添加排序
+    sort_order_desc = sort_order.lower() == "desc"
+
+    # 根据排序字段选择排序列
+    if sort_by == "price":
+        order_column = OzonProduct.price.desc() if sort_order_desc else OzonProduct.price.asc()
+    elif sort_by == "stock":
+        order_column = OzonProduct.stock.desc() if sort_order_desc else OzonProduct.stock.asc()
+    elif sort_by == "created_at":
+        order_column = OzonProduct.created_at.desc() if sort_order_desc else OzonProduct.created_at.asc()
+    elif sort_by == "title":
+        order_column = OzonProduct.title.desc() if sort_order_desc else OzonProduct.title.asc()
+    else:  # 默认按updated_at
+        order_column = OzonProduct.updated_at.desc() if sort_order_desc else OzonProduct.updated_at.asc()
+
+    # 添加分页和排序
+    query = query.offset(offset).limit(limit).order_by(order_column)
     
     # 执行查询
     result = await db.execute(query)
@@ -339,7 +426,8 @@ async def get_products(
     stats_result = await db.execute(stats_query)
     stats = stats_result.first()
     
-    return {
+    # 构建响应，包含搜索信息
+    response = {
         "data": [product.to_dict() for product in products],
         "total": total,
         "offset": offset,
@@ -350,6 +438,29 @@ async def get_products(
             "sync_failed": stats.sync_failed if stats else 0
         }
     }
+
+    # 如果有搜索，添加搜索信息
+    if search or sku or title or brand or any([
+        price_min, price_max, stock_min, stock_max, has_stock is not None,
+        visibility is not None, archived is not None, category_id
+    ]):
+        response["search_info"] = {
+            "query": search or sku or title or brand,
+            "filters_applied": {
+                "status": status,
+                "price_range": [price_min, price_max] if price_min or price_max else None,
+                "stock_range": [stock_min, stock_max] if stock_min is not None or stock_max is not None else None,
+                "has_stock": has_stock,
+                "visibility": visibility,
+                "archived": archived,
+                "category_id": category_id,
+                "brand": brand
+            },
+            "results_count": len(products),
+            "sort": {"by": sort_by, "order": sort_order}
+        }
+
+    return response
 
 @router.post("/products/sync")
 async def sync_products(
