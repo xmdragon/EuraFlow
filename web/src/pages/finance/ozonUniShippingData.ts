@@ -11,8 +11,10 @@ export interface UNIService {
   baseFee: number; // 基础费用(元)
   rateFee: number; // 费率(元/克)
   formula: string; // 费用公式显示
+  minWeight?: number; // 最小重量限制(克)
   maxWeight?: number; // 最大重量限制(克)
-  maxValue?: number; // 最大货值限制(卢布)
+  minValue?: number; // 最小货值限制(RMB)
+  maxValue?: number; // 最大货值限制(RMB)
   dimensionLimit: {
     // 尺寸限制
     sumLimit?: number; // 三边之和(cm)
@@ -20,7 +22,7 @@ export interface UNIService {
   };
   notes?: string[]; // 注意事项
   msds?: boolean; // 是否需要MSDS
-  additionalFee?: string; // 送货上门额外费用公式
+  additionalFee?: string; // 送货上门额外贱用公式
 }
 
 export interface UNICategory {
@@ -48,6 +50,8 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 3,
         rateFee: 0.045,
         formula: '3元 + 0.045元/1克',
+        minWeight: 1,
+        maxWeight: 500,
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
       },
@@ -60,6 +64,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 3,
         rateFee: 0.035,
         formula: '3元 + 0.035元/1克',
+        minWeight: 1,
         maxWeight: 500,
         maxValue: 1500,
         dimensionLimit: {
@@ -77,6 +82,8 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 3,
         rateFee: 0.025,
         formula: '3元 + 0.025元/1克',
+        minWeight: 1,
+        maxWeight: 500,
         dimensionLimit: {},
         notes: [],
       },
@@ -97,6 +104,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 23,
         rateFee: 0.033,
         formula: '23元 + 0.033元/1克',
+        minWeight: 501,
+        maxWeight: 25000,
+        maxValue: 1500,
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
         msds: true,
@@ -110,6 +120,7 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 23,
         rateFee: 0.025,
         formula: '23元 + 0.025元/1克',
+        minWeight: 501,
         maxWeight: 25000,
         maxValue: 1500,
         dimensionLimit: {
@@ -128,6 +139,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 23,
         rateFee: 0.017,
         formula: '23元 +0.0170元/1克',
+        minWeight: 501,
+        maxWeight: 25000,
+        maxValue: 1500,
         dimensionLimit: {},
         notes: [],
       },
@@ -148,6 +162,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 16,
         rateFee: 0.045,
         formula: '16元 +0.045元/1克',
+        minWeight: 1,
+        maxWeight: 2000,
+        minValue: 1501,
+        maxValue: 7000,
         additionalFee: '19.5元 + 0.045元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
@@ -162,8 +180,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 16,
         rateFee: 0.035,
         formula: '16元 +0.035元/1克',
-        additionalFee: '19.5元 + 0.035元/1克',
+        minWeight: 1,
         maxWeight: 2000,
+        minValue: 1501,
+        additionalFee: '19.5元 + 0.035元/1克',
         maxValue: 7000,
         dimensionLimit: {
           sumLimit: 150,
@@ -181,6 +201,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 16,
         rateFee: 0.025,
         formula: '16元 + 0.025元/1克',
+        minWeight: 1,
+        maxWeight: 2000,
+        minValue: 1501,
+        maxValue: 7000,
         additionalFee: '19.5元 + 0.025元/1克',
         dimensionLimit: {},
         notes: [],
@@ -202,6 +226,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 36,
         rateFee: 0.033,
         formula: '36元 + 0.033元/1克',
+        minWeight: 2001,
+        maxWeight: 25000,
+        minValue: 1501,
+        maxValue: 7000,
         additionalFee: '39.5元 + 0.033元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
@@ -216,8 +244,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 36,
         rateFee: 0.025,
         formula: '36元 + 0.025元/1克',
-        additionalFee: '39.5元 + 0.025元/1克',
+        minWeight: 2001,
         maxWeight: 25000,
+        minValue: 1501,
+        additionalFee: '39.5元 + 0.025元/1克',
         maxValue: 7000,
         dimensionLimit: {
           sumLimit: 250,
@@ -235,6 +265,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 36,
         rateFee: 0.017,
         formula: '36元 +0.017元/1克',
+        minWeight: 2001,
+        maxWeight: 25000,
+        minValue: 1501,
+        maxValue: 7000,
         additionalFee: '39.5元 + 0.017元/1克',
         dimensionLimit: {},
         notes: [],
@@ -256,6 +290,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 22,
         rateFee: 0.045,
         formula: '22元 +0.045元/1克',
+        minWeight: 1,
+        maxWeight: 5000,
+        minValue: 7001,
         additionalFee: '25.5元 +0.045元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
@@ -270,8 +307,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 22,
         rateFee: 0.035,
         formula: '22元 + 0.035元/1克',
-        additionalFee: '25.5元 + 0.035元/1克',
+        minWeight: 1,
         maxWeight: 5000,
+        minValue: 7001,
+        additionalFee: '25.5元 + 0.035元/1克',
         maxValue: 250000,
         dimensionLimit: {
           sumLimit: 250,
@@ -289,6 +328,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 22,
         rateFee: 0.025,
         formula: '22元 + 0.0250元/1克',
+        minWeight: 1,
+        maxWeight: 5000,
+        minValue: 7001,
         additionalFee: '25.5元 +0.0250元/1克',
         dimensionLimit: {},
         notes: [],
@@ -310,6 +352,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 62,
         rateFee: 0.033,
         formula: '62元 + 0.033元/1克',
+        minWeight: 5001,
+        maxWeight: 25000,
+        minValue: 7001,
         additionalFee: '65.5元 +0.033元/1克',
         dimensionLimit: {},
         notes: ['没有预制有毒池遥远的运100克结，不需要提供', 'MSDS'],
@@ -324,8 +369,10 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 62,
         rateFee: 0.028,
         formula: '62元 + 0.028元/1克',
-        additionalFee: '65.5元 + 0.028元/1克',
+        minWeight: 5001,
         maxWeight: 25000,
+        minValue: 7001,
+        additionalFee: '65.5元 + 0.028元/1克',
         maxValue: 250000,
         dimensionLimit: {
           sumLimit: 310,
@@ -343,6 +390,9 @@ export const OZON_UNI_DATA: UNICategory[] = [
         baseFee: 62,
         rateFee: 0.023,
         formula: '62元 + 0.023元/1克',
+        minWeight: 5001,
+        maxWeight: 25000,
+        minValue: 7001,
         additionalFee: '65.5元 + 0.023元/1克',
         dimensionLimit: {},
         notes: [],
@@ -382,14 +432,24 @@ export function checkServiceAvailable(
   sumDimension: number,
   maxDimension: number
 ): { available: boolean; reason?: string } {
-  // 检查重量限制
+  // 检查最小重量限制
+  if (service.minWeight && weight < service.minWeight) {
+    return { available: false, reason: `低于最小重量限制 ${service.minWeight}g` };
+  }
+
+  // 检查最大重量限制
   if (service.maxWeight && weight > service.maxWeight) {
     return { available: false, reason: `超过最大重量限制 ${service.maxWeight}g` };
   }
 
-  // 检查货值限制
+  // 检查最小货值限制
+  if (service.minValue && value < service.minValue) {
+    return { available: false, reason: `低于最小货值限制 ${service.minValue} RMB` };
+  }
+
+  // 检查最大货值限制
   if (service.maxValue && value > service.maxValue) {
-    return { available: false, reason: `超过最大货值限制 ${service.maxValue}卢布` };
+    return { available: false, reason: `超过最大货值限制 ${service.maxValue} RMB` };
   }
 
   // 检查尺寸限制
