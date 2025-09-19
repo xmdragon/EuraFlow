@@ -398,24 +398,30 @@ const ProductList: React.FC = () => {
       width: 100,
       render: (status, record) => {
         const statusMap: Record<string, { color: string; text: string }> = {
+          on_sale: { color: 'success', text: '销售中' },
+          ready_to_sell: { color: 'warning', text: '准备销售' },
+          error: { color: 'error', text: '错误' },
+          pending_modification: { color: 'processing', text: '待修改' },
+          inactive: { color: 'default', text: '下架' },
+          archived: { color: 'default', text: '已归档' },
+          // 保留旧状态以防万一
           draft: { color: 'default', text: '草稿' },
           active: { color: 'success', text: '在售' },
-          inactive: { color: 'warning', text: '下架' },
-          archived: { color: 'default', text: '已归档' },
           deleted: { color: 'error', text: '已删除' },
         };
-        // 构建OZON状态详情
-        const ozonStatusDetails = [
+
+        // 显示状态原因或OZON状态详情
+        const statusDetails = record.status_reason || [
           record.ozon_archived && '已归档',
           record.ozon_has_fbo_stocks && '有FBO库存',
           record.ozon_has_fbs_stocks && '有FBS库存',
           record.ozon_is_discounted && '促销中',
           record.ozon_visibility_status && `可见性: ${record.ozon_visibility_status}`,
-        ].filter(Boolean).join(', ');
+        ].filter(Boolean).join(', ') || '状态正常';
 
         return (
           <Space direction="vertical" size="small">
-            <Tooltip title={ozonStatusDetails || 'OZON原生状态信息'}>
+            <Tooltip title={statusDetails}>
               <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
             </Tooltip>
             {record.sync_status === 'failed' && (
@@ -846,22 +852,67 @@ const ProductList: React.FC = () => {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={4}>
           <Card
             style={{ cursor: 'pointer' }}
             onClick={() => {
-              filterForm.setFieldsValue({ status: 'active' });
-              setFilterValues({ ...filterValues, status: 'active' });
+              filterForm.setFieldsValue({ status: 'on_sale' });
+              setFilterValues({ ...filterValues, status: 'on_sale' });
             }}
           >
             <Statistic
-              title={<span style={{ color: '#1890ff' }}>在售商品</span>}
-              value={globalStats?.stats?.active || 0}
+              title={<span style={{ color: '#52c41a' }}>销售中</span>}
+              value={globalStats?.stats?.on_sale || globalStats?.stats?.active || 0}
+              valueStyle={{ color: '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              filterForm.setFieldsValue({ status: 'ready_to_sell' });
+              setFilterValues({ ...filterValues, status: 'ready_to_sell' });
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: '#faad14' }}>准备销售</span>}
+              value={globalStats?.stats?.ready_to_sell || 0}
+              valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              filterForm.setFieldsValue({ status: 'error' });
+              setFilterValues({ ...filterValues, status: 'error' });
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: '#f5222d' }}>错误</span>}
+              value={globalStats?.stats?.error || 0}
+              valueStyle={{ color: '#f5222d' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              filterForm.setFieldsValue({ status: 'pending_modification' });
+              setFilterValues({ ...filterValues, status: 'pending_modification' });
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: '#1890ff' }}>待修改</span>}
+              value={globalStats?.stats?.pending_modification || 0}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={4}>
           <Card
             style={{ cursor: 'pointer' }}
             onClick={() => {
@@ -870,18 +921,24 @@ const ProductList: React.FC = () => {
             }}
           >
             <Statistic
-              title={<span style={{ color: '#1890ff' }}>已下架</span>}
+              title={<span style={{ color: '#8c8c8c' }}>已下架</span>}
               value={globalStats?.stats?.inactive || 0}
-              valueStyle={{ color: '#1890ff' }}
+              valueStyle={{ color: '#8c8c8c' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card>
+        <Col span={4}>
+          <Card
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              filterForm.setFieldsValue({ status: 'archived' });
+              setFilterValues({ ...filterValues, status: 'archived' });
+            }}
+          >
             <Statistic
-              title="缺货商品"
-              value={globalStats?.stats?.out_of_stock || 0}
-              valueStyle={{ color: '#cf1322' }}
+              title={<span style={{ color: '#bfbfbf' }}>已归档</span>}
+              value={globalStats?.stats?.archived || 0}
+              valueStyle={{ color: '#bfbfbf' }}
             />
           </Card>
         </Col>
@@ -914,9 +971,12 @@ const ProductList: React.FC = () => {
           </Form.Item>
           <Form.Item name="status">
             <Select placeholder="状态" style={{ width: 120 }} allowClear>
-              <Option value="active">在售</Option>
+              <Option value="on_sale">销售中</Option>
+              <Option value="ready_to_sell">准备销售</Option>
+              <Option value="error">错误</Option>
+              <Option value="pending_modification">待修改</Option>
               <Option value="inactive">下架</Option>
-              <Option value="draft">草稿</Option>
+              <Option value="archived">已归档</Option>
             </Select>
           </Form.Item>
           <Form.Item name="has_stock">

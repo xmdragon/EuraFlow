@@ -101,7 +101,14 @@ export interface Product {
   category_id?: number;
   category_name?: string;
   brand?: string;
-  status: 'draft' | 'active' | 'inactive' | 'deleted' | 'archived';
+  status: 'on_sale' | 'ready_to_sell' | 'error' | 'pending_modification' | 'inactive' | 'archived';
+  ozon_status?: string;
+  status_reason?: string;
+  ozon_visibility_details?: {
+    has_price?: boolean;
+    has_stock?: boolean;
+    [key: string]: any;
+  };
   visibility: boolean;
   is_archived: boolean;
   price?: string;

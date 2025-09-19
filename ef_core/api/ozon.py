@@ -634,24 +634,49 @@ async def get_statistics(
             product_filter.append(OzonProduct.shop_id == shop_id)
             order_filter.append(OzonOrder.shop_id == shop_id)
 
-        # 商品统计
+        # 商品统计 - 使用新的5种状态
         product_total_result = await db.execute(
             select(func.count(OzonProduct.id))
             .where(*product_filter)
         )
         product_total = product_total_result.scalar() or 0
 
-        product_active_result = await db.execute(
+        # 统计各种状态的商品数量
+        product_on_sale_result = await db.execute(
             select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == 'active', *product_filter)
+            .where(OzonProduct.status == 'on_sale', *product_filter)
         )
-        product_active = product_active_result.scalar() or 0
+        product_on_sale = product_on_sale_result.scalar() or 0
 
-        product_out_of_stock_result = await db.execute(
+        product_ready_to_sell_result = await db.execute(
             select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == "inactive", *product_filter)
+            .where(OzonProduct.status == 'ready_to_sell', *product_filter)
         )
-        product_out_of_stock = product_out_of_stock_result.scalar() or 0
+        product_ready_to_sell = product_ready_to_sell_result.scalar() or 0
+
+        product_error_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(OzonProduct.status == 'error', *product_filter)
+        )
+        product_error = product_error_result.scalar() or 0
+
+        product_pending_modification_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(OzonProduct.status == 'pending_modification', *product_filter)
+        )
+        product_pending_modification = product_pending_modification_result.scalar() or 0
+
+        product_inactive_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(OzonProduct.status == 'inactive', *product_filter)
+        )
+        product_inactive = product_inactive_result.scalar() or 0
+
+        product_archived_result = await db.execute(
+            select(func.count(OzonProduct.id))
+            .where(OzonProduct.status == 'archived', *product_filter)
+        )
+        product_archived = product_archived_result.scalar() or 0
 
         product_synced_result = await db.execute(
             select(func.count(OzonProduct.id))
@@ -742,8 +767,12 @@ async def get_statistics(
             "data": {
                 "products": {
                     "total": product_total,
-                    "active": product_active,
-                    "out_of_stock": product_out_of_stock,
+                    "on_sale": product_on_sale,
+                    "ready_to_sell": product_ready_to_sell,
+                    "error": product_error,
+                    "pending_modification": product_pending_modification,
+                    "inactive": product_inactive,
+                    "archived": product_archived,
                     "synced": product_synced
                 },
                 "orders": {

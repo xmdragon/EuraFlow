@@ -57,8 +57,32 @@ class OzonProduct(Base):
 
     brand: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="品牌")
 
-    # 状态
-    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False, comment="商品状态")
+    # 商品状态 - 支持OZON的5种状态
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="ready_to_sell",
+        nullable=False,
+        comment="商品状态: on_sale=销售中, ready_to_sell=准备销售, error=错误, pending_modification=待修改, inactive=下架, archived=已归档"
+    )
+
+    # OZON原生状态字段
+    ozon_status: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="OZON原生状态"
+    )
+
+    status_reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="状态原因说明"
+    )
+
+    ozon_visibility_details: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="OZON可见性详情"
+    )
 
     visibility: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, comment="是否可见")
 
@@ -152,6 +176,9 @@ class OzonProduct(Base):
             "category_name": get_category_name(self.category_id) if self.category_id else None,
             "brand": self.brand,
             "status": self.status,
+            "ozon_status": self.ozon_status,
+            "status_reason": self.status_reason,
+            "ozon_visibility_details": self.ozon_visibility_details,
             "visibility": self.visibility,
             "is_archived": self.is_archived,
             "ozon_archived": self.ozon_archived,

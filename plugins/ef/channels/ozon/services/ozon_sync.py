@@ -286,6 +286,7 @@ class OzonSyncService:
                             product.ozon_is_discounted = item.get("is_discounted", False)
 
                             # 从product_details获取额外状态信息
+                            visibility_details = {}
                             if product_details:
                                 visibility_details = product_details.get("visibility_details", {})
                                 # 根据OZON API文档，visibility_details包含has_price和has_stock
@@ -305,34 +306,73 @@ class OzonSyncService:
                                 # 更新OZON归档状态（详细信息中可能更准确）
                                 if product_details.get("is_archived") or product_details.get("is_autoarchived"):
                                     product.ozon_archived = True
+
+                                # 保存visibility_details到数据库
+                                product.ozon_visibility_details = visibility_details
                             else:
                                 product.visibility = item.get("is_visible", True)
                                 product.is_archived = item.get("is_archived", False)
+                                has_price = True
+                                has_stock = True
 
-                            # 基于OZON原生状态和visibility类型设置商品状态
-                            # 优先级：归档 > INVISIBLE > 价格异常 > 无库存 > 有库存
+                            # 新的5种状态映射逻辑
                             visibility_type = item.get("_sync_visibility_type", "UNKNOWN")
+
+                            # 判断状态原因
+                            status_reason = None
 
                             if product.ozon_archived or product.is_archived:
                                 product.status = "archived"
+                                product.ozon_status = "archived"
+                                status_reason = "商品已归档"
                                 archived_count += 1
                             elif visibility_type == "INVISIBLE":
-                                # INVISIBLE商品设为不活跃（包括违规下架等）
-                                product.status = "inactive"
+                                # INVISIBLE商品需要进一步区分
+                                # 检查是否有错误信息（如违规、审核不通过）
+                                if product_details and (product_details.get("errors") or product_details.get("warnings")):
+                                    product.status = "error"
+                                    product.ozon_status = "error"
+                                    status_reason = "商品信息有误或违规"
+                                # 检查是否需要修改（如待审核、待补充信息）
+                                elif product_details and product_details.get("moderation_status") == "PENDING":
+                                    product.status = "pending_modification"
+                                    product.ozon_status = "pending_modification"
+                                    status_reason = "商品待修改或审核中"
+                                else:
+                                    product.status = "inactive"
+                                    product.ozon_status = "inactive"
+                                    status_reason = "商品已下架"
                                 product.visibility = False  # 确保visibility为False
                                 inactive_count += 1
-                            elif not product.visibility:
-                                # visibility为False表示has_price=false或has_stock=false
-                                product.status = "inactive"  # 不可见商品（无价格或无库存）
-                                inactive_count += 1
+                            elif visibility_details.get("has_price", True) and visibility_details.get("has_stock", True):
+                                # 既有价格又有库存，商品在售
+                                product.status = "on_sale"
+                                product.ozon_status = "on_sale"
+                                status_reason = "商品正常销售中"
+                            elif not visibility_details.get("has_price", True) or not visibility_details.get("has_stock", True):
+                                # 缺少价格或库存，准备销售状态
+                                product.status = "ready_to_sell"
+                                product.ozon_status = "ready_to_sell"
+                                if not visibility_details.get("has_price", True):
+                                    status_reason = "商品缺少价格信息"
+                                else:
+                                    status_reason = "商品缺少库存"
                             elif not price or price == "0" or price == "0.0000":
-                                product.status = "inactive"  # 价格为0或无价格的商品
-                                inactive_count += 1
+                                product.status = "ready_to_sell"
+                                product.ozon_status = "ready_to_sell"
+                                status_reason = "商品价格为0"
                             elif not product.ozon_has_fbo_stocks and not product.ozon_has_fbs_stocks:
-                                product.status = "inactive"  # 无任何库存标志
-                                inactive_count += 1
+                                product.status = "ready_to_sell"
+                                product.ozon_status = "ready_to_sell"
+                                status_reason = "商品无任何库存"
                             else:
-                                product.status = "active"    # 其他情况为活跃
+                                product.status = "inactive"
+                                product.ozon_status = "inactive"
+                                status_reason = "商品状态未知"
+                                inactive_count += 1
+
+                            # 保存状态原因
+                            product.status_reason = status_reason
 
                             # 更新价格
                             if price:
@@ -432,30 +472,65 @@ class OzonSyncService:
                                 if product_details.get("is_archived") or product_details.get("is_autoarchived"):
                                     product.ozon_archived = True
 
-                            # 基于OZON原生状态和visibility类型设置商品状态
-                            # 优先级：归档 > INVISIBLE > 价格异常 > 无库存 > 有库存
+                            # 新建商品也使用5种状态映射
                             visibility_type = item.get("_sync_visibility_type", "UNKNOWN")
+                            visibility_details = product_details.get("visibility_details", {}) if product_details else {}
+                            product.ozon_visibility_details = visibility_details if visibility_details else None
+
+                            # 判断状态原因
+                            status_reason = None
 
                             if product.ozon_archived or product.is_archived:
                                 product.status = "archived"
+                                product.ozon_status = "archived"
+                                status_reason = "商品已归档"
                                 archived_count += 1
                             elif visibility_type == "INVISIBLE":
-                                # INVISIBLE商品设为不活跃（包括违规下架等）
-                                product.status = "inactive"
-                                product.visibility = False  # 确保visibility为False
+                                # INVISIBLE商品需要进一步区分
+                                # 检查是否有错误信息
+                                if product_details and (product_details.get("errors") or product_details.get("warnings")):
+                                    product.status = "error"
+                                    product.ozon_status = "error"
+                                    status_reason = "商品信息有误或违规"
+                                # 检查是否需要修改
+                                elif product_details and product_details.get("moderation_status") == "PENDING":
+                                    product.status = "pending_modification"
+                                    product.ozon_status = "pending_modification"
+                                    status_reason = "商品待修改或审核中"
+                                else:
+                                    product.status = "inactive"
+                                    product.ozon_status = "inactive"
+                                    status_reason = "商品已下架"
+                                product.visibility = False
                                 inactive_count += 1
-                            elif not product.visibility:
-                                # visibility为False表示has_price=false或has_stock=false
-                                product.status = "inactive"  # 不可见商品（无价格或无库存）
-                                inactive_count += 1
+                            elif visibility_details.get("has_price", True) and visibility_details.get("has_stock", True):
+                                # 既有价格又有库存，商品在售
+                                product.status = "on_sale"
+                                product.ozon_status = "on_sale"
+                                status_reason = "商品正常销售中"
+                            elif not visibility_details.get("has_price", True) or not visibility_details.get("has_stock", True):
+                                # 缺少价格或库存，准备销售状态
+                                product.status = "ready_to_sell"
+                                product.ozon_status = "ready_to_sell"
+                                if not visibility_details.get("has_price", True):
+                                    status_reason = "商品缺少价格信息"
+                                else:
+                                    status_reason = "商品缺少库存"
                             elif not price or price == "0" or price == "0.0000":
-                                product.status = "inactive"  # 价格为0或无价格的商品
-                                inactive_count += 1
+                                product.status = "ready_to_sell"
+                                product.ozon_status = "ready_to_sell"
+                                status_reason = "商品价格为0"
                             elif not product.ozon_has_fbo_stocks and not product.ozon_has_fbs_stocks:
-                                product.status = "inactive"  # 无任何库存标志
-                                inactive_count += 1
+                                product.status = "ready_to_sell"
+                                product.ozon_status = "ready_to_sell"
+                                status_reason = "商品无任何库存"
                             else:
-                                product.status = "active"    # 其他情况为活跃
+                                product.status = "on_sale"
+                                product.ozon_status = "on_sale"
+                                status_reason = "商品正常销售中"
+
+                            # 保存状态原因
+                            product.status_reason = status_reason
 
                             db.add(product)
 

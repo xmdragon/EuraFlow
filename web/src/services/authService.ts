@@ -22,11 +22,6 @@ class AuthService {
     this._accessToken = localStorage.getItem('access_token');
     this._refreshToken = localStorage.getItem('refresh_token');
 
-    console.info('[AuthService] Initialized with tokens:', {
-      hasAccessToken: !!this._accessToken,
-      hasRefreshToken: !!this._refreshToken,
-      accessTokenLength: this._accessToken?.length || 0
-    });
 
     // Setup axios interceptors
     this.setupInterceptors();
