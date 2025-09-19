@@ -48,21 +48,21 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
       return;
     }
 
-    // 恢复之前的选择（从localStorage），但优先选择具体店铺
-    const savedShopId = localStorage.getItem('ozon_selected_shop');
-    if (savedShopId && savedShopId !== 'all') {
-      const shopId = parseInt(savedShopId, 10);
-      if (shops.find((s) => s.id === shopId)) {
-        if (shopId !== selectedShop) {
+    // 如果外部没有传入value，且当前没有选中店铺，才自动选择
+    // 这避免了在父组件已经初始化selectedShop的情况下重复触发onChange
+    if (value === undefined && selectedShop === null && shops.length > 0) {
+      // 恢复之前的选择（从localStorage）
+      const savedShopId = localStorage.getItem('ozon_selected_shop');
+      if (savedShopId && savedShopId !== 'all') {
+        const shopId = parseInt(savedShopId, 10);
+        if (shops.find((s) => s.id === shopId)) {
           setSelectedShop(shopId);
           onChange?.(shopId);
+          return;
         }
-        return;
       }
-    }
 
-    // 自动选择第一个店铺（避免选择null）
-    if (shops.length > 0 && selectedShop === null) {
+      // 自动选择第一个店铺
       const shopId = shops[0].id;
       setSelectedShop(shopId);
       onChange?.(shopId);

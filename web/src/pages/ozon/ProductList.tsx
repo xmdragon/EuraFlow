@@ -59,7 +59,14 @@ const ProductList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRows, setSelectedRows] = useState<ozonApi.Product[]>([]);
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  // 初始化时从localStorage读取店铺选择，避免重复请求
+  const [selectedShop, setSelectedShop] = useState<number | null>(() => {
+    const saved = localStorage.getItem('ozon_selected_shop');
+    if (saved && saved !== 'all') {
+      return parseInt(saved, 10);
+    }
+    return null;
+  });
   const [filterForm] = Form.useForm();
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [stockModalVisible, setStockModalVisible] = useState(false);
@@ -84,6 +91,9 @@ const ProductList: React.FC = () => {
     queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues],
     queryFn: () => ozonApi.getProducts(currentPage, pageSize, { ...filterValues, shop_id: selectedShop }),
     refetchInterval: 30000, // 30秒自动刷新
+    // 避免在selectedShop为undefined时发送请求
+    enabled: selectedShop !== undefined,
+    staleTime: 5000, // 数据5秒内不会被认为是过期的
   });
 
   // 查询全局统计数据（不受筛选影响）
@@ -91,6 +101,9 @@ const ProductList: React.FC = () => {
     queryKey: ['ozonProductsStats', selectedShop],
     queryFn: () => ozonApi.getProducts(1, 1, { shop_id: selectedShop }),
     refetchInterval: 30000, // 30秒自动刷新
+    // 避免在selectedShop为undefined时发送请求
+    enabled: selectedShop !== undefined,
+    staleTime: 5000, // 数据5秒内不会被认为是过期的
   });
 
   // 同步商品
@@ -952,7 +965,14 @@ const ProductList: React.FC = () => {
               <span style={{ fontWeight: 500 }}>选择店铺:</span>
               <ShopSelector
                 value={selectedShop}
-                onChange={setSelectedShop}
+                onChange={(shopId) => {
+                  setSelectedShop(shopId);
+                  // 切换店铺时重置页码和选中的行
+                  setCurrentPage(1);
+                  setSelectedRows([]);
+                  // 保存到localStorage
+                  localStorage.setItem('ozon_selected_shop', shopId?.toString() || 'all');
+                }}
                 showAllOption={true}
                 style={{ minWidth: 200 }}
               />
