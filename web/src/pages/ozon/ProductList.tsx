@@ -98,8 +98,8 @@ const ProductList: React.FC = () => {
 
   // 查询全局统计数据（不受筛选影响）
   const { data: globalStats } = useQuery({
-    queryKey: ['ozonProductsStats', selectedShop],
-    queryFn: () => ozonApi.getProducts(1, 1, { shop_id: selectedShop }),
+    queryKey: ['ozonStatistics', selectedShop],
+    queryFn: () => ozonApi.getStatistics(selectedShop),
     refetchInterval: 30000, // 30秒自动刷新
     // 避免在selectedShop为undefined时发送请求
     enabled: selectedShop !== undefined,
@@ -860,7 +860,7 @@ const ProductList: React.FC = () => {
           <Card>
             <Statistic
               title="总商品数"
-              value={globalStats?.total || 0}
+              value={globalStats?.data?.products?.total || 0}
               prefix={<ShoppingOutlined />}
             />
           </Card>
@@ -875,7 +875,7 @@ const ProductList: React.FC = () => {
           >
             <Statistic
               title={<span style={{ color: '#52c41a' }}>销售中</span>}
-              value={globalStats?.stats?.on_sale || globalStats?.stats?.active || 0}
+              value={globalStats?.data?.products?.on_sale || 0}
               valueStyle={{ color: '#52c41a' }}
             />
           </Card>
@@ -890,7 +890,7 @@ const ProductList: React.FC = () => {
           >
             <Statistic
               title={<span style={{ color: '#faad14' }}>准备销售</span>}
-              value={globalStats?.stats?.ready_to_sell || 0}
+              value={globalStats?.data?.products?.ready_to_sell || 0}
               valueStyle={{ color: '#faad14' }}
             />
           </Card>
@@ -905,7 +905,7 @@ const ProductList: React.FC = () => {
           >
             <Statistic
               title={<span style={{ color: '#f5222d' }}>错误</span>}
-              value={globalStats?.stats?.error || 0}
+              value={globalStats?.data?.products?.error || 0}
               valueStyle={{ color: '#f5222d' }}
             />
           </Card>
@@ -920,7 +920,7 @@ const ProductList: React.FC = () => {
           >
             <Statistic
               title={<span style={{ color: '#1890ff' }}>待修改</span>}
-              value={globalStats?.stats?.pending_modification || 0}
+              value={globalStats?.data?.products?.pending_modification || 0}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -935,7 +935,7 @@ const ProductList: React.FC = () => {
           >
             <Statistic
               title={<span style={{ color: '#8c8c8c' }}>已下架</span>}
-              value={globalStats?.stats?.inactive || 0}
+              value={globalStats?.data?.products?.inactive || 0}
               valueStyle={{ color: '#8c8c8c' }}
             />
           </Card>
@@ -950,7 +950,7 @@ const ProductList: React.FC = () => {
           >
             <Statistic
               title={<span style={{ color: '#bfbfbf' }}>已归档</span>}
-              value={globalStats?.stats?.archived || 0}
+              value={globalStats?.data?.products?.archived || 0}
               valueStyle={{ color: '#bfbfbf' }}
             />
           </Card>
