@@ -25,31 +25,49 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
 
   // 获取店铺列表
   const { data: shopsData, isLoading } = useQuery({
-    queryKey: ['ozonShops'],
+    queryKey: ['ozon', 'shops'],
     queryFn: ozonApi.getShops,
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });
 
   const shops = shopsData?.data || [];
 
   useEffect(() => {
-    // 如果只有一个店铺，自动选中
-    if (!selectedShop && shops.length === 1) {
+    // 避免不必要的状态更新
+    if (shops.length === 0) return;
+
+    // 如果外部已经设置了value，优先使用外部value
+    if (value !== undefined && value !== selectedShop) {
+      setSelectedShop(value);
+      return;
+    }
+
+    // 如果已经有选中店铺，且该店铺仍然存在，则不需要改变
+    if (selectedShop !== null && shops.find((s) => s.id === selectedShop)) {
+      return;
+    }
+
+    // 恢复之前的选择（从localStorage），但优先选择具体店铺
+    const savedShopId = localStorage.getItem('ozon_selected_shop');
+    if (savedShopId && savedShopId !== 'all') {
+      const shopId = parseInt(savedShopId, 10);
+      if (shops.find((s) => s.id === shopId)) {
+        if (shopId !== selectedShop) {
+          setSelectedShop(shopId);
+          onChange?.(shopId);
+        }
+        return;
+      }
+    }
+
+    // 自动选择第一个店铺（避免选择null）
+    if (shops.length > 0 && selectedShop === null) {
       const shopId = shops[0].id;
       setSelectedShop(shopId);
       onChange?.(shopId);
     }
-    // 恢复之前的选择（从localStorage）
-    else if (!selectedShop && shops.length > 0) {
-      const savedShopId = localStorage.getItem('ozon_selected_shop');
-      if (savedShopId) {
-        const shopId = savedShopId === 'all' ? null : parseInt(savedShopId, 10);
-        if (shopId === null || shops.find((s) => s.id === shopId)) {
-          setSelectedShop(shopId);
-          onChange?.(shopId);
-        }
-      }
-    }
-  }, [shops, selectedShop, onChange]);
+  }, [shops, selectedShop, onChange, value]);
 
   const handleChange = (shopId: number | string) => {
     const actualShopId = shopId === 'all' ? null : (shopId as number);

@@ -39,12 +39,15 @@ import {
   Progress,
   Alert,
   Upload,
+  Image,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import ImagePreview from '@/components/ImagePreview';
+import './ProductList.css';
 
 const { Option } = Select;
 const { confirm } = Modal;
@@ -67,6 +70,11 @@ const ProductList: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({});
 
+  // 图片预览状态
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+
   // 查询商品列表
   const {
     data: productsData,
@@ -75,6 +83,13 @@ const ProductList: React.FC = () => {
   } = useQuery({
     queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues],
     queryFn: () => ozonApi.getProducts(currentPage, pageSize, { ...filterValues, shop_id: selectedShop }),
+    refetchInterval: 30000, // 30秒自动刷新
+  });
+
+  // 查询全局统计数据（不受筛选影响）
+  const { data: globalStats } = useQuery({
+    queryKey: ['ozonProductsStats', selectedShop],
+    queryFn: () => ozonApi.getProducts(1, 1, { shop_id: selectedShop }),
     refetchInterval: 30000, // 30秒自动刷新
   });
 
@@ -141,6 +156,13 @@ const ProductList: React.FC = () => {
     return () => clearInterval(interval);
   }, [syncTaskId, syncStatus?.status, queryClient]);
 
+  // 处理图片点击
+  const handleImageClick = (images: string[], index: number = 0) => {
+    setPreviewImages(images);
+    setPreviewIndex(index);
+    setPreviewVisible(true);
+  };
+
   // 批量更新库存
   const updateStocksMutation = useMutation({
     mutationFn: (updates: ozonApi.StockUpdate[]) => ozonApi.updateStocks(updates, selectedShop || undefined),
@@ -160,8 +182,7 @@ const ProductList: React.FC = () => {
       title: 'SKU',
       dataIndex: 'sku',
       key: 'sku',
-      width: 150,
-      fixed: 'left',
+      width: 180,
       render: (text, record) => (
         <Space direction="vertical" size="small">
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -238,65 +259,78 @@ const ProductList: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       width: 350,
-      render: (text, record) => (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-          {/* 商品图片 */}
-          <div style={{ flexShrink: 0 }}>
-            {record.images?.primary ? (
-              <img
-                src={record.images.primary}
-                alt={text}
+      render: (text, record) => {
+        // 准备所有图片URL用于预览
+        const allImages: string[] = [];
+        if (record.images?.primary) {
+          allImages.push(record.images.primary);
+        }
+        if (record.images?.additional && Array.isArray(record.images.additional)) {
+          allImages.push(...record.images.additional);
+        }
+
+        return (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            {/* 商品图片 */}
+            <div style={{ flexShrink: 0 }}>
+              {record.images?.primary ? (
+                <img
+                  src={record.images.primary}
+                  alt={text}
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    objectFit: 'cover',
+                    borderRadius: '4px',
+                    border: '1px solid #f0f0f0',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => handleImageClick(allImages)}
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    img.style.display = 'none';
+                    const placeholder = img.nextElementSibling as HTMLElement;
+                    if (placeholder) placeholder.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              {/* 图片占位符 */}
+              <div
                 style={{
                   width: '60px',
                   height: '60px',
-                  objectFit: 'cover',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px dashed #d9d9d9',
                   borderRadius: '4px',
-                  border: '1px solid #f0f0f0',
+                  display: record.images?.primary ? 'none' : 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#bfbfbf',
                 }}
-                onError={(e) => {
-                  // 图片加载失败时显示占位符
-                  const img = e.target as HTMLImageElement;
-                  img.style.display = 'none';
-                  const placeholder = img.nextElementSibling as HTMLElement;
-                  if (placeholder) placeholder.style.display = 'flex';
-                }}
-              />
-            ) : null}
-            <div
-              style={{
-                width: '60px',
-                height: '60px',
-                backgroundColor: '#f5f5f5',
-                border: '1px dashed #d9d9d9',
-                borderRadius: '4px',
-                display: record.images?.primary ? 'none' : 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#bfbfbf',
-              }}
-            >
-              <FileImageOutlined style={{ fontSize: '20px' }} />
+              >
+                <FileImageOutlined style={{ fontSize: '20px' }} />
+              </div>
             </div>
-          </div>
 
-          {/* 商品信息 */}
-          <Space direction="vertical" size="small" style={{ flex: 1 }}>
-            <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>{text}</span>
-            <Space size="small" wrap>
-              {record.category_name && <Tag color="blue">{record.category_name}</Tag>}
-              {record.brand && <Tag>{record.brand}</Tag>}
-              {record.images?.count && record.images.count > 1 && (
-                <Tooltip title={`共有 ${record.images.count} 张图片`}>
-                  <Tag icon={<FileImageOutlined />}>{record.images.count}张</Tag>
-                </Tooltip>
+            {/* 商品信息 */}
+            <Space direction="vertical" size="small" style={{ flex: 1 }}>
+              <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>{text}</span>
+              <Space size="small" wrap>
+                {record.category_name && <Tag color="blue">{record.category_name}</Tag>}
+                {record.brand && <Tag>{record.brand}</Tag>}
+                {allImages.length > 1 && (
+                  <Tooltip title={`点击图片查看全部 ${allImages.length} 张图片`}>
+                    <Tag icon={<FileImageOutlined />} color="blue">{allImages.length}张图片</Tag>
+                  </Tooltip>
+                )}
+              </Space>
+              {record.barcode && (
+                <span style={{ fontSize: 12, color: '#999' }}>条码: {record.barcode}</span>
               )}
             </Space>
-            {record.barcode && (
-              <span style={{ fontSize: 12, color: '#999' }}>条码: {record.barcode}</span>
-            )}
-          </Space>
-        </div>
-      ),
+          </div>
+        );
+      },
     },
     {
       title: '价格',
@@ -412,14 +446,28 @@ const ProductList: React.FC = () => {
     },
     {
       title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      dataIndex: 'ozon_created_at',
+      key: 'ozon_created_at',
       width: 150,
-      render: (date) => {
-        if (!date) return '-';
-        const createDate = new Date(date);
+      render: (date, record) => {
+        // 优先显示OZON平台创建时间，如果没有则显示本地创建时间
+        const displayDate = date || record.created_at;
+        if (!displayDate) return '-';
+        const createDate = new Date(displayDate);
+
+        // 格式化为 2025/9/17 18:41:21 格式
+        const formatDate = (d) => {
+          const year = d.getFullYear();
+          const month = d.getMonth() + 1;
+          const day = d.getDate();
+          const hours = d.getHours().toString().padStart(2, '0');
+          const minutes = d.getMinutes().toString().padStart(2, '0');
+          const seconds = d.getSeconds().toString().padStart(2, '0');
+          return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+        };
+
         return (
-          <Tooltip title={createDate.toLocaleString('zh-CN')}>
+          <Tooltip title={formatDate(createDate)}>
             <span>{createDate.toLocaleDateString('zh-CN')}</span>
           </Tooltip>
         );
@@ -793,17 +841,38 @@ const ProductList: React.FC = () => {
           <Card>
             <Statistic
               title="总商品数"
-              value={productsData?.total || 0}
+              value={globalStats?.total || 0}
               prefix={<ShoppingOutlined />}
             />
           </Card>
         </Col>
         <Col span={6}>
-          <Card>
+          <Card
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              filterForm.setFieldsValue({ status: 'active' });
+              setFilterValues({ ...filterValues, status: 'active' });
+            }}
+          >
             <Statistic
-              title="在售商品"
-              value={productsData?.stats?.active || 0}
-              valueStyle={{ color: '#3f8600' }}
+              title={<span style={{ color: '#1890ff' }}>在售商品</span>}
+              value={globalStats?.stats?.active || 0}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              filterForm.setFieldsValue({ status: 'inactive' });
+              setFilterValues({ ...filterValues, status: 'inactive' });
+            }}
+          >
+            <Statistic
+              title={<span style={{ color: '#1890ff' }}>已下架</span>}
+              value={globalStats?.stats?.inactive || 0}
+              valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
@@ -811,17 +880,8 @@ const ProductList: React.FC = () => {
           <Card>
             <Statistic
               title="缺货商品"
-              value={productsData?.stats?.out_of_stock || 0}
+              value={globalStats?.stats?.out_of_stock || 0}
               valueStyle={{ color: '#cf1322' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="已下架"
-              value={productsData?.stats?.inactive || 0}
-              valueStyle={{ color: '#faad14' }}
             />
           </Card>
         </Col>
@@ -1306,6 +1366,14 @@ const ProductList: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* 图片预览组件 */}
+      <ImagePreview
+        images={previewImages}
+        visible={previewVisible}
+        initialIndex={previewIndex}
+        onClose={() => setPreviewVisible(false)}
+      />
     </div>
   );
 };

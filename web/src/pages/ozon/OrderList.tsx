@@ -103,28 +103,40 @@ const OrderList: React.FC = () => {
         dateRange: undefined,
       });
     },
+    enabled: !!selectedShop, // 只在选择店铺后查询
     refetchInterval: 60000, // 1分钟自动刷新
   });
 
-  // 查询商品列表用于获取图片信息
-  const { data: productsData } = useQuery({
-    queryKey: ['ozonProducts', 'for-images'],
-    queryFn: () => ozonApi.getProducts(1, 100), // API限制最大100条
-    staleTime: 5 * 60 * 1000, // 5分钟缓存
-  });
+  // 格式化价格，保留2位小数
+  const formatPrice = (price: any): string => {
+    const numPrice = parseFloat(price);
+    return isNaN(numPrice) ? '0.00' : numPrice.toFixed(2);
+  };
 
-  // 创建SKU到图片的映射
-  const skuImageMap = React.useMemo(() => {
+  // offer_id到图片的映射，从订单数据中提取
+  const offerIdImageMap = React.useMemo(() => {
     const map: Record<string, string> = {};
-    if (productsData?.data) {
-      productsData.data.forEach((product: any) => {
-        if (product.sku && product.images?.primary) {
-          map[product.sku] = product.images.primary;
+
+    // 从订单响应中获取offer_id图片映射
+    if (ordersData?.offer_id_images) {
+      Object.assign(map, ordersData.offer_id_images);
+    }
+
+    // 同时从订单项中提取图片（作为备用）
+    if (ordersData?.data) {
+      ordersData.data.forEach((order: any) => {
+        if (order.items) {
+          order.items.forEach((item: any) => {
+            if (item.offer_id && item.image && !map[item.offer_id]) {
+              map[item.offer_id] = item.image;
+            }
+          });
         }
       });
     }
+
     return map;
-  }, [productsData]);
+  }, [ordersData]);
 
   // 获取订单项的图片
   const getOrderItemImage = (order: ozonApi.Order): string => {
@@ -132,10 +144,13 @@ const OrderList: React.FC = () => {
       return '';
     }
 
-    // 尝试获取第一个商品的图片
+    // 优先使用订单项自带的图片，否则从映射中获取
     const firstItem = order.items[0];
-    if (firstItem.sku && skuImageMap[firstItem.sku]) {
-      return skuImageMap[firstItem.sku];
+    if (firstItem.image) {
+      return firstItem.image;
+    }
+    if (firstItem.offer_id && offerIdImageMap[firstItem.offer_id]) {
+      return offerIdImageMap[firstItem.offer_id];
     }
 
     // 如果没有找到，返回空字符串使用占位符
@@ -293,19 +308,26 @@ const OrderList: React.FC = () => {
                     {items.length} 种商品，共 {totalItems} 件
                   </Text>
                 </Space>
-                <div style={{ marginTop: 4 }}>
+                <div style={{ marginTop: 8 }}>
                   {items.slice(0, 2).map((item, index) => (
-                    <div key={index}>
+                    <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                      <Avatar
+                        size="small"
+                        src={item.image || (item.offer_id && offerIdImageMap[item.offer_id] ? offerIdImageMap[item.offer_id] : undefined)}
+                        icon={!item.image && !(item.offer_id && offerIdImageMap[item.offer_id]) ? <ShoppingCartOutlined /> : undefined}
+                        shape="square"
+                        style={{ marginRight: 8, flexShrink: 0 }}
+                      />
                       <Text
                         ellipsis
                         style={{
                           fontSize: 13,
                           color: '#333',
-                          display: 'block',
+                          flex: 1,
                         }}
-                        title={`${item.name || item.sku} × ${item.quantity} - ₽${item.price}`}
+                        title={`${item.name || item.sku} × ${item.quantity} - ₽${formatPrice(item.price)}`}
                       >
-                        {item.name || item.sku} × {item.quantity} - ₽{item.price}
+                        {item.name || item.sku} × {item.quantity} - ₽{formatPrice(item.price)}
                       </Text>
                     </div>
                   ))}
@@ -321,28 +343,36 @@ const OrderList: React.FC = () => {
               <div style={{ marginBottom: 8 }}>
                 <Row gutter={[16, 8]}>
                   <Col xs={24} sm={12}>
-                    {order.customer_phone && (
-                      <Space size="small">
-                        <PhoneOutlined style={{ color: '#666' }} />
+                    <Space size="small">
+                      <PhoneOutlined style={{ color: '#666' }} />
+                      {order.customer_phone ? (
                         <Text copyable style={{ fontSize: 13 }}>
                           {order.customer_phone}
                         </Text>
-                      </Space>
-                    )}
+                      ) : (
+                        <Text type="secondary" style={{ fontSize: 13 }}>
+                          隐私保护
+                        </Text>
+                      )}
+                    </Space>
                   </Col>
                   <Col xs={24} sm={12}>
-                    {order.delivery_address && (
-                      <Tooltip
-                        title={`${order.delivery_address.city}, ${order.delivery_address.address}`}
-                      >
-                        <Space size="small">
-                          <EnvironmentOutlined style={{ color: '#666' }} />
+                    <Space size="small">
+                      <EnvironmentOutlined style={{ color: '#666' }} />
+                      {order.delivery_address ? (
+                        <Tooltip
+                          title={`${order.delivery_address.region || ''}${order.delivery_address.city || ''}`}
+                        >
                           <Text ellipsis style={{ fontSize: 13, maxWidth: 150 }}>
-                            {order.delivery_address.city}
+                            {order.delivery_address.city || order.delivery_address.region || '部分地址'}
                           </Text>
-                        </Space>
-                      </Tooltip>
-                    )}
+                        </Tooltip>
+                      ) : (
+                        <Text type="secondary" style={{ fontSize: 13 }}>
+                          地址保护
+                        </Text>
+                      )}
+                    </Space>
                   </Col>
                 </Row>
               </div>
@@ -360,7 +390,7 @@ const OrderList: React.FC = () => {
                           <div>
                             <Text strong style={{ color: '#52c41a', fontSize: 14 }}>
                               ₽{' '}
-                              {order.products_price || order.products_amount || order.total_amount}
+                              {formatPrice(order.products_price || order.products_amount || order.total_amount)}
                             </Text>
                           </div>
                         </div>
@@ -373,7 +403,21 @@ const OrderList: React.FC = () => {
                             </Text>
                             <div>
                               <Text style={{ fontSize: 13, color: '#666' }}>
-                                ₽ {order.commission_amount}
+                                ₽ {formatPrice(order.commission_amount)}
+                              </Text>
+                            </div>
+                          </div>
+                        </Col>
+                      )}
+                      {order.delivery_price && (
+                        <Col xs={8} sm={6} lg="auto">
+                          <div>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              运费
+                            </Text>
+                            <div>
+                              <Text style={{ fontSize: 13, color: '#666' }}>
+                                ₽ {formatPrice(order.delivery_price)}
                               </Text>
                             </div>
                           </div>
@@ -753,16 +797,16 @@ const OrderList: React.FC = () => {
                       {selectedOrder.order_type}
                     </Descriptions.Item>
                     <Descriptions.Item label="总金额">
-                      ₽ {selectedOrder.total_amount}
+                      ₽ {formatPrice(selectedOrder.total_amount)}
                     </Descriptions.Item>
                     <Descriptions.Item label="商品金额">
-                      ₽ {selectedOrder.products_amount}
+                      ₽ {formatPrice(selectedOrder.products_amount)}
                     </Descriptions.Item>
                     <Descriptions.Item label="运费">
-                      ₽ {selectedOrder.delivery_amount}
+                      ₽ {selectedOrder.delivery_price || selectedOrder.delivery_amount ? formatPrice(selectedOrder.delivery_price || selectedOrder.delivery_amount) : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="佣金">
-                      ₽ {selectedOrder.commission_amount}
+                      ₽ {formatPrice(selectedOrder.commission_amount)}
                     </Descriptions.Item>
                     <Descriptions.Item label="下单时间">
                       {moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')}
@@ -782,20 +826,46 @@ const OrderList: React.FC = () => {
                     rowKey="sku"
                     pagination={false}
                     columns={[
-                      { title: 'SKU', dataIndex: 'sku', key: 'sku' },
+                      {
+                        title: '图片',
+                        dataIndex: 'sku',
+                        key: 'image',
+                        width: 80,
+                        render: (sku, record) => {
+                          const imageUrl = record.image || (record.offer_id && offerIdImageMap[record.offer_id] ? offerIdImageMap[record.offer_id] : undefined);
+                          return imageUrl ? (
+                            <Avatar
+                              src={imageUrl}
+                              size={60}
+                              shape="square"
+                              style={{ objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <Avatar
+                              icon={<ShoppingCartOutlined />}
+                              size={60}
+                              shape="square"
+                              style={{ backgroundColor: '#f0f0f0' }}
+                            />
+                          );
+                        },
+                      },
+                      { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 120 },
                       { title: '商品名称', dataIndex: 'name', key: 'name' },
-                      { title: '数量', dataIndex: 'quantity', key: 'quantity' },
+                      { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 80 },
                       {
                         title: '单价',
                         dataIndex: 'price',
                         key: 'price',
-                        render: (price) => `₽ ${price}`,
+                        width: 100,
+                        render: (price) => `₽ ${formatPrice(price)}`,
                       },
                       {
                         title: '小计',
                         dataIndex: 'total_amount',
                         key: 'total_amount',
-                        render: (amount) => `₽ ${amount}`,
+                        width: 100,
+                        render: (amount) => `₽ ${formatPrice(amount)}`,
                       },
                     ]}
                   />
@@ -807,20 +877,32 @@ const OrderList: React.FC = () => {
                 children: (
                   <Descriptions bordered>
                     <Descriptions.Item label="客户ID">
-                      {selectedOrder.customer_id}
+                      {selectedOrder.customer_id || <Text type="secondary">隐私保护</Text>}
                     </Descriptions.Item>
                     <Descriptions.Item label="电话">
-                      {selectedOrder.customer_phone}
+                      {selectedOrder.customer_phone || <Text type="secondary">隐私保护</Text>}
                     </Descriptions.Item>
                     <Descriptions.Item label="邮箱">
-                      {selectedOrder.customer_email}
+                      {selectedOrder.customer_email || <Text type="secondary">隐私保护</Text>}
                     </Descriptions.Item>
                     <Descriptions.Item label="收货地址" span={3}>
-                      {selectedOrder.delivery_address && (
+                      {selectedOrder.delivery_address ? (
                         <div>
+                          {selectedOrder.delivery_address.region && (
+                            <>
+                              <Text strong>{selectedOrder.delivery_address.region}</Text>
+                              <br />
+                            </>
+                          )}
                           {selectedOrder.delivery_address.city && (
                             <>
                               {selectedOrder.delivery_address.city}
+                              <br />
+                            </>
+                          )}
+                          {selectedOrder.delivery_address.delivery_type && (
+                            <>
+                              配送方式: {selectedOrder.delivery_address.delivery_type}
                               <br />
                             </>
                           )}
@@ -838,6 +920,8 @@ const OrderList: React.FC = () => {
                             <>邮编: {selectedOrder.delivery_address.postal_code}</>
                           )}
                         </div>
+                      ) : (
+                        <Text type="secondary">地址信息保护</Text>
                       )}
                     </Descriptions.Item>
                   </Descriptions>

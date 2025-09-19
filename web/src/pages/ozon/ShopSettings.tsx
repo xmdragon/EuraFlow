@@ -97,7 +97,7 @@ const ShopSettings: React.FC = () => {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['ozonShops'],
+    queryKey: ['ozon', 'shops'],
     queryFn: async () => {
       const response = await fetch('/api/ef/v1/ozon/shops', {
         headers: {
@@ -112,6 +112,8 @@ const ShopSettings: React.FC = () => {
       const data = await response.json();
       return data;
     },
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });
 
   // 添加店铺
@@ -143,7 +145,7 @@ const ShopSettings: React.FC = () => {
     onSuccess: (data) => {
       message.success('店铺添加成功');
       setAddShopModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozonShops'] });
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
       // 自动选择新添加的店铺
       setSelectedShop(data);
     },
@@ -193,7 +195,7 @@ const ShopSettings: React.FC = () => {
     },
     onSuccess: (data) => {
       message.success('店铺配置已保存');
-      queryClient.invalidateQueries({ queryKey: ['ozonShops'] });
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
       // 更新选中的店铺数据
       setSelectedShop(data);
 
@@ -329,7 +331,7 @@ const ShopSettings: React.FC = () => {
           }
 
           message.success('店铺已删除');
-          queryClient.invalidateQueries({ queryKey: ['ozonShops'] });
+          queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
 
           // 如果删除的是当前选中的店铺，清空选择
           if (selectedShop?.id === shop.id) {

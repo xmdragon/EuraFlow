@@ -18,11 +18,10 @@ const apiClient = axios.create({
 // 请求拦截器：添加认证token
 apiClient.interceptors.request.use(
   (config) => {
-    // 暂时跳过认证检查，用于测试
-    // const token = localStorage.getItem('token')
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`
-    // }
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {

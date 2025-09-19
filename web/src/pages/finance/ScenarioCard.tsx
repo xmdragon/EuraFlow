@@ -129,7 +129,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
               size="small"
               style={{ width: 120 }}
               placeholder="请输入"
-              suffix="卢布"
+              suffix="RMB"
               value={data.cost}
               onChange={(value) => handleInputChange('cost', value)}
               min={0}
@@ -141,7 +141,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
               size="small"
               style={{ width: 120 }}
               placeholder="请输入"
-              suffix="卢布"
+              suffix="RMB"
               value={data.price}
               onChange={(value) => handleInputChange('price', value)}
               min={0}
@@ -194,7 +194,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
             <InputNumber
               size="small"
               style={{ width: 120 }}
-              suffix="卢布"
+              suffix="RMB"
               value={data.shipping}
               onChange={(value) => handleInputChange('shipping', value)}
               min={0}
@@ -206,7 +206,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
             <InputNumber
               size="small"
               style={{ width: 120 }}
-              suffix="卢布"
+              suffix="RMB"
               value={data.packingFee}
               onChange={(value) => handleInputChange('packingFee', value)}
               min={0}
@@ -236,7 +236,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text strong>💵 利润:</Text>
             <Text strong style={{ color: profitColor, fontSize: 16 }}>
-              {formatMoney(data.profit)} 卢布
+              {formatMoney(data.profit)} RMB
             </Text>
           </div>
         </Space>

@@ -113,6 +113,11 @@ class OzonProduct(Base):
         DateTime(timezone=True), nullable=True, comment="最后同步时间"
     )
 
+    # OZON平台的创建时间
+    ozon_created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="商品在OZON平台的创建时间"
+    )
+
     # 时间戳
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, comment="创建时间"

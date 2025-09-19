@@ -90,9 +90,9 @@ class OzonOrder(Base):
     )
     
     # 金额
-    total_price: Mapped[Decimal] = mapped_column(
+    total_price: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(18, 4),
-        nullable=False,
+        nullable=True,
         comment="订单总额"
     )
     
@@ -190,19 +190,210 @@ class OzonOrder(Base):
         comment="取消时间"
     )
     
+    # 配送详情字段
+    warehouse_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        nullable=True,
+        comment="仓库ID"
+    )
+
+    warehouse_name: Mapped[Optional[str]] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="仓库名称"
+    )
+
+    tpl_provider_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="物流商ID"
+    )
+
+    tpl_provider_name: Mapped[Optional[str]] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="物流商名称"
+    )
+
+    tpl_integration_type: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="物流集成类型"
+    )
+
+    provider_status: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="物流商状态"
+    )
+
+    # 条形码字段
+    upper_barcode: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="上条形码"
+    )
+
+    lower_barcode: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="下条形码"
+    )
+
+    # 取消详情字段
+    cancel_reason_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="取消原因ID"
+    )
+
+    cancellation_type: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="取消类型"
+    )
+
+    cancelled_after_ship: Mapped[Optional[bool]] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=False,
+        comment="发货后取消"
+    )
+
+    affect_cancellation_rating: Mapped[Optional[bool]] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=False,
+        comment="影响评分"
+    )
+
+    cancellation_initiator: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="取消发起方"
+    )
+
+    # 其他重要字段
+    previous_substatus: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="前一个子状态"
+    )
+
+    requirements: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="特殊要求"
+    )
+
+    addressee: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="收件人信息"
+    )
+
+    is_legal: Mapped[Optional[bool]] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=False,
+        comment="是否法人订单"
+    )
+
+    payment_type: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="支付类型组"
+    )
+
+    delivery_date_begin: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="配送开始时间"
+    )
+
+    delivery_date_end: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="配送结束时间"
+    )
+
+    # 同步控制字段
+    sync_mode: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        default="incremental",
+        comment="同步模式：full或incremental"
+    )
+
+    sync_version: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        default=1,
+        comment="同步版本号"
+    )
+
+    # JSON字段存储复杂数据
+    barcodes: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="条形码对象"
+    )
+
+    cancellation_detail: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="取消详情对象"
+    )
+
+    delivery_method_detail: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="配送方式详情"
+    )
+
+    optional_info: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="可选信息"
+    )
+
+    related_postings: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="相关订单"
+    )
+
+    product_exemplars: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="产品样本"
+    )
+
+    legal_info: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="法律信息"
+    )
+
+    translit: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="音译信息"
+    )
+
     # 其他信息
     cancel_reason: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
         comment="取消原因"
     )
-    
+
     analytics_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSON,
         nullable=True,
         comment="分析数据"
     )
-    
+
     financial_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSON,
         nullable=True,
@@ -281,6 +472,42 @@ class OzonOrder(Base):
             "delivered_at": self.delivered_at.isoformat() if self.delivered_at else None,
             "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "cancel_reason": self.cancel_reason,
+            # 新增配送详情字段
+            "warehouse_id": self.warehouse_id,
+            "warehouse_name": self.warehouse_name,
+            "tpl_provider_id": self.tpl_provider_id,
+            "tpl_provider_name": self.tpl_provider_name,
+            "tpl_integration_type": self.tpl_integration_type,
+            "provider_status": self.provider_status,
+            # 新增条形码字段
+            "upper_barcode": self.upper_barcode,
+            "lower_barcode": self.lower_barcode,
+            # 新增取消详情字段
+            "cancel_reason_id": self.cancel_reason_id,
+            "cancellation_type": self.cancellation_type,
+            "cancelled_after_ship": self.cancelled_after_ship,
+            "affect_cancellation_rating": self.affect_cancellation_rating,
+            "cancellation_initiator": self.cancellation_initiator,
+            # 新增其他字段
+            "previous_substatus": self.previous_substatus,
+            "requirements": self.requirements,
+            "addressee": self.addressee,
+            "is_legal": self.is_legal,
+            "payment_type": self.payment_type,
+            "delivery_date_begin": self.delivery_date_begin.isoformat() if self.delivery_date_begin else None,
+            "delivery_date_end": self.delivery_date_end.isoformat() if self.delivery_date_end else None,
+            # 新增同步控制字段
+            "sync_mode": self.sync_mode,
+            "sync_version": self.sync_version,
+            # 新增JSON字段
+            "barcodes": self.barcodes,
+            "cancellation_detail": self.cancellation_detail,
+            "delivery_method_detail": self.delivery_method_detail,
+            "optional_info": self.optional_info,
+            "related_postings": self.related_postings,
+            "product_exemplars": self.product_exemplars,
+            "legal_info": self.legal_info,
+            "translit": self.translit,
             "analytics_data": self.analytics_data,
             "financial_data": self.financial_data,
             "sync_status": self.sync_status,

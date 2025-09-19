@@ -22,6 +22,12 @@ class AuthService {
     this._accessToken = localStorage.getItem('access_token');
     this._refreshToken = localStorage.getItem('refresh_token');
 
+    console.info('[AuthService] Initialized with tokens:', {
+      hasAccessToken: !!this._accessToken,
+      hasRefreshToken: !!this._refreshToken,
+      accessTokenLength: this._accessToken?.length || 0
+    });
+
     // Setup axios interceptors
     this.setupInterceptors();
   }
@@ -31,6 +37,16 @@ class AuthService {
     axios.interceptors.request.use((config) => {
       if (this._accessToken) {
         config.headers.Authorization = `Bearer ${this._accessToken}`;
+        console.debug('[AuthService] Adding Bearer token to request:', {
+          url: config.url,
+          method: config.method?.toUpperCase(),
+          hasToken: !!this._accessToken
+        });
+      } else {
+        console.warn('[AuthService] No access token available for request:', {
+          url: config.url,
+          method: config.method?.toUpperCase()
+        });
       }
       return config;
     });
@@ -45,33 +61,51 @@ class AuthService {
           const isRefreshRequest = error.config?.url?.includes('/auth/refresh');
           const isLoginRequest = error.config?.url?.includes('/auth/login');
 
+          console.warn('[AuthService] 401 Unauthorized error:', {
+            url: error.config?.url,
+            method: error.config?.method?.toUpperCase(),
+            isAuthMeRequest,
+            isRefreshRequest,
+            isLoginRequest,
+            hasRefreshToken: !!this._refreshToken,
+            errorData: error.response?.data
+          });
+
           // Don't try to refresh for login or refresh requests
           if (isLoginRequest || isRefreshRequest) {
+            console.info('[AuthService] Skipping token refresh for login/refresh request');
             return Promise.reject(error);
           }
 
           // If we have a refresh token and it's not already a refresh attempt
           if (this._refreshToken && !error.config?._retry) {
             error.config._retry = true;
+            console.info('[AuthService] Attempting to refresh token...');
             try {
               await this.refresh();
+              console.info('[AuthService] Token refresh successful, retrying original request');
               // Update the Authorization header with new token
               error.config.headers.Authorization = `Bearer ${this._accessToken}`;
               return axios.request(error.config);
             } catch (refreshError) {
+              console.error('[AuthService] Token refresh failed:', refreshError);
               // Refresh failed, clear tokens
               this.clearTokens();
-              // Only redirect to login for non-auth/me requests
-              if (!isAuthMeRequest) {
+              // Redirect to login if appropriate
+              if (this.shouldRedirectToLogin(error.config?.url)) {
+                console.info('[AuthService] Redirecting to login page');
                 window.location.href = '/login';
               }
               return Promise.reject(refreshError);
             }
           } else {
+            const reason = !this._refreshToken ? 'No refresh token available' : 'Already retried once';
+            console.info(`[AuthService] ${reason}, clearing tokens`);
             // No refresh token or already retried, clear tokens
             this.clearTokens();
-            // Only redirect to login for non-auth/me requests
-            if (!isAuthMeRequest) {
+            // Redirect to login if appropriate
+            if (this.shouldRedirectToLogin(error.config?.url)) {
+              console.info('[AuthService] Redirecting to login page');
               window.location.href = '/login';
             }
           }
@@ -135,6 +169,7 @@ class AuthService {
   }
 
   clearTokens() {
+    console.info('[AuthService] Clearing tokens from memory and localStorage');
     this._accessToken = null;
     this._refreshToken = null;
 
@@ -142,15 +177,31 @@ class AuthService {
     localStorage.removeItem('refresh_token');
   }
 
+  private shouldRedirectToLogin(url?: string): boolean {
+    // Don't redirect for auth endpoints
+    if (url?.includes('/auth/')) {
+      return false;
+    }
+
+    // Don't redirect if already on login page
+    if (window.location.pathname === '/login') {
+      return false;
+    }
+
+    return true;
+  }
+
   isAuthenticated(): boolean {
     // Check if token exists and has valid JWT format
     if (!this._accessToken) {
+      console.debug('[AuthService] No access token available');
       return false;
     }
 
     // Basic JWT format validation (three parts separated by dots)
     const parts = this._accessToken.split('.');
     if (parts.length !== 3) {
+      console.warn('[AuthService] Invalid token format, clearing tokens');
       // Invalid token format, clear it
       this.clearTokens();
       return false;
@@ -161,16 +212,44 @@ class AuthService {
       const payload = JSON.parse(atob(parts[1]));
       // Check if token is expired (exp is in seconds)
       if (payload.exp && payload.exp * 1000 < Date.now()) {
+        console.warn('[AuthService] Token has expired, clearing tokens');
         // Token is expired, clear it
         this.clearTokens();
         return false;
       }
+      console.debug('[AuthService] Token is valid');
       return true;
     } catch (e) {
+      console.warn('[AuthService] Failed to decode token, clearing tokens:', e);
       // Invalid token, clear it
       this.clearTokens();
       return false;
     }
+  }
+
+  // Debug method to check auth status
+  debugAuthStatus(): void {
+    console.group('[AuthService] Current Authentication Status');
+    console.log('Access Token:', this._accessToken ? `${this._accessToken.substring(0, 20)}...` : 'None');
+    console.log('Refresh Token:', this._refreshToken ? `${this._refreshToken.substring(0, 20)}...` : 'None');
+    console.log('Is Authenticated:', this.isAuthenticated());
+
+    if (this._accessToken) {
+      try {
+        const parts = this._accessToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          console.log('Token Payload:', {
+            exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'No expiration',
+            iat: payload.iat ? new Date(payload.iat * 1000).toISOString() : 'No issued time',
+            user: payload.sub || payload.user_id || 'Unknown user'
+          });
+        }
+      } catch (error) {
+        console.log('Failed to decode token payload:', error);
+      }
+    }
+    console.groupEnd();
   }
 }
 

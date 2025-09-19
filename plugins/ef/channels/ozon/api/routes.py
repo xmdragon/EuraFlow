@@ -1293,12 +1293,51 @@ async def get_orders(
     # 执行查询
     result = await db.execute(query)
     orders = result.scalars().all()
-    
+
+    # 提取所有订单中的offer_id
+    all_offer_ids = set()
+    for order in orders:
+        if order.items:
+            for item in order.items:
+                if item.get("offer_id"):
+                    all_offer_ids.add(item["offer_id"])
+
+    # 批量查询商品图片（使用offer_id匹配）
+    offer_id_images = {}
+    if all_offer_ids:
+        products_result = await db.execute(
+            select(OzonProduct.offer_id, OzonProduct.images)
+            .where(OzonProduct.offer_id.in_(list(all_offer_ids)))
+            .where(OzonProduct.shop_id == (shop_id or 1))
+        )
+        for offer_id, images in products_result:
+            if offer_id and images:
+                # 优先使用primary图片，否则使用第一张
+                if isinstance(images, dict):
+                    if images.get("primary"):
+                        offer_id_images[offer_id] = images["primary"]
+                    elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                        offer_id_images[offer_id] = images["main"][0]
+                elif isinstance(images, list) and images:
+                    offer_id_images[offer_id] = images[0]
+
+    # 将图片信息添加到订单数据中
+    orders_data = []
+    for order in orders:
+        order_dict = order.to_dict()
+        # 为每个订单项添加图片
+        if order_dict.get("items"):
+            for item in order_dict["items"]:
+                if item.get("offer_id") and item["offer_id"] in offer_id_images:
+                    item["image"] = offer_id_images[item["offer_id"]]
+        orders_data.append(order_dict)
+
     return {
-        "data": [order.to_dict() for order in orders],
+        "data": orders_data,
         "total": total,
         "offset": offset,
-        "limit": limit
+        "limit": limit,
+        "offer_id_images": offer_id_images  # 额外返回offer_id图片映射，前端可选使用
     }
 
 @router.post("/orders/sync")

@@ -1,0 +1,45 @@
+/* 商品图片预览样式 */
+.ant-image-preview-mask {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+}
+
+.ant-image-preview-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.ant-image-preview-img {
+  max-width: 90vw !important;
+  max-height: 85vh !important;
+  object-fit: contain !important;
+}
+
+/* 预览操作栏样式 */
+.ant-image-preview-operations {
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px;
+  border-radius: 4px;
+}
+
+/* 切换按钮样式 */
+.ant-image-preview-switch-left,
+.ant-image-preview-switch-right {
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 4px;
+}
+
+.ant-image-preview-switch-left:hover,
+.ant-image-preview-switch-right:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* 图片计数样式 */
+.ant-image-preview-img-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}

@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Row, Col, Statistic, Space, Progress, List, Tag, Typography } from 'antd';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import * as ozonApi from '../../services/ozonApi';
 import ShopSelector from '../../components/ozon/ShopSelector';
@@ -20,32 +20,57 @@ const { Title, Text } = Typography;
 
 const OzonDashboard: React.FC = () => {
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  const [debouncedShop, setDebouncedShop] = useState<number | null>(null);
 
-  // 获取店铺列表
+  // 防抖处理，避免快速切换店铺时的大量请求
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedShop(selectedShop);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [selectedShop]);
+
+  // 优化店铺选择处理函数
+  const handleShopChange = useCallback((shopId: number | null) => {
+    setSelectedShop(shopId);
+  }, []);
+
+  // 获取店铺列表（与ShopSelector共享查询）
   const { data: shops } = useQuery({
-    queryKey: ['ozon-shops'],
+    queryKey: ['ozon', 'shops'],
     queryFn: ozonApi.getShops,
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });
 
-  // 获取商品统计（根据选中的店铺）
+  // 等待ShopSelector完成初始化且获取到具体店铺ID后再请求数据
+  // 完全避免shop_id=null的请求，除非用户明确选择了"全部店铺"
+  const shouldFetchData = !!shops?.data?.length && debouncedShop !== undefined &&
+    debouncedShop !== null;
+
+  // 获取商品统计（使用防抖后的店铺ID）
   const { data: productsData } = useQuery({
-    queryKey: ['ozon-products', selectedShop],
-    queryFn: () => ozonApi.getProducts(1, 50, { shop_id: selectedShop }),
-    enabled: shops?.data?.length > 0,
+    queryKey: ['ozon', 'products', debouncedShop],
+    queryFn: () => ozonApi.getProducts(1, 50, { shop_id: debouncedShop }),
+    enabled: shouldFetchData,
+    staleTime: 2 * 60 * 1000, // 2分钟内不重新请求
   });
 
-  // 获取订单统计（根据选中的店铺）
+  // 获取订单统计（使用防抖后的店铺ID）
   const { data: ordersData } = useQuery({
-    queryKey: ['ozon-orders', selectedShop],
-    queryFn: () => ozonApi.getOrders(1, 50, { shop_id: selectedShop }),
-    enabled: shops?.data?.length > 0,
+    queryKey: ['ozon', 'orders', debouncedShop],
+    queryFn: () => ozonApi.getOrders(1, 50, { shop_id: debouncedShop }),
+    enabled: shouldFetchData,
+    staleTime: 2 * 60 * 1000, // 2分钟内不重新请求
   });
 
-  // 获取统计数据（根据选中的店铺）
+  // 获取统计数据（使用防抖后的店铺ID）
   const { data: statisticsData } = useQuery({
-    queryKey: ['ozon-statistics', selectedShop],
-    queryFn: () => ozonApi.getStatistics(selectedShop),
-    enabled: shops?.data?.length > 0,
+    queryKey: ['ozon', 'statistics', debouncedShop],
+    queryFn: () => ozonApi.getStatistics(debouncedShop),
+    enabled: shouldFetchData,
+    staleTime: 1 * 60 * 1000, // 1分钟内不重新请求
   });
 
   // 使用真实数据或模拟数据
@@ -123,7 +148,7 @@ const OzonDashboard: React.FC = () => {
         <Col>
           <ShopSelector
             value={selectedShop}
-            onChange={setSelectedShop}
+            onChange={handleShopChange}
             showAllOption={true}
             style={{ minWidth: 200 }}
           />

@@ -30,22 +30,22 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 interface CalculationData {
-  weight: number; // 重量(克)
-  length: number; // 长(cm)
-  width: number; // 宽(cm)
-  height: number; // 高(cm)
-  value: number; // 货值(卢布)
+  weight?: number; // 重量(克)
+  length?: number; // 长(cm)
+  width?: number; // 宽(cm)
+  height?: number; // 高(cm)
+  value?: number; // 货值(RMB)
   deliveryType: 'pickup' | 'delivery'; // 自提点/送货上门
 }
 
 const ShippingDetailCalculator: React.FC = () => {
   const [form] = Form.useForm();
   const [calculationData, setCalculationData] = useState<CalculationData>({
-    weight: 530,
-    length: 30,
-    width: 30,
-    height: 30,
-    value: 1500,
+    weight: undefined,
+    length: undefined,
+    width: undefined,
+    height: undefined,
+    value: undefined,
     deliveryType: 'pickup',
   });
 
@@ -55,43 +55,64 @@ const ShippingDetailCalculator: React.FC = () => {
   const [maxDimension, setMaxDimension] = useState(0);
   const [activeKey, setActiveKey] = useState<string>('extra-small');
 
-  // 根据重量自动选择合适的标签页
-  const getActiveTabByWeight = (weight: number, value: number): string => {
-    // UNI Extra Small: 1g-500g
-    if (weight >= 1 && weight <= 500) {
-      return 'extra-small';
-    }
-    // UNI Budget: 501g-25kg (只适用于501g以上，价值≤1500卢布)
-    if (weight >= 501 && weight <= 25000 && value <= 1500) {
-      return 'budget';
-    }
-    // UNI Small: 1g-2kg (价值1500-7000卢布)
-    if (weight >= 1 && weight <= 2000 && value > 1500 && value <= 7000) {
-      return 'small';
-    }
-    // UNI Big: 2.001kg-25kg (价值1501-7000卢布)
-    if (weight >= 2001 && weight <= 25000 && value > 1500 && value <= 7000) {
-      return 'big';
-    }
-    // UNI Premium Small: 1g-5kg (高客单价>7000)
-    if (weight >= 1 && weight <= 5000 && value > 7000) {
-      return 'premium-small';
-    }
-    // UNI Premium Big: 5.001kg-25kg (高客单价>7000)
-    if (weight >= 5001 && weight <= 25000 && value > 7000) {
-      return 'premium-big';
+  // 获取可用的标签页列表
+  const getAvailableTabs = (
+    weight: number,
+    value: number,
+    sumDim: number,
+    maxDim: number
+  ): string[] => {
+    return OZON_UNI_DATA.filter((category) => {
+      return category.services.some((service) => {
+        const availability = checkServiceAvailable(service, weight, value, sumDim, maxDim);
+        return availability.available;
+      });
+    }).map((category) => category.id);
+  };
+
+  // 根据重量自动选择合适的标签页（从可用标签页中选择）
+  const getActiveTabByWeight = (
+    weight: number,
+    value: number,
+    sumDim: number,
+    maxDim: number
+  ): string => {
+    const availableTabs = getAvailableTabs(weight, value, sumDim, maxDim);
+
+    if (availableTabs.length === 0) {
+      return 'extra-small'; // 默认返回第一个
     }
 
-    // 默认返回最合适的
-    if (weight <= 500) return 'extra-small';
-    if (weight <= 2000) return 'small';
-    if (weight <= 5000) return value > 7000 ? 'premium-small' : 'big';
-    return value > 7000 ? 'premium-big' : 'budget';
+    // 按优先级尝试选择最合适的可用标签页
+    const priorities = [
+      // UNI Extra Small: 1g-500g
+      weight >= 1 && weight <= 500 ? 'extra-small' : null,
+      // UNI Budget: 501g-25kg (只适用于501g以上，价值≤1500卢布)
+      weight >= 501 && weight <= 25000 && value <= 1500 ? 'budget' : null,
+      // UNI Small: 1g-2kg (价值1500-7000卢布)
+      weight >= 1 && weight <= 2000 && value > 1500 && value <= 7000 ? 'small' : null,
+      // UNI Big: 2.001kg-25kg (价值1501-7000卢布)
+      weight >= 2001 && weight <= 25000 && value > 1500 && value <= 7000 ? 'big' : null,
+      // UNI Premium Small: 1g-5kg (高客单价>7000)
+      weight >= 1 && weight <= 5000 && value > 7000 ? 'premium-small' : null,
+      // UNI Premium Big: 5.001kg-25kg (高客单价>7000)
+      weight >= 5001 && weight <= 25000 && value > 7000 ? 'premium-big' : null,
+    ].filter(Boolean);
+
+    // 从优先级列表中找到第一个可用的标签页
+    for (const priority of priorities) {
+      if (priority && availableTabs.includes(priority)) {
+        return priority;
+      }
+    }
+
+    // 如果没有匹配的优先级，返回第一个可用的标签页
+    return availableTabs[0];
   };
 
   // 计算体积重量和尺寸
   useEffect(() => {
-    const { weight, length, width, height, value } = calculationData;
+    const { weight = 0, length = 0, width = 0, height = 0, value = 0 } = calculationData;
     const volWeight = calculateVolumeWeight(length, width, height);
     const charWeight = calculateChargeableWeight(weight, volWeight);
     const sum = length + width + height;
@@ -102,9 +123,17 @@ const ShippingDetailCalculator: React.FC = () => {
     setSumDimension(sum);
     setMaxDimension(max);
 
-    // 自动切换到合适的标签页
-    const newActiveKey = getActiveTabByWeight(weight, value);
-    setActiveKey(newActiveKey);
+    // 获取可用的标签页
+    const availableTabs = getAvailableTabs(weight, value, sum, max);
+
+    // 只有在有可用标签页时才自动切换
+    if (availableTabs.length > 0) {
+      const newActiveKey = getActiveTabByWeight(weight, value, sum, max);
+      // 如果当前标签页不可用，切换到推荐的标签页
+      if (!availableTabs.includes(activeKey)) {
+        setActiveKey(newActiveKey);
+      }
+    }
   }, [calculationData]);
 
   // 处理表单值变化
@@ -117,6 +146,39 @@ const ShippingDetailCalculator: React.FC = () => {
 
   // 渲染服务表格
   const renderServiceTable = (category: UNICategory) => {
+    // 检查该类别是否有可用服务
+    const hasAvailableService = category.services.some((service) => {
+      const availability = checkServiceAvailable(
+        service,
+        chargeableWeight,
+        calculationData.value,
+        sumDimension,
+        maxDimension
+      );
+      return availability.available;
+    });
+
+    // 如果没有可用服务，显示提示信息
+    if (!hasAvailableService) {
+      return (
+        <Alert
+          message="当前条件不适用于该运输类别"
+          description={
+            <div>
+              <p>该运输类别不适用于当前的输入条件：</p>
+              <ul style={{ marginTop: 8 }}>
+                <li>重量: {calculationData.weight || 0} 克</li>
+                <li>货值: {calculationData.value || 0} RMB</li>
+                <li>三边之和: {sumDimension} cm</li>
+                <li>最长边: {maxDimension} cm</li>
+              </ul>
+            </div>
+          }
+          type="warning"
+          showIcon
+        />
+      );
+    }
     const columns = [
       {
         title: '渠道名称',
@@ -182,7 +244,7 @@ const ShippingDetailCalculator: React.FC = () => {
           );
           return (
             <Text strong style={{ color: '#52c41a' }}>
-              ¥{fee.toFixed(2)}
+              ¥{fee.toFixed(2)} RMB
             </Text>
           );
         },
@@ -199,7 +261,7 @@ const ShippingDetailCalculator: React.FC = () => {
         dataIndex: 'maxValue',
         key: 'maxValue',
         width: 120,
-        render: (value: number) => (value ? `${value}卢布` : '不限'),
+        render: (value: number) => (value ? `${value} RMB` : '不限'),
       },
       {
         title: '尺寸限制',
@@ -286,11 +348,11 @@ const ShippingDetailCalculator: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="重量(克)" name="weight">
-                    <InputNumber style={{ width: '100%' }} min={1} max={25000} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={25000} precision={0} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item label="货值(卢布)" name="value">
+                  <Form.Item label="货值(RMB)" name="value">
                     <InputNumber style={{ width: '100%' }} min={0} precision={0} />
                   </Form.Item>
                 </Col>
@@ -299,17 +361,17 @@ const ShippingDetailCalculator: React.FC = () => {
               <Row gutter={16}>
                 <Col span={8}>
                   <Form.Item label="长(cm)" name="length">
-                    <InputNumber style={{ width: '100%' }} min={1} max={150} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="宽(cm)" name="width">
-                    <InputNumber style={{ width: '100%' }} min={1} max={150} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="高(cm)" name="height">
-                    <InputNumber style={{ width: '100%' }} min={1} max={150} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -405,16 +467,16 @@ const ShippingDetailCalculator: React.FC = () => {
           activeKey={activeKey}
           onChange={setActiveKey}
           items={OZON_UNI_DATA.map((category) => ({
-            key: category.id,
-            label: (
-              <Space>
-                <Text strong>{category.nameEN}</Text>
-                <Text type="secondary">({category.name})</Text>
-                <Tag>{category.weightRange}</Tag>
-              </Space>
-            ),
-            children: renderServiceTable(category),
-          }))}
+              key: category.id,
+              label: (
+                <Space>
+                  <Text strong>{category.nameEN}</Text>
+                  <Text type="secondary">({category.name})</Text>
+                  <Tag>{category.weightRange}</Tag>
+                </Space>
+              ),
+              children: renderServiceTable(category),
+            }))}
         />
       </Card>
     </div>

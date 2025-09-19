@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试Dashboard修改</title>
+    <script>
+        fetch('http://localhost:3000/src/pages/ozon/Dashboard.tsx')
+            .then(res => res.text())
+            .then(text => {
+                // 查找商品统计部分
+                const lines = text.split('\n');
+                const results = [];
+                lines.forEach((line, index) => {
+                    if (line.includes('在售商品') || line.includes('已下架') || line.includes('缺货商品') || line.includes('已同步商品')) {
+                        results.push(`行 ${index + 1}: ${line.trim()}`);
+                    }
+                });
+                document.getElementById('results').innerHTML = '<pre>' + results.slice(0, 10).join('\n') + '</pre>';
+
+                // 检查是否有点击事件和样式
+                const hasClickEvent = text.includes('onClick={() => navigateToProducts');
+                const hasBlueStyle = text.includes('color: "#1890ff"');
+
+                document.getElementById('features').innerHTML =
+                    `<p>点击事件: ${hasClickEvent ? '✓ 已添加' : '✗ 未添加'}</p>` +
+                    `<p>蓝色链接样式: ${hasBlueStyle ? '✓ 已添加' : '✗ 未添加'}</p>`;
+            });
+    </script>
+</head>
+<body>
+    <h1>Dashboard.tsx 修改验证</h1>
+    <h2>商品统计项顺序：</h2>
+    <div id="results">加载中...</div>
+    <h2>功能检查：</h2>
+    <div id="features">检查中...</div>
+</body>
+</html>

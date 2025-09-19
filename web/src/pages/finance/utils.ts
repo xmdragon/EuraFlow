@@ -6,18 +6,18 @@ import { ScenarioConfig } from './constants';
 
 export interface CalculationData {
   // 用户输入
-  cost?: number; // 成本（卢布）
-  price?: number; // 售价（卢布）
+  cost?: number; // 成本（RMB）
+  price?: number; // 售价（RMB）
   weight?: number; // 重量（克）
 
   // 可编辑的费用
   platformRate?: number; // 平台扣点率（小数形式，如0.14表示14%）
-  shipping?: number; // 运费（卢布）
-  packingFee?: number; // 打包费（卢布）
+  shipping?: number; // 运费（RMB）
+  packingFee?: number; // 打包费（RMB）
 
   // 自动计算结果
   platformFee?: number; // 平台扣点金额
-  profit?: number; // 利润（卢布）
+  profit?: number; // 利润（RMB）
   profitRate?: number; // 利润率（小数形式）
 }
 
@@ -117,10 +117,10 @@ export function validateInput(
   // 验证价格
   if (price !== undefined) {
     if (conditions.minPrice && price < conditions.minPrice) {
-      warnings.push(`售价低于该场景最小值 ${conditions.minPrice}卢布`);
+      warnings.push(`售价低于该场景最小值 ${conditions.minPrice} RMB`);
     }
     if (conditions.maxPrice && price > conditions.maxPrice) {
-      warnings.push(`售价超过该场景最大值 ${conditions.maxPrice}卢布`);
+      warnings.push(`售价超过该场景最大值 ${conditions.maxPrice} RMB`);
     }
   }
 
