@@ -228,6 +228,7 @@ async def test_connection(
 async def trigger_sync(
     shop_id: int,
     sync_type: str = Query("all", description="Sync type: all, products, orders"),
+    orders_mode: str = Query("incremental", description="Orders sync mode: full, incremental"),
     db: AsyncSession = Depends(get_async_session)
     # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
 ):
@@ -235,10 +236,10 @@ async def trigger_sync(
     import uuid
     import asyncio
     from ..services import OzonSyncService
-    
+
     # 生成真实的任务ID
     task_id = f"task_{uuid.uuid4().hex[:12]}"
-    
+
     # 根据同步类型执行不同的同步任务
     async def run_sync():
         # 创建新的数据库会话用于异步任务
@@ -246,24 +247,40 @@ async def trigger_sync(
             try:
                 if sync_type in ["all", "products"]:
                     await OzonSyncService.sync_products(shop_id, task_db, task_id)
-                
+
                 if sync_type in ["all", "orders"]:
                     # 如果是全部同步，为订单生成新的任务ID
                     order_task_id = task_id if sync_type == "orders" else f"task_{uuid.uuid4().hex[:12]}"
-                    await OzonSyncService.sync_orders(shop_id, task_db, order_task_id)
+                    await OzonSyncService.sync_orders(shop_id, task_db, order_task_id, orders_mode)
             except Exception as e:
                 logger.error(f"Sync failed: {e}")
                 import traceback
                 logger.error(traceback.format_exc())
-    
+
     # 在后台启动同步任务（不等待完成）
     asyncio.create_task(run_sync())
-    
+
     return {
         "task_id": task_id,
         "status": "started",
         "sync_type": sync_type,
+        "orders_mode": orders_mode if sync_type in ["all", "orders"] else None,
         "message": f"Sync {sync_type} started for shop {shop_id}"
+    }
+
+@router.get("/sync/task/{task_id}")
+async def get_task_status(task_id: str):
+    """获取同步任务状态"""
+    from ..services import OzonSyncService
+
+    status = OzonSyncService.get_task_status(task_id)
+
+    if not status:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return {
+        "task_id": task_id,
+        "status": status
     }
 
 @router.get("/sync/status/{task_id}")
@@ -1340,129 +1357,141 @@ async def get_orders(
         "offer_id_images": offer_id_images  # 额外返回offer_id图片映射，前端可选使用
     }
 
+@router.get("/orders/{posting_number}")
+async def get_order_detail(
+    posting_number: str,
+    shop_id: Optional[int] = Query(None, description="店铺ID"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取订单详情
+    通过posting_number获取单个订单的完整信息
+    """
+    # 构建查询
+    query = select(OzonOrder).where(OzonOrder.posting_number == posting_number)
+
+    if shop_id:
+        query = query.where(OzonOrder.shop_id == shop_id)
+
+    # 执行查询
+    result = await db.execute(query)
+    order = result.scalar_one_or_none()
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Order with posting_number {posting_number} not found"
+        )
+
+    # 获取订单详细信息
+    order_dict = order.to_dict()
+
+    # 为订单商品添加图片信息
+    if order_dict.get("items"):
+        offer_ids = [item.get("offer_id") for item in order_dict["items"] if item.get("offer_id")]
+
+        if offer_ids:
+            # 批量查询商品图片
+            products_result = await db.execute(
+                select(OzonProduct.offer_id, OzonProduct.images, OzonProduct.name, OzonProduct.price)
+                .where(OzonProduct.offer_id.in_(offer_ids))
+                .where(OzonProduct.shop_id == order.shop_id)
+            )
+
+            product_info = {}
+            for offer_id, images, name, price in products_result:
+                if offer_id:
+                    product_info[offer_id] = {
+                        "name": name,
+                        "price": str(price) if price else None,
+                        "image": None
+                    }
+
+                    if images:
+                        # 优先使用primary图片
+                        if isinstance(images, dict):
+                            if images.get("primary"):
+                                product_info[offer_id]["image"] = images["primary"]
+                            elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                                product_info[offer_id]["image"] = images["main"][0]
+                        elif isinstance(images, list) and images:
+                            product_info[offer_id]["image"] = images[0]
+
+            # 将商品信息合并到订单项中
+            for item in order_dict["items"]:
+                if item.get("offer_id") and item["offer_id"] in product_info:
+                    item.update(product_info[item["offer_id"]])
+
+    # 添加额外的订单汇总信息
+    order_summary = {
+        "total_items": len(order_dict.get("items", [])),
+        "total_quantity": sum(item.get("quantity", 0) for item in order_dict.get("items", [])),
+        "has_barcodes": bool(order_dict.get("upper_barcode") or order_dict.get("lower_barcode")),
+        "has_cancellation": bool(order_dict.get("cancel_reason") or order_dict.get("cancel_reason_id")),
+        "sync_info": {
+            "mode": order_dict.get("sync_mode"),
+            "version": order_dict.get("sync_version"),
+            "last_sync": order_dict.get("last_sync_at"),
+            "status": order_dict.get("sync_status")
+        }
+    }
+
+    return {
+        "success": True,
+        "data": order_dict,
+        "summary": order_summary
+    }
+
 @router.post("/orders/sync")
 async def sync_orders(
-    request: Dict[str, Any] = {},
+    shop_id: int = Body(...),
+    mode: str = Body("incremental", description="同步模式: full-全量同步, incremental-增量同步"),
     db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    # current_user: User = Depends(get_current_user)  # Временно отключено为развития
 ):
-    """同步订单数据"""
-    date_from = request.get("date_from", datetime.now().strftime("%Y-%m-%dT00:00:00Z"))
-    date_to = request.get("date_to", datetime.now().strftime("%Y-%m-%dT23:59:59Z"))
-    shop_id = request.get("shop_id", 1)
+    """
+    同步订单数据
+    - full: 全量同步，获取店铺所有历史订单
+    - incremental: 增量同步，获取最近7天的订单更新
+    """
     
-    # 从数据库获取店铺信息
-    result = await db.execute(
-        select(OzonShop).where(OzonShop.id == shop_id)
-    )
-    shop = result.scalar_one_or_none()
-    
-    if not shop:
+    # 验证同步模式
+    if mode not in ["full", "incremental"]:
         return {
             "success": False,
-            "message": "店铺不存在",
-            "error": "Shop not found"
+            "message": "无效的同步模式",
+            "error": f"Mode must be 'full' or 'incremental', got '{mode}'"
         }
-    
-    # 使用 Ozon API 客户端获取订单
-    from ..api.client import OzonAPIClient
-    
-    try:
-        client = OzonAPIClient(
-            client_id=shop.client_id,
-            api_key=shop.api_key_enc
-        )
-        
-        # 调用真实的 Ozon API
-        orders_data = await client.get_orders(date_from=date_from, date_to=date_to)
-        
-        if not orders_data.get("result"):
-            return {
-                "success": False,
-                "message": "获取订单数据失败",
-                "error": "No orders data returned from Ozon API"
-            }
-        
-        postings = orders_data["result"].get("postings", [])
-        
-        # 同步订单到数据库
-        synced_count = 0
-        for posting in postings:
-            # 查找或创建订单
-            existing = await db.execute(
-                select(OzonOrder).where(
-                    OzonOrder.shop_id == shop_id,
-                    OzonOrder.posting_number == posting.get("posting_number", "")
-                )
-            )
-            order = existing.scalar_one_or_none()
-            
-            # 计算总价
-            total_price = Decimal("0")
-            items_data = []
-            for product in posting.get("products", []):
-                price = Decimal(str(product.get("price", "0")))
-                quantity = product.get("quantity", 0)
-                total_price += price * quantity
-                items_data.append({
-                    "sku": product.get("sku"),
-                    "name": product.get("name"),
-                    "quantity": quantity,
-                    "price": str(price)
-                })
-            
-            if not order:
-                order = OzonOrder(
-                    shop_id=shop_id,
-                    order_id=posting.get("order_id", ""),
-                    order_number=posting.get("order_number", ""),
-                    posting_number=posting.get("posting_number", ""),
-                    status=posting.get("status", "pending"),
-                    substatus=posting.get("substatus"),
-                    delivery_type=posting.get("delivery_method", {}).get("tpl_provider", "FBS"),
-                    is_express=posting.get("is_express", False),
-                    is_premium=posting.get("is_premium", False),
-                    total_price=total_price,
-                    delivery_method=posting.get("delivery_method", {}).get("name"),
-                    tracking_number=posting.get("tracking_number"),
-                    items=items_data,
-                    in_process_at=datetime.fromisoformat(posting["in_process_at"].replace("Z", "+00:00")) if posting.get("in_process_at") else None,
-                    shipment_date=datetime.fromisoformat(posting["shipment_date"].replace("Z", "+00:00")) if posting.get("shipment_date") else None,
-                    analytics_data=posting.get("analytics_data"),
-                    financial_data=posting.get("financial_data"),
-                    sync_status="success",
-                    last_sync_at=datetime.now()
-                )
-                db.add(order)
-            else:
-                # 更新现有订单
-                order.status = posting.get("status", order.status)
-                order.substatus = posting.get("substatus")
-                order.tracking_number = posting.get("tracking_number")
-                order.items = items_data
-                order.sync_status = "success"
-                order.last_sync_at = datetime.now()
-            
-            synced_count += 1
-        
-        await db.commit()
-        
-        return {
-            "success": True,
-            "message": f"成功同步 {synced_count} 个订单",
-            "synced_count": synced_count,
-            "date_range": {
-                "from": date_from,
-                "to": date_to
-            }
-        }
-        
-    except Exception as e:
-        return {
-            "success": False,
-            "message": "同步失败",
-            "error": str(e)
-        }
+
+    # 生成任务ID
+    import uuid
+    import asyncio
+    task_id = f"order_sync_{uuid.uuid4().hex[:12]}"
+
+    # 异步执行同步任务
+    from ..services import OzonSyncService
+
+    async def run_sync():
+        """在后台执行同步任务"""
+        try:
+            # 创建新的数据库会话用于异步任务
+            async with get_async_session() as task_db:
+                result = await OzonSyncService.sync_orders(shop_id, task_db, task_id, mode)
+                logger.info(f"Order sync completed: {result}")
+        except Exception as e:
+            logger.error(f"Order sync failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    # 在后台启动同步任务
+    asyncio.create_task(run_sync())
+
+    return {
+        "success": True,
+        "message": f"订单{'全量' if mode == 'full' else '增量'}同步已启动",
+        "task_id": task_id,
+        "sync_mode": mode
+    }
 
 
 @router.get("/sync-logs")

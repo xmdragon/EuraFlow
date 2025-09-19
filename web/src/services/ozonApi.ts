@@ -193,7 +193,9 @@ export const syncProducts = async (shopId?: number | null, _fullSync: boolean = 
   }
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
-    params: { sync_type: 'products' },
+    params: {
+      sync_type: 'products'
+    },
   });
   return response.data;
 };
@@ -339,7 +341,12 @@ export const getOrder = async (orderId: number) => {
 };
 
 // 同步订单
-export const syncOrders = async (shopId?: number | null, _dateFrom?: string, _dateTo?: string) => {
+export const syncOrders = async (
+  shopId?: number | null,
+  mode: 'full' | 'incremental' = 'incremental',
+  _dateFrom?: string,
+  _dateTo?: string
+) => {
   // 如果没有指定店铺，获取第一个店铺
   if (!shopId) {
     const shopsResponse = await apiClient.get('/ozon/shops');
@@ -351,7 +358,22 @@ export const syncOrders = async (shopId?: number | null, _dateFrom?: string, _da
   }
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
-    params: { sync_type: 'orders' },
+    params: {
+      sync_type: 'orders',
+      orders_mode: mode
+    },
+  });
+  return response.data;
+};
+
+// 直接同步订单（新接口）
+export const syncOrdersDirect = async (
+  shopId: number,
+  mode: 'full' | 'incremental' = 'incremental'
+) => {
+  const response = await apiClient.post('/ozon/orders/sync', {
+    shop_id: shopId,
+    mode: mode
   });
   return response.data;
 };
@@ -431,5 +453,21 @@ export const getSyncLogs = async (entityType?: string, limit: number = 20) => {
     limit,
   };
   const response = await apiClient.get('/ozon/sync-logs', { params });
+  return response.data;
+};
+
+// 获取同步任务状态
+export const getSyncTaskStatus = async (taskId: string) => {
+  const response = await apiClient.get(`/ozon/sync/task/${taskId}`);
+  return response.data;
+};
+
+// 订单详情API
+export const getOrderDetail = async (postingNumber: string, shopId?: number) => {
+  const params: any = {};
+  if (shopId) {
+    params.shop_id = shopId;
+  }
+  const response = await apiClient.get(`/ozon/orders/${postingNumber}`, { params });
   return response.data;
 };
