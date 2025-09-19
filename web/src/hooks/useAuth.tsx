@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Invalidate and refetch user data
       await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
     } catch (error) {
-      console.error('Login failed:', error);
+      // Login failed
       throw error;
     }
   };

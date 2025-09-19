@@ -32,16 +32,9 @@ class AuthService {
     axios.interceptors.request.use((config) => {
       if (this._accessToken) {
         config.headers.Authorization = `Bearer ${this._accessToken}`;
-        console.debug('[AuthService] Adding Bearer token to request:', {
-          url: config.url,
-          method: config.method?.toUpperCase(),
-          hasToken: !!this._accessToken
-        });
+        // Token added to request
       } else {
-        console.warn('[AuthService] No access token available for request:', {
-          url: config.url,
-          method: config.method?.toUpperCase()
-        });
+        // No token available for request
       }
       return config;
     });
@@ -56,7 +49,8 @@ class AuthService {
           const isRefreshRequest = error.config?.url?.includes('/auth/refresh');
           const isLoginRequest = error.config?.url?.includes('/auth/login');
 
-          console.warn('[AuthService] 401 Unauthorized error:', {
+          // 401 Unauthorized error
+          const errorDetails = {
             url: error.config?.url,
             method: error.config?.method?.toUpperCase(),
             isAuthMeRequest,
@@ -164,7 +158,7 @@ class AuthService {
   }
 
   clearTokens() {
-    console.info('[AuthService] Clearing tokens from memory and localStorage');
+    // Clearing tokens from memory and localStorage
     this._accessToken = null;
     this._refreshToken = null;
 
@@ -207,15 +201,15 @@ class AuthService {
       const payload = JSON.parse(atob(parts[1]));
       // Check if token is expired (exp is in seconds)
       if (payload.exp && payload.exp * 1000 < Date.now()) {
-        console.warn('[AuthService] Token has expired, clearing tokens');
+        // Token has expired, clearing tokens
         // Token is expired, clear it
         this.clearTokens();
         return false;
       }
-      console.debug('[AuthService] Token is valid');
+      // Token is valid
       return true;
     } catch (e) {
-      console.warn('[AuthService] Failed to decode token, clearing tokens:', e);
+      // Failed to decode token, clearing tokens
       // Invalid token, clear it
       this.clearTokens();
       return false;
