@@ -1308,22 +1308,60 @@ async def get_orders(
     limit: int = Query(50, le=100),
     shop_id: Optional[int] = None,
     status: Optional[str] = None,
+    posting_number: Optional[str] = None,
+    customer_phone: Optional[str] = None,
+    order_type: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     db: AsyncSession = Depends(get_async_session)
     # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
 ):
-    """获取 Ozon 订单列表"""
+    """获取 Ozon 订单列表，支持多种搜索条件"""
+    from datetime import datetime
+
     # 构建查询
     query = select(OzonOrder)
-    
+
     # 应用过滤条件
     if shop_id:
         query = query.where(OzonOrder.shop_id == shop_id)
     else:
         # 默认获取第一个店铺的订单
         query = query.where(OzonOrder.shop_id == 1)
-    
+
     if status:
         query = query.where(OzonOrder.status == status)
+
+    # 搜索条件
+    if posting_number:
+        # 搜索订单号或posting_number
+        query = query.where(
+            (OzonOrder.order_number.ilike(f"%{posting_number}%")) |
+            (OzonOrder.posting_number.ilike(f"%{posting_number}%"))
+        )
+
+    if customer_phone:
+        query = query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
+
+    if order_type:
+        query = query.where(OzonOrder.order_type == order_type)
+
+    if date_from:
+        try:
+            start_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            query = query.where(OzonOrder.created_at >= start_date)
+        except:
+            pass  # 忽略无效的日期格式
+
+    if date_to:
+        try:
+            end_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            # 如果只有日期没有时间，则设置为当天的23:59:59
+            if 'T' not in date_to:
+                end_date = end_date.replace(hour=23, minute=59, second=59)
+            query = query.where(OzonOrder.created_at <= end_date)
+        except:
+            pass  # 忽略无效的日期格式
     
     # 执行查询获取总数
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))

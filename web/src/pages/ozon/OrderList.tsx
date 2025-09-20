@@ -73,6 +73,9 @@ const OrderList: React.FC = () => {
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
 
+  // 搜索参数状态
+  const [searchParams, setSearchParams] = useState<any>({});
+
   // 状态配置
   const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
     pending: { color: 'default', text: '待确认', icon: <ClockCircleOutlined /> },
@@ -89,13 +92,12 @@ const OrderList: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonOrders', currentPage, pageSize, activeTab, selectedShop],
+    queryKey: ['ozonOrders', currentPage, pageSize, activeTab, selectedShop, searchParams],
     queryFn: () => {
-      const filters = filterForm.getFieldsValue();
-      const dateRange = filters.dateRange;
+      const dateRange = searchParams.dateRange;
 
       return ozonApi.getOrders(currentPage, pageSize, {
-        ...filters,
+        ...searchParams,
         shop_id: selectedShop,
         status: activeTab === 'all' ? undefined : activeTab,
         date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
@@ -654,7 +656,14 @@ const OrderList: React.FC = () => {
             </Space>
           </Col>
         </Row>
-        <Form form={filterForm} layout="inline" onFinish={() => refetch()}>
+        <Form
+          form={filterForm}
+          layout="inline"
+          onFinish={(values) => {
+            setSearchParams(values);
+            setCurrentPage(1); // 搜索时重置到第一页
+          }}
+        >
           <Form.Item name="dateRange">
             <RangePicker />
           </Form.Item>
@@ -679,7 +688,8 @@ const OrderList: React.FC = () => {
               <Button
                 onClick={() => {
                   filterForm.resetFields();
-                  refetch();
+                  setSearchParams({});
+                  setCurrentPage(1);
                 }}
               >
                 重置
@@ -694,7 +704,10 @@ const OrderList: React.FC = () => {
         {/* 状态标签页 */}
         <Tabs
           activeKey={activeTab}
-          onChange={setActiveTab}
+          onChange={(key) => {
+            setActiveTab(key);
+            setCurrentPage(1); // 切换Tab时重置到第一页
+          }}
           items={[
             { label: '全部', key: 'all' },
             {
