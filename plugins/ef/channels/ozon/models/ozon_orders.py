@@ -388,6 +388,31 @@ class OzonOrder(Base):
         comment="取消原因"
     )
 
+    # 报表相关字段
+    purchase_price: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(18, 4),
+        nullable=True,
+        comment="进货价格"
+    )
+
+    domestic_tracking_number: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="国内运单号"
+    )
+
+    material_cost: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(18, 4),
+        nullable=True,
+        comment="材料费用"
+    )
+
+    order_notes: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="订单备注"
+    )
+
     analytics_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSON,
         nullable=True,
@@ -510,6 +535,11 @@ class OzonOrder(Base):
             "translit": self.translit,
             "analytics_data": self.analytics_data,
             "financial_data": self.financial_data,
+            # 报表相关字段
+            "purchase_price": str(self.purchase_price) if self.purchase_price else None,
+            "domestic_tracking_number": self.domestic_tracking_number,
+            "material_cost": str(self.material_cost) if self.material_cost else None,
+            "order_notes": self.order_notes,
             "sync_status": self.sync_status,
             "sync_error": self.sync_error,
             "last_sync_at": self.last_sync_at.isoformat() if self.last_sync_at else None,

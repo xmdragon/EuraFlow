@@ -23,7 +23,7 @@ class Return(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     
     # 平台信息
-    platform: Mapped[str] = mapped_column(Text, nullable=False, default="ozon", comment="平台标识")
+    platform: Mapped[str] = mapped_column(Text, nullable=False, comment="平台标识")
     shop_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="店铺ID")
     
     # 退货信息
@@ -55,7 +55,7 @@ class Refund(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     
     # 平台信息
-    platform: Mapped[str] = mapped_column(Text, nullable=False, default="ozon", comment="平台标识")
+    platform: Mapped[str] = mapped_column(Text, nullable=False, comment="平台标识")
     shop_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="店铺ID")
     
     # 退款信息

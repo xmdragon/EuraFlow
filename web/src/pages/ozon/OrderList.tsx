@@ -44,6 +44,8 @@ import {
   Avatar,
   Flex,
   Table,
+  InputNumber,
+  Divider,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
@@ -72,6 +74,8 @@ const OrderList: React.FC = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [extraInfoForm] = Form.useForm();
+  const [isUpdatingExtraInfo, setIsUpdatingExtraInfo] = useState(false);
 
   // 搜索参数状态
   const [searchParams, setSearchParams] = useState<any>({});
@@ -941,8 +945,174 @@ const OrderList: React.FC = () => {
                 ),
               },
               {
-                label: '物流信息',
+                label: '额外信息',
                 key: '4',
+                children: (
+                  <Form
+                    form={extraInfoForm}
+                    layout="vertical"
+                    initialValues={{
+                      purchase_price: selectedOrder?.purchase_price,
+                      domestic_tracking_number: selectedOrder?.domestic_tracking_number,
+                      material_cost: selectedOrder?.material_cost,
+                      order_notes: selectedOrder?.order_notes,
+                    }}
+                    onFinish={async (values) => {
+                      try {
+                        setIsUpdatingExtraInfo(true);
+
+                        // 调用API更新订单额外信息
+                        const response = await fetch(
+                          `/api/ef/v1/ozon/orders/${selectedOrder?.posting_number}/extra-info`,
+                          {
+                            method: 'PUT',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(values),
+                          }
+                        );
+
+                        if (!response.ok) {
+                          throw new Error('更新失败');
+                        }
+
+                        message.success('订单额外信息更新成功');
+
+                        // 更新本地数据
+                        if (selectedOrder) {
+                          setSelectedOrder({
+                            ...selectedOrder,
+                            ...values,
+                          });
+                        }
+
+                        // 刷新列表
+                        queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+                      } catch (error) {
+                        message.error('更新失败: ' + (error as Error).message);
+                      } finally {
+                        setIsUpdatingExtraInfo(false);
+                      }
+                    }}
+                  >
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="purchase_price"
+                          label="进货价格"
+                          tooltip="商品的采购成本"
+                        >
+                          <InputNumber
+                            style={{ width: '100%' }}
+                            precision={2}
+                            min={0}
+                            placeholder="请输入进货价格"
+                            prefix="¥"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="material_cost"
+                          label="材料费用"
+                          tooltip="包装、运输等额外费用"
+                        >
+                          <InputNumber
+                            style={{ width: '100%' }}
+                            precision={2}
+                            min={0}
+                            placeholder="请输入材料费用"
+                            prefix="¥"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="domestic_tracking_number"
+                          label="国内运单号"
+                          tooltip="国内物流的跟踪号"
+                        >
+                          <Input placeholder="请输入国内运单号" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="tracking_number"
+                          label="国际运单号"
+                        >
+                          <Input
+                            placeholder="国际运单号"
+                            disabled
+                            value={selectedOrder?.tracking_number || '-'}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Form.Item
+                      name="order_notes"
+                      label="备注"
+                      tooltip="关于此订单的备注信息"
+                    >
+                      <Input.TextArea
+                        rows={4}
+                        placeholder="请输入备注信息"
+                        maxLength={500}
+                        showCount
+                      />
+                    </Form.Item>
+
+                    {/* 计算并显示利润信息 */}
+                    {(selectedOrder?.purchase_price || selectedOrder?.material_cost) && (
+                      <Alert
+                        message="利润计算"
+                        description={
+                          <div>
+                            <p>销售价格: ¥{formatPrice(selectedOrder?.total_amount || selectedOrder?.products_amount)}</p>
+                            <p>进货价格: ¥{formatPrice(selectedOrder?.purchase_price || 0)}</p>
+                            <p>材料费用: ¥{formatPrice(selectedOrder?.material_cost || 0)}</p>
+                            <Divider style={{ margin: '8px 0' }} />
+                            <p style={{ fontWeight: 'bold' }}>
+                              预计利润: ¥
+                              {formatPrice(
+                                parseFloat(selectedOrder?.total_amount || selectedOrder?.products_amount || '0') -
+                                parseFloat(selectedOrder?.purchase_price || '0') -
+                                parseFloat(selectedOrder?.material_cost || '0')
+                              )}
+                            </p>
+                          </div>
+                        }
+                        type="info"
+                        style={{ marginBottom: 16 }}
+                      />
+                    )}
+
+                    <Form.Item>
+                      <Space>
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          loading={isUpdatingExtraInfo}
+                        >
+                          保存信息
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            extraInfoForm.resetFields();
+                          }}
+                        >
+                          重置
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                  </Form>
+                ),
+              },
+              {
+                label: '物流信息',
+                key: '5',
                 children: selectedOrder.postings?.map((posting) => (
                   <Card key={posting.id} style={{ marginBottom: 16 }}>
                     <Descriptions bordered size="small">

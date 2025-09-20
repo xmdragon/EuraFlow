@@ -48,7 +48,7 @@ class ListingsService(BaseService, RepositoryMixin):
                 if margin_check["violations"]:
                     from ef_core.utils.errors import ValidationError
                     raise ValidationError(
-                        code="OZON_GUARD_PRICE_VIOLATION",
+                        code="PRICE_MARGIN_VIOLATION",
                         detail=f"Price violations: {len(margin_check['violations'])} items below minimum margin"
                     )
             
@@ -414,7 +414,7 @@ class ListingsService(BaseService, RepositoryMixin):
                 }
             }
             
-            await self.event_bus.publish("ef.ozon.price.updated", event_payload)
+            await self.event_bus.publish("ef.price.updated", event_payload)
             self.logger.debug(f"Published price events for shop {shop_id}")
             
         except Exception as e:

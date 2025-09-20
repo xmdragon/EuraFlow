@@ -123,11 +123,10 @@ class TaskRegistry:
             return "ef_pull"
         elif "push_" in task_name:
             return "ef_push"
-        elif ".ozon." in task_name:
-            return "ef_ozon"
         elif ".core." in task_name:
             return "ef_core"
         else:
+            # 插件可以注册自定义队列
             return "default"
     
     def get_registered_tasks(self) -> List[Dict]:

@@ -401,7 +401,7 @@ class InventoryService(BaseService, RepositoryMixin):
                 "skus": [item.sku for item in updated_items]
             }
             
-            await self.event_bus.publish("ef.ozon.inventory.updated", event_payload)
+            await self.event_bus.publish("ef.inventory.updated", event_payload)
             
             # 发布阈值告警事件
             threshold_items = [
@@ -423,7 +423,7 @@ class InventoryService(BaseService, RepositoryMixin):
                     ]
                 }
                 
-                await self.event_bus.publish("ef.ozon.inventory.threshold_alert", alert_payload)
+                await self.event_bus.publish("ef.inventory.threshold_alert", alert_payload)
             
             self.logger.debug(f"Published inventory events for shop {shop_id}")
             

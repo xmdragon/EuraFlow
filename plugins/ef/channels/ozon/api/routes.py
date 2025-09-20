@@ -2,8 +2,8 @@
 Ozon 平台 API 端点
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
-from typing import Optional, Dict, Any
-from datetime import datetime
+from typing import Optional, Dict, Any, List
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1348,20 +1348,30 @@ async def get_orders(
 
     if date_from:
         try:
-            start_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            # 处理不同的日期格式
+            if 'T' in date_from:
+                # 完整的日期时间格式
+                start_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            else:
+                # 仅日期格式，设置为当天的00:00:00
+                start_date = datetime.strptime(date_from, '%Y-%m-%d')
             query = query.where(OzonOrder.created_at >= start_date)
-        except:
-            pass  # 忽略无效的日期格式
+        except Exception as e:
+            logger.warning(f"Failed to parse date_from: {date_from}, error: {e}")
 
     if date_to:
         try:
-            end_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-            # 如果只有日期没有时间，则设置为当天的23:59:59
-            if 'T' not in date_to:
-                end_date = end_date.replace(hour=23, minute=59, second=59)
+            # 处理不同的日期格式
+            if 'T' in date_to:
+                # 完整的日期时间格式
+                end_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            else:
+                # 仅日期格式，设置为当天的23:59:59
+                end_date = datetime.strptime(date_to, '%Y-%m-%d')
+                end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
             query = query.where(OzonOrder.created_at <= end_date)
-        except:
-            pass  # 忽略无效的日期格式
+        except Exception as e:
+            logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
     
     # 执行查询获取总数
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
@@ -1418,6 +1428,54 @@ async def get_orders(
         "offset": offset,
         "limit": limit,
         "offer_id_images": offer_id_images  # 额外返回offer_id图片映射，前端可选使用
+    }
+
+@router.put("/orders/{posting_number}/extra-info")
+async def update_order_extra_info(
+    posting_number: str,
+    extra_info: Dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    更新订单额外信息（进货价格、国内运单号、材料费用、备注）
+    """
+    from decimal import Decimal
+
+    # 查找订单
+    result = await db.execute(
+        select(OzonOrder).where(OzonOrder.posting_number == posting_number)
+    )
+    order = result.scalar_one_or_none()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # 更新字段
+    if "purchase_price" in extra_info:
+        order.purchase_price = Decimal(str(extra_info["purchase_price"])) if extra_info["purchase_price"] else None
+    if "domestic_tracking_number" in extra_info:
+        order.domestic_tracking_number = extra_info["domestic_tracking_number"]
+    if "material_cost" in extra_info:
+        order.material_cost = Decimal(str(extra_info["material_cost"])) if extra_info["material_cost"] else None
+    if "order_notes" in extra_info:
+        order.order_notes = extra_info["order_notes"]
+
+    # 更新时间戳
+    order.updated_at = datetime.now()
+
+    await db.commit()
+    await db.refresh(order)
+
+    return {
+        "success": True,
+        "message": "Order extra info updated successfully",
+        "data": {
+            "posting_number": order.posting_number,
+            "purchase_price": str(order.purchase_price) if order.purchase_price else None,
+            "domestic_tracking_number": order.domestic_tracking_number,
+            "material_cost": str(order.material_cost) if order.material_cost else None,
+            "order_notes": order.order_notes
+        }
     }
 
 @router.get("/orders/{posting_number}")
@@ -1914,3 +1972,247 @@ async def test_connection(
             "success": False,
             "message": f"连接测试失败: {str(e)}"
         }
+
+
+# 订单报表端点
+@router.get("/reports/orders")
+async def get_order_report(
+    month: str = Query(..., description="月份，格式：YYYY-MM"),
+    shop_ids: Optional[str] = Query(None, description="店铺ID列表，逗号分隔"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取订单报表数据
+
+    Args:
+        month: 月份，格式：YYYY-MM
+        shop_ids: 店铺ID列表，逗号分隔（不传则查询所有店铺）
+
+    Returns:
+        包含统计汇总和详细订单数据的报表
+    """
+    from sqlalchemy import and_, extract, or_
+    from decimal import Decimal
+    import calendar
+
+    try:
+        # 解析月份
+        year, month_num = month.split("-")
+        year = int(year)
+        month_num = int(month_num)
+
+        # 计算月份的开始和结束日期
+        start_date = datetime(year, month_num, 1)
+        last_day = calendar.monthrange(year, month_num)[1]
+        end_date = datetime(year, month_num, last_day, 23, 59, 59)
+
+        # 构建查询条件
+        conditions = [
+            OzonOrder.created_at >= start_date,
+            OzonOrder.created_at <= end_date,
+            # 只查询已确认或已完成的订单
+            or_(
+                OzonOrder.status.in_(['confirmed', 'processing', 'shipped', 'delivered']),
+                OzonOrder.status == 'awaiting_deliver',
+                OzonOrder.status == 'awaiting_packaging'
+            )
+        ]
+
+        # 如果指定了店铺ID
+        if shop_ids:
+            shop_id_list = [int(sid) for sid in shop_ids.split(",")]
+            conditions.append(OzonOrder.shop_id.in_(shop_id_list))
+
+        # 查询订单数据
+        orders_query = select(
+            OzonOrder,
+            OzonShop.shop_name
+        ).join(
+            OzonShop, OzonOrder.shop_id == OzonShop.id
+        ).where(and_(*conditions))
+
+        result = await db.execute(orders_query)
+        orders_with_shop = result.all()
+
+        # 计算统计数据
+        total_sales = Decimal('0')  # 销售总额
+        total_purchase = Decimal('0')  # 进货总额
+        total_cost = Decimal('0')  # 费用总额
+        order_count = 0
+
+        # 构建详细数据列表
+        report_data = []
+
+        for order, shop_name in orders_with_shop:
+            # 获取商品信息
+            items = order.items or []
+
+            for item in items:
+                # 计算单个商品的价格
+                item_price = Decimal(str(item.get('price', 0)))
+                quantity = item.get('quantity', 1)
+                sale_price = item_price * quantity
+
+                # 获取进货价格和材料费用
+                purchase_price = order.purchase_price or Decimal('0')
+                material_cost = order.material_cost or Decimal('0')
+
+                # 计算利润
+                profit = sale_price - purchase_price - material_cost
+
+                # 累加统计数据
+                total_sales += sale_price
+                total_purchase += purchase_price
+                total_cost += material_cost
+                order_count += 1
+
+                # 添加到详细数据
+                report_data.append({
+                    "date": order.created_at.strftime("%Y-%m-%d"),
+                    "shop_name": shop_name,
+                    "product_name": item.get('name', item.get('sku', '未知商品')),
+                    "posting_number": order.posting_number,
+                    "purchase_price": str(purchase_price) if purchase_price else None,
+                    "sale_price": str(sale_price),
+                    "tracking_number": order.tracking_number,
+                    "domestic_tracking_number": order.domestic_tracking_number,
+                    "material_cost": str(material_cost) if material_cost else None,
+                    "order_notes": order.order_notes,
+                    "profit": str(profit),
+                    "sku": item.get('sku'),
+                    "quantity": quantity,
+                    "offer_id": item.get('offer_id')
+                })
+
+        # 计算利润总额和利润率
+        total_profit = total_sales - total_purchase - total_cost
+        profit_rate = (total_profit / total_sales * 100) if total_sales > 0 else Decimal('0')
+
+        # 返回报表数据
+        return {
+            "summary": {
+                "total_sales": str(total_sales),
+                "total_purchase": str(total_purchase),
+                "total_cost": str(total_cost),
+                "total_profit": str(total_profit),
+                "profit_rate": float(profit_rate),  # 百分比形式
+                "order_count": order_count,
+                "month": month
+            },
+            "data": report_data
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"无效的月份格式: {str(e)}")
+    except Exception as e:
+        logger.error(f"Failed to get order report: {e}")
+        raise HTTPException(status_code=500, detail=f"获取报表失败: {str(e)}")
+
+
+@router.get("/reports/orders/export")
+async def export_order_report(
+    month: str = Query(..., description="月份，格式：YYYY-MM"),
+    shop_ids: Optional[str] = Query(None, description="店铺ID列表，逗号分隔"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    导出订单报表为Excel文件
+
+    Args:
+        month: 月份，格式：YYYY-MM
+        shop_ids: 店铺ID列表，逗号分隔
+
+    Returns:
+        Excel文件流
+    """
+    from fastapi.responses import StreamingResponse
+    import pandas as pd
+    from io import BytesIO
+
+    try:
+        # 获取报表数据
+        report = await get_order_report(month, shop_ids, db)
+
+        # 创建DataFrame
+        df = pd.DataFrame(report["data"])
+
+        if not df.empty:
+            # 重命名列为中文
+            df = df.rename(columns={
+                "date": "日期",
+                "shop_name": "店铺名称",
+                "product_name": "商品名称",
+                "posting_number": "货件编号",
+                "purchase_price": "进货价格",
+                "sale_price": "出售价格",
+                "tracking_number": "国际运单号",
+                "domestic_tracking_number": "国内运单号",
+                "material_cost": "材料费用",
+                "order_notes": "备注",
+                "profit": "利润",
+                "sku": "SKU",
+                "quantity": "数量"
+            })
+
+            # 选择要导出的列
+            export_columns = [
+                "日期", "店铺名称", "商品名称", "货件编号",
+                "进货价格", "出售价格", "国际运单号", "国内运单号",
+                "材料费用", "备注", "利润"
+            ]
+            df = df[export_columns]
+
+        # 创建Excel文件
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # 写入数据表
+            df.to_excel(writer, sheet_name='订单报表', index=False)
+
+            # 获取工作表
+            worksheet = writer.sheets['订单报表']
+
+            # 添加统计汇总行（在表格底部）
+            summary = report["summary"]
+            last_row = len(df) + 3  # 空一行后添加统计
+
+            worksheet.cell(row=last_row, column=1, value="统计汇总")
+            worksheet.cell(row=last_row + 1, column=1, value="销售总额")
+            worksheet.cell(row=last_row + 1, column=2, value=f"¥{summary['total_sales']}")
+            worksheet.cell(row=last_row + 2, column=1, value="进货总额")
+            worksheet.cell(row=last_row + 2, column=2, value=f"¥{summary['total_purchase']}")
+            worksheet.cell(row=last_row + 3, column=1, value="费用总额")
+            worksheet.cell(row=last_row + 3, column=2, value=f"¥{summary['total_cost']}")
+            worksheet.cell(row=last_row + 4, column=1, value="利润总额")
+            worksheet.cell(row=last_row + 4, column=2, value=f"¥{summary['total_profit']}")
+            worksheet.cell(row=last_row + 5, column=1, value="利润率")
+            worksheet.cell(row=last_row + 5, column=2, value=f"{summary['profit_rate']:.2f}%")
+            worksheet.cell(row=last_row + 6, column=1, value="订单总数")
+            worksheet.cell(row=last_row + 6, column=2, value=summary['order_count'])
+
+            # 调整列宽
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+
+        # 重置文件指针
+        output.seek(0)
+
+        # 返回文件流
+        filename = f"ozon_order_report_{month}.xlsx"
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to export order report: {e}")
+        raise HTTPException(status_code=500, detail=f"导出报表失败: {str(e)}")

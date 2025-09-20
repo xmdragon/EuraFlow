@@ -150,11 +150,11 @@ class OrdersService(BaseService, RepositoryMixin):
         
         self.validate_required_fields(order_data, required_fields)
         
-        # 验证平台
-        if order_data["platform"] != "ozon":
+        # 验证平台字段存在
+        if not order_data.get("platform"):
             raise ValidationError(
-                code="INVALID_PLATFORM",
-                detail=f"Only 'ozon' platform is supported, got: {order_data['platform']}"
+                code="MISSING_PLATFORM",
+                detail="Platform field is required"
             )
         
         # 验证支付方式
@@ -307,7 +307,7 @@ class OrdersService(BaseService, RepositoryMixin):
     async def _publish_order_event(self, order: Order, action: str) -> None:
         """发布订单事件"""
         try:
-            event_topic = f"ef.ozon.order.{action}"
+            event_topic = f"ef.order.{action}"
             event_payload = {
                 "shop_id": order.shop_id,
                 "order_id": order.id,
@@ -329,7 +329,7 @@ class OrdersService(BaseService, RepositoryMixin):
     async def get_orders(
         self,
         shop_id: int,
-        platform: str = "ozon",
+        platform: Optional[str] = None,
         status: Optional[List[str]] = None,
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,

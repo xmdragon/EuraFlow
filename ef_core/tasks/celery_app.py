@@ -35,7 +35,6 @@ celery_app.conf.update(
     # 任务路由
     task_routes={
         "ef.core.*": {"queue": "ef_core"},
-        "ef.ozon.*": {"queue": "ef_ozon"},
         "ef.*.pull_orders": {"queue": "ef_pull"},
         "ef.*.push_*": {"queue": "ef_push"},
     },
@@ -56,8 +55,6 @@ celery_app.conf.update(
     # 速率限制
     task_annotations={
         "*": {"rate_limit": "100/m"},  # 全局限制
-        "ef.ozon.pull_orders": {"rate_limit": "10/m"},  # 拉单限制
-        "ef.ozon.push_*": {"rate_limit": "60/m"},  # 推送限制
     },
     
     # 监控配置

@@ -24,22 +24,21 @@ class Order(Base):
     # 主键
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     
-    # 平台信息 
+    # 平台信息
     platform: Mapped[str] = mapped_column(
-        Text, 
-        CheckConstraint("platform='ozon'"),
+        Text,
         nullable=False,
-        comment="平台标识，固定为 ozon"
+        comment="平台标识"
     )
     shop_id: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="店铺ID")
     
     # 外部订单信息
-    external_id: Mapped[str] = mapped_column(Text, nullable=False, comment="Ozon order_id")
-    external_no: Mapped[str] = mapped_column(Text, nullable=False, comment="posting_number 买家可见编号")
+    external_id: Mapped[str] = mapped_column(Text, nullable=False, comment="外部平台订单ID")
+    external_no: Mapped[str] = mapped_column(Text, nullable=False, comment="外部平台订单编号")
     
     # 订单状态
     status: Mapped[str] = mapped_column(Text, nullable=False, comment="本地订单状态")
-    external_status: Mapped[str] = mapped_column(Text, nullable=False, comment="Ozon 原始状态")
+    external_status: Mapped[str] = mapped_column(Text, nullable=False, comment="外部平台原始状态")
     
     # 支付信息
     is_cod: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, comment="是否货到付款")

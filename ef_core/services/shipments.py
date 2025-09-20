@@ -124,8 +124,7 @@ class ShipmentsService(BaseService, RepositoryMixin):
         stmt = select(Order).where(
             and_(
                 Order.shop_id == shop_id,
-                Order.external_id == external_id,
-                Order.platform == "ozon"
+                Order.external_id == external_id
             )
         )
         result = await session.execute(stmt)
@@ -348,7 +347,7 @@ class ShipmentsService(BaseService, RepositoryMixin):
     async def _publish_shipment_event(self, shipment: Shipment, action: str) -> None:
         """发布发货事件"""
         try:
-            event_topic = f"ef.ozon.shipment.{action}"
+            event_topic = f"ef.shipment.{action}"
             event_payload = {
                 "shipment_id": shipment.id,
                 "tracking_no": shipment.tracking_no,

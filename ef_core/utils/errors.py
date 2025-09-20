@@ -174,19 +174,6 @@ class ServiceUnavailableError(EuraFlowException):
         )
 
 
-# Ozon 特定错误码
-class OzonErrorCodes:
-    """Ozon 插件错误码"""
-    BAD_REQUEST = "OZON_BAD_REQUEST"
-    FORBIDDEN = "OZON_FORBIDDEN"
-    SYNC_CONFLICT = "OZON_SYNC_CONFLICT"
-    NOT_FOUND = "OZON_NOT_FOUND"
-    RATE_LIMITED = "OZON_RATE_LIMITED"
-    UPSTREAM_ERROR = "OZON_UPSTREAM_5XX"
-    GUARD_PRICE_VIOLATION = "OZON_GUARD_PRICE_VIOLATION"
-    GUARD_STOCK_THRESHOLD = "OZON_GUARD_STOCK_THRESHOLD"
-
-
 # 错误处理装饰器
 def handle_errors(logger=None):
     """错误处理装饰器"""

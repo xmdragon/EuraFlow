@@ -7,19 +7,29 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from plugins.ef.finance.calc.models.enums import Platform, ServiceType, FulfillmentModel, CarrierService
-from plugins.ef.finance.calc.models.shipping import ShippingRequest, ShippingResult, Dimensions, ShippingFlags
-from plugins.ef.finance.calc.models.profit import ProfitRequest, ProfitResult
-from plugins.ef.finance.calc.services.shipping_calculator import ShippingCalculator
-from plugins.ef.finance.calc.services.profit_calculator import ProfitCalculator
-from plugins.ef.finance.calc.services.rate_manager import RateManager
+# 避免跨插件引用，使用动态导入
+try:
+    from plugins.ef.finance.calc.models.enums import Platform, ServiceType, FulfillmentModel, CarrierService
+    from plugins.ef.finance.calc.models.shipping import ShippingRequest, ShippingResult, Dimensions, ShippingFlags
+    from plugins.ef.finance.calc.models.profit import ProfitRequest, ProfitResult
+    from plugins.ef.finance.calc.services.shipping_calculator import ShippingCalculator
+    from plugins.ef.finance.calc.services.profit_calculator import ProfitCalculator
+    from plugins.ef.finance.calc.services.rate_manager import RateManager
+    FINANCE_PLUGIN_AVAILABLE = True
+except ImportError:
+    FINANCE_PLUGIN_AVAILABLE = False
 
 router = APIRouter(prefix="/api/ef/v1/finance", tags=["finance"])
 
 # 初始化服务
-rate_manager = RateManager()
-shipping_calculator = ShippingCalculator(rate_manager=rate_manager)
-profit_calculator = ProfitCalculator(shipping_calculator=shipping_calculator, rate_manager=rate_manager)
+if FINANCE_PLUGIN_AVAILABLE:
+    rate_manager = RateManager()
+    shipping_calculator = ShippingCalculator(rate_manager=rate_manager)
+    profit_calculator = ProfitCalculator(shipping_calculator=shipping_calculator, rate_manager=rate_manager)
+else:
+    rate_manager = None
+    shipping_calculator = None
+    profit_calculator = None
 
 
 class ShippingCalcRequest(BaseModel):
@@ -76,13 +86,17 @@ async def calculate_shipping(request: ShippingCalcRequest) -> ShippingResult:
     计算运费
     """
     try:
-        # 确定承运商
-        carrier_map = {
-            Platform.OZON: CarrierService.UNI_OZON,
-            Platform.WILDBERRIES: CarrierService.UNI_WB,
-            Platform.YANDEX: CarrierService.UNI_YANDEX,
-        }
-        carrier = carrier_map.get(request.platform, CarrierService.UNI_YANDEX)
+        # 通过字符串确定承运商（避免硬编码平台枚举）
+        if FINANCE_PLUGIN_AVAILABLE:
+            carrier_map = {
+                "ozon": CarrierService.UNI_OZON,
+                "wildberries": CarrierService.UNI_WB,
+                "yandex": CarrierService.UNI_YANDEX,
+            }
+            platform_str = str(request.platform).lower() if hasattr(request.platform, 'value') else str(request.platform).lower()
+            carrier = carrier_map.get(platform_str, CarrierService.UNI_YANDEX)
+        else:
+            raise HTTPException(status_code=503, detail="Finance plugin not available")
 
         # 构造请求
         shipping_req = ShippingRequest(
@@ -121,13 +135,17 @@ async def calculate_multiple_shipping(
     计算多种服务类型的运费
     """
     try:
-        # 确定承运商
-        carrier_map = {
-            Platform.OZON: CarrierService.UNI_OZON,
-            Platform.WILDBERRIES: CarrierService.UNI_WB,
-            Platform.YANDEX: CarrierService.UNI_YANDEX,
-        }
-        carrier = carrier_map.get(request.platform, CarrierService.UNI_YANDEX)
+        # 通过字符串确定承运商（避免硬编码平台枚举）
+        if FINANCE_PLUGIN_AVAILABLE:
+            carrier_map = {
+                "ozon": CarrierService.UNI_OZON,
+                "wildberries": CarrierService.UNI_WB,
+                "yandex": CarrierService.UNI_YANDEX,
+            }
+            platform_str = str(request.platform).lower() if hasattr(request.platform, 'value') else str(request.platform).lower()
+            carrier = carrier_map.get(platform_str, CarrierService.UNI_YANDEX)
+        else:
+            raise HTTPException(status_code=503, detail="Finance plugin not available")
 
         # 构造基础请求
         shipping_req = ShippingRequest(

@@ -7,6 +7,7 @@ import {
   SettingOutlined,
   DashboardOutlined,
   ShopOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
 import React from 'react';
@@ -14,6 +15,7 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 
 import Dashboard from './Dashboard';
 import OrderList from './OrderList';
+import OrderReport from './OrderReport';
 import ProductList from './ProductList';
 import ShopSettings from './ShopSettings';
 
@@ -26,6 +28,7 @@ const OzonManagement: React.FC = () => {
   const getSelectedKey = () => {
     const path = location.pathname;
     if (path.includes('products')) return 'products';
+    if (path.includes('reports')) return 'reports';
     if (path.includes('orders')) return 'orders';
     if (path.includes('settings')) return 'settings';
     return 'dashboard';
@@ -46,6 +49,11 @@ const OzonManagement: React.FC = () => {
       key: 'orders',
       icon: <ShoppingCartOutlined />,
       label: <Link to="/dashboard/ozon/orders">订单管理</Link>,
+    },
+    {
+      key: 'reports',
+      icon: <FileTextOutlined />,
+      label: <Link to="/dashboard/ozon/reports">订单报表</Link>,
     },
     {
       key: 'settings',
@@ -81,6 +89,7 @@ const OzonManagement: React.FC = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="products" element={<ProductList />} />
           <Route path="orders" element={<OrderList />} />
+          <Route path="reports" element={<OrderReport />} />
           <Route path="settings" element={<ShopSettings />} />
         </Routes>
       </Content>

@@ -49,21 +49,6 @@ const OzonDashboard: React.FC = () => {
   const shouldFetchData = !!shops?.data?.length && debouncedShop !== undefined &&
     debouncedShop !== null;
 
-  // 获取商品统计（使用防抖后的店铺ID）
-  const { data: productsData } = useQuery({
-    queryKey: ['ozon', 'products', debouncedShop],
-    queryFn: () => ozonApi.getProducts(1, 50, { shop_id: debouncedShop }),
-    enabled: shouldFetchData,
-    staleTime: 2 * 60 * 1000, // 2分钟内不重新请求
-  });
-
-  // 获取订单统计（使用防抖后的店铺ID）
-  const { data: ordersData } = useQuery({
-    queryKey: ['ozon', 'orders', debouncedShop],
-    queryFn: () => ozonApi.getOrders(1, 50, { shop_id: debouncedShop }),
-    enabled: shouldFetchData,
-    staleTime: 2 * 60 * 1000, // 2分钟内不重新请求
-  });
 
   // 获取统计数据（使用防抖后的店铺ID）
   const { data: statisticsData } = useQuery({
@@ -73,34 +58,26 @@ const OzonDashboard: React.FC = () => {
     staleTime: 1 * 60 * 1000, // 1分钟内不重新请求
   });
 
-  // 使用真实数据或模拟数据
+  // 使用statistics API数据
   const stats = {
     products: {
-      total: productsData?.data?.length || statisticsData?.data?.products?.total || 0,
-      active: statisticsData?.data?.products?.active ||
-        productsData?.data?.filter((p: any) => p.status === 'active').length || 0,
-      outOfStock: statisticsData?.data?.products?.out_of_stock ||
-        productsData?.data?.filter((p: any) => p.stock === 0).length || 0,
-      synced: statisticsData?.data?.products?.synced ||
-        productsData?.data?.filter((p: any) => p.sync_status === 'success').length || 0,
+      total: statisticsData?.products?.total || 0,
+      active: statisticsData?.products?.active || 0,
+      outOfStock: statisticsData?.products?.out_of_stock || 0,
+      synced: statisticsData?.products?.synced || 0,
     },
     orders: {
-      total: ordersData?.data?.length || statisticsData?.data?.orders?.total || 0,
-      pending: statisticsData?.data?.orders?.pending ||
-        ordersData?.data?.filter((o: any) => o.status === 'pending').length || 0,
-      processing: statisticsData?.data?.orders?.processing ||
-        ordersData?.data?.filter((o: any) => o.status === 'processing').length || 0,
-      shipped: statisticsData?.data?.orders?.shipped ||
-        ordersData?.data?.filter((o: any) => o.status === 'shipped').length || 0,
-      delivered: statisticsData?.data?.orders?.delivered ||
-        ordersData?.data?.filter((o: any) => o.status === 'delivered').length || 0,
-      cancelled: statisticsData?.data?.orders?.cancelled ||
-        ordersData?.data?.filter((o: any) => o.status === 'cancelled').length || 0,
+      total: statisticsData?.orders?.total || 0,
+      pending: statisticsData?.orders?.pending || 0,
+      processing: statisticsData?.orders?.processing || 0,
+      shipped: statisticsData?.orders?.shipped || 0,
+      delivered: statisticsData?.orders?.delivered || 0,
+      cancelled: statisticsData?.orders?.cancelled || 0,
     },
     revenue: {
-      today: statisticsData?.data?.revenue?.today || 0,
-      week: statisticsData?.data?.revenue?.week || 0,
-      month: statisticsData?.data?.revenue?.month || 0,
+      today: statisticsData?.revenue?.today || 0,
+      week: statisticsData?.revenue?.week || 0,
+      month: statisticsData?.revenue?.month || 0,
     },
   };
 

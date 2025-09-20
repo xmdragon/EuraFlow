@@ -27,16 +27,22 @@ api_router.include_router(listings_router, prefix="/listings", tags=["Listings"]
 api_router.include_router(system_router, prefix="/system", tags=["System"])
 api_router.include_router(finance_router, tags=["Finance"])
 
-# 加载 Ozon 路由 - 使用简化版本
+# Load plugin routes dynamically
 try:
-    from .ozon import router as ozon_router
+    # Import Ozon plugin to get its router
+    from plugins.ef.channels.ozon import get_router
 
-    api_router.include_router(ozon_router, tags=["Ozon"])
-    logger.info("Loaded Ozon routes")
+    ozon_router = get_router()
+    if ozon_router:
+        # Plugin router already has /ozon prefix, don't add another one
+        api_router.include_router(ozon_router)
+        logger.info("Loaded Ozon plugin routes")
+    else:
+        logger.warning("Ozon plugin has no routes")
 except ImportError as e:
-    logger.warning(f"Could not load Ozon routes: {e}")
+    logger.warning(f"Could not import Ozon plugin: {e}")
 except Exception as e:
-    logger.error(f"Error loading Ozon routes: {e}")
+    logger.error(f"Error loading Ozon plugin routes: {e}")
 
 # Legacy Ozon routes removed - using plugin routes only
 
