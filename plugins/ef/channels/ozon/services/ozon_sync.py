@@ -25,8 +25,15 @@ class OzonSyncService:
     """Ozon同步服务"""
 
     @staticmethod
-    async def sync_products(shop_id: int, db: AsyncSession, task_id: str) -> Dict[str, Any]:
-        """同步商品"""
+    async def sync_products(shop_id: int, db: AsyncSession, task_id: str, mode: str = "incremental") -> Dict[str, Any]:
+        """同步商品
+
+        Args:
+            shop_id: 店铺ID
+            db: 数据库会话
+            task_id: 任务ID
+            mode: 同步模式 - 'full' 全量同步, 'incremental' 增量同步
+        """
         try:
             # 更新任务状态
             SYNC_TASKS[task_id] = {
@@ -49,7 +56,7 @@ class OzonSyncService:
 
             # 更新进度
             SYNC_TASKS[task_id]["progress"] = 10
-            SYNC_TASKS[task_id]["message"] = "正在连接Ozon API..."
+            SYNC_TASKS[task_id]["message"] = f"正在连接Ozon API... (模式: {mode})"
 
             # 获取商品列表
             total_synced = 0
@@ -59,6 +66,14 @@ class OzonSyncService:
             estimated_total = 0  # 估计的总数
             inactive_count = 0  # 统计不活跃商品数量
             archived_count = 0  # 统计归档商品数量
+
+            # 增量同步：设置时间过滤
+            filter_params = {}
+            if mode == "incremental":
+                # 获取最后同步时间或默认7天前
+                last_sync_time = datetime.utcnow() - timedelta(days=7)
+                filter_params["last_changed_since"] = last_sync_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                logger.info(f"Incremental sync: fetching products changed since {last_sync_time}")
 
             # 需要同步的不同状态
             visibility_filters = [
@@ -79,10 +94,14 @@ class OzonSyncService:
                     logger.info(f"Fetching {visibility_type} page {page} with last_id: {last_id}")
 
                     try:
+                        # 构建过滤器
+                        product_filter = {"visibility": visibility_type}
+                        product_filter.update(filter_params)  # 添加时间过滤（增量同步时）
+
                         products_data = await client.get_products(
                             limit=100,
                             last_id=last_id,
-                            filter={"visibility": visibility_type}
+                            filter=product_filter
                         )
                     except Exception as e:
                         logger.error(f"Failed to fetch {visibility_type} products: {e}")

@@ -188,7 +188,7 @@ export const getProduct = async (productId: number) => {
 };
 
 // 同步商品
-export const syncProducts = async (shopId?: number | null, _fullSync: boolean = false) => {
+export const syncProducts = async (shopId?: number | null, fullSync: boolean = false) => {
   // 如果没有指定店铺，获取第一个店铺
   if (!shopId) {
     const shopsResponse = await apiClient.get('/ozon/shops');
@@ -201,7 +201,8 @@ export const syncProducts = async (shopId?: number | null, _fullSync: boolean = 
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
     params: {
-      sync_type: 'products'
+      sync_type: 'products',
+      products_mode: fullSync ? 'full' : 'incremental'
     },
   });
   return response.data;
@@ -350,9 +351,8 @@ export const getOrder = async (orderId: number) => {
 // 同步订单
 export const syncOrders = async (
   shopId?: number | null,
-  mode: 'full' | 'incremental' = 'incremental',
-  _dateFrom?: string,
-  _dateTo?: string
+  dateFrom?: string,
+  dateTo?: string
 ) => {
   // 如果没有指定店铺，获取第一个店铺
   if (!shopId) {
@@ -363,6 +363,9 @@ export const syncOrders = async (
     }
     shopId = shops[0].id;
   }
+
+  // 根据是否有日期范围决定同步模式
+  const mode = dateFrom && dateTo ? 'full' : 'incremental';
 
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
     params: {

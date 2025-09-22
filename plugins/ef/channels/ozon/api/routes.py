@@ -229,6 +229,7 @@ async def trigger_sync(
     shop_id: int,
     sync_type: str = Query("all", description="Sync type: all, products, orders"),
     orders_mode: str = Query("incremental", description="Orders sync mode: full, incremental"),
+    products_mode: str = Query("incremental", description="Products sync mode: full, incremental"),
     db: AsyncSession = Depends(get_async_session)
     # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
 ):
@@ -240,25 +241,52 @@ async def trigger_sync(
     # 生成真实的任务ID
     task_id = f"task_{uuid.uuid4().hex[:12]}"
 
+    # 立即初始化任务状态，避免查询时找不到
+    from ..services.ozon_sync import SYNC_TASKS
+    SYNC_TASKS[task_id] = {
+        "status": "pending",
+        "progress": 0,
+        "message": "任务已创建，正在启动...",
+        "started_at": datetime.utcnow().isoformat(),
+        "type": sync_type,
+        "shop_id": shop_id
+    }
+
     # 根据同步类型执行不同的同步任务
     async def run_sync():
+        logger.info(f"Starting async sync task: task_id={task_id}, sync_type={sync_type}")
         # 创建新的数据库会话用于异步任务
         async with get_async_session() as task_db:
             try:
+                logger.info(f"Database session created for task: {task_id}")
                 if sync_type in ["all", "products"]:
-                    await OzonSyncService.sync_products(shop_id, task_db, task_id)
+                    await OzonSyncService.sync_products(shop_id, task_db, task_id, products_mode)
 
                 if sync_type in ["all", "orders"]:
                     # 如果是全部同步，为订单生成新的任务ID
                     order_task_id = task_id if sync_type == "orders" else f"task_{uuid.uuid4().hex[:12]}"
+                    logger.info(f"Calling sync_orders: shop_id={shop_id}, order_task_id={order_task_id}, mode={orders_mode}")
                     await OzonSyncService.sync_orders(shop_id, task_db, order_task_id, orders_mode)
+                    logger.info(f"sync_orders completed for task: {order_task_id}")
             except Exception as e:
                 logger.error(f"Sync failed: {e}")
                 import traceback
                 logger.error(traceback.format_exc())
+                # 更新任务状态为失败
+                SYNC_TASKS[task_id] = {
+                    "status": "failed",
+                    "progress": 0,
+                    "message": f"同步失败: {str(e)}",
+                    "error": str(e),
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "type": sync_type
+                }
 
     # 在后台启动同步任务（不等待完成）
-    asyncio.create_task(run_sync())
+    task = asyncio.create_task(run_sync())
+
+    # 添加日志以确认任务已创建
+    logger.info(f"Created async task for {sync_type} sync: task_id={task_id}, shop_id={shop_id}")
 
     return {
         "task_id": task_id,
