@@ -161,7 +161,8 @@ class OzonSyncService:
                                 detail_response = await client.get_product_info_list(offer_ids=batch_ids)
 
                                 if detail_response.get("items"):
-                                    for product_detail in detail_response["items"]:
+                                    for idx, product_detail in enumerate(detail_response["items"]):
+
                                         if product_detail.get("offer_id"):
                                             products_detail_map[product_detail["offer_id"]] = product_detail
                         except Exception as e:
@@ -203,10 +204,6 @@ class OzonSyncService:
 
                     # 处理每个商品
                     for idx, item in enumerate(items):
-                        # 记录第一个商品的完整结构用于调试
-                        if idx == 0 and visibility_type == "VISIBLE":
-                            logger.info(f"First product item structure: {list(item.keys())}")
-                            logger.info(f"Item details - offer_id: {item.get('offer_id')}, product_id: {item.get('product_id')}, sku: {item.get('sku')}, fbs_sku: {item.get('fbs_sku')}, fbo_sku: {item.get('fbo_sku')}")
 
                         # 使用总商品数计算更准确的进度
                         if total_products > 0:
@@ -285,11 +282,6 @@ class OzonSyncService:
                             product.ozon_product_id = item.get("product_id")
                             # 从商品详情获取OZON SKU
                             if product_details:
-                                # 记录第一个商品的详细信息用于调试
-                                if idx == 0 and visibility_type == "VISIBLE":
-                                    logger.info(f"Product detail structure keys: {list(product_details.keys())}")
-                                    logger.info(f"Product detail SKU fields - sku: {product_details.get('sku')}, fbs_sku: {product_details.get('fbs_sku')}, fbo_sku: {product_details.get('fbo_sku')}")
-
                                 # 尝试从多个可能的字段获取SKU
                                 sku_value = product_details.get("sku") or product_details.get("fbs_sku") or product_details.get("fbo_sku")
                                 product.ozon_sku = safe_int_conversion(sku_value)
