@@ -203,6 +203,11 @@ class OzonSyncService:
 
                     # 处理每个商品
                     for idx, item in enumerate(items):
+                        # 记录第一个商品的完整结构用于调试
+                        if idx == 0 and visibility_type == "VISIBLE":
+                            logger.info(f"First product item structure: {list(item.keys())}")
+                            logger.info(f"Item details - offer_id: {item.get('offer_id')}, product_id: {item.get('product_id')}, sku: {item.get('sku')}, fbs_sku: {item.get('fbs_sku')}, fbo_sku: {item.get('fbo_sku')}")
+
                         # 使用总商品数计算更准确的进度
                         if total_products > 0:
                             # 基于总数的准确进度计算
@@ -282,7 +287,8 @@ class OzonSyncService:
                             if product_details:
                                 # 记录第一个商品的详细信息用于调试
                                 if idx == 0 and visibility_type == "VISIBLE":
-                                    logger.info(f"Product detail example: offer_id={product_details.get('offer_id')}, sku={product_details.get('sku')}, fbs_sku={product_details.get('fbs_sku')}, fbo_sku={product_details.get('fbo_sku')}")
+                                    logger.info(f"Product detail structure keys: {list(product_details.keys())}")
+                                    logger.info(f"Product detail SKU fields - sku: {product_details.get('sku')}, fbs_sku: {product_details.get('fbs_sku')}, fbo_sku: {product_details.get('fbo_sku')}")
 
                                 # 尝试从多个可能的字段获取SKU
                                 sku_value = product_details.get("sku") or product_details.get("fbs_sku") or product_details.get("fbo_sku")

@@ -256,7 +256,9 @@ async def trigger_sync(
     async def run_sync():
         logger.info(f"Starting async sync task: task_id={task_id}, sync_type={sync_type}")
         # 创建新的数据库会话用于异步任务
-        async with get_async_session() as task_db:
+        from ef_core.database import get_db_manager
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as task_db:
             try:
                 logger.info(f"Database session created for task: {task_id}")
                 if sync_type in ["all", "products"]:

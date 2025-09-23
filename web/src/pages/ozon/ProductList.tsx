@@ -192,14 +192,15 @@ const ProductList: React.FC = () => {
   // 表格列定义
   const columns: ColumnsType<ozonApi.Product> = [
     {
-      title: 'SKU',
+      title: 'SKU/编码',
       dataIndex: 'sku',
       key: 'sku',
-      width: 180,
+      width: 200,
       render: (text, record) => (
         <Space direction="vertical" size="small">
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontWeight: 'bold' }}>{text}</span>
+            <span style={{ fontSize: 11, color: '#666', minWidth: '40px' }}>商家:</span>
+            <span style={{ fontWeight: 'bold' }}>{text || record.offer_id}</span>
             <Button
               type="text"
               size="small"
@@ -225,44 +226,47 @@ const ProductList: React.FC = () => {
                   }} />
                 </div>
               }
-              onClick={() => handleCopyToClipboard(text, 'SKU')}
+              onClick={() => handleCopyToClipboard(text || record.offer_id, '商家SKU')}
               style={{ padding: '0 4px', height: '20px', minWidth: '20px' }}
-              title="复制SKU"
+              title="复制商家SKU"
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: 12, color: '#999' }}>
-              ID: {record.ozon_product_id || record.offer_id}
+            <span style={{ fontSize: 11, color: '#666', minWidth: '40px' }}>Ozon:</span>
+            <span style={{ fontSize: 13, color: '#1890ff', fontWeight: 500 }}>
+              {record.ozon_sku || '-'}
             </span>
-            <Button
-              type="text"
-              size="small"
-              icon={
-                <div style={{ position: 'relative', width: '10px', height: '10px' }}>
-                  <div style={{
-                    position: 'absolute',
-                    top: '2px',
-                    left: '2px',
-                    width: '6px',
-                    height: '6px',
-                    border: '1px solid #666',
-                    backgroundColor: 'white'
-                  }} />
-                  <div style={{
-                    position: 'absolute',
-                    top: '0px',
-                    left: '0px',
-                    width: '6px',
-                    height: '6px',
-                    border: '1px solid #666',
-                    backgroundColor: 'white'
-                  }} />
-                </div>
-              }
-              onClick={() => handleCopyToClipboard(String(record.ozon_product_id || record.offer_id), '产品ID')}
-              style={{ padding: '0 4px', height: '16px', minWidth: '16px', fontSize: '10px' }}
-              title="复制产品ID"
-            />
+            {record.ozon_sku && (
+              <Button
+                type="text"
+                size="small"
+                icon={
+                  <div style={{ position: 'relative', width: '10px', height: '10px' }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: '2px',
+                      left: '2px',
+                      width: '6px',
+                      height: '6px',
+                      border: '1px solid #666',
+                      backgroundColor: 'white'
+                    }} />
+                    <div style={{
+                      position: 'absolute',
+                      top: '0px',
+                      left: '0px',
+                      width: '6px',
+                      height: '6px',
+                      border: '1px solid #666',
+                      backgroundColor: 'white'
+                    }} />
+                  </div>
+                }
+                onClick={() => handleCopyToClipboard(String(record.ozon_sku), 'Ozon SKU')}
+                style={{ padding: '0 4px', height: '16px', minWidth: '16px', fontSize: '10px' }}
+                title="复制Ozon SKU"
+              />
+            )}
           </div>
         </Space>
       ),
