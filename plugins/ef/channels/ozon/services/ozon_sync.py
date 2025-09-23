@@ -21,6 +21,20 @@ logger = logging.getLogger(__name__)
 SYNC_TASKS: Dict[str, Dict[str, Any]] = {}
 
 
+def safe_int_conversion(value) -> Optional[int]:
+    """安全地将值转换为整数，失败时返回None"""
+    if value is None:
+        return None
+    try:
+        # 处理字符串和数字类型
+        str_value = str(value).strip()
+        if str_value.isdigit():
+            return int(str_value)
+        return None
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
 class OzonSyncService:
     """Ozon同步服务"""
 
@@ -111,6 +125,7 @@ class OzonSyncService:
                     result = products_data.get("result", {})
                     items = result.get("items", [])
 
+
                     # 第一页时，尝试获取总数（API可能返回total字段）
                     if page == 1:
                         visibility_total = result.get("total", 0)
@@ -149,24 +164,6 @@ class OzonSyncService:
                                     for product_detail in detail_response["items"]:
                                         if product_detail.get("offer_id"):
                                             products_detail_map[product_detail["offer_id"]] = product_detail
-
-                                            # 调试第一个商品的响应
-                                            if i == 0 and product_detail == detail_response["items"][0] and visibility_type == "VISIBLE":
-                                                logger.info(
-                                                    f"Product detail from v3 API keys: {list(product_detail.keys())}"
-                                                )
-                                                if product_detail.get("images"):
-                                                    logger.info(
-                                                        f"Found images array with {len(product_detail['images'])} items"
-                                                    )
-                                                if product_detail.get("primary_image"):
-                                                    logger.info(f"Found primary_image: {product_detail['primary_image']}")
-                                                # 调试状态相关字段
-                                                visibility_details = product_detail.get("visibility_details", {})
-                                                logger.info(f"Visibility details: {visibility_details}")
-                                                logger.info(
-                                                    f"is_archived: {product_detail.get('is_archived')}, is_autoarchived: {product_detail.get('is_autoarchived')}"
-                                                )
                         except Exception as e:
                             logger.error(f"Failed to get {visibility_type} products details batch: {e}")
 
@@ -281,7 +278,11 @@ class OzonSyncService:
                             # 更新现有商品
                             product.title = item.get("name", "") or (product_details.get("name") if product_details else "")
                             product.ozon_product_id = item.get("product_id")
-                            product.ozon_sku = item.get("fbo_sku") or item.get("fbs_sku")
+                            # 从商品详情获取OZON SKU
+                            if product_details:
+                                product.ozon_sku = safe_int_conversion(product_details.get("sku"))
+                            else:
+                                product.ozon_sku = None
                             product.barcode = item.get("barcode", "") or (
                                 product_details.get("barcode") if product_details else ""
                             )
@@ -443,7 +444,7 @@ class OzonSyncService:
                                 sku=item.get("offer_id", ""),
                                 offer_id=item.get("offer_id", ""),
                                 ozon_product_id=item.get("product_id"),
-                                ozon_sku=item.get("fbo_sku") or item.get("fbs_sku"),
+                                ozon_sku=safe_int_conversion(product_details.get("sku")) if product_details else None,
                                 title=item.get("name", "") or (product_details.get("name") if product_details else ""),
                                 description=product_details.get("description") if product_details else None,
                                 barcode=item.get("barcode", "")
