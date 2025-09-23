@@ -964,7 +964,7 @@ const OrderList: React.FC = () => {
                   <Descriptions bordered column={2}>
                     <Descriptions.Item label="订单号">{selectedOrder.order_id}</Descriptions.Item>
                     <Descriptions.Item label="Ozon订单号">
-                      {selectedOrder.ozon_order_id}
+                      {selectedOrder.ozon_order_id || selectedOrder.order_id}
                     </Descriptions.Item>
                     <Descriptions.Item label="状态">
                       <Tag color={statusConfig[selectedOrder.status]?.color}>
@@ -972,22 +972,23 @@ const OrderList: React.FC = () => {
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="订单类型">
-                      {selectedOrder.order_type}
+                      {selectedOrder.order_type || 'FBS'}
                     </Descriptions.Item>
                     <Descriptions.Item label="总金额">
-                      ₽ {formatPrice(selectedOrder.total_amount)}
+                      {formatRuble(selectedOrder.total_price || selectedOrder.total_amount)}
                     </Descriptions.Item>
                     <Descriptions.Item label="商品金额">
-                      ₽ {formatPrice(selectedOrder.products_amount)}
+                      {formatRuble(selectedOrder.products_price || selectedOrder.products_amount)}
                     </Descriptions.Item>
                     <Descriptions.Item label="运费">
-                      ₽ {selectedOrder.delivery_price || selectedOrder.delivery_amount ? formatPrice(selectedOrder.delivery_price || selectedOrder.delivery_amount) : '-'}
+                      {selectedOrder.delivery_price || selectedOrder.delivery_amount ? formatRuble(selectedOrder.delivery_price || selectedOrder.delivery_amount) : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="佣金">
-                      ₽ {formatPrice(selectedOrder.commission_amount)}
+                      {formatRuble(selectedOrder.commission_amount)}
                     </Descriptions.Item>
                     <Descriptions.Item label="下单时间">
-                      {moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')}
+                      {selectedOrder.ordered_at ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss') :
+                       (selectedOrder.created_at ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss') : '-')}
                     </Descriptions.Item>
                     <Descriptions.Item label="配送方式">
                       {selectedOrder.delivery_method}
@@ -1064,14 +1065,14 @@ const OrderList: React.FC = () => {
                         dataIndex: 'price',
                         key: 'price',
                         width: 100,
-                        render: (price) => `₽ ${formatPrice(price)}`,
+                        render: (price) => formatRuble(price),
                       },
                       {
                         title: '小计',
                         dataIndex: 'total_amount',
                         key: 'total_amount',
                         width: 100,
-                        render: (amount) => `₽ ${formatPrice(amount)}`,
+                        render: (amount) => formatRuble(amount),
                       },
                     ]}
                   />
