@@ -67,6 +67,7 @@ const OrderList: React.FC = () => {
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
+  const [shipForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [shipModalVisible, setShipModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
@@ -209,12 +210,27 @@ const OrderList: React.FC = () => {
     return () => clearInterval(interval);
   }, [syncTaskId, syncStatus?.status, queryClient]);
 
+  // 当选中订单变化时，更新额外信息表单
+  useEffect(() => {
+    if (selectedOrder) {
+      extraInfoForm.setFieldsValue({
+        purchase_price: selectedOrder.purchase_price || '',
+        domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
+        material_cost: selectedOrder.material_cost || '',
+        order_notes: selectedOrder.order_notes || '',
+      });
+    } else {
+      extraInfoForm.resetFields();
+    }
+  }, [selectedOrder, extraInfoForm]);
+
   // 发货
   const shipOrderMutation = useMutation({
     mutationFn: ozonApi.shipOrder,
     onSuccess: () => {
       message.success('发货成功');
       setShipModalVisible(false);
+      shipForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
     onError: (error: any) => {
@@ -951,12 +967,6 @@ const OrderList: React.FC = () => {
                   <Form
                     form={extraInfoForm}
                     layout="vertical"
-                    initialValues={{
-                      purchase_price: selectedOrder?.purchase_price,
-                      domestic_tracking_number: selectedOrder?.domestic_tracking_number,
-                      material_cost: selectedOrder?.material_cost,
-                      order_notes: selectedOrder?.order_notes,
-                    }}
                     onFinish={async (values) => {
                       try {
                         setIsUpdatingExtraInfo(true);
@@ -1152,6 +1162,7 @@ const OrderList: React.FC = () => {
         width={600}
       >
         <Form
+          form={shipForm}
           layout="vertical"
           onFinish={(values) => {
             if (!selectedPosting) return;
@@ -1196,7 +1207,10 @@ const OrderList: React.FC = () => {
               <Button type="primary" htmlType="submit" loading={shipOrderMutation.isPending}>
                 确认发货
               </Button>
-              <Button onClick={() => setShipModalVisible(false)}>取消</Button>
+              <Button onClick={() => {
+                setShipModalVisible(false);
+                shipForm.resetFields();
+              }}>取消</Button>
             </Space>
           </Form.Item>
         </Form>
