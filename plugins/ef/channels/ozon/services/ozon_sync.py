@@ -280,7 +280,13 @@ class OzonSyncService:
                             product.ozon_product_id = item.get("product_id")
                             # 从商品详情获取OZON SKU
                             if product_details:
-                                product.ozon_sku = safe_int_conversion(product_details.get("sku"))
+                                # 记录第一个商品的详细信息用于调试
+                                if idx == 0 and visibility_type == "VISIBLE":
+                                    logger.info(f"Product detail example: offer_id={product_details.get('offer_id')}, sku={product_details.get('sku')}, fbs_sku={product_details.get('fbs_sku')}, fbo_sku={product_details.get('fbo_sku')}")
+
+                                # 尝试从多个可能的字段获取SKU
+                                sku_value = product_details.get("sku") or product_details.get("fbs_sku") or product_details.get("fbo_sku")
+                                product.ozon_sku = safe_int_conversion(sku_value)
                             else:
                                 product.ozon_sku = None
                             product.barcode = item.get("barcode", "") or (
@@ -444,7 +450,9 @@ class OzonSyncService:
                                 sku=item.get("offer_id", ""),
                                 offer_id=item.get("offer_id", ""),
                                 ozon_product_id=item.get("product_id"),
-                                ozon_sku=safe_int_conversion(product_details.get("sku")) if product_details else None,
+                                ozon_sku=safe_int_conversion(
+                                    product_details.get("sku") or product_details.get("fbs_sku") or product_details.get("fbo_sku")
+                                ) if product_details else None,
                                 title=item.get("name", "") or (product_details.get("name") if product_details else ""),
                                 description=product_details.get("description") if product_details else None,
                                 barcode=item.get("barcode", "")
