@@ -161,6 +161,7 @@ class OzonProduct(Base):
         """转换为字典"""
         # 导入分类映射
         from ..utils.categories import get_category_name
+        from ..utils.serialization import format_currency
 
         return {
             "id": self.id,
@@ -186,11 +187,11 @@ class OzonProduct(Base):
             "ozon_has_fbs_stocks": self.ozon_has_fbs_stocks,
             "ozon_is_discounted": self.ozon_is_discounted,
             "ozon_visibility_status": self.ozon_visibility_status,
-            "price": str(self.price) if self.price else None,
-            "old_price": str(self.old_price) if self.old_price else None,
-            "premium_price": str(self.premium_price) if self.premium_price else None,
-            "cost": str(self.cost) if self.cost else None,
-            "min_price": str(self.min_price) if self.min_price else None,
+            "price": format_currency(self.price),
+            "old_price": format_currency(self.old_price),
+            "premium_price": format_currency(self.premium_price),
+            "cost": format_currency(self.cost),
+            "min_price": format_currency(self.min_price),
             "stock": self.stock,
             "reserved": self.reserved,
             "available": self.available,

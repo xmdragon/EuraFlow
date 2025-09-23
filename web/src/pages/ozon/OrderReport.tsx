@@ -31,6 +31,7 @@ import moment from 'moment';
 import type { ColumnsType } from 'antd/es/table';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
+import { formatRMB, formatPercent } from '../../utils/currency';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -93,17 +94,11 @@ const OrderReport: React.FC = () => {
     enabled: !!selectedMonth,
   });
 
-  // 格式化金额
-  const formatMoney = (value: string | number | null): string => {
-    if (!value) return '¥0.00';
-    const num = typeof value === 'string' ? parseFloat(value) : value;
-    return `¥${num.toFixed(2)}`;
-  };
+  // 使用统一的货币格式化函数
+  const formatMoney = formatRMB;
 
-  // 格式化百分比
-  const formatPercent = (value: number): string => {
-    return `${value.toFixed(2)}%`;
-  };
+  // 使用统一的百分比格式化函数
+  // formatPercent 已经从 currency.ts 导入
 
   // 表格列配置
   const columns: ColumnsType<OrderReportData> = [

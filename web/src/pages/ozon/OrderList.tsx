@@ -51,6 +51,7 @@ import moment from 'moment';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
+import { formatRuble } from '../../utils/currency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 
 const { RangePicker } = DatePicker;
@@ -249,10 +250,9 @@ const OrderList: React.FC = () => {
     refetchInterval: 60000, // 1分钟自动刷新
   });
 
-  // 格式化价格，保留2位小数
+  // 使用统一的货币格式化函数
   const formatPrice = (price: any): string => {
-    const numPrice = parseFloat(price);
-    return isNaN(numPrice) ? '0.00' : numPrice.toFixed(2);
+    return formatRuble(price).replace('₽', '').trim(); // 返回不带符号的格式化数字
   };
 
   // offer_id到图片的映射，从订单数据中提取

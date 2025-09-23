@@ -45,6 +45,7 @@ import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
+import { formatRuble, calculateMargin } from '../../utils/currency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import './ProductList.css';
@@ -362,7 +363,7 @@ const ProductList: React.FC = () => {
         return (
           <Space direction="vertical" size="small">
             <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 16 }}>
-              ₽ {price.toFixed(2)}
+              {formatRuble(price)}
             </span>
             {oldPrice && oldPrice > price && (
               <span
@@ -372,18 +373,18 @@ const ProductList: React.FC = () => {
                   fontSize: 12,
                 }}
               >
-                ₽ {oldPrice.toFixed(2)}
+                {formatRuble(oldPrice)}
               </span>
             )}
             {cost && price > 0 && (
-              <Tooltip title={`成本: ₽${cost.toFixed(2)}`}>
+              <Tooltip title={`成本: ${formatRuble(cost)}`}>
                 <span
                   style={{
                     fontSize: 12,
                     color: price > cost ? '#52c41a' : '#ff4d4f',
                   }}
                 >
-                  毛利: {(((price - cost) / price) * 100).toFixed(1)}%
+                  毛利: {calculateMargin(price, cost)}
                 </span>
               </Tooltip>
             )}

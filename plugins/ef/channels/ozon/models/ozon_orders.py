@@ -469,6 +469,8 @@ class OzonOrder(Base):
     
     def to_dict(self) -> dict:
         """转换为字典"""
+        from ..utils.serialization import format_currency
+
         return {
             "id": self.id,
             "shop_id": self.shop_id,
@@ -480,10 +482,10 @@ class OzonOrder(Base):
             "delivery_type": self.delivery_type,
             "is_express": self.is_express,
             "is_premium": self.is_premium,
-            "total_price": str(self.total_price) if self.total_price else None,
-            "products_price": str(self.products_price) if self.products_price else None,
-            "delivery_price": str(self.delivery_price) if self.delivery_price else None,
-            "commission_amount": str(self.commission_amount) if self.commission_amount else None,
+            "total_price": format_currency(self.total_price),
+            "products_price": format_currency(self.products_price),
+            "delivery_price": format_currency(self.delivery_price),
+            "commission_amount": format_currency(self.commission_amount),
             "customer_id": self.customer_id,
             "customer_phone": self.customer_phone,
             "customer_email": self.customer_email,
