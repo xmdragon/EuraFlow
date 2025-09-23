@@ -212,26 +212,29 @@ const OrderList: React.FC = () => {
 
   // 当选中订单变化时，更新额外信息表单
   useEffect(() => {
-    if (selectedOrder) {
-      try {
-        extraInfoForm.setFieldsValue({
-          purchase_price: selectedOrder.purchase_price || '',
-          domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
-          material_cost: selectedOrder.material_cost || '',
-          order_notes: selectedOrder.order_notes || '',
-        });
-      } catch (error) {
-        // 表单可能还未挂载，忽略错误
-        console.warn('Extra info form not mounted yet');
+    // 延迟执行，等待Modal和Tab渲染完成
+    const timer = setTimeout(() => {
+      if (selectedOrder) {
+        try {
+          extraInfoForm.setFieldsValue({
+            purchase_price: selectedOrder.purchase_price || '',
+            domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
+            material_cost: selectedOrder.material_cost || '',
+            order_notes: selectedOrder.order_notes || '',
+          });
+        } catch (error) {
+          // 表单可能还未挂载，忽略错误
+        }
+      } else {
+        try {
+          extraInfoForm.resetFields();
+        } catch (error) {
+          // 表单可能还未挂载，忽略错误
+        }
       }
-    } else {
-      try {
-        extraInfoForm.resetFields();
-      } catch (error) {
-        // 表单可能还未挂载，忽略错误
-        console.warn('Extra info form not mounted yet');
-      }
-    }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [selectedOrder, extraInfoForm]);
 
   // 发货
