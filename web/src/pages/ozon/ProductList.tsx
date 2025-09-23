@@ -332,7 +332,29 @@ const ProductList: React.FC = () => {
 
             {/* 商品信息 */}
             <Space direction="vertical" size="small" style={{ flex: 1 }}>
-              <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>{text}</span>
+              <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>
+                {record.ozon_sku ? (
+                  <a
+                    href={`https://www.ozon.ru/product/${record.ozon_sku}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: '#1890ff',
+                      textDecoration: 'none',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.textDecoration = 'underline';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.textDecoration = 'none';
+                    }}
+                  >
+                    {text}
+                  </a>
+                ) : (
+                  text
+                )}
+              </span>
               <Space size="small" wrap>
                 {record.category_name && <Tag color="blue">{record.category_name}</Tag>}
                 {record.brand && <Tag>{record.brand}</Tag>}
