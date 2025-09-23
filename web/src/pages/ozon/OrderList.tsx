@@ -469,9 +469,32 @@ const OrderList: React.FC = () => {
                           color: '#333',
                           flex: 1,
                         }}
-                        title={`${item.name || item.sku} × ${item.quantity} - ₽${formatPrice(item.price)}`}
+                        title={`${item.name || item.sku} × ${item.quantity} - ${formatRuble(item.price)}`}
                       >
-                        {item.name || item.sku} × {item.quantity} - ₽{formatPrice(item.price)}
+                        {item.sku ? (
+                          <>
+                            <a
+                              href={`https://www.ozon.ru/product/${item.sku}/`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: '#1890ff',
+                                textDecoration: 'none',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.textDecoration = 'underline';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.textDecoration = 'none';
+                              }}
+                            >
+                              {item.name || item.sku}
+                            </a>
+                            {' × '}{item.quantity} - {formatRuble(item.price)}
+                          </>
+                        ) : (
+                          <>{item.name || item.sku} × {item.quantity} - {formatRuble(item.price)}</>
+                        )}
                       </Text>
                     </div>
                   ))}
@@ -1006,7 +1029,35 @@ const OrderList: React.FC = () => {
                         },
                       },
                       { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 120 },
-                      { title: '商品名称', dataIndex: 'name', key: 'name' },
+                      {
+                        title: '商品名称',
+                        dataIndex: 'name',
+                        key: 'name',
+                        render: (name, record) => {
+                          if (record.sku) {
+                            return (
+                              <a
+                                href={`https://www.ozon.ru/product/${record.sku}/`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: '#1890ff',
+                                  textDecoration: 'none',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.textDecoration = 'underline';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.textDecoration = 'none';
+                                }}
+                              >
+                                {name || record.sku}
+                              </a>
+                            );
+                          }
+                          return name || record.sku;
+                        }
+                      },
                       { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 80 },
                       {
                         title: '单价',
