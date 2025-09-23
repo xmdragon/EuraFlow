@@ -538,9 +538,9 @@ class OzonOrder(Base):
             "analytics_data": self.analytics_data,
             "financial_data": self.financial_data,
             # 报表相关字段
-            "purchase_price": str(self.purchase_price) if self.purchase_price else None,
+            "purchase_price": format_currency(self.purchase_price),
             "domestic_tracking_number": self.domestic_tracking_number,
-            "material_cost": str(self.material_cost) if self.material_cost else None,
+            "material_cost": format_currency(self.material_cost),
             "order_notes": self.order_notes,
             "sync_status": self.sync_status,
             "sync_error": self.sync_error,

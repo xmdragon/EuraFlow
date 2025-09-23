@@ -1502,14 +1502,16 @@ async def update_order_extra_info(
     await db.commit()
     await db.refresh(order)
 
+    from ..utils.serialization import format_currency
+
     return {
         "success": True,
         "message": "Order extra info updated successfully",
         "data": {
             "posting_number": order.posting_number,
-            "purchase_price": str(order.purchase_price) if order.purchase_price else None,
+            "purchase_price": format_currency(order.purchase_price),
             "domestic_tracking_number": order.domestic_tracking_number,
-            "material_cost": str(order.material_cost) if order.material_cost else None,
+            "material_cost": format_currency(order.material_cost),
             "order_notes": order.order_notes
         }
     }
@@ -2102,19 +2104,21 @@ async def get_order_report(
                 total_cost += material_cost
                 order_count += 1
 
+                from ..utils.serialization import format_currency
+
                 # 添加到详细数据
                 report_data.append({
                     "date": order.created_at.strftime("%Y-%m-%d"),
                     "shop_name": shop_name,
                     "product_name": item.get('name', item.get('sku', '未知商品')),
                     "posting_number": order.posting_number,
-                    "purchase_price": str(purchase_price) if purchase_price else None,
-                    "sale_price": str(sale_price),
+                    "purchase_price": format_currency(purchase_price),
+                    "sale_price": format_currency(sale_price),
                     "tracking_number": order.tracking_number,
                     "domestic_tracking_number": order.domestic_tracking_number,
-                    "material_cost": str(material_cost) if material_cost else None,
+                    "material_cost": format_currency(material_cost),
                     "order_notes": order.order_notes,
-                    "profit": str(profit),
+                    "profit": format_currency(profit),
                     "sku": item.get('sku'),
                     "quantity": quantity,
                     "offer_id": item.get('offer_id')
