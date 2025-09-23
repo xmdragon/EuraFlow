@@ -213,14 +213,24 @@ const OrderList: React.FC = () => {
   // 当选中订单变化时，更新额外信息表单
   useEffect(() => {
     if (selectedOrder) {
-      extraInfoForm.setFieldsValue({
-        purchase_price: selectedOrder.purchase_price || '',
-        domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
-        material_cost: selectedOrder.material_cost || '',
-        order_notes: selectedOrder.order_notes || '',
-      });
+      try {
+        extraInfoForm.setFieldsValue({
+          purchase_price: selectedOrder.purchase_price || '',
+          domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
+          material_cost: selectedOrder.material_cost || '',
+          order_notes: selectedOrder.order_notes || '',
+        });
+      } catch (error) {
+        // 表单可能还未挂载，忽略错误
+        console.warn('Extra info form not mounted yet');
+      }
     } else {
-      extraInfoForm.resetFields();
+      try {
+        extraInfoForm.resetFields();
+      } catch (error) {
+        // 表单可能还未挂载，忽略错误
+        console.warn('Extra info form not mounted yet');
+      }
     }
   }, [selectedOrder, extraInfoForm]);
 
