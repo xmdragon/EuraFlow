@@ -1713,30 +1713,20 @@ const ProductList: React.FC = () => {
             style={{ marginBottom: 16 }}
           />
 
-          {/* 分析模式选择 */}
+          {/* 位置选择提示 */}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ marginRight: 8, display: 'block', marginBottom: 8 }}>分析模式:</label>
-            <Radio.Group
-              value={watermarkAnalyzeMode}
-              onChange={(e) => setWatermarkAnalyzeMode(e.target.value)}
-            >
-              <Radio value="individual">
-                <Space>
-                  <span>精准模式</span>
-                  <span style={{ color: '#999', fontSize: 12 }}>
-                    （每张图片单独分析最佳位置，效果最好）
-                  </span>
-                </Space>
-              </Radio>
-              <Radio value="fast">
-                <Space>
-                  <span>快速模式</span>
-                  <span style={{ color: '#999', fontSize: 12 }}>
-                    （仅分析第一张图片，处理速度快）
-                  </span>
-                </Space>
-              </Radio>
-            </Radio.Group>
+            <Alert
+              message="位置选择说明"
+              description={
+                <div>
+                  <p>• 预览时请点击图片上的9宫格选择水印位置</p>
+                  <p>• 未手动选择的图片将在应用时自动分析最佳位置</p>
+                  <p>• 蓝色高亮表示当前选择的位置</p>
+                </div>
+              }
+              type="info"
+              showIcon
+            />
           </div>
 
           <div style={{ marginBottom: 16 }}>

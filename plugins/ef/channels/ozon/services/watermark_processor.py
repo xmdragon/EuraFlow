@@ -57,7 +57,8 @@ class WatermarkProcessor:
         shop_id: int,
         watermark_config_id: int,
         task_id: Optional[str] = None,
-        analyze_mode: str = "individual"  # 'individual' or 'fast'
+        analyze_mode: str = "individual",  # 'individual' or 'fast'
+        position_overrides: Optional[Dict[str, str]] = None  # 手动选择的位置 {image_index: position}
     ) -> Dict[str, Any]:
         """
         处理单个商品的水印
@@ -142,7 +143,16 @@ class WatermarkProcessor:
                     # 决定使用的位置
                     best_position = None
 
-                    if analyze_mode == "fast":
+                    # 优先使用手动选择的位置
+                    if position_overrides and str(idx) in position_overrides:
+                        best_position = position_overrides[str(idx)]
+                        position_metadata.append({
+                            "image_index": idx,
+                            "position": best_position,
+                            "mode": "manual"
+                        })
+                        logger.info(f"Image {idx+1}: using manually selected position: {best_position}")
+                    elif analyze_mode == "fast":
                         # 快速模式：使用第一张图片的分析结果
                         best_position = fast_mode_position
                         position_metadata.append({

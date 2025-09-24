@@ -487,7 +487,7 @@ async def preview_watermark_batch(
     request: BatchPreviewRequest,
     db: AsyncSession = Depends(get_session)
 ):
-    """批量预览水印效果，返回每个商品所有图片的预览结果"""
+    """批量预览水印效果，返回每个商品所有图片的预览结果（不进行位置分析）"""
     try:
         # 限制最多10个商品
         if len(request.product_ids) > 10:
@@ -566,7 +566,8 @@ async def preview_watermark_batch(
 
             # 处理商品的每张图片
             image_previews = []
-            best_position = None  # 用于快速模式，只分析第一张图
+            # 预览时不使用算法分析，使用默认位置（右下角）
+            default_position = "bottom_right"
 
             for img_info in product_images:
                 # 检查是否超过总图片限制
@@ -574,29 +575,12 @@ async def preview_watermark_batch(
                     break
 
                 try:
-                    # 下载商品图片
-                    product_image = await processor.download_image(img_info["url"])
-
-                    # 分析最佳位置（精准模式或快速模式的第一张图）
-                    if request.analyze_each or (not request.analyze_each and best_position is None):
-                        best_position_enum, best_color = await processor.find_best_watermark_position(
-                            product_image,
-                            watermark_image,
-                            [watermark_config_dict],
-                            config.positions
-                        )
-                        if not request.analyze_each:  # 快速模式，记住第一张图的位置
-                            best_position = best_position_enum
-                    else:
-                        # 快速模式，使用第一张图的位置
-                        best_position_enum = best_position
-
-                    # 生成预览
+                    # 生成预览（使用默认位置，不进行算法分析）
                     result_image, metadata = await processor.process_image_with_watermark(
                         img_info["url"],
                         config.image_url,
                         watermark_config_dict,
-                        best_position_enum if request.analyze_each else best_position
+                        default_position  # 使用默认位置
                     )
 
                     # 转换为base64
@@ -607,7 +591,7 @@ async def preview_watermark_batch(
                         "preview_image": base64_image,
                         "image_type": img_info["type"],
                         "image_index": img_info.get("index", 0),
-                        "suggested_position": metadata.get("position"),
+                        "suggested_position": default_position,  # 使用默认位置
                         "metadata": metadata
                     })
 
@@ -738,13 +722,19 @@ async def apply_watermark_batch(
                     task.processing_started_at = datetime.utcnow()
                     await db.commit()
 
+                    # 获取该商品的手动位置选择（如果有）
+                    product_positions = None
+                    if request.position_overrides:
+                        product_positions = request.position_overrides.get(str(task.product_id))
+
                     # 处理单个商品
                     result = await processor.process_single_product(
                         task.product_id,
                         task.shop_id,
                         task.watermark_config_id,
                         str(task.id),
-                        analyze_mode=analyze_mode
+                        analyze_mode=analyze_mode,
+                        position_overrides=product_positions
                     )
 
                     # 更新任务状态为完成
