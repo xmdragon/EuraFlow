@@ -56,7 +56,8 @@ class WatermarkProcessor:
         product_id: int,
         shop_id: int,
         watermark_config_id: int,
-        task_id: Optional[str] = None
+        task_id: Optional[str] = None,
+        analyze_mode: str = "individual"  # 'individual' or 'fast'
     ) -> Dict[str, Any]:
         """
         处理单个商品的水印
@@ -104,42 +105,95 @@ class WatermarkProcessor:
                     "images": []
                 }
 
-            # 智能分析第一张图片，选择最佳水印位置
-            best_position = None
-            if original_images:
+            # 下载水印图片一次，供所有图片分析使用
+            watermark_image = None
+            if original_images and analyze_mode == "individual":
                 try:
-                    logger.info(f"Analyzing image for best watermark position...")
-
-                    # 下载第一张图片进行分析
-                    sample_image = await self.image_service.download_image(original_images[0])
                     watermark_image = await self.image_service.download_image(watermark_config.image_url)
+                except Exception as e:
+                    logger.error(f"Failed to download watermark image: {e}")
 
-                    # 智能选择最佳位置
+            # 快速模式：分析第一张图片，应用到所有图片
+            fast_mode_position = None
+            fast_mode_color = None
+            if analyze_mode == "fast" and original_images:
+                try:
+                    watermark_image = await self.image_service.download_image(watermark_config.image_url)
+                    first_image = await self.image_service.download_image(original_images[0])
                     best_position_enum, best_color = await self.image_service.find_best_watermark_position(
-                        sample_image,
+                        first_image,
                         watermark_image,
                         [{"color_type": watermark_config.color_type}],
-                        watermark_config.positions  # 使用配置的所有允许位置
+                        watermark_config.positions
                     )
-
-                    best_position = best_position_enum.value
-                    logger.info(f"Selected best position: {best_position} with color: {best_color.value}")
-
+                    fast_mode_position = best_position_enum.value
+                    fast_mode_color = best_color.value
+                    logger.info(f"Fast mode: Using position {fast_mode_position} with color {fast_mode_color} for all images")
                 except Exception as e:
-                    logger.warning(f"Failed to analyze image for best position: {e}, using default")
-                    best_position = None
+                    logger.warning(f"Failed to analyze first image in fast mode: {e}, using defaults")
 
             # 处理每张图片
             processed_images = []
             cloudinary_public_ids = []
+            position_metadata = []  # 记录每张图片使用的位置
 
             for idx, image_url in enumerate(original_images):
                 try:
+                    # 决定使用的位置
+                    best_position = None
+
+                    if analyze_mode == "fast":
+                        # 快速模式：使用第一张图片的分析结果
+                        best_position = fast_mode_position
+                        position_metadata.append({
+                            "image_index": idx,
+                            "position": best_position or "default",
+                            "color": fast_mode_color or watermark_config.color_type,
+                            "mode": "fast"
+                        })
+                        if best_position:
+                            logger.info(f"Image {idx+1}: using fast mode position: {best_position}")
+
+                    elif analyze_mode == "individual" and watermark_image:
+                        # 精准模式：为每张图片单独分析最佳位置
+                        try:
+                            logger.info(f"Analyzing image {idx+1}/{len(original_images)} for best watermark position...")
+
+                            # 下载当前图片进行分析
+                            current_image = await self.image_service.download_image(image_url)
+
+                            # 智能选择最佳位置
+                            best_position_enum, best_color = await self.image_service.find_best_watermark_position(
+                                current_image,
+                                watermark_image,
+                                [{"color_type": watermark_config.color_type}],
+                                watermark_config.positions  # 使用配置的所有允许位置
+                            )
+
+                            best_position = best_position_enum.value
+                            position_metadata.append({
+                                "image_index": idx,
+                                "position": best_position,
+                                "color": best_color.value,
+                                "mode": "individual"
+                            })
+                            logger.info(f"Image {idx+1}: selected position: {best_position} with color: {best_color.value}")
+
+                        except Exception as e:
+                            logger.warning(f"Failed to analyze image {idx+1} for best position: {e}, using default")
+                            best_position = None
+                            position_metadata.append({
+                                "image_index": idx,
+                                "position": "default",
+                                "error": str(e),
+                                "mode": "individual"
+                            })
+
                     # 生成唯一ID
                     unique_id = f"{product.sku}_{uuid4().hex[:8]}_{idx}"
                     folder = f"{self.cloudinary_service.folder_prefix}/products/{shop_id}"
 
-                    # 使用智能分析得出的最佳位置，或使用默认
+                    # 使用分析得出的最佳位置，或使用默认
                     transformation = self._build_watermark_transformation(
                         watermark_config,
                         position=best_position
@@ -190,6 +244,7 @@ class WatermarkProcessor:
                 "original_images": original_images,
                 "processed_images": processed_images,
                 "cloudinary_ids": cloudinary_public_ids,
+                "position_metadata": position_metadata,  # 每张图片的位置信息
                 "ozon_update": update_result
             }
 

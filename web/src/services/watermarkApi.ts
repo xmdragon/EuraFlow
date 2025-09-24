@@ -218,6 +218,42 @@ export async function previewWatermark(
   return response.data;
 }
 
+/**
+ * 批量预览水印效果
+ */
+export async function previewWatermarkBatch(
+  shopId: number,
+  productIds: number[],
+  watermarkConfigId: number,
+  analyzeEach: boolean = true
+) {
+  const response = await axios.post<{
+    success: boolean;
+    total_products: number;
+    previews: Array<{
+      product_id: number;
+      sku: string;
+      title: string;
+      original_image?: string;
+      preview_image?: string;
+      suggested_position?: string;
+      metadata?: any;
+      error?: string;
+    }>;
+    watermark_config: {
+      id: number;
+      name: string;
+      image_url: string;
+    };
+  }>('/api/ef/v1/ozon/watermark/batch/preview', {
+    shop_id: shopId,
+    product_ids: productIds,
+    watermark_config_id: watermarkConfigId,
+    analyze_each: analyzeEach
+  });
+  return response.data;
+}
+
 // ============ 批量水印操作 ============
 
 /**
@@ -227,7 +263,8 @@ export async function applyWatermarkBatch(
   shopId: number,
   productIds: number[],
   watermarkConfigId: number,
-  syncMode: boolean = true  // 默认使用同步模式
+  syncMode: boolean = true,  // 默认使用同步模式
+  analyzeMode: 'individual' | 'fast' = 'individual'  // 默认使用精准模式
 ) {
   const response = await axios.post<{
     success: boolean;
@@ -237,7 +274,7 @@ export async function applyWatermarkBatch(
     success_count?: number;
     failed_count?: number;
     message: string;
-  }>(`/api/ef/v1/ozon/watermark/batch/apply?sync_mode=${syncMode}`, {
+  }>(`/api/ef/v1/ozon/watermark/batch/apply?sync_mode=${syncMode}&analyze_mode=${analyzeMode}`, {
     shop_id: shopId,
     product_ids: productIds,
     watermark_config_id: watermarkConfigId

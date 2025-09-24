@@ -422,9 +422,10 @@ class OzonAPIClient:
     async def update_product_media(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         更新商品媒体（图片）
+        注意：OZON API一次只能更新一个商品的图片
 
         Args:
-            products: 商品媒体更新列表
+            products: 商品媒体更新列表（目前只处理第一个）
                 [{
                     "product_id": OZON商品ID,
                     "offer_id": "商品SKU",
@@ -434,21 +435,23 @@ class OzonAPIClient:
         Returns:
             更新结果
         """
-        # 构建请求数据
-        items = []
-        for product in products:
-            item = {
-                "product_id": product.get("product_id", 0),  # OZON商品ID（必须大于0）
-                "offer_id": product["offer_id"],
-                "images": product["images"][:15],  # OZON限制最多15张
-                "images360": [],  # 360度图片，暂不支持
-                "color_image": ""  # 颜色图片，暂不支持
-            }
-            items.append(item)
+        if not products:
+            return {"success": False, "error": "No products provided"}
+
+        # OZON API只支持单个商品更新，取第一个
+        product = products[0]
+
+        # 构建请求数据 - 根据API文档，是单个对象而不是items数组
+        request_data = {
+            "product_id": product.get("product_id", 0),  # OZON商品ID（必须大于0）
+            "images": product["images"][:15],  # OZON限制最多15张
+            "images360": [],  # 360度图片，暂不支持
+            "color_image": ""  # 颜色图片，暂不支持
+        }
 
         # 调试日志
-        request_data = {"items": items}
-        logger.info(f"[OZON API] Updating product media - request data: {request_data}")
+        logger.info(f"[OZON API] Updating product media - product_id: {request_data['product_id']}, image_count: {len(request_data['images'])}")
+        logger.info(f"[OZON API] Full request data: {request_data}")
 
         return await self._request(
             "POST", "/v1/product/pictures/import",

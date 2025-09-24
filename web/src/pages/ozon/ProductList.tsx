@@ -42,6 +42,8 @@ import {
   Alert,
   Upload,
   Image,
+  Divider,
+  Radio,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
@@ -86,6 +88,10 @@ const ProductList: React.FC = () => {
   const [watermarkConfigs, setWatermarkConfigs] = useState<watermarkApi.WatermarkConfig[]>([]);
   const [selectedWatermarkConfig, setSelectedWatermarkConfig] = useState<number | null>(null);
   const [watermarkBatchId, setWatermarkBatchId] = useState<string | null>(null);
+  const [watermarkStep, setWatermarkStep] = useState<'select' | 'preview'>('select');
+  const [watermarkPreviews, setWatermarkPreviews] = useState<any[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [watermarkAnalyzeMode, setWatermarkAnalyzeMode] = useState<'individual' | 'fast'>('individual');
 
   // 图片预览状态
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -160,8 +166,13 @@ const ProductList: React.FC = () => {
 
   // 应用水印
   const applyWatermarkMutation = useMutation({
-    mutationFn: ({ productIds, configId, syncMode = true }: { productIds: number[], configId: number, syncMode?: boolean }) =>
-      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, syncMode),
+    mutationFn: ({ productIds, configId, syncMode = true, analyzeMode = 'individual' }: {
+      productIds: number[],
+      configId: number,
+      syncMode?: boolean,
+      analyzeMode?: 'individual' | 'fast'
+    }) =>
+      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, syncMode, analyzeMode),
     onSuccess: (data) => {
       if (data.sync_mode) {
         // 同步模式 - 直接显示结果
@@ -1604,21 +1615,51 @@ const ProductList: React.FC = () => {
 
       {/* 水印应用模态框 */}
       <Modal
-        title="选择水印配置"
+        title={watermarkStep === 'select' ? '选择水印配置' : '预览水印效果'}
         open={watermarkModalVisible}
-        onCancel={() => setWatermarkModalVisible(false)}
-        onOk={() => {
-          if (!selectedWatermarkConfig) {
-            message.warning('请选择水印配置');
-            return;
-          }
-          const productIds = selectedRows.map((p) => p.id);
-          // 少于10个商品使用同步模式，大批量使用异步模式
-          const syncMode = productIds.length <= 10;
-          applyWatermarkMutation.mutate({ productIds, configId: selectedWatermarkConfig, syncMode });
+        onCancel={() => {
+          setWatermarkModalVisible(false);
+          setWatermarkStep('select');
+          setWatermarkPreviews([]);
         }}
-        confirmLoading={applyWatermarkMutation.isPending}
-        width={600}
+        onOk={async () => {
+          if (watermarkStep === 'select') {
+            if (!selectedWatermarkConfig) {
+              message.warning('请选择水印配置');
+              return;
+            }
+            // 进入预览步骤
+            setPreviewLoading(true);
+            try {
+              const productIds = selectedRows.slice(0, 10).map(p => p.id); // 最多预览10个
+              const result = await watermarkApi.previewWatermarkBatch(
+                selectedShop!,
+                productIds,
+                selectedWatermarkConfig,
+                watermarkAnalyzeMode === 'individual' // 根据选择的模式决定是否单独分析
+              );
+              setWatermarkPreviews(result.previews);
+              setWatermarkStep('preview');
+            } catch (error) {
+              message.error('预览失败');
+            } finally {
+              setPreviewLoading(false);
+            }
+          } else {
+            // 确认应用水印
+            const productIds = selectedRows.map((p) => p.id);
+            const syncMode = productIds.length <= 10;
+            applyWatermarkMutation.mutate({
+              productIds,
+              configId: selectedWatermarkConfig!,
+              syncMode,
+              analyzeMode: watermarkAnalyzeMode
+            });
+          }
+        }}
+        okText={watermarkStep === 'select' ? '预览效果' : '确认应用'}
+        confirmLoading={applyWatermarkMutation.isPending || previewLoading}
+        width={watermarkStep === 'preview' ? 1200 : 600}
       >
         <div>
           <Alert
@@ -1627,6 +1668,32 @@ const ProductList: React.FC = () => {
             showIcon
             style={{ marginBottom: 16 }}
           />
+
+          {/* 分析模式选择 */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ marginRight: 8, display: 'block', marginBottom: 8 }}>分析模式:</label>
+            <Radio.Group
+              value={watermarkAnalyzeMode}
+              onChange={(e) => setWatermarkAnalyzeMode(e.target.value)}
+            >
+              <Radio value="individual">
+                <Space>
+                  <span>精准模式</span>
+                  <span style={{ color: '#999', fontSize: 12 }}>
+                    （每张图片单独分析最佳位置，效果最好）
+                  </span>
+                </Space>
+              </Radio>
+              <Radio value="fast">
+                <Space>
+                  <span>快速模式</span>
+                  <span style={{ color: '#999', fontSize: 12 }}>
+                    （仅分析第一张图片，处理速度快）
+                  </span>
+                </Space>
+              </Radio>
+            </Radio.Group>
+          </div>
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ marginRight: 8 }}>选择水印:</label>
@@ -1662,6 +1729,153 @@ const ProductList: React.FC = () => {
               showInfo={true}
               strokeColor={{ '0%': '#108ee9', '100%': '#87d068' }}
             />
+          )}
+
+          {/* 预览结果 */}
+          {watermarkStep === 'preview' && watermarkPreviews.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Divider>预览结果</Divider>
+              <div style={{ maxHeight: 600, overflowY: 'auto' }}>
+                {watermarkPreviews.map((preview) => (
+                  <div key={preview.product_id} style={{ marginBottom: 24, padding: 16, border: '1px solid #f0f0f0', borderRadius: 8, backgroundColor: '#fafafa' }}>
+                    <div style={{ marginBottom: 12, fontSize: 16, fontWeight: 500 }}>
+                      <strong>{preview.sku}</strong> - {preview.title}
+                      <Tag color="blue" style={{ marginLeft: 8 }}>
+                        {preview.total_images || preview.images?.length || 0} 张图片
+                      </Tag>
+                    </div>
+
+                    {preview.error ? (
+                      <Alert message={preview.error} type="error" />
+                    ) : preview.images && preview.images.length > 0 ? (
+                      <div>
+                        {/* 多图预览网格布局 */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                          gap: 16,
+                          marginTop: 8
+                        }}>
+                          {preview.images.map((img, idx) => (
+                            <div key={idx} style={{
+                              border: '1px solid #e8e8e8',
+                              borderRadius: 8,
+                              padding: 8,
+                              backgroundColor: 'white'
+                            }}>
+                              {/* 图片类型标签 */}
+                              <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Tag color={img.image_type === 'primary' ? 'green' : 'default'}>
+                                  {img.image_type === 'primary' ? '主图' : `附加图 ${img.image_index + 1}`}
+                                </Tag>
+                                {img.suggested_position && (
+                                  <Tag color="blue" size="small">
+                                    位置: {img.suggested_position}
+                                  </Tag>
+                                )}
+                              </div>
+
+                              {img.error ? (
+                                <Alert message={`处理失败: ${img.error}`} type="error" showIcon />
+                              ) : (
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                  {/* 原图 */}
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ marginBottom: 4, fontSize: 11, color: '#999' }}>原图</div>
+                                    <div style={{
+                                      border: '1px solid #f0f0f0',
+                                      borderRadius: 4,
+                                      padding: 4,
+                                      backgroundColor: '#f9f9f9',
+                                      height: 150,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}>
+                                      <img
+                                        src={img.original_url}
+                                        alt="Original"
+                                        style={{
+                                          maxWidth: '100%',
+                                          maxHeight: '100%',
+                                          objectFit: 'contain'
+                                        }}
+                                        onError={(e) => {
+                                          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* 预览图 */}
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ marginBottom: 4, fontSize: 11, color: '#999' }}>水印预览</div>
+                                    <div style={{
+                                      border: '1px solid #f0f0f0',
+                                      borderRadius: 4,
+                                      padding: 4,
+                                      backgroundColor: '#f9f9f9',
+                                      height: 150,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}>
+                                      <img
+                                        src={`data:image/png;base64,${img.preview_image}`}
+                                        alt="Preview"
+                                        style={{
+                                          maxWidth: '100%',
+                                          maxHeight: '100%',
+                                          objectFit: 'contain'
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      // 旧版单图预览兼容
+                      <div style={{ display: 'flex', gap: 16 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ marginBottom: 4, fontSize: 12, color: '#999' }}>原图</div>
+                          <img
+                            src={preview.original_image}
+                            alt="Original"
+                            style={{ width: '100%', maxHeight: 200, objectFit: 'contain', border: '1px solid #f0f0f0' }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ marginBottom: 4, fontSize: 12, color: '#999' }}>
+                            水印预览
+                            {preview.suggested_position && (
+                              <Tag color="blue" style={{ marginLeft: 8 }}>
+                                位置: {preview.suggested_position}
+                              </Tag>
+                            )}
+                          </div>
+                          <img
+                            src={`data:image/png;base64,${preview.preview_image}`}
+                            alt="Preview"
+                            style={{ width: '100%', maxHeight: 200, objectFit: 'contain', border: '1px solid #f0f0f0' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {selectedRows.length > 10 && (
+                <Alert
+                  message={`仅显示前10个商品的预览，共选中${selectedRows.length}个商品`}
+                  type="info"
+                  style={{ marginTop: 8 }}
+                />
+              )}
+            </div>
           )}
         </div>
       </Modal>

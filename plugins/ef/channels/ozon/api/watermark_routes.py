@@ -90,6 +90,14 @@ class BatchWatermarkRequest(BaseModel):
     watermark_config_id: int
 
 
+class BatchPreviewRequest(BaseModel):
+    """批量预览水印请求"""
+    shop_id: int
+    product_ids: List[int]  # 限制最多10个商品
+    watermark_config_id: int
+    analyze_each: bool = Field(default=True, description="是否为每张图片单独分析位置")
+
+
 class BatchRestoreRequest(BaseModel):
     """批量还原请求"""
     shop_id: int
@@ -470,11 +478,183 @@ async def preview_watermark(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/batch/preview")
+async def preview_watermark_batch(
+    request: BatchPreviewRequest,
+    db: AsyncSession = Depends(get_session)
+):
+    """批量预览水印效果，返回每个商品所有图片的预览结果"""
+    try:
+        # 限制最多10个商品
+        if len(request.product_ids) > 10:
+            raise HTTPException(
+                status_code=400,
+                detail="批量预览最多支持10个商品"
+            )
+
+        # 获取水印配置
+        config = await db.get(WatermarkConfig, request.watermark_config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Watermark config not found")
+
+        # 获取商品信息
+        products_result = await db.execute(
+            select(OzonProduct).where(
+                and_(
+                    OzonProduct.shop_id == request.shop_id,
+                    OzonProduct.id.in_(request.product_ids)
+                )
+            )
+        )
+        products = products_result.scalars().all()
+
+        if len(products) != len(request.product_ids):
+            raise HTTPException(status_code=400, detail="Some products not found")
+
+        # 创建图片处理服务
+        processor = ImageProcessingService()
+
+        # 准备水印配置
+        watermark_config_dict = {
+            "color_type": config.color_type,
+            "opacity": float(config.opacity),
+            "scale_ratio": float(config.scale_ratio),
+            "margin_pixels": config.margin_pixels,
+            "positions": config.positions
+        }
+
+        # 下载水印图片一次
+        watermark_image = await processor.download_image(config.image_url)
+
+        preview_results = []
+        total_images_processed = 0
+        max_total_images = 30  # 限制总预览图片数量
+
+        for product in products:
+            # 收集商品所有图片
+            product_images = []
+
+            # 添加主图
+            if product.images and product.images.get("primary"):
+                product_images.append({
+                    "url": product.images["primary"],
+                    "type": "primary"
+                })
+
+            # 添加附加图片
+            if product.images and product.images.get("additional"):
+                for idx, img_url in enumerate(product.images["additional"][:5]):  # 限制每个商品最多5张附加图
+                    product_images.append({
+                        "url": img_url,
+                        "type": "additional",
+                        "index": idx
+                    })
+
+            if not product_images:
+                preview_results.append({
+                    "product_id": product.id,
+                    "sku": product.sku,
+                    "title": product.title,
+                    "error": "No images available",
+                    "images": []
+                })
+                continue
+
+            # 处理商品的每张图片
+            image_previews = []
+            best_position = None  # 用于快速模式，只分析第一张图
+
+            for img_info in product_images:
+                # 检查是否超过总图片限制
+                if total_images_processed >= max_total_images:
+                    break
+
+                try:
+                    # 下载商品图片
+                    product_image = await processor.download_image(img_info["url"])
+
+                    # 分析最佳位置（精准模式或快速模式的第一张图）
+                    if request.analyze_each or (not request.analyze_each and best_position is None):
+                        best_position_enum, best_color = await processor.find_best_watermark_position(
+                            product_image,
+                            watermark_image,
+                            [watermark_config_dict],
+                            config.positions
+                        )
+                        if not request.analyze_each:  # 快速模式，记住第一张图的位置
+                            best_position = best_position_enum
+                    else:
+                        # 快速模式，使用第一张图的位置
+                        best_position_enum = best_position
+
+                    # 生成预览
+                    result_image, metadata = await processor.process_image_with_watermark(
+                        img_info["url"],
+                        config.image_url,
+                        watermark_config_dict,
+                        best_position_enum if request.analyze_each else best_position
+                    )
+
+                    # 转换为base64
+                    base64_image = processor.image_to_base64(result_image)
+
+                    image_previews.append({
+                        "original_url": img_info["url"],
+                        "preview_image": base64_image,
+                        "image_type": img_info["type"],
+                        "image_index": img_info.get("index", 0),
+                        "suggested_position": metadata.get("position"),
+                        "metadata": metadata
+                    })
+
+                    total_images_processed += 1
+
+                except Exception as e:
+                    logger.error(f"Failed to preview image for product {product.id}: {e}")
+                    image_previews.append({
+                        "original_url": img_info["url"],
+                        "image_type": img_info["type"],
+                        "image_index": img_info.get("index", 0),
+                        "error": str(e)
+                    })
+
+            preview_results.append({
+                "product_id": product.id,
+                "sku": product.sku,
+                "title": product.title,
+                "images": image_previews,
+                "total_images": len(product_images)
+            })
+
+            # 检查是否已达到总图片限制
+            if total_images_processed >= max_total_images:
+                break
+
+        return {
+            "success": True,
+            "total_products": len(products),
+            "total_images": total_images_processed,
+            "previews": preview_results,
+            "watermark_config": {
+                "id": config.id,
+                "name": config.name,
+                "image_url": config.image_url
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to preview watermark batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # 批量水印任务
 @router.post("/batch/apply")
 async def apply_watermark_batch(
     request: BatchWatermarkRequest,
     sync_mode: bool = Query(True, description="同步处理模式（True:立即处理，False:异步处理）"),
+    analyze_mode: str = Query("individual", description="分析模式: 'individual'=每张图片单独分析, 'fast'=使用第一张图片的分析结果"),
     db: AsyncSession = Depends(get_session)
 ):
     """批量应用水印"""
@@ -559,7 +739,8 @@ async def apply_watermark_batch(
                         task.product_id,
                         task.shop_id,
                         task.watermark_config_id,
-                        str(task.id)
+                        str(task.id),
+                        analyze_mode=analyze_mode
                     )
 
                     # 更新任务状态为完成
