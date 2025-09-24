@@ -7,11 +7,12 @@ import * as ozonApi from '../../services/ozonApi';
 const { Option } = Select;
 
 interface ShopSelectorProps {
-  value?: number | null;
-  onChange?: (shopId: number | null) => void;
+  value?: number | number[] | null;
+  onChange?: (shopId: number | number[] | null) => void;
   showAllOption?: boolean;
   style?: React.CSSProperties;
   placeholder?: string;
+  mode?: 'multiple';
 }
 
 const ShopSelector: React.FC<ShopSelectorProps> = ({
@@ -20,8 +21,12 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   showAllOption = true,
   style,
   placeholder = '选择店铺',
+  mode,
 }) => {
-  const [selectedShop, setSelectedShop] = useState<number | null>(value || null);
+  const isMultiple = mode === 'multiple';
+  const [selectedShop, setSelectedShop] = useState<number | number[] | null>(
+    value !== undefined ? value : isMultiple ? [] : null
+  );
 
   // 获取店铺列表
   const { data: shopsData, isLoading } = useQuery({
@@ -38,20 +43,22 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
     if (shops.length === 0) return;
 
     // 如果外部已经设置了value，优先使用外部value
-    if (value !== undefined && value !== selectedShop) {
-      setSelectedShop(value);
+    if (value !== undefined) {
+      if (isMultiple) {
+        const incoming = Array.isArray(value) ? value : value === null ? [] : [value];
+        setSelectedShop(incoming);
+      } else if (value !== selectedShop) {
+        setSelectedShop(value as number | null);
+      }
       return;
     }
 
     // 如果已经有选中店铺，且该店铺仍然存在，则不需要改变
-    if (selectedShop !== null && shops.find((s) => s.id === selectedShop)) {
+    if (!isMultiple && selectedShop !== null && shops.find((s) => s.id === selectedShop)) {
       return;
     }
 
-    // 如果外部没有传入value，且当前没有选中店铺，才自动选择
-    // 这避免了在父组件已经初始化selectedShop的情况下重复触发onChange
-    if (value === undefined && selectedShop === null && shops.length > 0) {
-      // 恢复之前的选择（从localStorage）
+    if (!isMultiple && value === undefined && selectedShop === null && shops.length > 0) {
       const savedShopId = localStorage.getItem('ozon_selected_shop');
       if (savedShopId && savedShopId !== 'all') {
         const shopId = parseInt(savedShopId, 10);
@@ -62,20 +69,26 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         }
       }
 
-      // 自动选择第一个店铺
       const shopId = shops[0].id;
       setSelectedShop(shopId);
       onChange?.(shopId);
     }
-  }, [shops, selectedShop, onChange, value]);
+  }, [shops, selectedShop, onChange, value, isMultiple]);
 
-  const handleChange = (shopId: number | string) => {
-    const actualShopId = shopId === 'all' ? null : (shopId as number);
-    setSelectedShop(actualShopId);
-    onChange?.(actualShopId);
-
-    // 保存到localStorage
-    localStorage.setItem('ozon_selected_shop', shopId.toString());
+  const handleChange = (shopId: number | string | (number | string)[]) => {
+    if (isMultiple) {
+      const valuesArray = Array.isArray(shopId) ? shopId : [shopId];
+      const normalized = valuesArray
+        .map((val) => (typeof val === 'string' ? parseInt(val, 10) : val))
+        .filter((val) => !Number.isNaN(val)) as number[];
+      setSelectedShop(normalized);
+      onChange?.(normalized);
+    } else {
+      const actualShopId = shopId === 'all' ? null : (shopId as number);
+      setSelectedShop(actualShopId);
+      onChange?.(actualShopId);
+      localStorage.setItem('ozon_selected_shop', shopId.toString());
+    }
   };
 
   if (isLoading) {
@@ -83,7 +96,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   }
 
   // 如果只有一个店铺且不显示"全部"选项，隐藏选择器
-  if (shops.length === 1 && !showAllOption) {
+  if (!isMultiple && shops.length === 1 && !showAllOption) {
     return (
       <Space>
         <ShopOutlined />
@@ -94,13 +107,19 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
 
   return (
     <Select
-      value={selectedShop === null ? 'all' : selectedShop}
+      value={(() => {
+        if (isMultiple) {
+          return (selectedShop as number[] | null) ?? [];
+        }
+        return selectedShop === null ? 'all' : selectedShop;
+      })()}
       onChange={handleChange}
       style={{ minWidth: 200, ...style }}
       placeholder={placeholder}
       loading={isLoading}
+      mode={mode}
     >
-      {showAllOption && (
+      {!isMultiple && showAllOption && (
         <Option value="all">
           <Space>
             <ShopOutlined />

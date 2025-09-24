@@ -32,8 +32,9 @@ const OzonDashboard: React.FC = () => {
   }, [selectedShop]);
 
   // 优化店铺选择处理函数
-  const handleShopChange = useCallback((shopId: number | null) => {
-    setSelectedShop(shopId);
+  const handleShopChange = useCallback((shopId: number | number[] | null) => {
+    const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+    setSelectedShop(normalized);
   }, []);
 
   // 获取店铺列表（与ShopSelector共享查询）

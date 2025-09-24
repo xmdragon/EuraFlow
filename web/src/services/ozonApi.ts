@@ -123,6 +123,11 @@ export interface Product {
   width?: number;
   height?: number;
   depth?: number;
+  ozon_archived?: boolean;
+  ozon_has_fbo_stocks?: boolean;
+  ozon_has_fbs_stocks?: boolean;
+  ozon_is_discounted?: boolean;
+  ozon_visibility_status?: string;
   images?: ProductImages;
   attributes?: ProductAttributes;
   last_sync_at?: string;
@@ -255,10 +260,12 @@ export interface Order {
   delivery_address?: {
     city?: string;
     district?: string;
+    region?: string;
     street?: string;
     building?: string;
     apartment?: string;
     postal_code?: string;
+    delivery_type?: string;
     [key: string]: unknown;
   };
   delivery_method?: string;
@@ -270,6 +277,12 @@ export interface Order {
   shipped_at?: string;
   delivered_at?: string;
   cancelled_at?: string;
+  purchase_price?: string;
+  domestic_tracking_number?: string;
+  material_cost?: string;
+  order_notes?: string;
+  delivery_price?: string;
+  total_price?: string;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];
@@ -287,6 +300,7 @@ export interface OrderItem {
   discount: string;
   total_amount: string;
   status?: string;
+  image?: string;
 }
 
 export interface Posting {

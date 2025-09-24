@@ -15,6 +15,8 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     UniqueConstraint,
+    Index,
+    text,
     func,
     Numeric,
     Integer,
@@ -34,8 +36,8 @@ class WatermarkConfig(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, comment="配置ID")
 
     # 店铺关联
-    shop_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ozon_shops.id", ondelete="CASCADE"), nullable=False, comment="店铺ID"
+    shop_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("ozon_shops.id", ondelete="CASCADE"), nullable=True, comment="店铺ID（全局配置可为空）"
     )
 
     # 水印信息
@@ -79,15 +81,11 @@ class CloudinaryConfig(Base):
     """Cloudinary配置模型（加密存储凭证）"""
 
     __tablename__ = "cloudinary_configs"
-    __table_args__ = (UniqueConstraint("shop_id", name="uq_cloudinary_config_shop"),)
 
     # 主键
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, comment="配置ID")
 
-    # 店铺关联
-    shop_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ozon_shops.id", ondelete="CASCADE"), nullable=False, comment="店铺ID"
-    )
+    # 全局配置，不关联特定店铺
 
     # Cloudinary凭证
     cloud_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="Cloud Name")
@@ -136,12 +134,13 @@ class WatermarkTask(Base):
 
     __tablename__ = "watermark_tasks"
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "ix_watermark_task_processing",
             "shop_id",
             "product_id",
             "status",
-            name="uq_watermark_task_processing",
-            postgresql_where="status IN ('pending', 'processing')",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'processing')"),
         ),
     )
 

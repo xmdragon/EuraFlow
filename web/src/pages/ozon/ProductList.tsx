@@ -15,6 +15,8 @@ import {
   ExclamationCircleOutlined,
   SearchOutlined,
   FileImageOutlined,
+  PictureOutlined,
+  RollbackOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -45,6 +47,7 @@ import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
+import * as watermarkApi from '@/services/watermarkApi';
 import { formatRuble, calculateMargin } from '../../utils/currency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
@@ -77,6 +80,12 @@ const ProductList: React.FC = () => {
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({});
+
+  // 水印相关状态
+  const [watermarkModalVisible, setWatermarkModalVisible] = useState(false);
+  const [watermarkConfigs, setWatermarkConfigs] = useState<watermarkApi.WatermarkConfig[]>([]);
+  const [selectedWatermarkConfig, setSelectedWatermarkConfig] = useState<number | null>(null);
+  const [watermarkBatchId, setWatermarkBatchId] = useState<string | null>(null);
 
   // 图片预览状态
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -136,6 +145,95 @@ const ProductList: React.FC = () => {
       message.error(`价格更新失败: ${error.message}`);
     },
   });
+
+  // 查询水印配置
+  const { data: watermarkConfigsData } = useQuery({
+    queryKey: ['watermarkConfigs'],
+    queryFn: () => watermarkApi.getWatermarkConfigs(),
+  });
+
+  useEffect(() => {
+    if (watermarkConfigsData) {
+      setWatermarkConfigs(watermarkConfigsData);
+    }
+  }, [watermarkConfigsData]);
+
+  // 应用水印
+  const applyWatermarkMutation = useMutation({
+    mutationFn: ({ productIds, configId, syncMode = true }: { productIds: number[], configId: number, syncMode?: boolean }) =>
+      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, syncMode),
+    onSuccess: (data) => {
+      if (data.sync_mode) {
+        // 同步模式 - 直接显示结果
+        if (data.success_count && data.failed_count !== undefined) {
+          if (data.failed_count > 0) {
+            message.warning(`水印处理完成：成功 ${data.success_count} 个，失败 ${data.failed_count} 个`);
+          } else {
+            message.success(`水印处理成功完成，共处理 ${data.success_count} 个商品`);
+          }
+        } else {
+          message.success(`水印处理完成`);
+        }
+        queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+      } else {
+        // 异步模式 - 启动轮询
+        message.success(`水印批处理已启动，任务ID: ${data.batch_id}`);
+        setWatermarkBatchId(data.batch_id);
+        // 开始轮询任务状态
+        pollWatermarkTasks(data.batch_id);
+      }
+      setWatermarkModalVisible(false);
+      setSelectedRows([]);
+    },
+    onError: (error: any) => {
+      message.error(`水印应用失败: ${error.message}`);
+    },
+  });
+
+  // 还原原图
+  const restoreOriginalMutation = useMutation({
+    mutationFn: (productIds: number[]) =>
+      watermarkApi.restoreOriginalBatch(selectedShop!, productIds),
+    onSuccess: (data) => {
+      message.success(`原图还原已启动，任务ID: ${data.batch_id}`);
+      setSelectedRows([]);
+      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+    },
+    onError: (error: any) => {
+      message.error(`原图还原失败: ${error.message}`);
+    },
+  });
+
+  // 轮询水印任务状态
+  const pollWatermarkTasks = async (batchId: string) => {
+    let completed = 0;
+    let failed = 0;
+    const interval = setInterval(async () => {
+      try {
+        const tasks = await watermarkApi.getTasks({ shop_id: selectedShop!, batch_id: batchId });
+
+        completed = tasks.filter(t => t.status === 'completed').length;
+        failed = tasks.filter(t => t.status === 'failed').length;
+        const total = tasks.length;
+
+        if (completed + failed === total) {
+          clearInterval(interval);
+          if (failed > 0) {
+            message.warning(`水印处理完成，成功: ${completed}，失败: ${failed}`);
+          } else {
+            message.success(`水印处理成功完成，共处理 ${completed} 个商品`);
+          }
+          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+          setWatermarkBatchId(null);
+        }
+      } catch (error) {
+        console.error('Failed to poll watermark tasks:', error);
+      }
+    }, 3000);
+
+    // 5分钟后自动停止轮询
+    setTimeout(() => clearInterval(interval), 300000);
+  };
 
   // 轮询同步任务状态
   useEffect(() => {
@@ -474,11 +572,11 @@ const ProductList: React.FC = () => {
             {/* 显示OZON库存状态 */}
             {(record.ozon_has_fbo_stocks || record.ozon_has_fbs_stocks) && (
               <Space size={4}>
-                {record.ozon_has_fbo_stocks && <Tag size="small" color="blue">FBO</Tag>}
-                {record.ozon_has_fbs_stocks && <Tag size="small" color="cyan">FBS</Tag>}
+                {record.ozon_has_fbo_stocks && <Tag color="blue">FBO</Tag>}
+                {record.ozon_has_fbs_stocks && <Tag color="cyan">FBS</Tag>}
               </Space>
             )}
-            {record.ozon_is_discounted && <Tag size="small" color="red">促销</Tag>}
+            {record.ozon_is_discounted && <Tag color="red">促销</Tag>}
           </Space>
         );
       },
@@ -993,12 +1091,13 @@ const ProductList: React.FC = () => {
               <ShopSelector
                 value={selectedShop}
                 onChange={(shopId) => {
-                  setSelectedShop(shopId);
+                  const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+                  setSelectedShop(normalized);
                   // 切换店铺时重置页码和选中的行
                   setCurrentPage(1);
                   setSelectedRows([]);
                   // 保存到localStorage
-                  localStorage.setItem('ozon_selected_shop', shopId?.toString() || 'all');
+                  localStorage.setItem('ozon_selected_shop', normalized?.toString() || 'all');
                 }}
                 showAllOption={true}
                 style={{ minWidth: 200 }}
@@ -1081,6 +1180,35 @@ const ProductList: React.FC = () => {
             disabled={selectedRows.length === 0}
           >
             批量改库存
+          </Button>
+          <Button
+            icon={<PictureOutlined />}
+            onClick={() => {
+              if (watermarkConfigs.length === 0) {
+                message.warning('请先配置水印');
+                return;
+              }
+              setWatermarkModalVisible(true);
+            }}
+            disabled={selectedRows.length === 0}
+          >
+            批量水印
+          </Button>
+          <Button
+            icon={<RollbackOutlined />}
+            onClick={() => {
+              confirm({
+                title: '确认还原',
+                content: `确定要还原选中的 ${selectedRows.length} 个商品的原图吗？`,
+                onOk: () => {
+                  const productIds = selectedRows.map((p) => p.id);
+                  restoreOriginalMutation.mutate(productIds);
+                },
+              });
+            }}
+            disabled={selectedRows.length === 0}
+          >
+            还原原图
           </Button>
           <Button icon={<UploadOutlined />} onClick={handleImport}>
             导入商品
@@ -1471,6 +1599,70 @@ const ProductList: React.FC = () => {
               </Button>
             </Space>
           </div>
+        </div>
+      </Modal>
+
+      {/* 水印应用模态框 */}
+      <Modal
+        title="选择水印配置"
+        open={watermarkModalVisible}
+        onCancel={() => setWatermarkModalVisible(false)}
+        onOk={() => {
+          if (!selectedWatermarkConfig) {
+            message.warning('请选择水印配置');
+            return;
+          }
+          const productIds = selectedRows.map((p) => p.id);
+          // 少于10个商品使用同步模式，大批量使用异步模式
+          const syncMode = productIds.length <= 10;
+          applyWatermarkMutation.mutate({ productIds, configId: selectedWatermarkConfig, syncMode });
+        }}
+        confirmLoading={applyWatermarkMutation.isPending}
+        width={600}
+      >
+        <div>
+          <Alert
+            message={`已选择 ${selectedRows.length} 个商品`}
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ marginRight: 8 }}>选择水印:</label>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="请选择水印配置"
+              value={selectedWatermarkConfig}
+              onChange={(value) => setSelectedWatermarkConfig(value)}
+            >
+              {watermarkConfigs.map((config) => (
+                <Option key={config.id} value={config.id}>
+                  <Space>
+                    <img
+                      src={config.image_url}
+                      alt={config.name}
+                      style={{ width: 20, height: 20, objectFit: 'contain' }}
+                    />
+                    <span>{config.name}</span>
+                    <Tag>{config.color_type}</Tag>
+                    <span style={{ color: '#999', fontSize: 12 }}>
+                      {(config.scale_ratio * 100).toFixed(0)}% / {(config.opacity * 100).toFixed(0)}%
+                    </span>
+                  </Space>
+                </Option>
+              ))}
+            </Select>
+          </div>
+
+          {watermarkBatchId && (
+            <Progress
+              percent={50}
+              status="active"
+              showInfo={true}
+              strokeColor={{ '0%': '#108ee9', '100%': '#87d068' }}
+            />
+          )}
         </div>
       </Modal>
 

@@ -202,6 +202,64 @@ class CloudinaryService:
                 "error": str(e)
             }
 
+    async def upload_image_from_url(
+        self,
+        image_url: str,
+        public_id: str,
+        folder: str = "watermarked",
+        transformations: List[Dict] = None
+    ) -> Dict[str, Any]:
+        """
+        从URL上传图片到Cloudinary（支持转换）
+
+        Args:
+            image_url: 图片URL
+            public_id: 公开ID
+            folder: 文件夹路径
+            transformations: Cloudinary转换参数列表
+
+        Returns:
+            包含上传结果的字典
+        """
+        try:
+            # 准备上传参数
+            upload_params = {
+                "public_id": f"{folder}/{public_id}",
+                "resource_type": "image",
+                "format": "jpg",
+                "quality": "auto:good",
+                "fetch_format": "auto",
+            }
+
+            # 添加转换参数
+            if transformations:
+                upload_params["transformation"] = transformations
+
+            # 从URL上传
+            result = cloudinary.uploader.upload(
+                image_url,
+                **upload_params
+            )
+
+            logger.info(f"Image uploaded from URL successfully: {result['public_id']}")
+
+            return {
+                "success": True,
+                "public_id": result["public_id"],
+                "url": result["secure_url"],
+                "width": result.get("width"),
+                "height": result.get("height"),
+                "bytes": result.get("bytes"),
+                "format": result.get("format")
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to upload image from URL: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     async def delete_resource(self, public_id: str) -> Dict[str, Any]:
         """
         删除单个资源
@@ -465,12 +523,11 @@ class CloudinaryConfigManager:
     """Cloudinary配置管理器"""
 
     @staticmethod
-    async def get_config(shop_id: int, db: AsyncSession) -> Optional[CloudinaryConfig]:
+    async def get_config(db: AsyncSession) -> Optional[CloudinaryConfig]:
         """
-        获取店铺的Cloudinary配置
+        获取全局Cloudinary配置
 
         Args:
-            shop_id: 店铺ID
             db: 数据库会话
 
         Returns:
@@ -478,8 +535,8 @@ class CloudinaryConfigManager:
         """
         result = await db.execute(
             select(CloudinaryConfig)
-            .where(CloudinaryConfig.shop_id == shop_id)
             .where(CloudinaryConfig.is_active == True)
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
@@ -511,6 +568,9 @@ class CloudinaryConfigManager:
             api_key=config.api_key,
             api_secret=api_secret
         )
+
+        # 设置folder_prefix属性
+        service.folder_prefix = config.folder_prefix if config.folder_prefix else "euraflow"
 
         return service
 

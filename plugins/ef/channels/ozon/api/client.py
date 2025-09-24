@@ -151,6 +151,10 @@ class OzonAPIClient:
 
         request_id = str(uuid.uuid4())
 
+        # 调试日志 - 查看实际发送的数据
+        if endpoint == "/v1/product/pictures/import":
+            logger.info(f"[DEBUG] _request sending data: {data}")
+
         # 构建请求
         headers = {"X-Request-Id": request_id}
         if self.correlation_id:
@@ -413,6 +417,43 @@ class OzonAPIClient:
         """
         return await self._request(
             "POST", "/v2/products/delete", data={"product_ids": product_ids}, resource_type="products"
+        )
+
+    async def update_product_media(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        更新商品媒体（图片）
+
+        Args:
+            products: 商品媒体更新列表
+                [{
+                    "product_id": OZON商品ID,
+                    "offer_id": "商品SKU",
+                    "images": ["图片URL1", "图片URL2", ...]  # 最多15张
+                }]
+
+        Returns:
+            更新结果
+        """
+        # 构建请求数据
+        items = []
+        for product in products:
+            item = {
+                "product_id": product.get("product_id", 0),  # OZON商品ID（必须大于0）
+                "offer_id": product["offer_id"],
+                "images": product["images"][:15],  # OZON限制最多15张
+                "images360": [],  # 360度图片，暂不支持
+                "color_image": ""  # 颜色图片，暂不支持
+            }
+            items.append(item)
+
+        # 调试日志
+        request_data = {"items": items}
+        logger.info(f"[OZON API] Updating product media - request data: {request_data}")
+
+        return await self._request(
+            "POST", "/v1/product/pictures/import",
+            data=request_data,
+            resource_type="products"
         )
 
     # ========== 订单相关 API ==========

@@ -814,7 +814,10 @@ const OrderList: React.FC = () => {
               <span style={{ fontWeight: 500 }}>选择店铺:</span>
               <ShopSelector
                 value={selectedShop}
-                onChange={setSelectedShop}
+                onChange={(shopId) => {
+                  const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+                  setSelectedShop(normalized);
+                }}
                 showAllOption={true}
                 style={{ minWidth: 200 }}
               />

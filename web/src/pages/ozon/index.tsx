@@ -8,6 +8,7 @@ import {
   DashboardOutlined,
   ShopOutlined,
   FileTextOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
 import React from 'react';
@@ -18,6 +19,7 @@ import OrderList from './OrderList';
 import OrderReport from './OrderReport';
 import ProductList from './ProductList';
 import ShopSettings from './ShopSettings';
+import WatermarkManagement from './WatermarkManagement';
 
 const { Sider, Content } = Layout;
 
@@ -30,6 +32,7 @@ const OzonManagement: React.FC = () => {
     if (path.includes('products')) return 'products';
     if (path.includes('reports')) return 'reports';
     if (path.includes('orders')) return 'orders';
+    if (path.includes('watermark')) return 'watermark';
     if (path.includes('settings')) return 'settings';
     return 'dashboard';
   };
@@ -54,6 +57,11 @@ const OzonManagement: React.FC = () => {
       key: 'reports',
       icon: <FileTextOutlined />,
       label: <Link to="/dashboard/ozon/reports">订单报表</Link>,
+    },
+    {
+      key: 'watermark',
+      icon: <PictureOutlined />,
+      label: <Link to="/dashboard/ozon/watermark">水印管理</Link>,
     },
     {
       key: 'settings',
@@ -90,6 +98,7 @@ const OzonManagement: React.FC = () => {
           <Route path="products" element={<ProductList />} />
           <Route path="orders" element={<OrderList />} />
           <Route path="reports" element={<OrderReport />} />
+          <Route path="watermark" element={<WatermarkManagement />} />
           <Route path="settings" element={<ShopSettings />} />
         </Routes>
       </Content>

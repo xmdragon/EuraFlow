@@ -270,7 +270,15 @@ const OrderReport: React.FC = () => {
             <label style={{ display: 'block', marginBottom: 8 }}>选择店铺：</label>
             <ShopSelector
               value={selectedShops}
-              onChange={(value) => setSelectedShops(Array.isArray(value) ? value : [value])}
+              onChange={(value) => {
+                if (Array.isArray(value)) {
+                  setSelectedShops(value as number[]);
+                } else if (value === null) {
+                  setSelectedShops([]);
+                } else {
+                  setSelectedShops([value as number]);
+                }
+              }}
               mode="multiple"
               placeholder="全部店铺"
               style={{ width: '100%' }}
