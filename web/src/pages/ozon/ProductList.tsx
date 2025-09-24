@@ -900,61 +900,6 @@ const ProductList: React.FC = () => {
     });
   };
 
-  // 计算格子内指示器的位置
-  const getIndicatorPosition = (position: string) => {
-    const styles: any = {
-      position: 'absolute',
-      width: '12px',
-      height: '12px',
-      backgroundColor: '#1890ff',
-      borderRadius: '50%',
-      boxShadow: '0 0 0 2px white'
-    };
-
-    // 根据位置设置指示器的具体位置
-    switch (position) {
-      case 'top_left':
-        styles.top = '20%';
-        styles.left = '20%';
-        break;
-      case 'top_center':
-        styles.top = '20%';
-        styles.left = '50%';
-        styles.transform = 'translateX(-50%)';
-        break;
-      case 'top_right':
-        styles.top = '20%';
-        styles.right = '20%';
-        break;
-      case 'center_left':
-        styles.top = '50%';
-        styles.left = '20%';
-        styles.transform = 'translateY(-50%)';
-        break;
-      case 'center_right':
-        styles.top = '50%';
-        styles.right = '20%';
-        styles.transform = 'translateY(-50%)';
-        break;
-      case 'bottom_left':
-        styles.bottom = '20%';
-        styles.left = '20%';
-        break;
-      case 'bottom_center':
-        styles.bottom = '20%';
-        styles.left = '50%';
-        styles.transform = 'translateX(-50%)';
-        break;
-      case 'bottom_right':
-      default:
-        styles.bottom = '20%';
-        styles.right = '20%';
-        break;
-    }
-
-    return styles;
-  };
-
   // 计算大预览图上的水印样式
   const getPreviewWatermarkStyle = (position: string | undefined, config: any) => {
     if (!position || !config) return {};
@@ -2035,10 +1980,7 @@ const ProductList: React.FC = () => {
                                           }}
                                           title={`点击选择位置: ${position.replace('_', ' ')}`}
                                         >
-                                          {/* 格子内容 - 显示对应位置的指示器 */}
-                                          {isSelected && (
-                                            <div style={getIndicatorPosition(position)} />
-                                          )}
+                                          {/* 格子内容为空，仅通过边框显示选中状态 */}
                                         </div>
                                       );
                                     })}
