@@ -1,0 +1,642 @@
+"""
+水印管理API路由
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Body
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+from uuid import uuid4
+from pydantic import BaseModel, Field
+from decimal import Decimal
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
+import logging
+
+from ef_core.database import get_async_session
+from ..models.watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
+from ..models import OzonProduct, OzonShop
+from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
+from ..services.image_processing_service import ImageProcessingService, WatermarkPosition
+
+# 使用 get_async_session 作为 get_session 的别名
+get_session = get_async_session
+
+router = APIRouter(prefix="/watermark", tags=["Watermark"])
+logger = logging.getLogger(__name__)
+
+
+# DTO 模型
+class CloudinaryConfigDTO(BaseModel):
+    """Cloudinary配置DTO"""
+    cloud_name: str
+    api_key: str
+    api_secret: str
+    folder_prefix: str = "euraflow"
+    auto_cleanup_days: int = 30
+
+
+class CloudinaryConfigResponse(BaseModel):
+    """Cloudinary配置响应"""
+    id: int
+    shop_id: int
+    cloud_name: str
+    api_key: str
+    folder_prefix: str
+    auto_cleanup_days: int
+    is_active: bool
+    last_test_at: Optional[datetime]
+    last_test_success: Optional[bool]
+    storage_used_bytes: Optional[int]
+    bandwidth_used_bytes: Optional[int]
+
+
+class WatermarkConfigCreateDTO(BaseModel):
+    """创建水印配置DTO"""
+    name: str
+    color_type: str = "white"
+    scale_ratio: float = Field(default=0.1, ge=0.01, le=1.0)
+    opacity: float = Field(default=0.8, ge=0.1, le=1.0)
+    margin_pixels: int = Field(default=20, ge=0)
+    positions: List[str] = Field(default=["bottom_right"])
+
+
+class WatermarkConfigResponse(BaseModel):
+    """水印配置响应"""
+    id: int
+    shop_id: int
+    name: str
+    image_url: str
+    cloudinary_public_id: str
+    color_type: str
+    scale_ratio: float
+    opacity: float
+    margin_pixels: int
+    positions: List[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class WatermarkPreviewRequest(BaseModel):
+    """水印预览请求"""
+    image_url: str
+    watermark_config_id: int
+    position: Optional[str] = None
+
+
+class BatchWatermarkRequest(BaseModel):
+    """批量水印请求"""
+    shop_id: int
+    product_ids: List[int]
+    watermark_config_id: int
+
+
+class BatchRestoreRequest(BaseModel):
+    """批量还原请求"""
+    shop_id: int
+    product_ids: List[int]
+
+
+class WatermarkTaskResponse(BaseModel):
+    """水印任务响应"""
+    id: str
+    shop_id: int
+    product_id: int
+    task_type: str
+    status: str
+    watermark_config_id: Optional[int]
+    error_message: Optional[str]
+    retry_count: int
+    batch_id: Optional[str]
+    batch_total: Optional[int]
+    batch_position: Optional[int]
+    created_at: datetime
+    processing_started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+
+
+# Cloudinary配置管理
+@router.post("/cloudinary/config")
+async def create_cloudinary_config(
+    shop_id: int = Form(...),
+    config: CloudinaryConfigDTO = Depends(),
+    db: AsyncSession = Depends(get_session)
+):
+    """创建或更新Cloudinary配置"""
+    try:
+        # 检查是否已存在配置
+        existing = await db.execute(
+            select(CloudinaryConfig).where(CloudinaryConfig.shop_id == shop_id)
+        )
+        existing_config = existing.scalar_one_or_none()
+
+        if existing_config:
+            # 更新现有配置
+            existing_config.cloud_name = config.cloud_name
+            existing_config.api_key = config.api_key
+            existing_config.api_secret_encrypted = config.api_secret  # TODO: 加密
+            existing_config.folder_prefix = config.folder_prefix
+            existing_config.auto_cleanup_days = config.auto_cleanup_days
+            existing_config.updated_at = datetime.utcnow()
+        else:
+            # 创建新配置
+            existing_config = CloudinaryConfig(
+                shop_id=shop_id,
+                cloud_name=config.cloud_name,
+                api_key=config.api_key,
+                api_secret_encrypted=config.api_secret,  # TODO: 加密
+                folder_prefix=config.folder_prefix,
+                auto_cleanup_days=config.auto_cleanup_days
+            )
+            db.add(existing_config)
+
+        await db.commit()
+        await db.refresh(existing_config)
+
+        return CloudinaryConfigResponse(
+            id=existing_config.id,
+            shop_id=existing_config.shop_id,
+            cloud_name=existing_config.cloud_name,
+            api_key=existing_config.api_key,
+            folder_prefix=existing_config.folder_prefix,
+            auto_cleanup_days=existing_config.auto_cleanup_days,
+            is_active=existing_config.is_active,
+            last_test_at=existing_config.last_test_at,
+            last_test_success=existing_config.last_test_success,
+            storage_used_bytes=existing_config.storage_used_bytes,
+            bandwidth_used_bytes=existing_config.bandwidth_used_bytes
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to create/update Cloudinary config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/cloudinary/config/{shop_id}")
+async def get_cloudinary_config(
+    shop_id: int,
+    db: AsyncSession = Depends(get_session)
+):
+    """获取Cloudinary配置"""
+    config = await CloudinaryConfigManager.get_config(shop_id, db)
+
+    if not config:
+        raise HTTPException(status_code=404, detail="Cloudinary configuration not found")
+
+    return CloudinaryConfigResponse(
+        id=config.id,
+        shop_id=config.shop_id,
+        cloud_name=config.cloud_name,
+        api_key=config.api_key,
+        folder_prefix=config.folder_prefix,
+        auto_cleanup_days=config.auto_cleanup_days,
+        is_active=config.is_active,
+        last_test_at=config.last_test_at,
+        last_test_success=config.last_test_success,
+        storage_used_bytes=config.storage_used_bytes,
+        bandwidth_used_bytes=config.bandwidth_used_bytes
+    )
+
+
+@router.post("/cloudinary/test/{shop_id}")
+async def test_cloudinary_connection(
+    shop_id: int,
+    db: AsyncSession = Depends(get_session)
+):
+    """测试Cloudinary连接"""
+    config = await CloudinaryConfigManager.get_config(shop_id, db)
+
+    if not config:
+        raise HTTPException(status_code=404, detail="Cloudinary configuration not found")
+
+    service = await CloudinaryConfigManager.create_service_from_config(config)
+
+    if not service:
+        raise HTTPException(status_code=500, detail="Failed to create Cloudinary service")
+
+    result = await service.test_connection()
+
+    # 更新测试结果
+    config.last_test_at = datetime.utcnow()
+    config.last_test_success = result["success"]
+
+    if result["success"]:
+        config.storage_used_bytes = result["usage"]["storage_used_bytes"]
+        config.bandwidth_used_bytes = result["usage"]["bandwidth_used_bytes"]
+        config.last_quota_check = datetime.utcnow()
+
+    await db.commit()
+
+    return result
+
+
+# 水印配置管理
+@router.post("/configs")
+async def create_watermark_config(
+    shop_id: int = Form(...),
+    name: str = Form(...),
+    color_type: str = Form("white"),
+    scale_ratio: float = Form(0.1),
+    opacity: float = Form(0.8),
+    margin_pixels: int = Form(20),
+    positions: str = Form('["bottom_right"]'),  # JSON字符串
+    watermark_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_session)
+):
+    """创建水印配置"""
+    try:
+        # 解析positions JSON
+        import json
+        positions_list = json.loads(positions)
+
+        # 获取Cloudinary配置
+        cloudinary_config = await CloudinaryConfigManager.get_config(shop_id, db)
+        if not cloudinary_config:
+            raise HTTPException(status_code=400, detail="Cloudinary not configured for this shop")
+
+        # 创建Cloudinary服务
+        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+
+        # 上传水印图片到Cloudinary
+        watermark_data = await watermark_file.read()
+        public_id = f"watermarks/{shop_id}/{uuid4().hex[:8]}_{name}"
+
+        upload_result = await service.upload_image(
+            watermark_data,
+            public_id=public_id,
+            folder="watermarks",
+            tags=["watermark", f"shop_{shop_id}"]
+        )
+
+        if not upload_result["success"]:
+            raise HTTPException(status_code=500, detail="Failed to upload watermark image")
+
+        # 创建水印配置
+        watermark_config = WatermarkConfig(
+            shop_id=shop_id,
+            name=name,
+            cloudinary_public_id=upload_result["public_id"],
+            image_url=upload_result["url"],
+            color_type=color_type,
+            scale_ratio=Decimal(str(scale_ratio)),
+            opacity=Decimal(str(opacity)),
+            margin_pixels=margin_pixels,
+            positions=positions_list
+        )
+
+        db.add(watermark_config)
+        await db.commit()
+        await db.refresh(watermark_config)
+
+        return WatermarkConfigResponse(
+            id=watermark_config.id,
+            shop_id=watermark_config.shop_id,
+            name=watermark_config.name,
+            image_url=watermark_config.image_url,
+            cloudinary_public_id=watermark_config.cloudinary_public_id,
+            color_type=watermark_config.color_type,
+            scale_ratio=float(watermark_config.scale_ratio),
+            opacity=float(watermark_config.opacity),
+            margin_pixels=watermark_config.margin_pixels,
+            positions=watermark_config.positions or [],
+            is_active=watermark_config.is_active,
+            created_at=watermark_config.created_at,
+            updated_at=watermark_config.updated_at
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to create watermark config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/configs")
+async def list_watermark_configs(
+    shop_id: int = Query(...),
+    db: AsyncSession = Depends(get_session)
+):
+    """获取水印配置列表"""
+    result = await db.execute(
+        select(WatermarkConfig)
+        .where(WatermarkConfig.shop_id == shop_id)
+        .order_by(WatermarkConfig.created_at.desc())
+    )
+    configs = result.scalars().all()
+
+    return [
+        WatermarkConfigResponse(
+            id=config.id,
+            shop_id=config.shop_id,
+            name=config.name,
+            image_url=config.image_url,
+            cloudinary_public_id=config.cloudinary_public_id,
+            color_type=config.color_type,
+            scale_ratio=float(config.scale_ratio),
+            opacity=float(config.opacity),
+            margin_pixels=config.margin_pixels,
+            positions=config.positions or [],
+            is_active=config.is_active,
+            created_at=config.created_at,
+            updated_at=config.updated_at
+        )
+        for config in configs
+    ]
+
+
+@router.delete("/configs/{config_id}")
+async def delete_watermark_config(
+    config_id: int,
+    db: AsyncSession = Depends(get_session)
+):
+    """删除水印配置"""
+    config = await db.get(WatermarkConfig, config_id)
+
+    if not config:
+        raise HTTPException(status_code=404, detail="Watermark config not found")
+
+    # 获取Cloudinary服务并删除图片
+    cloudinary_config = await CloudinaryConfigManager.get_config(config.shop_id, db)
+    if cloudinary_config:
+        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+        await service.delete_resource(config.cloudinary_public_id)
+
+    await db.delete(config)
+    await db.commit()
+
+    return {"success": True, "message": "Watermark config deleted"}
+
+
+# 水印预览
+@router.post("/preview")
+async def preview_watermark(
+    request: WatermarkPreviewRequest,
+    db: AsyncSession = Depends(get_session)
+):
+    """预览单图水印效果"""
+    try:
+        # 获取水印配置
+        config = await db.get(WatermarkConfig, request.watermark_config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Watermark config not found")
+
+        # 创建图片处理服务
+        processor = ImageProcessingService()
+
+        # 处理图片
+        watermark_config_dict = {
+            "color_type": config.color_type,
+            "opacity": float(config.opacity),
+            "scale_ratio": float(config.scale_ratio),
+            "margin_pixels": config.margin_pixels,
+            "positions": config.positions
+        }
+
+        position = WatermarkPosition(request.position) if request.position else None
+
+        result_image, metadata = await processor.process_image_with_watermark(
+            request.image_url,
+            config.image_url,
+            watermark_config_dict,
+            position
+        )
+
+        # 转换为base64
+        base64_image = processor.image_to_base64(result_image)
+
+        return {
+            "success": True,
+            "preview_image": base64_image,
+            "metadata": metadata
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to preview watermark: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 批量水印任务
+@router.post("/batch/apply")
+async def apply_watermark_batch(
+    request: BatchWatermarkRequest,
+    db: AsyncSession = Depends(get_session)
+):
+    """批量应用水印"""
+    try:
+        # 验证水印配置
+        config = await db.get(WatermarkConfig, request.watermark_config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Watermark config not found")
+
+        # 验证商品存在
+        result = await db.execute(
+            select(OzonProduct)
+            .where(
+                and_(
+                    OzonProduct.shop_id == request.shop_id,
+                    OzonProduct.id.in_(request.product_ids)
+                )
+            )
+        )
+        products = result.scalars().all()
+
+        if len(products) != len(request.product_ids):
+            raise HTTPException(status_code=400, detail="Some products not found")
+
+        # 创建批次ID
+        batch_id = str(uuid4())
+        batch_total = len(request.product_ids)
+
+        # 创建任务记录
+        tasks = []
+        for i, product_id in enumerate(request.product_ids):
+            task = WatermarkTask(
+                shop_id=request.shop_id,
+                product_id=product_id,
+                watermark_config_id=request.watermark_config_id,
+                task_type="apply",
+                status="pending",
+                batch_id=batch_id,
+                batch_total=batch_total,
+                batch_position=i + 1
+            )
+            db.add(task)
+            tasks.append(task)
+
+        await db.commit()
+
+        # TODO: 触发异步任务处理
+        # from ..services.watermark_task_service import process_watermark_batch
+        # process_watermark_batch.delay(batch_id, request.shop_id, request.product_ids, request.watermark_config_id)
+
+        return {
+            "success": True,
+            "batch_id": batch_id,
+            "task_count": len(tasks),
+            "message": "Watermark batch processing started"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to start watermark batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/batch/restore")
+async def restore_original_batch(
+    request: BatchRestoreRequest,
+    db: AsyncSession = Depends(get_session)
+):
+    """批量还原原图"""
+    try:
+        # 创建批次ID
+        batch_id = str(uuid4())
+        batch_total = len(request.product_ids)
+
+        # 创建还原任务
+        tasks = []
+        for i, product_id in enumerate(request.product_ids):
+            # 查找最近的水印任务以获取原图
+            recent_task = await db.execute(
+                select(WatermarkTask)
+                .where(
+                    and_(
+                        WatermarkTask.shop_id == request.shop_id,
+                        WatermarkTask.product_id == product_id,
+                        WatermarkTask.task_type == "apply",
+                        WatermarkTask.status == "completed"
+                    )
+                )
+                .order_by(WatermarkTask.completed_at.desc())
+                .limit(1)
+            )
+            recent = recent_task.scalar_one_or_none()
+
+            if not recent or not recent.original_images:
+                continue
+
+            task = WatermarkTask(
+                shop_id=request.shop_id,
+                product_id=product_id,
+                task_type="restore",
+                status="pending",
+                original_images=recent.original_images,
+                batch_id=batch_id,
+                batch_total=batch_total,
+                batch_position=i + 1
+            )
+            db.add(task)
+            tasks.append(task)
+
+        await db.commit()
+
+        # TODO: 触发异步还原任务
+
+        return {
+            "success": True,
+            "batch_id": batch_id,
+            "task_count": len(tasks),
+            "message": "Restore batch processing started"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to start restore batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tasks/{task_id}")
+async def get_task_status(
+    task_id: str,
+    db: AsyncSession = Depends(get_session)
+):
+    """获取任务状态"""
+    task = await db.get(WatermarkTask, task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return WatermarkTaskResponse(
+        id=task.id,
+        shop_id=task.shop_id,
+        product_id=task.product_id,
+        task_type=task.task_type,
+        status=task.status,
+        watermark_config_id=task.watermark_config_id,
+        error_message=task.error_message,
+        retry_count=task.retry_count,
+        batch_id=task.batch_id,
+        batch_total=task.batch_total,
+        batch_position=task.batch_position,
+        created_at=task.created_at,
+        processing_started_at=task.processing_started_at,
+        completed_at=task.completed_at
+    )
+
+
+@router.get("/tasks")
+async def list_tasks(
+    shop_id: int = Query(...),
+    batch_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    limit: int = Query(100, le=500),
+    db: AsyncSession = Depends(get_session)
+):
+    """获取任务列表"""
+    query = select(WatermarkTask).where(WatermarkTask.shop_id == shop_id)
+
+    if batch_id:
+        query = query.where(WatermarkTask.batch_id == batch_id)
+
+    if status:
+        query = query.where(WatermarkTask.status == status)
+
+    query = query.order_by(WatermarkTask.created_at.desc()).limit(limit)
+
+    result = await db.execute(query)
+    tasks = result.scalars().all()
+
+    return [
+        WatermarkTaskResponse(
+            id=task.id,
+            shop_id=task.shop_id,
+            product_id=task.product_id,
+            task_type=task.task_type,
+            status=task.status,
+            watermark_config_id=task.watermark_config_id,
+            error_message=task.error_message,
+            retry_count=task.retry_count,
+            batch_id=task.batch_id,
+            batch_total=task.batch_total,
+            batch_position=task.batch_position,
+            created_at=task.created_at,
+            processing_started_at=task.processing_started_at,
+            completed_at=task.completed_at
+        )
+        for task in tasks
+    ]
+
+
+# 资源清理
+@router.delete("/cleanup")
+async def cleanup_old_resources(
+    shop_id: int = Query(...),
+    days: int = Query(30, ge=1),
+    dry_run: bool = Query(False),
+    db: AsyncSession = Depends(get_session)
+):
+    """清理过期Cloudinary资源"""
+    try:
+        # 获取Cloudinary配置
+        cloudinary_config = await CloudinaryConfigManager.get_config(shop_id, db)
+        if not cloudinary_config:
+            raise HTTPException(status_code=400, detail="Cloudinary not configured")
+
+        # 创建服务
+        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+
+        # 执行清理
+        folder = f"{cloudinary_config.folder_prefix}/watermarked/{shop_id}"
+        result = await service.cleanup_old_resources(folder, days, dry_run)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to cleanup resources: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

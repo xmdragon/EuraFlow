@@ -23,6 +23,11 @@ passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 croniter==1.4.1
 
+# Image Processing
+Pillow==10.1.0
+cloudinary==1.37.0
+numpy==1.24.3
+
 # Development
 pytest==7.4.3
 pytest-asyncio==0.21.1

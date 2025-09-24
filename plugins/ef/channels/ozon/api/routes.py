@@ -17,8 +17,14 @@ from ..models import OzonShop, OzonProduct, OzonOrder
 from sqlalchemy import select, func
 # from .auth import get_current_user  # Временно отключено для разработки
 
+# 导入水印路由
+from .watermark_routes import router as watermark_router
+
 router = APIRouter(prefix="/ozon", tags=["Ozon"])
 logger = logging.getLogger(__name__)
+
+# 包含水印管理路由（移除 /api/ef/v1 前缀，因为它在 watermark_routes 中已定义）
+router.include_router(watermark_router)
 
 
 # DTO 模型
