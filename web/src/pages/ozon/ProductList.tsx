@@ -1973,19 +1973,19 @@ const ProductList: React.FC = () => {
                                         }}
                                       />
                                     )}
-                                  </div>
-                                  {/* 9宫格位置选择器 */}
-                                  <div style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(3, 1fr)',
-                                    gridTemplateRows: 'repeat(3, 1fr)',
-                                    gap: 0
-                                  }}>
+
+                                    {/* 9宫格位置选择器 - 移到inline-block容器内 */}
+                                    <div style={{
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      display: 'grid',
+                                      gridTemplateColumns: 'repeat(3, 1fr)',
+                                      gridTemplateRows: 'repeat(3, 1fr)',
+                                      gap: 0
+                                    }}>
                                     {[
                                       'top_left', 'top_center', 'top_right',
                                       'center_left', null, 'center_right',
@@ -2042,6 +2042,7 @@ const ProductList: React.FC = () => {
                                         </div>
                                       );
                                     })}
+                                    </div>
                                   </div>
                                 </div>
                               )}
