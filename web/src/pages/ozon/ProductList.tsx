@@ -1752,8 +1752,8 @@ const ProductList: React.FC = () => {
                         {/* 多图预览网格布局 */}
                         <div style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                          gap: 16,
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                          gap: 12,
                           marginTop: 8
                         }}>
                           {preview.images.map((img, idx) => (
@@ -1778,59 +1778,29 @@ const ProductList: React.FC = () => {
                               {img.error ? (
                                 <Alert message={`处理失败: ${img.error}`} type="error" showIcon />
                               ) : (
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                  {/* 原图 */}
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ marginBottom: 4, fontSize: 11, color: '#999' }}>原图</div>
-                                    <div style={{
-                                      border: '1px solid #f0f0f0',
-                                      borderRadius: 4,
-                                      padding: 4,
-                                      backgroundColor: '#f9f9f9',
-                                      height: 150,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}>
-                                      <img
-                                        src={img.original_url}
-                                        alt="Original"
-                                        style={{
-                                          maxWidth: '100%',
-                                          maxHeight: '100%',
-                                          objectFit: 'contain'
-                                        }}
-                                        onError={(e) => {
-                                          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {/* 预览图 */}
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ marginBottom: 4, fontSize: 11, color: '#999' }}>水印预览</div>
-                                    <div style={{
-                                      border: '1px solid #f0f0f0',
-                                      borderRadius: 4,
-                                      padding: 4,
-                                      backgroundColor: '#f9f9f9',
-                                      height: 150,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}>
-                                      <img
-                                        src={`data:image/png;base64,${img.preview_image}`}
-                                        alt="Preview"
-                                        style={{
-                                          maxWidth: '100%',
-                                          maxHeight: '100%',
-                                          objectFit: 'contain'
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
+                                <div style={{
+                                  border: '1px solid #f0f0f0',
+                                  borderRadius: 4,
+                                  padding: 8,
+                                  backgroundColor: '#f9f9f9',
+                                  height: 200,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}>
+                                  <img
+                                    src={img.preview_image}
+                                    alt="水印预览"
+                                    style={{
+                                      maxWidth: '100%',
+                                      maxHeight: '100%',
+                                      objectFit: 'contain'
+                                    }}
+                                    onError={(e) => {
+                                      console.error('预览图片加载失败:', img.preview_image?.substring(0, 50));
+                                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+                                    }}
+                                  />
                                 </div>
                               )}
                             </div>
@@ -1839,17 +1809,9 @@ const ProductList: React.FC = () => {
                       </div>
                     ) : (
                       // 旧版单图预览兼容
-                      <div style={{ display: 'flex', gap: 16 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ marginBottom: 4, fontSize: 12, color: '#999' }}>原图</div>
-                          <img
-                            src={preview.original_image}
-                            alt="Original"
-                            style={{ width: '100%', maxHeight: 200, objectFit: 'contain', border: '1px solid #f0f0f0' }}
-                          />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ marginBottom: 4, fontSize: 12, color: '#999' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ width: '60%' }}>
+                          <div style={{ marginBottom: 8, fontSize: 12, color: '#999', textAlign: 'center' }}>
                             水印预览
                             {preview.suggested_position && (
                               <Tag color="blue" style={{ marginLeft: 8 }}>
@@ -1857,11 +1819,22 @@ const ProductList: React.FC = () => {
                               </Tag>
                             )}
                           </div>
-                          <img
-                            src={`data:image/png;base64,${preview.preview_image}`}
-                            alt="Preview"
-                            style={{ width: '100%', maxHeight: 200, objectFit: 'contain', border: '1px solid #f0f0f0' }}
-                          />
+                          <div style={{
+                            border: '1px solid #f0f0f0',
+                            borderRadius: 4,
+                            padding: 8,
+                            backgroundColor: '#f9f9f9'
+                          }}>
+                            <img
+                              src={preview.preview_image}
+                              alt="Preview"
+                              style={{ width: '100%', maxHeight: 300, objectFit: 'contain' }}
+                              onError={(e) => {
+                                console.error('预览图片加载失败:', preview.preview_image?.substring(0, 50));
+                                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
