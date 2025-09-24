@@ -1931,22 +1931,16 @@ const ProductList: React.FC = () => {
                                   position: 'relative',
                                   border: '1px solid #f0f0f0',
                                   borderRadius: 4,
-                                  padding: 8,
                                   backgroundColor: '#f9f9f9',
                                   height: 300,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center'
                                 }}>
-                                  {/* 图片和9宫格容器 */}
+                                  {/* 图片和9宫格容器 - 确保两者尺寸完全一致 */}
                                   <div style={{
                                     position: 'relative',
-                                    width: '100%',
-                                    maxWidth: '400px',
-                                    height: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
+                                    display: 'inline-block'
                                   }}>
                                     {/* 原图显示 */}
                                     <img
@@ -1954,8 +1948,8 @@ const ProductList: React.FC = () => {
                                       alt="原图预览"
                                       style={{
                                         display: 'block',
-                                        maxWidth: '100%',
-                                        maxHeight: '100%',
+                                        maxWidth: '400px',
+                                        maxHeight: '300px',
                                         objectFit: 'contain'
                                       }}
                                       onError={(e) => {
@@ -2000,8 +1994,7 @@ const ProductList: React.FC = () => {
                                       if (position === null) return <div key={index} />; // 中心格子跳过
 
                                       const positionKey = `${preview.product_id}_${img.image_index || 0}`;
-                                      const isSelected = manualPositions.get(positionKey) === position ||
-                                        (!manualPositions.has(positionKey) && img.suggested_position === position);
+                                      const isSelected = manualPositions.get(positionKey) === position;
 
                                       // 格子仅用于位置选择，水印显示在大预览图上
 
