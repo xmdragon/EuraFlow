@@ -134,9 +134,11 @@ const WatermarkManagement: React.FC = () => {
         ...options,
         positions: defaultPositions,
       };
+      // watermarkFile现在是一个fileList数组，取第一个文件
+      const file = watermarkFile?.[0]?.originFileObj || watermarkFile?.[0];
       return watermarkApi.createWatermarkConfig(
         values.name,
-        watermarkFile.file,
+        file,
         payload
       );
     },
@@ -588,6 +590,13 @@ const WatermarkManagement: React.FC = () => {
                     <Form.Item
                       name="watermarkFile"
                       rules={[{ required: true, message: '请上传水印图片' }]}
+                      valuePropName="fileList"
+                      getValueFromEvent={(e) => {
+                        if (Array.isArray(e)) {
+                          return e;
+                        }
+                        return e?.fileList;
+                      }}
                     >
                       <Upload maxCount={1} beforeUpload={() => false} accept="image/*">
                         <Button icon={<UploadOutlined />}>选择图片</Button>
