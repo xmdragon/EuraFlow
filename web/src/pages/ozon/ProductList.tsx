@@ -1873,7 +1873,6 @@ const ProductList: React.FC = () => {
                                           position: 'absolute',
                                           width: `${scale * 100}%`,
                                           maxWidth: '40%',
-                                          opacity: isSelected ? opacity : opacity * 0.5, // 未选中时半透明
                                           pointerEvents: 'none',
                                           transition: 'opacity 0.2s'
                                         };
@@ -1948,7 +1947,9 @@ const ProductList: React.FC = () => {
                                               alt="watermark"
                                               style={{
                                                 ...getWatermarkStyle(),
-                                                opacity: isSelected ? (watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.opacity || 0.8) : 0
+                                                opacity: isSelected
+                                                  ? (watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.opacity || 0.8)
+                                                  : 0
                                               }}
                                             />
                                           )}
