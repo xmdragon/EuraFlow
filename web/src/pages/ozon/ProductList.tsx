@@ -1850,8 +1850,8 @@ const ProductList: React.FC = () => {
                           gap: 12,
                           marginTop: 8
                         }}>
-                          {preview.images.map((img, idx) => (
-                            <div key={idx} style={{
+                          {preview.images.map((img, imgArrayIndex) => (
+                            <div key={imgArrayIndex} style={{
                               border: '1px solid #e8e8e8',
                               borderRadius: 8,
                               padding: 8,
@@ -1904,14 +1904,14 @@ const ProductList: React.FC = () => {
                                     />
 
                                     {/* 水印预览层 - 只在选中位置时显示 */}
-                                    {selectedWatermarkConfig && manualPositions.get(`${preview.product_id}_${img.image_index || 0}`) && (
+                                    {selectedWatermarkConfig && manualPositions.get(`${preview.product_id}_${imgArrayIndex}`) && (
                                       <img
                                         src={watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.image_url}
                                         alt="水印预览"
                                         style={{
                                           position: 'absolute',
                                           ...getPreviewWatermarkStyle(
-                                            manualPositions.get(`${preview.product_id}_${img.image_index || 0}`),
+                                            manualPositions.get(`${preview.product_id}_${imgArrayIndex}`),
                                             watermarkConfigs.find(c => c.id === selectedWatermarkConfig)
                                           ),
                                           pointerEvents: 'none'
@@ -1938,7 +1938,7 @@ const ProductList: React.FC = () => {
                                     ].map((position, index) => {
                                       if (position === null) return <div key={index} />; // 中心格子跳过
 
-                                      const positionKey = `${preview.product_id}_${img.image_index || 0}`;
+                                      const positionKey = `${preview.product_id}_${imgArrayIndex}`;
                                       const isSelected = manualPositions.get(positionKey) === position;
 
                                       // 格子仅用于位置选择，水印显示在大预览图上
@@ -1952,7 +1952,7 @@ const ProductList: React.FC = () => {
                                             setManualPositions(newPositions);
 
                                             // TODO: 触发重新预览
-                                            handlePositionChange(preview.product_id, img.image_index || 0, position);
+                                            handlePositionChange(preview.product_id, imgArrayIndex, position);
                                           }}
                                           style={{
                                             cursor: 'pointer',
