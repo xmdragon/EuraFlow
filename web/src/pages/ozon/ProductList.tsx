@@ -1878,17 +1878,27 @@ const ProductList: React.FC = () => {
                                   borderRadius: 4,
                                   padding: 8,
                                   backgroundColor: '#f9f9f9',
-                                  height: 200,
+                                  height: 300,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center'
                                 }}>
-                                  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                  {/* 图片和9宫格容器 */}
+                                  <div style={{
+                                    position: 'relative',
+                                    width: '100%',
+                                    maxWidth: '400px',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}>
                                     {/* 原图显示 */}
                                     <img
                                       src={img.original_url}
                                       alt="原图预览"
                                       style={{
+                                        display: 'block',
                                         maxWidth: '100%',
                                         maxHeight: '100%',
                                         objectFit: 'contain'
@@ -1954,25 +1964,25 @@ const ProductList: React.FC = () => {
                                           style={{
                                             cursor: 'pointer',
                                             backgroundColor: isSelected
-                                              ? 'rgba(24, 144, 255, 0.2)'
+                                              ? 'rgba(24, 144, 255, 0.15)'
                                               : 'transparent',
                                             border: isSelected
                                               ? '2px solid #1890ff'
-                                              : '1px dashed rgba(0, 0, 0, 0.1)',
+                                              : '1px solid transparent',
                                             transition: 'all 0.2s',
                                             position: 'relative',
                                             overflow: 'hidden'
                                           }}
                                           onMouseEnter={(e) => {
                                             if (!isSelected) {
-                                              e.currentTarget.style.backgroundColor = 'rgba(24, 144, 255, 0.1)';
-                                              e.currentTarget.style.border = '1px solid #1890ff';
+                                              e.currentTarget.style.backgroundColor = 'rgba(24, 144, 255, 0.08)';
+                                              e.currentTarget.style.border = '1px solid rgba(24, 144, 255, 0.5)';
                                             }
                                           }}
                                           onMouseLeave={(e) => {
                                             if (!isSelected) {
                                               e.currentTarget.style.backgroundColor = 'transparent';
-                                              e.currentTarget.style.border = '1px dashed rgba(0, 0, 0, 0.1)';
+                                              e.currentTarget.style.border = '1px solid transparent';
                                             }
                                           }}
                                           title={`点击选择位置: ${position.replace('_', ' ')}`}
