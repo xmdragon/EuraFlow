@@ -1859,6 +1859,44 @@ const ProductList: React.FC = () => {
                                       const isSelected = manualPositions.get(positionKey) === position ||
                                         (!manualPositions.has(positionKey) && img.suggested_position === position);
 
+                                      // 计算水印在当前格子中的位置
+                                      const getWatermarkStyle = () => {
+                                        const config = watermarkConfigs.find(c => c.id === selectedWatermarkConfig);
+                                        if (!config) return {};
+
+                                        const scale = config.scale_ratio || 0.1;
+                                        const opacity = config.opacity || 0.8;
+                                        const margin = config.margin_pixels || 20;
+
+                                        // 根据位置计算水印的具体位置
+                                        const positionStyles: any = {
+                                          position: 'absolute',
+                                          width: `${scale * 100}%`,
+                                          maxWidth: '40%',
+                                          opacity: isSelected ? opacity : opacity * 0.5, // 未选中时半透明
+                                          pointerEvents: 'none',
+                                          transition: 'opacity 0.2s'
+                                        };
+
+                                        // 根据不同位置设置对齐
+                                        if (position.includes('top')) positionStyles.top = `${margin}%`;
+                                        if (position.includes('bottom')) positionStyles.bottom = `${margin}%`;
+                                        if (position.includes('left')) positionStyles.left = `${margin}%`;
+                                        if (position.includes('right')) positionStyles.right = `${margin}%`;
+                                        if (position.includes('center')) {
+                                          if (!position.includes('left') && !position.includes('right')) {
+                                            positionStyles.left = '50%';
+                                            positionStyles.transform = 'translateX(-50%)';
+                                          }
+                                          if (position === 'center_left' || position === 'center_right') {
+                                            positionStyles.top = '50%';
+                                            positionStyles.transform = 'translateY(-50%)';
+                                          }
+                                        }
+
+                                        return positionStyles;
+                                      };
+
                                       return (
                                         <div
                                           key={index}
@@ -1873,27 +1911,48 @@ const ProductList: React.FC = () => {
                                           style={{
                                             cursor: 'pointer',
                                             backgroundColor: isSelected
-                                              ? 'rgba(24, 144, 255, 0.3)'
+                                              ? 'rgba(24, 144, 255, 0.2)'
                                               : 'transparent',
                                             border: isSelected
                                               ? '2px solid #1890ff'
                                               : '1px dashed rgba(0, 0, 0, 0.1)',
                                             transition: 'all 0.2s',
+                                            position: 'relative',
+                                            overflow: 'hidden'
                                           }}
                                           onMouseEnter={(e) => {
                                             if (!isSelected) {
                                               e.currentTarget.style.backgroundColor = 'rgba(24, 144, 255, 0.1)';
                                               e.currentTarget.style.border = '1px solid #1890ff';
+                                              // 显示水印预览
+                                              const watermark = e.currentTarget.querySelector('.watermark-preview') as HTMLElement;
+                                              if (watermark) watermark.style.opacity = String(watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.opacity || 0.8);
                                             }
                                           }}
                                           onMouseLeave={(e) => {
                                             if (!isSelected) {
                                               e.currentTarget.style.backgroundColor = 'transparent';
                                               e.currentTarget.style.border = '1px dashed rgba(0, 0, 0, 0.1)';
+                                              // 隐藏水印预览
+                                              const watermark = e.currentTarget.querySelector('.watermark-preview') as HTMLElement;
+                                              if (watermark) watermark.style.opacity = '0';
                                             }
                                           }}
                                           title={`点击选择位置: ${position.replace('_', ' ')}`}
-                                        />
+                                        >
+                                          {/* 水印预览 */}
+                                          {selectedWatermarkConfig && watermarkConfigs.find(c => c.id === selectedWatermarkConfig) && (
+                                            <img
+                                              className="watermark-preview"
+                                              src={watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.image_url}
+                                              alt="watermark"
+                                              style={{
+                                                ...getWatermarkStyle(),
+                                                opacity: isSelected ? (watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.opacity || 0.8) : 0
+                                              }}
+                                            />
+                                          )}
+                                        </div>
                                       );
                                     })}
                                   </div>
