@@ -900,6 +900,66 @@ const ProductList: React.FC = () => {
     });
   };
 
+  // 计算大预览图上的水印样式
+  const getPreviewWatermarkStyle = (position: string | undefined, config: any) => {
+    if (!position || !config) return {};
+
+    const scale = config.scale_ratio || 0.1;
+    const opacity = config.opacity || 0.8;
+    const margin = config.margin_pixels || 20;
+
+    const styles: any = {
+      opacity: opacity,
+      width: `${scale * 100}%`,
+      maxWidth: '200px', // 限制最大尺寸
+      zIndex: 10,
+      transition: 'all 0.2s ease'
+    };
+
+    // 根据位置设置对齐方式
+    switch (position) {
+      case 'top_left':
+        styles.top = `${margin}px`;
+        styles.left = `${margin}px`;
+        break;
+      case 'top_center':
+        styles.top = `${margin}px`;
+        styles.left = '50%';
+        styles.transform = 'translateX(-50%)';
+        break;
+      case 'top_right':
+        styles.top = `${margin}px`;
+        styles.right = `${margin}px`;
+        break;
+      case 'center_left':
+        styles.top = '50%';
+        styles.left = `${margin}px`;
+        styles.transform = 'translateY(-50%)';
+        break;
+      case 'center_right':
+        styles.top = '50%';
+        styles.right = `${margin}px`;
+        styles.transform = 'translateY(-50%)';
+        break;
+      case 'bottom_left':
+        styles.bottom = `${margin}px`;
+        styles.left = `${margin}px`;
+        break;
+      case 'bottom_center':
+        styles.bottom = `${margin}px`;
+        styles.left = '50%';
+        styles.transform = 'translateX(-50%)';
+        break;
+      case 'bottom_right':
+      default:
+        styles.bottom = `${margin}px`;
+        styles.right = `${margin}px`;
+        break;
+    }
+
+    return styles;
+  };
+
   // 处理手动选择位置变更
   const handlePositionChange = async (productId: number, imageIndex: number, position: string) => {
     // 找到对应的预览数据并更新
@@ -1823,19 +1883,38 @@ const ProductList: React.FC = () => {
                                   alignItems: 'center',
                                   justifyContent: 'center'
                                 }}>
-                                  <img
-                                    src={img.preview_image}
-                                    alt="水印预览"
-                                    style={{
-                                      maxWidth: '100%',
-                                      maxHeight: '100%',
-                                      objectFit: 'contain'
-                                    }}
-                                    onError={(e) => {
-                                      console.error('预览图片加载失败:', img.preview_image?.substring(0, 50));
-                                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
-                                    }}
-                                  />
+                                  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                    {/* 原图显示 */}
+                                    <img
+                                      src={img.original_url}
+                                      alt="原图预览"
+                                      style={{
+                                        maxWidth: '100%',
+                                        maxHeight: '100%',
+                                        objectFit: 'contain'
+                                      }}
+                                      onError={(e) => {
+                                        console.error('原图加载失败:', img.original_url);
+                                        e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+                                      }}
+                                    />
+
+                                    {/* 水印预览层 - 只在选中位置时显示 */}
+                                    {selectedWatermarkConfig && manualPositions.get(`${preview.product_id}_${img.image_index || 0}`) && (
+                                      <img
+                                        src={watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.image_url}
+                                        alt="水印预览"
+                                        style={{
+                                          position: 'absolute',
+                                          ...getPreviewWatermarkStyle(
+                                            manualPositions.get(`${preview.product_id}_${img.image_index || 0}`),
+                                            watermarkConfigs.find(c => c.id === selectedWatermarkConfig)
+                                          ),
+                                          pointerEvents: 'none'
+                                        }}
+                                      />
+                                    )}
+                                  </div>
                                   {/* 9宫格位置选择器 */}
                                   <div style={{
                                     position: 'absolute',
@@ -1859,42 +1938,7 @@ const ProductList: React.FC = () => {
                                       const isSelected = manualPositions.get(positionKey) === position ||
                                         (!manualPositions.has(positionKey) && img.suggested_position === position);
 
-                                      // 计算水印在当前格子中的位置
-                                      const getWatermarkStyle = () => {
-                                        const config = watermarkConfigs.find(c => c.id === selectedWatermarkConfig);
-                                        if (!config) return {};
-
-                                        const scale = config.scale_ratio || 0.1;
-                                        const opacity = config.opacity || 0.8;
-                                        const margin = config.margin_pixels || 20;
-
-                                        // 根据位置计算水印的具体位置
-                                        const positionStyles: any = {
-                                          position: 'absolute',
-                                          width: `${scale * 100}%`,
-                                          maxWidth: '40%',
-                                          pointerEvents: 'none',
-                                          transition: 'opacity 0.2s'
-                                        };
-
-                                        // 根据不同位置设置对齐
-                                        if (position.includes('top')) positionStyles.top = `${margin}%`;
-                                        if (position.includes('bottom')) positionStyles.bottom = `${margin}%`;
-                                        if (position.includes('left')) positionStyles.left = `${margin}%`;
-                                        if (position.includes('right')) positionStyles.right = `${margin}%`;
-                                        if (position.includes('center')) {
-                                          if (!position.includes('left') && !position.includes('right')) {
-                                            positionStyles.left = '50%';
-                                            positionStyles.transform = 'translateX(-50%)';
-                                          }
-                                          if (position === 'center_left' || position === 'center_right') {
-                                            positionStyles.top = '50%';
-                                            positionStyles.transform = 'translateY(-50%)';
-                                          }
-                                        }
-
-                                        return positionStyles;
-                                      };
+                                      // 格子仅用于位置选择，水印显示在大预览图上
 
                                       return (
                                         <div
@@ -1923,35 +1967,29 @@ const ProductList: React.FC = () => {
                                             if (!isSelected) {
                                               e.currentTarget.style.backgroundColor = 'rgba(24, 144, 255, 0.1)';
                                               e.currentTarget.style.border = '1px solid #1890ff';
-                                              // 显示水印预览
-                                              const watermark = e.currentTarget.querySelector('.watermark-preview') as HTMLElement;
-                                              if (watermark) watermark.style.opacity = String(watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.opacity || 0.8);
                                             }
                                           }}
                                           onMouseLeave={(e) => {
                                             if (!isSelected) {
                                               e.currentTarget.style.backgroundColor = 'transparent';
                                               e.currentTarget.style.border = '1px dashed rgba(0, 0, 0, 0.1)';
-                                              // 隐藏水印预览
-                                              const watermark = e.currentTarget.querySelector('.watermark-preview') as HTMLElement;
-                                              if (watermark) watermark.style.opacity = '0';
                                             }
                                           }}
                                           title={`点击选择位置: ${position.replace('_', ' ')}`}
                                         >
-                                          {/* 水印预览 */}
-                                          {selectedWatermarkConfig && watermarkConfigs.find(c => c.id === selectedWatermarkConfig) && (
-                                            <img
-                                              className="watermark-preview"
-                                              src={watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.image_url}
-                                              alt="watermark"
-                                              style={{
-                                                ...getWatermarkStyle(),
-                                                opacity: isSelected
-                                                  ? (watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.opacity || 0.8)
-                                                  : 0
-                                              }}
-                                            />
+                                          {/* 格子内容 - 仅显示位置指示 */}
+                                          {isSelected && (
+                                            <div style={{
+                                              position: 'absolute',
+                                              top: '50%',
+                                              left: '50%',
+                                              transform: 'translate(-50%, -50%)',
+                                              width: '12px',
+                                              height: '12px',
+                                              backgroundColor: '#1890ff',
+                                              borderRadius: '50%',
+                                              boxShadow: '0 0 0 2px white'
+                                            }} />
                                           )}
                                         </div>
                                       );

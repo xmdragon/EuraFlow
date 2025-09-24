@@ -515,20 +515,7 @@ async def preview_watermark_batch(
         if len(products) != len(request.product_ids):
             raise HTTPException(status_code=400, detail="Some products not found")
 
-        # 创建图片处理服务
-        processor = ImageProcessingService()
-
-        # 准备水印配置
-        watermark_config_dict = {
-            "color_type": config.color_type,
-            "opacity": float(config.opacity),
-            "scale_ratio": float(config.scale_ratio),
-            "margin_pixels": config.margin_pixels,
-            "positions": config.positions
-        }
-
-        # 下载水印图片一次
-        watermark_image = await processor.download_image(config.image_url)
+        # 预览模式不需要处理服务，只返回原图信息
 
         preview_results = []
         total_images_processed = 0
@@ -566,8 +553,7 @@ async def preview_watermark_batch(
 
             # 处理商品的每张图片
             image_previews = []
-            # 预览时不使用算法分析，使用默认位置（右下角）
-            default_position = "bottom_right"
+            # 预览时不生成水印图片，只返回原图信息
 
             for img_info in product_images:
                 # 检查是否超过总图片限制
@@ -575,30 +561,27 @@ async def preview_watermark_batch(
                     break
 
                 try:
-                    # 生成预览（使用默认位置，不进行算法分析）
-                    result_image, metadata = await processor.process_image_with_watermark(
-                        img_info["url"],
-                        config.image_url,
-                        watermark_config_dict,
-                        default_position  # 使用默认位置
-                    )
-
-                    # 转换为base64
-                    base64_image = processor.image_to_base64(result_image)
-
+                    # 直接返回原图信息，不进行水印处理
                     image_previews.append({
                         "original_url": img_info["url"],
-                        "preview_image": base64_image,
                         "image_type": img_info["type"],
                         "image_index": img_info.get("index", 0),
-                        "suggested_position": default_position,  # 使用默认位置
-                        "metadata": metadata
+                        "suggested_position": "bottom_right",  # 默认建议位置
+                        "metadata": {
+                            "original_size": None,  # 前端根据需要获取
+                            "watermark_size": None,
+                            "position": "bottom_right",
+                            "color_type": config.color_type,
+                            "opacity": float(config.opacity),
+                            "scale_ratio": float(config.scale_ratio),
+                            "margin_pixels": config.margin_pixels
+                        }
                     })
 
                     total_images_processed += 1
 
                 except Exception as e:
-                    logger.error(f"Failed to preview image for product {product.id}: {e}")
+                    logger.error(f"Failed to process image info for product {product.id}: {e}")
                     image_previews.append({
                         "original_url": img_info["url"],
                         "image_type": img_info["type"],
