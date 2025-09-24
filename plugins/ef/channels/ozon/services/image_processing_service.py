@@ -171,6 +171,191 @@ class ImageProcessingService:
             logger.error(f"Failed to calculate region brightness: {e}")
             return 128.0  # 返回中等亮度作为默认值
 
+    def calculate_region_complexity(
+        self,
+        image: Image.Image,
+        position: WatermarkPosition,
+        region_size: Tuple[int, int]
+    ) -> float:
+        """
+        计算图片特定区域的复杂度（标准差）
+
+        Args:
+            image: 原图
+            position: 位置
+            region_size: 区域大小
+
+        Returns:
+            复杂度值（0-255，越低表示区域越平滑）
+        """
+        try:
+            # 转换为灰度图
+            gray_image = image.convert('L')
+            img_array = np.array(gray_image)
+
+            # 获取位置坐标
+            x_ratio, y_ratio = self.POSITION_RATIOS[position]
+            center_x = int(x_ratio * image.width)
+            center_y = int(y_ratio * image.height)
+
+            # 计算区域边界
+            half_width = region_size[0] // 2
+            half_height = region_size[1] // 2
+
+            x1 = max(0, center_x - half_width)
+            y1 = max(0, center_y - half_height)
+            x2 = min(image.width, center_x + half_width)
+            y2 = min(image.height, center_y + half_height)
+
+            # 提取区域并计算标准差
+            region = img_array[y1:y2, x1:x2]
+            std_dev = np.std(region)
+
+            return float(std_dev)
+
+        except Exception as e:
+            logger.error(f"Failed to calculate region complexity: {e}")
+            return 50.0  # 返回中等复杂度作为默认值
+
+    def calculate_edge_density(
+        self,
+        image: Image.Image,
+        position: WatermarkPosition,
+        region_size: Tuple[int, int]
+    ) -> float:
+        """
+        计算图片特定区域的边缘密度（使用Sobel算子）
+
+        Args:
+            image: 原图
+            position: 位置
+            region_size: 区域大小
+
+        Returns:
+            边缘密度（0-1，越低表示区域越平滑，没有文字或复杂图案）
+        """
+        try:
+            from scipy import ndimage
+
+            # 转换为灰度图
+            gray_image = image.convert('L')
+            img_array = np.array(gray_image, dtype=np.float32)
+
+            # 获取位置坐标
+            x_ratio, y_ratio = self.POSITION_RATIOS[position]
+            center_x = int(x_ratio * image.width)
+            center_y = int(y_ratio * image.height)
+
+            # 计算区域边界
+            half_width = region_size[0] // 2
+            half_height = region_size[1] // 2
+
+            x1 = max(0, center_x - half_width)
+            y1 = max(0, center_y - half_height)
+            x2 = min(image.width, center_x + half_width)
+            y2 = min(image.height, center_y + half_height)
+
+            # 提取区域
+            region = img_array[y1:y2, x1:x2]
+
+            # 应用Sobel算子检测边缘
+            sobel_x = ndimage.sobel(region, axis=1)
+            sobel_y = ndimage.sobel(region, axis=0)
+            edge_magnitude = np.sqrt(sobel_x**2 + sobel_y**2)
+
+            # 计算边缘密度（边缘像素占比）
+            threshold = 30  # 边缘阈值
+            edge_pixels = np.sum(edge_magnitude > threshold)
+            total_pixels = region.size
+            edge_density = edge_pixels / total_pixels if total_pixels > 0 else 0
+
+            return float(edge_density)
+
+        except Exception as e:
+            logger.error(f"Failed to calculate edge density: {e}")
+            return 0.1  # 返回低边缘密度作为默认值
+
+    def detect_text_region(
+        self,
+        image: Image.Image,
+        position: WatermarkPosition,
+        region_size: Tuple[int, int]
+    ) -> float:
+        """
+        检测区域是否包含文字（通过梯度投影分析）
+
+        Args:
+            image: 原图
+            position: 位置
+            region_size: 区域大小
+
+        Returns:
+            文字概率（0-1，越高表示越可能有文字）
+        """
+        try:
+            # 转换为灰度图
+            gray_image = image.convert('L')
+            img_array = np.array(gray_image, dtype=np.uint8)
+
+            # 获取区域
+            x_ratio, y_ratio = self.POSITION_RATIOS[position]
+            center_x = int(x_ratio * image.width)
+            center_y = int(y_ratio * image.height)
+
+            half_width = region_size[0] // 2
+            half_height = region_size[1] // 2
+
+            x1 = max(0, center_x - half_width)
+            y1 = max(0, center_y - half_height)
+            x2 = min(image.width, center_x + half_width)
+            y2 = min(image.height, center_y + half_height)
+
+            region = img_array[y1:y2, x1:x2]
+
+            # 计算水平和垂直方向的梯度
+            grad_x = np.abs(np.diff(region, axis=1))
+            grad_y = np.abs(np.diff(region, axis=0))
+
+            # 投影到水平和垂直轴
+            h_projection = np.sum(grad_x, axis=1)
+            v_projection = np.sum(grad_y, axis=0)
+
+            # 分析投影的周期性（文字通常有规律的间隔）
+            h_std = np.std(h_projection) if len(h_projection) > 0 else 0
+            v_std = np.std(v_projection) if len(v_projection) > 0 else 0
+
+            # 检测峰值数量（多个峰值表示可能有文字行）
+            h_mean = np.mean(h_projection) if len(h_projection) > 0 else 0
+            v_mean = np.mean(v_projection) if len(v_projection) > 0 else 0
+
+            h_peaks = np.sum(h_projection > h_mean * 1.5) if h_mean > 0 else 0
+            v_peaks = np.sum(v_projection > v_mean * 1.5) if v_mean > 0 else 0
+
+            # 计算峰值密度
+            h_peak_density = h_peaks / max(len(h_projection), 1)
+            v_peak_density = v_peaks / max(len(v_projection), 1)
+
+            # 综合评估文字概率
+            text_score = 0.0
+
+            # 水平方向文字检测（横排文字）
+            if h_peak_density > 0.1 and h_peak_density < 0.5:
+                text_score = max(text_score, h_peak_density * 2)
+
+            # 垂直方向文字检测（竖排文字或多列文字）
+            if v_peak_density > 0.1 and v_peak_density < 0.5:
+                text_score = max(text_score, v_peak_density * 2)
+
+            # 如果标准差很大，说明有明显的纹理变化（可能是文字）
+            if h_std > 20 or v_std > 20:
+                text_score = max(text_score, 0.5)
+
+            return min(text_score, 1.0)
+
+        except Exception as e:
+            logger.error(f"Failed to detect text region: {e}")
+            return 0.0
+
     async def find_best_watermark_position(
         self,
         base_image: Image.Image,
@@ -180,6 +365,7 @@ class ImageProcessingService:
     ) -> Tuple[WatermarkPosition, WatermarkColor]:
         """
         智能选择最佳水印位置和颜色
+        综合考虑：对比度、内容复杂度、边缘密度
 
         Args:
             base_image: 原图
@@ -206,40 +392,112 @@ class ImageProcessingService:
 
             best_position = WatermarkPosition.BOTTOM_RIGHT
             best_color = WatermarkColor.WHITE
-            max_contrast = 0
+            best_score = -float('inf')
 
-            # 计算水印区域大小
+            # 计算水印区域大小（使用实际水印大小+边距）
+            margin = 20  # 额外边距
             region_size = (
-                min(watermark.width, base_image.width // 5),
-                min(watermark.height, base_image.height // 5)
+                min(int(watermark.width * 1.2) + margin, base_image.width // 4),
+                min(int(watermark.height * 1.2) + margin, base_image.height // 4)
             )
+
+            # 调整评分权重，加大对复杂区域的惩罚
+            WEIGHT_CONTRAST = 0.2      # 降低对比度权重
+            WEIGHT_SMOOTHNESS = 0.35    # 提高平滑度权重
+            WEIGHT_LOW_EDGE = 0.25      # 边缘权重
+            WEIGHT_NO_TEXT = 0.2        # 新增：无文字权重
+
+            position_scores = []
 
             # 遍历所有候选位置
             for position in test_positions:
-                # 计算该位置的亮度
+                # 计算该位置的各项指标
                 brightness = self.calculate_region_brightness(
                     base_image, position, region_size
                 )
+                complexity = self.calculate_region_complexity(
+                    base_image, position, region_size
+                )
+                edge_density = self.calculate_edge_density(
+                    base_image, position, region_size
+                )
+                text_probability = self.detect_text_region(
+                    base_image, position, region_size
+                )
 
-                # 选择对比度最高的颜色
+                # 标准化复杂度分数（0-1，越低越好）
+                # 降低阈值，让复杂度更敏感
+                complexity_score = min(complexity / 50.0, 1.0)  # 降低阈值到50
+                smoothness_score = 1.0 - complexity_score
+
+                # 边缘密度分数（0-1，越低越好）
+                # 使用非线性映射，让高边缘密度区域得分快速下降
+                edge_score = max(0, 1.0 - (edge_density ** 1.5) * 3)  # 非线性放大
+
+                # 文字惩罚分数（0-1，越低越好）
+                no_text_score = 1.0 - text_probability
+
+                # 选择最佳颜色和对比度
+                best_color_for_position = WatermarkColor.WHITE
+                best_contrast_for_position = 0
+
                 for config in watermark_configs:
                     color_type = WatermarkColor(config.get('color_type', 'white'))
 
-                    # 跳过透明水印（不考虑对比度）
+                    # 跳过透明水印
                     if color_type == WatermarkColor.TRANSPARENT:
                         continue
 
                     expected_brightness = self.COLOR_BRIGHTNESS.get(color_type, 128)
                     contrast = abs(brightness - expected_brightness)
 
-                    if contrast > max_contrast:
-                        max_contrast = contrast
-                        best_position = position
-                        best_color = color_type
+                    if contrast > best_contrast_for_position:
+                        best_contrast_for_position = contrast
+                        best_color_for_position = color_type
+
+                # 标准化对比度分数（0-1）
+                contrast_score = min(best_contrast_for_position / 128.0, 1.0)
+
+                # 综合评分（加入文字惩罚）
+                total_score = (
+                    WEIGHT_CONTRAST * contrast_score +
+                    WEIGHT_SMOOTHNESS * smoothness_score +
+                    WEIGHT_LOW_EDGE * edge_score +
+                    WEIGHT_NO_TEXT * no_text_score
+                )
+
+                # 如果检测到明显的文字区域，额外惩罚
+                if text_probability > 0.5:
+                    total_score *= (1.0 - text_probability * 0.5)  # 最多减尔50%分数
+
+                position_scores.append({
+                    'position': position,
+                    'color': best_color_for_position,
+                    'score': total_score,
+                    'brightness': brightness,
+                    'complexity': complexity,
+                    'edge_density': edge_density,
+                    'text_prob': text_probability,
+                    'contrast': best_contrast_for_position
+                })
+
+                if total_score > best_score:
+                    best_score = total_score
+                    best_position = position
+                    best_color = best_color_for_position
+
+            # 记录所有位置的评分（用于调试）
+            logger.info("Watermark position scores:")
+            for ps in sorted(position_scores, key=lambda x: x['score'], reverse=True)[:5]:
+                logger.info(
+                    f"  {ps['position'].value}: score={ps['score']:.3f}, "
+                    f"complexity={ps['complexity']:.1f}, edge={ps['edge_density']:.3f}, "
+                    f"text={ps['text_prob']:.2f}, contrast={ps['contrast']:.1f}"
+                )
 
             logger.info(
-                f"Best watermark position: {best_position.value}, "
-                f"color: {best_color.value}, contrast: {max_contrast:.2f}"
+                f"Selected best position: {best_position.value}, "
+                f"color: {best_color.value}, score: {best_score:.3f}"
             )
 
             return best_position, best_color
