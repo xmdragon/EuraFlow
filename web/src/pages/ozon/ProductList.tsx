@@ -92,6 +92,8 @@ const ProductList: React.FC = () => {
   const [watermarkPreviews, setWatermarkPreviews] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [watermarkAnalyzeMode, setWatermarkAnalyzeMode] = useState<'individual' | 'fast'>('individual');
+  // 手动选择的水印位置 Map<productId_imageIndex, position>
+  const [manualPositions, setManualPositions] = useState<Map<string, string>>(new Map());
 
   // 图片预览状态
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -166,13 +168,14 @@ const ProductList: React.FC = () => {
 
   // 应用水印
   const applyWatermarkMutation = useMutation({
-    mutationFn: ({ productIds, configId, syncMode = true, analyzeMode = 'individual' }: {
+    mutationFn: ({ productIds, configId, syncMode = true, analyzeMode = 'individual', positionOverrides }: {
       productIds: number[],
       configId: number,
       syncMode?: boolean,
-      analyzeMode?: 'individual' | 'fast'
+      analyzeMode?: 'individual' | 'fast',
+      positionOverrides?: Record<string, Record<string, string>>
     }) =>
-      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, syncMode, analyzeMode),
+      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, syncMode, analyzeMode, positionOverrides),
     onSuccess: (data) => {
       if (data.sync_mode) {
         // 同步模式 - 直接显示结果
@@ -895,6 +898,32 @@ const ProductList: React.FC = () => {
         }
       },
     });
+  };
+
+  // 处理手动选择位置变更
+  const handlePositionChange = async (productId: number, imageIndex: number, position: string) => {
+    // 找到对应的预览数据并更新
+    const updatedPreviews = watermarkPreviews.map(preview => {
+      if (preview.product_id === productId) {
+        return {
+          ...preview,
+          images: preview.images?.map((img: any, idx: number) => {
+            if ((img.image_index || idx) === imageIndex) {
+              // 这里可以触发重新生成预览，暂时只更新位置标记
+              return {
+                ...img,
+                suggested_position: position,
+                manual_position: position
+              };
+            }
+            return img;
+          })
+        };
+      }
+      return preview;
+    });
+
+    setWatermarkPreviews(updatedPreviews);
   };
 
   const handleImport = () => {
@@ -1621,6 +1650,7 @@ const ProductList: React.FC = () => {
           setWatermarkModalVisible(false);
           setWatermarkStep('select');
           setWatermarkPreviews([]);
+          setManualPositions(new Map());
         }}
         onOk={async () => {
           if (watermarkStep === 'select') {
@@ -1640,6 +1670,8 @@ const ProductList: React.FC = () => {
               );
               setWatermarkPreviews(result.previews);
               setWatermarkStep('preview');
+              // 初始化手动位置为空，使用算法推荐的位置
+              setManualPositions(new Map());
             } catch (error) {
               message.error('预览失败');
             } finally {
@@ -1649,11 +1681,23 @@ const ProductList: React.FC = () => {
             // 确认应用水印
             const productIds = selectedRows.map((p) => p.id);
             const syncMode = productIds.length <= 10;
+
+            // 构建手动选择的位置映射
+            const positionOverrides: any = {};
+            manualPositions.forEach((position, key) => {
+              const [productId, imageIndex] = key.split('_');
+              if (!positionOverrides[productId]) {
+                positionOverrides[productId] = {};
+              }
+              positionOverrides[productId][imageIndex] = position;
+            });
+
             applyWatermarkMutation.mutate({
               productIds,
               configId: selectedWatermarkConfig!,
               syncMode,
-              analyzeMode: watermarkAnalyzeMode
+              analyzeMode: watermarkAnalyzeMode,
+              positionOverrides: Object.keys(positionOverrides).length > 0 ? positionOverrides : undefined
             });
           }
         }}
@@ -1779,6 +1823,7 @@ const ProductList: React.FC = () => {
                                 <Alert message={`处理失败: ${img.error}`} type="error" showIcon />
                               ) : (
                                 <div style={{
+                                  position: 'relative',
                                   border: '1px solid #f0f0f0',
                                   borderRadius: 4,
                                   padding: 8,
@@ -1801,6 +1846,67 @@ const ProductList: React.FC = () => {
                                       e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
                                     }}
                                   />
+                                  {/* 9宫格位置选择器 */}
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(3, 1fr)',
+                                    gridTemplateRows: 'repeat(3, 1fr)',
+                                    gap: 0
+                                  }}>
+                                    {[
+                                      'top_left', 'top_center', 'top_right',
+                                      'center_left', null, 'center_right',
+                                      'bottom_left', 'bottom_center', 'bottom_right'
+                                    ].map((position, index) => {
+                                      if (position === null) return <div key={index} />; // 中心格子跳过
+
+                                      const positionKey = `${preview.product_id}_${img.image_index || 0}`;
+                                      const isSelected = manualPositions.get(positionKey) === position ||
+                                        (!manualPositions.has(positionKey) && img.suggested_position === position);
+
+                                      return (
+                                        <div
+                                          key={index}
+                                          onClick={() => {
+                                            const newPositions = new Map(manualPositions);
+                                            newPositions.set(positionKey, position);
+                                            setManualPositions(newPositions);
+
+                                            // TODO: 触发重新预览
+                                            handlePositionChange(preview.product_id, img.image_index || 0, position);
+                                          }}
+                                          style={{
+                                            cursor: 'pointer',
+                                            backgroundColor: isSelected
+                                              ? 'rgba(24, 144, 255, 0.3)'
+                                              : 'transparent',
+                                            border: isSelected
+                                              ? '2px solid #1890ff'
+                                              : '1px dashed rgba(0, 0, 0, 0.1)',
+                                            transition: 'all 0.2s',
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            if (!isSelected) {
+                                              e.currentTarget.style.backgroundColor = 'rgba(24, 144, 255, 0.1)';
+                                              e.currentTarget.style.border = '1px solid #1890ff';
+                                            }
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            if (!isSelected) {
+                                              e.currentTarget.style.backgroundColor = 'transparent';
+                                              e.currentTarget.style.border = '1px dashed rgba(0, 0, 0, 0.1)';
+                                            }
+                                          }}
+                                          title={`点击选择位置: ${position.replace('_', ' ')}`}
+                                        />
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>

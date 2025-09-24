@@ -264,7 +264,8 @@ export async function applyWatermarkBatch(
   productIds: number[],
   watermarkConfigId: number,
   syncMode: boolean = true,  // 默认使用同步模式
-  analyzeMode: 'individual' | 'fast' = 'individual'  // 默认使用精准模式
+  analyzeMode: 'individual' | 'fast' = 'individual',  // 默认使用精准模式
+  positionOverrides?: Record<string, Record<string, string>>  // 手动选择的位置 {productId: {imageIndex: position}}
 ) {
   const response = await axios.post<{
     success: boolean;
@@ -277,7 +278,8 @@ export async function applyWatermarkBatch(
   }>(`/api/ef/v1/ozon/watermark/batch/apply?sync_mode=${syncMode}&analyze_mode=${analyzeMode}`, {
     shop_id: shopId,
     product_ids: productIds,
-    watermark_config_id: watermarkConfigId
+    watermark_config_id: watermarkConfigId,
+    position_overrides: positionOverrides
   });
   return response.data;
 }
