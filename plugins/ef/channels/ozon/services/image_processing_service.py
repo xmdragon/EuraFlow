@@ -5,7 +5,7 @@
 
 from PIL import Image, ImageEnhance, ImageOps
 import numpy as np
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 from io import BytesIO
 import httpx
 import logging
@@ -599,7 +599,7 @@ class ImageProcessingService:
         image_url: str,
         watermark_url: str,
         watermark_config: Dict[str, Any],
-        position: Optional[WatermarkPosition] = None
+        position: Optional[Union[WatermarkPosition, str]] = None
     ) -> Tuple[Image.Image, Dict[str, Any]]:
         """
         处理单张图片添加水印
@@ -621,7 +621,7 @@ class ImageProcessingService:
                 watermark_config.get('color_type', 'transparent')
             )
 
-            # 选择最佳位置（如果未指定）
+            # 处理位置参数（如果是字符串，转换为枚举）
             if position is None:
                 position, color = await self.find_best_watermark_position(
                     base_image,
@@ -630,6 +630,13 @@ class ImageProcessingService:
                     watermark_config.get('positions')
                 )
             else:
+                # 如果position是字符串，转换为枚举
+                if isinstance(position, str):
+                    try:
+                        position = WatermarkPosition(position)
+                    except ValueError:
+                        logger.warning(f"Invalid position '{position}', using default")
+                        position = WatermarkPosition.BOTTOM_RIGHT
                 color = WatermarkColor(watermark_config.get('color_type', 'white'))
 
             # 应用水印
