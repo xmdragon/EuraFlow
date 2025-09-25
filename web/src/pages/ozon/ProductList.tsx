@@ -99,6 +99,7 @@ const ProductList: React.FC = () => {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [currentPreviewProduct, setCurrentPreviewProduct] = useState<any>(null);
 
   // 查询商品列表
   const {
@@ -283,7 +284,8 @@ const ProductList: React.FC = () => {
   }, [syncTaskId, syncStatus?.status, queryClient]);
 
   // 处理图片点击
-  const handleImageClick = (images: string[], index: number = 0) => {
+  const handleImageClick = (product: any, images: string[], index: number = 0) => {
+    setCurrentPreviewProduct(product);
     setPreviewImages(images);
     setPreviewIndex(index);
     setPreviewVisible(true);
@@ -415,7 +417,7 @@ const ProductList: React.FC = () => {
                     border: '1px solid #f0f0f0',
                     cursor: 'pointer',
                   }}
-                  onClick={() => handleImageClick(allImages)}
+                  onClick={() => handleImageClick(record, allImages)}
                   onError={(e) => {
                     const img = e.target as HTMLImageElement;
                     img.style.display = 'none';
@@ -1281,35 +1283,6 @@ const ProductList: React.FC = () => {
           >
             批量改库存
           </Button>
-          <Button
-            icon={<PictureOutlined />}
-            onClick={() => {
-              if (watermarkConfigs.length === 0) {
-                message.warning('请先配置水印');
-                return;
-              }
-              setWatermarkModalVisible(true);
-            }}
-            disabled={selectedRows.length === 0}
-          >
-            批量水印
-          </Button>
-          <Button
-            icon={<RollbackOutlined />}
-            onClick={() => {
-              confirm({
-                title: '确认还原',
-                content: `确定要还原选中的 ${selectedRows.length} 个商品的原图吗？`,
-                onOk: () => {
-                  const productIds = selectedRows.map((p) => p.id);
-                  restoreOriginalMutation.mutate(productIds);
-                },
-              });
-            }}
-            disabled={selectedRows.length === 0}
-          >
-            还原原图
-          </Button>
           <Button icon={<UploadOutlined />} onClick={handleImport}>
             导入商品
           </Button>
@@ -2044,6 +2017,26 @@ const ProductList: React.FC = () => {
         visible={previewVisible}
         initialIndex={previewIndex}
         onClose={() => setPreviewVisible(false)}
+        productInfo={currentPreviewProduct}
+        onWatermark={() => {
+          if (watermarkConfigs.length === 0) {
+            message.warning('请先配置水印');
+            return;
+          }
+          setSelectedRows([currentPreviewProduct]);
+          setWatermarkModalVisible(true);
+          setPreviewVisible(false);
+        }}
+        onRestore={() => {
+          confirm({
+            title: '确认还原',
+            content: `确定要还原商品 "${currentPreviewProduct?.sku}" 的原图吗？`,
+            onOk: () => {
+              restoreOriginalMutation.mutate([currentPreviewProduct.id]);
+              setPreviewVisible(false);
+            },
+          });
+        }}
       />
     </div>
   );

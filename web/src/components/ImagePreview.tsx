@@ -15,6 +15,8 @@ import {
   DownloadOutlined,
   RotateLeftOutlined,
   RotateRightOutlined,
+  PictureOutlined,
+  RollbackOutlined,
 } from '@ant-design/icons';
 
 interface ImagePreviewProps {
@@ -22,6 +24,13 @@ interface ImagePreviewProps {
   visible: boolean;
   initialIndex?: number;
   onClose: () => void;
+  productInfo?: {
+    id: number;
+    sku: string;
+    title: string;
+  };
+  onWatermark?: () => void;
+  onRestore?: () => void;
 }
 
 const ImagePreview: React.FC<ImagePreviewProps> = ({
@@ -29,6 +38,9 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   visible,
   initialIndex = 0,
   onClose,
+  productInfo,
+  onWatermark,
+  onRestore,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [scale, setScale] = useState(1);
@@ -328,6 +340,34 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
               style={{ color: 'white', border: 'none' }}
               title="下载图片"
             />
+
+            {/* 分隔线和水印操作按钮 */}
+            {productInfo && onWatermark && onRestore && (
+              <>
+                <div style={{
+                  width: '1px',
+                  height: '20px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                  margin: '0 8px',
+                  display: 'inline-block'
+                }} />
+
+                <Button
+                  type="text"
+                  icon={<PictureOutlined />}
+                  onClick={onWatermark}
+                  style={{ color: 'white', border: 'none' }}
+                  title="应用水印"
+                />
+                <Button
+                  type="text"
+                  icon={<RollbackOutlined />}
+                  onClick={onRestore}
+                  style={{ color: 'white', border: 'none' }}
+                  title="还原原图"
+                />
+              </>
+            )}
           </Space>
         </div>
       </div>
