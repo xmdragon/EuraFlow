@@ -58,7 +58,7 @@ class WatermarkProcessor:
         watermark_config_id: int,
         task_id: Optional[str] = None,
         analyze_mode: str = "individual",  # 'individual' or 'fast'
-        position_overrides: Optional[Dict[str, str]] = None  # 手动选择的位置 {image_index: position}
+        position_overrides: Optional[Dict[str, Any]] = None  # 手动选择的位置和水印 {image_index: {watermark_config_id, position}}
     ) -> Dict[str, Any]:
         """
         处理单个商品的水印
@@ -140,15 +140,33 @@ class WatermarkProcessor:
 
             for idx, image_url in enumerate(original_images):
                 try:
-                    # 决定使用的位置
+                    # 决定使用的位置和水印配置
                     best_position = None
+                    image_watermark_config = watermark_config  # 默认使用传入的水印配置
 
-                    # 优先使用手动选择的位置
+                    # 优先使用手动选择的位置和水印
                     if position_overrides and str(idx) in position_overrides:
-                        best_position = position_overrides[str(idx)]
+                        override_data = position_overrides[str(idx)]
+
+                        # 如果override_data是字符串，兼容旧格式（只有位置）
+                        if isinstance(override_data, str):
+                            best_position = override_data
+                        # 如果是字典，支持新格式（水印ID和位置）
+                        elif isinstance(override_data, dict):
+                            best_position = override_data.get('position')
+
+                            # 如果指定了不同的水印配置，加载它
+                            custom_watermark_id = override_data.get('watermark_config_id')
+                            if custom_watermark_id and custom_watermark_id != watermark_config_id:
+                                custom_config = await self.db.get(WatermarkConfig, custom_watermark_id)
+                                if custom_config:
+                                    image_watermark_config = custom_config
+                                    logger.info(f"Image {idx+1}: using custom watermark config {custom_watermark_id}")
+
                         position_metadata.append({
                             "image_index": idx,
                             "position": best_position,
+                            "watermark_config_id": image_watermark_config.id,
                             "mode": "manual"
                         })
                         logger.info(f"Image {idx+1}: using manually selected position: {best_position}")
@@ -204,8 +222,9 @@ class WatermarkProcessor:
                     folder = f"{self.cloudinary_service.folder_prefix}/products/{shop_id}"
 
                     # 使用分析得出的最佳位置，或使用默认
+                    # 使用当前图片的水印配置（可能是自定义的）
                     transformation = self._build_watermark_transformation(
-                        watermark_config,
+                        image_watermark_config,  # 使用特定图片的水印配置
                         position=best_position
                     )
 

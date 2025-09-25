@@ -94,6 +94,8 @@ const ProductList: React.FC = () => {
   const [watermarkAnalyzeMode, setWatermarkAnalyzeMode] = useState<'individual' | 'fast'>('individual');
   // 手动选择的水印位置 Map<productId_imageIndex, position>
   const [manualPositions, setManualPositions] = useState<Map<string, string>>(new Map());
+  // 每张图片的独立水印设置 Map<productId_imageIndex, {watermarkId, position}>
+  const [imageWatermarkSettings, setImageWatermarkSettings] = useState<Map<string, {watermarkId: number, position?: string}>>(new Map());
 
   // 图片预览状态
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -1705,6 +1707,8 @@ const ProductList: React.FC = () => {
               setWatermarkStep('preview');
               // 初始化手动位置为空，使用算法推荐的位置
               setManualPositions(new Map());
+              // 初始化每张图片的水印设置为空
+              setImageWatermarkSettings(new Map());
             } catch (error) {
               message.error('预览失败');
             } finally {
@@ -1715,22 +1719,39 @@ const ProductList: React.FC = () => {
             const productIds = selectedRows.map((p) => p.id);
             const syncMode = productIds.length <= 10;
 
-            // 构建手动选择的位置映射
-            const positionOverrides: any = {};
-            manualPositions.forEach((position, key) => {
+            // 构建每张图片的独立配置映射
+            const imageOverrides: any = {};
+            imageWatermarkSettings.forEach((settings, key) => {
               const [productId, imageIndex] = key.split('_');
-              if (!positionOverrides[productId]) {
-                positionOverrides[productId] = {};
+              if (!imageOverrides[productId]) {
+                imageOverrides[productId] = {};
               }
-              positionOverrides[productId][imageIndex] = position;
+              imageOverrides[productId][imageIndex] = {
+                watermark_config_id: settings.watermarkId,
+                position: settings.position
+              };
             });
+
+            // 如果没有独立设置，使用旧的位置映射逻辑
+            if (Object.keys(imageOverrides).length === 0) {
+              manualPositions.forEach((position, key) => {
+                const [productId, imageIndex] = key.split('_');
+                if (!imageOverrides[productId]) {
+                  imageOverrides[productId] = {};
+                }
+                imageOverrides[productId][imageIndex] = {
+                  watermark_config_id: selectedWatermarkConfig,
+                  position: position
+                };
+              });
+            }
 
             applyWatermarkMutation.mutate({
               productIds,
               configId: selectedWatermarkConfig!,
               syncMode,
               analyzeMode: watermarkAnalyzeMode,
-              positionOverrides: Object.keys(positionOverrides).length > 0 ? positionOverrides : undefined
+              positionOverrides: Object.keys(imageOverrides).length > 0 ? imageOverrides : undefined
             });
           }
         }}
@@ -1842,6 +1863,40 @@ const ProductList: React.FC = () => {
                                 )}
                               </div>
 
+                              {/* 水印选择器 */}
+                              <div style={{ marginBottom: 8 }}>
+                                <Select
+                                  style={{ width: '100%' }}
+                                  size="small"
+                                  placeholder="选择水印"
+                                  value={imageWatermarkSettings.get(`${preview.product_id}_${imgArrayIndex}`)?.watermarkId || selectedWatermarkConfig}
+                                  onChange={(watermarkId) => {
+                                    const key = `${preview.product_id}_${imgArrayIndex}`;
+                                    const currentSettings = imageWatermarkSettings.get(key) || {};
+                                    const newSettings = new Map(imageWatermarkSettings);
+                                    newSettings.set(key, {
+                                      ...currentSettings,
+                                      watermarkId,
+                                      position: manualPositions.get(key)
+                                    });
+                                    setImageWatermarkSettings(newSettings);
+                                  }}
+                                >
+                                  {watermarkConfigs.map((config) => (
+                                    <Option key={config.id} value={config.id}>
+                                      <Space size="small">
+                                        <img
+                                          src={config.image_url}
+                                          alt={config.name}
+                                          style={{ width: 16, height: 16, objectFit: 'contain' }}
+                                        />
+                                        <span style={{ fontSize: 12 }}>{config.name}</span>
+                                      </Space>
+                                    </Option>
+                                  ))}
+                                </Select>
+                              </div>
+
                               {img.error ? (
                                 <Alert message={`处理失败: ${img.error}`} type="error" showIcon />
                               ) : (
@@ -1866,7 +1921,7 @@ const ProductList: React.FC = () => {
                                       alt="原图预览"
                                       style={{
                                         display: 'block',
-                                        maxWidth: '400px',
+                                        maxWidth: '100%',
                                         maxHeight: '300px',
                                         objectFit: 'contain'
                                       }}
@@ -1877,20 +1932,30 @@ const ProductList: React.FC = () => {
                                     />
 
                                     {/* 水印预览层 - 只在选中位置时显示 */}
-                                    {selectedWatermarkConfig && manualPositions.get(`${preview.product_id}_${imgArrayIndex}`) && (
-                                      <img
-                                        src={watermarkConfigs.find(c => c.id === selectedWatermarkConfig)?.image_url}
-                                        alt="水印预览"
-                                        style={{
-                                          position: 'absolute',
-                                          ...getPreviewWatermarkStyle(
-                                            manualPositions.get(`${preview.product_id}_${imgArrayIndex}`),
-                                            watermarkConfigs.find(c => c.id === selectedWatermarkConfig)
-                                          ),
-                                          pointerEvents: 'none'
-                                        }}
-                                      />
-                                    )}
+                                    {(() => {
+                                      const key = `${preview.product_id}_${imgArrayIndex}`;
+                                      const settings = imageWatermarkSettings.get(key);
+                                      const watermarkId = settings?.watermarkId || selectedWatermarkConfig;
+                                      const position = settings?.position || manualPositions.get(key);
+
+                                      if (watermarkId && position) {
+                                        const watermarkConfig = watermarkConfigs.find(c => c.id === watermarkId);
+                                        if (watermarkConfig) {
+                                          return (
+                                            <img
+                                              src={watermarkConfig.image_url}
+                                              alt="水印预览"
+                                              style={{
+                                                position: 'absolute',
+                                                ...getPreviewWatermarkStyle(position, watermarkConfig),
+                                                pointerEvents: 'none'
+                                              }}
+                                            />
+                                          );
+                                        }
+                                      }
+                                      return null;
+                                    })()}
 
                                     {/* 9宫格位置选择器 - 移到inline-block容器内 */}
                                     <div style={{
@@ -1912,7 +1977,8 @@ const ProductList: React.FC = () => {
                                       if (position === null) return <div key={index} />; // 中心格子跳过
 
                                       const positionKey = `${preview.product_id}_${imgArrayIndex}`;
-                                      const isSelected = manualPositions.get(positionKey) === position;
+                                      const currentSettings = imageWatermarkSettings.get(positionKey);
+                                      const isSelected = (currentSettings?.position || manualPositions.get(positionKey)) === position;
 
                                       // 格子仅用于位置选择，水印显示在大预览图上
 
@@ -1920,9 +1986,21 @@ const ProductList: React.FC = () => {
                                         <div
                                           key={index}
                                           onClick={() => {
+                                            // 更新位置到 manualPositions
                                             const newPositions = new Map(manualPositions);
                                             newPositions.set(positionKey, position);
                                             setManualPositions(newPositions);
+
+                                            // 同时更新到 imageWatermarkSettings
+                                            const newSettings = new Map(imageWatermarkSettings);
+                                            const watermarkId = currentSettings?.watermarkId || selectedWatermarkConfig;
+                                            if (watermarkId) {
+                                              newSettings.set(positionKey, {
+                                                watermarkId,
+                                                position
+                                              });
+                                              setImageWatermarkSettings(newSettings);
+                                            }
 
                                             // TODO: 触发重新预览
                                             handlePositionChange(preview.product_id, imgArrayIndex, position);
