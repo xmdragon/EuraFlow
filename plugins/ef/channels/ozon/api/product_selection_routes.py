@@ -1,13 +1,15 @@
 """
 选品助手API路由
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form, BackgroundTasks
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+from datetime import datetime, timedelta
 import tempfile
 import shutil
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 import logging
 
 from ef_core.database import get_async_session
@@ -43,6 +45,7 @@ class ImportResponse(BaseModel):
     failed_rows: Optional[int] = None
     updated_rows: Optional[int] = None
     skipped_rows: Optional[int] = None
+    competitor_update: Optional[Dict[str, Any]] = None  # 竞争对手数据更新信息
     duration: Optional[int] = None
     error: Optional[str] = None
     errors: Optional[List[Dict[str, Any]]] = None
@@ -64,6 +67,9 @@ class PreviewResponse(BaseModel):
 async def import_products(
     file: UploadFile = File(...),
     strategy: str = Form('update'),
+    shop_id: int = Form(1),  # TODO: 从认证获取店铺ID
+    auto_update_competitors: bool = Form(True),  # 是否自动更新竞争对手数据
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -72,6 +78,8 @@ async def import_products(
     Args:
         file: Excel或CSV文件
         strategy: 导入策略 (skip/update/append)
+        shop_id: 店铺ID
+        auto_update_competitors: 是否自动更新竞争对手数据
     """
     # 检查文件类型
     if not file.filename:
@@ -106,6 +114,25 @@ async def import_products(
             )
 
             if result['success']:
+                # 如果导入成功且需要自动更新竞争对手数据
+                if auto_update_competitors:
+                    from ..services.competitor_data_updater import CompetitorDataUpdater
+
+                    # 使用后台任务异步更新竞争对手数据
+                    updater = CompetitorDataUpdater(db)
+                    background_tasks.add_task(
+                        updater.update_all_products,
+                        shop_id=shop_id,
+                        force=False  # 不强制更新，只更新新导入的商品
+                    )
+
+                    # 在返回结果中添加竞争数据更新信息
+                    result['competitor_update'] = {
+                        'scheduled': True,
+                        'message': 'Competitor data update has been scheduled in background'
+                    }
+                    logger.info(f"Scheduled competitor data update for shop {shop_id}")
+
                 return ImportResponse(**result)
             else:
                 raise HTTPException(status_code=400, detail=result.get('error', '导入失败'))
@@ -290,4 +317,96 @@ async def get_import_history(
     return {
         'success': True,
         'data': result
+    }
+
+
+@router.post("/competitor-update")
+async def update_competitor_data(
+    shop_id: int = Query(..., description="店铺ID"),
+    product_ids: Optional[List[str]] = Query(None, description="指定商品ID列表"),
+    force: bool = Query(False, description="是否强制更新"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    更新竞争对手数据
+    支持全量更新或指定商品更新
+    """
+    from ..services.competitor_data_updater import CompetitorDataUpdater
+
+    updater = CompetitorDataUpdater(db)
+
+    # 创建后台任务
+    if product_ids:
+        # 更新指定商品
+        background_tasks.add_task(
+            updater.update_specific_products,
+            shop_id=shop_id,
+            product_ids=product_ids
+        )
+        message = f"Started updating competitor data for {len(product_ids)} products"
+    else:
+        # 更新所有商品
+        background_tasks.add_task(
+            updater.update_all_products,
+            shop_id=shop_id,
+            force=force
+        )
+        message = "Started updating competitor data for all products"
+
+    return {
+        'success': True,
+        'message': message,
+        'task': {
+            'shop_id': shop_id,
+            'product_count': len(product_ids) if product_ids else 'all',
+            'force': force,
+            'started_at': datetime.utcnow().isoformat()
+        }
+    }
+
+
+@router.get("/competitor-status")
+async def get_competitor_update_status(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取竞争对手数据更新状态
+    """
+    from sqlalchemy import func, or_
+    from ..models.product_selection import ProductSelectionItem
+    from datetime import datetime, timedelta
+
+    # 获取统计信息
+    stmt = select(
+        func.count(ProductSelectionItem.id).label('total'),
+        func.count(ProductSelectionItem.competitor_updated_at).label('updated'),
+        func.min(ProductSelectionItem.competitor_updated_at).label('oldest_update'),
+        func.max(ProductSelectionItem.competitor_updated_at).label('latest_update')
+    )
+
+    result = await db.execute(stmt)
+    stats = result.first()
+
+    # 计算需要更新的商品数
+    threshold = datetime.utcnow() - timedelta(hours=24)
+    stmt_outdated = select(func.count(ProductSelectionItem.id)).where(
+        or_(
+            ProductSelectionItem.competitor_updated_at == None,
+            ProductSelectionItem.competitor_updated_at < threshold
+        )
+    )
+    result_outdated = await db.execute(stmt_outdated)
+    outdated_count = result_outdated.scalar()
+
+    return {
+        'success': True,
+        'data': {
+            'total_products': stats.total,
+            'updated_products': stats.updated,
+            'outdated_products': outdated_count,
+            'oldest_update': stats.oldest_update.isoformat() if stats.oldest_update else None,
+            'latest_update': stats.latest_update.isoformat() if stats.latest_update else None,
+            'update_threshold_hours': 24
+        }
     }

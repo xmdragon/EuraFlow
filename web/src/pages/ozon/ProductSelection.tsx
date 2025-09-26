@@ -316,6 +316,35 @@ const ProductSelection: React.FC = () => {
             </Col>
           </Row>
 
+          {/* 竞争对手数据 */}
+          {(product.competitor_count !== null || product.competitor_min_price !== null) && (
+            <div style={{ background: '#fff7e6', padding: '3px 4px', borderRadius: '2px', marginTop: '4px', border: '1px solid #ffd591' }}>
+              <Row gutter={4}>
+                {product.competitor_count !== null && product.competitor_count !== undefined && (
+                  <Col span={12}>
+                    <div style={{ fontSize: '11px' }}>
+                      <Text type="secondary">跟卖者: </Text>
+                      <Text strong style={{ color: '#fa8c16' }}>{product.competitor_count}家</Text>
+                    </div>
+                  </Col>
+                )}
+                {product.competitor_min_price !== null && product.competitor_min_price !== undefined && (
+                  <Col span={12}>
+                    <div style={{ fontSize: '11px' }}>
+                      <Text type="secondary">最低价: </Text>
+                      <Text strong style={{ color: '#fa8c16' }}>¥{product.competitor_min_price.toFixed(2)}</Text>
+                    </div>
+                  </Col>
+                )}
+              </Row>
+              {product.competitor_updated_at && (
+                <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
+                  更新于: {new Date(product.competitor_updated_at).toLocaleDateString('zh-CN')}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 评分 - 更紧凑 */}
           {product.rating && (
             <div style={{ fontSize: '11px', marginTop: '2px' }}>

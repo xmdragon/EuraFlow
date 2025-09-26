@@ -47,6 +47,14 @@ class ProductSelectionItem(Base):
     sales_dynamic_percent = Column(Numeric(10, 2), comment="销售动态(%)")
     conversion_rate = Column(Numeric(5, 2), comment="成交率(%)")
 
+    # 竞争对手数据
+    competitor_count = Column(Integer, default=0, comment="跟卖者数量")
+    competitor_min_price = Column(Numeric(18, 2), comment="跟卖最低价(卢布)")
+    market_min_price = Column(Numeric(18, 2), comment="市场最低价(卢布)")
+    price_index = Column(Numeric(10, 2), comment="价格指数")
+    competitor_data = Column(JSON, comment="竞争对手详细数据")
+    competitor_updated_at = Column(DateTime, comment="竞争数据更新时间")
+
     # 物流信息
     package_weight = Column(Integer, index=True, comment="包装重量(克)")
     package_volume = Column(Numeric(10, 2), comment="包装体积(升)")

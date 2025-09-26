@@ -48,6 +48,7 @@ class OzonAPIClient:
                 "products": 10,  # 商品接口：10 req/s
                 "orders": 5,  # 订单接口：5 req/s
                 "postings": 20,  # 发货单接口：20 req/s
+                "analytics": 5,  # 分析接口：5 req/s
                 "default": 10,  # 默认：10 req/s
             }
         )
@@ -593,6 +594,126 @@ class OzonAPIClient:
 
         # 调用图片导入接口
         return await self.import_product_pictures(product_id, images)
+
+    # ========== 竞争对手和定价策略 API ==========
+
+    async def get_pricing_competitors(self, skus: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        获取竞争对手列表 - 在其他在线商店和电商平台上拥有类似商品的卖家
+
+        Args:
+            skus: 商品SKU列表（可选）
+
+        Returns:
+            竞争对手数据
+        """
+        data = {}
+        if skus:
+            data["competitors"] = [{"sku": sku} for sku in skus]
+
+        return await self._request(
+            "POST",
+            "/v1/pricing-strategy/competitors/list",
+            data=data,
+            resource_type="products"
+        )
+
+    async def get_product_prices(
+        self,
+        offer_ids: Optional[List[str]] = None,
+        product_ids: Optional[List[int]] = None,
+        skus: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """
+        获取商品价格信息（包含市场最低价和价格指数）
+        使用 /v5/product/info/prices 接口
+
+        Args:
+            offer_ids: 商品offer_id列表
+            product_ids: 商品product_id列表
+            skus: 商品SKU列表
+
+        Returns:
+            价格信息，包含price_indexes字段
+        """
+        data = {}
+
+        if offer_ids:
+            data["offer_id"] = offer_ids
+        elif product_ids:
+            data["product_id"] = [str(pid) for pid in product_ids]
+        elif skus:
+            data["sku"] = [str(sku) for sku in skus]
+        else:
+            raise ValueError("At least one of offer_ids, product_ids or skus must be provided")
+
+        return await self._request(
+            "POST",
+            "/v5/product/info/prices",
+            data=data,
+            resource_type="products"
+        )
+
+    async def get_product_analytics(
+        self,
+        date_from: str,
+        date_to: str,
+        dimension: str = "sku",
+        filters: Optional[List[Dict]] = None,
+        metrics: Optional[List[str]] = None,
+        sort: Optional[List[Dict]] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """
+        获取商品分析数据
+        使用 /v1/analytics/data 接口
+
+        Args:
+            date_from: 开始日期 (YYYY-MM-DD)
+            date_to: 结束日期 (YYYY-MM-DD)
+            dimension: 分组维度，如 "sku"
+            filters: 筛选条件
+            metrics: 要获取的指标列表
+            sort: 排序条件
+            limit: 返回数量限制
+            offset: 偏移量
+
+        Returns:
+            分析数据
+        """
+        data = {
+            "date_from": date_from,
+            "date_to": date_to,
+            "dimension": dimension,
+            "limit": limit,
+            "offset": offset
+        }
+
+        if filters:
+            data["filters"] = filters
+
+        if metrics:
+            data["metrics"] = metrics
+        else:
+            # 默认获取基础指标
+            data["metrics"] = [
+                "revenue",
+                "ordered_units",
+                "hits_view",
+                "hits_tocart",
+                "conv_tocart_pdp"
+            ]
+
+        if sort:
+            data["sort"] = sort
+
+        return await self._request(
+            "POST",
+            "/v1/analytics/data",
+            data=data,
+            resource_type="analytics"
+        )
 
     # ========== Webhook 相关 ==========
 
