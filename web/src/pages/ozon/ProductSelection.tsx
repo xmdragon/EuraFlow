@@ -57,7 +57,8 @@ const ProductSelection: React.FC = () => {
   // 状态管理
   const [activeTab, setActiveTab] = useState('search');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(24);
+  const [historyPage, setHistoryPage] = useState(1);  // 导入历史分页
   const [searchParams, setSearchParams] = useState<api.ProductSearchParams>({});
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -84,8 +85,8 @@ const ProductSelection: React.FC = () => {
 
   // 查询导入历史
   const { data: historyData, refetch: refetchHistory } = useQuery({
-    queryKey: ['productSelectionHistory', currentPage],
-    queryFn: () => api.getImportHistory(currentPage, 10),
+    queryKey: ['productSelectionHistory', historyPage],
+    queryFn: () => api.getImportHistory(historyPage, 10),
     enabled: activeTab === 'history',
   });
 
@@ -114,27 +115,48 @@ const ProductSelection: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // 处理文件上传前的预览
+  // 处理文件上传 - 直接导入，不预览
   const handleBeforeUpload = async (file: any) => {
     setFileList([file]);
 
+    // 直接执行导入
+    setImportLoading(true);
     try {
-      const preview = await api.previewImport(file);
-      if (preview.success) {
-        setPreviewData(preview);
-        setImportModalVisible(true);
+      const result = await api.importProducts(file, 'update');  // 默认使用更新策略
+      if (result.success) {
+        notification.success({
+          message: '导入完成',
+          description: (
+            <div>
+              <p>总行数: {result.total_rows}</p>
+              <p>成功: {result.success_rows} 条</p>
+              {result.updated_rows! > 0 && <p>更新: {result.updated_rows} 条</p>}
+              {result.skipped_rows! > 0 && <p>跳过: {result.skipped_rows} 条</p>}
+              {result.failed_rows! > 0 && <p>失败: {result.failed_rows} 条</p>}
+              <p>耗时: {result.duration} 秒</p>
+            </div>
+          ),
+          duration: 5,  // 5秒后自动消失
+        });
+
+        setFileList([]);
+        refetchProducts();
+        refetchHistory();  // 刷新历史记录
       } else {
-        message.error(preview.error || '文件预览失败');
-        if (preview.missing_columns) {
+        message.error(result.error || '导入失败');
+        if (result.missing_columns) {
           notification.error({
             message: '文件格式错误',
-            description: `缺少必需列: ${preview.missing_columns.join(', ')}`,
+            description: `缺少必需列: ${result.missing_columns.join(', ')}`,
             duration: 0,
           });
         }
       }
     } catch (error: any) {
-      message.error('文件预览失败: ' + error.message);
+      message.error('导入失败: ' + error.message);
+    } finally {
+      setImportLoading(false);
+      setFileList([]);
     }
 
     return false; // 阻止自动上传
@@ -191,9 +213,11 @@ const ProductSelection: React.FC = () => {
       <Card
         key={product.id}
         hoverable
+        size="small"
+        bodyStyle={{ padding: '8px', minHeight: '240px', display: 'flex', flexDirection: 'column' }}
         cover={
           product.image_url ? (
-            <div style={{ height: 200, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0' }}>
+            <div style={{ height: 160, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0' }}>
               <img
                 alt={product.product_name_cn}
                 src={product.image_url}
@@ -201,8 +225,8 @@ const ProductSelection: React.FC = () => {
               />
             </div>
           ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0' }}>
-              <ShoppingOutlined style={{ fontSize: 48, color: '#ccc' }} />
+            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0' }}>
+              <ShoppingOutlined style={{ fontSize: 40, color: '#ccc' }} />
             </div>
           )
         }
@@ -210,91 +234,97 @@ const ProductSelection: React.FC = () => {
           <Button
             key="view"
             type="link"
+            size="small"
             icon={<ShoppingOutlined />}
             onClick={() => window.open(product.ozon_link, '_blank')}
+            style={{ fontSize: '12px' }}
           >
-            查看商品
+            查看
           </Button>,
         ]}
       >
-        <Card.Meta
-          title={
-            <div style={{ minHeight: 44 }}>
-              <Text ellipsis={{ rows: 2, tooltip: product.product_name_cn }}>
-                {product.product_name_cn || product.product_name_ru}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {/* 商品名称 */}
+          <Text ellipsis={{ rows: 2, tooltip: product.product_name_cn }} style={{ fontSize: '12px', lineHeight: '1.4', minHeight: '33px' }}>
+            {product.product_name_cn || product.product_name_ru}
+          </Text>
+
+          {/* 价格信息 */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Text strong style={{ fontSize: 16, color: '#ff4d4f' }}>
+                ¥{product.current_price?.toFixed(2)}
               </Text>
-            </div>
-          }
-          description={
-            <Space direction="vertical" style={{ width: '100%' }}>
-              {/* 价格信息 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Text strong style={{ fontSize: 18, color: '#ff4d4f' }}>
-                  ¥{product.current_price?.toFixed(2)}
-                </Text>
-                {product.original_price && (
-                  <>
-                    <Text delete style={{ color: '#999' }}>
-                      ¥{product.original_price.toFixed(2)}
-                    </Text>
-                    {discount > 0 && (
-                      <Tag color="red">-{discount}%</Tag>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* 品牌 */}
-              <div>
-                <Text type="secondary">品牌: </Text>
-                <Text>{product.brand || '无品牌'}</Text>
-              </div>
-
-              {/* 佣金率 */}
-              <Row gutter={8}>
-                <Col span={12}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>rFBS(≤1500): </Text>
-                  <Text strong style={{ fontSize: 12 }}>{product.rfbs_commission_low}%</Text>
-                </Col>
-                <Col span={12}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>FBP(≤1500): </Text>
-                  <Text strong style={{ fontSize: 12 }}>{product.fbp_commission_low}%</Text>
-                </Col>
-              </Row>
-              <Row gutter={8}>
-                <Col span={12}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>rFBS(1501-5000): </Text>
-                  <Text strong style={{ fontSize: 12 }}>{product.rfbs_commission_mid}%</Text>
-                </Col>
-                <Col span={12}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>FBP(1501-5000): </Text>
-                  <Text strong style={{ fontSize: 12 }}>{product.fbp_commission_mid}%</Text>
-                </Col>
-              </Row>
-
-              {/* 销量和重量 */}
-              <Row gutter={8}>
-                <Col span={12}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>月销量: </Text>
-                  <Text strong style={{ fontSize: 12 }}>{product.monthly_sales_volume} 件</Text>
-                </Col>
-                <Col span={12}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>重量: </Text>
-                  <Text strong style={{ fontSize: 12 }}>{product.package_weight}g</Text>
-                </Col>
-              </Row>
-
-              {/* 评分 */}
-              {product.rating && (
-                <div>
-                  <StarOutlined style={{ color: '#faad14' }} />
-                  <Text style={{ marginLeft: 4 }}>{product.rating}</Text>
-                  <Text type="secondary" style={{ marginLeft: 4 }}>({product.review_count})</Text>
-                </div>
+              {product.original_price && discount > 0 && (
+                <Tag color="red" style={{ margin: 0, padding: '0 4px', fontSize: '11px', lineHeight: '18px' }}>
+                  -{discount}%
+                </Tag>
               )}
-            </Space>
-          }
-        />
+            </div>
+            {product.original_price ? (
+              <Text delete style={{ color: '#999', fontSize: '11px', marginTop: '-2px' }}>
+                ¥{product.original_price.toFixed(2)}
+              </Text>
+            ) : (
+              <div style={{ height: '14px' }}></div>  /* 占位符，保持高度一致 */
+            )}
+          </div>
+
+          {/* 品牌 */}
+          <div style={{ fontSize: '11px', lineHeight: '1.2' }}>
+            <Text type="secondary">品牌: </Text>
+            <Text strong>{product.brand || '无品牌'}</Text>
+          </div>
+
+          {/* 佣金率 - 紧凑布局 */}
+          <div style={{ background: '#f5f5f5', padding: '3px 4px', borderRadius: '2px', marginTop: '2px' }}>
+            <Row gutter={4} style={{ marginBottom: '2px' }}>
+              <Col span={12}>
+                <Text style={{ fontSize: '10px', color: '#666' }}>rFBS≤1500:</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.rfbs_commission_low}%</Text>
+              </Col>
+              <Col span={12}>
+                <Text style={{ fontSize: '10px', color: '#666' }}>FBP≤1500:</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.fbp_commission_low}%</Text>
+              </Col>
+            </Row>
+            <Row gutter={4}>
+              <Col span={12}>
+                <Text style={{ fontSize: '10px', color: '#666' }}>rFBS(1.5-5k):</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.rfbs_commission_mid}%</Text>
+              </Col>
+              <Col span={12}>
+                <Text style={{ fontSize: '10px', color: '#666' }}>FBP(1.5-5k):</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.fbp_commission_mid}%</Text>
+              </Col>
+            </Row>
+          </div>
+
+          {/* 销量和重量 */}
+          <Row gutter={4} style={{ marginTop: '4px' }}>
+            <Col span={12}>
+              <div style={{ fontSize: '11px' }}>
+                <Text type="secondary">月销: </Text>
+                <Text strong>{product.monthly_sales_volume}</Text>
+              </div>
+            </Col>
+            <Col span={12}>
+              <div style={{ fontSize: '11px' }}>
+                <Text type="secondary">重量: </Text>
+                <Text strong>{product.package_weight}g</Text>
+              </div>
+            </Col>
+          </Row>
+
+          {/* 评分 - 更紧凑 */}
+          {product.rating && (
+            <div style={{ fontSize: '11px', marginTop: '2px' }}>
+              <StarOutlined style={{ color: '#faad14', fontSize: '11px' }} />
+              <Text strong style={{ marginLeft: 2 }}>{product.rating}</Text>
+              <Text type="secondary" style={{ marginLeft: 2 }}>({product.review_count})</Text>
+            </div>
+          )}
+        </div>
       </Card>
     );
   };
@@ -541,10 +571,10 @@ const ProductSelection: React.FC = () => {
             dataSource={historyData?.data?.items}
             rowKey="id"
             pagination={{
-              current: currentPage,
+              current: historyPage,
               pageSize: 10,
               total: historyData?.data?.total,
-              onChange: (page) => setCurrentPage(page),
+              onChange: (page) => setHistoryPage(page),
             }}
             columns={[
               {

@@ -337,38 +337,46 @@ class ProductSelectionService:
         skipped = 0
 
         for item in items:
-            product_id = item['product_id']
+            try:
+                product_id = item['product_id']
 
-            # 检查是否存在
-            existing = await db.execute(
-                select(ProductSelectionItem).where(
-                    ProductSelectionItem.product_id == product_id
+                # 检查是否存在
+                existing = await db.execute(
+                    select(ProductSelectionItem).where(
+                        ProductSelectionItem.product_id == product_id
+                    )
                 )
-            )
-            existing_item = existing.scalar_one_or_none()
+                existing_item = existing.scalar_one_or_none()
 
-            if existing_item:
-                if strategy == 'skip':
-                    skipped += 1
-                    continue
-                elif strategy == 'update':
-                    # 更新现有记录
-                    for key, value in item.items():
-                        setattr(existing_item, key, value)
-                    existing_item.updated_at = datetime.now()
-                    updated += 1
-                else:  # append
-                    # 创建新记录（允许重复）
+                if existing_item:
+                    if strategy == 'skip':
+                        skipped += 1
+                        continue
+                    elif strategy == 'update':
+                        # 更新现有记录
+                        for key, value in item.items():
+                            setattr(existing_item, key, value)
+                        existing_item.updated_at = datetime.now()
+                        updated += 1
+                    else:  # append
+                        # append策略下跳过已存在的记录（因为product_id是唯一的）
+                        skipped += 1
+                        continue
+                else:
+                    # 创建新记录
                     new_item = ProductSelectionItem(**item)
                     db.add(new_item)
                     success += 1
-            else:
-                # 创建新记录
-                new_item = ProductSelectionItem(**item)
-                db.add(new_item)
-                success += 1
 
-        await db.flush()
+                # 每处理一条就flush，避免批量失败
+                await db.flush()
+
+            except Exception as e:
+                # 如果出错，回滚当前事务并继续处理下一条
+                await db.rollback()
+                logger.warning(f"Failed to process product {item.get('product_id')}: {e}")
+                skipped += 1
+                continue
 
         return {
             'success': success,
