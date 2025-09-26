@@ -649,6 +649,112 @@ class OzonAPIClient:
             resource_type="products"
         )
 
+    async def get_other_sellers_info(
+        self,
+        product_id: str
+    ) -> Dict[str, Any]:
+        """
+        获取其他卖家报价信息（跟卖者数据）
+        使用Ozon内部API /api/entrypoint-api.bx/page/json/v2
+
+        Args:
+            product_id: 商品ID（字符串格式）
+
+        Returns:
+            包含跟卖者数量和价格信息的响应
+        """
+        import httpx
+
+        # 构建内部API的URL
+        url = f"https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2"
+        params = {
+            "url": f"/modal/otherOffersFromSellers?product_id={product_id}&page_changed=true"
+        }
+
+        # 使用独立的httpx客户端调用内部API（不需要认证）
+        # 需要follow_redirects以处理307重定向
+        # 设置必要的headers来模拟浏览器请求
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer": f"https://www.ozon.ru/product/{product_id}/",
+            "Origin": "https://www.ozon.ru",
+        }
+
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+
+                data = response.json()
+
+                # 解析响应提取跟卖者信息
+                result = {
+                    "success": True,
+                    "product_id": product_id,
+                    "seller_count": 0,
+                    "min_price": None,
+                    "sellers": [],
+                    "raw_data": None  # 暂时不返回原始数据，避免日志过大
+                }
+
+                # 尝试从widgetStates中提取数据
+                if "widgetStates" in data:
+                    widget_states = data["widgetStates"]
+
+                    # 遍历widgetStates寻找跟卖者信息
+                    for key, value in widget_states.items():
+                        if isinstance(value, str):
+                            try:
+                                # 尝试解析JSON字符串
+                                import json
+                                widget_data = json.loads(value)
+
+                                # 查找包含卖家信息的字段
+                                if "sellers" in widget_data or "items" in widget_data:
+                                    sellers_list = widget_data.get("sellers", widget_data.get("items", []))
+                                    result["seller_count"] = len(sellers_list)
+                                    result["sellers"] = sellers_list[:10]  # 只保存前10个
+
+                                    # 提取最低价格
+                                    if sellers_list:
+                                        prices = []
+                                        for seller in sellers_list:
+                                            if "price" in seller:
+                                                try:
+                                                    price = float(seller["price"])
+                                                    prices.append(price)
+                                                except (ValueError, TypeError):
+                                                    pass
+                                        if prices:
+                                            result["min_price"] = min(prices)
+
+                                # 检查是否有总数信息
+                                if "totalCount" in widget_data:
+                                    result["seller_count"] = widget_data["totalCount"]
+                                elif "total" in widget_data:
+                                    result["seller_count"] = widget_data["total"]
+
+                            except json.JSONDecodeError:
+                                continue
+
+                return result
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Failed to get other sellers info: {e}")
+                return {
+                    "success": False,
+                    "error": f"HTTP {e.response.status_code}",
+                    "message": str(e)
+                }
+            except Exception as e:
+                logger.error(f"Unexpected error getting other sellers info: {e}")
+                return {
+                    "success": False,
+                    "error": str(e)
+                }
+
     async def get_product_prices(
         self,
         offer_ids: Optional[List[str]] = None,

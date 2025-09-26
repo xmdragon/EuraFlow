@@ -49,8 +49,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
 
 const { Option } = Select;
-const { Title, Text, Link } = Typography;
-const { TabPane } = Tabs;
+const { Title, Text, Link, Paragraph } = Typography;
 
 const ProductSelection: React.FC = () => {
   const queryClient = useQueryClient();
@@ -322,7 +321,7 @@ const ProductSelection: React.FC = () => {
         key={product.id}
         hoverable
         size="small"
-        bodyStyle={{ padding: '8px', minHeight: '240px', display: 'flex', flexDirection: 'column' }}
+        styles={{ body: { padding: '8px', minHeight: '240px', display: 'flex', flexDirection: 'column' } }}
         cover={
           product.image_url ? (
             <div
@@ -374,9 +373,9 @@ const ProductSelection: React.FC = () => {
       >
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {/* 商品名称 */}
-          <Text ellipsis={{ rows: 2, tooltip: product.product_name_cn }} style={{ fontSize: '12px', lineHeight: '1.4', minHeight: '33px' }}>
+          <Paragraph ellipsis={{ rows: 2, tooltip: product.product_name_cn }} style={{ fontSize: '12px', lineHeight: '1.4', minHeight: '33px', marginBottom: '4px' }}>
             {product.product_name_cn || product.product_name_ru}
-          </Text>
+          </Paragraph>
 
           {/* 价格信息 */}
           <div>
@@ -499,8 +498,15 @@ const ProductSelection: React.FC = () => {
 
   return (
     <Card title="选品助手" style={{ margin: 24 }}>
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane tab={<span><SearchOutlined /> 商品搜索</span>} key="search">
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'search',
+            label: <span><SearchOutlined /> 商品搜索</span>,
+            children: (
+              <>
           {/* 搜索表单 */}
           <Card style={{ marginBottom: 24 }}>
             <Form
@@ -677,7 +683,7 @@ const ProductSelection: React.FC = () => {
           {/* 分页 */}
           {productsData?.data && productsData.data.total > 0 && (
             <div style={{ marginTop: 24, textAlign: 'center' }}>
-              <Button.Group>
+              <Space.Compact>
                 <Button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(currentPage - 1)}
@@ -693,12 +699,16 @@ const ProductSelection: React.FC = () => {
                 >
                   下一页
                 </Button>
-              </Button.Group>
+              </Space.Compact>
             </div>
           )}
-        </TabPane>
-
-        <TabPane tab={<span><UploadOutlined /> 数据导入</span>} key="import">
+              </>
+            )
+          },
+          {
+            key: 'import',
+            label: <span><UploadOutlined /> 数据导入</span>,
+            children: (
           <Card>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
               <Alert
@@ -732,9 +742,12 @@ const ProductSelection: React.FC = () => {
               </Upload.Dragger>
             </Space>
           </Card>
-        </TabPane>
-
-        <TabPane tab={<span><HistoryOutlined /> 导入历史</span>} key="history">
+            )
+          },
+          {
+            key: 'history',
+            label: <span><HistoryOutlined /> 导入历史</span>,
+            children: (
           <Table
             dataSource={historyData?.data?.items}
             rowKey="id"
@@ -806,9 +819,12 @@ const ProductSelection: React.FC = () => {
               },
             ]}
           />
-        </TabPane>
-
-        <TabPane tab={<span><ReloadOutlined /> 数据同步</span>} key="competitor">
+            )
+          },
+          {
+            key: 'competitor',
+            label: <span><ReloadOutlined /> 数据同步</span>,
+            children: (
           <Card>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
               {/* 竞争数据统计 */}
@@ -913,8 +929,10 @@ const ProductSelection: React.FC = () => {
               />
             </Space>
           </Card>
-        </TabPane>
-      </Tabs>
+            )
+          }
+        ]}
+      />
 
       {/* 跟卖者列表弹窗 */}
       <Modal

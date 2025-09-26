@@ -460,10 +460,37 @@ async def get_product_detail(
 
         # 获取商品详细信息 - 优先使用数据库中的信息构造基本响应
         # 在生产环境中，可以尝试调用Ozon API获取更多详情
+        product_info = None
         try:
-            # 尝试用product_id作为offer_id调用API
-            product_info = await api_client.get_product_info_list(offer_ids=[product_id])
-            logger.info(f"成功通过offer_id获取商品信息: {product_id}")
+            # 尝试多种方式获取商品信息
+            # 1. 先尝试使用product_id作为整数ID
+            if product_id.isdigit():
+                try:
+                    product_info = await api_client.get_product_info_list(product_ids=[int(product_id)])
+                    if product_info and product_info.get('result') and product_info['result'].get('items'):
+                        logger.info(f"成功通过product_id获取商品信息: {product_id}")
+                except Exception as e:
+                    logger.debug(f"无法通过product_id获取: {e}")
+
+            # 2. 如果失败，尝试使用product_id作为offer_id
+            if not product_info or not product_info.get('result', {}).get('items'):
+                try:
+                    product_info = await api_client.get_product_info_list(offer_ids=[product_id])
+                    if product_info and product_info.get('result') and product_info['result'].get('items'):
+                        logger.info(f"成功通过offer_id获取商品信息: {product_id}")
+                except Exception as e:
+                    logger.debug(f"无法通过offer_id获取: {e}")
+
+            # 3. 如果仍然失败，尝试使用SKU
+            if not product_info or not product_info.get('result', {}).get('items'):
+                if product_id.isdigit():
+                    try:
+                        product_info = await api_client.get_product_info_list(skus=[int(product_id)])
+                        if product_info and product_info.get('result') and product_info['result'].get('items'):
+                            logger.info(f"成功通过SKU获取商品信息: {product_id}")
+                    except Exception as e:
+                        logger.debug(f"无法通过SKU获取: {e}")
+
         except Exception as e:
             logger.warning(f"无法从Ozon API获取商品详情: {e}")
             # 如果API调用失败，使用数据库中的信息
@@ -471,31 +498,176 @@ async def get_product_detail(
 
         # 处理商品详情信息
         images = []
+        processed_files = set()  # 用于去重
+
         if product_info and product_info.get('result') and product_info['result'].get('items'):
             # 从API获取的数据
             product_detail = product_info['result']['items'][0]
-            if product_detail.get('images'):
-                for img in product_detail['images']:
-                    if isinstance(img, dict) and img.get('file_name'):
+
+            # 记录完整响应用于调试
+            logger.info(f"商品详情响应字段: {list(product_detail.keys())}")
+
+            # 构建图片URL的辅助函数
+            def build_image_urls(file_name: str, is_primary: bool = False) -> list:
+                """为文件名构建多个可能的CDN URL"""
+                urls = []
+                if not file_name:
+                    return urls
+
+                if file_name.startswith('http'):
+                    return [file_name]
+
+                # OZON使用多个CDN域名和路径模式
+                cdn_patterns = [
+                    'https://cdn1.ozone.ru/s3/multimedia-{}/{}',
+                    'https://cdn1.ozon.ru/multimedia/{}/{}',
+                    'https://cdn1.ozone.ru/s3/multimedia/{}',
+                    'https://cdn1.ozon.ru/multimedia/{}',
+                    'https://ir.ozone.ru/s3/multimedia-{}/{}',
+                    'https://ir.ozone.ru/multimedia/{}/{}',
+                ]
+
+                # 尝试不同的子路径
+                sub_paths = ['1', 'c', 'a', 'b', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+
+                for pattern in cdn_patterns:
+                    if '{}/' in pattern:  # 需要子路径的模式
+                        for sub in sub_paths:
+                            urls.append(pattern.format(sub, file_name))
+                            if is_primary:  # 主图只生成几个URL
+                                break
+                    else:  # 不需要子路径的模式
+                        urls.append(pattern.format(file_name))
+
+                return urls[:3] if is_primary else urls[:1]  # 主图返回多个URL尝试，其他图片返回一个
+
+            # 1. 处理primary_image（主图）
+            if product_detail.get('primary_image'):
+                primary_img = product_detail['primary_image']
+                if primary_img and primary_img not in processed_files:
+                    urls = build_image_urls(primary_img, is_primary=True)
+                    for url in urls:
                         images.append({
-                            'url': f"https://cdn1.ozone.ru/s3/multimedia-c/{img['file_name']}",
-                            'file_name': img['file_name'],
-                            'default': img.get('default', False)
+                            'url': url,
+                            'file_name': primary_img.split('/')[-1] if '/' in primary_img else primary_img,
+                            'default': True
                         })
+                    processed_files.add(primary_img)
+
+            # 2. 处理images数组（所有图片）
+            if product_detail.get('images'):
+                logger.info(f"找到images字段，包含 {len(product_detail['images'])} 个图片")
+                for idx, img in enumerate(product_detail['images']):
+                    file_name = None
+                    is_default = False
+
+                    if isinstance(img, dict):
+                        file_name = img.get('file_name') or img.get('url') or img.get('image')
+                        is_default = img.get('default', False) or img.get('is_primary', False)
                     elif isinstance(img, str):
+                        file_name = img
+                        is_default = idx == 0
+
+                    if file_name and file_name not in processed_files:
+                        urls = build_image_urls(file_name)
+                        for url in urls:
+                            images.append({
+                                'url': url,
+                                'file_name': file_name.split('/')[-1] if '/' in file_name else file_name,
+                                'default': is_default
+                            })
+                        processed_files.add(file_name)
+
+            # 3. 处理media字段（可能包含额外的图片）
+            if product_detail.get('media'):
+                logger.info(f"找到media字段")
+                if isinstance(product_detail['media'], list):
+                    for media_item in product_detail['media']:
+                        if isinstance(media_item, dict):
+                            file_name = media_item.get('file') or media_item.get('url') or media_item.get('file_name')
+                            if file_name and file_name not in processed_files:
+                                urls = build_image_urls(file_name)
+                                for url in urls:
+                                    images.append({
+                                        'url': url,
+                                        'file_name': file_name.split('/')[-1] if '/' in file_name else file_name,
+                                        'default': False
+                                    })
+                                processed_files.add(file_name)
+
+            # 4. 处理photos字段（某些API版本返回）
+            if product_detail.get('photos'):
+                logger.info(f"找到photos字段")
+                if isinstance(product_detail['photos'], list):
+                    for photo in product_detail['photos']:
+                        file_name = None
+                        if isinstance(photo, dict):
+                            file_name = photo.get('url') or photo.get('file_name')
+                        elif isinstance(photo, str):
+                            file_name = photo
+
+                        if file_name and file_name not in processed_files:
+                            urls = build_image_urls(file_name)
+                            for url in urls:
+                                images.append({
+                                    'url': url,
+                                    'file_name': file_name.split('/')[-1] if '/' in file_name else file_name,
+                                    'default': False
+                                })
+                            processed_files.add(file_name)
+
+            # 5. 处理color_image字段（颜色图片）
+            if product_detail.get('color_image'):
+                color_img = product_detail['color_image']
+                if color_img and color_img not in processed_files:
+                    urls = build_image_urls(color_img)
+                    for url in urls:
                         images.append({
-                            'url': img,
-                            'file_name': img.split('/')[-1] if '/' in img else img,
+                            'url': url,
+                            'file_name': color_img.split('/')[-1] if '/' in color_img else color_img,
                             'default': False
                         })
-        else:
-            # 使用数据库中的图片信息
-            if db_product.image_url:
-                images.append({
-                    'url': db_product.image_url,
-                    'file_name': 'main_image.jpg',
-                    'default': True
-                })
+                    processed_files.add(color_img)
+
+            logger.info(f"商品 {product_id} 共找到 {len(images)} 个图片URL")
+
+            # 如果成功获取到图片，更新数据库缓存
+            if images:
+                try:
+                    import json
+                    from datetime import datetime
+                    db_product.images_data = images
+                    db_product.images_updated_at = datetime.utcnow()
+                    await db.commit()
+                    logger.info(f"已更新商品 {product_id} 的图片缓存")
+                except Exception as e:
+                    logger.warning(f"更新图片缓存失败: {e}")
+                    await db.rollback()
+
+        # 如果API没有返回图片，尝试使用缓存的图片数据
+        if not images and db_product.images_data:
+            try:
+                import json
+                images_data = json.loads(db_product.images_data) if isinstance(db_product.images_data, str) else db_product.images_data
+                if isinstance(images_data, list):
+                    for img_data in images_data:
+                        if isinstance(img_data, dict) and img_data.get('url'):
+                            images.append({
+                                'url': img_data['url'],
+                                'file_name': img_data.get('file_name', 'image.jpg'),
+                                'default': img_data.get('default', False)
+                            })
+                    logger.info(f"使用缓存的图片数据，共 {len(images)} 个图片")
+            except Exception as e:
+                logger.warning(f"解析images_data失败: {e}")
+
+        # 如果仍然没有图片，使用单个图片URL
+        if not images and db_product.image_url:
+            images.append({
+                'url': db_product.image_url,
+                'file_name': 'main_image.jpg',
+                'default': True
+            })
 
         return {
             'success': True,
