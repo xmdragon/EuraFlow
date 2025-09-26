@@ -219,9 +219,15 @@ ef_ozon_shipments_push_fail_total (counter)
 ---
 
 ## 16) OZON API 文档
-- **文档位置**：`@docs/OzonSellerAPI.html`
-- 查询 OZON API 接口规范、字段说明、请求/响应格式时，请参考此文档
-- 文档包含所有 OZON Seller API 的详细说明
+- **原始文档**：`@docs/OzonSellerAPI.html` （2.4MB 完整HTML文档）
+- **拆分文档目录**：`@docs/ozon-api/` （220个独立API文档）
+  - 每个API一个Markdown文件，命名规则：`{method}_{path}.md`
+  - 索引文件：`@docs/ozon-api/index.md` 包含所有API列表
+- **查询方式**：
+  1. 快速查找特定API：直接读取对应文件，如 `post_v3_product_list.md`
+  2. 浏览所有API：查看 `index.md` 索引文件
+  3. 按功能分组查找：索引文件已按API路径分组（product/posting/finance等）
+- **文档内容**：每个文件包含接口路径、HTTP方法、描述、参数、响应格式等详细信息
 
 ---
 
