@@ -65,6 +65,7 @@ const ProductSelection: React.FC = () => {
   const [previewData, setPreviewData] = useState<api.PreviewResponse | null>(null);
   const [importStrategy, setImportStrategy] = useState<'skip' | 'update' | 'append'>('update');
   const [importLoading, setImportLoading] = useState(false);
+  const [competitorUpdateLoading, setCompetitorUpdateLoading] = useState(false);
 
   // 查询品牌列表
   const { data: brandsData } = useQuery({
@@ -88,6 +89,13 @@ const ProductSelection: React.FC = () => {
     queryKey: ['productSelectionHistory', historyPage],
     queryFn: () => api.getImportHistory(historyPage, 10),
     enabled: activeTab === 'history',
+  });
+
+  // 查询竞争对手数据更新状态
+  const { data: competitorStatus, refetch: refetchCompetitorStatus } = useQuery({
+    queryKey: ['competitorStatus'],
+    queryFn: api.getCompetitorStatus,
+    refetchInterval: 30000, // 每30秒刷新一次
   });
 
   // 处理搜索
@@ -160,6 +168,31 @@ const ProductSelection: React.FC = () => {
     }
 
     return false; // 阻止自动上传
+  };
+
+  // 手动更新竞争对手数据
+  const handleUpdateCompetitorData = async () => {
+    setCompetitorUpdateLoading(true);
+    try {
+      const result = await api.updateCompetitorData({
+        shop_id: 1, // TODO: 从用户登录状态获取
+        force: false,
+      });
+      if (result.success) {
+        message.success('竞争对手数据更新已启动，请稍候刷新页面查看结果');
+        // 刷新状态
+        setTimeout(() => {
+          refetchCompetitorStatus();
+          refetchProducts();
+        }, 2000);
+      } else {
+        message.error('更新失败');
+      }
+    } catch (error: any) {
+      message.error('更新失败: ' + error.message);
+    } finally {
+      setCompetitorUpdateLoading(false);
+    }
   };
 
   // 执行导入
@@ -502,23 +535,54 @@ const ProductSelection: React.FC = () => {
             </Form>
           </Card>
 
-          {/* 搜索结果统计 */}
-          {productsData?.data && (
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col>
-                <Statistic
-                  title="搜索结果"
-                  value={productsData.data.total}
-                  suffix="件商品"
-                />
+          {/* 搜索结果统计和竞争对手数据状态 */}
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            {productsData?.data && (
+              <>
+                <Col>
+                  <Statistic
+                    title="搜索结果"
+                    value={productsData.data.total}
+                    suffix="件商品"
+                  />
+                </Col>
+                <Col>
+                  <Text type="secondary">
+                    第 {productsData.data.page} 页，共 {productsData.data.total_pages} 页
+                  </Text>
+                </Col>
+              </>
+            )}
+
+            {/* 竞争对手数据状态 */}
+            {competitorStatus?.data && (
+              <Col flex="auto">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Badge
+                      count={competitorStatus.data.outdated_products}
+                      showZero
+                      style={{ backgroundColor: competitorStatus.data.outdated_products > 0 ? '#faad14' : '#52c41a' }}
+                    >
+                      <Text type="secondary">竞争数据</Text>
+                    </Badge>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      {competitorStatus.data.updated_products}/{competitorStatus.data.total_products} 已更新
+                    </Text>
+                  </div>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<ReloadOutlined />}
+                    loading={competitorUpdateLoading}
+                    onClick={handleUpdateCompetitorData}
+                  >
+                    更新竞争数据
+                  </Button>
+                </div>
               </Col>
-              <Col>
-                <Text type="secondary">
-                  第 {productsData.data.page} 页，共 {productsData.data.total_pages} 页
-                </Text>
-              </Col>
-            </Row>
-          )}
+            )}
+          </Row>
 
           {/* 商品列表 */}
           <Spin spinning={productsLoading}>

@@ -220,14 +220,23 @@ ef_ozon_shipments_push_fail_total (counter)
 
 ## 16) OZON API 文档
 - **原始文档**：`@docs/OzonSellerAPI.html` （2.4MB 完整HTML文档）
-- **拆分文档目录**：`@docs/ozon-api/` （220个独立API文档）
-  - 每个API一个Markdown文件，命名规则：`{method}_{path}.md`
-  - 索引文件：`@docs/ozon-api/index.md` 包含所有API列表
+- **简化文档目录**：`@docs/ozon-api/` （220个基础API文档）
+  - 基础信息提取，包含API路径和基本结构
+  - 索引文件：`@docs/ozon-api/index.md`
+- **详细文档目录**：`@docs/ozon-api-detailed/` （219个详细API文档）⭐️ **推荐使用**
+  - **完整内容**：每个API包含详细的参数表格、请求/响应示例、错误码说明
+  - **标准格式**：接口信息、描述、请求参数、请求示例、响应结构、响应示例、错误码
+  - **README文件**：`@docs/ozon-api-detailed/README.md` 包含使用说明
+- **文件命名规则**：`{method}_{path}.md`，例如 `post_v3_product_list.md`
 - **查询方式**：
-  1. 快速查找特定API：直接读取对应文件，如 `post_v3_product_list.md`
-  2. 浏览所有API：查看 `index.md` 索引文件
-  3. 按功能分组查找：索引文件已按API路径分组（product/posting/finance等）
-- **文档内容**：每个文件包含接口路径、HTTP方法、描述、参数、响应格式等详细信息
+  1. **推荐**：直接读取详细文档 `@docs/ozon-api-detailed/post_v3_product_list.md`
+  2. 浏览索引：`@docs/ozon-api/index.md` 按功能分组
+  3. 查看说明：`@docs/ozon-api-detailed/README.md`
+- **文档特点**：
+  - ✅ 包含完整的请求参数表格（类型、必需性、描述）
+  - ✅ JSON请求/响应示例
+  - ✅ 详细的响应字段结构说明
+  - ✅ 通用错误码参考
 
 ---
 

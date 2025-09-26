@@ -11,9 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from decimal import Decimal
 
 from ef_core.config import get_settings
-from ..models import ProductSelectionItem
+from ..models import ProductSelectionItem, OzonShop
 from ..api.client import OzonAPIClient
-from .ozon_shop_service import OzonShopService
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,6 @@ class CompetitorDataUpdater:
             db_session: 数据库会话
         """
         self.db = db_session
-        self.shop_service = OzonShopService()
         self.batch_size = 50  # 每批处理的商品数量
         self.concurrent_requests = 3  # 并发请求数
         self.update_interval_hours = 24  # 更新间隔（小时）
@@ -57,41 +55,45 @@ class CompetitorDataUpdater:
         logger.info(f"Found {len(products)} products to update")
 
         # 获取店铺API凭证
-        shop = await self.shop_service.get_shop_by_id(self.db, shop_id)
-        if not shop or not shop.client_id or not shop.api_key:
+        shop_query = select(OzonShop).where(OzonShop.id == shop_id)
+        result = await self.db.execute(shop_query)
+        shop = result.scalar_one_or_none()
+
+        if not shop or not shop.client_id or not shop.api_key_enc:
             logger.error(f"Shop {shop_id} not found or missing API credentials")
             return {"error": "Shop not found or missing API credentials"}
 
         # 创建API客户端
-        async with OzonAPIClient(shop.client_id, shop.api_key, shop_id) as api_client:
-            # 批量处理商品
-            total = len(products)
-            updated = 0
-            failed = 0
-            skipped = 0
+        api_client = OzonAPIClient(shop.client_id, shop.api_key_enc)
 
-            for i in range(0, len(products), self.batch_size):
-                batch = products[i:i + self.batch_size]
-                logger.info(f"Processing batch {i//self.batch_size + 1}/{(total + self.batch_size - 1)//self.batch_size}")
+        # 批量处理商品
+        total = len(products)
+        updated = 0
+        failed = 0
+        skipped = 0
 
-                # 并发处理批次中的商品
-                tasks = []
-                for j in range(0, len(batch), self.concurrent_requests):
-                    sub_batch = batch[j:j + self.concurrent_requests]
-                    tasks.append(self._update_product_batch(api_client, sub_batch))
+        for i in range(0, len(products), self.batch_size):
+            batch = products[i:i + self.batch_size]
+            logger.info(f"Processing batch {i//self.batch_size + 1}/{(total + self.batch_size - 1)//self.batch_size}")
 
-                # 等待所有任务完成
-                results = await asyncio.gather(*tasks, return_exceptions=True)
+            # 并发处理批次中的商品
+            tasks = []
+            for j in range(0, len(batch), self.concurrent_requests):
+                sub_batch = batch[j:j + self.concurrent_requests]
+                tasks.append(self._update_product_batch(api_client, sub_batch))
 
-                # 统计结果
-                for result in results:
-                    if isinstance(result, Exception):
-                        logger.error(f"Batch update failed: {result}")
-                        failed += self.concurrent_requests
-                    else:
-                        updated += result.get("updated", 0)
-                        failed += result.get("failed", 0)
-                        skipped += result.get("skipped", 0)
+            # 等待所有任务完成
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # 统计结果
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.error(f"Batch update failed: {result}")
+                    failed += self.concurrent_requests
+                else:
+                    updated += result.get("updated", 0)
+                    failed += result.get("failed", 0)
+                    skipped += result.get("skipped", 0)
 
         logger.info(f"Competitor data update completed: total={total}, updated={updated}, failed={failed}, skipped={skipped}")
 
@@ -129,14 +131,17 @@ class CompetitorDataUpdater:
             return {"error": "No products found"}
 
         # 获取店铺API凭证
-        shop = await self.shop_service.get_shop_by_id(self.db, shop_id)
-        if not shop or not shop.client_id or not shop.api_key:
+        shop_query = select(OzonShop).where(OzonShop.id == shop_id)
+        result = await self.db.execute(shop_query)
+        shop = result.scalar_one_or_none()
+
+        if not shop or not shop.client_id or not shop.api_key_enc:
             logger.error(f"Shop {shop_id} not found or missing API credentials")
             return {"error": "Shop not found or missing API credentials"}
 
         # 创建API客户端
-        async with OzonAPIClient(shop.client_id, shop.api_key, shop_id) as api_client:
-            result = await self._update_product_batch(api_client, products)
+        api_client = OzonAPIClient(shop.client_id, shop.api_key_enc)
+        result = await self._update_product_batch(api_client, products)
 
         return result
 

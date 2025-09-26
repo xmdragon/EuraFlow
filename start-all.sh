@@ -53,9 +53,18 @@ nohup python -m plugins.ef.channels.ozon.services.watermark_task_runner > waterm
 RUNNER_PID=$!
 echo "Watermark task runner starting with PID $RUNNER_PID (logs in watermark_runner.log)"
 
+# Start competitor data task runner
+echo ""
+echo "Step 4: Starting competitor data task runner..."
+cd /home/grom/EuraFlow
+source ~/.venvs/euraflow/bin/activate
+nohup python -m plugins.ef.channels.ozon.services.competitor_task_runner > competitor_runner.log 2>&1 &
+COMPETITOR_PID=$!
+echo "Competitor task runner starting with PID $COMPETITOR_PID (logs in competitor_runner.log)"
+
 # Start frontend server
 echo ""
-echo "Step 4: Starting frontend server..."
+echo "Step 5: Starting frontend server..."
 cd /home/grom/EuraFlow/web
 nohup npm run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
@@ -83,11 +92,13 @@ echo ""
 echo "Process IDs:"
 echo "  Backend:  $BACKEND_PID"
 echo "  Watermark Runner: $RUNNER_PID"
+echo "  Competitor Runner: $COMPETITOR_PID"
 echo "  Frontend: $FRONTEND_PID"
 echo ""
 echo "Log files:"
 echo "  Backend:  /home/grom/EuraFlow/backend.log"
 echo "  Watermark Runner: /home/grom/EuraFlow/watermark_runner.log"
+echo "  Competitor Runner: /home/grom/EuraFlow/competitor_runner.log"
 echo "  Frontend: /home/grom/EuraFlow/frontend.log"
 echo ""
 echo "To stop all services, run: ./stop-all.sh"

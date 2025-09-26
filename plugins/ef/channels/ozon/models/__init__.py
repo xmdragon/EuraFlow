@@ -4,6 +4,7 @@ from .ozon_shops import OzonShop
 from .ozon_products import OzonProduct
 from .ozon_orders import OzonOrder
 from .watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
+from .product_selection import ProductSelectionItem, ImportHistory
 
 __all__ = [
     "OzonShop",
@@ -11,5 +12,7 @@ __all__ = [
     "OzonOrder",
     "WatermarkConfig",
     "CloudinaryConfig",
-    "WatermarkTask"
+    "WatermarkTask",
+    "ProductSelectionItem",
+    "ImportHistory"
 ]

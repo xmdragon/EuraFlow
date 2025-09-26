@@ -29,6 +29,11 @@ echo "Stopping Watermark task runner..."
 pkill -f "watermark_task_runner" 2>/dev/null || true
 echo "✓ Watermark task runner stopped"
 
+# Stop competitor task runner
+echo "Stopping Competitor task runner..."
+pkill -f "competitor_task_runner" 2>/dev/null || true
+echo "✓ Competitor task runner stopped"
+
 # Stop frontend server
 echo ""
 echo "Stopping frontend services..."
