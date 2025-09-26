@@ -66,6 +66,11 @@ const ProductSelection: React.FC = () => {
   const [importStrategy, setImportStrategy] = useState<'skip' | 'update' | 'append'>('update');
   const [importLoading, setImportLoading] = useState(false);
   const [competitorUpdateLoading, setCompetitorUpdateLoading] = useState(false);
+  const [competitorModalVisible, setCompetitorModalVisible] = useState(false);
+  const [selectedProductCompetitors, setSelectedProductCompetitors] = useState<any>(null);
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [selectedProductImages, setSelectedProductImages] = useState<any[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // 查询品牌列表
   const { data: brandsData } = useQuery({
@@ -179,7 +184,7 @@ const ProductSelection: React.FC = () => {
         force: false,
       });
       if (result.success) {
-        message.success('竞争对手数据更新已启动，请稍候刷新页面查看结果');
+        message.success('数据同步已启动，正在更新商品竞争数据和图片信息，请稍候刷新页面查看结果');
         // 刷新状态
         setTimeout(() => {
           refetchCompetitorStatus();
@@ -192,6 +197,29 @@ const ProductSelection: React.FC = () => {
       message.error('更新失败: ' + error.message);
     } finally {
       setCompetitorUpdateLoading(false);
+    }
+  };
+
+  // 显示跟卖者列表
+  const showCompetitorsList = (product: api.ProductSelectionItem) => {
+    setSelectedProductCompetitors(product);
+    setCompetitorModalVisible(true);
+  };
+
+  // 显示商品图片
+  const showProductImages = async (product: api.ProductSelectionItem) => {
+    try {
+      const response = await api.getProductDetail(product.product_id);
+      if (response.success && response.data.images.length > 0) {
+        setSelectedProductImages(response.data.images);
+        setCurrentImageIndex(0);
+        setImageModalVisible(true);
+      } else {
+        message.info('该商品暂无更多图片');
+      }
+    } catch (error) {
+      message.error('获取商品图片失败');
+      console.error('获取商品图片失败:', error);
     }
   };
 
@@ -236,6 +264,12 @@ const ProductSelection: React.FC = () => {
     }
   };
 
+  // 将分转换为卢布
+  const formatPrice = (priceInKopecks: number | null | undefined): string => {
+    if (priceInKopecks === null || priceInKopecks === undefined) return '0.00';
+    return (priceInKopecks / 100).toFixed(2);
+  };
+
   // 渲染商品卡片
   const renderProductCard = (product: api.ProductSelectionItem) => {
     const discount = product.original_price
@@ -250,7 +284,18 @@ const ProductSelection: React.FC = () => {
         bodyStyle={{ padding: '8px', minHeight: '240px', display: 'flex', flexDirection: 'column' }}
         cover={
           product.image_url ? (
-            <div style={{ height: 160, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0' }}>
+            <div
+              style={{
+                height: 160,
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#f0f0f0',
+                cursor: 'pointer'
+              }}
+              onClick={() => showProductImages(product)}
+            >
               <img
                 alt={product.product_name_cn}
                 src={product.image_url}
@@ -258,7 +303,17 @@ const ProductSelection: React.FC = () => {
               />
             </div>
           ) : (
-            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f0f0' }}>
+            <div
+              style={{
+                height: 160,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#f0f0f0',
+                cursor: 'pointer'
+              }}
+              onClick={() => showProductImages(product)}
+            >
               <ShoppingOutlined style={{ fontSize: 40, color: '#ccc' }} />
             </div>
           )
@@ -286,7 +341,7 @@ const ProductSelection: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <Text strong style={{ fontSize: 16, color: '#ff4d4f' }}>
-                ¥{product.current_price?.toFixed(2)}
+                ¥{formatPrice(product.current_price)}
               </Text>
               {product.original_price && discount > 0 && (
                 <Tag color="red" style={{ margin: 0, padding: '0 4px', fontSize: '11px', lineHeight: '18px' }}>
@@ -296,7 +351,7 @@ const ProductSelection: React.FC = () => {
             </div>
             {product.original_price ? (
               <Text delete style={{ color: '#999', fontSize: '11px', marginTop: '-2px' }}>
-                ¥{product.original_price.toFixed(2)}
+                ¥{formatPrice(product.original_price)}
               </Text>
             ) : (
               <div style={{ height: '14px' }}></div>  /* 占位符，保持高度一致 */
@@ -350,33 +405,43 @@ const ProductSelection: React.FC = () => {
           </Row>
 
           {/* 竞争对手数据 */}
-          {(product.competitor_count !== null || product.competitor_min_price !== null) && (
-            <div style={{ background: '#fff7e6', padding: '3px 4px', borderRadius: '2px', marginTop: '4px', border: '1px solid #ffd591' }}>
-              <Row gutter={4}>
-                {product.competitor_count !== null && product.competitor_count !== undefined && (
-                  <Col span={12}>
-                    <div style={{ fontSize: '11px' }}>
-                      <Text type="secondary">跟卖者: </Text>
-                      <Text strong style={{ color: '#fa8c16' }}>{product.competitor_count}家</Text>
-                    </div>
-                  </Col>
-                )}
-                {product.competitor_min_price !== null && product.competitor_min_price !== undefined && (
-                  <Col span={12}>
-                    <div style={{ fontSize: '11px' }}>
-                      <Text type="secondary">最低价: </Text>
-                      <Text strong style={{ color: '#fa8c16' }}>¥{product.competitor_min_price.toFixed(2)}</Text>
-                    </div>
-                  </Col>
-                )}
-              </Row>
-              {product.competitor_updated_at && (
-                <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
-                  更新于: {new Date(product.competitor_updated_at).toLocaleDateString('zh-CN')}
+          <div style={{ marginTop: '4px' }}>
+            <Row gutter={4}>
+              <Col span={12}>
+                <div style={{ fontSize: '11px' }}>
+                  <Text type="secondary">跟卖者: </Text>
+                  {product.competitor_count !== null && product.competitor_count !== undefined ? (
+                    <Text
+                      strong
+                      style={{ color: '#fa8c16', cursor: product.competitor_count > 0 ? 'pointer' : 'default' }}
+                      onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
+                    >
+                      {product.competitor_count}家
+                    </Text>
+                  ) : (
+                    <Text style={{ color: '#999' }}>-</Text>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              </Col>
+              <Col span={12}>
+                <div style={{ fontSize: '11px' }}>
+                  <Text type="secondary">跟卖最低价: </Text>
+                  {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
+                    <Text strong style={{ color: '#fa8c16' }}>
+                      ¥{formatPrice(product.competitor_min_price)}
+                    </Text>
+                  ) : (
+                    <Text style={{ color: '#999' }}>-</Text>
+                  )}
+                </div>
+              </Col>
+            </Row>
+            {product.competitor_updated_at && (
+              <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
+                更新于: {new Date(product.competitor_updated_at).toLocaleDateString('zh-CN')}
+              </div>
+            )}
+          </div>
 
           {/* 评分 - 更紧凑 */}
           {product.rating && (
@@ -535,54 +600,23 @@ const ProductSelection: React.FC = () => {
             </Form>
           </Card>
 
-          {/* 搜索结果统计和竞争对手数据状态 */}
-          <Row gutter={16} style={{ marginBottom: 16 }}>
-            {productsData?.data && (
-              <>
-                <Col>
-                  <Statistic
-                    title="搜索结果"
-                    value={productsData.data.total}
-                    suffix="件商品"
-                  />
-                </Col>
-                <Col>
-                  <Text type="secondary">
-                    第 {productsData.data.page} 页，共 {productsData.data.total_pages} 页
-                  </Text>
-                </Col>
-              </>
-            )}
-
-            {/* 竞争对手数据状态 */}
-            {competitorStatus?.data && (
-              <Col flex="auto">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Badge
-                      count={competitorStatus.data.outdated_products}
-                      showZero
-                      style={{ backgroundColor: competitorStatus.data.outdated_products > 0 ? '#faad14' : '#52c41a' }}
-                    >
-                      <Text type="secondary">竞争数据</Text>
-                    </Badge>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {competitorStatus.data.updated_products}/{competitorStatus.data.total_products} 已更新
-                    </Text>
-                  </div>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<ReloadOutlined />}
-                    loading={competitorUpdateLoading}
-                    onClick={handleUpdateCompetitorData}
-                  >
-                    更新竞争数据
-                  </Button>
-                </div>
+          {/* 搜索结果统计 */}
+          {productsData?.data && (
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col>
+                <Statistic
+                  title="搜索结果"
+                  value={productsData.data.total}
+                  suffix="件商品"
+                />
               </Col>
-            )}
-          </Row>
+              <Col>
+                <Text type="secondary">
+                  第 {productsData.data.page} 页，共 {productsData.data.total_pages} 页
+                </Text>
+              </Col>
+            </Row>
+          )}
 
           {/* 商品列表 */}
           <Spin spinning={productsLoading}>
@@ -732,7 +766,229 @@ const ProductSelection: React.FC = () => {
             ]}
           />
         </TabPane>
+
+        <TabPane tab={<span><ReloadOutlined /> 数据同步</span>} key="competitor">
+          <Card>
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+              {/* 竞争数据统计 */}
+              {competitorStatus?.data && (
+                <Row gutter={24}>
+                  <Col span={6}>
+                    <Statistic
+                      title="总商品数"
+                      value={competitorStatus.data.total_products}
+                      suffix="件"
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic
+                      title="已更新"
+                      value={competitorStatus.data.updated_products}
+                      suffix="件"
+                      valueStyle={{ color: '#3f8600' }}
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic
+                      title="待更新"
+                      value={competitorStatus.data.outdated_products}
+                      suffix="件"
+                      valueStyle={{ color: competitorStatus.data.outdated_products > 0 ? '#cf1322' : '#3f8600' }}
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <div style={{ textAlign: 'center' }}>
+                      <Button
+                        type="primary"
+                        size="large"
+                        icon={<ReloadOutlined />}
+                        loading={competitorUpdateLoading}
+                        onClick={handleUpdateCompetitorData}
+                        style={{ height: '60px', fontSize: '16px' }}
+                      >
+                        更新数据同步
+                      </Button>
+                    </div>
+                  </Col>
+                </Row>
+              )}
+
+              <Divider />
+
+              {/* 更新历史和状态信息 */}
+              {competitorStatus?.data && (
+                <div>
+                  <Title level={5}>数据状态</Title>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Card size="small">
+                        <Statistic
+                          title="最近更新时间"
+                          value={competitorStatus.data.latest_update
+                            ? new Date(competitorStatus.data.latest_update).toLocaleString('zh-CN')
+                            : '暂无更新'
+                          }
+                          valueStyle={{ fontSize: '14px' }}
+                        />
+                      </Card>
+                    </Col>
+                    <Col span={12}>
+                      <Card size="small">
+                        <Statistic
+                          title="更新间隔"
+                          value={competitorStatus.data.update_threshold_hours}
+                          suffix="小时"
+                          valueStyle={{ fontSize: '14px' }}
+                        />
+                      </Card>
+                    </Col>
+                  </Row>
+                </div>
+              )}
+
+              <Alert
+                message="数据同步说明"
+                description={
+                  <div>
+                    <p>• 数据同步包括竞争对手数据（跟卖者数量和最低价格）和商品图片信息</p>
+                    <p>• 系统每小时自动检查并更新过期数据（超过24小时未更新）</p>
+                    <p>• 您也可以手动点击"更新数据同步"按钮立即同步所有商品</p>
+                    <p>• 同步过程在后台执行，包含商品详情、竞争数据和图片链接更新</p>
+                  </div>
+                }
+                type="info"
+                showIcon
+              />
+            </Space>
+          </Card>
+        </TabPane>
       </Tabs>
+
+      {/* 跟卖者列表弹窗 */}
+      <Modal
+        title="跟卖者列表"
+        open={competitorModalVisible}
+        onCancel={() => setCompetitorModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setCompetitorModalVisible(false)}>
+            关闭
+          </Button>
+        ]}
+        width={600}
+      >
+        {selectedProductCompetitors && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>{selectedProductCompetitors.product_name_cn || selectedProductCompetitors.product_name_ru}</Text>
+            </div>
+            <Alert
+              message={`共发现 ${selectedProductCompetitors.competitor_count || 0} 个跟卖者`}
+              type="info"
+              style={{ marginBottom: 16 }}
+            />
+            {selectedProductCompetitors.competitor_data && selectedProductCompetitors.competitor_data.competitors ? (
+              <Table
+                dataSource={selectedProductCompetitors.competitor_data.competitors}
+                pagination={false}
+                size="small"
+                columns={[
+                  {
+                    title: '店铺名称',
+                    dataIndex: 'seller_name',
+                    key: 'seller_name',
+                  },
+                  {
+                    title: '价格',
+                    dataIndex: 'price',
+                    key: 'price',
+                    render: (price: number) => price ? `¥${formatPrice(price)}` : '-',
+                  },
+                  {
+                    title: '库存状态',
+                    dataIndex: 'stock_status',
+                    key: 'stock_status',
+                    render: (status: string) => (
+                      <Tag color={status === 'in_stock' ? 'green' : 'red'}>
+                        {status === 'in_stock' ? '有库存' : '无库存'}
+                      </Tag>
+                    ),
+                  },
+                ]}
+              />
+            ) : (
+              <Alert
+                message="暂无详细跟卖者信息"
+                description="跟卖者数据正在更新中，请稍后查看或手动更新竞争数据。"
+                type="warning"
+              />
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* 商品图片浏览弹窗 */}
+      <Modal
+        title="商品图片"
+        open={imageModalVisible}
+        onCancel={() => setImageModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setImageModalVisible(false)}>
+            关闭
+          </Button>
+        ]}
+        width={800}
+        style={{ top: 20 }}
+      >
+        {selectedProductImages.length > 0 && (
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <img
+                src={selectedProductImages[currentImageIndex]?.url}
+                alt="商品图片"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '500px',
+                  objectFit: 'contain'
+                }}
+              />
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <Text>
+                {currentImageIndex + 1} / {selectedProductImages.length}
+              </Text>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {selectedProductImages.map((img, index) => (
+                <div
+                  key={index}
+                  style={{
+                    width: 60,
+                    height: 60,
+                    border: currentImageIndex === index ? '2px solid #1890ff' : '1px solid #d9d9d9',
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onClick={() => setCurrentImageIndex(index)}
+                >
+                  <img
+                    src={img.url}
+                    alt={`图片 ${index + 1}`}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain'
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* 导入预览和确认弹窗 */}
       <Modal

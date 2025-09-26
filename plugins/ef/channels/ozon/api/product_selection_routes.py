@@ -366,6 +366,101 @@ async def update_competitor_data(
     }
 
 
+@router.get("/product/{product_id}/detail")
+async def get_product_detail(
+    product_id: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取商品详细信息（包括所有图片）
+    """
+    from ..api.client import OzonAPIClient
+    from ..models.ozon_shops import OzonShop
+    from sqlalchemy import select
+
+    try:
+        # 获取默认店铺（这里简化处理，实际应该从用户上下文获取）
+        shop_query = select(OzonShop).where(OzonShop.id == 1)
+        result = await db.execute(shop_query)
+        shop = result.scalar_one_or_none()
+
+        if not shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
+
+        # 创建API客户端
+        api_client = OzonAPIClient(shop.client_id, shop.api_key_enc)
+
+        # 首先从数据库获取商品信息，看是否存在对应的offer_id
+        from sqlalchemy import select
+        stmt = select(ProductSelectionItem).where(ProductSelectionItem.product_id == product_id)
+        result = await db.execute(stmt)
+        db_product = result.scalar_one_or_none()
+
+        if not db_product:
+            raise HTTPException(status_code=404, detail="商品在选品数据库中不存在")
+
+        # 获取商品详细信息 - 优先使用数据库中的信息构造基本响应
+        # 在生产环境中，可以尝试调用Ozon API获取更多详情
+        try:
+            # 尝试用product_id作为offer_id调用API
+            product_info = await api_client.get_product_info_list(offer_ids=[product_id])
+            logger.info(f"成功通过offer_id获取商品信息: {product_id}")
+        except Exception as e:
+            logger.warning(f"无法从Ozon API获取商品详情: {e}")
+            # 如果API调用失败，使用数据库中的信息
+            product_info = None
+
+        # 处理商品详情信息
+        images = []
+        if product_info and product_info.get('result') and product_info['result'].get('items'):
+            # 从API获取的数据
+            product_detail = product_info['result']['items'][0]
+            if product_detail.get('images'):
+                for img in product_detail['images']:
+                    if isinstance(img, dict) and img.get('file_name'):
+                        images.append({
+                            'url': f"https://cdn1.ozone.ru/s3/multimedia-c/{img['file_name']}",
+                            'file_name': img['file_name'],
+                            'default': img.get('default', False)
+                        })
+                    elif isinstance(img, str):
+                        images.append({
+                            'url': img,
+                            'file_name': img.split('/')[-1] if '/' in img else img,
+                            'default': False
+                        })
+        else:
+            # 使用数据库中的图片信息
+            if db_product.image_url:
+                images.append({
+                    'url': db_product.image_url,
+                    'file_name': 'main_image.jpg',
+                    'default': True
+                })
+
+        return {
+            'success': True,
+            'data': {
+                'product_id': int(product_id),
+                'offer_id': product_id,
+                'name': db_product.product_name_cn or db_product.product_name_ru,
+                'description': f"品牌: {db_product.brand or 'N/A'}",
+                'images': images,
+                'brand': db_product.brand,
+                'category_id': 0,
+                'barcode': '',
+                'price': str(db_product.current_price) if db_product.current_price else '0',
+                'old_price': str(db_product.original_price) if db_product.original_price else '',
+                'status': 'active'
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取商品详细信息失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="获取商品详细信息失败")
+
+
 @router.get("/competitor-status")
 async def get_competitor_update_status(
     db: AsyncSession = Depends(get_async_session)

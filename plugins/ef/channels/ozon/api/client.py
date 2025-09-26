@@ -265,9 +265,9 @@ class OzonAPIClient:
         if offer_ids:
             payload["offer_id"] = offer_ids
         elif product_ids:
-            payload["product_id"] = [str(pid) for pid in product_ids]
+            payload["product_id"] = product_ids
         elif skus:
-            payload["sku"] = [str(sku) for sku in skus]
+            payload["sku"] = skus
         else:
             raise ValueError("At least one of offer_ids, product_ids or skus must be provided")
 

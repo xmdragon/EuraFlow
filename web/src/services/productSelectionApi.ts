@@ -205,6 +205,31 @@ export const updateCompetitorData = async (params: {
   return response.data;
 };
 
+// 获取商品详细信息
+export const getProductDetail = async (productId: string): Promise<{
+  success: boolean;
+  data: {
+    product_id: number;
+    offer_id: string;
+    name: string;
+    description: string;
+    images: Array<{
+      url: string;
+      file_name: string;
+      default: boolean;
+    }>;
+    brand: string;
+    category_id: number;
+    barcode: string;
+    price: string;
+    old_price: string;
+    status: string;
+  };
+}> => {
+  const response = await axios.get(`/api/ef/v1/ozon/product-selection/product/${productId}/detail`);
+  return response.data;
+};
+
 // 获取竞争对手数据更新状态
 export const getCompetitorStatus = async (): Promise<{
   success: boolean;

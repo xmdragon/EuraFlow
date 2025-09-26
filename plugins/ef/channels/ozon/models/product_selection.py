@@ -75,6 +75,10 @@ class ProductSelectionItem(Base):
     # 商品创建日期（在平台上）
     product_created_date = Column(DateTime, comment="商品创建日期")
 
+    # 商品图片信息
+    images_data = Column(JSON, comment="商品图片信息列表")
+    images_updated_at = Column(DateTime, comment="图片信息更新时间")
+
     # 系统字段
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
