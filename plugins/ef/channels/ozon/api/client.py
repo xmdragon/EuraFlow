@@ -674,12 +674,31 @@ class OzonAPIClient:
         # 使用独立的httpx客户端调用内部API（不需要认证）
         # 需要follow_redirects以处理307重定向
         # 设置必要的headers来模拟浏览器请求
+        import uuid
+
+        # 生成随机的request ID和view ID
+        parent_request_id = uuid.uuid4().hex
+        page_view_id = str(uuid.uuid4())
+
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer": f"https://www.ozon.ru/product/{product_id}/",
-            "Origin": "https://www.ozon.ru",
+            # 标准浏览器headers
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+            "Referer": f"https://www.ozon.ru/product/qiaokusu-ryukzak-{product_id}/",
+            "DNT": "1",
+
+            # Chrome特定headers
+            "sec-ch-ua": '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+
+            # Ozon特定headers（关键）
+            "x-o3-app-name": "dweb_client",
+            "x-o3-app-version": "release_25-8-2025_c6d5b320",
+            "x-o3-manifest-version": "frontend-ozon-ru:c6d5b3205ea9adaa4ca34493051e957faffe77a9,fav-render-api:93f251ad7ca32b41934e73845a1ac014383d3f95,sf-render-api:537287ee45b8d0188f66bdcc3d37fffd5cf9f9f9,pdp-render-api:49f8e29714c596de49f896cb40e9986fc476ce0f,checkout-render-api:17014812dc2374eaa72bf07892c92c383e87b704",
+            "x-o3-parent-requestid": parent_request_id,
+            "x-page-view-id": page_view_id,
         }
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
