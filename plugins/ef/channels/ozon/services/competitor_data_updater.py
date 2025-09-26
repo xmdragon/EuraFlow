@@ -215,7 +215,39 @@ class CompetitorDataUpdater:
                 logger.warning(f"Failed to fetch competitor data: {e}")
                 competitor_data = {}
 
-            # 3. 更新每个商品的数据
+            # 3. 获取商品详细信息（包含图片数据）
+            images_data = {}
+            try:
+                logger.debug(f"Fetching product info for {len(product_ids)} products")
+                product_info_response = await api_client.get_product_info_list(offer_ids=product_ids)
+                if product_info_response and "items" in product_info_response:
+                    for item in product_info_response["items"]:
+                        offer_id = item.get("offer_id")
+                        if offer_id and "images" in item:
+                            # 提取图片信息
+                            images_info = []
+                            for img in item["images"]:
+                                if isinstance(img, dict) and "file_name" in img:
+                                    images_info.append({
+                                        "file_name": img["file_name"],
+                                        "url": img.get("url", f"https://cdn1.ozon.ru/s3/multimedia-{img['file_name'].split('/')[-1][0]}/{img['file_name']}"),
+                                        "default": img.get("default", False)
+                                    })
+                                elif isinstance(img, str):
+                                    # 处理字符串格式的图片
+                                    images_info.append({
+                                        "file_name": img,
+                                        "url": f"https://cdn1.ozon.ru/s3/multimedia-{img.split('/')[-1][0]}/{img}",
+                                        "default": False
+                                    })
+                            if images_info:
+                                images_data[offer_id] = images_info
+                logger.debug(f"Retrieved images data for {len(images_data)} products")
+            except Exception as e:
+                logger.warning(f"Failed to fetch product images: {e}")
+                images_data = {}
+
+            # 4. 更新每个商品的数据
             for product in products:
                 try:
                     update_data = {

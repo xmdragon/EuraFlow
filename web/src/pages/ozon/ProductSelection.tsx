@@ -41,6 +41,7 @@ import {
   FileExcelOutlined,
   HistoryOutlined,
   FilterOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
@@ -66,6 +67,7 @@ const ProductSelection: React.FC = () => {
   const [importStrategy, setImportStrategy] = useState<'skip' | 'update' | 'append'>('update');
   const [importLoading, setImportLoading] = useState(false);
   const [competitorUpdateLoading, setCompetitorUpdateLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [competitorModalVisible, setCompetitorModalVisible] = useState(false);
   const [selectedProductCompetitors, setSelectedProductCompetitors] = useState<any>(null);
   const [imageModalVisible, setImageModalVisible] = useState(false);
@@ -197,6 +199,24 @@ const ProductSelection: React.FC = () => {
       message.error('更新失败: ' + error.message);
     } finally {
       setCompetitorUpdateLoading(false);
+    }
+  };
+
+  // 刷新数据
+  const handleRefreshData = async () => {
+    setRefreshing(true);
+    try {
+      // 同时刷新状态和商品列表
+      await Promise.all([
+        refetchCompetitorStatus(),
+        refetchProducts(),
+        refetchHistory()
+      ]);
+      message.success('数据已刷新');
+    } catch (error: any) {
+      message.error('刷新失败: ' + error.message);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -798,16 +818,27 @@ const ProductSelection: React.FC = () => {
                   </Col>
                   <Col span={6}>
                     <div style={{ textAlign: 'center' }}>
-                      <Button
-                        type="primary"
-                        size="large"
-                        icon={<ReloadOutlined />}
-                        loading={competitorUpdateLoading}
-                        onClick={handleUpdateCompetitorData}
-                        style={{ height: '60px', fontSize: '16px' }}
-                      >
-                        更新数据同步
-                      </Button>
+                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                        <Button
+                          type="primary"
+                          size="large"
+                          icon={<ReloadOutlined />}
+                          loading={competitorUpdateLoading}
+                          onClick={handleUpdateCompetitorData}
+                          style={{ height: '50px', fontSize: '15px', width: '100%' }}
+                        >
+                          更新数据同步
+                        </Button>
+                        <Button
+                          size="large"
+                          icon={<SyncOutlined />}
+                          loading={refreshing}
+                          onClick={handleRefreshData}
+                          style={{ height: '40px', fontSize: '14px', width: '100%' }}
+                        >
+                          刷新
+                        </Button>
+                      </Space>
                     </div>
                   </Col>
                 </Row>
