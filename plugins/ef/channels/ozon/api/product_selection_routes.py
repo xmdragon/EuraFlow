@@ -325,45 +325,87 @@ async def update_competitor_data(
     shop_id: int = Query(..., description="店铺ID"),
     product_ids: Optional[List[str]] = Query(None, description="指定商品ID列表"),
     force: bool = Query(False, description="是否强制更新"),
+    sync_mode: bool = Query(False, description="是否同步执行(等待结果)"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     更新竞争对手数据
     支持全量更新或指定商品更新
+    支持同步和异步模式
     """
     from ..services.competitor_data_updater import CompetitorDataUpdater
 
     updater = CompetitorDataUpdater(db)
 
-    # 创建后台任务
-    if product_ids:
-        # 更新指定商品
-        background_tasks.add_task(
-            updater.update_specific_products,
-            shop_id=shop_id,
-            product_ids=product_ids
-        )
-        message = f"Started updating competitor data for {len(product_ids)} products"
-    else:
-        # 更新所有商品
-        background_tasks.add_task(
-            updater.update_all_products,
-            shop_id=shop_id,
-            force=force
-        )
-        message = "Started updating competitor data for all products"
+    if sync_mode:
+        # 同步执行，立即返回结果
+        if product_ids:
+            # 更新指定商品
+            result = await updater.update_specific_products(
+                shop_id=shop_id,
+                product_ids=product_ids
+            )
+        else:
+            # 更新所有商品
+            result = await updater.update_all_products(
+                shop_id=shop_id,
+                force=force
+            )
 
-    return {
-        'success': True,
-        'message': message,
-        'task': {
-            'shop_id': shop_id,
-            'product_count': len(product_ids) if product_ids else 'all',
-            'force': force,
-            'started_at': datetime.utcnow().isoformat()
+        if "error" in result:
+            return {
+                'success': False,
+                'message': result["error"],
+                'task': {
+                    'shop_id': shop_id,
+                    'product_count': len(product_ids) if product_ids else 'all',
+                    'force': force,
+                    'started_at': result.get("timestamp", datetime.utcnow().isoformat())
+                }
+            }
+
+        return {
+            'success': True,
+            'message': f"数据同步完成: 总计{result['total']}个商品，更新{result['updated']}个，失败{result['failed']}个",
+            'task': {
+                'shop_id': shop_id,
+                'product_count': len(product_ids) if product_ids else result['total'],
+                'force': force,
+                'started_at': result.get("timestamp", datetime.utcnow().isoformat()),
+                'completed_at': datetime.utcnow().isoformat(),
+                'result': result
+            }
         }
-    }
+    else:
+        # 异步执行（后台任务）
+        if product_ids:
+            # 更新指定商品
+            background_tasks.add_task(
+                updater.update_specific_products,
+                shop_id=shop_id,
+                product_ids=product_ids
+            )
+            message = f"Started updating competitor data for {len(product_ids)} products"
+        else:
+            # 更新所有商品
+            background_tasks.add_task(
+                updater.update_all_products,
+                shop_id=shop_id,
+                force=force
+            )
+            message = "Started updating competitor data for all products"
+
+        return {
+            'success': True,
+            'message': message,
+            'task': {
+                'shop_id': shop_id,
+                'product_count': len(product_ids) if product_ids else 'all',
+                'force': force,
+                'started_at': datetime.utcnow().isoformat()
+            }
+        }
 
 
 @router.get("/product/{product_id}/detail")

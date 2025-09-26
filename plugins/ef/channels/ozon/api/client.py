@@ -636,16 +636,32 @@ class OzonAPIClient:
         Returns:
             价格信息，包含price_indexes字段
         """
-        data = {}
+        # 构造请求数据，使用filter字段
+        filter_data = {}
 
         if offer_ids:
-            data["offer_id"] = offer_ids
+            filter_data["offer_id"] = offer_ids
         elif product_ids:
-            data["product_id"] = [str(pid) for pid in product_ids]
+            filter_data["product_id"] = [str(pid) for pid in product_ids]
         elif skus:
-            data["sku"] = [str(sku) for sku in skus]
+            filter_data["sku"] = [str(sku) for sku in skus]
         else:
             raise ValueError("At least one of offer_ids, product_ids or skus must be provided")
+
+        # 计算实际请求的商品数量，并限制在API允许范围内
+        if offer_ids:
+            item_count = len(offer_ids)
+        elif product_ids:
+            item_count = len(product_ids)
+        elif skus:
+            item_count = len(skus)
+        else:
+            item_count = 0
+
+        data = {
+            "filter": filter_data,
+            "limit": min(max(item_count, 1), 1000)  # API limit is 1000, minimum is 1
+        }
 
         return await self._request(
             "POST",

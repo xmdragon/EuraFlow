@@ -289,6 +289,12 @@ class CompetitorDataUpdater:
                             update_data["competitor_count"] = len(comp_info["competitors"])
                             update_data["competitor_data"] = comp_info["competitors"][:10]  # 只保存前10个竞争对手
 
+                    # 更新图片数据
+                    if product.product_id in images_data:
+                        update_data["images_data"] = images_data[product.product_id]
+                        update_data["images_updated_at"] = datetime.utcnow()
+                        logger.debug(f"Updated images data for product {product.product_id}: {len(images_data[product.product_id])} images")
+
                     # 更新数据库
                     await self.db.execute(
                         update(ProductSelectionItem)

@@ -184,19 +184,24 @@ const ProductSelection: React.FC = () => {
       const result = await api.updateCompetitorData({
         shop_id: 1, // TODO: 从用户登录状态获取
         force: false,
+        sync_mode: true, // 使用同步模式，等待结果
       });
       if (result.success) {
-        message.success('数据同步已启动，正在更新商品竞争数据和图片信息，请稍候刷新页面查看结果');
-        // 刷新状态
-        setTimeout(() => {
-          refetchCompetitorStatus();
-          refetchProducts();
-        }, 2000);
+        if (result.task.result) {
+          // 显示详细的更新结果
+          const { total, updated, failed } = result.task.result;
+          message.success(`数据同步完成：总计 ${total} 个商品，成功更新 ${updated} 个${failed > 0 ? `，失败 ${failed} 个` : ''}`);
+        } else {
+          message.success('数据同步完成');
+        }
+        // 立即刷新状态和商品列表
+        refetchCompetitorStatus();
+        refetchProducts();
       } else {
-        message.error('更新失败');
+        message.error(`数据同步失败：${result.message}`);
       }
     } catch (error: any) {
-      message.error('更新失败: ' + error.message);
+      message.error('数据同步失败: ' + error.message);
     } finally {
       setCompetitorUpdateLoading(false);
     }

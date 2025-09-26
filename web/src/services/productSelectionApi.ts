@@ -189,6 +189,7 @@ export const updateCompetitorData = async (params: {
   shop_id: number;
   product_ids?: string[];
   force?: boolean;
+  sync_mode?: boolean;
 }): Promise<{
   success: boolean;
   message: string;
@@ -197,6 +198,13 @@ export const updateCompetitorData = async (params: {
     product_count: number | string;
     force: boolean;
     started_at: string;
+    completed_at?: string;
+    result?: {
+      total: number;
+      updated: number;
+      failed: number;
+      skipped: number;
+    };
   };
 }> => {
   const response = await axios.post('/api/ef/v1/ozon/product-selection/competitor-update', null, {
