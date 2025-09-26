@@ -1,0 +1,293 @@
+"""
+选品助手API路由
+"""
+from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile, Form
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+import tempfile
+import shutil
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+
+from ef_core.database import get_async_session
+from ..services.product_selection_service import ProductSelectionService
+from ..models.product_selection import ProductSelectionItem, ImportHistory
+
+router = APIRouter(prefix="/product-selection", tags=["Product Selection"])
+logger = logging.getLogger(__name__)
+
+
+# DTO 模型
+class ProductSearchRequest(BaseModel):
+    """商品搜索请求"""
+    brand: Optional[str] = None
+    rfbs_low_max: Optional[float] = Field(None, description="rFBS(<=1500₽)最大佣金率")
+    rfbs_mid_max: Optional[float] = Field(None, description="rFBS(1501-5000₽)最大佣金率")
+    fbp_low_max: Optional[float] = Field(None, description="FBP(<=1500₽)最大佣金率")
+    fbp_mid_max: Optional[float] = Field(None, description="FBP(1501-5000₽)最大佣金率")
+    monthly_sales_min: Optional[int] = Field(None, description="最小月销量")
+    monthly_sales_max: Optional[int] = Field(None, description="最大月销量")
+    weight_max: Optional[int] = Field(None, description="最大包装重量(克)")
+    sort_by: Optional[str] = Field('sales_desc', description="排序方式")
+    page: Optional[int] = Field(1, ge=1, description="页码")
+    page_size: Optional[int] = Field(20, ge=1, le=100, description="每页数量")
+
+
+class ImportResponse(BaseModel):
+    """导入响应"""
+    success: bool
+    import_id: Optional[int] = None
+    total_rows: Optional[int] = None
+    success_rows: Optional[int] = None
+    failed_rows: Optional[int] = None
+    updated_rows: Optional[int] = None
+    skipped_rows: Optional[int] = None
+    duration: Optional[int] = None
+    error: Optional[str] = None
+    errors: Optional[List[Dict[str, Any]]] = None
+
+
+class PreviewResponse(BaseModel):
+    """预览响应"""
+    success: bool
+    total_rows: Optional[int] = None
+    columns: Optional[List[str]] = None
+    preview: Optional[List[Dict[str, Any]]] = None
+    column_mapping: Optional[Dict[str, str]] = None
+    error: Optional[str] = None
+    missing_columns: Optional[List[str]] = None
+
+
+# API 端点
+@router.post("/import", response_model=ImportResponse)
+async def import_products(
+    file: UploadFile = File(...),
+    strategy: str = Form('update'),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    导入商品数据文件
+
+    Args:
+        file: Excel或CSV文件
+        strategy: 导入策略 (skip/update/append)
+    """
+    # 检查文件类型
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    file_extension = file.filename.split('.')[-1].lower()
+    if file_extension not in ['csv', 'xlsx', 'xls']:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型: {file_extension}. 仅支持 CSV 和 Excel 文件"
+        )
+
+    # 保存临时文件
+    with tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=f'.{file_extension}'
+    ) as tmp_file:
+        try:
+            # 复制上传文件内容到临时文件
+            shutil.copyfileobj(file.file, tmp_file)
+            tmp_file_path = Path(tmp_file.name)
+
+            # 调用服务层导入
+            service = ProductSelectionService()
+            result = await service.import_file(
+                db=db,
+                file_path=tmp_file_path,
+                file_type='csv' if file_extension == 'csv' else 'xlsx',
+                import_strategy=strategy,
+                user_id=1,  # TODO: 从认证获取用户ID
+                validate_only=False
+            )
+
+            if result['success']:
+                return ImportResponse(**result)
+            else:
+                raise HTTPException(status_code=400, detail=result.get('error', '导入失败'))
+
+        finally:
+            # 清理临时文件
+            if tmp_file_path.exists():
+                tmp_file_path.unlink()
+
+
+@router.post("/preview", response_model=PreviewResponse)
+async def preview_import(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    预览导入文件（不执行实际导入）
+
+    Args:
+        file: Excel或CSV文件
+    """
+    # 检查文件类型
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    file_extension = file.filename.split('.')[-1].lower()
+    if file_extension not in ['csv', 'xlsx', 'xls']:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型: {file_extension}"
+        )
+
+    # 保存临时文件
+    with tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=f'.{file_extension}'
+    ) as tmp_file:
+        try:
+            shutil.copyfileobj(file.file, tmp_file)
+            tmp_file_path = Path(tmp_file.name)
+
+            # 调用服务层验证
+            service = ProductSelectionService()
+            result = await service.import_file(
+                db=db,
+                file_path=tmp_file_path,
+                file_type='csv' if file_extension == 'csv' else 'xlsx',
+                import_strategy='update',
+                user_id=1,
+                validate_only=True  # 仅验证
+            )
+
+            if result['success']:
+                return PreviewResponse(**result)
+            else:
+                return PreviewResponse(
+                    success=False,
+                    error=result.get('error'),
+                    missing_columns=result.get('missing_columns')
+                )
+
+        finally:
+            # 清理临时文件
+            if tmp_file_path.exists():
+                tmp_file_path.unlink()
+
+
+@router.post("/products/search")
+async def search_products(
+    request: ProductSearchRequest,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    搜索商品
+
+    Args:
+        request: 搜索条件
+    """
+    service = ProductSelectionService()
+
+    # 构建筛选条件
+    filters = {
+        k: v for k, v in request.dict().items()
+        if v is not None and k not in ['sort_by', 'page', 'page_size']
+    }
+
+    result = await service.search_products(
+        db=db,
+        filters=filters,
+        sort_by=request.sort_by,
+        page=request.page,
+        page_size=request.page_size
+    )
+
+    return {
+        'success': True,
+        'data': result
+    }
+
+
+@router.get("/products")
+async def get_products(
+    brand: Optional[str] = Query(None, description="品牌"),
+    rfbs_low_max: Optional[float] = Query(None, description="rFBS(<=1500₽)最大佣金率"),
+    rfbs_mid_max: Optional[float] = Query(None, description="rFBS(1501-5000₽)最大佣金率"),
+    fbp_low_max: Optional[float] = Query(None, description="FBP(<=1500₽)最大佣金率"),
+    fbp_mid_max: Optional[float] = Query(None, description="FBP(1501-5000₽)最大佣金率"),
+    monthly_sales_min: Optional[int] = Query(None, description="最小月销量"),
+    monthly_sales_max: Optional[int] = Query(None, description="最大月销量"),
+    weight_max: Optional[int] = Query(None, description="最大包装重量"),
+    sort_by: str = Query('sales_desc', description="排序方式"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取商品列表（GET方法）
+    """
+    service = ProductSelectionService()
+
+    # 构建筛选条件
+    filters = {}
+    if brand:
+        filters['brand'] = brand
+    if rfbs_low_max is not None:
+        filters['rfbs_low_max'] = rfbs_low_max
+    if rfbs_mid_max is not None:
+        filters['rfbs_mid_max'] = rfbs_mid_max
+    if fbp_low_max is not None:
+        filters['fbp_low_max'] = fbp_low_max
+    if fbp_mid_max is not None:
+        filters['fbp_mid_max'] = fbp_mid_max
+    if monthly_sales_min is not None:
+        filters['monthly_sales_min'] = monthly_sales_min
+    if monthly_sales_max is not None:
+        filters['monthly_sales_max'] = monthly_sales_max
+    if weight_max is not None:
+        filters['weight_max'] = weight_max
+
+    result = await service.search_products(
+        db=db,
+        filters=filters,
+        sort_by=sort_by,
+        page=page,
+        page_size=page_size
+    )
+
+    return {
+        'success': True,
+        'data': result
+    }
+
+
+@router.get("/brands")
+async def get_brands(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """获取品牌列表"""
+    service = ProductSelectionService()
+    brands = await service.get_brands(db)
+
+    return {
+        'success': True,
+        'data': brands
+    }
+
+
+@router.get("/import-history")
+async def get_import_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """获取导入历史"""
+    service = ProductSelectionService()
+    result = await service.get_import_history(
+        db=db,
+        page=page,
+        page_size=page_size
+    )
+
+    return {
+        'success': True,
+        'data': result
+    }

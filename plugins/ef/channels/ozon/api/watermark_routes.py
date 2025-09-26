@@ -88,9 +88,9 @@ class BatchWatermarkRequest(BaseModel):
     shop_id: int
     product_ids: List[int]
     watermark_config_id: int
-    position_overrides: Optional[Dict[str, Dict[str, str]]] = Field(
+    position_overrides: Optional[Dict[str, Dict[str, Any]]] = Field(
         default=None,
-        description="手动选择的位置 {product_id: {image_index: position}}"
+        description="手动选择的位置和水印 {product_id: {image_index: {position, watermark_config_id}}}"
     )
 
 

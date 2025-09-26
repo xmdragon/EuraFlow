@@ -44,9 +44,18 @@ for i in {1..10}; do
     sleep 1
 done
 
+# Start watermark task runner
+echo ""
+echo "Step 3: Starting watermark task runner..."
+cd /home/grom/EuraFlow
+source ~/.venvs/euraflow/bin/activate
+nohup python -m plugins.ef.channels.ozon.services.watermark_task_runner > watermark_runner.log 2>&1 &
+RUNNER_PID=$!
+echo "Watermark task runner starting with PID $RUNNER_PID (logs in watermark_runner.log)"
+
 # Start frontend server
 echo ""
-echo "Step 3: Starting frontend server..."
+echo "Step 4: Starting frontend server..."
 cd /home/grom/EuraFlow/web
 nohup npm run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
@@ -73,10 +82,12 @@ echo "Frontend: http://localhost:3000"
 echo ""
 echo "Process IDs:"
 echo "  Backend:  $BACKEND_PID"
+echo "  Watermark Runner: $RUNNER_PID"
 echo "  Frontend: $FRONTEND_PID"
 echo ""
 echo "Log files:"
 echo "  Backend:  /home/grom/EuraFlow/backend.log"
+echo "  Watermark Runner: /home/grom/EuraFlow/watermark_runner.log"
 echo "  Frontend: /home/grom/EuraFlow/frontend.log"
 echo ""
 echo "To stop all services, run: ./stop-all.sh"

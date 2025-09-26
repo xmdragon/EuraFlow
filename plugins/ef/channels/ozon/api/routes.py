@@ -19,12 +19,16 @@ from sqlalchemy import select, func
 
 # 导入水印路由
 from .watermark_routes import router as watermark_router
+# 导入选品助手路由
+from .product_selection_routes import router as product_selection_router
 
 router = APIRouter(prefix="/ozon", tags=["Ozon"])
 logger = logging.getLogger(__name__)
 
 # 包含水印管理路由（移除 /api/ef/v1 前缀，因为它在 watermark_routes 中已定义）
 router.include_router(watermark_router)
+# 包含选品助手路由
+router.include_router(product_selection_router)
 
 
 # DTO 模型

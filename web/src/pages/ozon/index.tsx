@@ -9,6 +9,7 @@ import {
   ShopOutlined,
   FileTextOutlined,
   PictureOutlined,
+  FilterOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
 import React from 'react';
@@ -20,6 +21,7 @@ import OrderReport from './OrderReport';
 import ProductList from './ProductList';
 import ShopSettings from './ShopSettings';
 import WatermarkManagement from './WatermarkManagement';
+import ProductSelection from './ProductSelection';
 
 const { Sider, Content } = Layout;
 
@@ -29,6 +31,7 @@ const OzonManagement: React.FC = () => {
   // 根据当前路径确定选中的菜单项
   const getSelectedKey = () => {
     const path = location.pathname;
+    if (path.includes('selection')) return 'selection';
     if (path.includes('products')) return 'products';
     if (path.includes('reports')) return 'reports';
     if (path.includes('orders')) return 'orders';
@@ -42,6 +45,11 @@ const OzonManagement: React.FC = () => {
       key: 'dashboard',
       icon: <DashboardOutlined />,
       label: <Link to="/dashboard/ozon">概览</Link>,
+    },
+    {
+      key: 'selection',
+      icon: <FilterOutlined />,
+      label: <Link to="/dashboard/ozon/selection">选品助手</Link>,
     },
     {
       key: 'products',
@@ -95,6 +103,7 @@ const OzonManagement: React.FC = () => {
       <Content style={{ background: '#f0f2f5', overflow: 'auto' }}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="selection" element={<ProductSelection />} />
           <Route path="products" element={<ProductList />} />
           <Route path="orders" element={<OrderList />} />
           <Route path="reports" element={<OrderReport />} />

@@ -24,6 +24,11 @@ echo "Stopping backend services..."
 kill_port 8000 "Backend server"
 pkill -f "uvicorn ef_core" 2>/dev/null || true
 
+# Stop watermark task runner
+echo "Stopping Watermark task runner..."
+pkill -f "watermark_task_runner" 2>/dev/null || true
+echo "✓ Watermark task runner stopped"
+
 # Stop frontend server
 echo ""
 echo "Stopping frontend services..."

@@ -33,6 +33,7 @@ import {
   Dropdown,
   Modal,
   message,
+  notification,
   Tooltip,
   Badge,
   Switch,
@@ -169,36 +170,33 @@ const ProductList: React.FC = () => {
     }
   }, [watermarkConfigsData]);
 
-  // 应用水印
+  // 应用水印 - 默认使用异步模式
   const applyWatermarkMutation = useMutation({
-    mutationFn: ({ productIds, configId, syncMode = true, analyzeMode = 'individual', positionOverrides }: {
+    mutationFn: ({ productIds, configId, analyzeMode = 'individual', positionOverrides }: {
       productIds: number[],
       configId: number,
-      syncMode?: boolean,
       analyzeMode?: 'individual' | 'fast',
       positionOverrides?: Record<string, Record<string, string>>
     }) =>
-      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, syncMode, analyzeMode, positionOverrides),
+      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, false, analyzeMode, positionOverrides),  // 强制使用异步模式
     onSuccess: (data) => {
-      if (data.sync_mode) {
-        // 同步模式 - 直接显示结果
-        if (data.success_count && data.failed_count !== undefined) {
-          if (data.failed_count > 0) {
-            message.warning(`水印处理完成：成功 ${data.success_count} 个，失败 ${data.failed_count} 个`);
-          } else {
-            message.success(`水印处理成功完成，共处理 ${data.success_count} 个商品`);
-          }
-        } else {
-          message.success(`水印处理完成`);
-        }
-        queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-      } else {
-        // 异步模式 - 启动轮询
-        message.success(`水印批处理已启动，任务ID: ${data.batch_id}`);
-        setWatermarkBatchId(data.batch_id);
-        // 开始轮询任务状态
-        pollWatermarkTasks(data.batch_id);
+      console.log('Watermark batch response:', data);
+
+      if (!data.batch_id) {
+        message.error('未获取到任务ID，请重试');
+        return;
       }
+
+      // 异步模式 - 启动轮询
+      message.info(`水印批处理已在后台启动，任务ID: ${data.batch_id}`);
+      setWatermarkBatchId(data.batch_id);
+
+      // 延迟1秒后开始轮询，给后端时间创建任务
+      setTimeout(() => {
+        console.log('Starting polling for batch:', data.batch_id);
+        pollWatermarkTasks(data.batch_id);
+      }, 1000);
+
       setWatermarkModalVisible(false);
       setSelectedRows([]);
     },
@@ -223,33 +221,95 @@ const ProductList: React.FC = () => {
 
   // 轮询水印任务状态
   const pollWatermarkTasks = async (batchId: string) => {
+    console.log('Starting to poll watermark tasks for batch:', batchId);
     let completed = 0;
     let failed = 0;
+    let hasShownProgress = false;
+    let pollCount = 0;
+
+    // 立即显示处理中的消息
+    message.loading('正在处理水印任务，请稍候...', 0);
+
     const interval = setInterval(async () => {
+      pollCount++;
+      console.log(`Polling attempt ${pollCount} for batch ${batchId}`);
+
       try {
         const tasks = await watermarkApi.getTasks({ shop_id: selectedShop!, batch_id: batchId });
+        console.log('Tasks received:', tasks);
 
         completed = tasks.filter(t => t.status === 'completed').length;
         failed = tasks.filter(t => t.status === 'failed').length;
+        const processing = tasks.filter(t => t.status === 'processing').length;
+        const pending = tasks.filter(t => t.status === 'pending').length;
         const total = tasks.length;
 
-        if (completed + failed === total) {
+        console.log(`Status: ${completed} completed, ${failed} failed, ${processing} processing, ${pending} pending, total: ${total}`);
+
+        // 显示进度
+        if (!hasShownProgress && (completed > 0 || processing > 0)) {
+          hasShownProgress = true;
+          message.destroy(); // 清除loading消息
+          message.info(`水印处理进度：${completed}/${total} 完成`);
+        }
+
+        // 如果所有任务都完成了（无论成功还是失败）
+        if (total > 0 && completed + failed === total) {
           clearInterval(interval);
+          message.destroy(); // 清除所有消息
+
+          // 使用通知而不是普通消息，更醒目
           if (failed > 0) {
-            message.warning(`水印处理完成，成功: ${completed}，失败: ${failed}`);
+            notification.warning({
+              message: '水印批处理完成',
+              description: `成功处理 ${completed} 个商品，失败 ${failed} 个商品`,
+              duration: 5,
+              placement: 'topRight'
+            });
           } else {
-            message.success(`水印处理成功完成，共处理 ${completed} 个商品`);
+            notification.success({
+              message: '水印批处理成功',
+              description: `已成功为 ${completed} 个商品添加水印`,
+              duration: 5,
+              placement: 'topRight'
+            });
           }
+
           queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
           setWatermarkBatchId(null);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to poll watermark tasks:', error);
+
+        // 如果连续失败3次，停止轮询
+        if (pollCount >= 3) {
+          clearInterval(interval);
+          message.destroy(); // 清除loading消息
+
+          notification.error({
+            message: '任务状态查询失败',
+            description: `无法获取水印处理进度：${error?.message || '网络错误'}。请刷新页面查看结果`,
+            duration: 0, // 不自动关闭
+            placement: 'topRight'
+          });
+        }
       }
     }, 3000);
 
     // 5分钟后自动停止轮询
-    setTimeout(() => clearInterval(interval), 300000);
+    setTimeout(() => {
+      clearInterval(interval);
+      message.destroy(); // 清除所有消息
+
+      if (completed + failed === 0) {
+        notification.warning({
+          message: '任务超时',
+          description: '水印处理时间过长，请稍后刷新页面查看结果',
+          duration: 0, // 不自动关闭
+          placement: 'topRight'
+        });
+      }
+    }, 300000);
   };
 
   // 轮询同步任务状态
@@ -1717,7 +1777,6 @@ const ProductList: React.FC = () => {
           } else {
             // 确认应用水印
             const productIds = selectedRows.map((p) => p.id);
-            const syncMode = productIds.length <= 10;
 
             // 构建每张图片的独立配置映射
             const imageOverrides: any = {};
@@ -1749,7 +1808,6 @@ const ProductList: React.FC = () => {
             applyWatermarkMutation.mutate({
               productIds,
               configId: selectedWatermarkConfig!,
-              syncMode,
               analyzeMode: watermarkAnalyzeMode,
               positionOverrides: Object.keys(imageOverrides).length > 0 ? imageOverrides : undefined
             });
@@ -2010,9 +2068,7 @@ const ProductList: React.FC = () => {
                                             backgroundColor: isSelected
                                               ? 'rgba(24, 144, 255, 0.15)'
                                               : 'transparent',
-                                            border: isSelected
-                                              ? '2px solid #1890ff'
-                                              : '1px solid transparent',
+                                            border: '1px solid transparent',
                                             transition: 'all 0.2s',
                                             position: 'relative',
                                             overflow: 'hidden'
@@ -2020,13 +2076,11 @@ const ProductList: React.FC = () => {
                                           onMouseEnter={(e) => {
                                             if (!isSelected) {
                                               e.currentTarget.style.backgroundColor = 'rgba(24, 144, 255, 0.08)';
-                                              e.currentTarget.style.border = '1px solid rgba(24, 144, 255, 0.5)';
                                             }
                                           }}
                                           onMouseLeave={(e) => {
                                             if (!isSelected) {
                                               e.currentTarget.style.backgroundColor = 'transparent';
-                                              e.currentTarget.style.border = '1px solid transparent';
                                             }
                                           }}
                                           title={`点击选择位置: ${position.replace('_', ' ')}`}
