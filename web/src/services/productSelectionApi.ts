@@ -253,3 +253,16 @@ export const getCompetitorStatus = async (): Promise<{
   const response = await axios.get('/api/ef/v1/ozon/product-selection/competitor-status');
   return response.data;
 };
+
+// 获取数据同步状态
+export const getSyncStatus = async (shopId: number): Promise<{
+  success: boolean;
+  data: {
+    is_syncing: boolean;
+    start_time: string | null;
+    duration_seconds?: number;
+  };
+}> => {
+  const response = await axios.get(`/api/ef/v1/ozon/product-selection/sync-status?shop_id=${shopId}`);
+  return response.data;
+};

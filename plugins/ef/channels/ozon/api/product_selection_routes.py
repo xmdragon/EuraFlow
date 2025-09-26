@@ -15,6 +15,7 @@ import logging
 from ef_core.database import get_async_session
 from ..services.product_selection_service import ProductSelectionService
 from ..models.product_selection import ProductSelectionItem, ImportHistory
+from ..services.sync_state_manager import get_sync_state_manager
 
 router = APIRouter(prefix="/product-selection", tags=["Product Selection"])
 logger = logging.getLogger(__name__)
@@ -406,6 +407,22 @@ async def update_competitor_data(
                 'started_at': datetime.utcnow().isoformat()
             }
         }
+
+
+@router.get("/sync-status")
+async def get_sync_status(
+    shop_id: int = Query(..., description="店铺ID")
+):
+    """
+    获取数据同步状态
+    """
+    sync_manager = get_sync_state_manager()
+    status = await sync_manager.get_sync_status(shop_id)
+
+    return {
+        'success': True,
+        'data': status
+    }
 
 
 @router.get("/product/{product_id}/detail")

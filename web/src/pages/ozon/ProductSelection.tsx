@@ -181,11 +181,19 @@ const ProductSelection: React.FC = () => {
   const handleUpdateCompetitorData = async () => {
     setCompetitorUpdateLoading(true);
     try {
+      // 先检查是否正在同步
+      const syncStatus = await api.getSyncStatus(1); // TODO: 从用户登录状态获取shop_id
+      if (syncStatus.success && syncStatus.data.is_syncing) {
+        message.warning('后台正在同步数据，请稍后再试');
+        return;
+      }
+
       const result = await api.updateCompetitorData({
         shop_id: 1, // TODO: 从用户登录状态获取
         force: false,
         sync_mode: true, // 使用同步模式，等待结果
       });
+
       if (result.success) {
         if (result.task.result) {
           // 显示详细的更新结果
@@ -198,7 +206,12 @@ const ProductSelection: React.FC = () => {
         refetchCompetitorStatus();
         refetchProducts();
       } else {
-        message.error(`数据同步失败：${result.message}`);
+        // 检查是否是正在同步的错误
+        if (result.message && result.message.includes('正在进行中')) {
+          message.warning('后台正在同步数据，请稍后再试');
+        } else {
+          message.error(`数据同步失败：${result.message}`);
+        }
       }
     } catch (error: any) {
       message.error('数据同步失败: ' + error.message);

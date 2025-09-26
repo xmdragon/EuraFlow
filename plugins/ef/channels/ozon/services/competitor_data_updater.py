@@ -13,6 +13,7 @@ from decimal import Decimal
 from ef_core.config import get_settings
 from ..models import ProductSelectionItem, OzonShop
 from ..api.client import OzonAPIClient
+from .sync_state_manager import get_sync_state_manager
 
 logger = logging.getLogger(__name__)
 
@@ -32,18 +33,46 @@ class CompetitorDataUpdater:
         self.concurrent_requests = 3  # 并发请求数
         self.update_interval_hours = 24  # 更新间隔（小时）
 
-    async def update_all_products(self, shop_id: int, force: bool = False) -> Dict[str, Any]:
+    async def update_all_products(self, shop_id: int, force: bool = False, check_state: bool = True) -> Dict[str, Any]:
         """
         更新所有商品的竞争对手数据
 
         Args:
             shop_id: 店铺ID
             force: 是否强制更新（忽略更新时间）
+            check_state: 是否检查同步状态（防止重复同步）
 
         Returns:
             更新结果统计
         """
-        logger.info(f"Starting competitor data update for shop {shop_id}")
+        sync_manager = get_sync_state_manager()
+
+        # 检查是否已在同步中
+        if check_state:
+            if await sync_manager.is_syncing(shop_id):
+                return {
+                    "error": "数据同步正在进行中，请稍后再试",
+                    "is_syncing": True
+                }
+
+            # 开始同步
+            if not await sync_manager.start_sync(shop_id):
+                return {
+                    "error": "无法启动同步，店铺可能已在同步中",
+                    "is_syncing": True
+                }
+
+        try:
+            logger.info(f"Starting competitor data update for shop {shop_id}")
+            return await self._do_update_all_products(shop_id, force)
+        finally:
+            if check_state:
+                await sync_manager.end_sync(shop_id)
+
+    async def _do_update_all_products(self, shop_id: int, force: bool = False) -> Dict[str, Any]:
+        """
+        实际执行更新所有商品的竞争对手数据
+        """
 
         # 获取需要更新的商品
         products = await self._get_products_to_update(shop_id, force)
