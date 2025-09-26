@@ -112,6 +112,16 @@ class ProductSelectionItem(Base):
             'rating': float(self.rating) if self.rating else None,
             'review_count': self.review_count,
             'seller_type': self.seller_type,
+            # 竞争对手数据
+            'competitor_count': self.competitor_count,
+            'competitor_min_price': float(self.competitor_min_price) if self.competitor_min_price else None,
+            'market_min_price': float(self.market_min_price) if self.market_min_price else None,
+            'price_index': float(self.price_index) if self.price_index else None,
+            'competitor_data': self.competitor_data,
+            'competitor_updated_at': self.competitor_updated_at.isoformat() if self.competitor_updated_at else None,
+            # 图片数据
+            'images_data': self.images_data,
+            'images_updated_at': self.images_updated_at.isoformat() if self.images_updated_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

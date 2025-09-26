@@ -597,17 +597,23 @@ class OzonAPIClient:
 
     # ========== 竞争对手和定价策略 API ==========
 
-    async def get_pricing_competitors(self, skus: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def get_pricing_competitors(self, skus: Optional[List[str]] = None, page: int = 1, limit: int = 50) -> Dict[str, Any]:
         """
         获取竞争对手列表 - 在其他在线商店和电商平台上拥有类似商品的卖家
 
         Args:
             skus: 商品SKU列表（可选）
+            page: 页码（必须大于0）
+            limit: 每页数量（默认50，最大50）
 
         Returns:
             竞争对手数据
         """
-        data = {}
+        data = {
+            "page": page,
+            "limit": limit
+        }
+
         if skus:
             data["competitors"] = [{"sku": sku} for sku in skus]
 
