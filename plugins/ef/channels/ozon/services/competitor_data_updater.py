@@ -233,16 +233,75 @@ class CompetitorDataUpdater:
                 price_data = {}
                 logger.warning(f"No price data received for products: {product_ids}")
 
-            # 2. 获取竞争对手列表（可选，如果API支持）
+            # 2. 获取定价策略产品信息（包含竞争对手/跟卖者数据）
+            competitor_data = {}
+            strategy_product_data = {}
+
             try:
-                competitor_response = await api_client.get_pricing_competitors(skus=product_ids)
-                if competitor_response and "competitors" in competitor_response:
-                    competitor_data = {comp["sku"]: comp for comp in competitor_response["competitors"]}
-                else:
-                    competitor_data = {}
+                # 将product_ids转换为整数列表
+                numeric_product_ids = []
+                for pid in product_ids:
+                    try:
+                        # 尝试转换为整数
+                        numeric_id = int(pid) if isinstance(pid, str) else pid
+                        numeric_product_ids.append(numeric_id)
+                    except (ValueError, TypeError):
+                        logger.warning(f"无法转换product_id为整数: {pid}")
+                        continue
+
+                if numeric_product_ids:
+                    logger.info(f"Fetching pricing strategy info for {len(numeric_product_ids)} products")
+                    # API只支持单个产品查询，需要逐个调用
+                    for product_id in numeric_product_ids:
+                        try:
+                            strategy_response = await api_client.get_pricing_strategy_product_info(product_id=product_id)
+                            logger.info(f"Product {product_id} pricing strategy response: {strategy_response}")
+
+                            # 解析响应数据
+                            if strategy_response:
+                                if isinstance(strategy_response, dict):
+                                    # 将product_id转换为字符串以匹配product_ids列表中的格式
+                                    product_id_str = str(product_id)
+
+                                    # 存储响应数据
+                                    strategy_product_data[product_id_str] = strategy_response
+
+                                    # 尝试多种可能的响应格式
+                                    if "products" in strategy_response:
+                                        for product_info in strategy_response["products"]:
+                                            pid = str(product_info.get("product_id", ""))
+                                            if pid:
+                                                strategy_product_data[pid] = product_info
+                                    elif "items" in strategy_response:
+                                        for item in strategy_response["items"]:
+                                            pid = str(item.get("product_id", ""))
+                                            if pid:
+                                                strategy_product_data[pid] = item
+                                    elif "product_id" in strategy_response:
+                                        # 单个产品响应（最可能的情况）
+                                        strategy_product_data[product_id_str] = strategy_response
+                                    else:
+                                        logger.warning(f"Product {product_id} - 未知的响应格式: {list(strategy_response.keys())}")
+                                else:
+                                    logger.warning(f"Product {product_id} - API返回非字典类型响应")
+                            else:
+                                logger.warning(f"Product {product_id} - API返回空响应")
+                        except Exception as e:
+                            logger.error(f"Failed to get pricing strategy for product {product_id}: {e}")
+
             except Exception as e:
-                logger.warning(f"Failed to fetch competitor data: {e}")
-                competitor_data = {}
+                logger.error(f"Failed to fetch pricing strategy data: {e}", exc_info=True)
+
+            # 尝试旧的竞争对手API作为备份
+            if not strategy_product_data:
+                try:
+                    logger.info("尝试使用备用的competitors/list API")
+                    competitor_response = await api_client.get_pricing_competitors(skus=product_ids, page=1, limit=50)
+                    logger.info(f"Competitors API response keys: {list(competitor_response.keys()) if competitor_response else 'None'}")
+                    if competitor_response and "competitors" in competitor_response:
+                        competitor_data = {comp["sku"]: comp for comp in competitor_response["competitors"]}
+                except Exception as e:
+                    logger.warning(f"备用API也失败: {e}")
 
             # 3. 获取商品详细信息（包含图片数据）
             images_data = {}
@@ -311,8 +370,32 @@ class CompetitorDataUpdater:
                                 if "minimal_price" in marketplace_data and "competitor_min_price" not in update_data:
                                     update_data["competitor_min_price"] = Decimal(str(marketplace_data["minimal_price"]))
 
-                    # 从竞争对手数据中提取信息
-                    if product.product_id in competitor_data:
+                    # 从定价策略产品数据中提取竞争对手信息
+                    if product.product_id in strategy_product_data:
+                        strategy_info = strategy_product_data[product.product_id]
+                        logger.debug(f"Product {product.product_id} strategy data: {strategy_info}")
+
+                        # 尝试多种可能的字段名
+                        if "competitors_count" in strategy_info:
+                            update_data["competitor_count"] = strategy_info["competitors_count"]
+                        elif "competitor_count" in strategy_info:
+                            update_data["competitor_count"] = strategy_info["competitor_count"]
+                        elif "sellers_count" in strategy_info:
+                            update_data["competitor_count"] = strategy_info["sellers_count"]
+                        elif "competitors" in strategy_info:
+                            update_data["competitor_count"] = len(strategy_info["competitors"])
+                            update_data["competitor_data"] = strategy_info["competitors"][:10]
+
+                        # 竞争对手最低价
+                        if "competitor_min_price" in strategy_info:
+                            update_data["competitor_min_price"] = Decimal(str(strategy_info["competitor_min_price"]))
+                        elif "min_competitor_price" in strategy_info:
+                            update_data["competitor_min_price"] = Decimal(str(strategy_info["min_competitor_price"]))
+                        elif "minimal_price" in strategy_info:
+                            update_data["competitor_min_price"] = Decimal(str(strategy_info["minimal_price"]))
+
+                    # 从旧竞争对手数据中提取信息（作为备份）
+                    elif product.product_id in competitor_data:
                         comp_info = competitor_data[product.product_id]
                         if "competitors" in comp_info:
                             update_data["competitor_count"] = len(comp_info["competitors"])

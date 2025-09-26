@@ -624,6 +624,31 @@ class OzonAPIClient:
             resource_type="products"
         )
 
+    async def get_pricing_strategy_product_info(
+        self,
+        product_id: int
+    ) -> Dict[str, Any]:
+        """
+        获取商品的定价策略信息（包含竞争对手/跟卖者数据）
+        使用 /v1/pricing-strategy/product/info 接口
+
+        Args:
+            product_id: 商品ID（单个）
+
+        Returns:
+            包含竞争对手数量和价格信息的响应
+        """
+        data = {
+            "product_id": product_id
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/pricing-strategy/product/info",
+            data=data,
+            resource_type="products"
+        )
+
     async def get_product_prices(
         self,
         offer_ids: Optional[List[str]] = None,

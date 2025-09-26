@@ -46,6 +46,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
+import ImagePreview from '@/components/ImagePreview';
 
 const { Option } = Select;
 const { Title, Text, Link } = Typography;
@@ -71,7 +72,7 @@ const ProductSelection: React.FC = () => {
   const [competitorModalVisible, setCompetitorModalVisible] = useState(false);
   const [selectedProductCompetitors, setSelectedProductCompetitors] = useState<any>(null);
   const [imageModalVisible, setImageModalVisible] = useState(false);
-  const [selectedProductImages, setSelectedProductImages] = useState<any[]>([]);
+  const [selectedProductImages, setSelectedProductImages] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // 查询品牌列表
@@ -249,7 +250,9 @@ const ProductSelection: React.FC = () => {
     try {
       const response = await api.getProductDetail(product.product_id);
       if (response.success && response.data.images.length > 0) {
-        setSelectedProductImages(response.data.images);
+        // 提取图片URL数组
+        const imageUrls = response.data.images.map((img: any) => img.url);
+        setSelectedProductImages(imageUrls);
         setCurrentImageIndex(0);
         setImageModalVisible(true);
       } else {
@@ -975,69 +978,13 @@ const ProductSelection: React.FC = () => {
         )}
       </Modal>
 
-      {/* 商品图片浏览弹窗 */}
-      <Modal
-        title="商品图片"
-        open={imageModalVisible}
-        onCancel={() => setImageModalVisible(false)}
-        footer={[
-          <Button key="close" onClick={() => setImageModalVisible(false)}>
-            关闭
-          </Button>
-        ]}
-        width={800}
-        style={{ top: 20 }}
-      >
-        {selectedProductImages.length > 0 && (
-          <div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <img
-                src={selectedProductImages[currentImageIndex]?.url}
-                alt="商品图片"
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '500px',
-                  objectFit: 'contain'
-                }}
-              />
-            </div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <Text>
-                {currentImageIndex + 1} / {selectedProductImages.length}
-              </Text>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {selectedProductImages.map((img, index) => (
-                <div
-                  key={index}
-                  style={{
-                    width: 60,
-                    height: 60,
-                    border: currentImageIndex === index ? '2px solid #1890ff' : '1px solid #d9d9d9',
-                    borderRadius: 4,
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  onClick={() => setCurrentImageIndex(index)}
-                >
-                  <img
-                    src={img.url}
-                    alt={`图片 ${index + 1}`}
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '100%',
-                      objectFit: 'contain'
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* 商品图片浏览 */}
+      <ImagePreview
+        images={selectedProductImages}
+        visible={imageModalVisible}
+        initialIndex={currentImageIndex}
+        onClose={() => setImageModalVisible(false)}
+      />
 
       {/* 导入预览和确认弹窗 */}
       <Modal
