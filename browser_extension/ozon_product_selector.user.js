@@ -199,7 +199,8 @@
 
     // 实时采集当前可见的已注入商品
     function collectVisibleProducts() {
-        const injected = document.querySelectorAll('[data-index][data-ozon-bang="true"]');
+        // 使用更宽松的选择器，支持 data-index="0" 这种形式
+        const injected = document.querySelectorAll('[data-index][data-ozon-bang="true"], .tile-root[data-ozon-bang="true"]');
         let newCount = 0;
 
         injected.forEach((container, idx) => {
@@ -232,17 +233,18 @@
 
         // 获取当前注入数量的函数
         const getInjectedCount = () => {
-            return document.querySelectorAll('[data-index][data-ozon-bang="true"]').length;
+            // 同时支持两种选择器
+            return document.querySelectorAll('[data-index][data-ozon-bang="true"], .tile-root[data-ozon-bang="true"]').length;
         };
 
         // 获取当前商品数量的函数（尝试多种选择器）
         const getProductCount = () => {
-            // 优先使用data-index
-            let count = document.querySelectorAll('[data-index]').length;
+            // 优先使用.tile-root（更准确）
+            let count = document.querySelectorAll('.tile-root').length;
             if (count > 0) return count;
 
-            // 备选：tile-root
-            count = document.querySelectorAll('.tile-root').length;
+            // 备选：data-index属性
+            count = document.querySelectorAll('[data-index]').length;
             if (count > 0) return count;
 
             // 备选：包含商品链接的元素
@@ -357,8 +359,8 @@
             if (window.scrollY + viewportHeight >= document.body.scrollHeight - 100) {
                 console.log(`  到达页面底部，尝试加载更多...`);
 
-                // 尝试点击"加载更多"按钮
-                const loadMoreBtn = document.querySelector('[data-widget="paginator"] button, button[class*="show-more"], [data-widget="paginator"] a');
+                // 尝试点击"加载更多"按钮（添加更多可能的选择器）
+                const loadMoreBtn = document.querySelector('[data-widget="paginator"] button, button[class*="show-more"], [data-widget="paginator"] a, .pagination button, a[href*="?page="]');
                 if (loadMoreBtn) {
                     console.log(`  找到"加载更多"按钮，点击加载`);
                     loadMoreBtn.click();
