@@ -322,15 +322,18 @@
             // 检查采集数量是否不再增加
             if (currentCollected === lastCollectedCount) {
                 noChangeCount++;
-                if (noChangeCount >= 8) {
-                    console.log(`⚠️ 采集数量不再增加，页面可能已经到底`);
+                // 不要太快放弃，给页面更多机会加载
+                if (noChangeCount >= 15) {
+                    console.log(`⚠️ 尝试多次后采集数量仍未增加`);
 
-                    // 如果采集数量少于目标，给出提示
+                    // 如果采集数量少于目标，继续尝试
                     if (currentCollected < targetCount) {
-                        console.log(`  已采集(${currentCollected})少于目标(${targetCount})`);
-                        console.log(`  页面可能没有更多商品了`);
+                        console.log(`  已采集(${currentCollected})少于目标(${targetCount})，继续尝试...`);
+                        // 不要break，让页面底部的逻辑处理
+                    } else {
+                        // 只有在达到目标时才考虑退出
+                        break;
                     }
-                    break;
                 }
             } else {
                 noChangeCount = 0;
@@ -352,37 +355,64 @@
 
             // 检查是否到页面底部
             if (window.scrollY + viewportHeight >= document.body.scrollHeight - 100) {
-                // 尝试点击"加载更多"
-                const loadMoreBtn = document.querySelector('[data-widget="paginator"] button, button[class*="show-more"]');
+                console.log(`  到达页面底部，尝试加载更多...`);
+
+                // 尝试点击"加载更多"按钮
+                const loadMoreBtn = document.querySelector('[data-widget="paginator"] button, button[class*="show-more"], [data-widget="paginator"] a');
                 if (loadMoreBtn) {
-                    console.log(`  点击"加载更多"按钮`);
+                    console.log(`  找到"加载更多"按钮，点击加载`);
                     loadMoreBtn.click();
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // 等待新内容加载
+
+                    // 采集新加载的商品
+                    const newCollected = collectVisibleProducts();
+                    if (newCollected > 0) {
+                        console.log(`  加载后新采集: ${newCollected} 个`);
+                    }
+                    continue; // 继续循环，不要break
                 }
 
-                // 检查是否已经无法加载更多
-                const noNewProducts = currentProducts === previousProductCount;
-                if (noNewProducts) {
-                    console.log(`  页面已到底，无新商品加载`);
+                // 尝试通过继续滚动触发懒加载
+                console.log(`  继续滚动尝试触发懒加载...`);
+                window.scrollBy(0, 100);
+                await new Promise(resolve => setTimeout(resolve, 1500));
 
-                    // 如果商品数量足够但注入不够，需要向上滚动检查
-                    if (currentProducts >= requiredInjected && currentInjected < requiredInjected) {
-                        console.log(`  商品足够(${currentProducts})但注入不足(${currentInjected})，回滚重新注入`);
+                // 检查是否有新商品加载
+                const afterScrollProducts = getProductCount();
+                if (afterScrollProducts > currentProducts) {
+                    console.log(`  懒加载成功，新增 ${afterScrollProducts - currentProducts} 个商品`);
+                    // 采集新商品
+                    const newCollected = collectVisibleProducts();
+                    if (newCollected > 0) {
+                        console.log(`  新采集: ${newCollected} 个`);
+                    }
+                } else {
+                    // 真的没有更多商品了
+                    console.log(`  确认没有更多商品可加载`);
 
-                        // 滚回顶部
+                    // 最后尝试：如果采集数量还不足，向上滚动重新采集可能遗漏的
+                    if (currentCollected < targetCount && currentCollected < currentProducts) {
+                        console.log(`  采集不足，向上滚动检查遗漏...`);
                         window.scrollTo(0, 0);
                         await new Promise(resolve => setTimeout(resolve, 1000));
 
-                        // 慢慢往下滚动，等待注入
-                        for (let i = 0; i < 10; i++) {
-                            window.scrollBy(0, viewportHeight * 0.5);
-                            await new Promise(resolve => setTimeout(resolve, 1500));
-                            const newInjected = getInjectedCount();
-                            console.log(`  重新滚动 ${i+1}/10: 注入${newInjected}/${requiredInjected}`);
-                            if (newInjected >= requiredInjected) break;
+                        // 慢慢往下滚动，重新采集
+                        for (let i = 0; i < 5; i++) {
+                            window.scrollBy(0, viewportHeight * 0.6);
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            const reCollected = collectVisibleProducts();
+                            if (reCollected > 0) {
+                                console.log(`  补充采集: ${reCollected} 个`);
+                            }
+                            if (collectedProducts.size >= targetCount) break;
                         }
                     }
-                    break;
+
+                    // 只有在确实没有办法获取更多商品时才退出
+                    if (noChangeCount >= 5) {
+                        console.log(`  确认无法获取更多商品，结束滚动`);
+                        break;
+                    }
                 }
             }
 
