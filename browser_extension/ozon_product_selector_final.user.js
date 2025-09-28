@@ -432,6 +432,12 @@
         // 提取价格
         extractPrice(element) {
             const priceSelectors = [
+                // Ozon最新的价格选择器
+                'span.tsHeadline500Medium',
+                'span[class*="tsHeadline"][class*="500"]',
+                // 价格容器内的span
+                '.c35_3_8-a0 span.c35_3_8-a1:first-child',
+                // 备用选择器
                 'span[class*="price-main"] span',
                 'span[class*="Price"] span',
                 'div[class*="price"] span:first-child'
@@ -441,9 +447,14 @@
                 const priceElement = element.querySelector(selector);
                 if (priceElement) {
                     const priceText = priceElement.textContent;
-                    // 保留完整价格格式（包括逗号和空格）
-                    const price = priceText.replace(/[^\d,.\s]/g, '').trim();
-                    if (price) return price + ' ₽';
+                    // 过滤掉包含%的折扣文本
+                    if (priceText.includes('%')) continue;
+                    // 提取数字和空格
+                    const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
+                    if (cleanPrice) {
+                        // 格式化价格（添加空格分隔千位）
+                        return cleanPrice + ' ₽';
+                    }
                 }
             }
 
@@ -452,12 +463,31 @@
 
         // 提取原价
         extractOriginalPrice(element) {
-            const originalPriceElement = element.querySelector('span[class*="price"] span:nth-child(2), del');
-            if (originalPriceElement) {
-                const priceText = originalPriceElement.textContent;
-                const price = priceText.replace(/[^\d,.\s]/g, '').trim();
-                if (price) return price + ' ₽';
+            const originalPriceSelectors = [
+                // Ozon新的原价选择器 - 通常是第二个价格span
+                '.c35_3_8-a0 span.c35_3_8-a1.tsBodyControl400Small',
+                'span.tsBodyControl400Small.c35_3_8-b',
+                // 删除线价格
+                'span[style*="text-decoration"][style*="line-through"]',
+                'del span',
+                // 备用选择器
+                'span[class*="price"] span:nth-child(2)'
+            ];
+
+            for (const selector of originalPriceSelectors) {
+                const priceElement = element.querySelector(selector);
+                if (priceElement) {
+                    const priceText = priceElement.textContent;
+                    // 过滤掉包含%的折扣文本
+                    if (priceText.includes('%')) continue;
+                    // 提取数字和空格
+                    const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
+                    if (cleanPrice) {
+                        return cleanPrice + ' ₽';
+                    }
+                }
             }
+
             return '-';
         }
 
