@@ -235,6 +235,11 @@
                 // 从上品帮注入的文本中解析数据
                 const bangText = bangElement.textContent || '';
 
+                // 调试：显示原始数据的前100个字符
+                if (bangText.length > 0) {
+                    console.log('上品帮原始数据预览:', bangText.substring(0, 100) + '...');
+                }
+
                 // 首先提取品牌（通常在第一行或在"品牌："后面）
                 // 品牌可能在开头直接显示，或在"品牌："后面
                 const firstLine = bangText.split(/[rF]/)[0].trim();
@@ -374,6 +379,12 @@
                         }
                     });
                 });
+
+                // 调试：显示解析后的数据字段数量
+                const fieldCount = Object.keys(bangData).length;
+                if (fieldCount > 0) {
+                    console.log(`成功解析 ${fieldCount} 个字段:`, Object.keys(bangData).join(', '));
+                }
 
             } catch (error) {
                 console.error('解析上品帮数据失败:', error);
