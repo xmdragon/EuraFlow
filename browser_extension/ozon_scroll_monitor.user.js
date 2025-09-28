@@ -20,24 +20,47 @@
 
     // 创建监控面板
     function createMonitorPanel() {
+        // 先检查是否已存在
+        if (document.getElementById('scroll-monitor-panel')) {
+            console.log('监控面板已存在');
+            return;
+        }
+
         const panel = document.createElement('div');
         panel.id = 'scroll-monitor-panel';
+        panel.style.cssText = `
+            position: fixed !important;
+            top: 10px !important;
+            right: 10px !important;
+            width: 400px !important;
+            max-height: 80vh !important;
+            background: rgba(0,0,0,0.95) !important;
+            color: #0f0 !important;
+            padding: 15px !important;
+            border-radius: 8px !important;
+            font-family: monospace !important;
+            font-size: 12px !important;
+            overflow-y: auto !important;
+            z-index: 2147483647 !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.8) !important;
+            display: block !important;
+        `;
+
         panel.innerHTML = `
-            <div style="position: fixed; top: 10px; right: 10px; width: 400px; max-height: 80vh;
-                        background: rgba(0,0,0,0.9); color: #0f0; padding: 15px;
-                        border-radius: 8px; font-family: monospace; font-size: 12px;
-                        overflow-y: auto; z-index: 999999; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            <div>
                 <h3 style="margin: 0 0 10px 0; color: #0f0; border-bottom: 1px solid #0f0; padding-bottom: 5px;">
                     🔍 滚动监控器
                 </h3>
-                <button id="start-monitor" style="background: #0f0; color: #000; border: none;
-                        padding: 5px 10px; cursor: pointer; margin-right: 5px;">开始监控</button>
-                <button id="stop-monitor" style="background: #f00; color: #fff; border: none;
-                        padding: 5px 10px; cursor: pointer; margin-right: 5px;">停止监控</button>
-                <button id="clear-monitor" style="background: #666; color: #fff; border: none;
-                        padding: 5px 10px; cursor: pointer; margin-right: 5px;">清空</button>
-                <button id="export-monitor" style="background: #00f; color: #fff; border: none;
-                        padding: 5px 10px; cursor: pointer;">导出数据</button>
+                <div style="margin-bottom: 10px;">
+                    <button id="start-monitor" style="background: #0f0; color: #000; border: none;
+                            padding: 5px 10px; cursor: pointer; margin-right: 5px; border-radius: 3px;">开始监控</button>
+                    <button id="stop-monitor" style="background: #f00; color: #fff; border: none;
+                            padding: 5px 10px; cursor: pointer; margin-right: 5px; border-radius: 3px;">停止监控</button>
+                    <button id="clear-monitor" style="background: #666; color: #fff; border: none;
+                            padding: 5px 10px; cursor: pointer; margin-right: 5px; border-radius: 3px;">清空</button>
+                    <button id="export-monitor" style="background: #00f; color: #fff; border: none;
+                            padding: 5px 10px; cursor: pointer; border-radius: 3px;">导出数据</button>
+                </div>
                 <div id="monitor-stats" style="margin: 10px 0; padding: 10px; background: rgba(0,255,0,0.1); border: 1px solid #0f0;">
                     <div>滚动次数: <span id="scroll-count">0</span></div>
                     <div>当前位置: <span id="scroll-position">0</span></div>
@@ -55,12 +78,26 @@
             </div>
         `;
         document.body.appendChild(panel);
+        console.log('监控面板已创建');
 
         // 绑定按钮事件
-        document.getElementById('start-monitor').onclick = startMonitoring;
-        document.getElementById('stop-monitor').onclick = stopMonitoring;
-        document.getElementById('clear-monitor').onclick = clearMonitor;
-        document.getElementById('export-monitor').onclick = exportData;
+        setTimeout(() => {
+            const startBtn = document.getElementById('start-monitor');
+            const stopBtn = document.getElementById('stop-monitor');
+            const clearBtn = document.getElementById('clear-monitor');
+            const exportBtn = document.getElementById('export-monitor');
+
+            if (startBtn) {
+                startBtn.onclick = startMonitoring;
+                console.log('开始按钮已绑定');
+            } else {
+                console.error('找不到开始按钮');
+            }
+
+            if (stopBtn) stopBtn.onclick = stopMonitoring;
+            if (clearBtn) clearBtn.onclick = clearMonitor;
+            if (exportBtn) exportBtn.onclick = exportData;
+        }, 100);
     }
 
     // 获取页面快照
@@ -330,10 +367,32 @@
 
     // 初始化
     function init() {
-        createMonitorPanel();
-        console.log('Ozon滚动监控器已加载');
+        console.log('开始初始化Ozon滚动监控器...');
+
+        // 确保DOM加载完成
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                createMonitorPanel();
+                console.log('Ozon滚动监控器已加载（DOMContentLoaded）');
+            });
+        } else {
+            createMonitorPanel();
+            console.log('Ozon滚动监控器已加载（直接）');
+        }
     }
 
-    // 启动
-    setTimeout(init, 2000);
+    // 启动 - 多次尝试以确保加载
+    setTimeout(init, 1000);
+    setTimeout(() => {
+        if (!document.getElementById('scroll-monitor-panel')) {
+            console.log('重试创建监控面板...');
+            init();
+        }
+    }, 3000);
+    setTimeout(() => {
+        if (!document.getElementById('scroll-monitor-panel')) {
+            console.log('第二次重试创建监控面板...');
+            init();
+        }
+    }, 5000);
 })();
