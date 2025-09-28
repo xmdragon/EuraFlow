@@ -341,9 +341,7 @@ async def clear_all_competitor_data(
                 competitor_count=None,
                 competitor_min_price=None,
                 market_min_price=None,
-                price_index=None,
-                competitor_data=None,
-                competitor_updated_at=None
+                price_index=None
             )
         )
         await db.commit()
@@ -389,11 +387,6 @@ async def receive_browser_extension_data(
 
         if "competitor_min_price" in data and data["competitor_min_price"]:
             update_data["competitor_min_price"] = Decimal(str(data["competitor_min_price"]))
-
-        if "sellers" in data and data["sellers"]:
-            update_data["competitor_data"] = data["sellers"][:10]  # 只保存前10个
-
-        update_data["competitor_updated_at"] = datetime.utcnow()
 
         if update_data:
             await db.execute(
@@ -872,33 +865,26 @@ async def get_competitor_update_status(
     # 获取统计信息
     stmt = select(
         func.count(ProductSelectionItem.id).label('total'),
-        func.count(ProductSelectionItem.competitor_updated_at).label('updated'),
-        func.min(ProductSelectionItem.competitor_updated_at).label('oldest_update'),
-        func.max(ProductSelectionItem.competitor_updated_at).label('latest_update')
+        func.count(ProductSelectionItem.competitor_count).label('with_competitor_data')
     )
 
     result = await db.execute(stmt)
     stats = result.first()
 
-    # 计算需要更新的商品数
-    threshold = datetime.utcnow() - timedelta(hours=24)
-    stmt_outdated = select(func.count(ProductSelectionItem.id)).where(
-        or_(
-            ProductSelectionItem.competitor_updated_at == None,
-            ProductSelectionItem.competitor_updated_at < threshold
-        )
+    # 计算没有竞争对手数据的商品数
+    stmt_no_data = select(func.count(ProductSelectionItem.id)).where(
+        ProductSelectionItem.competitor_count == None
     )
-    result_outdated = await db.execute(stmt_outdated)
-    outdated_count = result_outdated.scalar()
+    result_no_data = await db.execute(stmt_no_data)
+    no_data_count = result_no_data.scalar()
 
     return {
         'success': True,
         'data': {
             'total_products': stats.total,
-            'updated_products': stats.updated,
-            'outdated_products': outdated_count,
-            'oldest_update': stats.oldest_update.isoformat() if stats.oldest_update else None,
-            'latest_update': stats.latest_update.isoformat() if stats.latest_update else None,
+            'updated_products': stats.with_competitor_data,
+            'outdated_products': no_data_count,
+            'latest_update': None,  # 不再追踪更新时间
             'update_threshold_hours': 24
         }
     }

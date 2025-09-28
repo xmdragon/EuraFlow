@@ -52,8 +52,6 @@ class ProductSelectionItem(Base):
     competitor_min_price = Column(Numeric(18, 2), comment="跟卖最低价(卢布)")
     market_min_price = Column(Numeric(18, 2), comment="市场最低价(卢布)")
     price_index = Column(Numeric(10, 2), comment="价格指数")
-    competitor_data = Column(JSON, comment="竞争对手详细数据")
-    competitor_updated_at = Column(DateTime, comment="竞争数据更新时间")
 
     # 物流信息
     package_weight = Column(Integer, index=True, comment="包装重量(克)")
@@ -117,8 +115,6 @@ class ProductSelectionItem(Base):
             'competitor_min_price': float(self.competitor_min_price) if self.competitor_min_price else None,
             'market_min_price': float(self.market_min_price) if self.market_min_price else None,
             'price_index': float(self.price_index) if self.price_index else None,
-            'competitor_data': self.competitor_data,
-            'competitor_updated_at': self.competitor_updated_at.isoformat() if self.competitor_updated_at else None,
             # 图片数据
             'images_data': self.images_data,
             'images_updated_at': self.images_updated_at.isoformat() if self.images_updated_at else None,

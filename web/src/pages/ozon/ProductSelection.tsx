@@ -473,11 +473,6 @@ const ProductSelection: React.FC = () => {
                 </div>
               </Col>
             </Row>
-            {product.competitor_updated_at && (
-              <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
-                更新于: {new Date(product.competitor_updated_at).toLocaleDateString('zh-CN')}
-              </div>
-            )}
           </div>
 
           {/* 评分 - 更紧凑 */}
@@ -953,42 +948,21 @@ const ProductSelection: React.FC = () => {
               type="info"
               style={{ marginBottom: 16 }}
             />
-            {selectedProductCompetitors.competitor_data && selectedProductCompetitors.competitor_data.competitors ? (
-              <Table
-                dataSource={selectedProductCompetitors.competitor_data.competitors}
-                pagination={false}
-                size="small"
-                columns={[
-                  {
-                    title: '店铺名称',
-                    dataIndex: 'seller_name',
-                    key: 'seller_name',
-                  },
-                  {
-                    title: '价格',
-                    dataIndex: 'price',
-                    key: 'price',
-                    render: (price: number) => price ? `¥${formatPrice(price)}` : '-',
-                  },
-                  {
-                    title: '库存状态',
-                    dataIndex: 'stock_status',
-                    key: 'stock_status',
-                    render: (status: string) => (
-                      <Tag color={status === 'in_stock' ? 'green' : 'red'}>
-                        {status === 'in_stock' ? '有库存' : '无库存'}
-                      </Tag>
-                    ),
-                  },
-                ]}
-              />
-            ) : (
-              <Alert
-                message="暂无详细跟卖者信息"
-                description="跟卖者数据正在更新中，请稍后查看或手动更新竞争数据。"
-                type="warning"
-              />
-            )}
+            <div style={{ textAlign: 'center', padding: '20px' }}>
+              {selectedProductCompetitors.competitor_min_price ? (
+                <>
+                  <Text type="secondary">跟卖者数据已从选品导入中获取</Text>
+                  <div style={{ marginTop: 10 }}>
+                    <Text>最低跟卖价: </Text>
+                    <Text strong style={{ color: '#fa8c16', fontSize: '18px' }}>
+                      ¥{formatPrice(selectedProductCompetitors.competitor_min_price)}
+                    </Text>
+                  </div>
+                </>
+              ) : (
+                <Text type="secondary">暂无跟卖者价格数据</Text>
+              )}
+            </div>
           </div>
         )}
       </Modal>

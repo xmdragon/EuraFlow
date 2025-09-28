@@ -57,6 +57,8 @@ class ProductSelectionService:
         '商品可用性(%)': 'availability_percent',
         '广告费用份额（%）': 'ad_cost_share',
         '商品创建日期': 'product_created_date',
+        '跟卖者数量': 'competitor_count',
+        '最低跟卖价': 'competitor_min_price',
     }
 
     @staticmethod
@@ -307,6 +309,14 @@ class ProductSelectionService:
 
             elif 'commission' in db_col or 'percent' in db_col or 'rate' in db_col:
                 cleaned[db_col] = self.clean_percentage(value)
+
+            elif db_col == 'competitor_count':
+                # 跟卖者数量处理
+                cleaned[db_col] = self.clean_integer(value)
+
+            elif db_col == 'competitor_min_price':
+                # 最低跟卖价处理
+                cleaned[db_col] = self.clean_price(value)
 
             elif 'volume' in db_col or 'count' in db_col or 'weight' in db_col or \
                  'length' in db_col or 'width' in db_col or 'height' in db_col or 'days' in db_col:
