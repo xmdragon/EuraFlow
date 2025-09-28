@@ -199,9 +199,8 @@
 
     // 实时采集当前可见的已注入商品
     function collectVisibleProducts() {
-        // 使用更精确的选择器，支持各种页面结构
-        // 注意：一个元素可能同时有 data-index 和 tile-root，不要重复计算
-        const injected = document.querySelectorAll('.tile-root[data-ozon-bang="true"], [data-index][data-ozon-bang="true"]:not(.tile-root)');
+        // 直接使用 .tile-root 作为主选择器（更准确）
+        const injected = document.querySelectorAll('.tile-root[data-ozon-bang="true"]');
         let newCount = 0;
 
         injected.forEach((container, idx) => {
@@ -230,12 +229,12 @@
         const initialCollected = collectVisibleProducts();
         console.log(`初始采集: ${initialCollected} 个商品`);
         let scrollAttempts = 0;
-        const maxAttempts = 100;
+        const maxAttempts = 200; // 增加最大尝试次数
 
         // 获取当前注入数量的函数
         const getInjectedCount = () => {
-            // 避免重复计数（一个元素可能同时有data-index和tile-root）
-            return document.querySelectorAll('.tile-root[data-ozon-bang="true"], [data-index][data-ozon-bang="true"]:not(.tile-root)').length;
+            // 使用tile-root作为标准
+            return document.querySelectorAll('.tile-root[data-ozon-bang="true"]').length;
         };
 
         // 获取当前商品数量的函数（尝试多种选择器）
@@ -343,25 +342,55 @@
                 lastCollectedCount = currentCollected;
             }
 
-            // 滚动一屏
-            const scrollDistance = viewportHeight * 0.8;
+            // 增加滚动距离，确保触发加载
+            const scrollDistance = viewportHeight * 1.5; // 增加到1.5倍视口高度
             window.scrollBy({
                 top: scrollDistance,
                 behavior: 'smooth'
             });
 
-            // 先等待页面加载新商品（给一点基础时间）
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // 等待页面加载新商品（增加等待时间确保加载完成）
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
             // 然后等待新商品注入完成
             await waitForNewItemsInjected(previousProductCount);
 
-            // 检查是否到页面底部
-            if (window.scrollY + viewportHeight >= document.body.scrollHeight - 100) {
-                console.log(`  到达页面底部，尝试加载更多...`);
+            // 检查是否到页面底部（增加阈值到500像素，提前触发）
+            if (window.scrollY + viewportHeight >= document.body.scrollHeight - 500) {
+                console.log(`  接近页面底部，尝试触发加载...`);
 
-                // 尝试点击"加载更多"按钮（添加更多可能的选择器）
-                const loadMoreBtn = document.querySelector('[data-widget="paginator"] button, button[class*="show-more"], [data-widget="paginator"] a, .pagination button, a[href*="?page="]');
+                // 先尝试快速滚动到最底部触发懒加载
+                window.scrollTo(0, document.body.scrollHeight);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // 尝试多种方式查找加载更多按钮
+                const loadMoreSelectors = [
+                    '[data-widget="paginator"] button',
+                    '[data-widget="paginator"] a',
+                    '[data-widget="webPaginator"] button',
+                    '[data-widget="webPaginator"] a',
+                    'button[class*="paginator"]',
+                    'a[class*="paginator"]',
+                    '.pagination button',
+                    '.pagination a',
+                    'button:contains("Показать")',
+                    'a[href*="?page="]',
+                    'button[class*="show-more"]',
+                    '[class*="load-more"]'
+                ];
+
+                let loadMoreBtn = null;
+                for (const selector of loadMoreSelectors) {
+                    try {
+                        loadMoreBtn = document.querySelector(selector);
+                        if (loadMoreBtn && loadMoreBtn.offsetParent !== null) {
+                            console.log(`  找到加载按钮: ${selector}`);
+                            break;
+                        }
+                    } catch (e) {
+                        // 忽略无效选择器
+                    }
+                }
                 if (loadMoreBtn) {
                     console.log(`  找到"加载更多"按钮，点击加载`);
                     loadMoreBtn.click();

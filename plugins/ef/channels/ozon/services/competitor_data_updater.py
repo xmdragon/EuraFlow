@@ -237,60 +237,10 @@ class CompetitorDataUpdater:
             competitor_data = {}
             strategy_product_data = {}
 
-            try:
-                # 将product_ids转换为整数列表
-                numeric_product_ids = []
-                for pid in product_ids:
-                    try:
-                        # 尝试转换为整数
-                        numeric_id = int(pid) if isinstance(pid, str) else pid
-                        numeric_product_ids.append(numeric_id)
-                    except (ValueError, TypeError):
-                        logger.warning(f"无法转换product_id为整数: {pid}")
-                        continue
-
-                if numeric_product_ids:
-                    logger.info(f"Fetching pricing strategy info for {len(numeric_product_ids)} products")
-                    # API只支持单个产品查询，需要逐个调用
-                    for product_id in numeric_product_ids:
-                        try:
-                            strategy_response = await api_client.get_pricing_strategy_product_info(product_id=product_id)
-                            logger.info(f"Product {product_id} pricing strategy response: {strategy_response}")
-
-                            # 解析响应数据
-                            if strategy_response:
-                                if isinstance(strategy_response, dict):
-                                    # 将product_id转换为字符串以匹配product_ids列表中的格式
-                                    product_id_str = str(product_id)
-
-                                    # 存储响应数据
-                                    strategy_product_data[product_id_str] = strategy_response
-
-                                    # 尝试多种可能的响应格式
-                                    if "products" in strategy_response:
-                                        for product_info in strategy_response["products"]:
-                                            pid = str(product_info.get("product_id", ""))
-                                            if pid:
-                                                strategy_product_data[pid] = product_info
-                                    elif "items" in strategy_response:
-                                        for item in strategy_response["items"]:
-                                            pid = str(item.get("product_id", ""))
-                                            if pid:
-                                                strategy_product_data[pid] = item
-                                    elif "product_id" in strategy_response:
-                                        # 单个产品响应（最可能的情况）
-                                        strategy_product_data[product_id_str] = strategy_response
-                                    else:
-                                        logger.warning(f"Product {product_id} - 未知的响应格式: {list(strategy_response.keys())}")
-                                else:
-                                    logger.warning(f"Product {product_id} - API返回非字典类型响应")
-                            else:
-                                logger.warning(f"Product {product_id} - API返回空响应")
-                        except Exception as e:
-                            logger.error(f"Failed to get pricing strategy for product {product_id}: {e}")
-
-            except Exception as e:
-                logger.error(f"Failed to fetch pricing strategy data: {e}", exc_info=True)
+            # 不再使用模拟数据 - 只使用真实数据或手动导入的数据
+            logger.info(f"Skipping competitor data fetch due to anti-bot protection. Use manual import instead.")
+            # except Exception as e:
+            #     logger.error(f"Failed to fetch pricing strategy data: {e}", exc_info=True)
 
             # 尝试旧的竞争对手API作为备份
             if not strategy_product_data:

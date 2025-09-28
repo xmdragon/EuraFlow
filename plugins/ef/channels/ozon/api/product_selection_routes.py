@@ -7,10 +7,14 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import tempfile
 import shutil
+import json
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 import logging
+import httpx
+from bs4 import BeautifulSoup
+import re
 
 from ef_core.database import get_async_session
 from ..services.product_selection_service import ProductSelectionService
@@ -321,6 +325,103 @@ async def get_import_history(
     }
 
 
+@router.post("/clear-all-competitor-data")
+async def clear_all_competitor_data(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    清除所有产品的竞争者数据
+    """
+    try:
+        from sqlalchemy import update
+
+        await db.execute(
+            update(ProductSelectionItem)
+            .values(
+                competitor_count=None,
+                competitor_min_price=None,
+                market_min_price=None,
+                price_index=None,
+                competitor_data=None,
+                competitor_updated_at=None
+            )
+        )
+        await db.commit()
+
+        return {
+            "success": True,
+            "message": "All competitor data has been cleared"
+        }
+    except Exception as e:
+        logger.error(f"Error clearing competitor data: {e}")
+        await db.rollback()
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/browser-extension/competitor-data")
+async def receive_browser_extension_data(
+    data: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    接收浏览器扩展发送的竞争者数据
+
+    Args:
+        data: 包含 product_id, competitor_count, competitor_min_price, sellers 的数据
+        db: 数据库会话
+
+    Returns:
+        操作结果
+    """
+    try:
+        product_id = data.get("product_id")
+        if not product_id:
+            return {"success": False, "error": "Missing product_id"}
+
+        # 更新数据库中的竞争者数据
+        from sqlalchemy import update
+        from decimal import Decimal
+
+        update_data = {}
+
+        if "competitor_count" in data:
+            update_data["competitor_count"] = data["competitor_count"]
+
+        if "competitor_min_price" in data and data["competitor_min_price"]:
+            update_data["competitor_min_price"] = Decimal(str(data["competitor_min_price"]))
+
+        if "sellers" in data and data["sellers"]:
+            update_data["competitor_data"] = data["sellers"][:10]  # 只保存前10个
+
+        update_data["competitor_updated_at"] = datetime.utcnow()
+
+        if update_data:
+            await db.execute(
+                update(ProductSelectionItem)
+                .where(ProductSelectionItem.product_id == product_id)
+                .values(**update_data)
+            )
+            await db.commit()
+
+            logger.info(f"Updated competitor data for product {product_id} from browser extension")
+
+            return {
+                "success": True,
+                "message": f"Updated competitor data for product {product_id}",
+                "data": {
+                    "product_id": product_id,
+                    "competitor_count": data.get("competitor_count"),
+                    "competitor_min_price": data.get("competitor_min_price")
+                }
+            }
+
+        return {"success": False, "error": "No data to update"}
+
+    except Exception as e:
+        logger.error(f"Error receiving browser extension data: {e}")
+        return {"success": False, "error": str(e)}
+
+
 @router.post("/competitor-update")
 async def update_competitor_data(
     shop_id: int = Query(..., description="店铺ID"),
@@ -466,35 +567,100 @@ async def get_product_detail(
             # 1. 先尝试使用product_id作为整数ID
             if product_id.isdigit():
                 try:
+                    logger.info(f"[DEBUG] 尝试使用product_id获取商品信息: {product_id}")
                     product_info = await api_client.get_product_info_list(product_ids=[int(product_id)])
+                    import json
+                    logger.info(f"[DEBUG] API响应: {json.dumps(product_info, ensure_ascii=False, indent=2) if product_info else 'None'}")
                     if product_info and product_info.get('result') and product_info['result'].get('items'):
                         logger.info(f"成功通过product_id获取商品信息: {product_id}")
+                        logger.info(f"[DEBUG] items数量: {len(product_info['result']['items'])}")
                 except Exception as e:
-                    logger.debug(f"无法通过product_id获取: {e}")
+                    logger.error(f"无法通过product_id获取: {e}", exc_info=True)
 
             # 2. 如果失败，尝试使用product_id作为offer_id
             if not product_info or not product_info.get('result', {}).get('items'):
                 try:
+                    logger.info(f"[DEBUG] 尝试使用offer_id获取商品信息: {product_id}")
                     product_info = await api_client.get_product_info_list(offer_ids=[product_id])
+                    import json
+                    logger.info(f"[DEBUG] API响应: {json.dumps(product_info, ensure_ascii=False, indent=2) if product_info else 'None'}")
                     if product_info and product_info.get('result') and product_info['result'].get('items'):
                         logger.info(f"成功通过offer_id获取商品信息: {product_id}")
                 except Exception as e:
-                    logger.debug(f"无法通过offer_id获取: {e}")
+                    logger.error(f"无法通过offer_id获取: {e}", exc_info=True)
+
+            # 3. 尝试使用v2 API的get_product_info方法
+            if not product_info or not product_info.get('result', {}).get('items'):
+                try:
+                    logger.info(f"[DEBUG] 尝试使用v2 API的product_id获取商品信息: {product_id}")
+                    v2_info = await api_client.get_product_info(product_id=int(product_id))
+                    import json
+                    logger.info(f"[DEBUG] v2 API响应: {json.dumps(v2_info, ensure_ascii=False, indent=2) if v2_info else 'None'}")
+                    if v2_info and 'result' in v2_info:
+                        # 转换v2格式到v3格式
+                        product_info = {
+                            'result': {
+                                'items': [v2_info['result']] if v2_info['result'] else []
+                            }
+                        }
+                        logger.info(f"成功通过v2 API获取商品信息: {product_id}")
+                except Exception as e:
+                    logger.error(f"无法通过v2 API获取: {e}", exc_info=True)
+
+                # 4. 如果仍然失败，尝试使用offer_id
+                if not product_info or not product_info.get('result', {}).get('items'):
+                    try:
+                        logger.info(f"[DEBUG] 尝试使用v2 API的offer_id获取商品信息: {product_id}")
+                        v2_info = await api_client.get_product_info(offer_id=product_id)
+                        import json
+                        logger.info(f"[DEBUG] v2 API (offer_id)响应: {json.dumps(v2_info, ensure_ascii=False, indent=2) if v2_info else 'None'}")
+                        if v2_info and 'result' in v2_info:
+                            # 转换v2格式到v3格式
+                            product_info = {
+                                'result': {
+                                    'items': [v2_info['result']] if v2_info['result'] else []
+                                }
+                            }
+                            logger.info(f"成功通过v2 API (offer_id)获取商品信息: {product_id}")
+                    except Exception as e:
+                        logger.error(f"无法通过v2 API (offer_id)获取: {e}", exc_info=True)
 
             # 3. 如果仍然失败，尝试使用SKU
             if not product_info or not product_info.get('result', {}).get('items'):
                 if product_id.isdigit():
                     try:
+                        logger.info(f"[DEBUG] 尝试使用SKU获取商品信息: {product_id}")
                         product_info = await api_client.get_product_info_list(skus=[int(product_id)])
+                        import json
+                        logger.info(f"[DEBUG] API响应: {json.dumps(product_info, ensure_ascii=False, indent=2) if product_info else 'None'}")
                         if product_info and product_info.get('result') and product_info['result'].get('items'):
                             logger.info(f"成功通过SKU获取商品信息: {product_id}")
                     except Exception as e:
-                        logger.debug(f"无法通过SKU获取: {e}")
+                        logger.error(f"无法通过SKU获取: {e}", exc_info=True)
 
         except Exception as e:
             logger.warning(f"无法从Ozon API获取商品详情: {e}")
             # 如果API调用失败，使用数据库中的信息
             product_info = None
+
+        # 如果API无法获取图片，尝试从网页解析图片（备用方案）
+        if not product_info or not product_info.get('result', {}).get('items'):
+            logger.info(f"[DEBUG] API未返回商品信息，尝试从网页获取图片: {product_id}")
+            try:
+                web_images = await _scrape_product_images_from_web(product_id, db_product.ozon_link)
+                if web_images:
+                    logger.info(f"[DEBUG] 从网页获取到 {len(web_images)} 个图片")
+                    # 创建一个虚拟的product_info结构
+                    product_info = {
+                        'result': {
+                            'items': [{
+                                'images': web_images,
+                                'primary_image': web_images[0] if web_images else None
+                            }]
+                        }
+                    }
+            except Exception as e:
+                logger.warning(f"从网页获取图片失败: {e}")
 
         # 处理商品详情信息
         images = []
@@ -736,3 +902,96 @@ async def get_competitor_update_status(
             'update_threshold_hours': 24
         }
     }
+
+
+async def _scrape_product_images_from_web(product_id: str, ozon_link: str = None) -> List[str]:
+    """
+    从OZON网页爬取商品图片（备用方案）
+
+    Args:
+        product_id: 商品ID
+        ozon_link: 商品链接（可选）
+
+    Returns:
+        图片文件名列表
+    """
+    import httpx
+    import re
+    from bs4 import BeautifulSoup
+
+    # 如果没有提供链接，构建默认链接
+    if not ozon_link:
+        ozon_link = f"https://www.ozon.ru/product/-{product_id}/"
+
+    logger.info(f"[DEBUG] 尝试从网页获取图片: {ozon_link}")
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'max-age=0',
+        'sec-ch-ua': '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Connection': 'keep-alive'
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, headers=headers, follow_redirects=True) as client:
+            response = await client.get(ozon_link)
+            response.raise_for_status()
+
+            # 解析HTML
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # 寻找图片元素
+            image_urls = []
+
+            # 方法1: 查找JavaScript中的图片数据
+            script_tags = soup.find_all('script')
+            for script in script_tags:
+                if script.string:
+                    # 查找包含图片信息的JSON
+                    matches = re.findall(r'"(?:wc\d+|original)/[^"]+\.(?:jpg|jpeg|png|webp)"', script.string, re.IGNORECASE)
+                    for match in matches:
+                        # 提取文件名部分
+                        filename = match.strip('"').split('/')[-1]
+                        if filename not in image_urls:
+                            image_urls.append(filename)
+
+            # 方法2: 查找img标签
+            img_tags = soup.find_all('img')
+            for img in img_tags:
+                src = img.get('src') or img.get('data-src')
+                if src and ('ozon' in src or 'ozonstatic' in src):
+                    # 提取文件名
+                    filename = src.split('/')[-1]
+                    if filename.endswith(('.jpg', '.jpeg', '.png', '.webp')) and filename not in image_urls:
+                        image_urls.append(filename)
+
+            # 方法3: 查找picture标签中的source
+            picture_tags = soup.find_all('picture')
+            for picture in picture_tags:
+                sources = picture.find_all('source')
+                for source in sources:
+                    srcset = source.get('srcset')
+                    if srcset and ('ozon' in srcset or 'ozonstatic' in srcset):
+                        # 从srcset中提取URL
+                        urls = re.findall(r'https?://[^\s,]+', srcset)
+                        for url in urls:
+                            filename = url.split('/')[-1].split('?')[0]  # 去除查询参数
+                            if filename.endswith(('.jpg', '.jpeg', '.png', '.webp')) and filename not in image_urls:
+                                image_urls.append(filename)
+
+            logger.info(f"[DEBUG] 从网页解析到 {len(image_urls)} 个图片文件名: {image_urls[:5]}")
+            return image_urls[:15]  # 最多返回15个图片
+
+    except Exception as e:
+        logger.error(f"网页爬取失败: {e}")
+        return []

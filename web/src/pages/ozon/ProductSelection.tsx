@@ -47,6 +47,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
+import OzonManualDataImport from '@/components/OzonManualDataImport';
 
 const { Option } = Select;
 const { Title, Text, Link, Paragraph } = Typography;
@@ -373,29 +374,26 @@ const ProductSelection: React.FC = () => {
       >
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {/* 商品名称 */}
-          <Paragraph ellipsis={{ rows: 2, tooltip: product.product_name_cn }} style={{ fontSize: '12px', lineHeight: '1.4', minHeight: '33px', marginBottom: '4px' }}>
+          <Paragraph ellipsis={{ rows: 2, tooltip: product.product_name_cn }} style={{ fontSize: '12px', lineHeight: '1.4', marginBottom: 0 }}>
             {product.product_name_cn || product.product_name_ru}
           </Paragraph>
-
           {/* 价格信息 */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <Text strong style={{ fontSize: 16, color: '#ff4d4f' }}>
                 ¥{formatPrice(product.current_price)}
               </Text>
+              {product.original_price && (
+                <Text delete style={{ color: '#999', fontSize: '12px' }}>
+                  ¥{formatPrice(product.original_price)}
+                </Text>
+              )}
               {product.original_price && discount > 0 && (
                 <Tag color="red" style={{ margin: 0, padding: '0 4px', fontSize: '11px', lineHeight: '18px' }}>
                   -{discount}%
                 </Tag>
               )}
             </div>
-            {product.original_price ? (
-              <Text delete style={{ color: '#999', fontSize: '11px', marginTop: '-2px' }}>
-                ¥{formatPrice(product.original_price)}
-              </Text>
-            ) : (
-              <div style={{ height: '14px' }}></div>  /* 占位符，保持高度一致 */
-            )}
           </div>
 
           {/* 品牌 */}
@@ -451,13 +449,27 @@ const ProductSelection: React.FC = () => {
                 <div style={{ fontSize: '11px' }}>
                   <Text type="secondary">跟卖者: </Text>
                   {product.competitor_count !== null && product.competitor_count !== undefined ? (
-                    <Text
-                      strong
-                      style={{ color: '#fa8c16', cursor: product.competitor_count > 0 ? 'pointer' : 'default' }}
-                      onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
-                    >
-                      {product.competitor_count}家
-                    </Text>
+                    <>
+                      <Text
+                        strong
+                        style={{ color: '#fa8c16', cursor: product.competitor_count > 0 ? 'pointer' : 'default' }}
+                        onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
+                      >
+                        {product.competitor_count}家
+                      </Text>
+                      {product.product_id && (
+                        <span style={{ marginLeft: 8 }}>
+                          <OzonManualDataImport
+                            productId={product.product_id}
+                            productName={product.product_name_cn}
+                            onDataImported={(data) => {
+                              console.log('手动导入的数据:', data);
+                              refetchProducts(); // 刷新列表
+                            }}
+                          />
+                        </span>
+                      )}
+                    </>
                   ) : (
                     <Text style={{ color: '#999' }}>-</Text>
                   )}
