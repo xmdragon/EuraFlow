@@ -273,9 +273,20 @@
                 }
 
                 // 解析类目（在"小百货和配饰 > 腕表"这样的格式中）
-                const categoryMatch = bangText.match(/([^\n>]+>\s*[^\n]+?)(?:品牌|rFBS|FBP|$)/);
-                if (categoryMatch && categoryMatch[1].includes('>')) {
-                    bangData['商品类目'] = categoryMatch[1].trim();
+                // 先尝试匹配"类目："后面的内容
+                const categoryWithPrefixMatch = bangText.match(/类目[：:]\s*([^\n]+?)(?:品牌|rFBS|FBP|$)/);
+                if (categoryWithPrefixMatch) {
+                    bangData['商品类目'] = categoryWithPrefixMatch[1].trim();
+                } else {
+                    // 如果没有"类目："前缀，尝试直接匹配包含">"的格式
+                    const categoryMatch = bangText.match(/([^\n>]+>\s*[^\n]+?)(?:品牌|rFBS|FBP|$)/);
+                    if (categoryMatch && categoryMatch[1].includes('>')) {
+                        // 移除可能的前缀文本如"设置 找货源"
+                        let category = categoryMatch[1].trim();
+                        category = category.replace(/^.*?类目[：:]\s*/, ''); // 移除"设置 找货源 类目："等前缀
+                        category = category.replace(/^设置\s+找货源\s+/, ''); // 移除"设置 找货源"前缀
+                        bangData['商品类目'] = category;
+                    }
                 }
 
                 // 解析佣金率 - 更精确的匹配
