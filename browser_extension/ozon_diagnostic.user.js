@@ -178,32 +178,77 @@
         let scrollCount = 0;
         let lastHeight = document.body.scrollHeight;
         let noChangeCount = 0;
-        const maxScrolls = 20;
+        const maxScrolls = 100;  // 增加到100次滚动
 
         const interval = setInterval(() => {
             scrollCount++;
 
-            // 滚动
-            window.scrollBy(0, window.innerHeight * 0.8);
+            // 滚动更多距离
+            window.scrollBy(0, window.innerHeight * 1.5);
 
             setTimeout(() => {
                 const newHeight = document.body.scrollHeight;
                 const productCount = document.querySelectorAll('.tile-root').length;
                 const injectedCount = document.querySelectorAll('[data-ozon-bang="true"]').length;
 
+                const indexElements = document.querySelectorAll('[data-index]');
+                const uniqueIndices = new Set();
+                indexElements.forEach(el => {
+                    const idx = el.getAttribute('data-index');
+                    if (idx !== null) uniqueIndices.add(idx);
+                });
+
+                // 检查是否到达底部
+                const isAtBottom = window.scrollY + window.innerHeight >= document.body.scrollHeight - 10;
+
+                // 查找可能的加载更多按钮
+                const loadMoreButton = document.querySelector(
+                    'button[class*="show-more"], ' +
+                    'button[class*="load"], ' +
+                    'a[href*="?page="], ' +
+                    'div[class*="pagination"] button, ' +
+                    'div[class*="more"] button'
+                );
+
                 result.innerHTML = `
                     <h4>滚动测试 #${scrollCount}/${maxScrolls}</h4>
-                    <div>页面高度: ${lastHeight} → ${newHeight}</div>
-                    <div>商品数: ${productCount}</div>
+                    <div>页面高度: ${lastHeight} → ${newHeight} (Δ${newHeight - lastHeight})</div>
+                    <div>tile-root商品数: ${productCount}</div>
                     <div>注入数: ${injectedCount}</div>
-                    <div>滚动位置: ${Math.round(window.scrollY)}</div>
+                    <div>data-index元素: ${indexElements.length}个</div>
+                    <div>唯一索引值: ${uniqueIndices.size}个 [${Array.from(uniqueIndices).sort((a,b)=>parseInt(a)-parseInt(b)).join(', ')}]</div>
+                    <div>滚动位置: ${Math.round(window.scrollY)} / ${document.body.scrollHeight}</div>
+                    <div>是否到底: ${isAtBottom ? '✅ 是' : '❌ 否'}</div>
+                    <div>加载更多按钮: ${loadMoreButton ? '✅ 找到' : '❌ 未找到'}</div>
                 `;
 
                 if (newHeight === lastHeight) {
                     noChangeCount++;
-                    if (noChangeCount >= 3) {
+
+                    // 如果页面没有变化，尝试点击加载更多按钮
+                    if (noChangeCount >= 2 && loadMoreButton) {
+                        result.innerHTML += '<div style="color: #ff0;">尝试点击加载更多按钮...</div>';
+                        loadMoreButton.click();
+                        noChangeCount = 0; // 重置计数
+                    }
+
+                    if (noChangeCount >= 5) {
                         clearInterval(interval);
                         result.innerHTML += '<div style="color: #f00;"><b>测试完成：页面不再加载新内容</b></div>';
+
+                        // 最终统计
+                        const finalStats = `
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(255,255,0,0.2); border: 1px solid #ff0;">
+                                <h4>最终统计：</h4>
+                                <div>总滚动次数: ${scrollCount}</div>
+                                <div>最终页面高度: ${document.body.scrollHeight}px</div>
+                                <div>tile-root总数: ${document.querySelectorAll('.tile-root').length}</div>
+                                <div>已注入总数: ${document.querySelectorAll('[data-ozon-bang="true"]').length}</div>
+                                <div>唯一索引数: ${uniqueIndices.size}</div>
+                            </div>
+                        `;
+                        result.innerHTML += finalStats;
+
                         runDiagnostic(); // 运行完整诊断
                     }
                 } else {
@@ -217,8 +262,8 @@
                     result.innerHTML += '<div style="color: #0f0;"><b>测试完成：达到最大滚动次数</b></div>';
                     runDiagnostic();
                 }
-            }, 1000);
-        }, 2000);
+            }, 1500); // 等待1.5秒让页面加载
+        }, 2500); // 每2.5秒滚动一次
     }
 
     // 初始化
