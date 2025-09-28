@@ -435,7 +435,7 @@
                 for (const titleElement of titleElements) {
                     const text = titleElement.textContent.trim();
                     // 验证是否为商品标题（长度合理，不包含价格符号和百分比）
-                    if (text && text.length > 5 && text.length < 500 &&
+                    if (text && text.length >= 3 && text.length < 500 &&
                         !text.includes('₽') && !text.includes('%') &&
                         !text.match(/^\d+$/) && // 排除纯数字
                         !text.match(/^\d+\s*(шт|г|мл|см|мм)$/)) { // 排除数量单位
