@@ -121,12 +121,34 @@
                 // 1. 基础信息
                 data['类目链接'] = window.location.href;
 
-                // 商品链接和ID
+                // 商品链接和ID - 修复：确保从URL末尾提取正确的商品ID
                 const link = element.querySelector('a[href*="/product/"]');
                 if (link) {
                     data['商品链接'] = link.href;
-                    const idMatch = link.href.match(/product\/.*?-(\d+)\/?/);
-                    data['商品ID'] = idMatch ? idMatch[1] : '-';
+                    // 从URL末尾提取商品ID（格式：/product/name-ID/或/product/name-ID?params）
+                    const urlParts = link.href.split('/product/');
+                    if (urlParts.length > 1) {
+                        // 提取路径部分，去除查询参数
+                        const pathPart = urlParts[1].split('?')[0].replace(/\/$/, '');
+                        // 提取最后的数字ID（通常在最后一个连字符后）
+                        const lastDashIndex = pathPart.lastIndexOf('-');
+                        if (lastDashIndex !== -1) {
+                            const potentialId = pathPart.substring(lastDashIndex + 1);
+                            // 验证是否为纯数字且长度合理（通常6位以上）
+                            if (/^\d{6,}$/.test(potentialId)) {
+                                data['商品ID'] = potentialId;
+                            } else {
+                                data['商品ID'] = '-';
+                            }
+                        } else {
+                            data['商品ID'] = '-';
+                        }
+                    } else {
+                        data['商品ID'] = '-';
+                    }
+                } else {
+                    data['商品链接'] = '-';
+                    data['商品ID'] = '-';
                 }
 
                 // 商品名称
@@ -396,34 +418,42 @@
         // 提取商品标题
         extractProductTitle(element) {
             const selectors = [
+                // Ozon最新的标题选择器
                 'span.tsBody500Medium',
                 'span.tsBodyM',
-                'span[class*="tsBody"]:not(.ozon-bang-text)',
-                'a[href*="/product/"] > span',
+                'span[class*="tsBody"]:not(.ozon-bang-text):not([class*="Control"])',
+                // 在商品链接内的span
+                'a[href*="/product/"] span.tsBody500Medium',
+                'a[href*="/product/"] span[class*="tsBody"]',
+                // 其他可能的选择器
                 '.tile-hover-target span',
                 'div[class*="title"] span'
             ];
 
             for (const selector of selectors) {
-                const titleElement = element.querySelector(selector);
-                if (titleElement) {
+                const titleElements = element.querySelectorAll(selector);
+                for (const titleElement of titleElements) {
                     const text = titleElement.textContent.trim();
-                    if (text && text.length > 10 && !text.includes('₽') && !text.includes('%')) {
+                    // 验证是否为商品标题（长度合理，不包含价格符号和百分比）
+                    if (text && text.length > 5 && text.length < 500 &&
+                        !text.includes('₽') && !text.includes('%') &&
+                        !text.match(/^\d+$/) && // 排除纯数字
+                        !text.match(/^\d+\s*(шт|г|мл|см|мм)$/)) { // 排除数量单位
                         return text;
                     }
                 }
             }
 
-            // 从链接中提取
+            // 从链接的title属性提取
             const link = element.querySelector('a[href*="/product/"]');
-            if (link) {
-                const spans = link.querySelectorAll('span');
-                for (const span of spans) {
-                    const text = span.textContent.trim();
-                    if (text && text.length > 10 && !text.includes('₽')) {
-                        return text;
-                    }
-                }
+            if (link && link.title) {
+                return link.title.trim();
+            }
+
+            // 从img的alt属性提取
+            const img = element.querySelector('img:not(.ozon-bang-img)');
+            if (img && img.alt && img.alt.length > 5) {
+                return img.alt.trim();
             }
 
             return '-';
