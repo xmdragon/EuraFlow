@@ -263,7 +263,7 @@
 
         while (scrollAttempts < maxAttempts) {
             const viewportHeight = window.innerHeight;
-            const currentInjected = getInjectedCount();
+            let currentInjected = getInjectedCount();
             const currentProducts = getProductCount();
 
             // 更详细的调试信息
