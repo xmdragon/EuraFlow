@@ -199,8 +199,9 @@
 
     // 实时采集当前可见的已注入商品
     function collectVisibleProducts() {
-        // 使用更宽松的选择器，支持 data-index="0" 这种形式
-        const injected = document.querySelectorAll('[data-index][data-ozon-bang="true"], .tile-root[data-ozon-bang="true"]');
+        // 使用更精确的选择器，支持各种页面结构
+        // 注意：一个元素可能同时有 data-index 和 tile-root，不要重复计算
+        const injected = document.querySelectorAll('.tile-root[data-ozon-bang="true"], [data-index][data-ozon-bang="true"]:not(.tile-root)');
         let newCount = 0;
 
         injected.forEach((container, idx) => {
@@ -233,8 +234,8 @@
 
         // 获取当前注入数量的函数
         const getInjectedCount = () => {
-            // 同时支持两种选择器
-            return document.querySelectorAll('[data-index][data-ozon-bang="true"], .tile-root[data-ozon-bang="true"]').length;
+            // 避免重复计数（一个元素可能同时有data-index和tile-root）
+            return document.querySelectorAll('.tile-root[data-ozon-bang="true"], [data-index][data-ozon-bang="true"]:not(.tile-root)').length;
         };
 
         // 获取当前商品数量的函数（尝试多种选择器）
