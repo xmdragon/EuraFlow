@@ -27,8 +27,6 @@ export interface ProductSelectionItem {
   competitor_min_price?: number;
   market_min_price?: number;
   price_index?: number;
-  competitor_data?: any;
-  competitor_updated_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -184,35 +182,6 @@ export const getImportHistory = async (
   return response.data;
 };
 
-// 更新竞争对手数据
-export const updateCompetitorData = async (params: {
-  shop_id: number;
-  product_ids?: string[];
-  force?: boolean;
-  sync_mode?: boolean;
-}): Promise<{
-  success: boolean;
-  message: string;
-  task: {
-    shop_id: number;
-    product_count: number | string;
-    force: boolean;
-    started_at: string;
-    completed_at?: string;
-    result?: {
-      total: number;
-      updated: number;
-      failed: number;
-      skipped: number;
-    };
-  };
-}> => {
-  const response = await axios.post('/api/ef/v1/ozon/product-selection/competitor-update', null, {
-    params
-  });
-  return response.data;
-};
-
 // 获取商品详细信息
 export const getProductDetail = async (productId: string): Promise<{
   success: boolean;
@@ -235,34 +204,5 @@ export const getProductDetail = async (productId: string): Promise<{
   };
 }> => {
   const response = await axios.get(`/api/ef/v1/ozon/product-selection/product/${productId}/detail`);
-  return response.data;
-};
-
-// 获取竞争对手数据更新状态
-export const getCompetitorStatus = async (): Promise<{
-  success: boolean;
-  data: {
-    total_products: number;
-    updated_products: number;
-    outdated_products: number;
-    oldest_update: string | null;
-    latest_update: string | null;
-    update_threshold_hours: number;
-  };
-}> => {
-  const response = await axios.get('/api/ef/v1/ozon/product-selection/competitor-status');
-  return response.data;
-};
-
-// 获取数据同步状态
-export const getSyncStatus = async (shopId: number): Promise<{
-  success: boolean;
-  data: {
-    is_syncing: boolean;
-    start_time: string | null;
-    duration_seconds?: number;
-  };
-}> => {
-  const response = await axios.get(`/api/ef/v1/ozon/product-selection/sync-status?shop_id=${shopId}`);
   return response.data;
 };

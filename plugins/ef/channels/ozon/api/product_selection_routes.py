@@ -73,8 +73,6 @@ async def import_products(
     file: UploadFile = File(...),
     strategy: str = Form('update'),
     shop_id: int = Form(1),  # TODO: 从认证获取店铺ID
-    auto_update_competitors: bool = Form(True),  # 是否自动更新竞争对手数据
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -84,7 +82,6 @@ async def import_products(
         file: Excel或CSV文件
         strategy: 导入策略 (skip/update/append)
         shop_id: 店铺ID
-        auto_update_competitors: 是否自动更新竞争对手数据
     """
     # 检查文件类型
     if not file.filename:
@@ -119,25 +116,6 @@ async def import_products(
             )
 
             if result['success']:
-                # 如果导入成功且需要自动更新竞争对手数据
-                if auto_update_competitors:
-                    from ..services.competitor_data_updater import CompetitorDataUpdater
-
-                    # 使用后台任务异步更新竞争对手数据
-                    updater = CompetitorDataUpdater(db)
-                    background_tasks.add_task(
-                        updater.update_all_products,
-                        shop_id=shop_id,
-                        force=False  # 不强制更新，只更新新导入的商品
-                    )
-
-                    # 在返回结果中添加竞争数据更新信息
-                    result['competitor_update'] = {
-                        'scheduled': True,
-                        'message': 'Competitor data update has been scheduled in background'
-                    }
-                    logger.info(f"Scheduled competitor data update for shop {shop_id}")
-
                 return ImportResponse(**result)
             else:
                 raise HTTPException(status_code=400, detail=result.get('error', '导入失败'))
@@ -413,94 +391,6 @@ async def receive_browser_extension_data(
     except Exception as e:
         logger.error(f"Error receiving browser extension data: {e}")
         return {"success": False, "error": str(e)}
-
-
-@router.post("/competitor-update")
-async def update_competitor_data(
-    shop_id: int = Query(..., description="店铺ID"),
-    product_ids: Optional[List[str]] = Query(None, description="指定商品ID列表"),
-    force: bool = Query(False, description="是否强制更新"),
-    sync_mode: bool = Query(False, description="是否同步执行(等待结果)"),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
-    db: AsyncSession = Depends(get_async_session)
-):
-    """
-    更新竞争对手数据
-    支持全量更新或指定商品更新
-    支持同步和异步模式
-    """
-    from ..services.competitor_data_updater import CompetitorDataUpdater
-
-    updater = CompetitorDataUpdater(db)
-
-    if sync_mode:
-        # 同步执行，立即返回结果
-        if product_ids:
-            # 更新指定商品
-            result = await updater.update_specific_products(
-                shop_id=shop_id,
-                product_ids=product_ids
-            )
-        else:
-            # 更新所有商品
-            result = await updater.update_all_products(
-                shop_id=shop_id,
-                force=force
-            )
-
-        if "error" in result:
-            return {
-                'success': False,
-                'message': result["error"],
-                'task': {
-                    'shop_id': shop_id,
-                    'product_count': len(product_ids) if product_ids else 'all',
-                    'force': force,
-                    'started_at': result.get("timestamp", datetime.utcnow().isoformat())
-                }
-            }
-
-        return {
-            'success': True,
-            'message': f"数据同步完成: 总计{result['total']}个商品，更新{result['updated']}个，失败{result['failed']}个",
-            'task': {
-                'shop_id': shop_id,
-                'product_count': len(product_ids) if product_ids else result['total'],
-                'force': force,
-                'started_at': result.get("timestamp", datetime.utcnow().isoformat()),
-                'completed_at': datetime.utcnow().isoformat(),
-                'result': result
-            }
-        }
-    else:
-        # 异步执行（后台任务）
-        if product_ids:
-            # 更新指定商品
-            background_tasks.add_task(
-                updater.update_specific_products,
-                shop_id=shop_id,
-                product_ids=product_ids
-            )
-            message = f"Started updating competitor data for {len(product_ids)} products"
-        else:
-            # 更新所有商品
-            background_tasks.add_task(
-                updater.update_all_products,
-                shop_id=shop_id,
-                force=force
-            )
-            message = "Started updating competitor data for all products"
-
-        return {
-            'success': True,
-            'message': message,
-            'task': {
-                'shop_id': shop_id,
-                'product_count': len(product_ids) if product_ids else 'all',
-                'force': force,
-                'started_at': datetime.utcnow().isoformat()
-            }
-        }
 
 
 @router.get("/sync-status")
@@ -851,43 +741,6 @@ async def get_product_detail(
         raise HTTPException(status_code=500, detail="获取商品详细信息失败")
 
 
-@router.get("/competitor-status")
-async def get_competitor_update_status(
-    db: AsyncSession = Depends(get_async_session)
-):
-    """
-    获取竞争对手数据更新状态
-    """
-    from sqlalchemy import func, or_
-    from ..models.product_selection import ProductSelectionItem
-    from datetime import datetime, timedelta
-
-    # 获取统计信息
-    stmt = select(
-        func.count(ProductSelectionItem.id).label('total'),
-        func.count(ProductSelectionItem.competitor_count).label('with_competitor_data')
-    )
-
-    result = await db.execute(stmt)
-    stats = result.first()
-
-    # 计算没有竞争对手数据的商品数
-    stmt_no_data = select(func.count(ProductSelectionItem.id)).where(
-        ProductSelectionItem.competitor_count == None
-    )
-    result_no_data = await db.execute(stmt_no_data)
-    no_data_count = result_no_data.scalar()
-
-    return {
-        'success': True,
-        'data': {
-            'total_products': stats.total,
-            'updated_products': stats.with_competitor_data,
-            'outdated_products': no_data_count,
-            'latest_update': None,  # 不再追踪更新时间
-            'update_threshold_hours': 24
-        }
-    }
 
 
 async def _scrape_product_images_from_web(product_id: str, ozon_link: str = None) -> List[str]:

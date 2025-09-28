@@ -66,8 +66,6 @@ const ProductSelection: React.FC = () => {
   const [previewData, setPreviewData] = useState<api.PreviewResponse | null>(null);
   const [importStrategy, setImportStrategy] = useState<'skip' | 'update' | 'append'>('update');
   const [importLoading, setImportLoading] = useState(false);
-  const [competitorUpdateLoading, setCompetitorUpdateLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [competitorModalVisible, setCompetitorModalVisible] = useState(false);
   const [selectedProductCompetitors, setSelectedProductCompetitors] = useState<any>(null);
   const [imageModalVisible, setImageModalVisible] = useState(false);
@@ -98,12 +96,6 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === 'history',
   });
 
-  // 查询竞争对手数据更新状态
-  const { data: competitorStatus, refetch: refetchCompetitorStatus } = useQuery({
-    queryKey: ['competitorStatus'],
-    queryFn: api.getCompetitorStatus,
-    refetchInterval: 30000, // 每30秒刷新一次
-  });
 
   // 处理搜索
   const handleSearch = (values: any) => {
@@ -177,66 +169,6 @@ const ProductSelection: React.FC = () => {
     return false; // 阻止自动上传
   };
 
-  // 手动更新竞争对手数据
-  const handleUpdateCompetitorData = async () => {
-    setCompetitorUpdateLoading(true);
-    try {
-      // 先检查是否正在同步
-      const syncStatus = await api.getSyncStatus(1); // TODO: 从用户登录状态获取shop_id
-      if (syncStatus.success && syncStatus.data.is_syncing) {
-        message.warning('后台正在同步数据，请稍后再试');
-        return;
-      }
-
-      const result = await api.updateCompetitorData({
-        shop_id: 1, // TODO: 从用户登录状态获取
-        force: false,
-        sync_mode: true, // 使用同步模式，等待结果
-      });
-
-      if (result.success) {
-        if (result.task.result) {
-          // 显示详细的更新结果
-          const { total, updated, failed } = result.task.result;
-          message.success(`数据同步完成：总计 ${total} 个商品，成功更新 ${updated} 个${failed > 0 ? `，失败 ${failed} 个` : ''}`);
-        } else {
-          message.success('数据同步完成');
-        }
-        // 立即刷新状态和商品列表
-        refetchCompetitorStatus();
-        refetchProducts();
-      } else {
-        // 检查是否是正在同步的错误
-        if (result.message && result.message.includes('正在进行中')) {
-          message.warning('后台正在同步数据，请稍后再试');
-        } else {
-          message.error(`数据同步失败：${result.message}`);
-        }
-      }
-    } catch (error: any) {
-      message.error('数据同步失败: ' + error.message);
-    } finally {
-      setCompetitorUpdateLoading(false);
-    }
-  };
-
-  // 刷新数据
-  const handleRefreshData = async () => {
-    setRefreshing(true);
-    try {
-      // 同时刷新状态和商品列表
-      await Promise.all([
-        refetchCompetitorStatus(),
-        refetchProducts(),
-        refetchHistory()
-      ]);
-      message.success('数据已刷新');
-    } catch (error: any) {
-      message.error('刷新失败: ' + error.message);
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   // 显示跟卖者列表
   const showCompetitorsList = (product: api.ProductSelectionItem) => {
@@ -811,116 +743,6 @@ const ProductSelection: React.FC = () => {
               },
             ]}
           />
-            )
-          },
-          {
-            key: 'competitor',
-            label: <span><ReloadOutlined /> 数据同步</span>,
-            children: (
-          <Card>
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {/* 竞争数据统计 */}
-              {competitorStatus?.data && (
-                <Row gutter={24}>
-                  <Col span={6}>
-                    <Statistic
-                      title="总商品数"
-                      value={competitorStatus.data.total_products}
-                      suffix="件"
-                    />
-                  </Col>
-                  <Col span={6}>
-                    <Statistic
-                      title="已更新"
-                      value={competitorStatus.data.updated_products}
-                      suffix="件"
-                      valueStyle={{ color: '#3f8600' }}
-                    />
-                  </Col>
-                  <Col span={6}>
-                    <Statistic
-                      title="待更新"
-                      value={competitorStatus.data.outdated_products}
-                      suffix="件"
-                      valueStyle={{ color: competitorStatus.data.outdated_products > 0 ? '#cf1322' : '#3f8600' }}
-                    />
-                  </Col>
-                  <Col span={6}>
-                    <div style={{ textAlign: 'center' }}>
-                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                        <Button
-                          type="primary"
-                          size="large"
-                          icon={<ReloadOutlined />}
-                          loading={competitorUpdateLoading}
-                          onClick={handleUpdateCompetitorData}
-                          style={{ height: '50px', fontSize: '15px', width: '100%' }}
-                        >
-                          更新数据同步
-                        </Button>
-                        <Button
-                          size="large"
-                          icon={<SyncOutlined />}
-                          loading={refreshing}
-                          onClick={handleRefreshData}
-                          style={{ height: '40px', fontSize: '14px', width: '100%' }}
-                        >
-                          刷新
-                        </Button>
-                      </Space>
-                    </div>
-                  </Col>
-                </Row>
-              )}
-
-              <Divider />
-
-              {/* 更新历史和状态信息 */}
-              {competitorStatus?.data && (
-                <div>
-                  <Title level={5}>数据状态</Title>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Card size="small">
-                        <Statistic
-                          title="最近更新时间"
-                          value={competitorStatus.data.latest_update
-                            ? new Date(competitorStatus.data.latest_update).toLocaleString('zh-CN')
-                            : '暂无更新'
-                          }
-                          valueStyle={{ fontSize: '14px' }}
-                        />
-                      </Card>
-                    </Col>
-                    <Col span={12}>
-                      <Card size="small">
-                        <Statistic
-                          title="更新间隔"
-                          value={competitorStatus.data.update_threshold_hours}
-                          suffix="小时"
-                          valueStyle={{ fontSize: '14px' }}
-                        />
-                      </Card>
-                    </Col>
-                  </Row>
-                </div>
-              )}
-
-              <Alert
-                message="数据同步说明"
-                description={
-                  <div>
-                    <p>• 数据同步包括竞争对手数据（跟卖者数量和最低价格）和商品图片信息</p>
-                    <p>• 系统每小时自动检查并更新过期数据（超过24小时未更新）</p>
-                    <p>• 您也可以手动点击"更新数据同步"按钮立即同步所有商品</p>
-                    <p>• 同步过程在后台执行，包含商品详情、竞争数据和图片链接更新</p>
-                  </div>
-                }
-                type="info"
-                showIcon
-              />
-            </Space>
-          </Card>
             )
           }
         ]}
