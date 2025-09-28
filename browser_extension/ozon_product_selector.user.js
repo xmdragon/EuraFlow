@@ -137,6 +137,8 @@
     // 全局变量
     let extractedData = null;
     let targetCount = 100;
+    // 全局Map存储已采集的商品数据
+    const collectedProducts = new Map(); // key: 商品名称|ID, value: 商品数据
 
     // 创建输入框弹窗
     function showInputModal() {
@@ -195,14 +197,38 @@
         });
     }
 
-    // 智能滚动加载商品（实时检测注入情况）
+    // 实时采集当前可见的已注入商品
+    function collectVisibleProducts() {
+        const injected = document.querySelectorAll('[data-index][data-ozon-bang="true"]');
+        let newCount = 0;
+
+        injected.forEach((container, idx) => {
+            const productData = extractProductData(container, idx + 1);
+            const productName = productData['商品名称'];
+            const productId = productData['商品ID'] || '-';
+            const uniqueKey = `${productName}|${productId}`;
+
+            if (productName && productName !== '-' && !collectedProducts.has(uniqueKey)) {
+                collectedProducts.set(uniqueKey, productData);
+                newCount++;
+                console.log(`+ 采集商品 #${collectedProducts.size}: ${productName}`);
+            }
+        });
+
+        return newCount;
+    }
+
+    // 智能滚动加载商品（边滚动边采集）
     async function scrollToLoadProducts(targetCount) {
-        // 要求注入数量比指定值多20
-        const requiredInjected = targetCount + 20;
+        // 清空之前的采集数据
+        collectedProducts.clear();
+
+        // 先采集当前页面已有的注入商品
+        console.log(`开始实时采集，目标数量: ${targetCount}`);
+        const initialCollected = collectVisibleProducts();
+        console.log(`初始采集: ${initialCollected} 个商品`);
         let scrollAttempts = 0;
         const maxAttempts = 100;
-
-        console.log(`开始智能滚动加载，目标注入数量: ${requiredInjected} (指定${targetCount}+20)`);
 
         // 获取当前注入数量的函数
         const getInjectedCount = () => {
@@ -255,69 +281,60 @@
         };
 
         let previousProductCount = getProductCount();
-        let previousInjectedCount = getInjectedCount();
+        let previousCollectedCount = collectedProducts.size;
 
         // 记录连续无变化次数
         let noChangeCount = 0;
-        let lastProductCount = 0;
+        let lastCollectedCount = 0;
 
         while (scrollAttempts < maxAttempts) {
             const viewportHeight = window.innerHeight;
-            let currentInjected = getInjectedCount();
+            const currentInjected = getInjectedCount();
             const currentProducts = getProductCount();
+            const currentCollected = collectedProducts.size;
 
             // 更详细的调试信息
             const debugInfo = {
-                'data-index总数': document.querySelectorAll('[data-index]').length,
-                'tile-root总数': document.querySelectorAll('.tile-root').length,
-                'widget-search总数': document.querySelectorAll('[data-widget="searchResultsV2"]').length,
-                'bang标记总数': document.querySelectorAll('[data-ozon-bang="true"]').length,
-                'data-index带bang': document.querySelectorAll('[data-index][data-ozon-bang="true"]').length,
-                'tile-root带bang': document.querySelectorAll('.tile-root[data-ozon-bang="true"]').length,
+                '已采集商品': currentCollected,
+                '目标数量': targetCount,
+                '页面商品总数': currentProducts,
+                '已注入商品': currentInjected,
+                '采集率': `${((currentCollected / targetCount) * 100).toFixed(1)}%`,
                 '当前滚动位置': Math.round(window.scrollY),
                 '页面总高度': document.body.scrollHeight
             };
 
-            console.log(`\n滚动 #${scrollAttempts}: 商品${currentProducts}个, 已注入${currentInjected}/${requiredInjected}`);
+            console.log(`\n滚动 #${scrollAttempts}: 已采集 ${currentCollected}/${targetCount}`);
             console.table(debugInfo);
 
+            // 更新UI显示
+            const extractBtn = document.querySelector('.euraflow-export-btn');
+            if (extractBtn) {
+                extractBtn.innerHTML = `⏳ 已采集 ${currentCollected}/${targetCount}`;
+            }
+
             // 检查是否达到目标
-            if (currentInjected >= requiredInjected) {
-                console.log(`✅ 注入数量已达标: ${currentInjected}`);
+            if (currentCollected >= targetCount) {
+                console.log(`✅ 采集完成: ${currentCollected} 个商品`);
                 break;
             }
 
-            // 检查商品数量是否不再增加
-            if (currentProducts === lastProductCount) {
+            // 检查采集数量是否不再增加
+            if (currentCollected === lastCollectedCount) {
                 noChangeCount++;
-                if (noChangeCount >= 5) {
-                    console.log(`⚠️ 商品数量不再增加，页面可能已经到底`);
+                if (noChangeCount >= 8) {
+                    console.log(`⚠️ 采集数量不再增加，页面可能已经到底`);
 
-                    // 如果商品总数少于需求，调整目标
-                    if (currentProducts < requiredInjected) {
-                        console.log(`  商品总数(${currentProducts})少于需求(${requiredInjected})`);
-                        console.log(`  调整目标为: ${currentProducts}`);
-
-                        // 等待所有现有商品注入
-                        const maxWaitForAll = 10;
-                        let waitCount = 0;
-                        while (waitCount < maxWaitForAll && currentInjected < currentProducts) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            const newInjected = getInjectedCount();
-                            console.log(`  等待全部注入: ${newInjected}/${currentProducts}`);
-                            if (newInjected === currentInjected) {
-                                waitCount++;
-                            } else {
-                                waitCount = 0;
-                            }
-                            currentInjected = newInjected;
-                        }
-                        break;
+                    // 如果采集数量少于目标，给出提示
+                    if (currentCollected < targetCount) {
+                        console.log(`  已采集(${currentCollected})少于目标(${targetCount})`);
+                        console.log(`  页面可能没有更多商品了`);
                     }
+                    break;
                 }
             } else {
                 noChangeCount = 0;
-                lastProductCount = currentProducts;
+                lastCollectedCount = currentCollected;
             }
 
             // 滚动一屏
@@ -371,33 +388,36 @@
 
             // 更新计数器
             previousProductCount = currentProducts;
-            previousInjectedCount = currentInjected;
+            previousCollectedCount = currentCollected;
             scrollAttempts++;
+        }
+
+        // 最后再采集一次，确保没有遗漏
+        const finalNewCollected = collectVisibleProducts();
+        if (finalNewCollected > 0) {
+            console.log(`最后采集: ${finalNewCollected} 个`);
         }
 
         // 滚动回顶部
         window.scrollTo(0, 0);
 
-        const finalInjected = getInjectedCount();
+        const finalCollected = collectedProducts.size;
         const finalProducts = getProductCount();
 
         // 判断是否达标
-        if (finalProducts < targetCount) {
-            // 商品总数不足
-            console.warn(`⚠️ 商品总数不足: ${finalProducts} < ${targetCount}`);
-            console.log(`  已注入: ${finalInjected}/${finalProducts}`);
-            if (finalInjected < finalProducts * 0.9) {
-                alert(`商品注入不完整：${finalInjected}/${finalProducts}，请重试`);
+        if (finalCollected < targetCount) {
+            if (finalProducts < targetCount) {
+                console.warn(`⚠️ 页面商品总数不足: ${finalProducts} < ${targetCount}`);
+                console.log(`  已采集: ${finalCollected}/${finalProducts}`);
+            } else {
+                console.warn(`⚠️ 采集数量不足: ${finalCollected}/${targetCount}`);
+                alert(`采集数量不足：${finalCollected}/${targetCount}，请重试`);
             }
-        } else if (finalInjected < targetCount) {
-            // 注入数量不足
-            console.warn(`⚠️ 注入数量不足: ${finalInjected}/${targetCount}`);
-            alert(`注入数量不足：${finalInjected}/${targetCount}，请重试`);
         } else {
-            console.log(`✅ 滚动完成，最终注入: ${finalInjected}个`);
+            console.log(`✅ 采集完成: ${finalCollected} 个商品`);
         }
 
-        return finalInjected;
+        return finalCollected;
     }
 
     // 等待上品帮注入（确保达标）
@@ -823,66 +843,15 @@
         return data;
     }
 
-    // 提取所有商品数据（使用data-index属性直接定位商品）
+    // 提取所有商品数据（从已采集的Map中获取）
     function extractAllData() {
-        // 直接选择具有data-index属性且带有上品帮标记的外层商品容器
-        const containers = document.querySelectorAll('[data-index][data-ozon-bang="true"]');
-
-        if (containers.length === 0) {
-            // 如果没找到，尝试查找所有上品帮标记
-            const allBangContainers = document.querySelectorAll('[data-ozon-bang="true"]');
-            if (allBangContainers.length > 0) {
-                console.log(`找到 ${allBangContainers.length} 个上品帮标记，但可能不是商品容器`);
-                alert('请等待页面完全加载后再试');
-            } else {
-                alert('未找到上品帮数据！请确保上品帮插件已加载');
-            }
+        if (collectedProducts.size === 0) {
+            alert('没有采集到任何商品数据！');
             return null;
         }
 
-        console.log(`找到 ${containers.length} 个商品`);
-        const allData = [];
-        const seenProducts = new Map(); // 使用Map存储 商品名称+ID 的组合
-
-        containers.forEach((container, idx) => {
-            const dataIndex = container.getAttribute('data-index');
-            console.log(`处理商品 #${dataIndex}`);
-
-            const productData = extractProductData(container, idx + 1);
-
-            // 基于商品名称+ID的组合去重
-            const productName = productData['商品名称'];
-            const productId = productData['商品ID'] || '-';
-
-            // 创建唯一键：商品名称 + 商品ID
-            const uniqueKey = `${productName}|${productId}`;
-
-            if (productName && productName !== '-') {
-                if (!seenProducts.has(uniqueKey)) {
-                    seenProducts.set(uniqueKey, {
-                        index: dataIndex,
-                        productId: productId,
-                        productName: productName
-                    });
-                    allData.push(productData);
-                    console.log(`index ${dataIndex}: ${productName} (ID: ${productId})`);
-                } else {
-                    const firstOccurrence = seenProducts.get(uniqueKey);
-                    console.log(`重复商品: index:${dataIndex} 跟index:${firstOccurrence.index}重复`);
-                    console.log(`  商品: ${productName} (ID: ${productId})`);
-                }
-            } else {
-                // 名称提取失败，直接添加
-                allData.push(productData);
-                console.log(`index ${dataIndex}: 名称提取失败`);
-            }
-        });
-
-        const duplicateCount = containers.length - allData.length;
-        console.log(`\n提取完成统计:`);
-        console.log(`  原始商品数: ${containers.length}`);
-        console.log(`  去重后商品数: ${allData.length}`);
-        console.log(`  重复商品数: ${duplicateCount}`);
+        const allData = Array.from(collectedProducts.values());
+        console.log(`\n准备导出，共 ${allData.length} 个商品数据`);
         return allData;
     }
 
@@ -951,12 +920,8 @@
             // 滚动加载
             await scrollToLoadProducts(targetCount);
 
-            extractBtn.innerHTML = '⏳ 等待注入';
-
-            // 等待上品帮注入
-            const injectedCount = await waitForSpbangInjection(targetCount);
-
-            extractBtn.innerHTML = '⏳ 提取数据中';
+            // 不需要额外等待注入，因为已经在滚动过程中实时采集了
+            extractBtn.innerHTML = '⏳ 准备数据';
 
             // 提取数据
             setTimeout(() => {
