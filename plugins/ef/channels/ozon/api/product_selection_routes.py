@@ -36,7 +36,7 @@ class ProductSearchRequest(BaseModel):
     monthly_sales_min: Optional[int] = Field(None, description="最小月销量")
     monthly_sales_max: Optional[int] = Field(None, description="最大月销量")
     weight_max: Optional[int] = Field(None, description="最大包装重量(克)")
-    sort_by: Optional[str] = Field('sales_desc', description="排序方式")
+    sort_by: Optional[str] = Field('created_desc', description="排序方式")
     page: Optional[int] = Field(1, ge=1, description="页码")
     page_size: Optional[int] = Field(20, ge=1, le=100, description="每页数量")
 
@@ -226,7 +226,7 @@ async def get_products(
     monthly_sales_min: Optional[int] = Query(None, description="最小月销量"),
     monthly_sales_max: Optional[int] = Query(None, description="最大月销量"),
     weight_max: Optional[int] = Query(None, description="最大包装重量"),
-    sort_by: str = Query('sales_desc', description="排序方式"),
+    sort_by: str = Query('created_desc', description="排序方式"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: AsyncSession = Depends(get_async_session)

@@ -458,7 +458,7 @@ class ProductSelectionService:
         total_result = await db.execute(count_query)
         total = total_result.scalar()
 
-        # 应用排序
+        # 应用排序 - 默认按导入时间从新到旧
         if sort_by == 'sales_desc':
             query = query.order_by(ProductSelectionItem.monthly_sales_volume.desc().nullslast())
         elif sort_by == 'sales_asc':
@@ -469,7 +469,12 @@ class ProductSelectionService:
             query = query.order_by(ProductSelectionItem.current_price.asc().nullsfirst())
         elif sort_by == 'price_desc':
             query = query.order_by(ProductSelectionItem.current_price.desc().nullslast())
+        elif sort_by == 'created_desc' or sort_by == '':
+            query = query.order_by(ProductSelectionItem.created_at.desc())
+        elif sort_by == 'created_asc':
+            query = query.order_by(ProductSelectionItem.created_at.asc())
         else:
+            # 默认按导入时间从新到旧排序
             query = query.order_by(ProductSelectionItem.created_at.desc())
 
         # 分页

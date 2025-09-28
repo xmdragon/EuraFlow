@@ -437,7 +437,7 @@ const ProductSelection: React.FC = () => {
               form={form}
               layout="vertical"
               onFinish={handleSearch}
-              initialValues={{ sort_by: 'sales_desc' }}
+              initialValues={{ sort_by: 'created_desc' }}
             >
               <Row gutter={16}>
                 <Col xs={24} sm={12} md={8} lg={6}>
@@ -546,6 +546,8 @@ const ProductSelection: React.FC = () => {
                 <Col xs={24} sm={12} md={8} lg={6}>
                   <Form.Item label="排序方式" name="sort_by">
                     <Select>
+                      <Option value="created_desc">导入时间从新到旧</Option>
+                      <Option value="created_asc">导入时间从旧到新</Option>
                       <Option value="sales_desc">销量从高到低</Option>
                       <Option value="sales_asc">销量从低到高</Option>
                       <Option value="weight_asc">重量从低到高</Option>
