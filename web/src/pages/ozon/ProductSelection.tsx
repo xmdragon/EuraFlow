@@ -47,7 +47,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
-import OzonManualDataImport from '@/components/OzonManualDataImport';
 
 const { Option } = Select;
 const { Title, Text, Link, Paragraph } = Typography;
@@ -449,27 +448,13 @@ const ProductSelection: React.FC = () => {
                 <div style={{ fontSize: '11px' }}>
                   <Text type="secondary">跟卖者: </Text>
                   {product.competitor_count !== null && product.competitor_count !== undefined ? (
-                    <>
-                      <Text
-                        strong
-                        style={{ color: '#fa8c16', cursor: product.competitor_count > 0 ? 'pointer' : 'default' }}
-                        onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
-                      >
-                        {product.competitor_count}家
-                      </Text>
-                      {product.product_id && (
-                        <span style={{ marginLeft: 8 }}>
-                          <OzonManualDataImport
-                            productId={product.product_id}
-                            productName={product.product_name_cn}
-                            onDataImported={(data) => {
-                              console.log('手动导入的数据:', data);
-                              refetchProducts(); // 刷新列表
-                            }}
-                          />
-                        </span>
-                      )}
-                    </>
+                    <Text
+                      strong
+                      style={{ color: '#fa8c16', cursor: product.competitor_count > 0 ? 'pointer' : 'default' }}
+                      onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
+                    >
+                      {product.competitor_count}家
+                    </Text>
                   ) : (
                     <Text style={{ color: '#999' }}>-</Text>
                   )}
