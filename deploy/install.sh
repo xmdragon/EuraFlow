@@ -725,42 +725,27 @@ EOF
 
 # 配置Supervisor服务
 setup_supervisor() {
-    log_info "配置Supervisor服务..."
+    log_info "安装Supervisor..."
 
     # 安装Supervisor（如果还没有安装）
     if ! command -v supervisord &> /dev/null; then
-        log_info "安装Supervisor..."
+        log_info "安装系统Supervisor..."
         apt-get update
         apt-get install -y supervisor
     fi
 
-    # 确保supervisor服务已启动
-    log_info "确保Supervisor服务已启动..."
-    systemctl start supervisor || true
-    systemctl enable supervisor || true
+    # 停止系统supervisor服务（如果在运行）
+    log_info "停止系统supervisor服务（项目将使用自己的supervisor进程）..."
+    systemctl stop supervisor 2>/dev/null || true
+    systemctl disable supervisor 2>/dev/null || true
 
-    # 等待supervisor完全启动
-    sleep 3
+    # 确保项目管理脚本有执行权限
+    chmod +x ${INSTALL_DIR}/start.sh
+    chmod +x ${INSTALL_DIR}/stop.sh
+    chmod +x ${INSTALL_DIR}/restart.sh
+    chmod +x ${INSTALL_DIR}/status.sh
 
-    # 创建日志目录
-    mkdir -p /var/log/euraflow
-    chown -R $USER:$GROUP /var/log/euraflow
-
-    # 创建符号链接，让系统supervisor包含项目配置
-    log_info "链接项目Supervisor配置..."
-    ln -sf ${INSTALL_DIR}/deploy/euraflow.conf /etc/supervisor/conf.d/euraflow.conf
-
-    # 重新加载Supervisor配置
-    log_info "重新加载Supervisor配置..."
-    supervisorctl reread || {
-        log_warn "Supervisor可能未完全启动，尝试重启..."
-        systemctl restart supervisor
-        sleep 5
-        supervisorctl reread
-    }
-    supervisorctl update
-
-    log_success "Supervisor服务配置完成"
+    log_success "Supervisor安装完成，项目将使用自己的配置文件"
 }
 
 # 配置防火墙
@@ -792,23 +777,18 @@ start_services() {
     systemctl start nginx
     systemctl enable nginx
 
-    # 启动Supervisor
-    systemctl start supervisor
-    systemctl enable supervisor
-
-    # 等待Supervisor启动
-    sleep 3
-
-    # 启动EuraFlow服务组
-    log_info "启动EuraFlow服务组..."
-    supervisorctl start euraflow:*
+    # 使用项目脚本启动服务
+    log_info "启动EuraFlow服务..."
+    cd ${INSTALL_DIR}
+    ./start.sh
 
     # 等待服务启动
     sleep 5
 
     # 检查服务状态
     log_info "检查服务状态..."
-    supervisorctl status
+    cd ${INSTALL_DIR}
+    ./status.sh
 
     log_success "所有服务已启动"
 }

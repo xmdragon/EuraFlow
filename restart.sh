@@ -21,7 +21,7 @@ if [ -f "tmp/supervisord.pid" ]; then
     if ps -p $PID > /dev/null 2>&1; then
         # Supervisord 正在运行，只重启服务
         echo -e "\n${YELLOW}Restarting services...${NC}"
-        venv/bin/supervisorctl -c supervisord.conf restart euraflow:*
+        supervisorctl -c supervisord.conf restart euraflow:*
     else
         # PID 文件存在但进程不存在
         echo -e "${YELLOW}!${NC} Supervisord not running, starting fresh..."
@@ -44,7 +44,7 @@ sleep 3
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}         Service Status                 ${NC}"
 echo -e "${GREEN}========================================${NC}"
-venv/bin/supervisorctl -c supervisord.conf status
+supervisorctl -c supervisord.conf status
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}✓ Services restarted successfully!      ${NC}"

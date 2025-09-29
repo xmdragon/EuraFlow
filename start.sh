@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # EuraFlow 启动脚本
-# 使用项目级 Supervisor 管理服务
+# 使用系统supervisor + 项目配置文件
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -31,11 +31,12 @@ if [ ! -d "venv" ]; then
 fi
 echo -e "${GREEN}✓${NC} Virtual environment found"
 
-# 安装 supervisor（如果没有）
+# 检查系统supervisor是否安装
 echo -e "${YELLOW}[3/4]${NC} Checking supervisor installation..."
-if ! venv/bin/pip show supervisor > /dev/null 2>&1; then
-    echo "Installing supervisor..."
-    venv/bin/pip install supervisor
+if ! command -v supervisord &> /dev/null; then
+    echo -e "${RED}✗${NC} Supervisor not installed!"
+    echo "Please run: sudo apt install supervisor"
+    exit 1
 fi
 echo -e "${GREEN}✓${NC} Supervisor is installed"
 
@@ -46,22 +47,23 @@ if [ -f "tmp/supervisord.pid" ]; then
     if ps -p $PID > /dev/null 2>&1; then
         echo -e "${YELLOW}!${NC} Supervisord is already running (PID: $PID)"
         echo "Reloading configuration..."
-        venv/bin/supervisorctl -c supervisord.conf reread
-        venv/bin/supervisorctl -c supervisord.conf update
+        supervisorctl -c supervisord.conf reread
+        supervisorctl -c supervisord.conf update
     else
         echo "Starting supervisord..."
-        venv/bin/supervisord -c supervisord.conf
+        rm -f tmp/supervisord.pid tmp/supervisor.sock
+        supervisord -c supervisord.conf
         sleep 2
     fi
 else
     echo "Starting supervisord..."
-    venv/bin/supervisord -c supervisord.conf
+    supervisord -c supervisord.conf
     sleep 2
 fi
 
 # 启动所有服务
 echo -e "\n${GREEN}Starting EuraFlow services...${NC}"
-venv/bin/supervisorctl -c supervisord.conf start euraflow:*
+supervisorctl -c supervisord.conf start euraflow:*
 
 # 等待服务启动
 echo -e "\n${YELLOW}Waiting for services to start...${NC}"
@@ -71,7 +73,7 @@ sleep 3
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}         Service Status                 ${NC}"
 echo -e "${GREEN}========================================${NC}"
-venv/bin/supervisorctl -c supervisord.conf status
+supervisorctl -c supervisord.conf status
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}✓ EuraFlow services started successfully!${NC}"

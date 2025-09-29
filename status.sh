@@ -35,7 +35,7 @@ fi
 
 # 显示服务状态
 echo -e "\n${YELLOW}Service Status:${NC}"
-venv/bin/supervisorctl -c supervisord.conf status
+supervisorctl -c supervisord.conf status
 
 # 检查端口占用
 echo -e "\n${YELLOW}Port Usage:${NC}"

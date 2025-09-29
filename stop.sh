@@ -31,14 +31,14 @@ fi
 
 # 停止所有服务
 echo -e "\n${YELLOW}Stopping all services...${NC}"
-venv/bin/supervisorctl -c supervisord.conf stop euraflow:*
+supervisorctl -c supervisord.conf stop euraflow:*
 
 # 等待服务停止
 sleep 2
 
 # 显示状态
 echo -e "\n${YELLOW}Current service status:${NC}"
-venv/bin/supervisorctl -c supervisord.conf status
+supervisorctl -c supervisord.conf status
 
 # 询问是否停止 supervisord
 echo ""
@@ -46,7 +46,7 @@ read -p "Do you want to shutdown supervisord completely? (y/N): " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo -e "\n${YELLOW}Shutting down supervisord...${NC}"
-    venv/bin/supervisorctl -c supervisord.conf shutdown
+    supervisorctl -c supervisord.conf shutdown
     sleep 2
 
     # 清理 PID 文件
@@ -57,7 +57,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 else
     echo -e "${YELLOW}!${NC} Supervisord is still running. Services are stopped."
     echo "Use './start.sh' to restart services"
-    echo "Use 'venv/bin/supervisorctl -c supervisord.conf shutdown' to stop supervisord"
+    echo "Use 'supervisorctl -c supervisord.conf shutdown' to stop supervisord"
 fi
 
 echo -e "\n${GREEN}========================================${NC}"
