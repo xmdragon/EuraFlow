@@ -42,6 +42,7 @@ import {
   HistoryOutlined,
   FilterOutlined,
   SyncOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
@@ -119,6 +120,31 @@ const ProductSelection: React.FC = () => {
     },
   });
 
+  // 处理清空数据
+  const handleClearData = () => {
+    Modal.confirm({
+      title: '确认清空所有数据？',
+      content: (
+        <div>
+          <p style={{ color: '#ff4d4f', marginBottom: 8 }}>
+            ⚠️ 此操作将永久删除您账号下的所有选品数据，无法恢复！
+          </p>
+          <p>包括：</p>
+          <ul>
+            <li>所有商品选品记录</li>
+            <li>所有导入历史记录</li>
+          </ul>
+          <p>请确认是否继续？</p>
+        </div>
+      ),
+      okText: '确认清空',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: () => {
+        clearDataMutation.mutate();
+      },
+    });
+  };
 
   // 处理搜索
   const handleSearch = (values: any) => {
@@ -750,6 +776,26 @@ const ProductSelection: React.FC = () => {
                   支持 Excel 和 CSV 文件，文件大小不超过 10MB
                 </p>
               </Upload.Dragger>
+
+              <Divider />
+
+              <Alert
+                message="数据管理"
+                description="如需重新开始，可以清空所有当前账号的选品数据"
+                type="warning"
+                showIcon
+                action={
+                  <Button
+                    danger
+                    type="text"
+                    icon={<DeleteOutlined />}
+                    onClick={handleClearData}
+                    loading={clearDataMutation.isPending}
+                  >
+                    清空所有数据
+                  </Button>
+                }
+              />
             </Space>
           </Card>
             )

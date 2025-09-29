@@ -78,11 +78,6 @@ const LoginPage: React.FC = () => {
             </Form.Item>
           </Form>
 
-          <div style={{ textAlign: 'center' }}>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              默认管理员账户: admin@euraflow.com / admin123
-            </Typography.Text>
-          </div>
         </Space>
       </div>
     </div>
