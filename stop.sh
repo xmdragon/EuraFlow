@@ -54,11 +54,31 @@ supervisorctl -c supervisord.conf stop all
 # 等待服务停止
 sleep 2
 
-# 强制清理可能残留的uvicorn进程
+# 强制清理可能残留的进程
 echo -e "\n${YELLOW}Cleaning up any remaining processes...${NC}"
-pkill -f "uvicorn ef_core.app:app" 2>/dev/null || true
-pkill -f "watermark_task_runner" 2>/dev/null || true
-pkill -f "competitor_task_runner" 2>/dev/null || true
+
+# 清理gunicorn进程（旧的daemon模式）
+GUNICORN_PIDS=$(pgrep -f "gunicorn ef_core.app:app" 2>/dev/null)
+if [ ! -z "$GUNICORN_PIDS" ]; then
+    echo -e "${YELLOW}Found old gunicorn processes: $GUNICORN_PIDS${NC}"
+    kill -9 $GUNICORN_PIDS 2>/dev/null || sudo kill -9 $GUNICORN_PIDS 2>/dev/null
+    echo -e "${GREEN}✓${NC} Killed old gunicorn processes"
+fi
+
+# 清理uvicorn进程
+UVICORN_PIDS=$(pgrep -f "uvicorn ef_core.app:app" 2>/dev/null)
+if [ ! -z "$UVICORN_PIDS" ]; then
+    echo -e "${YELLOW}Found uvicorn processes: $UVICORN_PIDS${NC}"
+    kill -9 $UVICORN_PIDS 2>/dev/null || sudo kill -9 $UVICORN_PIDS 2>/dev/null
+    echo -e "${GREEN}✓${NC} Killed uvicorn processes"
+fi
+
+# 清理task runner进程
+pkill -9 -f "watermark_task_runner" 2>/dev/null || true
+pkill -9 -f "competitor_task_runner" 2>/dev/null || true
+
+# 清理旧的PID文件
+rm -f /var/run/euraflow/backend.pid 2>/dev/null || true
 
 # 再次清理8000端口
 PORT_PID=$(lsof -t -i:8000 2>/dev/null)
@@ -85,14 +105,28 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     rm -f tmp/supervisord.pid
     rm -f tmp/supervisor.sock
 
-    # 最后再检查并清理端口占用
-    PORT_PID=$(lsof -t -i:8000 2>/dev/null)
-    if [ ! -z "$PORT_PID" ]; then
-        echo -e "${YELLOW}!${NC} Still found process using port 8000 (PID: $PORT_PID)"
-        echo -e "${YELLOW}Killing process...${NC}"
-        kill -9 $PORT_PID 2>/dev/null || sudo kill -9 $PORT_PID 2>/dev/null || true
-        echo -e "${GREEN}✓${NC} Port 8000 cleared"
+    # 清理所有相关进程
+    echo -e "\n${YELLOW}Final cleanup...${NC}"
+
+    # 再次清理gunicorn（确保完全清理）
+    FINAL_GUNICORN=$(pgrep -f "gunicorn ef_core.app:app" 2>/dev/null)
+    if [ ! -z "$FINAL_GUNICORN" ]; then
+        kill -9 $FINAL_GUNICORN 2>/dev/null || sudo kill -9 $FINAL_GUNICORN 2>/dev/null
+        echo -e "${GREEN}✓${NC} Final gunicorn cleanup"
     fi
+
+    # 最后再检查并清理端口占用
+    for PORT in 8000 9001; do
+        PORT_PID=$(lsof -t -i:$PORT 2>/dev/null)
+        if [ ! -z "$PORT_PID" ]; then
+            echo -e "${YELLOW}!${NC} Port $PORT still in use (PID: $PORT_PID)"
+            kill -9 $PORT_PID 2>/dev/null || sudo kill -9 $PORT_PID 2>/dev/null || true
+            echo -e "${GREEN}✓${NC} Port $PORT cleared"
+        fi
+    done
+
+    # 清理旧的PID文件
+    rm -f /var/run/euraflow/backend.pid 2>/dev/null || true
 
     echo -e "${GREEN}✓${NC} Supervisord shutdown complete"
 else
