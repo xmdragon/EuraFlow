@@ -381,26 +381,11 @@ init_database() {
         log_error ".env文件不存在"
     fi
 
-    # 测试数据库连接
+    # 测试数据库连接（简化版本）
     log_info "测试应用数据库连接..."
-    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -c '
-import os
-from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
-
-load_dotenv()
-db_url = os.getenv(\"EF__DATABASE__URL\")
-if not db_url:
-    raise Exception(\"数据库URL未设置\")
-
-# 转换为同步URL进行测试
-sync_url = db_url.replace(\"postgresql://\", \"postgresql://\").replace(\"+asyncpg\", \"\")
-engine = create_engine(sync_url)
-conn = engine.connect()
-result = conn.execute(text(\"SELECT 1\"))
-conn.close()
-print(\"应用数据库连接成功\")
-' 2>/dev/null" || {
+    PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT 1;" -t -q > /dev/null 2>&1 && {
+        log_info "应用数据库连接验证成功"
+    } || {
         log_error "应用数据库连接测试失败，请检查数据库配置和密码"
     }
 
