@@ -37,6 +37,10 @@ class ProductSearchRequest(BaseModel):
     monthly_sales_min: Optional[int] = Field(None, description="最小月销量")
     monthly_sales_max: Optional[int] = Field(None, description="最大月销量")
     weight_max: Optional[int] = Field(None, description="最大包装重量(克)")
+    competitor_count_min: Optional[int] = Field(None, description="最小跟卖者数量")
+    competitor_count_max: Optional[int] = Field(None, description="最大跟卖者数量")
+    competitor_min_price_min: Optional[float] = Field(None, description="最低跟卖价下限")
+    competitor_min_price_max: Optional[float] = Field(None, description="最低跟卖价上限")
     sort_by: Optional[str] = Field('created_desc', description="排序方式")
     page: Optional[int] = Field(1, ge=1, description="页码")
     page_size: Optional[int] = Field(20, ge=1, le=100, description="每页数量")
@@ -228,6 +232,10 @@ async def get_products(
     monthly_sales_min: Optional[int] = Query(None, description="最小月销量"),
     monthly_sales_max: Optional[int] = Query(None, description="最大月销量"),
     weight_max: Optional[int] = Query(None, description="最大包装重量"),
+    competitor_count_min: Optional[int] = Query(None, description="最小跟卖者数量"),
+    competitor_count_max: Optional[int] = Query(None, description="最大跟卖者数量"),
+    competitor_min_price_min: Optional[float] = Query(None, description="最低跟卖价下限"),
+    competitor_min_price_max: Optional[float] = Query(None, description="最低跟卖价上限"),
     sort_by: str = Query('created_desc', description="排序方式"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -258,6 +266,14 @@ async def get_products(
         filters['monthly_sales_max'] = monthly_sales_max
     if weight_max is not None:
         filters['weight_max'] = weight_max
+    if competitor_count_min is not None:
+        filters['competitor_count_min'] = competitor_count_min
+    if competitor_count_max is not None:
+        filters['competitor_count_max'] = competitor_count_max
+    if competitor_min_price_min is not None:
+        filters['competitor_min_price_min'] = competitor_min_price_min
+    if competitor_min_price_max is not None:
+        filters['competitor_min_price_max'] = competitor_min_price_max
 
     result = await service.search_products(
         db=db,

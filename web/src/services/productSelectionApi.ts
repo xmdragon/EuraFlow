@@ -41,6 +41,10 @@ export interface ProductSearchParams {
   monthly_sales_min?: number;
   monthly_sales_max?: number;
   weight_max?: number;
+  competitor_count_min?: number;
+  competitor_count_max?: number;
+  competitor_min_price_min?: number;
+  competitor_min_price_max?: number;
   sort_by?: 'sales_desc' | 'sales_asc' | 'weight_asc' | 'price_asc' | 'price_desc' | 'created_desc' | 'created_asc';
   page?: number;
   page_size?: number;

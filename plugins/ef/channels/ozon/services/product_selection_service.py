@@ -466,6 +466,26 @@ class ProductSelectionService:
                 ProductSelectionItem.package_weight <= filters['weight_max']
             )
 
+        if filters.get('competitor_count_min'):
+            conditions.append(
+                ProductSelectionItem.competitor_count >= filters['competitor_count_min']
+            )
+
+        if filters.get('competitor_count_max'):
+            conditions.append(
+                ProductSelectionItem.competitor_count <= filters['competitor_count_max']
+            )
+
+        if filters.get('competitor_min_price_min'):
+            conditions.append(
+                ProductSelectionItem.competitor_min_price >= Decimal(str(filters['competitor_min_price_min']))
+            )
+
+        if filters.get('competitor_min_price_max'):
+            conditions.append(
+                ProductSelectionItem.competitor_min_price <= Decimal(str(filters['competitor_min_price_max']))
+            )
+
         if conditions:
             query = query.where(and_(*conditions))
 

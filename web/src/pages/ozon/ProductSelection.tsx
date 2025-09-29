@@ -110,6 +110,10 @@ const ProductSelection: React.FC = () => {
     if (values.monthly_sales_min) params.monthly_sales_min = values.monthly_sales_min;
     if (values.monthly_sales_max) params.monthly_sales_max = values.monthly_sales_max;
     if (values.weight_max) params.weight_max = values.weight_max;
+    if (values.competitor_count_min) params.competitor_count_min = values.competitor_count_min;
+    if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max;
+    if (values.competitor_min_price_min) params.competitor_min_price_min = values.competitor_min_price_min;
+    if (values.competitor_min_price_max) params.competitor_min_price_max = values.competitor_min_price_max;
     if (values.sort_by) params.sort_by = values.sort_by;
 
     setSearchParams(params);
@@ -538,7 +542,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                {/* 第三行：销量和重量 */}
+                {/* 第三行：销量、重量、跟卖者 */}
                 <Col xs={24} sm={12} md={8} lg={6}>
                   <Form.Item label="月销量">
                     <Space.Compact style={{ width: '100%' }}>
@@ -568,6 +572,49 @@ const ProductSelection: React.FC = () => {
                       placeholder="g"
                       suffix="g"
                     />
+                  </Form.Item>
+                </Col>
+
+                {/* 第四行：跟卖者相关 */}
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Form.Item label="跟卖者数量">
+                    <Space.Compact style={{ width: '100%' }}>
+                      <Form.Item name="competitor_count_min" noStyle>
+                        <InputNumber
+                          min={0}
+                          style={{ width: '50%' }}
+                          placeholder="最小"
+                        />
+                      </Form.Item>
+                      <Form.Item name="competitor_count_max" noStyle>
+                        <InputNumber
+                          min={0}
+                          style={{ width: '50%' }}
+                          placeholder="最大"
+                        />
+                      </Form.Item>
+                    </Space.Compact>
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Form.Item label="最低跟卖价">
+                    <Space.Compact style={{ width: '100%' }}>
+                      <Form.Item name="competitor_min_price_min" noStyle>
+                        <InputNumber
+                          min={0}
+                          style={{ width: '50%' }}
+                          placeholder="最小₽"
+                        />
+                      </Form.Item>
+                      <Form.Item name="competitor_min_price_max" noStyle>
+                        <InputNumber
+                          min={0}
+                          style={{ width: '50%' }}
+                          placeholder="最大₽"
+                        />
+                      </Form.Item>
+                    </Space.Compact>
                   </Form.Item>
                 </Col>
               </Row>
