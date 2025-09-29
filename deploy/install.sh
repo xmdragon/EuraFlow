@@ -289,7 +289,8 @@ setup_python_env() {
 
     # 激活虚拟环境并安装依赖
     sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m ensurepip --upgrade"
-    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m pip install --upgrade pip setuptools wheel"
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m pip install --upgrade pip"
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install --upgrade setuptools>=68.0.0 wheel"
     sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install -r requirements.txt"
 
     log_success "Python环境设置完成"

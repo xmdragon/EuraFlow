@@ -26,7 +26,7 @@ croniter==1.4.1
 # Image Processing
 Pillow==10.1.0
 cloudinary==1.37.0
-numpy==1.24.3
+numpy>=1.26.0
 
 # Development
 pytest==7.4.3
