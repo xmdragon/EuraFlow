@@ -734,6 +734,14 @@ setup_supervisor() {
         apt-get install -y supervisor
     fi
 
+    # 确保supervisor服务已启动
+    log_info "确保Supervisor服务已启动..."
+    systemctl start supervisor || true
+    systemctl enable supervisor || true
+
+    # 等待supervisor完全启动
+    sleep 3
+
     # 创建日志目录
     mkdir -p /var/log/euraflow
     chown -R $USER:$GROUP /var/log/euraflow
@@ -743,7 +751,13 @@ setup_supervisor() {
     ln -sf ${INSTALL_DIR}/deploy/euraflow.conf /etc/supervisor/conf.d/euraflow.conf
 
     # 重新加载Supervisor配置
-    supervisorctl reread
+    log_info "重新加载Supervisor配置..."
+    supervisorctl reread || {
+        log_warn "Supervisor可能未完全启动，尝试重启..."
+        systemctl restart supervisor
+        sleep 5
+        supervisorctl reread
+    }
     supervisorctl update
 
     log_success "Supervisor服务配置完成"
