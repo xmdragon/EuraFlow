@@ -1243,8 +1243,9 @@ async def import_products(
         # 获取上传的文件内容
         file_content = request.get("file_content", "")
         shop_id = request.get("shop_id")  # 必须明确指定店铺ID
-    if not shop_id:
-        raise HTTPException(status_code=400, detail="shop_id is required")
+
+        if not shop_id:
+            raise HTTPException(status_code=400, detail="shop_id is required")
         
         if not file_content:
             return {

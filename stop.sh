@@ -18,7 +18,16 @@ echo -e "${YELLOW}========================================${NC}"
 
 # 检查 supervisord 是否运行
 if [ ! -f "tmp/supervisord.pid" ]; then
-    echo -e "${RED}✗${NC} Supervisord is not running"
+    echo -e "${YELLOW}!${NC} Supervisord is not running"
+
+    # 检查是否有其他进程占用8000端口
+    PORT_PID=$(lsof -t -i:8000 2>/dev/null)
+    if [ ! -z "$PORT_PID" ]; then
+        echo -e "${YELLOW}!${NC} Found process using port 8000 (PID: $PORT_PID)"
+        echo -e "${YELLOW}Killing process...${NC}"
+        kill -9 $PORT_PID 2>/dev/null || sudo kill -9 $PORT_PID 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Port 8000 cleared"
+    fi
     exit 0
 fi
 
@@ -26,6 +35,15 @@ PID=$(cat tmp/supervisord.pid)
 if ! ps -p $PID > /dev/null 2>&1; then
     echo -e "${RED}✗${NC} Supervisord process not found (PID: $PID)"
     rm -f tmp/supervisord.pid
+
+    # 清理可能占用端口的进程
+    PORT_PID=$(lsof -t -i:8000 2>/dev/null)
+    if [ ! -z "$PORT_PID" ]; then
+        echo -e "${YELLOW}!${NC} Found process using port 8000 (PID: $PORT_PID)"
+        echo -e "${YELLOW}Killing process...${NC}"
+        kill -9 $PORT_PID 2>/dev/null || sudo kill -9 $PORT_PID 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Port 8000 cleared"
+    fi
     exit 0
 fi
 
@@ -52,6 +70,15 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     # 清理 PID 文件
     rm -f tmp/supervisord.pid
     rm -f tmp/supervisor.sock
+
+    # 最后再检查并清理端口占用
+    PORT_PID=$(lsof -t -i:8000 2>/dev/null)
+    if [ ! -z "$PORT_PID" ]; then
+        echo -e "${YELLOW}!${NC} Still found process using port 8000 (PID: $PORT_PID)"
+        echo -e "${YELLOW}Killing process...${NC}"
+        kill -9 $PORT_PID 2>/dev/null || sudo kill -9 $PORT_PID 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Port 8000 cleared"
+    fi
 
     echo -e "${GREEN}✓${NC} Supervisord shutdown complete"
 else
