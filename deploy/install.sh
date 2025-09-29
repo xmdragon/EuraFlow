@@ -723,97 +723,88 @@ EOF
     log_success "SSL证书配置完成"
 }
 
-# 配置systemd服务
-setup_systemd() {
-    log_info "配置systemd服务..."
+# 配置Supervisor服务
+setup_supervisor() {
+    log_info "配置Supervisor服务..."
 
-    # 创建运行时目录
-    mkdir -p /var/run/euraflow
-    chown $USER:$GROUP /var/run/euraflow
+    # 创建日志目录
+    mkdir -p /var/log/euraflow
+    chown -R $USER:$GROUP /var/log/euraflow
 
-    # 后端服务（使用uvicorn直接运行，更简单可靠）
-    cat > /etc/systemd/system/euraflow-backend.service << EOF
-[Unit]
-Description=EuraFlow Backend Service
-After=network.target postgresql.service redis.service
-Requires=postgresql.service redis.service
+    # 创建Supervisor配置文件
+    cat > /etc/supervisor/conf.d/euraflow.conf << EOF
+[group:euraflow]
+programs=backend,worker,competitor
+priority=999
 
-[Service]
-Type=simple
-User=${USER}
-Group=${GROUP}
-WorkingDirectory=${INSTALL_DIR}
-Environment="PATH=${INSTALL_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-EnvironmentFile=${INSTALL_DIR}/.env
-ExecStart=${INSTALL_DIR}/venv/bin/uvicorn ef_core.app:app \
-    --host 0.0.0.0 \
-    --port 8000 \
-    --log-level info \
-    --access-log
-Restart=always
-RestartSec=10
-StandardOutput=append:/var/log/euraflow/backend.log
-StandardError=append:/var/log/euraflow/backend-error.log
+[program:backend]
+command=${INSTALL_DIR}/venv/bin/uvicorn ef_core.app:app --host 0.0.0.0 --port 8000 --log-level info --access-log
+directory=${INSTALL_DIR}
+user=${USER}
+autostart=true
+autorestart=true
+startsecs=10
+stopwaitsecs=60
+stdout_logfile=/var/log/euraflow/backend.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/var/log/euraflow/backend-error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
+environment=PATH="${INSTALL_DIR}/venv/bin:/usr/bin:/bin"
+priority=100
 
-[Install]
-WantedBy=multi-user.target
+[program:worker]
+command=${INSTALL_DIR}/venv/bin/python -m plugins.ef.channels.ozon.services.watermark_task_runner
+directory=${INSTALL_DIR}
+user=${USER}
+autostart=true
+autorestart=true
+startsecs=10
+stopwaitsecs=60
+stdout_logfile=/var/log/euraflow/worker.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/var/log/euraflow/worker-error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
+environment=PATH="${INSTALL_DIR}/venv/bin:/usr/bin:/bin"
+priority=200
+
+[program:competitor]
+command=${INSTALL_DIR}/venv/bin/python -m plugins.ef.channels.ozon.services.competitor_task_runner
+directory=${INSTALL_DIR}
+user=${USER}
+autostart=true
+autorestart=true
+startsecs=10
+stopwaitsecs=60
+stdout_logfile=/var/log/euraflow/competitor.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/var/log/euraflow/competitor-error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
+environment=PATH="${INSTALL_DIR}/venv/bin:/usr/bin:/bin"
+priority=300
+
+# 可选：启用Web管理界面
+[inet_http_server]
+port=127.0.0.1:9001
+username=admin
+password=${DB_PASSWORD}
+
+[supervisorctl]
+serverurl=http://127.0.0.1:9001
+username=admin
+password=${DB_PASSWORD}
 EOF
 
-    # 任务处理器服务
-    cat > /etc/systemd/system/euraflow-worker.service << EOF
-[Unit]
-Description=EuraFlow Worker Service
-After=network.target postgresql.service redis.service euraflow-backend.service
-Requires=postgresql.service redis.service
+    # 重新加载Supervisor配置
+    supervisorctl reread
+    supervisorctl update
 
-[Service]
-Type=simple
-User=${USER}
-Group=${GROUP}
-WorkingDirectory=${INSTALL_DIR}
-Environment="PATH=${INSTALL_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=${INSTALL_DIR}/venv/bin/python -m plugins.ef.channels.ozon.services.watermark_task_runner
-Restart=always
-RestartSec=10
-StandardOutput=append:/var/log/euraflow/worker.log
-StandardError=append:/var/log/euraflow/worker-error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # 竞品数据处理器服务
-    cat > /etc/systemd/system/euraflow-competitor.service << EOF
-[Unit]
-Description=EuraFlow Competitor Service
-After=network.target postgresql.service redis.service euraflow-backend.service
-Requires=postgresql.service redis.service
-
-[Service]
-Type=simple
-User=${USER}
-Group=${GROUP}
-WorkingDirectory=${INSTALL_DIR}
-Environment="PATH=${INSTALL_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=${INSTALL_DIR}/venv/bin/python -m plugins.ef.channels.ozon.services.competitor_task_runner
-Restart=always
-RestartSec=10
-StandardOutput=append:/var/log/euraflow/competitor.log
-StandardError=append:/var/log/euraflow/competitor-error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # 重载systemd配置
-    systemctl daemon-reload
-
-    # 启用服务
-    systemctl enable euraflow-backend
-    systemctl enable euraflow-worker
-    systemctl enable euraflow-competitor
-
-    log_success "systemd服务配置完成"
+    log_success "Supervisor服务配置完成"
 }
 
 # 配置防火墙
@@ -845,18 +836,23 @@ start_services() {
     systemctl start nginx
     systemctl enable nginx
 
-    # 启动EuraFlow服务
-    systemctl start euraflow-backend
-    systemctl start euraflow-worker
-    systemctl start euraflow-competitor
+    # 启动Supervisor
+    systemctl start supervisor
+    systemctl enable supervisor
+
+    # 等待Supervisor启动
+    sleep 3
+
+    # 启动EuraFlow服务组
+    log_info "启动EuraFlow服务组..."
+    supervisorctl start euraflow:*
 
     # 等待服务启动
     sleep 5
 
     # 检查服务状态
-    systemctl status euraflow-backend --no-pager || true
-    systemctl status euraflow-worker --no-pager || true
-    systemctl status euraflow-competitor --no-pager || true
+    log_info "检查服务状态..."
+    supervisorctl status
 
     log_success "所有服务已启动"
 }
@@ -902,7 +898,7 @@ create_update_script() {
 cd /opt/euraflow
 
 # 停止服务
-systemctl stop euraflow-backend euraflow-worker euraflow-competitor
+supervisorctl stop euraflow:*
 
 # 备份当前版本
 ./deploy/scripts/backup.sh
@@ -916,7 +912,7 @@ pip install -r requirements.txt
 
 # 更新前端
 cd web
-npm install
+npm install --ignore-scripts
 npm run build
 cd ..
 
@@ -924,7 +920,7 @@ cd ..
 alembic upgrade head
 
 # 重启服务
-systemctl start euraflow-backend euraflow-worker euraflow-competitor
+supervisorctl restart euraflow:*
 
 echo "Update completed"
 EOF
@@ -955,11 +951,12 @@ show_info() {
     echo "  密码: ${DB_PASSWORD}"
     echo ""
 
-    echo -e "${BLUE}服务管理：${NC}"
-    echo "  启动服务: systemctl start euraflow-backend"
-    echo "  停止服务: systemctl stop euraflow-backend"
-    echo "  重启服务: systemctl restart euraflow-backend"
-    echo "  查看状态: systemctl status euraflow-backend"
+    echo -e "${BLUE}服务管理（Supervisor）：${NC}"
+    echo "  启动所有服务: supervisorctl start euraflow:*"
+    echo "  停止所有服务: supervisorctl stop euraflow:*"
+    echo "  重启所有服务: supervisorctl restart euraflow:*"
+    echo "  查看状态: supervisorctl status"
+    echo "  Web管理界面: http://127.0.0.1:9001 (用户名: admin)"
     echo ""
 
     echo -e "${BLUE}日志位置：${NC}"
@@ -996,7 +993,7 @@ main() {
     init_database
     setup_nginx
     setup_ssl
-    setup_systemd
+    setup_supervisor
     setup_firewall
     start_services
     create_backup_script
