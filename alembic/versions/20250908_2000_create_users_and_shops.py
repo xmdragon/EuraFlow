@@ -63,16 +63,17 @@ def upgrade() -> None:
     
     # 创建admin用户种子数据
     from sqlalchemy import text
-    from passlib.context import CryptContext
     import os
-    
+    import bcrypt
+
     # 从环境变量获取admin密码，默认为admin123
     admin_password = os.getenv('EF__ADMIN_PASSWORD', 'admin123')
     admin_email = os.getenv('EF__ADMIN_EMAIL', 'admin@euraflow.com')
-    
-    # 创建密码哈希
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    password_hash = pwd_context.hash(admin_password)
+
+    # 直接使用 bcrypt 避免 passlib 初始化问题
+    # 这样生成的哈希值与 passlib 格式相同，可以被正常验证
+    password_bytes = admin_password.encode('utf-8')
+    password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
     
     # 插入admin用户
     conn = op.get_bind()
