@@ -64,13 +64,17 @@ class ProductSelectionService:
     @staticmethod
     def clean_price(value: Any) -> Optional[Decimal]:
         """清洗价格数据"""
-        if pd.isna(value) or value == '':
+        if pd.isna(value) or value == '' or value == '-':
             return None
 
         # 转换为字符串
-        value_str = str(value)
+        value_str = str(value).strip()
 
-        # 移除货币符号、空格、千分符
+        # 处理特殊值
+        if value_str in ['-', 'nan', 'NaN', 'null', 'NULL']:
+            return None
+
+        # 移除货币符号、空格、千分符（保留原始货币单位，不做转换）
         value_str = re.sub(r'[¥₽\s,]', '', value_str)
 
         try:
@@ -83,28 +87,41 @@ class ProductSelectionService:
     @staticmethod
     def clean_percentage(value: Any) -> Optional[Decimal]:
         """清洗百分比数据"""
-        if pd.isna(value) or value == '':
+        if pd.isna(value) or value == '' or value == '-':
             return None
 
-        value_str = str(value)
+        value_str = str(value).strip()
+
+        # 处理特殊值
+        if value_str in ['-', 'nan', 'NaN', 'null', 'NULL']:
+            return None
+
         # 移除百分号和空格
         value_str = re.sub(r'[%\s]', '', value_str)
 
         try:
             return Decimal(value_str)
         except:
+            logger.warning(f"无法转换百分比值: {value}")
             return None
 
     @staticmethod
     def clean_integer(value: Any) -> Optional[int]:
         """清洗整数数据"""
-        if pd.isna(value) or value == '':
+        if pd.isna(value) or value == '' or value == '-':
+            return None
+
+        value_str = str(value).strip()
+
+        # 处理特殊值
+        if value_str in ['-', 'nan', 'NaN', 'null', 'NULL']:
             return None
 
         try:
             # 先转为float再转int，处理带小数点的字符串
-            return int(float(str(value).replace(',', '')))
+            return int(float(value_str.replace(',', '')))
         except:
+            logger.warning(f"无法转换整数值: {value}")
             return None
 
     @staticmethod
@@ -227,15 +244,25 @@ class ProductSelectionService:
                 for idx, row in batch.iterrows():
                     try:
                         cleaned_data = self._clean_row(row)
-                        if cleaned_data:
+                        if cleaned_data and cleaned_data.get('product_id'):
                             # 添加user_id到每个清洗后的数据项
                             cleaned_data['user_id'] = user_id
                             batch_items.append(cleaned_data)
+                        else:
+                            failed_count += 1
+                            error_details.append({
+                                'row': idx + 2,  # Excel行号从1开始，加上表头
+                                'error': '缺少必需字段(商品ID)或数据清洗失败',
+                                'product_id': row.get('商品ID', '未知'),
+                                'product_name': row.get('商品名称', '未知')
+                            })
                     except Exception as e:
                         failed_count += 1
                         error_details.append({
                             'row': idx + 2,  # Excel行号从1开始，加上表头
-                            'error': str(e)
+                            'error': str(e),
+                            'product_id': row.get('商品ID', '未知'),
+                            'product_name': row.get('商品名称', '未知')
                         })
 
                 if batch_items:
@@ -302,7 +329,11 @@ class ProductSelectionService:
                 cleaned[db_col] = str(value).strip()
 
             elif db_col == 'brand':
-                brand = str(value) if not pd.isna(value) else 'без бренда'
+                # 处理品牌字段，空值和"-"都设为默认值
+                if pd.isna(value) or str(value).strip() in ['', '-', 'nan', 'NaN']:
+                    brand = 'без бренда'
+                else:
+                    brand = str(value).strip()
                 cleaned[db_col] = brand
                 cleaned['brand_normalized'] = self.normalize_brand(brand)
 
@@ -331,9 +362,12 @@ class ProductSelectionService:
                 cleaned[db_col] = self.parse_date(value)
 
             else:
-                # 文本字段
-                if not pd.isna(value):
+                # 文本字段 - 处理"-"值
+                if not pd.isna(value) and str(value).strip() not in ['-', '', 'nan', 'NaN']:
                     cleaned[db_col] = str(value).strip()
+                else:
+                    # 对于文本字段，"-"值设为None而不是空字符串
+                    cleaned[db_col] = None
 
         return cleaned
 
@@ -403,7 +437,9 @@ class ProductSelectionService:
             except Exception as e:
                 # 只回滚当前保存点，不影响之前的数据
                 await savepoint.rollback()
-                logger.warning(f"Failed to process product {item.get('product_id')}: {e}")
+                product_id = item.get('product_id', '未知')
+                product_name = item.get('product_name_ru', item.get('product_name_cn', '未知'))
+                logger.warning(f"Failed to process product {product_id} ({product_name}): {e}")
                 skipped += 1
                 continue
 
