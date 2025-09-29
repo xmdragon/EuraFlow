@@ -224,10 +224,24 @@ install_postgresql() {
 
     # 创建数据库和用户
     sudo -u postgres psql << EOF
+-- 删除用户和数据库（如果存在）
+DROP DATABASE IF EXISTS euraflow;
+DROP USER IF EXISTS euraflow;
+
+-- 创建新用户和数据库
 CREATE USER euraflow WITH PASSWORD '$DB_PASSWORD';
 CREATE DATABASE euraflow OWNER euraflow;
 GRANT ALL PRIVILEGES ON DATABASE euraflow TO euraflow;
+GRANT CONNECT ON DATABASE euraflow TO euraflow;
+GRANT USAGE ON SCHEMA public TO euraflow;
+GRANT CREATE ON SCHEMA public TO euraflow;
 EOF
+
+    # 验证数据库连接
+    log_info "验证数据库连接..."
+    PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT version();" || {
+        log_error "数据库连接验证失败"
+    }
 
     log_success "PostgreSQL $POSTGRES_VERSION 安装完成"
 }
@@ -361,8 +375,37 @@ init_database() {
 
     cd $INSTALL_DIR
 
+    # 验证.env文件存在
+    if [[ ! -f ".env" ]]; then
+        log_error ".env文件不存在"
+    fi
+
+    # 测试数据库连接
+    log_info "测试数据库连接..."
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -c '
+import os
+from sqlalchemy import create_engine
+from dotenv import load_dotenv
+
+load_dotenv()
+db_url = os.getenv(\"EF__DATABASE__URL\")
+if not db_url:
+    raise Exception(\"数据库URL未设置\")
+
+# 转换为同步URL进行测试
+sync_url = db_url.replace(\"postgresql://\", \"postgresql://\").replace(\"+asyncpg\", \"\")
+engine = create_engine(sync_url)
+conn = engine.connect()
+conn.execute(\"SELECT 1\")
+conn.close()
+print(\"数据库连接成功\")
+'" || {
+        log_error "数据库连接测试失败，请检查数据库配置和密码"
+    }
+
     # 运行数据库迁移
-    sudo -u $USER bash -c "source venv/bin/activate && alembic upgrade head"
+    log_info "运行数据库迁移..."
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && alembic upgrade head"
 
     log_success "数据库初始化完成"
 }
