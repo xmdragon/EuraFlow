@@ -48,6 +48,8 @@ yarn-error.log*
 # Logs
 *.log
 logs/
+backend.log
+frontend.log
 
 # Database
 *.db
@@ -65,6 +67,10 @@ sync_*.py
 *.cache
 tmp/
 temp/
+
+# Supervisor
+supervisord.pid
+supervisor.sock
 
 # IDE project files
 *.iml
