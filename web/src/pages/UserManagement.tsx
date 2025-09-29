@@ -31,8 +31,8 @@ const { Option } = Select;
 
 interface User {
   id: number;
-  email: string;
   username: string;
+  email?: string;
   role: string;
   is_active: boolean;
   parent_user_id?: number;

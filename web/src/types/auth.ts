@@ -1,8 +1,8 @@
 /* eslint-disable no-unused-vars */
 export interface User {
   id: number;
-  email: string;
   username: string;
+  email?: string;
   role: string;
   permissions: string[];
   is_active: boolean;

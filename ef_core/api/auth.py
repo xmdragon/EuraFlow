@@ -55,8 +55,8 @@ class RefreshRequest(BaseModel):
 class UserResponse(BaseModel):
     """用户信息响应"""
     id: int
-    email: str
-    username: Optional[str]
+    username: str
+    email: Optional[str]
     role: str
     is_active: bool
     parent_user_id: Optional[int]
@@ -101,7 +101,7 @@ class ChangePasswordRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     """更新个人资料请求"""
-    username: Optional[str] = Field(None, description="用户名")
+    username: Optional[str] = Field(None, min_length=3, max_length=50, description="用户名")
     email: Optional[EmailStr] = Field(None, description="邮箱")
 
 
