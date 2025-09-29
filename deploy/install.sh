@@ -239,9 +239,10 @@ EOF
 
     # 验证数据库连接
     log_info "验证数据库连接..."
-    PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT version();" || {
-        log_error "数据库连接验证失败"
+    PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT 1;" -q > /dev/null 2>&1 || {
+        log_error "数据库连接验证失败，请检查密码和权限设置"
     }
+    log_info "数据库连接验证成功"
 
     log_success "PostgreSQL $POSTGRES_VERSION 安装完成"
 }
@@ -381,10 +382,10 @@ init_database() {
     fi
 
     # 测试数据库连接
-    log_info "测试数据库连接..."
+    log_info "测试应用数据库连接..."
     sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -c '
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -396,11 +397,11 @@ if not db_url:
 sync_url = db_url.replace(\"postgresql://\", \"postgresql://\").replace(\"+asyncpg\", \"\")
 engine = create_engine(sync_url)
 conn = engine.connect()
-conn.execute(\"SELECT 1\")
+result = conn.execute(text(\"SELECT 1\"))
 conn.close()
-print(\"数据库连接成功\")
-'" || {
-        log_error "数据库连接测试失败，请检查数据库配置和密码"
+print(\"应用数据库连接成功\")
+' 2>/dev/null" || {
+        log_error "应用数据库连接测试失败，请检查数据库配置和密码"
     }
 
     # 运行数据库迁移
