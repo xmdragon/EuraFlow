@@ -101,6 +101,7 @@ const ProductSelection: React.FC = () => {
   const handleSearch = (values: any) => {
     const params: api.ProductSearchParams = {};
 
+    if (values.product_name) params.product_name = values.product_name;
     if (values.brand) params.brand = values.brand;
     if (values.rfbs_low_max) params.rfbs_low_max = values.rfbs_low_max;
     if (values.rfbs_mid_max) params.rfbs_mid_max = values.rfbs_mid_max;
@@ -440,6 +441,16 @@ const ProductSelection: React.FC = () => {
               initialValues={{ sort_by: 'created_desc' }}
             >
               <Row gutter={16}>
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Form.Item label="商品名称" name="product_name">
+                    <Input
+                      placeholder="输入商品名称搜索"
+                      allowClear
+                      prefix={<SearchOutlined />}
+                    />
+                  </Form.Item>
+                </Col>
+
                 <Col xs={24} sm={12} md={8} lg={6}>
                   <Form.Item label="品牌" name="brand">
                     <Select

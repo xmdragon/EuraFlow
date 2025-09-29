@@ -1,0 +1,64 @@
+[Unit]
+Description=EuraFlow Background Worker Service
+Documentation=https://github.com/your-org/EuraFlow
+After=network.target postgresql.service redis.service euraflow-backend.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=euraflow
+Group=euraflow
+WorkingDirectory=/opt/euraflow
+
+# 环境变量
+EnvironmentFile=/opt/euraflow/.env
+Environment="PATH=/opt/euraflow/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/opt/euraflow"
+Environment="C_FORCE_ROOT=true"
+
+# 主进程 - Celery Worker
+ExecStart=/opt/euraflow/venv/bin/celery -A ef_core.tasks worker \
+    --loglevel=info \
+    --concurrency=4 \
+    --max-tasks-per-child=1000 \
+    --time-limit=300 \
+    --soft-time-limit=240 \
+    --without-gossip \
+    --without-mingle \
+    --without-heartbeat \
+    --queues=default,priority,slow \
+    --logfile=/var/log/euraflow/worker.log
+
+# 停止服务
+ExecStop=/opt/euraflow/venv/bin/celery -A ef_core.tasks control shutdown
+TimeoutStopSec=60
+
+# 重启策略
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# 资源限制
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/euraflow /var/log/euraflow /tmp
+
+# 性能调优
+CPUAccounting=true
+MemoryAccounting=true
+MemoryMax=1G
+TasksMax=50
+
+# 日志
+StandardOutput=append:/var/log/euraflow/worker.log
+StandardError=append:/var/log/euraflow/worker-error.log
+
+[Install]
+WantedBy=multi-user.target

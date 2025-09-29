@@ -162,11 +162,38 @@
                 data['销售价格'] = this.extractPrice(element) || '-';
                 data['原价'] = this.extractOriginalPrice(element) || '-';
 
-                // 评分和评价
-                const rating = element.querySelector('[class*="rating"], [class*="star"]')?.textContent || '';
-                data['商品评分'] = rating ? rating.replace(/[^\d.]/g, '') : '-';
-                const reviews = element.querySelector('[class*="review"]')?.textContent || '';
-                data['评价次数'] = reviews ? reviews.replace(/[^\d]/g, '') : '-';
+                // 评分 - 查找包含 color: var(--textPremium) 样式的span
+                const ratingSpans = element.querySelectorAll('span[style*="--textPremium"]');
+                let foundRating = false;
+                for (const span of ratingSpans) {
+                    const text = span.textContent.trim();
+                    // 匹配评分格式 (如: 4.3, 5.0)
+                    if (/^\d+(\.\d+)?$/.test(text)) {
+                        data['商品评分'] = text;
+                        foundRating = true;
+                        break;
+                    }
+                }
+                if (!foundRating) {
+                    data['商品评分'] = '-';
+                }
+
+                // 评价次数 - 查找包含 color: var(--textSecondary) 样式的span
+                const reviewSpans = element.querySelectorAll('span[style*="--textSecondary"]');
+                let foundReview = false;
+                for (const span of reviewSpans) {
+                    const text = span.textContent.trim();
+                    // 匹配评价数格式 (如: 74 отзыва, 7 отзывов)
+                    const reviewMatch = text.match(/(\d+)\s*отзыв/);
+                    if (reviewMatch) {
+                        data['评价次数'] = reviewMatch[1];
+                        foundReview = true;
+                        break;
+                    }
+                }
+                if (!foundReview) {
+                    data['评价次数'] = '-';
+                }
 
                 // 送达时间
                 const delivery = element.querySelector('[class*="delivery"], [class*="shipping"]')?.textContent || '';
@@ -224,7 +251,7 @@
                 data['商品创建日期'] = bangData['商品创建日期'] || '-';
 
             } catch (error) {
-                console.error('提取数据失败:', error);
+                // 错误处理：数据提取失败
             }
 
             // 3. 处理所有空值和特殊值
@@ -257,9 +284,14 @@
                 // 从上品帮注入的文本中解析数据
                 const bangText = bangElement.textContent || '';
 
+                // 检查是否有实际内容（不只是空元素）
+                if (!bangText.trim() || bangText.length < 10) {
+                    return bangData; // 返回空对象，表示没有有效数据
+                }
+
                 // 调试：显示原始数据的前100个字符
                 if (bangText.length > 0) {
-                    console.log('上品帮原始数据预览:', bangText.substring(0, 100) + '...');
+                    // 已移除调试日志
                 }
 
                 // 首先提取品牌（通常在第一行或在"品牌："后面）
@@ -370,17 +402,19 @@
                 const sellerTypeMatch = bangText.match(/卖家类型[：:]\s*([A-Z]+)/);
                 if (sellerTypeMatch) bangData['卖家类型'] = sellerTypeMatch[1];
 
-                // 解析跟卖者信息
-                const followSellersMatch = bangText.match(/跟卖者[：:]\s*([^>]+)>\s*跟卖最低价[：:]\s*([\d\s,]+)\s*₽/);
-                if (followSellersMatch) {
-                    // 提取跟卖者数量
-                    const sellersText = followSellersMatch[1];
-                    const numMatch = sellersText.match(/(\d+)个卖家/);
-                    if (numMatch) {
-                        bangData['跟卖者数量'] = numMatch[1];
-                    }
-                    // 提取最低价
-                    bangData['最低跟卖价'] = followSellersMatch[2].replace(/\s/g, '');
+                // 解析跟卖者信息 - 适配新的HTML结构
+                // 匹配格式: "等1个卖家" 或 "<span style='color:red'>1</span>个卖家"
+                const sellerCountMatch = bangText.match(/等(\d+)个卖家/) ||
+                                        bangText.match(/>(\d+)<\/span>\s*个卖家/);
+                if (sellerCountMatch) {
+                    bangData['跟卖者数量'] = sellerCountMatch[1];
+                }
+
+                // 解析跟卖最低价
+                // 匹配格式: "跟卖最低价：326 ₽"
+                const minPriceMatch = bangText.match(/跟卖最低价[：:]\s*(\d+(?:\s*\d+)*)\s*₽/);
+                if (minPriceMatch) {
+                    bangData['最低跟卖价'] = minPriceMatch[1].replace(/\s/g, '');
                 }
 
                 // 解析商品创建日期
@@ -413,14 +447,10 @@
                     });
                 });
 
-                // 调试：显示解析后的数据字段数量
-                const fieldCount = Object.keys(bangData).length;
-                if (fieldCount > 0) {
-                    console.log(`成功解析 ${fieldCount} 个字段:`, Object.keys(bangData).join(', '));
-                }
+                // 数据解析完成
 
             } catch (error) {
-                console.error('解析上品帮数据失败:', error);
+                // 错误处理：上品帮数据解析失败
             }
 
             return bangData;
@@ -558,7 +588,12 @@
             }
 
             // 等待上品帮数据
-            await this.waitForBangInjection(element);
+            const hasBangData = await this.waitForBangInjection(element);
+
+            // 如果没有上品帮数据，跳过该商品（可能是推广商品）
+            if (!hasBangData) {
+                return null;
+            }
 
             // 提取完整数据
             const completeProduct = this.extractCompleteProductData(element);
@@ -575,14 +610,13 @@
 
         // 批量收集可见商品
         async collectVisibleProducts() {
-            // 同时检查两种情况：带上品帮标记的和所有商品
+            // 只处理有上品帮标记的商品
             const withBangMark = document.querySelectorAll('.tile-root[data-ozon-bang="true"]');
-            const allTileRoots = document.querySelectorAll('.tile-root');
 
             const newProducts = [];
             const processedFingerprints = new Set();
 
-            // 先处理已注入的
+            // 只处理已注入上品帮数据的商品
             for (const element of withBangMark) {
                 try {
                     const fingerprint = this.generateProductFingerprint(element);
@@ -594,30 +628,7 @@
                         }
                     }
                 } catch (error) {
-                    console.error('收集商品失败:', error);
-                }
-            }
-
-            // 如果注入不完整，也尝试收集未注入的
-            if (withBangMark.length < allTileRoots.length) {
-                for (const element of allTileRoots) {
-                    try {
-                        const fingerprint = this.generateProductFingerprint(element);
-                        if (processedFingerprints.has(fingerprint)) continue;
-                        if (this.validatedProducts.has(fingerprint)) continue;
-
-                        // 收集基础信息
-                        const completeProduct = this.extractCompleteProductData(element);
-                        completeProduct.fingerprint = fingerprint;
-                        completeProduct.collectedAt = new Date().toISOString();
-
-                        this.validatedProducts.set(fingerprint, completeProduct);
-                        this.elementProductMap.set(element, fingerprint);
-                        this.stats.collected = this.validatedProducts.size;
-                        newProducts.push(completeProduct);
-                    } catch (error) {
-                        console.error('收集商品失败:', error);
-                    }
+                    // 错误处理：商品收集失败
                 }
             }
 
@@ -664,6 +675,7 @@
         }
 
         createPanel() {
+            // 创建主面板
             this.panel = document.createElement('div');
             this.panel.id = 'ozon-selector-panel';
             this.panel.style.cssText = `
@@ -679,12 +691,17 @@
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 min-width: 360px;
                 max-width: 400px;
+                display: none;
             `;
 
             this.panel.innerHTML = `
-                <h3 style="margin: 0 0 15px 0; font-size: 18px;">
-                    🎯 Ozon选品助手
-                </h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; font-size: 18px;">🎯 Ozon选品助手</h3>
+                    <button id="minimize-btn" style="background: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.5);
+                            color: white; font-size: 16px; cursor: pointer; padding: 4px 8px;
+                            margin-left: 10px; border-radius: 6px; font-weight: bold;
+                            transition: all 0.3s; min-width: 30px;">➖</button>
+                </div>
 
                 <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
                     <div style="margin-bottom: 12px;">
@@ -749,6 +766,36 @@
             `;
 
             document.body.appendChild(this.panel);
+
+            // 创建最小化图标
+            this.minimizedIcon = document.createElement('div');
+            this.minimizedIcon.id = 'ozon-selector-icon';
+            this.minimizedIcon.style.cssText = `
+                position: fixed;
+                bottom: 260px;
+                right: 45px;
+                width: 50px;
+                height: 50px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                z-index: 2147483647;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+                font-size: 24px;
+                transition: transform 0.3s;
+            `;
+            this.minimizedIcon.innerHTML = '🎯';
+            this.minimizedIcon.onmouseover = () => {
+                this.minimizedIcon.style.transform = 'scale(1.1)';
+            };
+            this.minimizedIcon.onmouseout = () => {
+                this.minimizedIcon.style.transform = 'scale(1)';
+            };
+            document.body.appendChild(this.minimizedIcon);
+
             this.bindEvents();
             this.addHoverEffects();
         }
@@ -758,6 +805,28 @@
             document.getElementById('stop-btn').onclick = () => this.stopCollection();
             document.getElementById('export-btn').onclick = () => this.exportData();
             document.getElementById('clear-btn').onclick = () => this.clearData();
+
+            // 最小化/展开事件
+            const minimizeBtn = document.getElementById('minimize-btn');
+            minimizeBtn.onclick = () => {
+                this.panel.style.display = 'none';
+                this.minimizedIcon.style.display = 'flex';
+            };
+
+            // 最小化按钮悬停效果
+            minimizeBtn.onmouseover = () => {
+                minimizeBtn.style.background = 'rgba(255,255,255,0.5)';
+                minimizeBtn.style.transform = 'scale(1.1)';
+            };
+            minimizeBtn.onmouseout = () => {
+                minimizeBtn.style.background = 'rgba(255,255,255,0.3)';
+                minimizeBtn.style.transform = 'scale(1)';
+            };
+
+            this.minimizedIcon.onclick = () => {
+                this.panel.style.display = 'block';
+                this.minimizedIcon.style.display = 'none';
+            };
         }
 
         addHoverEffects() {
@@ -937,7 +1006,6 @@
 
         updateStatus(message) {
             document.getElementById('status').textContent = message;
-            console.log(`[选品助手] ${message}`);
         }
 
         exportData() {
@@ -990,6 +1058,7 @@
         destroy() {
             this.collector.destroy();
             this.panel?.remove();
+            this.minimizedIcon?.remove();
         }
     }
 
@@ -998,13 +1067,14 @@
     let panel = null;
 
     function init() {
-        console.log('🎯 Ozon选品助手正在启动...');
+        // 检测是否为商品详情页
+        if (window.location.pathname.includes('/product/')) {
+            return;
+        }
 
         setTimeout(() => {
             collector = new SmartProductCollector();
             panel = new ControlPanel(collector);
-
-            console.log('✅ Ozon选品助手已就绪！');
         }, 2000);
     }
 

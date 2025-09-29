@@ -1,0 +1,57 @@
+[Unit]
+Description=EuraFlow Task Scheduler Service (Celery Beat)
+Documentation=https://github.com/your-org/EuraFlow
+After=network.target postgresql.service redis.service euraflow-backend.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=euraflow
+Group=euraflow
+WorkingDirectory=/opt/euraflow
+
+# 环境变量
+EnvironmentFile=/opt/euraflow/.env
+Environment="PATH=/opt/euraflow/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/opt/euraflow"
+
+# 主进程 - Celery Beat
+ExecStart=/opt/euraflow/venv/bin/celery -A ef_core.tasks beat \
+    --loglevel=info \
+    --schedule=/var/run/euraflow/celerybeat-schedule \
+    --pidfile=/var/run/euraflow/celerybeat.pid \
+    --logfile=/var/log/euraflow/scheduler.log
+
+# 停止服务
+ExecStop=/bin/kill -s TERM $MAINPID
+TimeoutStopSec=30
+
+# 重启策略
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# 资源限制
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/euraflow /var/log/euraflow /var/run/euraflow
+
+# 性能调优
+CPUAccounting=true
+MemoryAccounting=true
+MemoryMax=256M
+TasksMax=10
+
+# 日志
+StandardOutput=append:/var/log/euraflow/scheduler.log
+StandardError=append:/var/log/euraflow/scheduler-error.log
+
+[Install]
+WantedBy=multi-user.target

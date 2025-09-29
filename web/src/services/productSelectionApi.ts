@@ -32,6 +32,7 @@ export interface ProductSelectionItem {
 }
 
 export interface ProductSearchParams {
+  product_name?: string;
   brand?: string;
   rfbs_low_max?: number;
   rfbs_mid_max?: number;
@@ -40,7 +41,7 @@ export interface ProductSearchParams {
   monthly_sales_min?: number;
   monthly_sales_max?: number;
   weight_max?: number;
-  sort_by?: 'sales_desc' | 'sales_asc' | 'weight_asc' | 'price_asc' | 'price_desc';
+  sort_by?: 'sales_desc' | 'sales_asc' | 'weight_asc' | 'price_asc' | 'price_desc' | 'created_desc' | 'created_asc';
   page?: number;
   page_size?: number;
 }

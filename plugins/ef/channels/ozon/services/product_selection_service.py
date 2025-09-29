@@ -408,6 +408,16 @@ class ProductSelectionService:
         # 应用筛选条件
         conditions = []
 
+        if filters.get('product_name'):
+            # 商品名称搜索 - 同时搜索中文和俄文名称
+            search_term = f"%{filters['product_name']}%"
+            conditions.append(
+                or_(
+                    ProductSelectionItem.product_name_ru.ilike(search_term),
+                    ProductSelectionItem.product_name_cn.ilike(search_term)
+                )
+            )
+
         if filters.get('brand'):
             conditions.append(
                 ProductSelectionItem.brand_normalized == self.normalize_brand(filters['brand'])

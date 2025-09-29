@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # DTO 模型
 class ProductSearchRequest(BaseModel):
     """商品搜索请求"""
+    product_name: Optional[str] = Field(None, description="商品名称")
     brand: Optional[str] = None
     rfbs_low_max: Optional[float] = Field(None, description="rFBS(<=1500₽)最大佣金率")
     rfbs_mid_max: Optional[float] = Field(None, description="rFBS(1501-5000₽)最大佣金率")
@@ -218,6 +219,7 @@ async def search_products(
 
 @router.get("/products")
 async def get_products(
+    product_name: Optional[str] = Query(None, description="商品名称"),
     brand: Optional[str] = Query(None, description="品牌"),
     rfbs_low_max: Optional[float] = Query(None, description="rFBS(<=1500₽)最大佣金率"),
     rfbs_mid_max: Optional[float] = Query(None, description="rFBS(1501-5000₽)最大佣金率"),
@@ -238,6 +240,8 @@ async def get_products(
 
     # 构建筛选条件
     filters = {}
+    if product_name:
+        filters['product_name'] = product_name
     if brand:
         filters['brand'] = brand
     if rfbs_low_max is not None:
