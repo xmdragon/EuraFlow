@@ -104,7 +104,23 @@ const UserManagement: React.FC = () => {
       form.resetFields();
       fetchUsers();
     } catch (error: any) {
-      const errorMsg = error.response?.data?.detail?.message || '操作失败';
+      // 获取具体的错误信息
+      let errorMsg = '操作失败';
+
+      if (error.response?.data?.detail) {
+        // 如果detail是对象，获取message字段
+        if (typeof error.response.data.detail === 'object') {
+          errorMsg = error.response.data.detail.message || error.response.data.detail.msg || '操作失败';
+        } else {
+          // 如果detail是字符串，直接使用
+          errorMsg = error.response.data.detail;
+        }
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+
       message.error(errorMsg);
     }
   };
@@ -117,8 +133,17 @@ const UserManagement: React.FC = () => {
       });
       message.success(user.is_active ? '用户已禁用' : '用户已启用');
       fetchUsers();
-    } catch (error) {
-      message.error('操作失败');
+    } catch (error: any) {
+      // 获取具体的错误信息
+      let errorMsg = '操作失败';
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'object') {
+          errorMsg = error.response.data.detail.message || '操作失败';
+        } else {
+          errorMsg = error.response.data.detail;
+        }
+      }
+      message.error(errorMsg);
     }
   };
 
@@ -128,8 +153,17 @@ const UserManagement: React.FC = () => {
       await axios.delete(`/api/ef/v1/auth/users/${userId}`);
       message.success('用户已禁用');
       fetchUsers();
-    } catch (error) {
-      message.error('删除失败');
+    } catch (error: any) {
+      // 获取具体的错误信息
+      let errorMsg = '删除失败';
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'object') {
+          errorMsg = error.response.data.detail.message || '删除失败';
+        } else {
+          errorMsg = error.response.data.detail;
+        }
+      }
+      message.error(errorMsg);
     }
   };
 
