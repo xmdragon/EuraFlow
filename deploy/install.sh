@@ -222,7 +222,26 @@ install_postgresql() {
     systemctl start postgresql
     systemctl enable postgresql
 
+    # 等待PostgreSQL完全启动
+    sleep 3
+
+    # 配置PostgreSQL允许密码认证
+    PG_HBA_FILE="/etc/postgresql/${POSTGRES_VERSION}/main/pg_hba.conf"
+    if [[ -f "$PG_HBA_FILE" ]]; then
+        # 备份原始配置
+        cp "$PG_HBA_FILE" "${PG_HBA_FILE}.backup"
+
+        # 确保本地连接允许密码认证
+        sed -i 's/^local.*all.*all.*peer$/local   all             all                                     md5/' "$PG_HBA_FILE"
+        sed -i 's/^host.*all.*all.*127.0.0.1\/32.*ident$/host    all             all             127.0.0.1\/32            md5/' "$PG_HBA_FILE"
+
+        # 重新加载PostgreSQL配置
+        systemctl reload postgresql
+        sleep 2
+    fi
+
     # 创建数据库和用户
+    log_info "创建数据库用户和数据库..."
     sudo -u postgres psql << EOF
 -- 删除用户和数据库（如果存在）
 DROP DATABASE IF EXISTS euraflow;
@@ -230,19 +249,30 @@ DROP USER IF EXISTS euraflow;
 
 -- 创建新用户和数据库
 CREATE USER euraflow WITH PASSWORD '$DB_PASSWORD';
+ALTER USER euraflow CREATEDB;
 CREATE DATABASE euraflow OWNER euraflow;
+
+-- 连接到euraflow数据库设置权限
+\c euraflow;
 GRANT ALL PRIVILEGES ON DATABASE euraflow TO euraflow;
-GRANT CONNECT ON DATABASE euraflow TO euraflow;
-GRANT USAGE ON SCHEMA public TO euraflow;
-GRANT CREATE ON SCHEMA public TO euraflow;
+GRANT ALL PRIVILEGES ON SCHEMA public TO euraflow;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO euraflow;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO euraflow;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO euraflow;
+
+-- 设置默认权限
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO euraflow;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO euraflow;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO euraflow;
 EOF
 
     # 验证数据库连接
     log_info "验证数据库连接..."
-    PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT 1;" -q > /dev/null 2>&1 || {
+    if PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT version();" -t -q > /dev/null 2>&1; then
+        log_info "数据库连接验证成功"
+    else
         log_error "数据库连接验证失败，请检查密码和权限设置"
-    }
-    log_info "数据库连接验证成功"
+    fi
 
     log_success "PostgreSQL $POSTGRES_VERSION 安装完成"
 }
@@ -298,15 +328,38 @@ setup_python_env() {
     # 确保venv包已安装
     apt-get install -y python3.12-venv
 
+    # 删除旧的虚拟环境（如果存在）
+    if [[ -d "venv" ]]; then
+        log_info "删除现有虚拟环境..."
+        rm -rf venv
+    fi
+
     # 创建虚拟环境
-    python3.12 -m venv venv
+    log_info "创建Python虚拟环境..."
+    if sudo -u $USER python3.12 -m venv venv; then
+        log_info "虚拟环境创建成功"
+    else
+        log_error "虚拟环境创建失败"
+    fi
+
     chown -R $USER:$GROUP venv
 
     # 激活虚拟环境并安装依赖
-    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m ensurepip --upgrade"
-    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m pip install --upgrade pip"
-    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install --upgrade setuptools>=68.0.0 wheel"
-    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install -r requirements.txt"
+    log_info "安装Python包管理工具..."
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m ensurepip --upgrade" || log_error "ensurepip失败"
+
+    log_info "升级pip..."
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m pip install --upgrade pip" || log_error "pip升级失败"
+
+    log_info "安装基础包..."
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install --upgrade setuptools>=68.0.0 wheel" || log_error "setuptools安装失败"
+
+    log_info "安装项目依赖..."
+    if sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install -r requirements.txt"; then
+        log_info "项目依赖安装成功"
+    else
+        log_error "项目依赖安装失败"
+    fi
 
     log_success "Python环境设置完成"
 }
@@ -336,32 +389,62 @@ EF__ENV=production
 EF__DEBUG=false
 EF__SECRET_KEY=$(openssl rand -hex 32)
 
-# 数据库配置
-EF__DATABASE__URL=postgresql://euraflow:${DB_PASSWORD}@localhost:5432/euraflow
-EF__DATABASE__POOL_SIZE=20
-EF__DATABASE__MAX_OVERFLOW=40
+# 数据库配置（使用分离的字段名）
+EF__DB_HOST=localhost
+EF__DB_PORT=5432
+EF__DB_NAME=euraflow
+EF__DB_USER=euraflow
+EF__DB_PASSWORD=${DB_PASSWORD}
+EF__DB_POOL_SIZE=20
+EF__DB_MAX_OVERFLOW=40
 
 # Redis配置
-EF__REDIS__URL=redis://localhost:6379/0
-EF__CACHE__TTL=3600
+EF__REDIS_HOST=localhost
+EF__REDIS_PORT=6379
+EF__REDIS_DB=0
+EF__REDIS_PASSWORD=
 
-# 服务配置
-EF__API__HOST=0.0.0.0
-EF__API__PORT=8000
-EF__API__WORKERS=4
-EF__API__BASE_URL=https://${DOMAIN_NAME}
+# API配置
+EF__API_HOST=0.0.0.0
+EF__API_PORT=8000
+EF__API_PREFIX=/api/ef/v1
+EF__API_TITLE=EuraFlow API
+EF__API_VERSION=1.0.0
+EF__API_DEBUG=false
 
 # 日志配置
-EF__LOG__LEVEL=INFO
-EF__LOG__FILE=/var/log/euraflow/app.log
+EF__LOG_LEVEL=INFO
+EF__LOG_FORMAT=json
 
-# CORS配置
-EF__CORS__ORIGINS=["https://${DOMAIN_NAME}"]
-EF__CORS__CREDENTIALS=true
+# 安全配置
+EF__ACCESS_TOKEN_EXPIRE_MINUTES=30
+EF__ALGORITHM=HS256
 
-# 会话配置
-EF__SESSION__SECRET=$(openssl rand -hex 32)
-EF__SESSION__EXPIRE=86400
+# Celery配置
+EF__CELERY_BROKER_URL=redis://localhost:6379/0
+EF__CELERY_RESULT_BACKEND=redis://localhost:6379/1
+EF__CELERY_TASK_DEFAULT_QUEUE=ef_default
+EF__CELERY_TASK_SERIALIZER=json
+EF__CELERY_RESULT_SERIALIZER=json
+EF__CELERY_TIMEZONE=UTC
+
+# 监控配置
+EF__METRICS_ENABLED=true
+EF__METRICS_PREFIX=ef
+EF__TRACE_ENABLED=true
+
+# 插件配置
+EF__PLUGIN_DIR=plugins
+EF__PLUGIN_AUTO_LOAD=true
+EF__PLUGIN_CONFIG_FILE=plugin.json
+
+# 限流配置
+EF__RATE_LIMIT_ENABLED=true
+EF__RATE_LIMIT_DEFAULT=60/minute
+
+# 守护阈值
+EF__INVENTORY_DEFAULT_THRESHOLD=5
+EF__PRICE_MIN_MARGIN=0.2
 EOF
 
     chown $USER:$GROUP $INSTALL_DIR/.env
@@ -376,22 +459,44 @@ init_database() {
 
     cd $INSTALL_DIR
 
-    # 验证.env文件存在
+    # 验证.env文件存在和权限
     if [[ ! -f ".env" ]]; then
         log_error ".env文件不存在"
     fi
 
+    # 确保文件权限正确
+    chown $USER:$GROUP $INSTALL_DIR/.env
+    chmod 640 $INSTALL_DIR/.env
+
+    # 确保目录权限正确
+    chown -R $USER:$GROUP $INSTALL_DIR
+
     # 测试数据库连接（简化版本）
     log_info "测试应用数据库连接..."
-    PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT 1;" -t -q > /dev/null 2>&1 && {
+    if PGPASSWORD="$DB_PASSWORD" psql -h localhost -U euraflow -d euraflow -c "SELECT 1;" -t -q > /dev/null 2>&1; then
         log_info "应用数据库连接验证成功"
-    } || {
-        log_error "应用数据库连接测试失败，请检查数据库配置和密码"
+    else
+        log_warn "直接数据库连接测试失败，继续进行应用层测试..."
+    fi
+
+    # 验证环境变量配置是否正确加载
+    log_info "验证环境变量配置..."
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -c \"
+from ef_core.config import get_settings
+settings = get_settings()
+print(f'Database URL: {settings.sync_database_url}')
+print(f'Database Config: host={settings.db_host}, user={settings.db_user}, db={settings.db_name}')
+\"" || {
+        log_error "环境变量配置验证失败"
     }
 
     # 运行数据库迁移
     log_info "运行数据库迁移..."
-    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && alembic upgrade head"
+    if sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && alembic upgrade head"; then
+        log_info "数据库迁移成功完成"
+    else
+        log_error "数据库迁移失败"
+    fi
 
     log_success "数据库初始化完成"
 }
