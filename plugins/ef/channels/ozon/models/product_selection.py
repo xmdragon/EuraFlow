@@ -16,7 +16,7 @@ class ProductSelectionItem(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # 商品基础信息
-    product_id = Column(String(50), unique=True, nullable=False, comment="商品ID")
+    product_id = Column(String(50), nullable=False, index=True, comment="商品ID")
     product_name_ru = Column(String(500), comment="俄文名称")
     product_name_cn = Column(String(500), comment="中文名称")
     ozon_link = Column(Text, comment="商品链接")

@@ -33,11 +33,11 @@
         '类目链接', '商品名称', '商品ID', '商品链接', '商品图片',
         '预计送达时间', '商品评分', '评价次数', '销售价格', '原价',
         '品牌', '商品类目',
-        'FBP在 1501卢布~5000卢布佣金（%）', 'FBP <= 1500卢布佣金（%）', 'FBP > 5000卢布佣金（%）',
-        'RFBS在 1501卢布~5000卢布佣金（%）', 'RFBS <= 1500卢布佣金（%）', 'RFBS > 5000卢布佣金（%）',
-        '30天内的销售额(卢布)', '销售动态(%)', '30天内的销量(件)', '平均价格(卢布)',
-        '已错过销售(卢布)', '成交率（%）', '商品可用性(%)',
-        '平均日销售额(卢布)', '平均日销量(件)',
+        'FBP在 1501~5000佣金（%）', 'FBP <= 1500佣金（%）', 'FBP > 5000佣金（%）',
+        'RFBS在 1501~5000佣金（%）', 'RFBS <= 1500佣金（%）', 'RFBS > 5000佣金（%）',
+        '30天内的销售额', '销售动态(%)', '30天内的销量(件)', '平均价格',
+        '已错过销售', '成交率（%）', '商品可用性(%)',
+        '平均日销售额', '平均日销量(件)',
         '卖家类型', '配送时间（天）',
         '商品体积（升）', '包装长(mm)', '包装宽(mm)', '包装高(mm)', '包装重量(g)',
         '在搜索结果和目录中的浏览量', '商品卡片浏览量',
@@ -207,22 +207,22 @@
                 data['商品类目'] = bangData['商品类目'] || '-';
 
                 // 佣金信息
-                data['FBP在 1501卢布~5000卢布佣金（%）'] = bangData['FBP在 1501卢布~5000卢布佣金（%）'] || '-';
-                data['FBP <= 1500卢布佣金（%）'] = bangData['FBP <= 1500卢布佣金（%）'] || '-';
-                data['FBP > 5000卢布佣金（%）'] = bangData['FBP > 5000卢布佣金（%）'] || '-';
-                data['RFBS在 1501卢布~5000卢布佣金（%）'] = bangData['RFBS在 1501卢布~5000卢布佣金（%）'] || '-';
-                data['RFBS <= 1500卢布佣金（%）'] = bangData['RFBS <= 1500卢布佣金（%）'] || '-';
-                data['RFBS > 5000卢布佣金（%）'] = bangData['RFBS > 5000卢布佣金（%）'] || '-';
+                data['FBP在 1501~5000佣金（%）'] = bangData['FBP在 1501~5000佣金（%）'] || '-';
+                data['FBP <= 1500佣金（%）'] = bangData['FBP <= 1500佣金（%）'] || '-';
+                data['FBP > 5000佣金（%）'] = bangData['FBP > 5000佣金（%）'] || '-';
+                data['RFBS在 1501~5000佣金（%）'] = bangData['RFBS在 1501~5000佣金（%）'] || '-';
+                data['RFBS <= 1500佣金（%）'] = bangData['RFBS <= 1500佣金（%）'] || '-';
+                data['RFBS > 5000佣金（%）'] = bangData['RFBS > 5000佣金（%）'] || '-';
 
                 // 销售数据
-                data['30天内的销售额(卢布)'] = bangData['30天内的销售额(卢布)'] || '-';
+                data['30天内的销售额'] = bangData['30天内的销售额'] || '-';
                 data['销售动态(%)'] = bangData['销售动态(%)'] || '-';
                 data['30天内的销量(件)'] = bangData['30天内的销量(件)'] || '-';
-                data['平均价格(卢布)'] = bangData['平均价格(卢布)'] || '-';
-                data['已错过销售(卢布)'] = bangData['已错过销售(卢布)'] || '-';
+                data['平均价格'] = bangData['平均价格'] || '-';
+                data['已错过销售'] = bangData['已错过销售'] || '-';
                 data['成交率（%）'] = bangData['成交率（%）'] || '-';
                 data['商品可用性(%)'] = bangData['商品可用性(%)'] || '-';
-                data['平均日销售额(卢布)'] = bangData['平均日销售额(卢布)'] || '-';
+                data['平均日销售额'] = bangData['平均日销售额'] || '-';
                 data['平均日销量(件)'] = bangData['平均日销量(件)'] || '-';
 
                 // 卖家信息
@@ -321,45 +321,45 @@
                     }
                 }
 
-                // 解析佣金率 - 更精确的匹配
-                const rfbs1Match = bangText.match(/rFBS佣金\(1501~5000₽\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
-                if (rfbs1Match) bangData['RFBS在 1501卢布~5000卢布佣金（%）'] = rfbs1Match[1];
+                // 解析佣金率 - 支持₽和￥
+                const rfbs1Match = bangText.match(/rFBS佣金\(1501~5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                if (rfbs1Match) bangData['RFBS在 1501~5000佣金（%）'] = rfbs1Match[1];
 
-                const rfbs2Match = bangText.match(/rFBS佣金\(<=1500₽\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
-                if (rfbs2Match) bangData['RFBS <= 1500卢布佣金（%）'] = rfbs2Match[1];
+                const rfbs2Match = bangText.match(/rFBS佣金\(<=1500[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                if (rfbs2Match) bangData['RFBS <= 1500佣金（%）'] = rfbs2Match[1];
 
-                const rfbs3Match = bangText.match(/rFBS佣金\(>5000₽\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
-                if (rfbs3Match) bangData['RFBS > 5000卢布佣金（%）'] = rfbs3Match[1];
+                const rfbs3Match = bangText.match(/rFBS佣金\(>5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                if (rfbs3Match) bangData['RFBS > 5000佣金（%）'] = rfbs3Match[1];
 
-                const fbp1Match = bangText.match(/FBP佣金\(1501~5000₽\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
-                if (fbp1Match) bangData['FBP在 1501卢布~5000卢布佣金（%）'] = fbp1Match[1];
+                const fbp1Match = bangText.match(/FBP佣金\(1501~5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                if (fbp1Match) bangData['FBP在 1501~5000佣金（%）'] = fbp1Match[1];
 
-                const fbp2Match = bangText.match(/FBP佣金\(<=1500₽\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
-                if (fbp2Match) bangData['FBP <= 1500卢布佣金（%）'] = fbp2Match[1];
+                const fbp2Match = bangText.match(/FBP佣金\(<=1500[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                if (fbp2Match) bangData['FBP <= 1500佣金（%）'] = fbp2Match[1];
 
-                const fbp3Match = bangText.match(/FBP佣金\(>5000₽\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
-                if (fbp3Match) bangData['FBP > 5000卢布佣金（%）'] = fbp3Match[1];
+                const fbp3Match = bangText.match(/FBP佣金\(>5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                if (fbp3Match) bangData['FBP > 5000佣金（%）'] = fbp3Match[1];
 
                 // 解析销售数据
                 const monthSalesMatch = bangText.match(/月销量[：:]\s*(\d+(?:\.\d+)?)\s*件/);
                 if (monthSalesMatch) bangData['30天内的销量(件)'] = monthSalesMatch[1];
 
-                const monthRevenueMatch = bangText.match(/月销售额[：:]\s*([\d.]+)\s*万?\s*₽/);
+                const monthRevenueMatch = bangText.match(/月销售额[：:]\s*([\d.]+)\s*万?\s*[₽￥]/);
                 if (monthRevenueMatch) {
                     const value = monthRevenueMatch[1];
                     // 如果包含"万"，需要转换
-                    if (bangText.includes('万 ₽') || bangText.includes('万₽')) {
-                        bangData['30天内的销售额(卢布)'] = (parseFloat(value) * 10000).toString();
+                    if (bangText.match(/万\s*[₽￥]/)) {
+                        bangData['30天内的销售额'] = (parseFloat(value) * 10000).toString();
                     } else {
-                        bangData['30天内的销售额(卢布)'] = value;
+                        bangData['30天内的销售额'] = value;
                     }
                 }
 
                 const daySalesMatch = bangText.match(/日销量[：:]\s*(\d+(?:\.\d+)?)\s*件/);
                 if (daySalesMatch) bangData['平均日销量(件)'] = daySalesMatch[1];
 
-                const dayRevenueMatch = bangText.match(/日销售额[：:]\s*([\d.]+)\s*₽/);
-                if (dayRevenueMatch) bangData['平均日销售额(卢布)'] = dayRevenueMatch[1];
+                const dayRevenueMatch = bangText.match(/日销售额[：:]\s*([\d.]+)\s*[₽￥]/);
+                if (dayRevenueMatch) bangData['平均日销售额'] = dayRevenueMatch[1];
 
                 const salesDynamicMatch = bangText.match(/月销售动态[：:]\s*([-\d.]+)\s*%/);
                 if (salesDynamicMatch) bangData['销售动态(%)'] = salesDynamicMatch[1];
@@ -384,8 +384,8 @@
                 const conversionRateMatch = bangText.match(/成交率[：:]\s*(\d+(?:\.\d+)?)\s*%/);
                 if (conversionRateMatch) bangData['成交率（%）'] = conversionRateMatch[1];
 
-                const avgPriceMatch = bangText.match(/平均价格[：:]\s*([\d.]+)\s*₽/);
-                if (avgPriceMatch) bangData['平均价格(卢布)'] = avgPriceMatch[1];
+                const avgPriceMatch = bangText.match(/平均价格[：:]\s*([\d.]+)\s*[₽￥]/);
+                if (avgPriceMatch) bangData['平均价格'] = avgPriceMatch[1];
 
                 // 解析包装信息
                 const weightMatch = bangText.match(/包装重量[：:]\s*(\d+(?:\.\d+)?)\s*g/);
@@ -411,8 +411,8 @@
                 }
 
                 // 解析跟卖最低价
-                // 匹配格式: "跟卖最低价：326 ₽"
-                const minPriceMatch = bangText.match(/跟卖最低价[：:]\s*(\d+(?:\s*\d+)*)\s*₽/);
+                // 匹配格式: "跟卖最低价：326 ₽" 或 "跟卖最低价：326 ￥"
+                const minPriceMatch = bangText.match(/跟卖最低价[：:]\s*(\d+(?:\s*\d+)*)\s*[₽￥]/);
                 if (minPriceMatch) {
                     bangData['最低跟卖价'] = minPriceMatch[1].replace(/\s/g, '');
                 }
@@ -430,8 +430,8 @@
                 if (availabilityMatch) bangData['商品可用性(%)'] = availabilityMatch[1];
 
                 // 解析已错过销售
-                const missedSalesMatch = bangText.match(/已错过销售[：:]\s*([\d.]+)\s*₽/);
-                if (missedSalesMatch) bangData['已错过销售(卢布)'] = missedSalesMatch[1];
+                const missedSalesMatch = bangText.match(/已错过销售[：:]\s*([\d.]+)\s*[₽￥]/);
+                if (missedSalesMatch) bangData['已错过销售'] = missedSalesMatch[1];
 
                 // 解析商品体积
                 const volumeMatch = bangText.match(/商品体积[：:]\s*([\d.]+)\s*升/);
@@ -477,7 +477,8 @@
                     const text = titleElement.textContent.trim();
                     // 验证是否为商品标题（长度合理，不包含价格符号和百分比）
                     if (text && text.length >= 3 && text.length < 500 &&
-                        !text.includes('₽') && !text.includes('%') &&
+                        !text.includes('₽') && !text.includes('￥') && !text.includes('元') &&
+                        !text.includes('%') && !text.includes('CNY') && !text.includes('RUB') &&
                         !text.match(/^\d+$/) && // 排除纯数字
                         !text.match(/^\d+\s*(шт|г|мл|см|мм)$/)) { // 排除数量单位
                         return text;
@@ -520,11 +521,19 @@
                     const priceText = priceElement.textContent;
                     // 过滤掉包含%的折扣文本
                     if (priceText.includes('%')) continue;
+
+                    // 检测货币符号
+                    let currency = '₽'; // 默认卢布
+                    if (priceText.includes('￥') || priceText.includes('CNY') || priceText.includes('元')) {
+                        currency = '￥';
+                    } else if (priceText.includes('₽') || priceText.includes('RUB')) {
+                        currency = '₽';
+                    }
+
                     // 提取数字和空格
                     const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
                     if (cleanPrice) {
-                        // 格式化价格（添加空格分隔千位）
-                        return cleanPrice + ' ₽';
+                        return cleanPrice + ' ' + currency;
                     }
                 }
             }
@@ -551,10 +560,19 @@
                     const priceText = priceElement.textContent;
                     // 过滤掉包含%的折扣文本
                     if (priceText.includes('%')) continue;
+
+                    // 检测货币符号
+                    let currency = '₽'; // 默认卢布
+                    if (priceText.includes('￥') || priceText.includes('CNY') || priceText.includes('元')) {
+                        currency = '￥';
+                    } else if (priceText.includes('₽') || priceText.includes('RUB')) {
+                        currency = '₽';
+                    }
+
                     // 提取数字和空格
                     const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
                     if (cleanPrice) {
-                        return cleanPrice + ' ₽';
+                        return cleanPrice + ' ' + currency;
                     }
                 }
             }

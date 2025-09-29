@@ -440,8 +440,9 @@ const ProductSelection: React.FC = () => {
               onFinish={handleSearch}
               initialValues={{ sort_by: 'created_desc' }}
             >
-              <Row gutter={16}>
-                <Col xs={24} sm={12} md={8} lg={6}>
+              <Row gutter={[12, 12]}>
+                {/* 第一行：商品名称和品牌 */}
+                <Col xs={24} sm={12} md={10} lg={10}>
                   <Form.Item label="商品名称" name="product_name">
                     <Input
                       placeholder="输入商品名称搜索"
@@ -470,60 +471,76 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item label="rFBS(≤1500₽) 佣金率≤" name="rfbs_low_max">
+                <Col xs={24} sm={12} md={6} lg={4}>
+                  <Form.Item label="排序" name="sort_by">
+                    <Select>
+                      <Option value="created_desc">最新导入</Option>
+                      <Option value="created_asc">最早导入</Option>
+                      <Option value="sales_desc">销量↓</Option>
+                      <Option value="sales_asc">销量↑</Option>
+                      <Option value="weight_asc">重量↑</Option>
+                      <Option value="price_asc">价格↑</Option>
+                      <Option value="price_desc">价格↓</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+
+                {/* 第二行：佣金率 */}
+                <Col xs={12} sm={8} md={4} lg={3}>
+                  <Form.Item label="rFBS≤1500" name="rfbs_low_max">
                     <InputNumber
                       min={0}
                       max={100}
-                      precision={2}
+                      precision={1}
                       style={{ width: '100%' }}
-                      placeholder="最大佣金率%"
+                      placeholder="%"
                       suffix="%"
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item label="rFBS(1501-5000₽) 佣金率≤" name="rfbs_mid_max">
+                <Col xs={12} sm={8} md={4} lg={3}>
+                  <Form.Item label="rFBS 1501-5000" name="rfbs_mid_max">
                     <InputNumber
                       min={0}
                       max={100}
-                      precision={2}
+                      precision={1}
                       style={{ width: '100%' }}
-                      placeholder="最大佣金率%"
+                      placeholder="%"
                       suffix="%"
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item label="FBP(≤1500₽) 佣金率≤" name="fbp_low_max">
+                <Col xs={12} sm={8} md={4} lg={3}>
+                  <Form.Item label="FBP≤1500" name="fbp_low_max">
                     <InputNumber
                       min={0}
                       max={100}
-                      precision={2}
+                      precision={1}
                       style={{ width: '100%' }}
-                      placeholder="最大佣金率%"
+                      placeholder="%"
                       suffix="%"
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item label="FBP(1501-5000₽) 佣金率≤" name="fbp_mid_max">
+                <Col xs={12} sm={8} md={4} lg={3}>
+                  <Form.Item label="FBP 1501-5000" name="fbp_mid_max">
                     <InputNumber
                       min={0}
                       max={100}
-                      precision={2}
+                      precision={1}
                       style={{ width: '100%' }}
-                      placeholder="最大佣金率%"
+                      placeholder="%"
                       suffix="%"
                     />
                   </Form.Item>
                 </Col>
 
+                {/* 第三行：销量和重量 */}
                 <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item label="月销量范围">
+                  <Form.Item label="月销量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="monthly_sales_min" noStyle>
                         <InputNumber
@@ -543,28 +560,14 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item label="包装重量≤(g)" name="weight_max">
+                <Col xs={12} sm={8} md={4} lg={4}>
+                  <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
                       style={{ width: '100%' }}
-                      placeholder="最大重量"
+                      placeholder="g"
                       suffix="g"
                     />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} sm={12} md={8} lg={6}>
-                  <Form.Item label="排序方式" name="sort_by">
-                    <Select>
-                      <Option value="created_desc">导入时间从新到旧</Option>
-                      <Option value="created_asc">导入时间从旧到新</Option>
-                      <Option value="sales_desc">销量从高到低</Option>
-                      <Option value="sales_asc">销量从低到高</Option>
-                      <Option value="weight_asc">重量从低到高</Option>
-                      <Option value="price_asc">价格从低到高</Option>
-                      <Option value="price_desc">价格从高到低</Option>
-                    </Select>
                   </Form.Item>
                 </Col>
               </Row>
@@ -655,7 +658,7 @@ const ProductSelection: React.FC = () => {
                     <p>1. 支持 Excel (.xlsx) 和 CSV (.csv) 文件格式</p>
                     <p>2. 文件需包含必要列：商品ID、商品名称等</p>
                     <p>3. 系统会自动进行数据清洗和格式转换</p>
-                    <p>4. 可选择导入策略：跳过重复、更新已有、追加记录</p>
+                    <p>4. 导入策略：以"商品名称+商品ID"作为唯一标识，存在则更新，不存在则追加</p>
                   </div>
                 }
                 type="info"

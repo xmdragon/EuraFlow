@@ -341,7 +341,12 @@ class ProductSelectionService:
         items: List[Dict[str, Any]],
         strategy: str
     ) -> Dict[str, int]:
-        """批量插入或更新"""
+        """批量插入或更新
+
+        使用"商品名称+商品ID"作为唯一标识：
+        - 如果存在相同的商品ID和商品名称，则更新
+        - 如果不存在，则追加新记录
+        """
         success = 0
         updated = 0
         skipped = 0
@@ -349,31 +354,34 @@ class ProductSelectionService:
         for item in items:
             try:
                 product_id = item['product_id']
+                product_name_ru = item.get('product_name_ru', '')
+                product_name_cn = item.get('product_name_cn', '')
 
-                # 检查是否存在
+                # 使用商品ID和商品名称（中文或俄文）作为唯一标识
+                # 优先使用俄文名称，如果没有则使用中文名称
+                conditions = [ProductSelectionItem.product_id == product_id]
+
+                if product_name_ru:
+                    conditions.append(ProductSelectionItem.product_name_ru == product_name_ru)
+                elif product_name_cn:
+                    conditions.append(ProductSelectionItem.product_name_cn == product_name_cn)
+
+                # 查询是否存在
                 existing = await db.execute(
                     select(ProductSelectionItem).where(
-                        ProductSelectionItem.product_id == product_id
+                        and_(*conditions)
                     )
                 )
                 existing_item = existing.scalar_one_or_none()
 
                 if existing_item:
-                    if strategy == 'skip':
-                        skipped += 1
-                        continue
-                    elif strategy == 'update':
-                        # 更新现有记录
-                        for key, value in item.items():
-                            setattr(existing_item, key, value)
-                        existing_item.updated_at = datetime.now()
-                        updated += 1
-                    else:  # append
-                        # append策略下跳过已存在的记录（因为product_id是唯一的）
-                        skipped += 1
-                        continue
+                    # 存在则更新（默认策略）
+                    for key, value in item.items():
+                        setattr(existing_item, key, value)
+                    existing_item.updated_at = datetime.now()
+                    updated += 1
                 else:
-                    # 创建新记录
+                    # 不存在则追加
                     new_item = ProductSelectionItem(**item)
                     db.add(new_item)
                     success += 1
