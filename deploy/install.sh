@@ -723,23 +723,30 @@ EOF
     log_success "SSL证书配置完成"
 }
 
-# 配置项目级启动脚本
+# 配置Supervisor服务
 setup_supervisor() {
-    log_info "配置项目级管理脚本..."
+    log_info "配置Supervisor服务..."
 
-    # 确保脚本有执行权限
-    chmod +x ${INSTALL_DIR}/start.sh
-    chmod +x ${INSTALL_DIR}/stop.sh
-    chmod +x ${INSTALL_DIR}/restart.sh
-    chmod +x ${INSTALL_DIR}/status.sh
+    # 安装Supervisor（如果还没有安装）
+    if ! command -v supervisord &> /dev/null; then
+        log_info "安装Supervisor..."
+        apt-get update
+        apt-get install -y supervisor
+    fi
 
-    # 设置脚本所有者
-    chown $USER:$GROUP ${INSTALL_DIR}/start.sh
-    chown $USER:$GROUP ${INSTALL_DIR}/stop.sh
-    chown $USER:$GROUP ${INSTALL_DIR}/restart.sh
-    chown $USER:$GROUP ${INSTALL_DIR}/status.sh
+    # 创建日志目录
+    mkdir -p /var/log/euraflow
+    chown -R $USER:$GROUP /var/log/euraflow
 
-    log_success "项目管理脚本配置完成"
+    # 创建符号链接，让系统supervisor包含项目配置
+    log_info "链接项目Supervisor配置..."
+    ln -sf ${INSTALL_DIR}/deploy/euraflow.conf /etc/supervisor/conf.d/euraflow.conf
+
+    # 重新加载Supervisor配置
+    supervisorctl reread
+    supervisorctl update
+
+    log_success "Supervisor服务配置完成"
 }
 
 # 配置防火墙
@@ -771,17 +778,23 @@ start_services() {
     systemctl start nginx
     systemctl enable nginx
 
-    # 使用项目级启动脚本启动EuraFlow服务
-    log_info "启动EuraFlow服务（使用项目级supervisor）..."
-    cd ${INSTALL_DIR}
-    sudo -u $USER bash -c "cd ${INSTALL_DIR} && ./start.sh"
+    # 启动Supervisor
+    systemctl start supervisor
+    systemctl enable supervisor
+
+    # 等待Supervisor启动
+    sleep 3
+
+    # 启动EuraFlow服务组
+    log_info "启动EuraFlow服务组..."
+    supervisorctl start euraflow:*
 
     # 等待服务启动
     sleep 5
 
     # 检查服务状态
     log_info "检查服务状态..."
-    sudo -u $USER bash -c "cd ${INSTALL_DIR} && ./status.sh"
+    supervisorctl status
 
     log_success "所有服务已启动"
 }
