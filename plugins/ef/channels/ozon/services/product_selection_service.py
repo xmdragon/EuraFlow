@@ -228,6 +228,8 @@ class ProductSelectionService:
                     try:
                         cleaned_data = self._clean_row(row)
                         if cleaned_data:
+                            # 添加user_id到每个清洗后的数据项
+                            cleaned_data['user_id'] = user_id
                             batch_items.append(cleaned_data)
                     except Exception as e:
                         failed_count += 1
@@ -239,7 +241,7 @@ class ProductSelectionService:
                 if batch_items:
                     # 执行批量插入/更新
                     result = await self._batch_upsert(
-                        db, batch_items, import_strategy
+                        db, batch_items, import_strategy, user_id
                     )
                     success_count += result['success']
                     updated_count += result['updated']
@@ -339,7 +341,8 @@ class ProductSelectionService:
         self,
         db: AsyncSession,
         items: List[Dict[str, Any]],
-        strategy: str
+        strategy: str,
+        user_id: int
     ) -> Dict[str, int]:
         """批量插入或更新
 
@@ -352,6 +355,8 @@ class ProductSelectionService:
         skipped = 0
 
         for item in items:
+            # 使用保存点来处理单个项的失败
+            savepoint = await db.begin_nested()
             try:
                 product_id = item['product_id']
                 product_name_ru = item.get('product_name_ru', '')
@@ -359,7 +364,7 @@ class ProductSelectionService:
 
                 # 为item添加user_id
                 if 'user_id' not in item:
-                    item['user_id'] = user_id if 'user_id' in locals() else 1
+                    item['user_id'] = user_id
 
                 # 使用用户ID+商品ID+商品名称作为唯一标识
                 conditions = [
@@ -392,12 +397,12 @@ class ProductSelectionService:
                     db.add(new_item)
                     success += 1
 
-                # 每处理一条就flush，避免批量失败
-                await db.flush()
+                # 提交保存点
+                await savepoint.commit()
 
             except Exception as e:
-                # 如果出错，回滚当前事务并继续处理下一条
-                await db.rollback()
+                # 只回滚当前保存点，不影响之前的数据
+                await savepoint.rollback()
                 logger.warning(f"Failed to process product {item.get('product_id')}: {e}")
                 skipped += 1
                 continue
