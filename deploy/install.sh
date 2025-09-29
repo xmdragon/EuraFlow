@@ -505,46 +505,18 @@ print(f'Database Config: host={settings.db_host}, user={settings.db_user}, db={s
 setup_nginx() {
     log_info "配置Nginx..."
 
-    # 生成Nginx配置
+    # 先创建HTTP-only配置（用于Let's Encrypt验证）
     cat > /etc/nginx/sites-available/euraflow << EOF
-# HTTP重定向到HTTPS
+# HTTP配置（初始配置，用于SSL证书申请）
 server {
     listen 80;
     listen [::]:80;
     server_name ${DOMAIN_NAME};
 
+    # Let's Encrypt验证目录
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
-
-    location / {
-        return 301 https://\$server_name\$request_uri;
-    }
-}
-
-# HTTPS配置
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${DOMAIN_NAME};
-
-    # SSL证书（稍后由certbot配置）
-    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
-
-    # SSL配置
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-
-    # 安全头
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "no-referrer-when-downgrade" always;
-    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
 
     # 日志
     access_log /var/log/nginx/euraflow_access.log;
@@ -558,14 +530,7 @@ server {
     gzip on;
     gzip_vary on;
     gzip_comp_level 4;
-    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml application/atom+xml image/svg+xml text/javascript application/vnd.ms-fontobject application/x-font-ttf font/opentype;
-
-    # 静态文件
-    location /static {
-        alias ${INSTALL_DIR}/web/dist;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
+    gzip_types text/plain text/css text/xml application/json application/javascript application/xml+rss application/rss+xml application/atom+xml image/svg+xml application/vnd.ms-fontobject application/x-font-ttf font/opentype;
 
     # API代理
     location /api {
@@ -597,6 +562,13 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    # 静态文件
+    location /static {
+        alias ${INSTALL_DIR}/web/dist;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
     # 前端应用
     location / {
         root ${INSTALL_DIR}/web/dist;
@@ -610,7 +582,11 @@ EOF
     rm -f /etc/nginx/sites-enabled/default
 
     # 测试Nginx配置
-    nginx -t
+    if nginx -t; then
+        log_success "Nginx配置语法检查通过"
+    else
+        log_error "Nginx配置语法错误，请检查配置"
+    fi
 
     log_success "Nginx配置完成"
 }
@@ -625,8 +601,116 @@ setup_ssl() {
     # 重启Nginx以应用HTTP配置
     systemctl restart nginx
 
-    # 申请Let's Encrypt证书
-    certbot --nginx -d ${DOMAIN_NAME} --non-interactive --agree-tos --email ${EMAIL} --redirect
+    # 申请Let's Encrypt证书（使用webroot方式，避免nginx插件自动修改配置）
+    log_info "申请SSL证书..."
+    if certbot certonly --webroot -w /var/www/certbot -d ${DOMAIN_NAME} --non-interactive --agree-tos --email ${EMAIL}; then
+        log_info "SSL证书申请成功，更新Nginx配置..."
+
+        # 证书申请成功后，创建包含HTTPS的完整配置
+        cat > /etc/nginx/sites-available/euraflow << EOF
+# HTTP重定向到HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN_NAME};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://\$server_name\$request_uri;
+    }
+}
+
+# HTTPS配置
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN_NAME};
+
+    # SSL证书
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+
+    # SSL配置
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # 安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+
+    # 日志
+    access_log /var/log/nginx/euraflow_access.log;
+    error_log /var/log/nginx/euraflow_error.log;
+
+    # 客户端上传限制
+    client_max_body_size 50M;
+    client_body_timeout 60s;
+
+    # Gzip压缩
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 4;
+    gzip_types text/plain text/css text/xml application/json application/javascript application/xml+rss application/rss+xml application/atom+xml image/svg+xml application/vnd.ms-fontobject application/x-font-ttf font/opentype;
+
+    # API代理
+    location /api {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # WebSocket支持
+    location /ws {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # 静态文件
+    location /static {
+        alias ${INSTALL_DIR}/web/dist;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # 前端应用
+    location / {
+        root ${INSTALL_DIR}/web/dist;
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+EOF
+
+        # 重新加载Nginx配置
+        nginx -t && systemctl reload nginx
+        log_success "HTTPS配置已启用"
+    else
+        log_warn "SSL证书申请失败，继续使用HTTP"
+    fi
 
     # 设置自动更新
     cat > /etc/cron.d/certbot << EOF
