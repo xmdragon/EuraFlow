@@ -79,7 +79,7 @@ class PreviewResponse(BaseModel):
 async def import_products(
     file: UploadFile = File(...),
     strategy: str = Form('update'),
-    shop_id: int = Form(1),  # TODO: 从认证获取店铺ID
+    shop_id: int = Form(...),  # 必须明确指定店铺ID
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):

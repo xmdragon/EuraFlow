@@ -41,9 +41,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             from ef_core.config import get_settings
             settings = get_settings()
             if settings.api_debug:
-                # 设置默认用户信息
+                # 设置开发环境默认用户信息
                 request.state.user_id = 1
-                request.state.shop_id = 1001
+                request.state.shop_id = None  # 不设置默认店铺ID
                 request.state.permissions = ["*"]
                 return await call_next(request)
             else:
@@ -68,9 +68,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             from ef_core.config import get_settings
             settings = get_settings()
             if settings.api_debug:
-                # 设置默认用户信息
+                # 设置开发环境默认用户信息
                 request.state.user_id = 1
-                request.state.shop_id = 1001
+                request.state.shop_id = None  # 不设置默认店铺ID
                 request.state.permissions = ["*"]
                 return await call_next(request)
             else:

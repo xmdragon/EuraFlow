@@ -398,7 +398,9 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
 
         async with get_async_session() as db:
             # 查找商品
-            shop_id = payload.get("shop_id", 1)  # 默认使用第一个店铺
+            shop_id = payload.get("shop_id")  # 必须明确指定店铺ID
+            if not shop_id:
+                raise ValueError("shop_id is required")
             product_result = await db.execute(
                 select(OzonProduct).where(
                     OzonProduct.shop_id == shop_id,

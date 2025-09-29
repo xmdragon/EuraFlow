@@ -391,9 +391,7 @@ async def get_products(
     # 应用过滤条件
     if shop_id:
         query = query.where(OzonProduct.shop_id == shop_id)
-    else:
-        # 默认获取第一个店铺的商品
-        query = query.where(OzonProduct.shop_id == 1)
+    # 不再设置默认店铺，如果没有指定shop_id则返回所有店铺的商品
 
     # 通用搜索 - 在多个字段中搜索
     if search:
@@ -501,8 +499,7 @@ async def get_products(
     
     if shop_id:
         stats_query = stats_query.where(OzonProduct.shop_id == shop_id)
-    else:
-        stats_query = stats_query.where(OzonProduct.shop_id == 1)
+    # 不再设置默认店铺
     
     stats_result = await db.execute(stats_query)
     stats = stats_result.first()
@@ -558,7 +555,9 @@ async def sync_products(
 ):
     """同步商品数据"""
     full_sync = request.get("full_sync", False)
-    shop_id = request.get("shop_id", 1)  # 默认使用第一个店铺
+    shop_id = request.get("shop_id")  # 必须明确指定店铺ID
+    if not shop_id:
+        raise HTTPException(status_code=400, detail="shop_id is required")
     
     # 从数据库获取店铺信息
     result = await db.execute(
@@ -760,7 +759,9 @@ async def update_prices(
 ):
     """批量更新商品价格"""
     updates = request.get("updates", [])
-    shop_id = request.get("shop_id", 1)
+    shop_id = request.get("shop_id")  # 必须明确指定店铺ID
+    if not shop_id:
+        raise HTTPException(status_code=400, detail="shop_id is required")
 
     if not updates:
         return {
@@ -870,7 +871,9 @@ async def update_stocks(
 ):
     """批量更新商品库存"""
     updates = request.get("updates", [])
-    shop_id = request.get("shop_id", 1)
+    shop_id = request.get("shop_id")  # 必须明确指定店铺ID
+    if not shop_id:
+        raise HTTPException(status_code=400, detail="shop_id is required")
 
     if not updates:
         return {
@@ -1181,7 +1184,9 @@ async def export_products(
     import io
     from fastapi.responses import StreamingResponse
     
-    shop_id = request.get("shop_id", 1)
+    shop_id = request.get("shop_id")  # 必须明确指定店铺ID
+    if not shop_id:
+        raise HTTPException(status_code=400, detail="shop_id is required")
     
     # 获取商品数据
     query = select(OzonProduct).where(OzonProduct.shop_id == shop_id)
@@ -1237,7 +1242,9 @@ async def import_products(
     try:
         # 获取上传的文件内容
         file_content = request.get("file_content", "")
-        shop_id = request.get("shop_id", 1)
+        shop_id = request.get("shop_id")  # 必须明确指定店铺ID
+    if not shop_id:
+        raise HTTPException(status_code=400, detail="shop_id is required")
         
         if not file_content:
             return {
@@ -1371,9 +1378,7 @@ async def get_orders(
     # 应用过滤条件
     if shop_id:
         query = query.where(OzonOrder.shop_id == shop_id)
-    else:
-        # 默认获取第一个店铺的订单
-        query = query.where(OzonOrder.shop_id == 1)
+    # 不再设置默认店铺
 
     if status:
         query = query.where(OzonOrder.status == status)
@@ -1441,11 +1446,10 @@ async def get_orders(
     # 批量查询商品图片（使用offer_id匹配）
     offer_id_images = {}
     if all_offer_ids:
-        products_result = await db.execute(
-            select(OzonProduct.offer_id, OzonProduct.images)
-            .where(OzonProduct.offer_id.in_(list(all_offer_ids)))
-            .where(OzonProduct.shop_id == (shop_id or 1))
-        )
+        product_query = select(OzonProduct.offer_id, OzonProduct.images).where(OzonProduct.offer_id.in_(list(all_offer_ids)))
+        if shop_id:
+            product_query = product_query.where(OzonProduct.shop_id == shop_id)
+        products_result = await db.execute(product_query)
         for offer_id, images in products_result:
             if offer_id and images:
                 # 优先使用primary图片，否则使用第一张

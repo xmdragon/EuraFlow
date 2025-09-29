@@ -1674,7 +1674,7 @@ const ProductList: React.FC = () => {
                     },
                     body: JSON.stringify({
                       file_content: base64Content,
-                      shop_id: 1, // 默认使用第一个店铺
+                      shop_id: selectedShop || undefined, // 使用当前选中的店铺
                     }),
                   });
 
