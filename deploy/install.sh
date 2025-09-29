@@ -361,6 +361,9 @@ setup_python_env() {
         log_error "项目依赖安装失败"
     fi
 
+    log_info "安装生产环境额外依赖..."
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install gunicorn" || log_error "gunicorn安装失败"
+
     log_success "Python环境设置完成"
 }
 
@@ -724,7 +727,11 @@ EOF
 setup_systemd() {
     log_info "配置systemd服务..."
 
-    # 后端服务
+    # 创建运行时目录
+    mkdir -p /var/run/euraflow
+    chown $USER:$GROUP /var/run/euraflow
+
+    # 后端服务（使用uvicorn直接运行，更简单可靠）
     cat > /etc/systemd/system/euraflow-backend.service << EOF
 [Unit]
 Description=EuraFlow Backend Service
@@ -732,23 +739,21 @@ After=network.target postgresql.service redis.service
 Requires=postgresql.service redis.service
 
 [Service]
-Type=forking
+Type=simple
 User=${USER}
 Group=${GROUP}
 WorkingDirectory=${INSTALL_DIR}
 Environment="PATH=${INSTALL_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=${INSTALL_DIR}/venv/bin/gunicorn ef_core.app:app \
-    --bind 0.0.0.0:8000 \
-    --workers 4 \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --daemon \
-    --pid /var/run/euraflow/backend.pid \
-    --access-logfile /var/log/euraflow/access.log \
-    --error-logfile /var/log/euraflow/error.log
-ExecReload=/bin/kill -s HUP \$MAINPID
-ExecStop=/bin/kill -s TERM \$MAINPID
+EnvironmentFile=${INSTALL_DIR}/.env
+ExecStart=${INSTALL_DIR}/venv/bin/uvicorn ef_core.app:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --log-level info \
+    --access-log
 Restart=always
 RestartSec=10
+StandardOutput=append:/var/log/euraflow/backend.log
+StandardError=append:/var/log/euraflow/backend-error.log
 
 [Install]
 WantedBy=multi-user.target
