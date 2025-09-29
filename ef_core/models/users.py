@@ -25,17 +25,17 @@ class User(Base):
     )
     
     # 认证信息
-    email: Mapped[str] = mapped_column(
-        String(255), 
-        unique=True, 
+    username: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
         nullable=False,
-        comment="邮箱地址"
-    )
-    username: Mapped[Optional[str]] = mapped_column(
-        String(50), 
-        unique=True, 
-        nullable=True,
         comment="用户名"
+    )
+    email: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        unique=False,
+        nullable=True,
+        comment="邮箱地址（选填）"
     )
     password_hash: Mapped[str] = mapped_column(
         String(255), 

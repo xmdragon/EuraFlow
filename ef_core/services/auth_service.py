@@ -148,12 +148,12 @@ class AuthService:
     async def authenticate_user(self, email_or_username: str, password: str) -> Optional[User]:
         """认证用户"""
         db_manager = get_db_manager()
-        
+
         async with db_manager.get_session() as session:
-            # 查询用户（支持邮箱或用户名登录）
+            # 查询用户（优先使用用户名，其次邮箱）
             stmt = select(User).where(
-                (User.email == email_or_username) | 
-                (User.username == email_or_username)
+                (User.username == email_or_username) |
+                (User.email == email_or_username)
             ).options(selectinload(User.primary_shop))
             
             result = await session.execute(stmt)

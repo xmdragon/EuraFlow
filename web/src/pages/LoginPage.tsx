@@ -48,11 +48,11 @@ const LoginPage: React.FC = () => {
               rules={[
                 {
                   required: true,
-                  message: '请输入邮箱或用户名!',
+                  message: '请输入用户名!',
                 },
               ]}
             >
-              <Input prefix={<UserOutlined />} placeholder="邮箱或用户名" autoComplete="username" />
+              <Input prefix={<UserOutlined />} placeholder="用户名" autoComplete="username" />
             </Form.Item>
 
             <Form.Item

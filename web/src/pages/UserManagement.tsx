@@ -40,8 +40,8 @@ interface User {
 }
 
 interface CreateUserData {
-  email: string;
-  username?: string;
+  username: string;
+  email?: string;
   password: string;
   role: string;
   is_active: boolean;
@@ -154,14 +154,14 @@ const UserManagement: React.FC = () => {
 
   const columns = [
     {
-      title: '邮箱',
-      dataIndex: 'email',
-      key: 'email',
-    },
-    {
       title: '用户名',
       dataIndex: 'username',
       key: 'username',
+    },
+    {
+      title: '邮箱',
+      dataIndex: 'email',
+      key: 'email',
       render: (text: string) => text || '-',
     },
     {
@@ -297,14 +297,25 @@ const UserManagement: React.FC = () => {
           {!editingUser && (
             <>
               <Form.Item
-                name="email"
-                label="邮箱"
+                name="username"
+                label="用户名（必填）"
                 rules={[
-                  { required: true, message: '请输入邮箱' },
+                  { required: true, message: '请输入用户名' },
+                  { min: 3, message: '用户名至少3个字符' },
+                  { max: 50, message: '用户名最多50个字符' },
+                ]}
+              >
+                <Input placeholder="3-50个字符，用于登录" />
+              </Form.Item>
+
+              <Form.Item
+                name="email"
+                label="邮箱（选填）"
+                rules={[
                   { type: 'email', message: '请输入有效的邮箱地址' },
                 ]}
               >
-                <Input placeholder="user@example.com" disabled={!!editingUser} />
+                <Input placeholder="user@example.com（可不填）" />
               </Form.Item>
 
               <Form.Item
@@ -320,16 +331,18 @@ const UserManagement: React.FC = () => {
             </>
           )}
 
-          <Form.Item
-            name="username"
-            label="用户名"
-            rules={[
-              { min: 3, message: '用户名至少3个字符' },
-              { max: 50, message: '用户名最多50个字符' },
-            ]}
-          >
-            <Input placeholder="可选，3-50个字符" />
-          </Form.Item>
+          {editingUser && (
+            <Form.Item
+              name="username"
+              label="用户名"
+              rules={[
+                { min: 3, message: '用户名至少3个字符' },
+                { max: 50, message: '用户名最多50个字符' },
+              ]}
+            >
+              <Input placeholder="3-50个字符" />
+            </Form.Item>
+          )}
 
           <Form.Item
             name="role"

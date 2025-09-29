@@ -69,8 +69,8 @@ class UserResponse(BaseModel):
 
 class CreateUserRequest(BaseModel):
     """创建用户请求"""
-    email: EmailStr = Field(..., description="邮箱地址")
-    username: Optional[str] = Field(None, description="用户名")
+    username: str = Field(..., min_length=3, max_length=50, description="用户名（必填）")
+    email: Optional[EmailStr] = Field(None, description="邮箱地址（选填）")
     password: str = Field(..., min_length=8, description="密码")
     role: str = Field("operator", description="角色：operator/viewer")
     is_active: bool = Field(True, description="是否激活")
@@ -343,28 +343,28 @@ async def create_user(
 
     auth_service = get_auth_service()
 
-    # 检查邮箱是否已存在
-    stmt = select(User).where(User.email == user_data.email)
+    # 检查用户名是否已存在（用户名必填）
+    stmt = select(User).where(User.username == user_data.username)
     result = await session.execute(stmt)
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
-                "code": "EMAIL_EXISTS",
-                "message": "该邮箱已被注册"
+                "code": "USERNAME_EXISTS",
+                "message": "该用户名已被使用"
             }
         )
 
-    # 检查用户名是否已存在
-    if user_data.username:
-        stmt = select(User).where(User.username == user_data.username)
+    # 如果提供了邮箱，检查是否已存在
+    if user_data.email:
+        stmt = select(User).where(User.email == user_data.email)
         result = await session.execute(stmt)
         if result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
-                    "code": "USERNAME_EXISTS",
-                    "message": "该用户名已被使用"
+                    "code": "EMAIL_EXISTS",
+                    "message": "该邮箱已被注册"
                 }
             )
 
