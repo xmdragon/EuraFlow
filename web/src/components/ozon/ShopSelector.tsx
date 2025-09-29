@@ -69,9 +69,10 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         }
       }
 
-      const shopId = shops[0].id;
-      setSelectedShop(shopId);
-      onChange?.(shopId);
+      // 不再自动选择第一个店铺，让用户手动选择
+      // const shopId = shops[0].id;
+      // setSelectedShop(shopId);
+      // onChange?.(shopId);
     }
   }, [shops, selectedShop, onChange, value, isMultiple]);
 

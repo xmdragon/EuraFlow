@@ -66,13 +66,13 @@ const ProductList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRows, setSelectedRows] = useState<ozonApi.Product[]>([]);
-  // 初始化时从localStorage读取店铺选择，避免重复请求
+  // 初始化时从localStorage读取店铺选择，默认为null让用户手动选择
   const [selectedShop, setSelectedShop] = useState<number | null>(() => {
     const saved = localStorage.getItem('ozon_selected_shop');
     if (saved && saved !== 'all') {
       return parseInt(saved, 10);
     }
-    return null;
+    return null; // 默认不选择任何店铺
   });
   const [filterForm] = Form.useForm();
   const [priceModalVisible, setPriceModalVisible] = useState(false);

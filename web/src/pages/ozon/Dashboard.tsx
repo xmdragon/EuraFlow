@@ -82,12 +82,8 @@ const OzonDashboard: React.FC = () => {
     },
   };
 
-  const syncHistory = [
-    { time: '2024-01-15 14:30:00', type: '商品同步', status: 'success' as const },
-    { time: '2024-01-15 14:25:00', type: '订单同步', status: 'success' as const },
-    { time: '2024-01-15 14:20:00', type: '价格同步', status: 'error' as const },
-    { time: '2024-01-15 14:15:00', type: '库存同步', status: 'success' as const },
-  ];
+  // 同步历史数据应该从API获取，暂时使用空数组
+  const syncHistory: Array<{ time: string; type: string; status: 'success' | 'error' | 'syncing' }> = [];
 
   const getStatusIcon = (status: 'success' | 'error' | 'syncing') => {
     switch (status) {
@@ -252,29 +248,31 @@ const OzonDashboard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* 同步历史 */}
-      <Card title="同步历史" extra={<SyncOutlined />}>
-        <List
-          itemLayout="horizontal"
-          dataSource={syncHistory}
-          renderItem={(item) => (
-            <List.Item>
-              <List.Item.Meta
-                avatar={getStatusIcon(item.status)}
-                title={
-                  <Space>
-                    <Text>{item.type}</Text>
-                    <Tag color={getStatusColor(item.status)}>
-                      {item.status === 'success' ? '成功' : '失败'}
-                    </Tag>
-                  </Space>
-                }
-                description={item.time}
-              />
-            </List.Item>
-          )}
-        />
-      </Card>
+      {/* 同步历史 - 当有数据时才显示 */}
+      {syncHistory.length > 0 && (
+        <Card title="同步历史" extra={<SyncOutlined />}>
+          <List
+            itemLayout="horizontal"
+            dataSource={syncHistory}
+            renderItem={(item) => (
+              <List.Item>
+                <List.Item.Meta
+                  avatar={getStatusIcon(item.status)}
+                  title={
+                    <Space>
+                      <Text>{item.type}</Text>
+                      <Tag color={getStatusColor(item.status)}>
+                        {item.status === 'success' ? '成功' : '失败'}
+                      </Tag>
+                    </Space>
+                  }
+                  description={item.time}
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
     </div>
   );
 };
