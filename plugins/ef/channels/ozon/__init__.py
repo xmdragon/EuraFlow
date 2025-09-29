@@ -13,14 +13,19 @@ __version__ = "1.0.0"
 def get_router() -> Optional[APIRouter]:
     """
     获取插件的 API 路由
-    
+
     Returns:
         插件的路由器，如果插件不提供 API 则返回 None
     """
     try:
         from .api.routes import router
+        print(f"Ozon router loaded with {len(router.routes)} routes")
         return router
-    except ImportError:
+    except ImportError as e:
+        print(f"ImportError loading Ozon routes: {e}")
+        return None
+    except Exception as e:
+        print(f"Error loading Ozon routes: {e}")
         return None
 
 
