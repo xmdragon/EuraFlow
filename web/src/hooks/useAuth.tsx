@@ -57,12 +57,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
   };
 
+  const refreshUser = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+  };
+
   const value: AuthContextValue = {
     user,
     isLoading: isLoading && authService.isAuthenticated(),
     login,
     logout,
     refreshToken,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

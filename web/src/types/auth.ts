@@ -6,6 +6,7 @@ export interface User {
   role: string;
   permissions: string[];
   is_active: boolean;
+  parent_user_id?: number;
   primary_shop_id?: number;
   last_login_at?: string;
   created_at: string;
@@ -30,4 +31,5 @@ export interface AuthContextValue {
   login: (_credentials: LoginRequest) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }

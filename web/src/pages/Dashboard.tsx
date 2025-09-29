@@ -12,6 +12,9 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 import FinanceCalculator from './finance';
 import OzonManagement from './ozon';
+import Profile from './Profile';
+import Settings from './Settings';
+import UserManagement from './UserManagement';
 
 import { useAuth } from '@/hooks/useAuth';
 
@@ -32,11 +35,13 @@ const Dashboard: React.FC = () => {
       key: 'profile',
       icon: <UserOutlined />,
       label: '个人资料',
+      onClick: () => navigate('/dashboard/profile'),
     },
     {
       key: 'settings',
       icon: <SettingOutlined />,
       label: '设置',
+      onClick: () => navigate('/dashboard/settings'),
     },
     { type: 'divider' as const },
     {
@@ -66,6 +71,12 @@ const Dashboard: React.FC = () => {
       label: '财务计算',
       onClick: () => navigate('/dashboard/finance'),
     },
+    ...(user?.role === 'admin' ? [{
+      key: 'users',
+      icon: <UserOutlined />,
+      label: '用户管理',
+      onClick: () => navigate('/dashboard/users'),
+    }] : []),
   ];
 
   // 根据路径获取选中的菜单项
@@ -73,6 +84,9 @@ const Dashboard: React.FC = () => {
     const path = location.pathname;
     if (path.includes('/ozon')) return 'ozon';
     if (path.includes('/finance')) return 'finance';
+    if (path.includes('/users')) return 'users';
+    if (path.includes('/profile')) return 'profile';
+    if (path.includes('/settings')) return 'settings';
     return 'dashboard';
   };
 
@@ -144,6 +158,9 @@ const Dashboard: React.FC = () => {
             />
             <Route path="/ozon/*" element={<OzonManagement />} />
             <Route path="/finance" element={<FinanceCalculator />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
+            {user?.role === 'admin' && <Route path="/users" element={<UserManagement />} />}
           </Routes>
         </Content>
       </Layout>

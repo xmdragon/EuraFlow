@@ -96,6 +96,29 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === 'history',
   });
 
+  // 清空数据mutation
+  const clearDataMutation = useMutation({
+    mutationFn: api.clearAllData,
+    onSuccess: (data) => {
+      if (data.success) {
+        notification.success({
+          message: '数据清空成功',
+          description: `已清空 ${data.data.deleted_products} 个商品和 ${data.data.deleted_history} 条导入历史`,
+          duration: 3,
+        });
+        // 刷新所有相关数据
+        refetchProducts();
+        refetchHistory();
+        queryClient.invalidateQueries({ queryKey: ['productSelectionBrands'] });
+      } else {
+        message.error(data.error || '清空数据失败');
+      }
+    },
+    onError: (error: any) => {
+      message.error('清空数据失败: ' + error.message);
+    },
+  });
+
 
   // 处理搜索
   const handleSearch = (values: any) => {

@@ -3,6 +3,7 @@
 """
 import os
 import secrets
+import base64
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from uuid import uuid4

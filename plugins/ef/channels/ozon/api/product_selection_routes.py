@@ -17,6 +17,8 @@ from bs4 import BeautifulSoup
 import re
 
 from ef_core.database import get_async_session
+from ef_core.api.auth import get_current_user
+from ef_core.models.users import User
 from ..services.product_selection_service import ProductSelectionService
 from ..models.product_selection import ProductSelectionItem, ImportHistory
 from ..services.sync_state_manager import get_sync_state_manager
@@ -78,6 +80,7 @@ async def import_products(
     file: UploadFile = File(...),
     strategy: str = Form('update'),
     shop_id: int = Form(1),  # TODO: 从认证获取店铺ID
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -116,7 +119,7 @@ async def import_products(
                 file_path=tmp_file_path,
                 file_type='csv' if file_extension == 'csv' else 'xlsx',
                 import_strategy=strategy,
-                user_id=1,  # TODO: 从认证获取用户ID
+                user_id=current_user.id,
                 validate_only=False
             )
 
@@ -134,6 +137,7 @@ async def import_products(
 @router.post("/preview", response_model=PreviewResponse)
 async def preview_import(
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -169,7 +173,7 @@ async def preview_import(
                 file_path=tmp_file_path,
                 file_type='csv' if file_extension == 'csv' else 'xlsx',
                 import_strategy='update',
-                user_id=1,
+                user_id=current_user.id,
                 validate_only=True  # 仅验证
             )
 
@@ -191,6 +195,7 @@ async def preview_import(
 @router.post("/products/search")
 async def search_products(
     request: ProductSearchRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -209,6 +214,7 @@ async def search_products(
 
     result = await service.search_products(
         db=db,
+        user_id=current_user.id,
         filters=filters,
         sort_by=request.sort_by,
         page=request.page,
@@ -239,6 +245,7 @@ async def get_products(
     sort_by: str = Query('created_desc', description="排序方式"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -277,6 +284,7 @@ async def get_products(
 
     result = await service.search_products(
         db=db,
+        user_id=current_user.id,
         filters=filters,
         sort_by=sort_by,
         page=page,
@@ -291,11 +299,12 @@ async def get_products(
 
 @router.get("/brands")
 async def get_brands(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
     """获取品牌列表"""
     service = ProductSelectionService()
-    brands = await service.get_brands(db)
+    brands = await service.get_brands(db, user_id=current_user.id)
 
     return {
         'success': True,
@@ -307,12 +316,14 @@ async def get_brands(
 async def get_import_history(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_session)
 ):
     """获取导入历史"""
     service = ProductSelectionService()
     result = await service.get_import_history(
         db=db,
+        user_id=current_user.id,
         page=page,
         page_size=page_size
     )
@@ -321,6 +332,29 @@ async def get_import_history(
         'success': True,
         'data': result
     }
+
+
+@router.post("/clear-all-data")
+async def clear_all_data(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    清空当前用户的所有选品数据
+    """
+    try:
+        service = ProductSelectionService()
+        result = await service.clear_user_data(db, user_id=current_user.id)
+
+        return {
+            "success": True,
+            "message": result.get('message', '数据清空完成'),
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"Error clearing user data: {e}")
+        await db.rollback()
+        return {"success": False, "error": str(e)}
 
 
 @router.post("/clear-all-competitor-data")

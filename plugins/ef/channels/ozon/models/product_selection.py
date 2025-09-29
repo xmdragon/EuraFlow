@@ -1,7 +1,7 @@
 """
 选品助手数据模型
 """
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, JSON, Text, Index, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, JSON, Text, Index, UniqueConstraint, ForeignKey
 from sqlalchemy.sql import func
 from datetime import datetime
 from decimal import Decimal as D
@@ -14,6 +14,9 @@ class ProductSelectionItem(Base):
     __tablename__ = "ozon_product_selection_items"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 用户关联（支持账号隔离）
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True, comment="用户ID")
 
     # 商品基础信息
     product_id = Column(String(50), nullable=False, index=True, comment="商品ID")

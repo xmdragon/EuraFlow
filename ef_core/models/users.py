@@ -63,6 +63,14 @@ class User(Base):
         comment="权限列表"
     )
     
+    # 多账号体系
+    parent_user_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        comment="父账号ID"
+    )
+
     # 店铺关联
     primary_shop_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
@@ -94,6 +102,7 @@ class User(Base):
     # 关系
     primary_shop = relationship("Shop", back_populates="primary_users", foreign_keys=[primary_shop_id])
     owned_shops = relationship("Shop", back_populates="owner", foreign_keys="Shop.owner_user_id")
+    parent_user = relationship("User", remote_side=[id], foreign_keys=[parent_user_id], backref="sub_accounts")
     
     # 索引
     __table_args__ = (
@@ -122,6 +131,7 @@ class User(Base):
             "role": self.role,
             "permissions": self.permissions,
             "is_active": self.is_active,
+            "parent_user_id": self.parent_user_id,
             "primary_shop_id": self.primary_shop_id,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat(),

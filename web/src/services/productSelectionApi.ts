@@ -211,3 +211,17 @@ export const getProductDetail = async (productId: string): Promise<{
   const response = await axios.get(`/api/ef/v1/ozon/product-selection/product/${productId}/detail`);
   return response.data;
 };
+
+// 清空所有选品数据
+export const clearAllData = async (): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    deleted_products: number;
+    deleted_history: number;
+  };
+  error?: string;
+}> => {
+  const response = await axios.post('/api/ef/v1/ozon/product-selection/clear-all-data');
+  return response.data;
+};

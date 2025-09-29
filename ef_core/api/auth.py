@@ -2,7 +2,7 @@
 认证API路由
 """
 from typing import Optional
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, validator
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -11,7 +11,7 @@ from ef_core.services.auth_service import get_auth_service
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.utils.logger import get_logger
-from ef_core.utils.errors import UnauthorizedError, ValidationError
+from ef_core.utils.errors import UnauthorizedError, ValidationError, NotFoundError, ConflictError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,11 +59,50 @@ class UserResponse(BaseModel):
     username: Optional[str]
     role: str
     is_active: bool
+    parent_user_id: Optional[int]
     primary_shop_id: Optional[int]
     shops: list = []
     permissions: list = []
     last_login_at: Optional[str]
     created_at: str
+
+
+class CreateUserRequest(BaseModel):
+    """创建用户请求"""
+    email: EmailStr = Field(..., description="邮箱地址")
+    username: Optional[str] = Field(None, description="用户名")
+    password: str = Field(..., min_length=8, description="密码")
+    role: str = Field("operator", description="角色：operator/viewer")
+    is_active: bool = Field(True, description="是否激活")
+    primary_shop_id: Optional[int] = Field(None, description="主店铺ID")
+    permissions: list = Field(default_factory=list, description="权限列表")
+
+    @validator('role')
+    def validate_role(cls, v):
+        if v not in ['operator', 'viewer']:
+            raise ValueError('子账号只能设置为operator或viewer角色')
+        return v
+
+
+class UpdateUserRequest(BaseModel):
+    """更新用户请求"""
+    username: Optional[str] = Field(None, description="用户名")
+    role: Optional[str] = Field(None, description="角色")
+    is_active: Optional[bool] = Field(None, description="是否激活")
+    primary_shop_id: Optional[int] = Field(None, description="主店铺ID")
+    permissions: Optional[list] = Field(None, description="权限列表")
+
+
+class ChangePasswordRequest(BaseModel):
+    """修改密码请求"""
+    current_password: str = Field(..., description="当前密码")
+    new_password: str = Field(..., min_length=8, description="新密码")
+
+
+class UpdateProfileRequest(BaseModel):
+    """更新个人资料请求"""
+    username: Optional[str] = Field(None, description="用户名")
+    email: Optional[EmailStr] = Field(None, description="邮箱")
 
 
 # ========== 依赖函数 ==========
@@ -281,33 +320,300 @@ async def logout(
 
 # ========== 管理端点（仅admin） ==========
 
-@router.post("/users", include_in_schema=False)
+@router.post("/users", response_model=UserResponse)
 async def create_user(
-    request: Request,
+    user_data: CreateUserRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    创建用户（仅admin）
-    
-    - 不对外开放注册
+    创建子账号（仅admin）
+
     - 仅管理员可以创建新用户
+    - 子账号自动关联到创建者的主账号
     """
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "INSUFFICIENT_PERMISSIONS",
-                "message": "Only administrators can create users"
+                "message": "只有管理员可以创建用户"
             }
         )
-    
-    # TODO: 实现用户创建逻辑
-    # 这里暂时返回未实现
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail={
-            "code": "NOT_IMPLEMENTED",
-            "message": "User creation endpoint not yet implemented"
-        }
+
+    auth_service = get_auth_service()
+
+    # 检查邮箱是否已存在
+    stmt = select(User).where(User.email == user_data.email)
+    result = await session.execute(stmt)
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "EMAIL_EXISTS",
+                "message": "该邮箱已被注册"
+            }
+        )
+
+    # 检查用户名是否已存在
+    if user_data.username:
+        stmt = select(User).where(User.username == user_data.username)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "USERNAME_EXISTS",
+                    "message": "该用户名已被使用"
+                }
+            )
+
+    # 创建新用户
+    new_user = User(
+        email=user_data.email,
+        username=user_data.username,
+        password_hash=auth_service.hash_password(user_data.password),
+        role=user_data.role,
+        is_active=user_data.is_active,
+        parent_user_id=current_user.id,  # 设置父账号
+        primary_shop_id=user_data.primary_shop_id or current_user.primary_shop_id,
+        permissions=user_data.permissions
     )
+
+    session.add(new_user)
+    await session.commit()
+    await session.refresh(new_user)
+
+    return UserResponse(**new_user.to_dict())
+
+
+@router.get("/users", response_model=list[UserResponse])
+async def list_users(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取用户列表
+
+    - 管理员可以看到所有子账号
+    - 普通用户只能看到自己的信息
+    """
+    if current_user.role == "admin":
+        # 管理员查看所有子账号
+        stmt = select(User).where(User.parent_user_id == current_user.id).order_by(User.created_at)
+    else:
+        # 普通用户只能看到自己
+        stmt = select(User).where(User.id == current_user.id)
+
+    result = await session.execute(stmt)
+    users = result.scalars().all()
+
+    return [UserResponse(**user.to_dict()) for user in users]
+
+
+@router.put("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: int,
+    update_data: UpdateUserRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """
+    更新用户信息（仅admin）
+
+    - 管理员可以更新子账号信息
+    - 不能修改主账号关系
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "INSUFFICIENT_PERMISSIONS",
+                "message": "只有管理员可以更新用户信息"
+            }
+        )
+
+    # 获取要更新的用户
+    stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
+    result = await session.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "USER_NOT_FOUND",
+                "message": "用户不存在或无权限访问"
+            }
+        )
+
+    # 更新用户信息
+    if update_data.username is not None:
+        # 检查用户名是否已存在
+        stmt = select(User).where(User.username == update_data.username, User.id != user_id)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "USERNAME_EXISTS",
+                    "message": "该用户名已被使用"
+                }
+            )
+        user.username = update_data.username
+
+    if update_data.role is not None:
+        if update_data.role not in ['operator', 'viewer']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "INVALID_ROLE",
+                    "message": "子账号只能设置为operator或viewer角色"
+                }
+            )
+        user.role = update_data.role
+
+    if update_data.is_active is not None:
+        user.is_active = update_data.is_active
+
+    if update_data.primary_shop_id is not None:
+        user.primary_shop_id = update_data.primary_shop_id
+
+    if update_data.permissions is not None:
+        user.permissions = update_data.permissions
+
+    await session.commit()
+    await session.refresh(user)
+
+    return UserResponse(**user.to_dict())
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """
+    禁用用户（仅admin）
+
+    - 软删除，将is_active设为False
+    - 不真正删除用户数据
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "INSUFFICIENT_PERMISSIONS",
+                "message": "只有管理员可以禁用用户"
+            }
+        )
+
+    # 获取要禁用的用户
+    stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
+    result = await session.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "USER_NOT_FOUND",
+                "message": "用户不存在或无权限访问"
+            }
+        )
+
+    # 禁用用户
+    user.is_active = False
+    await session.commit()
+
+    return None
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    update_data: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """
+    更新个人资料
+
+    - 用户可以更新自己的基本信息
+    - 不能修改角色和权限
+    """
+    # 重新获取用户信息
+    stmt = select(User).where(User.id == current_user.id)
+    result = await session.execute(stmt)
+    user = result.scalar_one()
+
+    # 更新用户名
+    if update_data.username is not None:
+        # 检查用户名是否已存在
+        stmt = select(User).where(User.username == update_data.username, User.id != user.id)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "USERNAME_EXISTS",
+                    "message": "该用户名已被使用"
+                }
+            )
+        user.username = update_data.username
+
+    # 更新邮箱
+    if update_data.email is not None:
+        # 检查邮箱是否已存在
+        stmt = select(User).where(User.email == update_data.email, User.id != user.id)
+        result = await session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "EMAIL_EXISTS",
+                    "message": "该邮箱已被使用"
+                }
+            )
+        user.email = update_data.email
+
+    await session.commit()
+    await session.refresh(user)
+
+    return UserResponse(**user.to_dict())
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    password_data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """
+    修改密码
+
+    - 需要验证当前密码
+    - 密码最少8位
+    """
+    auth_service = get_auth_service()
+
+    # 重新获取用户信息
+    stmt = select(User).where(User.id == current_user.id)
+    result = await session.execute(stmt)
+    user = result.scalar_one()
+
+    # 验证当前密码
+    if not auth_service.verify_password(password_data.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "INVALID_PASSWORD",
+                "message": "当前密码不正确"
+            }
+        )
+
+    # 更新密码
+    user.password_hash = auth_service.hash_password(password_data.new_password)
+    await session.commit()
+
+    return None

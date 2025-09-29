@@ -357,9 +357,15 @@ class ProductSelectionService:
                 product_name_ru = item.get('product_name_ru', '')
                 product_name_cn = item.get('product_name_cn', '')
 
-                # 使用商品ID和商品名称（中文或俄文）作为唯一标识
-                # 优先使用俄文名称，如果没有则使用中文名称
-                conditions = [ProductSelectionItem.product_id == product_id]
+                # 为item添加user_id
+                if 'user_id' not in item:
+                    item['user_id'] = user_id if 'user_id' in locals() else 1
+
+                # 使用用户ID+商品ID+商品名称作为唯一标识
+                conditions = [
+                    ProductSelectionItem.user_id == item['user_id'],
+                    ProductSelectionItem.product_id == product_id
+                ]
 
                 if product_name_ru:
                     conditions.append(ProductSelectionItem.product_name_ru == product_name_ru)
@@ -405,6 +411,7 @@ class ProductSelectionService:
     async def search_products(
         self,
         db: AsyncSession,
+        user_id: int,
         filters: Dict[str, Any],
         sort_by: str = 'sales_desc',
         page: int = 1,
@@ -414,7 +421,7 @@ class ProductSelectionService:
         query = select(ProductSelectionItem)
 
         # 应用筛选条件
-        conditions = []
+        conditions = [ProductSelectionItem.user_id == user_id]
 
         if filters.get('product_name'):
             # 商品名称搜索 - 同时搜索中文和俄文名称
@@ -491,8 +498,7 @@ class ProductSelectionService:
 
         # 获取总数
         count_query = select(func.count()).select_from(ProductSelectionItem)
-        if conditions:
-            count_query = count_query.where(and_(*conditions))
+        count_query = count_query.where(and_(*conditions))
         total_result = await db.execute(count_query)
         total = total_result.scalar()
 
@@ -531,10 +537,13 @@ class ProductSelectionService:
             'total_pages': (total + page_size - 1) // page_size if total > 0 else 0
         }
 
-    async def get_brands(self, db: AsyncSession) -> List[str]:
-        """获取所有品牌列表"""
+    async def get_brands(self, db: AsyncSession, user_id: int) -> List[str]:
+        """获取指定用户的品牌列表"""
         query = select(ProductSelectionItem.brand).distinct().where(
-            ProductSelectionItem.brand.isnot(None)
+            and_(
+                ProductSelectionItem.user_id == user_id,
+                ProductSelectionItem.brand.isnot(None)
+            )
         ).order_by(ProductSelectionItem.brand)
 
         result = await db.execute(query)
@@ -545,14 +554,19 @@ class ProductSelectionService:
     async def get_import_history(
         self,
         db: AsyncSession,
+        user_id: int,
         page: int = 1,
         page_size: int = 10
     ) -> Dict[str, Any]:
-        """获取导入历史"""
-        query = select(ImportHistory).order_by(ImportHistory.import_time.desc())
+        """获取指定用户的导入历史"""
+        query = select(ImportHistory).where(
+            ImportHistory.imported_by == user_id
+        ).order_by(ImportHistory.import_time.desc())
 
         # 获取总数
-        count_query = select(func.count()).select_from(ImportHistory)
+        count_query = select(func.count()).select_from(ImportHistory).where(
+            ImportHistory.imported_by == user_id
+        )
         total_result = await db.execute(count_query)
         total = total_result.scalar()
 
@@ -569,3 +583,54 @@ class ProductSelectionService:
             'page': page,
             'page_size': page_size
         }
+
+    async def clear_user_data(self, db: AsyncSession, user_id: int) -> Dict[str, Any]:
+        """清空指定用户的所有选品数据"""
+        try:
+            # 统计要删除的数据
+            count_result = await db.execute(
+                select(func.count()).select_from(ProductSelectionItem).where(
+                    ProductSelectionItem.user_id == user_id
+                )
+            )
+            product_count = count_result.scalar()
+
+            history_count_result = await db.execute(
+                select(func.count()).select_from(ImportHistory).where(
+                    ImportHistory.imported_by == user_id
+                )
+            )
+            history_count = history_count_result.scalar()
+
+            # 删除用户的选品数据
+            await db.execute(
+                ProductSelectionItem.__table__.delete().where(
+                    ProductSelectionItem.user_id == user_id
+                )
+            )
+
+            # 删除用户的导入历史
+            await db.execute(
+                ImportHistory.__table__.delete().where(
+                    ImportHistory.imported_by == user_id
+                )
+            )
+
+            await db.commit()
+
+            logger.info(f"成功清空用户 {user_id} 的数据：{product_count} 个商品，{history_count} 条导入历史")
+
+            return {
+                'success': True,
+                'deleted_products': product_count,
+                'deleted_history': history_count,
+                'message': f'成功清空 {product_count} 个商品和 {history_count} 条导入历史'
+            }
+
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"清空用户 {user_id} 数据失败: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
