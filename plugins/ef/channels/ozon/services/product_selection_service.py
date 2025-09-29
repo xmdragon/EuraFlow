@@ -140,15 +140,26 @@ class ProductSelectionService:
     @staticmethod
     def parse_date(value: Any) -> Optional[datetime]:
         """解析日期"""
-        if pd.isna(value) or value == '':
+        if pd.isna(value) or value == '' or value == '-':
+            return None
+
+        value_str = str(value).strip()
+
+        # 处理特殊值
+        if value_str in ['-', 'nan', 'NaN', 'null', 'NULL', 'NaT']:
             return None
 
         try:
             if isinstance(value, datetime):
                 return value
             # 尝试解析日期字符串
-            return pd.to_datetime(value, errors='coerce').to_pydatetime()
+            parsed = pd.to_datetime(value, errors='coerce')
+            # 检查是否为NaT（Not a Time）
+            if pd.isna(parsed):
+                return None
+            return parsed.to_pydatetime()
         except:
+            logger.warning(f"无法转换日期值: {value}")
             return None
 
     async def import_file(
