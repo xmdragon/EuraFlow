@@ -302,8 +302,8 @@ setup_frontend() {
 
     cd $INSTALL_DIR/web
 
-    # 安装依赖
-    sudo -u $USER npm install
+    # 跳过prepare脚本安装依赖（生产环境不需要husky）
+    sudo -u $USER npm install --ignore-scripts
 
     # 构建前端
     sudo -u $USER npm run build
