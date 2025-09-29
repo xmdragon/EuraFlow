@@ -395,12 +395,18 @@ async def list_users(
     """
     获取用户列表
 
-    - 管理员可以看到所有子账号
+    - 管理员可以看到自己和所有子账号
     - 普通用户只能看到自己的信息
     """
     if current_user.role == "admin":
-        # 管理员查看所有子账号
-        stmt = select(User).where(User.parent_user_id == current_user.id).order_by(User.created_at)
+        # 管理员查看自己和所有子账号
+        from sqlalchemy import or_
+        stmt = select(User).where(
+            or_(
+                User.id == current_user.id,  # 包含管理员自己
+                User.parent_user_id == current_user.id  # 包含所有子账号
+            )
+        ).order_by(User.role.desc(), User.created_at)  # 按角色排序，admin在前
     else:
         # 普通用户只能看到自己
         stmt = select(User).where(User.id == current_user.id)

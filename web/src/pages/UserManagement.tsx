@@ -202,38 +202,47 @@ const UserManagement: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: User) => (
-        <Space size="middle">
-          <Tooltip title="编辑">
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title={record.is_active ? '禁用' : '启用'}>
-            <Switch
-              checked={record.is_active}
-              onChange={() => handleToggleStatus(record)}
-              size="small"
-            />
-          </Tooltip>
-          <Popconfirm
-            title="确定要禁用此用户吗？"
-            onConfirm={() => handleDelete(record.id)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Tooltip title="禁用">
+      render: (_: any, record: User) => {
+        // 管理员自己不能编辑或删除
+        const isCurrentAdmin = record.id === currentUser?.id;
+
+        if (isCurrentAdmin) {
+          return <Typography.Text type="secondary">-</Typography.Text>;
+        }
+
+        return (
+          <Space size="middle">
+            <Tooltip title="编辑">
               <Button
                 type="link"
-                danger
-                icon={<DeleteOutlined />}
+                icon={<EditOutlined />}
+                onClick={() => handleEdit(record)}
               />
             </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
+            <Tooltip title={record.is_active ? '禁用' : '启用'}>
+              <Switch
+                checked={record.is_active}
+                onChange={() => handleToggleStatus(record)}
+                size="small"
+              />
+            </Tooltip>
+            <Popconfirm
+              title="确定要禁用此用户吗？"
+              onConfirm={() => handleDelete(record.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Tooltip title="禁用">
+                <Button
+                  type="link"
+                  danger
+                  icon={<DeleteOutlined />}
+                />
+              </Tooltip>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
