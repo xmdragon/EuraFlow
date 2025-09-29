@@ -723,88 +723,23 @@ EOF
     log_success "SSL证书配置完成"
 }
 
-# 配置Supervisor服务
+# 配置项目级启动脚本
 setup_supervisor() {
-    log_info "配置Supervisor服务..."
+    log_info "配置项目级管理脚本..."
 
-    # 创建日志目录
-    mkdir -p /var/log/euraflow
-    chown -R $USER:$GROUP /var/log/euraflow
+    # 确保脚本有执行权限
+    chmod +x ${INSTALL_DIR}/start.sh
+    chmod +x ${INSTALL_DIR}/stop.sh
+    chmod +x ${INSTALL_DIR}/restart.sh
+    chmod +x ${INSTALL_DIR}/status.sh
 
-    # 创建Supervisor配置文件
-    cat > /etc/supervisor/conf.d/euraflow.conf << EOF
-[group:euraflow]
-programs=backend,worker,competitor
-priority=999
+    # 设置脚本所有者
+    chown $USER:$GROUP ${INSTALL_DIR}/start.sh
+    chown $USER:$GROUP ${INSTALL_DIR}/stop.sh
+    chown $USER:$GROUP ${INSTALL_DIR}/restart.sh
+    chown $USER:$GROUP ${INSTALL_DIR}/status.sh
 
-[program:backend]
-command=${INSTALL_DIR}/venv/bin/uvicorn ef_core.app:app --host 0.0.0.0 --port 8000 --log-level info --access-log
-directory=${INSTALL_DIR}
-user=${USER}
-autostart=true
-autorestart=true
-startsecs=10
-stopwaitsecs=60
-stdout_logfile=/var/log/euraflow/backend.log
-stdout_logfile_maxbytes=10MB
-stdout_logfile_backups=5
-stderr_logfile=/var/log/euraflow/backend-error.log
-stderr_logfile_maxbytes=10MB
-stderr_logfile_backups=5
-environment=PATH="${INSTALL_DIR}/venv/bin:/usr/bin:/bin"
-priority=100
-
-[program:worker]
-command=${INSTALL_DIR}/venv/bin/python -m plugins.ef.channels.ozon.services.watermark_task_runner
-directory=${INSTALL_DIR}
-user=${USER}
-autostart=true
-autorestart=true
-startsecs=10
-stopwaitsecs=60
-stdout_logfile=/var/log/euraflow/worker.log
-stdout_logfile_maxbytes=10MB
-stdout_logfile_backups=5
-stderr_logfile=/var/log/euraflow/worker-error.log
-stderr_logfile_maxbytes=10MB
-stderr_logfile_backups=5
-environment=PATH="${INSTALL_DIR}/venv/bin:/usr/bin:/bin"
-priority=200
-
-[program:competitor]
-command=${INSTALL_DIR}/venv/bin/python -m plugins.ef.channels.ozon.services.competitor_task_runner
-directory=${INSTALL_DIR}
-user=${USER}
-autostart=true
-autorestart=true
-startsecs=10
-stopwaitsecs=60
-stdout_logfile=/var/log/euraflow/competitor.log
-stdout_logfile_maxbytes=10MB
-stdout_logfile_backups=5
-stderr_logfile=/var/log/euraflow/competitor-error.log
-stderr_logfile_maxbytes=10MB
-stderr_logfile_backups=5
-environment=PATH="${INSTALL_DIR}/venv/bin:/usr/bin:/bin"
-priority=300
-
-# 可选：启用Web管理界面
-[inet_http_server]
-port=127.0.0.1:9001
-username=admin
-password=${DB_PASSWORD}
-
-[supervisorctl]
-serverurl=http://127.0.0.1:9001
-username=admin
-password=${DB_PASSWORD}
-EOF
-
-    # 重新加载Supervisor配置
-    supervisorctl reread
-    supervisorctl update
-
-    log_success "Supervisor服务配置完成"
+    log_success "项目管理脚本配置完成"
 }
 
 # 配置防火墙
@@ -836,23 +771,17 @@ start_services() {
     systemctl start nginx
     systemctl enable nginx
 
-    # 启动Supervisor
-    systemctl start supervisor
-    systemctl enable supervisor
-
-    # 等待Supervisor启动
-    sleep 3
-
-    # 启动EuraFlow服务组
-    log_info "启动EuraFlow服务组..."
-    supervisorctl start euraflow:*
+    # 使用项目级启动脚本启动EuraFlow服务
+    log_info "启动EuraFlow服务（使用项目级supervisor）..."
+    cd ${INSTALL_DIR}
+    sudo -u $USER bash -c "cd ${INSTALL_DIR} && ./start.sh"
 
     # 等待服务启动
     sleep 5
 
     # 检查服务状态
     log_info "检查服务状态..."
-    supervisorctl status
+    sudo -u $USER bash -c "cd ${INSTALL_DIR} && ./status.sh"
 
     log_success "所有服务已启动"
 }
