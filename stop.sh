@@ -49,10 +49,24 @@ fi
 
 # 停止所有服务
 echo -e "\n${YELLOW}Stopping all services...${NC}"
-supervisorctl -c supervisord.conf stop euraflow:*
+supervisorctl -c supervisord.conf stop all
 
 # 等待服务停止
 sleep 2
+
+# 强制清理可能残留的uvicorn进程
+echo -e "\n${YELLOW}Cleaning up any remaining processes...${NC}"
+pkill -f "uvicorn ef_core.app:app" 2>/dev/null || true
+pkill -f "watermark_task_runner" 2>/dev/null || true
+pkill -f "competitor_task_runner" 2>/dev/null || true
+
+# 再次清理8000端口
+PORT_PID=$(lsof -t -i:8000 2>/dev/null)
+if [ ! -z "$PORT_PID" ]; then
+    echo -e "${YELLOW}!${NC} Found process using port 8000 (PID: $PORT_PID)"
+    kill -9 $PORT_PID 2>/dev/null || sudo kill -9 $PORT_PID 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Port 8000 cleared"
+fi
 
 # 显示状态
 echo -e "\n${YELLOW}Current service status:${NC}"
