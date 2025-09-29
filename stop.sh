@@ -90,7 +90,7 @@ fi
 
 # 显示状态
 echo -e "\n${YELLOW}Current service status:${NC}"
-supervisorctl -c supervisord.conf status
+supervisorctl -c supervisord.conf status euraflow:*
 
 # 询问是否停止 supervisord
 echo ""

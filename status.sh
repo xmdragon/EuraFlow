@@ -34,8 +34,31 @@ else
 fi
 
 # 显示服务状态
-echo -e "\n${YELLOW}Service Status:${NC}"
-supervisorctl -c supervisord.conf status
+echo -e "\n${YELLOW}Backend Services Status:${NC}"
+supervisorctl -c supervisord.conf status euraflow:*
+
+# 显示前端状态
+echo -e "\n${YELLOW}Frontend Status:${NC}"
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Frontend served by Nginx (Production Mode)"
+    # 检查静态文件目录
+    if [ -d "web/dist" ] && [ -f "web/dist/index.html" ]; then
+        echo -e "${GREEN}✓${NC} Static files present in web/dist"
+    else
+        echo -e "${YELLOW}!${NC} Static files missing in web/dist"
+        echo "  Run 'cd web && npm run build' to build frontend"
+    fi
+else
+    echo -e "${YELLOW}!${NC} Nginx not detected (Development Mode)"
+    # 检查是否有开发服务器在运行
+    FRONTEND_STATUS=$(supervisorctl -c supervisord.conf status frontend 2>/dev/null | awk '{print $2}')
+    if [ "$FRONTEND_STATUS" = "RUNNING" ]; then
+        echo -e "${GREEN}✓${NC} Frontend dev server running (npm run dev)"
+    else
+        echo "  Frontend dev server not running"
+        echo "  To start: supervisorctl -c supervisord.conf start frontend"
+    fi
+fi
 
 # 检查端口占用
 echo -e "\n${YELLOW}Port Usage:${NC}"

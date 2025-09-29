@@ -73,7 +73,16 @@ sleep 3
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}         Service Status                 ${NC}"
 echo -e "${GREEN}========================================${NC}"
-supervisorctl -c supervisord.conf status
+# 只显示euraflow组的服务，不显示frontend
+supervisorctl -c supervisord.conf status euraflow:*
+
+# 检查Nginx状态
+echo -e "\n${YELLOW}Frontend Status:${NC}"
+if systemctl is-active --quiet nginx; then
+    echo -e "${GREEN}✓${NC} Frontend served by Nginx (Production Mode)"
+else
+    echo -e "${RED}✗${NC} Nginx is not running"
+fi
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}✓ EuraFlow services started successfully!${NC}"

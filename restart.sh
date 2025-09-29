@@ -44,7 +44,15 @@ sleep 3
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}         Service Status                 ${NC}"
 echo -e "${GREEN}========================================${NC}"
-supervisorctl -c supervisord.conf status
+supervisorctl -c supervisord.conf status euraflow:*
+
+# 显示前端状态
+echo -e "\n${YELLOW}Frontend:${NC}"
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Served by Nginx (Production)"
+else
+    echo "  Development mode"
+fi
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}✓ Services restarted successfully!      ${NC}"
