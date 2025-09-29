@@ -124,14 +124,6 @@ collect_config() {
         log_warn "未设置密码，自动生成: $DB_PASSWORD"
     fi
 
-    # OZON配置（可选）
-    read -p "是否配置OZON API? (y/n): " CONFIGURE_OZON
-    if [[ "$CONFIGURE_OZON" == "y" ]]; then
-        read -p "请输入OZON Client ID: " OZON_CLIENT_ID
-        read -sp "请输入OZON API Key: " OZON_API_KEY
-        echo
-    fi
-
     # Git仓库配置
     read -p "请输入Git仓库地址 (默认: $GITHUB_REPO): " CUSTOM_REPO
     if [[ ! -z "$CUSTOM_REPO" ]]; then
@@ -182,6 +174,7 @@ install_python() {
             python3.12 \
             python3.12-venv \
             python3.12-dev \
+            python3.12-distutils \
             python3-pip
     fi
 
@@ -288,12 +281,16 @@ setup_python_env() {
 
     cd $INSTALL_DIR
 
+    # 确保venv包已安装
+    apt-get install -y python3.12-venv python3.12-distutils
+
     # 创建虚拟环境
-    sudo -u $USER python3.12 -m venv venv
+    python3.12 -m venv venv
+    chown -R $USER:$GROUP venv
 
     # 激活虚拟环境并安装依赖
-    sudo -u $USER bash -c "source venv/bin/activate && pip install --upgrade pip"
-    sudo -u $USER bash -c "source venv/bin/activate && pip install -r requirements.txt"
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && python -m pip install --upgrade pip"
+    sudo -u $USER bash -c "cd $INSTALL_DIR && source venv/bin/activate && pip install -r requirements.txt"
 
     log_success "Python环境设置完成"
 }
@@ -350,17 +347,6 @@ EF__CORS__CREDENTIALS=true
 EF__SESSION__SECRET=$(openssl rand -hex 32)
 EF__SESSION__EXPIRE=86400
 EOF
-
-    # 添加OZON配置（如果需要）
-    if [[ "$CONFIGURE_OZON" == "y" ]]; then
-        cat >> $INSTALL_DIR/.env << EOF
-
-# OZON配置
-EF__OZON__CLIENT_ID=${OZON_CLIENT_ID}
-EF__OZON__API_KEY=${OZON_API_KEY}
-EF__OZON__SANDBOX=false
-EOF
-    fi
 
     chown $USER:$GROUP $INSTALL_DIR/.env
     chmod 600 $INSTALL_DIR/.env
