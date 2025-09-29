@@ -725,19 +725,43 @@ EOF
 
 # 配置Supervisor服务
 setup_supervisor() {
-    log_info "安装Supervisor..."
+    log_info "配置Supervisor..."
+
+    # 如果系统supervisor服务正在运行，先停止并禁用它
+    if systemctl is-active --quiet supervisor; then
+        log_warn "检测到系统supervisor服务正在运行，正在停止..."
+
+        # 停止所有supervisor管理的进程
+        supervisorctl stop all 2>/dev/null || true
+        supervisorctl shutdown 2>/dev/null || true
+
+        # 停止并禁用系统服务
+        systemctl stop supervisor
+        systemctl disable supervisor
+
+        # 清理系统配置（如果存在我们的旧配置）
+        if [ -L "/etc/supervisor/conf.d/euraflow.conf" ]; then
+            log_info "清理旧的系统配置链接..."
+            rm -f /etc/supervisor/conf.d/euraflow.conf
+        fi
+
+        log_info "系统supervisor服务已停止并禁用"
+    fi
 
     # 安装Supervisor（如果还没有安装）
     if ! command -v supervisord &> /dev/null; then
-        log_info "安装系统Supervisor..."
+        log_info "安装Supervisor命令行工具..."
         apt-get update
         apt-get install -y supervisor
     fi
 
-    # 停止系统supervisor服务（如果在运行）
-    log_info "停止系统supervisor服务（项目将使用自己的supervisor进程）..."
+    # 确保系统服务不会自动启动
+    log_info "确保系统supervisor服务已禁用..."
     systemctl stop supervisor 2>/dev/null || true
     systemctl disable supervisor 2>/dev/null || true
+
+    # 屏蔽系统服务，防止被其他进程启动
+    systemctl mask supervisor 2>/dev/null || true
 
     # 确保项目管理脚本有执行权限
     chmod +x ${INSTALL_DIR}/start.sh
@@ -745,7 +769,7 @@ setup_supervisor() {
     chmod +x ${INSTALL_DIR}/restart.sh
     chmod +x ${INSTALL_DIR}/status.sh
 
-    log_success "Supervisor安装完成，项目将使用自己的配置文件"
+    log_success "Supervisor配置完成，项目将使用独立的supervisor进程"
 }
 
 # 配置防火墙
