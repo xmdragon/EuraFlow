@@ -174,7 +174,6 @@ install_python() {
             python3.12 \
             python3.12-venv \
             python3.12-dev \
-            python3.12-distutils \
             python3-pip
     fi
 
@@ -282,7 +281,7 @@ setup_python_env() {
     cd $INSTALL_DIR
 
     # 确保venv包已安装
-    apt-get install -y python3.12-venv python3.12-distutils
+    apt-get install -y python3.12-venv
 
     # 创建虚拟环境
     python3.12 -m venv venv
