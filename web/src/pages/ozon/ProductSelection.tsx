@@ -493,9 +493,9 @@ const ProductSelection: React.FC = () => {
               onFinish={handleSearch}
               initialValues={{ sort_by: 'created_desc' }}
             >
-              <Row gutter={[12, 12]}>
-                {/* 第一行：商品名称和品牌 */}
-                <Col xs={24} sm={12} md={10} lg={10}>
+              <Row gutter={[16, 16]}>
+                {/* 第一行：商品名称、品牌、排序 */}
+                <Col xs={24} sm={24} md={8} lg={6} xl={6}>
                   <Form.Item label="商品名称" name="product_name">
                     <Input
                       placeholder="输入商品名称搜索"
@@ -505,7 +505,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6}>
+                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
                   <Form.Item label="品牌" name="brand">
                     <Select
                       placeholder="选择品牌"
@@ -524,9 +524,9 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={6} lg={4}>
+                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
                   <Form.Item label="排序" name="sort_by">
-                    <Select>
+                    <Select placeholder="最新导入">
                       <Option value="created_desc">最新导入</Option>
                       <Option value="created_asc">最早导入</Option>
                       <Option value="sales_desc">销量↓</Option>
@@ -538,8 +538,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                {/* 第二行：佣金率 */}
-                <Col xs={12} sm={8} md={4} lg={3}>
+                <Col xs={24} sm={12} md={24} lg={6} xl={4}>
                   <Form.Item label="rFBS≤1500" name="rfbs_low_max">
                     <InputNumber
                       min={0}
@@ -552,7 +551,8 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={12} sm={8} md={4} lg={3}>
+                {/* 第二行：佣金率字段 */}
+                <Col xs={24} sm={12} md={6} lg={6} xl={3}>
                   <Form.Item label="rFBS 1501-5000" name="rfbs_mid_max">
                     <InputNumber
                       min={0}
@@ -565,7 +565,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={12} sm={8} md={4} lg={3}>
+                <Col xs={24} sm={12} md={6} lg={6} xl={3}>
                   <Form.Item label="FBP≤1500" name="fbp_low_max">
                     <InputNumber
                       min={0}
@@ -578,7 +578,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={12} sm={8} md={4} lg={3}>
+                <Col xs={24} sm={12} md={6} lg={6} xl={3}>
                   <Form.Item label="FBP 1501-5000" name="fbp_mid_max">
                     <InputNumber
                       min={0}
@@ -591,8 +591,8 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                {/* 第三行：销量、重量、跟卖者 */}
-                <Col xs={24} sm={12} md={8} lg={6}>
+                {/* 第三行：月销量、重量 */}
+                <Col xs={24} sm={12} md={12} lg={8} xl={6}>
                   <Form.Item label="月销量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="monthly_sales_min" noStyle>
@@ -613,7 +613,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={12} sm={8} md={4} lg={4}>
+                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
                   <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
@@ -625,7 +625,7 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 {/* 第四行：跟卖者相关 */}
-                <Col xs={24} sm={12} md={8} lg={6}>
+                <Col xs={24} sm={12} md={12} lg={8} xl={6}>
                   <Form.Item label="跟卖者数量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_count_min" noStyle>
@@ -646,7 +646,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6}>
+                <Col xs={24} sm={12} md={12} lg={8} xl={6}>
                   <Form.Item label="最低跟卖价">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_min_price_min" noStyle>
