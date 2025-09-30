@@ -91,7 +91,10 @@ const OrderReport: React.FC = () => {
 
       return response.json();
     },
-    enabled: !!selectedMonth,
+    enabled: !!selectedMonth && selectedShops.length > 0,
+    retry: 1, // 减少重试次数
+    retryDelay: 1000, // 设置重试延迟
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
   });
 
   // 使用统一的货币格式化函数
@@ -302,6 +305,13 @@ const OrderReport: React.FC = () => {
             </Space>
           </Col>
         </Row>
+
+        {/* 提示信息 */}
+        {selectedShops.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+            请选择店铺后查看报表数据
+          </div>
+        )}
 
         {/* 统计汇总卡片 */}
         {summary && (

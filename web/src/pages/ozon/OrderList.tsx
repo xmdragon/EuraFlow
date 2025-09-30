@@ -248,6 +248,9 @@ const OrderList: React.FC = () => {
     },
     enabled: !!selectedShop, // 只在选择店铺后查询
     refetchInterval: 60000, // 1分钟自动刷新
+    retry: 1, // 减少重试次数
+    retryDelay: 1000, // 重试延迟1秒
+    staleTime: 10000, // 数据10秒内不会被认为是过期的
   });
 
   // 使用统一的货币格式化函数

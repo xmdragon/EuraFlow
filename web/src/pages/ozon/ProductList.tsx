@@ -113,9 +113,11 @@ const ProductList: React.FC = () => {
     queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues],
     queryFn: () => ozonApi.getProducts(currentPage, pageSize, { ...filterValues, shop_id: selectedShop }),
     refetchInterval: 30000, // 30秒自动刷新
-    // 避免在selectedShop为undefined时发送请求
-    enabled: selectedShop !== undefined,
+    // 只有选中店铺后才发送请求
+    enabled: selectedShop !== null && selectedShop !== undefined,
     staleTime: 5000, // 数据5秒内不会被认为是过期的
+    retry: 1, // 减少重试次数
+    retryDelay: 1000, // 重试延迟1秒
   });
 
   // 查询全局统计数据（不受筛选影响）
@@ -123,9 +125,11 @@ const ProductList: React.FC = () => {
     queryKey: ['ozonStatistics', selectedShop],
     queryFn: () => ozonApi.getStatistics(selectedShop),
     refetchInterval: 30000, // 30秒自动刷新
-    // 避免在selectedShop为undefined时发送请求
-    enabled: selectedShop !== undefined,
+    // 只有选中店铺后才发送请求
+    enabled: selectedShop !== null && selectedShop !== undefined,
     staleTime: 5000, // 数据5秒内不会被认为是过期的
+    retry: 1, // 减少重试次数
+    retryDelay: 1000, // 重试延迟1秒
   });
 
   // 同步商品
