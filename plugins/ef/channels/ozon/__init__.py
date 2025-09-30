@@ -19,10 +19,14 @@ def get_router() -> Optional[APIRouter]:
     """
     try:
         from .api.routes import router
-        print(f"Ozon router loaded with {len(router.routes)} routes")
         return router
     except ImportError as e:
-        print(f"ImportError loading Ozon routes: {e}")
+        # 如果是部分导入错误但router已加载，继续使用
+        import sys
+        if 'plugins.ef.channels.ozon.api.routes' in sys.modules:
+            from .api.routes import router
+            return router
+        print(f"Error loading Ozon routes: {e}")
         return None
     except Exception as e:
         print(f"Error loading Ozon routes: {e}")
