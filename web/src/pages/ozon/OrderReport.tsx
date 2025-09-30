@@ -27,7 +27,7 @@ import {
   RiseOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
@@ -69,7 +69,7 @@ interface ReportResponse {
 }
 
 const OrderReport: React.FC = () => {
-  const [selectedMonth, setSelectedMonth] = useState(moment().format('YYYY-MM'));
+  const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
   const [selectedShops, setSelectedShops] = useState<number[]>([]);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -238,10 +238,10 @@ const OrderReport: React.FC = () => {
   // 生成月份选项（最近12个月）
   const generateMonthOptions = () => {
     const options = [];
-    const now = moment();
+    const now = dayjs();
 
     for (let i = 0; i < 12; i++) {
-      const month = now.clone().subtract(i, 'months');
+      const month = now.subtract(i, 'month');
       options.push({
         label: month.format('YYYY年MM月'),
         value: month.format('YYYY-MM'),

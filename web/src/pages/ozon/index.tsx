@@ -11,17 +11,25 @@ import {
   PictureOutlined,
   FilterOutlined,
 } from '@ant-design/icons';
-import { Layout, Menu } from 'antd';
-import React from 'react';
+import { Layout, Menu, Spin } from 'antd';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 
-import Dashboard from './Dashboard';
-import OrderList from './OrderList';
-import OrderReport from './OrderReport';
-import ProductList from './ProductList';
-import ShopSettings from './ShopSettings';
-import WatermarkManagement from './WatermarkManagement';
-import ProductSelection from './ProductSelection';
+// 路由懒加载
+const Dashboard = lazy(() => import('./Dashboard'));
+const OrderList = lazy(() => import('./OrderList'));
+const OrderReport = lazy(() => import('./OrderReport'));
+const ProductList = lazy(() => import('./ProductList'));
+const ShopSettings = lazy(() => import('./ShopSettings'));
+const WatermarkManagement = lazy(() => import('./WatermarkManagement'));
+const ProductSelection = lazy(() => import('./ProductSelection'));
+
+// 加载中组件
+const PageLoading = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+    <Spin size="large" />
+  </div>
+);
 
 const { Sider, Content } = Layout;
 
@@ -101,15 +109,17 @@ const OzonManagement: React.FC = () => {
         />
       </Sider>
       <Content style={{ background: '#f0f2f5', overflow: 'auto' }}>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="selection" element={<ProductSelection />} />
-          <Route path="products" element={<ProductList />} />
-          <Route path="orders" element={<OrderList />} />
-          <Route path="reports" element={<OrderReport />} />
-          <Route path="watermark" element={<WatermarkManagement />} />
-          <Route path="settings" element={<ShopSettings />} />
-        </Routes>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="selection" element={<ProductSelection />} />
+            <Route path="products" element={<ProductList />} />
+            <Route path="orders" element={<OrderList />} />
+            <Route path="reports" element={<OrderReport />} />
+            <Route path="watermark" element={<WatermarkManagement />} />
+            <Route path="settings" element={<ShopSettings />} />
+          </Routes>
+        </Suspense>
       </Content>
     </Layout>
   );

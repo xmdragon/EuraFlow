@@ -6,17 +6,25 @@ import {
   ShopOutlined,
   CalculatorOutlined,
 } from '@ant-design/icons';
-import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space } from 'antd';
-import React from 'react';
+import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
-import FinanceCalculator from './finance';
-import OzonManagement from './ozon';
-import Profile from './Profile';
-import Settings from './Settings';
-import UserManagement from './UserManagement';
+// 路由懒加载
+const FinanceCalculator = lazy(() => import('./finance'));
+const OzonManagement = lazy(() => import('./ozon'));
+const Profile = lazy(() => import('./Profile'));
+const Settings = lazy(() => import('./Settings'));
+const UserManagement = lazy(() => import('./UserManagement'));
 
 import { useAuth } from '@/hooks/useAuth';
+
+// 加载中组件
+const PageLoading = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+    <Spin size="large" />
+  </div>
+);
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -145,23 +153,25 @@ const Dashboard: React.FC = () => {
         </Header>
 
         <Content style={{ margin: 24, padding: 24, background: '#f5f5f5' }}>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <DashboardHome
-                  user={
-                    user || { id: 0, username: 'Guest', email: '', role: 'guest', is_active: false }
-                  }
-                />
-              }
-            />
-            <Route path="/ozon/*" element={<OzonManagement />} />
-            <Route path="/finance" element={<FinanceCalculator />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/settings" element={<Settings />} />
-            {user?.role === 'admin' && <Route path="/users" element={<UserManagement />} />}
-          </Routes>
+          <Suspense fallback={<PageLoading />}>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <DashboardHome
+                    user={
+                      user || { id: 0, username: 'Guest', email: '', role: 'guest', is_active: false }
+                    }
+                  />
+                }
+              />
+              <Route path="/ozon/*" element={<OzonManagement />} />
+              <Route path="/finance" element={<FinanceCalculator />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/settings" element={<Settings />} />
+              {user?.role === 'admin' && <Route path="/users" element={<UserManagement />} />}
+            </Routes>
+          </Suspense>
         </Content>
       </Layout>
     </Layout>
