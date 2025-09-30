@@ -106,7 +106,13 @@ const ShopSettings: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch shops');
+        // 如果是404或者没有店铺，返回空数据而不是抛出错误
+        if (response.status === 404) {
+          return { data: [] };
+        }
+        // 其他错误仍然抛出
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to fetch shops');
       }
 
       const data = await response.json();
@@ -383,6 +389,20 @@ const ShopSettings: React.FC = () => {
             </Button>
           </div>
 
+          {shops.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <ShopOutlined style={{ fontSize: 48, color: '#ccc', marginBottom: 16 }} />
+              <Title level={5} type="secondary">
+                暂无店铺
+              </Title>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
+                您还没有添加任何Ozon店铺，点击上方"添加店铺"按钮开始配置
+              </Text>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
+                立即添加店铺
+              </Button>
+            </div>
+          ) : (
           <Table
             dataSource={shops}
             rowKey="id"
@@ -479,6 +499,7 @@ const ShopSettings: React.FC = () => {
               },
             ]}
           />
+          )}
         </Card>
 
         {selectedShop && (
