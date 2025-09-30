@@ -25,36 +25,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // 手动分割代码块
+        // 简化代码分割策略，避免React导入问题
         manualChunks(id) {
-          // node_modules 中的包
+          // 将所有node_modules的内容放在一个大的vendor chunk中
           if (id.includes('node_modules')) {
-            // React 核心库 - 合并到一个chunk中避免导入问题
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor';
-            }
-            // Ant Design
-            if (id.includes('@ant-design/icons')) {
-              return 'antd-icons';
-            }
-            if (id.includes('antd')) {
-              return 'antd';
-            }
-            // 路由
-            if (id.includes('react-router')) {
-              return 'react-router';
-            }
-            // 工具库
-            if (id.includes('axios')) {
-              return 'axios';
-            }
-            if (id.includes('@tanstack/react-query')) {
-              return 'react-query';
-            }
-            if (id.includes('dayjs')) {
-              return 'dayjs';
-            }
-            // 其他第三方库
             return 'vendor';
           }
         },
