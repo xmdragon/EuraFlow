@@ -104,11 +104,13 @@ export interface ImportHistory {
 // 导入商品数据文件
 export const importProducts = async (
   file: File,
-  strategy: 'skip' | 'update' | 'append' = 'update'
+  strategy: 'skip' | 'update' | 'append' = 'update',
+  shopId: number = 1  // 默认使用店铺ID 1
 ): Promise<ImportResponse> => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('strategy', strategy);
+  formData.append('shop_id', shopId.toString());
 
   const response = await axios.post<ImportResponse>(
     '/api/ef/v1/ozon/product-selection/import',
