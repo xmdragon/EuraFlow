@@ -296,6 +296,24 @@ const ProductSelection: React.FC = () => {
     return (priceInKopecks / 100).toFixed(2);
   };
 
+  // 格式化百分比显示
+  const formatPercentage = (value: number | null | undefined): string => {
+    if (value === null || value === undefined || value === 0) return '-';
+    return `${value}%`;
+  };
+
+  // 格式化数量显示
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return '-';
+    return value.toString();
+  };
+
+  // 格式化重量显示
+  const formatWeight = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return '-';
+    return `${value}g`;
+  };
+
   // 渲染商品卡片
   const renderProductCard = (product: api.ProductSelectionItem) => {
     const discount = product.original_price
@@ -392,21 +410,21 @@ const ProductSelection: React.FC = () => {
             <Row gutter={4} style={{ marginBottom: '2px' }}>
               <Col span={12}>
                 <Text style={{ fontSize: '10px', color: '#666' }}>rFBS≤1500:</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.rfbs_commission_low}%</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.rfbs_commission_low)}</Text>
               </Col>
               <Col span={12}>
                 <Text style={{ fontSize: '10px', color: '#666' }}>FBP≤1500:</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.fbp_commission_low}%</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.fbp_commission_low)}</Text>
               </Col>
             </Row>
             <Row gutter={4}>
               <Col span={12}>
                 <Text style={{ fontSize: '10px', color: '#666' }}>rFBS(1.5-5k):</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.rfbs_commission_mid}%</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.rfbs_commission_mid)}</Text>
               </Col>
               <Col span={12}>
                 <Text style={{ fontSize: '10px', color: '#666' }}>FBP(1.5-5k):</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{product.fbp_commission_mid}%</Text>
+                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.fbp_commission_mid)}</Text>
               </Col>
             </Row>
           </div>
@@ -416,13 +434,13 @@ const ProductSelection: React.FC = () => {
             <Col span={12}>
               <div style={{ fontSize: '11px' }}>
                 <Text type="secondary">月销: </Text>
-                <Text strong>{product.monthly_sales_volume}</Text>
+                <Text strong>{formatNumber(product.monthly_sales_volume)}</Text>
               </div>
             </Col>
             <Col span={12}>
               <div style={{ fontSize: '11px' }}>
                 <Text type="secondary">重量: </Text>
-                <Text strong>{product.package_weight}g</Text>
+                <Text strong>{formatWeight(product.package_weight)}</Text>
               </div>
             </Col>
           </Row>
