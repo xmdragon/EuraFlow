@@ -17,18 +17,21 @@ from ..models import OzonShop, OzonProduct, OzonOrder
 from sqlalchemy import select, func
 # from .auth import get_current_user  # Временно отключено для разработки
 
-# 导入水印路由
-from .watermark_routes import router as watermark_router
-# 导入选品助手路由
-from .product_selection_routes import router as product_selection_router
-
 router = APIRouter(prefix="/ozon", tags=["Ozon"])
 logger = logging.getLogger(__name__)
 
-# 包含水印管理路由（移除 /api/ef/v1 前缀，因为它在 watermark_routes 中已定义）
-router.include_router(watermark_router)
-# 包含选品助手路由
-router.include_router(product_selection_router)
+# 延迟导入子路由以避免循环导入
+try:
+    from .watermark_routes import router as watermark_router
+    router.include_router(watermark_router)
+except ImportError as e:
+    logger.warning(f"Could not import watermark routes: {e}")
+
+try:
+    from .product_selection_routes import router as product_selection_router
+    router.include_router(product_selection_router)
+except ImportError as e:
+    logger.warning(f"Could not import product selection routes: {e}")
 
 
 # DTO 模型
@@ -323,22 +326,54 @@ async def get_task_status(task_id: str):
         "status": status
     }
 
+@router.get("/sync/status/debug")
+async def debug_sync_status():
+    """Debug endpoint to test sync status"""
+    from ..services import OzonSyncService
+    from ..services.ozon_sync import SYNC_TASKS
+    from datetime import datetime
+
+    # Add a test task
+    SYNC_TASKS['debug_task'] = {
+        'status': 'running',
+        'progress': 75,
+        'message': 'Debug task',
+        'started_at': datetime.utcnow().isoformat()
+    }
+
+    # Get all tasks
+    return {
+        "ok": True,
+        "tasks": SYNC_TASKS,
+        "debug_task_status": OzonSyncService.get_task_status('debug_task')
+    }
+
 @router.get("/sync/status/{task_id}")
 async def get_sync_status(
     task_id: str
 ):
     """获取同步任务状态"""
-    from ..services import OzonSyncService
-    
-    status = OzonSyncService.get_task_status(task_id)
-    
+    # Simplified version for debugging
+    from ..services.ozon_sync import SYNC_TASKS, OzonSyncService
+
+    # Get the task status directly
+    status = SYNC_TASKS.get(task_id)
+
     if not status:
-        raise HTTPException(
-            status_code=404,
-            detail="Task not found"
-        )
-    
-    return status
+        # Return a 404 response
+        return {
+            "ok": False,
+            "error": {
+                "status": 404,
+                "detail": f"Task {task_id} not found"
+            }
+        }
+
+    # Return the status
+    return {
+        "ok": True,
+        "data": status
+    }
 
 # 商品管理端点
 @router.get("/products")
