@@ -59,7 +59,7 @@ frontend.log
 # Test files
 test_*.py
 debug_*.py
-sync_*.py
+# sync_*.py  # 注释掉，sync_state_manager.py需要提交
 
 # Temporary files
 *.tmp
