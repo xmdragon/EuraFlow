@@ -29,12 +29,9 @@ export default defineConfig({
         manualChunks(id) {
           // node_modules 中的包
           if (id.includes('node_modules')) {
-            // React 核心库
-            if (id.includes('react-dom')) {
-              return 'react-dom';
-            }
-            if (id.includes('react') && !id.includes('react-dom')) {
-              return 'react';
+            // React 核心库 - 合并到一个chunk中避免导入问题
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
             }
             // Ant Design
             if (id.includes('@ant-design/icons')) {
