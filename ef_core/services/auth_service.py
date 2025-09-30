@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from uuid import uuid4
 
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -25,9 +25,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 logger = get_logger(__name__)
-
-# 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthService:
@@ -71,14 +68,25 @@ class AuthService:
         return self._fernet
     
     # ========== 密码处理 ==========
-    
+
     def hash_password(self, password: str) -> str:
         """哈希密码"""
-        return pwd_context.hash(password)
-    
+        # 确保密码不超过72字节（bcrypt限制）
+        password_bytes = password[:72].encode('utf-8')
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        return hashed.decode('utf-8')
+
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """验证密码"""
-        return pwd_context.verify(plain_password, hashed_password)
+        # 确保密码不超过72字节（bcrypt限制）
+        password_bytes = plain_password[:72].encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        try:
+            return bcrypt.checkpw(password_bytes, hashed_bytes)
+        except Exception as e:
+            logger.error(f"Password verification error: {e}")
+            return False
     
     # ========== JWT处理 ==========
     
