@@ -324,21 +324,19 @@ const OrderList: React.FC = () => {
 
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/ef/v1/ozon/sync/status/${syncTaskId}`);
-        if (response.ok) {
-          const status = await response.json();
-          setSyncStatus(status);
+        const result = await ozonApi.getSyncStatus(syncTaskId);
+        const status = result.data || result; // 兼容不同响应格式
+        setSyncStatus(status);
 
-          if (status.status === 'completed') {
-            message.success('同步完成！');
-            queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-            // 刷新页面数据
-            refetch();
-            setSyncTaskId(null);
-          } else if (status.status === 'failed') {
-            message.error(`同步失败: ${status.error || '未知错误'}`);
-            setSyncTaskId(null);
-          }
+        if (status.status === 'completed') {
+          message.success('同步完成！');
+          queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+          // 刷新页面数据
+          refetch();
+          setSyncTaskId(null);
+        } else if (status.status === 'failed') {
+          message.error(`同步失败: ${status.error || '未知错误'}`);
+          setSyncTaskId(null);
         }
       } catch (error) {
         console.error('Failed to fetch sync status:', error);
