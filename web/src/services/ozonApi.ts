@@ -4,7 +4,7 @@
  * 处理与后端 Ozon 接口的通信
  */
 import axios from 'axios';
-import authService from './auth';
+import authService from './authService';
 
 const API_BASE = '/api/ef/v1';
 
