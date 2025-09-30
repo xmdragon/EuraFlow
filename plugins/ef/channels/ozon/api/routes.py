@@ -1256,7 +1256,7 @@ async def import_products(
         # 解码base64文件内容
         try:
             decoded_content = base64.b64decode(file_content).decode('utf-8-sig')
-        except:
+        except Exception:
             return {
                 "success": False,
                 "message": "文件内容格式错误"
@@ -2252,7 +2252,7 @@ async def export_order_report(
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
-                    except:
+                    except Exception:
                         pass
                 adjusted_width = min(max_length + 2, 50)
                 worksheet.column_dimensions[column_letter].width = adjusted_width
