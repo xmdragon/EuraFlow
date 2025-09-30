@@ -207,6 +207,13 @@ class AuthService {
     }
   }
 
+  getAuthHeader(): { Authorization?: string } {
+    if (this._accessToken) {
+      return { Authorization: `Bearer ${this._accessToken}` };
+    }
+    return {};
+  }
+
   // Debug method to check auth status (console output disabled)
   debugAuthStatus(): void {
     // Uncomment below lines for debugging
