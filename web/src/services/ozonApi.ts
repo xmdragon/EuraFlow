@@ -4,6 +4,7 @@
  * 处理与后端 Ozon 接口的通信
  */
 import axios from 'axios';
+import authService from './auth';
 
 const API_BASE = '/api/ef/v1';
 
@@ -18,9 +19,10 @@ const apiClient = axios.create({
 // 请求拦截器：添加认证token
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // 使用新的认证服务获取token
+    const authHeaders = authService.getAuthHeader();
+    if (authHeaders.Authorization) {
+      config.headers.Authorization = authHeaders.Authorization;
     }
     return config;
   },
@@ -29,13 +31,26 @@ apiClient.interceptors.request.use(
   }
 );
 
-// 响应拦截器：处理错误
+// 响应拦截器：处理错误和token刷新
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // 未授权，跳转登录
-      window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      // 尝试刷新token
+      const refreshed = await authService.refreshToken();
+      if (refreshed) {
+        // 重新设置认证头并重试请求
+        const authHeaders = authService.getAuthHeader();
+        originalRequest.headers.Authorization = authHeaders.Authorization;
+        return apiClient(originalRequest);
+      } else {
+        // 刷新失败，跳转登录
+        authService.logout();
+      }
     }
     return Promise.reject(error);
   }
