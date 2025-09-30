@@ -44,6 +44,7 @@ import {
   Spin,
 } from 'antd';
 import React, { useState, useEffect } from 'react';
+import * as ozonApi from '@/services/ozonApi';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option: _Option } = Select;
@@ -98,26 +99,7 @@ const ShopSettings: React.FC = () => {
     error,
   } = useQuery({
     queryKey: ['ozon', 'shops'],
-    queryFn: async () => {
-      const response = await fetch('/api/ef/v1/ozon/shops', {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        // 如果是404或者没有店铺，返回空数据而不是抛出错误
-        if (response.status === 404) {
-          return { data: [] };
-        }
-        // 其他错误仍然抛出
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to fetch shops');
-      }
-
-      const data = await response.json();
-      return data;
-    },
+    queryFn: ozonApi.getShops,
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });
@@ -125,28 +107,15 @@ const ShopSettings: React.FC = () => {
   // 添加店铺
   const addShopMutation = useMutation({
     mutationFn: async (values: any) => {
-      const response = await fetch('/api/ef/v1/ozon/shops', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      return ozonApi.createShop({
+        shop_name: values.shop_name,
+        platform: 'ozon',
+        api_credentials: {
+          client_id: values.client_id,
+          api_key: values.api_key,
         },
-        body: JSON.stringify({
-          shop_name: values.shop_name,
-          platform: 'ozon',
-          api_credentials: {
-            client_id: values.client_id,
-            api_key: values.api_key,
-          },
-          config: {},
-        }),
+        config: {},
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || '添加店铺失败');
-      }
-
-      return response.json();
     },
     onSuccess: (data) => {
       message.success('店铺添加成功');
@@ -167,37 +136,25 @@ const ShopSettings: React.FC = () => {
         throw new Error('请先选择要编辑的店铺');
       }
 
-      const response = await fetch(`/api/ef/v1/ozon/shops/${selectedShop.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+      return ozonApi.updateShop(selectedShop.id, {
+        shop_name: values.shop_name,
+        status: 'active',
+        api_credentials: {
+          client_id: values.client_id,
+          api_key: values.api_key,
         },
-        body: JSON.stringify({
-          shop_name: values.shop_name,
-          status: 'active',
-          api_credentials: {
-            client_id: values.client_id,
-            api_key: values.api_key,
+        config: {
+          webhook_url: values.webhook_url || '',
+          webhook_secret: values.webhook_secret || '',
+          sync_interval_minutes: values.sync_interval_minutes || 30,
+          auto_sync_enabled: values.auto_sync_enabled || false,
+          rate_limits: {
+            products: values.rate_limit_products || 10,
+            orders: values.rate_limit_orders || 5,
+            postings: values.rate_limit_postings || 20,
           },
-          config: {
-            webhook_url: values.webhook_url || '',
-            webhook_secret: values.webhook_secret || '',
-            sync_interval_minutes: values.sync_interval_minutes || 30,
-            auto_sync_enabled: values.auto_sync_enabled || false,
-            rate_limits: {
-              products: values.rate_limit_products || 10,
-              orders: values.rate_limit_orders || 5,
-              postings: values.rate_limit_postings || 20,
-            },
-          },
-        }),
+        },
       });
-
-      if (!response.ok) {
-        throw new Error('保存失败');
-      }
-
-      return response.json();
     },
     onSuccess: (data) => {
       message.success('店铺配置已保存');
@@ -240,19 +197,7 @@ const ShopSettings: React.FC = () => {
   const testConnectionMutation = useMutation({
     mutationFn: async (shopId: number) => {
       setTestingConnection(true);
-
-      const response = await fetch(`/api/ef/v1/ozon/shops/${shopId}/test-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.detail || '连接测试失败');
-      }
+      const result = await ozonApi.testShopConnection(shopId);
 
       if (!result.success) {
         throw new Error(result.message || '连接失败');
@@ -324,17 +269,7 @@ const ShopSettings: React.FC = () => {
       okType: 'danger',
       onOk: async () => {
         try {
-          const response = await fetch(`/api/ef/v1/ozon/shops/${shop.id}`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || '删除失败');
-          }
+          await ozonApi.deleteShop(shop.id);
 
           message.success('店铺已删除');
           queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });

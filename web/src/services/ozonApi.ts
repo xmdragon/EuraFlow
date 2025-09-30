@@ -76,6 +76,18 @@ export const updateShop = async (shopId: number, data: Partial<ShopData>) => {
   return response.data;
 };
 
+// 删除店铺
+export const deleteShop = async (shopId: number) => {
+  const response = await apiClient.delete(`/ozon/shops/${shopId}`);
+  return response.data;
+};
+
+// 测试店铺连接
+export const testShopConnection = async (shopId: number) => {
+  const response = await apiClient.post(`/ozon/shops/${shopId}/test-connection`);
+  return response.data;
+};
+
 // 测试API连接
 export const testApiConnection = async (credentials: { client_id: string; api_key: string }) => {
   const response = await apiClient.post('/ozon/test-connection', credentials);
