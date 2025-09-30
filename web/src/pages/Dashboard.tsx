@@ -5,6 +5,11 @@ import {
   UserOutlined,
   ShopOutlined,
   CalculatorOutlined,
+  FilterOutlined,
+  ShoppingOutlined,
+  ShoppingCartOutlined,
+  FileTextOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy } from 'react';
@@ -71,7 +76,50 @@ const Dashboard: React.FC = () => {
       key: 'ozon',
       icon: <ShopOutlined />,
       label: 'Ozon管理',
-      onClick: () => navigate('/dashboard/ozon'),
+      children: [
+        {
+          key: 'ozon-dashboard',
+          icon: <DashboardOutlined />,
+          label: '概览',
+          onClick: () => navigate('/dashboard/ozon'),
+        },
+        {
+          key: 'ozon-selection',
+          icon: <FilterOutlined />,
+          label: '选品助手',
+          onClick: () => navigate('/dashboard/ozon/selection'),
+        },
+        {
+          key: 'ozon-products',
+          icon: <ShoppingOutlined />,
+          label: '商品管理',
+          onClick: () => navigate('/dashboard/ozon/products'),
+        },
+        {
+          key: 'ozon-orders',
+          icon: <ShoppingCartOutlined />,
+          label: '订单管理',
+          onClick: () => navigate('/dashboard/ozon/orders'),
+        },
+        {
+          key: 'ozon-reports',
+          icon: <FileTextOutlined />,
+          label: '订单报表',
+          onClick: () => navigate('/dashboard/ozon/reports'),
+        },
+        {
+          key: 'ozon-watermark',
+          icon: <PictureOutlined />,
+          label: '水印管理',
+          onClick: () => navigate('/dashboard/ozon/watermark'),
+        },
+        {
+          key: 'ozon-settings',
+          icon: <SettingOutlined />,
+          label: '店铺设置',
+          onClick: () => navigate('/dashboard/ozon/settings'),
+        },
+      ],
     },
     {
       key: 'finance',
@@ -90,12 +138,25 @@ const Dashboard: React.FC = () => {
   // 根据路径获取选中的菜单项
   const getSelectedKey = () => {
     const path = location.pathname;
-    if (path.includes('/ozon')) return 'ozon';
+    if (path.includes('/ozon/selection')) return 'ozon-selection';
+    if (path.includes('/ozon/products')) return 'ozon-products';
+    if (path.includes('/ozon/orders')) return 'ozon-orders';
+    if (path.includes('/ozon/reports')) return 'ozon-reports';
+    if (path.includes('/ozon/watermark')) return 'ozon-watermark';
+    if (path.includes('/ozon/settings')) return 'ozon-settings';
+    if (path.includes('/ozon')) return 'ozon-dashboard';
     if (path.includes('/finance')) return 'finance';
     if (path.includes('/users')) return 'users';
     if (path.includes('/profile')) return 'profile';
     if (path.includes('/settings')) return 'settings';
     return 'dashboard';
+  };
+
+  // 根据路径获取展开的子菜单
+  const getOpenKeys = () => {
+    const path = location.pathname;
+    if (path.includes('/ozon')) return ['ozon'];
+    return [];
   };
 
   return (
@@ -126,7 +187,13 @@ const Dashboard: React.FC = () => {
         >
           EuraFlow
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[getSelectedKey()]} items={menuItems} />
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[getSelectedKey()]}
+          defaultOpenKeys={getOpenKeys()}
+          items={menuItems}
+        />
       </Sider>
 
       <Layout style={{ marginLeft: 240 }}>

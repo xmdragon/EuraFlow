@@ -1,19 +1,9 @@
 /**
  * Ozon 管理主页面
  */
-import {
-  ShoppingOutlined,
-  ShoppingCartOutlined,
-  SettingOutlined,
-  DashboardOutlined,
-  ShopOutlined,
-  FileTextOutlined,
-  PictureOutlined,
-  FilterOutlined,
-} from '@ant-design/icons';
-import { Layout, Menu, Spin } from 'antd';
+import { Spin } from 'antd';
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 
 // 路由懒加载
 const Dashboard = lazy(() => import('./Dashboard'));
@@ -31,97 +21,19 @@ const PageLoading = () => (
   </div>
 );
 
-const { Sider, Content } = Layout;
-
 const OzonManagement: React.FC = () => {
-  const location = useLocation();
-
-  // 根据当前路径确定选中的菜单项
-  const getSelectedKey = () => {
-    const path = location.pathname;
-    if (path.includes('selection')) return 'selection';
-    if (path.includes('products')) return 'products';
-    if (path.includes('reports')) return 'reports';
-    if (path.includes('orders')) return 'orders';
-    if (path.includes('watermark')) return 'watermark';
-    if (path.includes('settings')) return 'settings';
-    return 'dashboard';
-  };
-
-  const menuItems = [
-    {
-      key: 'dashboard',
-      icon: <DashboardOutlined />,
-      label: <Link to="/dashboard/ozon">概览</Link>,
-    },
-    {
-      key: 'selection',
-      icon: <FilterOutlined />,
-      label: <Link to="/dashboard/ozon/selection">选品助手</Link>,
-    },
-    {
-      key: 'products',
-      icon: <ShoppingOutlined />,
-      label: <Link to="/dashboard/ozon/products">商品管理</Link>,
-    },
-    {
-      key: 'orders',
-      icon: <ShoppingCartOutlined />,
-      label: <Link to="/dashboard/ozon/orders">订单管理</Link>,
-    },
-    {
-      key: 'reports',
-      icon: <FileTextOutlined />,
-      label: <Link to="/dashboard/ozon/reports">订单报表</Link>,
-    },
-    {
-      key: 'watermark',
-      icon: <PictureOutlined />,
-      label: <Link to="/dashboard/ozon/watermark">水印管理</Link>,
-    },
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: <Link to="/dashboard/ozon/settings">店铺设置</Link>,
-    },
-  ];
-
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" width={200}>
-        <div
-          style={{
-            padding: '16px',
-            borderBottom: '1px solid #f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <ShopOutlined style={{ fontSize: 20, color: '#1890ff' }} />
-          <span style={{ fontSize: 16, fontWeight: 'bold' }}>Ozon管理</span>
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[getSelectedKey()]}
-          items={menuItems}
-          style={{ borderRight: 0 }}
-        />
-      </Sider>
-      <Content style={{ background: '#f0f2f5', overflow: 'auto' }}>
-        <Suspense fallback={<PageLoading />}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="selection" element={<ProductSelection />} />
-            <Route path="products" element={<ProductList />} />
-            <Route path="orders" element={<OrderList />} />
-            <Route path="reports" element={<OrderReport />} />
-            <Route path="watermark" element={<WatermarkManagement />} />
-            <Route path="settings" element={<ShopSettings />} />
-          </Routes>
-        </Suspense>
-      </Content>
-    </Layout>
+    <Suspense fallback={<PageLoading />}>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="selection" element={<ProductSelection />} />
+        <Route path="products" element={<ProductList />} />
+        <Route path="orders" element={<OrderList />} />
+        <Route path="reports" element={<OrderReport />} />
+        <Route path="watermark" element={<WatermarkManagement />} />
+        <Route path="settings" element={<ShopSettings />} />
+      </Routes>
+    </Suspense>
   );
 };
 
