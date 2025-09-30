@@ -555,38 +555,11 @@ const ShopSettings: React.FC = () => {
                         <Title level={5}>
                           Webhook配置
                           <Text type="secondary" style={{ fontSize: 14, marginLeft: 8 }}>
-                            (可选 - 本地开发可跳过)
+                            实时事件通知
                           </Text>
                         </Title>
 
-                        <Alert
-                          message="本地开发提示"
-                          description="Webhook 主要用于生产环境接收 Ozon 平台的实时推送通知。本地开发时可以不配置，系统会使用定时轮询方式同步数据。"
-                          type="info"
-                          showIcon
-                          style={{ marginBottom: 16 }}
-                        />
-
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Form.Item
-                              name="webhook_url"
-                              label="Webhook URL"
-                              extra="用于接收Ozon推送的事件通知（可选）"
-                            >
-                              <Input placeholder="https://your-domain.com/webhooks/ozon（可留空）" />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item
-                              name="webhook_secret"
-                              label="Webhook Secret"
-                              extra="用于验证Webhook请求签名（可选）"
-                            >
-                              <Input.Password placeholder="Webhook密钥（可留空）" />
-                            </Form.Item>
-                          </Col>
-                        </Row>
+                        <WebhookConfiguration selectedShop={selectedShop} />
                       </>
                     ),
                   },
@@ -812,6 +785,356 @@ const ShopSettings: React.FC = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+    </div>
+  );
+};
+
+// Webhook 配置组件
+const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selectedShop }) => {
+  const [webhookConfig, setWebhookConfig] = useState<any>(null);
+  const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [configModalVisible, setConfigModalVisible] = useState(false);
+  const [eventsModalVisible, setEventsModalVisible] = useState(false);
+  const [configForm] = Form.useForm();
+
+  // 获取webhook配置
+  const { data: webhookData, refetch: refetchWebhookConfig } = useQuery({
+    queryKey: ['ozon', 'webhook-config', selectedShop?.id],
+    queryFn: () => ozonApi.getWebhookConfig(selectedShop!.id),
+    enabled: !!selectedShop?.id,
+    staleTime: 30 * 1000,
+  });
+
+  // 配置webhook
+  const configureWebhookMutation = useMutation({
+    mutationFn: async (config: any) => {
+      return ozonApi.configureWebhook(selectedShop!.id, config);
+    },
+    onSuccess: (data) => {
+      message.success('Webhook配置成功');
+      setConfigModalVisible(false);
+      refetchWebhookConfig();
+
+      // 显示配置成功信息
+      Modal.info({
+        title: '配置成功！',
+        width: 600,
+        content: (
+          <div>
+            <Paragraph>
+              Webhook已成功配置，请按以下步骤在Ozon后台完成设置：
+            </Paragraph>
+            <ol>
+              <li>登录 Ozon 卖家后台</li>
+              <li>进入"设置" → "Webhook"配置页面</li>
+              <li>设置 Webhook URL: <Text code copyable>{data.webhook_url}</Text></li>
+              <li>设置 Webhook Secret: <Text code copyable>{data.webhook_secret}</Text></li>
+              <li>启用以下事件类型：
+                <ul style={{ marginTop: 8 }}>
+                  <li>posting.status_changed（订单状态变更）</li>
+                  <li>posting.cancelled（订单取消）</li>
+                  <li>posting.delivered（订单妥投）</li>
+                  <li>product.price_changed（商品价格变更）</li>
+                  <li>product.stock_changed（商品库存变更）</li>
+                  <li>return.created（退货创建）</li>
+                  <li>return.status_changed（退货状态变更）</li>
+                </ul>
+              </li>
+              <li>点击"测试"按钮验证配置</li>
+            </ol>
+          </div>
+        ),
+      });
+    },
+    onError: (error: any) => {
+      message.error(`配置失败: ${error.message}`);
+    },
+  });
+
+  // 测试webhook
+  const testWebhookMutation = useMutation({
+    mutationFn: async () => {
+      return ozonApi.testWebhook(selectedShop!.id);
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        message.success('Webhook测试成功');
+      } else {
+        message.error(`Webhook测试失败: ${data.message}`);
+      }
+    },
+    onError: (error: any) => {
+      message.error(`测试失败: ${error.message}`);
+    },
+  });
+
+  // 删除webhook配置
+  const deleteWebhookMutation = useMutation({
+    mutationFn: async () => {
+      return ozonApi.deleteWebhookConfig(selectedShop!.id);
+    },
+    onSuccess: () => {
+      message.success('Webhook配置已删除');
+      refetchWebhookConfig();
+    },
+    onError: (error: any) => {
+      message.error(`删除失败: ${error.message}`);
+    },
+  });
+
+  // 获取webhook事件列表
+  const fetchWebhookEvents = async () => {
+    if (!selectedShop?.id) return;
+
+    setLoading(true);
+    try {
+      const response = await ozonApi.getWebhookEvents(selectedShop.id);
+      setWebhookEvents(response.events || []);
+    } catch (error: any) {
+      message.error(`获取事件失败: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfigureWebhook = () => {
+    // 自动生成webhook URL
+    const baseUrl = window.location.origin;
+    const webhookUrl = `${baseUrl}/api/ef/v1/ozon/webhook`;
+
+    configForm.setFieldsValue({
+      webhook_url: webhookUrl,
+    });
+    setConfigModalVisible(true);
+  };
+
+  const handleDeleteWebhook = () => {
+    confirm({
+      title: '确认删除',
+      content: '确定要删除Webhook配置吗？删除后将无法接收实时事件通知。',
+      onOk: () => deleteWebhookMutation.mutate(),
+    });
+  };
+
+  const webhookEnabled = webhookData?.webhook_enabled;
+
+  return (
+    <div>
+      <Alert
+        message="Webhook 实时事件通知"
+        description="配置Webhook后，系统将实时接收Ozon平台的事件通知，如订单状态变更、商品价格变更等，无需定时轮询，提高响应速度。"
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
+
+      <Row gutter={16}>
+        <Col span={12}>
+          <Card size="small" title="配置状态">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div>
+                <Badge
+                  status={webhookEnabled ? 'success' : 'default'}
+                  text={webhookEnabled ? '已配置' : '未配置'}
+                />
+              </div>
+              {webhookEnabled && (
+                <div>
+                  <Text type="secondary">URL: </Text>
+                  <Text code style={{ fontSize: 12 }}>
+                    {webhookData.webhook_url || 'N/A'}
+                  </Text>
+                </div>
+              )}
+              <Space>
+                {webhookEnabled ? (
+                  <>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<ApiOutlined />}
+                      onClick={() => testWebhookMutation.mutate()}
+                      loading={testWebhookMutation.isPending}
+                    >
+                      测试
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        fetchWebhookEvents();
+                        setEventsModalVisible(true);
+                      }}
+                    >
+                      查看事件
+                    </Button>
+                    <Button
+                      danger
+                      size="small"
+                      onClick={handleDeleteWebhook}
+                      loading={deleteWebhookMutation.isPending}
+                    >
+                      删除
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<SettingOutlined />}
+                    onClick={handleConfigureWebhook}
+                  >
+                    配置Webhook
+                  </Button>
+                )}
+              </Space>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card size="small" title="支持的事件">
+            <div style={{ fontSize: 12 }}>
+              {webhookData?.supported_events?.map((event: string) => (
+                <Tag key={event} size="small" style={{ marginBottom: 4 }}>
+                  {event}
+                </Tag>
+              )) || (
+                <Text type="secondary">配置后显示支持的事件类型</Text>
+              )}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 配置Webhook弹窗 */}
+      <Modal
+        title="配置Webhook"
+        open={configModalVisible}
+        onCancel={() => setConfigModalVisible(false)}
+        footer={null}
+        width={600}
+      >
+        <Form
+          form={configForm}
+          layout="vertical"
+          onFinish={(values) => configureWebhookMutation.mutate(values)}
+        >
+          <Form.Item
+            name="webhook_url"
+            label="Webhook URL"
+            rules={[
+              { required: true, message: '请输入Webhook URL' },
+              { type: 'url', message: '请输入有效的URL' },
+            ]}
+            extra="系统将自动生成安全的webhook URL"
+          >
+            <Input placeholder="https://your-domain.com/api/ef/v1/ozon/webhook" />
+          </Form.Item>
+
+          <Alert
+            message="配置说明"
+            description={
+              <div>
+                <p>1. Webhook URL 用于接收Ozon平台推送的事件通知</p>
+                <p>2. 系统将自动生成安全密钥用于验证请求签名</p>
+                <p>3. 配置完成后，请在Ozon后台设置相应的Webhook配置</p>
+              </div>
+            }
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+
+          <Form.Item>
+            <Space>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={configureWebhookMutation.isPending}
+              >
+                确认配置
+              </Button>
+              <Button onClick={() => setConfigModalVisible(false)}>取消</Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 查看事件弹窗 */}
+      <Modal
+        title="Webhook事件记录"
+        open={eventsModalVisible}
+        onCancel={() => setEventsModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setEventsModalVisible(false)}>
+            关闭
+          </Button>
+        ]}
+        width={800}
+      >
+        <Table
+          dataSource={webhookEvents}
+          loading={loading}
+          size="small"
+          rowKey="id"
+          columns={[
+            {
+              title: '事件ID',
+              dataIndex: 'event_id',
+              key: 'event_id',
+              width: 120,
+              render: (text) => <Text code>{text}</Text>
+            },
+            {
+              title: '事件类型',
+              dataIndex: 'event_type',
+              key: 'event_type',
+              width: 150,
+              render: (text) => <Tag>{text}</Tag>
+            },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              key: 'status',
+              width: 80,
+              render: (status) => (
+                <Badge
+                  status={
+                    status === 'processed' ? 'success' :
+                    status === 'failed' ? 'error' :
+                    status === 'processing' ? 'processing' : 'default'
+                  }
+                  text={status}
+                />
+              )
+            },
+            {
+              title: '重试次数',
+              dataIndex: 'retry_count',
+              key: 'retry_count',
+              width: 80,
+            },
+            {
+              title: '创建时间',
+              dataIndex: 'created_at',
+              key: 'created_at',
+              width: 150,
+              render: (time) => time ? new Date(time).toLocaleString() : '-'
+            },
+            {
+              title: '错误信息',
+              dataIndex: 'error_message',
+              key: 'error_message',
+              ellipsis: true,
+              render: (error) => error ? <Text type="danger">{error}</Text> : '-'
+            },
+          ]}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: false,
+          }}
+        />
       </Modal>
     </div>
   );

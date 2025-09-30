@@ -33,6 +33,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import product selection routes: {e}")
 
+try:
+    from .webhook_routes import router as webhook_router
+    router.include_router(webhook_router)
+except ImportError as e:
+    logger.warning(f"Could not import webhook routes: {e}")
+
 
 # DTO 模型
 class ShopCreateDTO(BaseModel):
@@ -236,6 +242,230 @@ async def test_connection(
                 "error": str(e)
             }
         }
+
+@router.get("/shops/{shop_id}/webhook")
+async def get_webhook_config(
+    shop_id: int,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """获取店铺 Webhook 配置"""
+    # 获取店铺信息
+    result = await db.execute(
+        select(OzonShop).where(OzonShop.id == shop_id)
+    )
+    shop = result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    # 获取webhook配置
+    webhook_config = shop.config or {}
+
+    return {
+        "shop_id": shop.id,
+        "webhook_url": webhook_config.get("webhook_url"),
+        "webhook_secret": "******" if webhook_config.get("webhook_secret") else None,
+        "webhook_enabled": bool(webhook_config.get("webhook_url") and webhook_config.get("webhook_secret")),
+        "supported_events": [
+            "posting.status_changed",
+            "posting.cancelled",
+            "posting.delivered",
+            "product.price_changed",
+            "product.stock_changed",
+            "return.created",
+            "return.status_changed"
+        ]
+    }
+
+@router.post("/shops/{shop_id}/webhook")
+async def configure_webhook(
+    shop_id: int,
+    webhook_config: Dict[str, Any] = Body(...),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """配置店铺 Webhook"""
+    import secrets
+    import os
+
+    # 获取店铺信息
+    result = await db.execute(
+        select(OzonShop).where(OzonShop.id == shop_id)
+    )
+    shop = result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    # 验证输入
+    webhook_url = webhook_config.get("webhook_url")
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="webhook_url is required")
+
+    # 确保webhook_url是有效的HTTPS URL
+    if not webhook_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="webhook_url must be HTTPS")
+
+    # 生成新的webhook_secret或使用提供的
+    webhook_secret = webhook_config.get("webhook_secret")
+    if not webhook_secret or webhook_secret == "******":
+        # 生成32字节的随机secret
+        webhook_secret = secrets.token_hex(32)
+
+    # 构建完整的webhook URL（如果提供的是相对路径）
+    if not webhook_url.startswith("http"):
+        # 获取服务器的基础URL
+        base_url = os.getenv("EF__WEBHOOK_BASE_URL", "https://api.euraflow.com")
+        webhook_url = f"{base_url}/api/ef/v1/ozon/webhook"
+
+    # 更新店铺配置
+    if not shop.config:
+        shop.config = {}
+
+    shop.config["webhook_url"] = webhook_url
+    shop.config["webhook_secret"] = webhook_secret
+    shop.config["webhook_configured_at"] = datetime.now().isoformat()
+    shop.updated_at = datetime.now()
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": "Webhook configured successfully",
+        "webhook_url": webhook_url,
+        "webhook_secret": webhook_secret,  # 返回真实secret供用户在Ozon后台配置
+        "next_steps": [
+            "1. 复制上面的 webhook_secret",
+            "2. 登录 Ozon 卖家后台",
+            "3. 在设置中找到 Webhook 配置页面",
+            "4. 设置 Webhook URL 为: " + webhook_url,
+            "5. 设置 Webhook Secret 为复制的密钥",
+            "6. 启用需要的事件类型",
+            "7. 点击测试按钮验证配置"
+        ]
+    }
+
+@router.post("/shops/{shop_id}/webhook/test")
+async def test_webhook(
+    shop_id: int,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """测试 Webhook 配置"""
+    import json
+    import hmac
+    import hashlib
+    import httpx
+    from datetime import datetime
+
+    # 获取店铺信息
+    result = await db.execute(
+        select(OzonShop).where(OzonShop.id == shop_id)
+    )
+    shop = result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    # 检查webhook配置
+    webhook_config = shop.config or {}
+    webhook_url = webhook_config.get("webhook_url")
+    webhook_secret = webhook_config.get("webhook_secret")
+
+    if not webhook_url or not webhook_secret:
+        raise HTTPException(status_code=400, detail="Webhook not configured")
+
+    # 构造测试载荷
+    test_payload = {
+        "company_id": shop.client_id,
+        "event_type": "test",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "data": {
+            "message": "This is a test webhook event",
+            "shop_id": shop.id
+        }
+    }
+
+    payload_json = json.dumps(test_payload, separators=(',', ':'))
+    payload_bytes = payload_json.encode('utf-8')
+
+    # 生成签名
+    signature = hmac.new(
+        webhook_secret.encode(),
+        payload_bytes,
+        hashlib.sha256
+    ).hexdigest()
+
+    # 构造请求头
+    headers = {
+        "Content-Type": "application/json",
+        "X-Ozon-Signature": signature,
+        "X-Event-Id": f"test-{datetime.utcnow().timestamp()}",
+        "X-Event-Type": "test",
+        "User-Agent": "Ozon-Webhook-Test/1.0"
+    }
+
+    try:
+        # 发送测试请求
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                webhook_url,
+                content=payload_bytes,
+                headers=headers
+            )
+
+        # 分析响应
+        success = response.status_code == 200
+
+        return {
+            "success": success,
+            "status_code": response.status_code,
+            "response_time_ms": int(response.elapsed.total_seconds() * 1000) if hasattr(response, 'elapsed') else None,
+            "message": "Webhook test completed",
+            "details": {
+                "sent_payload": test_payload,
+                "response_headers": dict(response.headers),
+                "response_body": response.text[:500] if response.text else None
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Webhook test failed: {e}")
+        return {
+            "success": False,
+            "message": f"Webhook test failed: {str(e)}",
+            "details": {
+                "webhook_url": webhook_url,
+                "error": str(e)
+            }
+        }
+
+@router.delete("/shops/{shop_id}/webhook")
+async def delete_webhook_config(
+    shop_id: int,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """删除店铺 Webhook 配置"""
+    # 获取店铺信息
+    result = await db.execute(
+        select(OzonShop).where(OzonShop.id == shop_id)
+    )
+    shop = result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    # 清除webhook配置
+    if shop.config:
+        shop.config.pop("webhook_url", None)
+        shop.config.pop("webhook_secret", None)
+        shop.config.pop("webhook_configured_at", None)
+
+    shop.updated_at = datetime.now()
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": "Webhook configuration deleted successfully"
+    }
 
 @router.post("/shops/{shop_id}/sync")
 async def trigger_sync(
