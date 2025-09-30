@@ -19,9 +19,9 @@ echo -e "${YELLOW}========================================${NC}"
 if [ -f "tmp/supervisord.pid" ]; then
     PID=$(cat tmp/supervisord.pid)
     if ps -p $PID > /dev/null 2>&1; then
-        # Supervisord 正在运行，只重启服务
+        # Supervisord 正在运行，只重启backend服务
         echo -e "\n${YELLOW}Restarting services...${NC}"
-        supervisorctl -c supervisord.conf restart euraflow:*
+        supervisorctl -c supervisord.conf restart euraflow:backend
     else
         # PID 文件存在但进程不存在
         echo -e "${YELLOW}!${NC} Supervisord not running, starting fresh..."
@@ -44,7 +44,17 @@ sleep 3
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}         Service Status                 ${NC}"
 echo -e "${GREEN}========================================${NC}"
-supervisorctl -c supervisord.conf status euraflow:*
+# 只显示实际运行的服务
+BACKEND_STATUS=$(supervisorctl -c supervisord.conf status euraflow:backend 2>/dev/null)
+if [ ! -z "$BACKEND_STATUS" ]; then
+    echo "$BACKEND_STATUS"
+fi
+
+# 检查worker是否运行（只显示运行中的）
+WORKER_STATUS=$(supervisorctl -c supervisord.conf status euraflow:worker 2>/dev/null | grep "RUNNING" || true)
+if [ ! -z "$WORKER_STATUS" ]; then
+    echo "$WORKER_STATUS"
+fi
 
 # 显示前端状态
 echo -e "\n${YELLOW}Frontend:${NC}"

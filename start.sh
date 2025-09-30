@@ -73,8 +73,17 @@ sleep 3
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}         Service Status                 ${NC}"
 echo -e "${GREEN}========================================${NC}"
-# 只显示euraflow组的服务，不显示frontend
-supervisorctl -c supervisord.conf status euraflow:*
+# 只显示实际运行的服务
+BACKEND_STATUS=$(supervisorctl -c supervisord.conf status euraflow:backend 2>/dev/null)
+if [ ! -z "$BACKEND_STATUS" ]; then
+    echo "$BACKEND_STATUS"
+fi
+
+# 检查worker是否运行（只显示运行中的）
+WORKER_STATUS=$(supervisorctl -c supervisord.conf status euraflow:worker 2>/dev/null | grep "RUNNING" || true)
+if [ ! -z "$WORKER_STATUS" ]; then
+    echo "$WORKER_STATUS"
+fi
 
 # 检查Nginx状态
 echo -e "\n${YELLOW}Frontend Status:${NC}"

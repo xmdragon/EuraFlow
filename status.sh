@@ -33,9 +33,19 @@ else
     exit 1
 fi
 
-# 显示服务状态
+# 显示服务状态（过滤掉未配置启动的服务）
 echo -e "\n${YELLOW}Backend Services Status:${NC}"
-supervisorctl -c supervisord.conf status euraflow:*
+# 只显示backend服务，worker是可选的
+BACKEND_STATUS=$(supervisorctl -c supervisord.conf status euraflow:backend 2>/dev/null)
+if [ ! -z "$BACKEND_STATUS" ]; then
+    echo "$BACKEND_STATUS"
+fi
+
+# 检查worker是否配置为自动启动
+WORKER_STATUS=$(supervisorctl -c supervisord.conf status euraflow:worker 2>/dev/null | grep -v "FATAL" || true)
+if [ ! -z "$WORKER_STATUS" ]; then
+    echo "$WORKER_STATUS"
+fi
 
 # 显示前端状态
 echo -e "\n${YELLOW}Frontend Status:${NC}"

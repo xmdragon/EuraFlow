@@ -88,9 +88,15 @@ if [ ! -z "$PORT_PID" ]; then
     echo -e "${GREEN}✓${NC} Port 8000 cleared"
 fi
 
-# 显示状态
-echo -e "\n${YELLOW}Current service status:${NC}"
-supervisorctl -c supervisord.conf status euraflow:*
+# 显示状态（只显示实际运行的服务）
+echo -e "\n${YELLOW}Service status:${NC}"
+# 获取服务状态，过滤掉未启动的worker
+STATUS_OUTPUT=$(supervisorctl -c supervisord.conf status euraflow:* 2>/dev/null | grep -v "FATAL" | grep -v "worker" || true)
+if [ ! -z "$STATUS_OUTPUT" ]; then
+    echo "$STATUS_OUTPUT"
+else
+    echo -e "${GREEN}✓${NC} All services stopped"
+fi
 
 # 询问是否停止 supervisord
 echo ""
