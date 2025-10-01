@@ -17,11 +17,12 @@ from bs4 import BeautifulSoup
 import re
 
 from ef_core.database import get_async_session
-from ef_core.api.auth import get_current_user
+from ef_core.api.auth import get_current_user, get_current_user_from_api_key
 from ef_core.models.users import User
 from ..services.product_selection_service import ProductSelectionService
 from ..models.product_selection import ProductSelectionItem, ImportHistory
 from ..services.sync_state_manager import get_sync_state_manager
+from decimal import Decimal
 
 router = APIRouter(prefix="/product-selection", tags=["Product Selection"])
 logger = logging.getLogger(__name__)
@@ -72,6 +73,59 @@ class PreviewResponse(BaseModel):
     column_mapping: Optional[Dict[str, str]] = None
     error: Optional[str] = None
     missing_columns: Optional[List[str]] = None
+
+
+class ProductUploadItem(BaseModel):
+    """单个商品数据（从Tampermonkey脚本上传）"""
+    product_id: str
+    product_name_ru: Optional[str] = None
+    product_name_cn: Optional[str] = None
+    brand: Optional[str] = None
+    current_price: Optional[float] = None
+    original_price: Optional[float] = None
+    ozon_link: Optional[str] = None
+    image_url: Optional[str] = None
+    category_link: Optional[str] = None
+    rfbs_commission_low: Optional[float] = None
+    rfbs_commission_mid: Optional[float] = None
+    rfbs_commission_high: Optional[float] = None
+    fbp_commission_low: Optional[float] = None
+    fbp_commission_mid: Optional[float] = None
+    fbp_commission_high: Optional[float] = None
+    monthly_sales_volume: Optional[int] = None
+    monthly_sales_revenue: Optional[float] = None
+    daily_sales_volume: Optional[int] = None
+    daily_sales_revenue: Optional[float] = None
+    sales_dynamic_percent: Optional[float] = None
+    conversion_rate: Optional[float] = None
+    package_weight: Optional[int] = None
+    package_volume: Optional[int] = None
+    package_length: Optional[int] = None
+    package_width: Optional[int] = None
+    package_height: Optional[int] = None
+    rating: Optional[float] = None
+    review_count: Optional[int] = None
+    seller_type: Optional[str] = None
+    delivery_days: Optional[int] = None
+    availability_percent: Optional[float] = None
+    ad_cost_share: Optional[float] = None
+    product_created_date: Optional[str] = None
+    competitor_count: Optional[int] = None
+    competitor_min_price: Optional[float] = None
+
+
+class ProductsUploadRequest(BaseModel):
+    """批量上传商品请求"""
+    products: List[ProductUploadItem]
+
+
+class ProductsUploadResponse(BaseModel):
+    """批量上传响应"""
+    success: bool
+    total: int
+    success_count: int
+    failed_count: int
+    errors: Optional[List[Dict[str, Any]]] = None
 
 
 # API 端点
@@ -775,5 +829,198 @@ async def get_product_detail(
     except Exception as e:
         logger.error(f"获取商品详细信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取商品详细信息失败")
+
+
+@router.post("/upload", response_model=ProductsUploadResponse)
+async def upload_products(
+    request: ProductsUploadRequest,
+    db: AsyncSession = Depends(get_async_session),
+    api_key_user: Optional[User] = Depends(get_current_user_from_api_key)
+):
+    """
+    批量上传商品数据（API Key认证）
+
+    **认证方式**：在Header中传递 `X-API-Key`
+
+    **速率限制**：每分钟最多10次请求，单次最多1000条商品
+
+    **权限要求**：product_selection:write
+    """
+    # 验证API Key认证
+    if not api_key_user:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "需要有效的API Key（请在Header中传递X-API-Key）"
+            }
+        )
+
+    # 检查数据量
+    if len(request.products) > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "单次上传最多支持1000条商品"
+            }
+        )
+
+    if len(request.products) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "EMPTY_PAYLOAD",
+                "message": "商品列表不能为空"
+            }
+        )
+
+    try:
+        service = ProductSelectionService()
+        success_count = 0
+        failed_count = 0
+        errors = []
+
+        # 转换数据格式并批量处理
+        batch_items = []
+        for idx, product in enumerate(request.products):
+            try:
+                # 转换为内部数据格式
+                cleaned_data = {
+                    'user_id': api_key_user.id,
+                    'product_id': product.product_id,
+                    'product_name_ru': product.product_name_ru,
+                    'product_name_cn': product.product_name_cn,
+                    'brand': product.brand or 'без бренда',
+                    'brand_normalized': service.normalize_brand(product.brand) if product.brand else 'NO_BRAND',
+                    'ozon_link': product.ozon_link,
+                    'image_url': product.image_url,
+                    'category_link': product.category_link,
+                }
+
+                # 价格字段（转换为Decimal）
+                if product.current_price is not None:
+                    cleaned_data['current_price'] = Decimal(str(product.current_price))
+                if product.original_price is not None:
+                    cleaned_data['original_price'] = Decimal(str(product.original_price))
+
+                # 佣金字段
+                if product.rfbs_commission_low is not None:
+                    cleaned_data['rfbs_commission_low'] = Decimal(str(product.rfbs_commission_low))
+                if product.rfbs_commission_mid is not None:
+                    cleaned_data['rfbs_commission_mid'] = Decimal(str(product.rfbs_commission_mid))
+                if product.rfbs_commission_high is not None:
+                    cleaned_data['rfbs_commission_high'] = Decimal(str(product.rfbs_commission_high))
+                if product.fbp_commission_low is not None:
+                    cleaned_data['fbp_commission_low'] = Decimal(str(product.fbp_commission_low))
+                if product.fbp_commission_mid is not None:
+                    cleaned_data['fbp_commission_mid'] = Decimal(str(product.fbp_commission_mid))
+                if product.fbp_commission_high is not None:
+                    cleaned_data['fbp_commission_high'] = Decimal(str(product.fbp_commission_high))
+
+                # 销量和销售额
+                if product.monthly_sales_volume is not None:
+                    cleaned_data['monthly_sales_volume'] = product.monthly_sales_volume
+                if product.monthly_sales_revenue is not None:
+                    cleaned_data['monthly_sales_revenue'] = Decimal(str(product.monthly_sales_revenue))
+                if product.daily_sales_volume is not None:
+                    cleaned_data['daily_sales_volume'] = product.daily_sales_volume
+                if product.daily_sales_revenue is not None:
+                    cleaned_data['daily_sales_revenue'] = Decimal(str(product.daily_sales_revenue))
+
+                # 百分比字段
+                if product.sales_dynamic_percent is not None:
+                    cleaned_data['sales_dynamic_percent'] = Decimal(str(product.sales_dynamic_percent))
+                if product.conversion_rate is not None:
+                    cleaned_data['conversion_rate'] = Decimal(str(product.conversion_rate))
+                if product.availability_percent is not None:
+                    cleaned_data['availability_percent'] = Decimal(str(product.availability_percent))
+                if product.ad_cost_share is not None:
+                    cleaned_data['ad_cost_share'] = Decimal(str(product.ad_cost_share))
+                if product.rating is not None:
+                    cleaned_data['rating'] = Decimal(str(product.rating))
+
+                # 包装信息
+                if product.package_weight is not None:
+                    cleaned_data['package_weight'] = product.package_weight
+                if product.package_volume is not None:
+                    cleaned_data['package_volume'] = product.package_volume
+                if product.package_length is not None:
+                    cleaned_data['package_length'] = product.package_length
+                if product.package_width is not None:
+                    cleaned_data['package_width'] = product.package_width
+                if product.package_height is not None:
+                    cleaned_data['package_height'] = product.package_height
+
+                # 其他字段
+                if product.review_count is not None:
+                    cleaned_data['review_count'] = product.review_count
+                if product.delivery_days is not None:
+                    cleaned_data['delivery_days'] = product.delivery_days
+                if product.seller_type:
+                    cleaned_data['seller_type'] = product.seller_type
+
+                # 竞争者数据
+                if product.competitor_count is not None:
+                    cleaned_data['competitor_count'] = product.competitor_count
+                if product.competitor_min_price is not None:
+                    cleaned_data['competitor_min_price'] = Decimal(str(product.competitor_min_price))
+
+                # 日期字段
+                if product.product_created_date:
+                    try:
+                        import pandas as pd
+                        parsed = pd.to_datetime(product.product_created_date, errors='coerce')
+                        if not pd.isna(parsed):
+                            cleaned_data['product_created_date'] = parsed.to_pydatetime()
+                    except:
+                        pass
+
+                batch_items.append(cleaned_data)
+
+            except Exception as e:
+                failed_count += 1
+                errors.append({
+                    'index': idx,
+                    'product_id': product.product_id,
+                    'error': str(e)
+                })
+                logger.warning(f"转换商品数据失败: product_id={product.product_id}, error={e}")
+
+        # 批量插入/更新
+        if batch_items:
+            result = await service._batch_upsert(
+                db=db,
+                items=batch_items,
+                strategy='update',  # 默认更新策略
+                user_id=api_key_user.id
+            )
+            success_count += result['success'] + result['updated']
+            failed_count += result['skipped']
+
+        logger.info(
+            f"API Key批量上传完成: user_id={api_key_user.id}, "
+            f"total={len(request.products)}, success={success_count}, failed={failed_count}"
+        )
+
+        return ProductsUploadResponse(
+            success=True,
+            total=len(request.products),
+            success_count=success_count,
+            failed_count=failed_count,
+            errors=errors[:10] if errors else None  # 只返回前10个错误
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量上传失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "UPLOAD_ERROR",
+                "message": f"上传失败: {str(e)}"
+            }
+        )
 
 

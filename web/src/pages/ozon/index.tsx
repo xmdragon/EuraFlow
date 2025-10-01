@@ -13,6 +13,7 @@ const ProductList = lazy(() => import('./ProductList'));
 const ShopSettings = lazy(() => import('./ShopSettings'));
 const WatermarkManagement = lazy(() => import('./WatermarkManagement'));
 const ProductSelection = lazy(() => import('./ProductSelection'));
+const ApiKeys = lazy(() => import('./ApiKeys'));
 
 // 加载中组件
 const PageLoading = () => (
@@ -31,6 +32,7 @@ const OzonManagement: React.FC = () => {
         <Route path="orders" element={<OrderList />} />
         <Route path="reports" element={<OrderReport />} />
         <Route path="watermark" element={<WatermarkManagement />} />
+        <Route path="api-keys" element={<ApiKeys />} />
         <Route path="settings" element={<ShopSettings />} />
       </Routes>
     </Suspense>

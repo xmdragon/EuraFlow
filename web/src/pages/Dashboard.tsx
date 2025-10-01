@@ -10,6 +10,7 @@ import {
   ShoppingCartOutlined,
   FileTextOutlined,
   PictureOutlined,
+  KeyOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy } from 'react';
@@ -114,6 +115,12 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate('/dashboard/ozon/watermark'),
         },
         {
+          key: 'ozon-api-keys',
+          icon: <KeyOutlined />,
+          label: 'API密钥',
+          onClick: () => navigate('/dashboard/ozon/api-keys'),
+        },
+        {
           key: 'ozon-settings',
           icon: <SettingOutlined />,
           label: '店铺设置',
@@ -143,6 +150,7 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/orders')) return 'ozon-orders';
     if (path.includes('/ozon/reports')) return 'ozon-reports';
     if (path.includes('/ozon/watermark')) return 'ozon-watermark';
+    if (path.includes('/ozon/api-keys')) return 'ozon-api-keys';
     if (path.includes('/ozon/settings')) return 'ozon-settings';
     if (path.includes('/ozon')) return 'ozon-dashboard';
     if (path.includes('/finance')) return 'finance';

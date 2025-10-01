@@ -9,11 +9,12 @@ from .listings import Listing
 from .returns import Return, Refund
 from .users import User
 from .shops import Shop
+from .api_keys import APIKey
 
 __all__ = [
     "Base",
     "Order",
-    "OrderItem", 
+    "OrderItem",
     "Shipment",
     "Package",
     "Inventory",
@@ -21,5 +22,6 @@ __all__ = [
     "Return",
     "Refund",
     "User",
-    "Shop"
+    "Shop",
+    "APIKey"
 ]

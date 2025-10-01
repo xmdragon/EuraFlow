@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ef_core.services.auth_service import get_auth_service
+from ef_core.services.api_key_service import get_api_key_service
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.utils.logger import get_logger
@@ -107,14 +108,42 @@ class UpdateProfileRequest(BaseModel):
 
 # ========== 依赖函数 ==========
 
+async def get_current_user_from_api_key(
+    request: Request,
+    session: AsyncSession = Depends(get_async_session)
+) -> Optional[User]:
+    """
+    通过API Key认证用户（从X-API-Key Header）
+
+    Returns:
+        验证成功返回User对象，否则返回None
+    """
+    api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        return None
+
+    api_key_service = get_api_key_service()
+    user = await api_key_service.validate_api_key(session, api_key)
+
+    if user:
+        # 设置请求状态（供中间件使用）
+        request.state.user_id = user.id
+        request.state.shop_id = user.primary_shop_id
+        request.state.permissions = user.permissions
+        request.state.auth_method = "api_key"
+        logger.info(f"API Key认证成功: user_id={user.id}")
+
+    return user
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_async_session)
 ) -> User:
-    """获取当前认证用户"""
+    """获取当前认证用户（JWT Token）"""
     auth_service = get_auth_service()
-    
+
     try:
         # 解码令牌
         payload = auth_service.decode_token(credentials.credentials)

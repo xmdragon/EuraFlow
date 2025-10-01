@@ -25,8 +25,48 @@
         targetProductCount: 100,         // 默认目标商品数
         contentChangeDetection: true,    // 启用内容变化检测
         dataValidation: true,            // 启用数据验证
-        debugMode: false                 // 调试模式
+        debugMode: false,                // 调试模式
+
+        // API上传配置（从localStorage读取）
+        apiEnabled: false,               // 是否启用API上传
+        apiUrl: '',                      // API地址
+        apiKey: '',                      // API Key
+        autoUpload: false                // 自动上传（采集完成后）
     };
+
+    // 从localStorage加载API配置
+    function loadAPIConfig() {
+        try {
+            const savedConfig = localStorage.getItem('ozon_selector_api_config');
+            if (savedConfig) {
+                const parsed = JSON.parse(savedConfig);
+                CONFIG.apiEnabled = parsed.apiEnabled || false;
+                CONFIG.apiUrl = parsed.apiUrl || '';
+                CONFIG.apiKey = parsed.apiKey || '';
+                CONFIG.autoUpload = parsed.autoUpload || false;
+            }
+        } catch (e) {
+            console.error('加载API配置失败:', e);
+        }
+    }
+
+    // 保存API配置到localStorage
+    function saveAPIConfig() {
+        try {
+            const config = {
+                apiEnabled: CONFIG.apiEnabled,
+                apiUrl: CONFIG.apiUrl,
+                apiKey: CONFIG.apiKey,
+                autoUpload: CONFIG.autoUpload
+            };
+            localStorage.setItem('ozon_selector_api_config', JSON.stringify(config));
+        } catch (e) {
+            console.error('保存API配置失败:', e);
+        }
+    }
+
+    // 初始化时加载配置
+    loadAPIConfig();
 
     // ===== CSV数据字段（42个字段）=====
     const CSV_HEADERS = [
