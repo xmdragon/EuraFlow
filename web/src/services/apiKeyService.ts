@@ -3,6 +3,8 @@
  */
 import axios from './axios';
 
+const API_BASE_URL = '/api/ef/v1';
+
 export interface APIKey {
   id: number;
   name: string;
@@ -42,7 +44,7 @@ export interface RegenerateAPIKeyResponse {
  * 获取所有API Keys
  */
 export const listAPIKeys = async (): Promise<APIKey[]> => {
-  const response = await axios.get('/api-keys');
+  const response = await axios.get(`${API_BASE_URL}/api-keys`);
   return response.data;
 };
 
@@ -52,7 +54,7 @@ export const listAPIKeys = async (): Promise<APIKey[]> => {
 export const createAPIKey = async (
   data: CreateAPIKeyRequest
 ): Promise<CreateAPIKeyResponse> => {
-  const response = await axios.post('/api-keys', data);
+  const response = await axios.post(`${API_BASE_URL}/api-keys`, data);
   return response.data;
 };
 
@@ -60,7 +62,7 @@ export const createAPIKey = async (
  * 删除API Key
  */
 export const deleteAPIKey = async (keyId: number): Promise<void> => {
-  await axios.delete(`/api-keys/${keyId}`);
+  await axios.delete(`${API_BASE_URL}/api-keys/${keyId}`);
 };
 
 /**
@@ -69,6 +71,6 @@ export const deleteAPIKey = async (keyId: number): Promise<void> => {
 export const regenerateAPIKey = async (
   keyId: number
 ): Promise<RegenerateAPIKeyResponse> => {
-  const response = await axios.put(`/api-keys/${keyId}/regenerate`);
+  const response = await axios.put(`${API_BASE_URL}/api-keys/${keyId}/regenerate`);
   return response.data;
 };
