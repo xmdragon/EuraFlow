@@ -44,7 +44,7 @@ export interface RegenerateAPIKeyResponse {
  * 获取所有API Keys
  */
 export const listAPIKeys = async (): Promise<APIKey[]> => {
-  const response = await axios.get(`${API_BASE_URL}/api-keys`);
+  const response = await axios.get(`${API_BASE_URL}/api-keys/`);
   return response.data;
 };
 
@@ -54,7 +54,7 @@ export const listAPIKeys = async (): Promise<APIKey[]> => {
 export const createAPIKey = async (
   data: CreateAPIKeyRequest
 ): Promise<CreateAPIKeyResponse> => {
-  const response = await axios.post(`${API_BASE_URL}/api-keys`, data);
+  const response = await axios.post(`${API_BASE_URL}/api-keys/`, data);
   return response.data;
 };
 
