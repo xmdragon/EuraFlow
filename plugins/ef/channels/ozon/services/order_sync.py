@@ -10,9 +10,9 @@ from decimal import Decimal
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_session
+from ef_core.database import get_async_session
 from ef_core.utils.logger import get_logger
-from ef_core.utils.errors import BusinessError
+from ef_core.utils.errors import ValidationError
 
 from ..api.client import OzonAPIClient
 from ..models.orders import (
@@ -209,7 +209,7 @@ class OrderSyncService:
             "skipped": 0
         }
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             for posting_data in postings:
                 try:
                     # 处理单个Posting
@@ -439,7 +439,7 @@ class OrderSyncService:
         Returns:
             发货结果
         """
-        async with get_session() as session:
+        async with get_async_session() as session:
             # 查找Posting
             stmt = select(OzonPosting).where(
                 and_(
@@ -450,11 +450,17 @@ class OrderSyncService:
             posting = await session.scalar(stmt)
             
             if not posting:
-                raise BusinessError(f"Posting {posting_number} not found")
-            
+                raise ValidationError(
+                    code="POSTING_NOT_FOUND",
+                    detail=f"Posting {posting_number} not found"
+                )
+
             # 验证状态
             if posting.status not in ["awaiting_packaging", "awaiting_deliver"]:
-                raise BusinessError(f"Invalid posting status for shipping: {posting.status}")
+                raise ValidationError(
+                    code="INVALID_POSTING_STATUS",
+                    detail=f"Invalid posting status for shipping: {posting.status}"
+                )
             
             # 获取承运商ID
             carrier_id = self._get_carrier_id(carrier_code)
@@ -569,7 +575,7 @@ class OrderSyncService:
     
     async def _get_checkpoint(self) -> OzonSyncCheckpoint:
         """获取或创建同步检查点"""
-        async with get_session() as session:
+        async with get_async_session() as session:
             stmt = select(OzonSyncCheckpoint).where(
                 and_(
                     OzonSyncCheckpoint.shop_id == self.shop_id,
@@ -591,13 +597,13 @@ class OrderSyncService:
     
     async def _save_checkpoint(self, checkpoint: OzonSyncCheckpoint):
         """保存检查点"""
-        async with get_session() as session:
+        async with get_async_session() as session:
             session.add(checkpoint)
             await session.commit()
     
     async def _create_sync_log(self, entity_type: str, sync_type: str) -> OzonSyncLog:
         """创建同步日志"""
-        async with get_session() as session:
+        async with get_async_session() as session:
             sync_log = OzonSyncLog(
                 shop_id=self.shop_id,
                 entity_type=entity_type,
@@ -617,7 +623,7 @@ class OrderSyncService:
         error: Optional[str] = None
     ):
         """完成同步日志"""
-        async with get_session() as session:
+        async with get_async_session() as session:
             sync_log.status = status
             sync_log.completed_at = datetime.utcnow()
             

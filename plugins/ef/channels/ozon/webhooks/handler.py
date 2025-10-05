@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_session
+from ef_core.database import get_async_session
 from ef_core.utils.logger import get_logger
 
 from ..models.sync import OzonWebhookEvent
@@ -74,7 +74,7 @@ class OzonWebhookHandler:
         event_id = headers.get("X-Event-Id", f"{event_type}-{datetime.utcnow().timestamp()}")
         idempotency_key = f"{self.shop_id}-{event_id}"
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             # 检查是否已处理
             stmt = select(OzonWebhookEvent).where(
                 OzonWebhookEvent.idempotency_key == idempotency_key
@@ -109,7 +109,7 @@ class OzonWebhookHandler:
             result = await self._process_event(event_type, payload, webhook_event)
             
             # 更新事件状态
-            async with get_session() as session:
+            async with get_async_session() as session:
                 webhook_event.status = "processed"
                 webhook_event.processed_at = datetime.utcnow()
                 session.add(webhook_event)
@@ -125,7 +125,7 @@ class OzonWebhookHandler:
             logger.error(f"Failed to process webhook event {event_id}: {e}")
             
             # 更新事件为失败状态
-            async with get_session() as session:
+            async with get_async_session() as session:
                 webhook_event.status = "failed"
                 webhook_event.error_message = str(e)
                 webhook_event.retry_count += 1
@@ -188,7 +188,7 @@ class OzonWebhookHandler:
         # 更新本地状态
         from ..models.orders import OzonPosting
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
@@ -283,7 +283,7 @@ class OzonWebhookHandler:
         
         from ..models.orders import OzonPosting
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
@@ -322,7 +322,7 @@ class OzonWebhookHandler:
         
         from ..models.orders import OzonPosting, OzonOrder
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
@@ -367,7 +367,7 @@ class OzonWebhookHandler:
         from ..models.products import OzonProduct, OzonPriceHistory
         from decimal import Decimal
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             stmt = select(OzonProduct).where(
                 and_(
                     OzonProduct.shop_id == self.shop_id,
@@ -417,7 +417,7 @@ class OzonWebhookHandler:
         
         from ..models.products import OzonProduct
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             stmt = select(OzonProduct).where(
                 and_(
                     OzonProduct.shop_id == self.shop_id,
@@ -452,7 +452,7 @@ class OzonWebhookHandler:
         
         from ..models.orders import OzonRefund, OzonPosting
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             # 查找Posting
             stmt = select(OzonPosting).where(
                 and_(
@@ -498,7 +498,7 @@ class OzonWebhookHandler:
         
         from ..models.orders import OzonRefund
         
-        async with get_session() as session:
+        async with get_async_session() as session:
             stmt = select(OzonRefund).where(
                 and_(
                     OzonRefund.shop_id == self.shop_id,
