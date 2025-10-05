@@ -1,1 +1,0 @@
-document.addEventListener("ozonbang-msg-chore",function(a){console.log("\u6536\u5230\u8C37\u6B4C\u63D2\u4EF6\u7684\u6570\u636E:",a.detail);const{type:o}=a.detail;if(o=="GetWindowData"){const t=JSON.parse(JSON.stringify(window.rawData));window.postMessage({type:"ozonbang-msg-page",data:t},"*")}});
