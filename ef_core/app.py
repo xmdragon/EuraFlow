@@ -125,9 +125,23 @@ def create_app() -> FastAPI:
     # 添加中间件（顺序很重要）
     
     # CORS 中间件
+    # 允许的来源列表
+    allowed_origins = []
+    if settings.api_debug:
+        # 开发模式：允许所有来源
+        allowed_origins = ["*"]
+    else:
+        # 生产模式：允许特定来源
+        allowed_origins = [
+            "https://www.ozon.ru",  # Tampermonkey 脚本运行的域名
+            "https://ozon.ru",
+            "http://localhost:3000",  # 本地前端开发
+            "http://local.euraflow.com",  # 本地域名
+        ]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.api_debug else [],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
