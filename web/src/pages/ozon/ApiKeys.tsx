@@ -243,15 +243,32 @@ const ApiKeys: React.FC = () => {
         </Button>
       </div>
 
+      {/* API地址显示 */}
+      <Card style={{ marginBottom: 16, background: '#f0f5ff', border: '1px solid #91d5ff' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <Text strong style={{ fontSize: 14, marginRight: 8 }}>📡 API 地址：</Text>
+            <Text code copyable={{ text: window.location.origin }} style={{ fontSize: 13 }}>
+              {window.location.origin}
+            </Text>
+          </div>
+        </div>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+          在 Tampermonkey 脚本中填写此地址和下方创建的 API Key
+        </Text>
+      </Card>
+
       {/* 使用提示 */}
       <Alert
         message="使用说明"
         description={
-          <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
-            <li>创建API Key后，请立即复制并妥善保存，系统不会再次显示完整Key</li>
-            <li>在Tampermonkey脚本中配置API地址和Key，即可自动上传采集的商品数据</li>
-            <li>如果Key泄露，请立即删除或重新生成</li>
-          </ul>
+          <ol style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
+            <li>点击"创建API Key"生成新密钥，立即复制保存（仅显示一次）</li>
+            <li>在 Ozon 网站打开 Tampermonkey 脚本控制面板，展开"⚙️ API设置"</li>
+            <li>填写上方的 <strong>API 地址</strong> 和刚才复制的 <strong>API Key</strong></li>
+            <li>点击"测试连接"验证配置，然后即可使用自动上传功能</li>
+            <li>如果 Key 泄露，请立即删除或重新生成</li>
+          </ol>
         }
         type="info"
         showIcon
