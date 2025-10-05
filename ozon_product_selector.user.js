@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ozon选品助手
 // @namespace    http://euraflow.local/
-// @version      4.2
+// @version      4.3
 // @description  智能采集Ozon商品数据，完全适配虚拟滚动机制
 // @author       EuraFlow Team
 // @match        https://www.ozon.ru/*
@@ -849,21 +849,6 @@
                     </div>
                 </div>
 
-                <!-- 上传按钮 -->
-                <button id="upload-api-btn" style="
-                    padding: 10px 20px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    font-weight: 500;
-                    margin-top: 10px;
-                    width: 100%;
-                ">
-                    🚀 上传到系统
-                </button>
-
                 <!-- API设置区域（可折叠） -->
                 <details style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px;">
                     <summary style="cursor: pointer; font-weight: 500; padding: 5px; color: white;">⚙️ API设置</summary>
@@ -983,8 +968,8 @@
                 this.minimizedIcon.style.display = 'none';
             };
 
-            // 上传按钮
-            document.getElementById('upload-api-btn').onclick = () => this.uploadToAPI();
+            // 上传按钮已隐藏（功能保留，采集完成自动上传）
+            // document.getElementById('upload-api-btn').onclick = () => this.uploadToAPI();
 
             // 保存API配置
             document.getElementById('save-api-config-btn').onclick = () => {
