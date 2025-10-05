@@ -122,18 +122,22 @@ async def get_current_user_from_api_key(
     if not api_key:
         return None
 
-    api_key_service = get_api_key_service()
-    user = await api_key_service.validate_api_key(session, api_key)
+    try:
+        api_key_service = get_api_key_service()
+        user = await api_key_service.validate_api_key(session, api_key)
 
-    if user:
-        # 设置请求状态（供中间件使用）
-        request.state.user_id = user.id
-        request.state.shop_id = user.primary_shop_id
-        request.state.permissions = user.permissions
-        request.state.auth_method = "api_key"
-        logger.info(f"API Key认证成功: user_id={user.id}")
+        if user:
+            # 设置请求状态（供中间件使用）
+            request.state.user_id = user.id
+            request.state.shop_id = user.primary_shop_id
+            request.state.permissions = user.permissions
+            request.state.auth_method = "api_key"
+            logger.info(f"API Key认证成功: user_id={user.id}")
 
-    return user
+        return user
+    except Exception as e:
+        logger.error(f"API Key认证错误: {e}", exc_info=True)
+        return None
 
 
 async def get_current_user_flexible(
