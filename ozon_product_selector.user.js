@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ozon选品助手
 // @namespace    http://euraflow.local/
-// @version      4.1
+// @version      4.2
 // @description  智能采集Ozon商品数据，完全适配虚拟滚动机制
 // @author       EuraFlow Team
 // @match        https://www.ozon.ru/*
@@ -32,10 +32,10 @@
         debugMode: false,                // 调试模式
 
         // API上传配置（从localStorage读取）
-        apiEnabled: false,               // 是否启用API上传
+        apiEnabled: true,                // 是否启用API上传（默认开启）
         apiUrl: '',                      // API地址
         apiKey: '',                      // API Key
-        autoUpload: false                // 自动上传（采集完成后）
+        autoUpload: true                 // 自动上传（采集完成后，默认开启）
     };
 
     // GM_xmlhttpRequest 的 Promise 包装器（绕过 CSP 限制）
@@ -833,8 +833,6 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
                         <div>✅ 已收集: <span id="collected" style="font-weight: bold;">0</span></div>
                         <div>📦 页面商品: <span id="page-count" style="font-weight: bold;">0</span></div>
-                        <div>💉 已注入: <span id="injected" style="font-weight: bold;">0</span></div>
-                        <div>🔄 滚动次数: <span id="scroll-count" style="font-weight: bold;">0</span></div>
                     </div>
                     <div style="margin-top: 12px;">
                         <div style="background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
@@ -849,19 +847,6 @@
                              min-height: 20px; text-align: center;">
                         ⏳ 等待开始...
                     </div>
-                </div>
-
-                <div style="display: flex; gap: 10px;">
-                    <button id="export-btn" style="flex: 1; padding: 8px; border: none;
-                            border-radius: 6px; background: rgba(255,255,255,0.2);
-                            color: white; font-size: 12px; cursor: pointer; transition: all 0.3s;">
-                        📥 导出CSV
-                    </button>
-                    <button id="clear-btn" style="flex: 1; padding: 8px; border: none;
-                            border-radius: 6px; background: rgba(255,255,255,0.2);
-                            color: white; font-size: 12px; cursor: pointer; transition: all 0.3s;">
-                        🗑️ 清空
-                    </button>
                 </div>
 
                 <!-- 上传按钮 -->
@@ -883,11 +868,6 @@
                 <details style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px;">
                     <summary style="cursor: pointer; font-weight: 500; padding: 5px; color: white;">⚙️ API设置</summary>
                     <div style="margin-top: 10px;">
-                        <label style="display: block; margin-bottom: 5px; font-size: 12px; color: white;">
-                            <input type="checkbox" id="api-enabled-checkbox" ${CONFIG.apiEnabled ? 'checked' : ''}>
-                            启用API上传
-                        </label>
-
                         <label style="display: block; margin-bottom: 5px; font-size: 12px; color: white;">API地址:</label>
                         <input type="text" id="api-url-input" value="${CONFIG.apiUrl}" placeholder="https://your-domain.com" style="
                             width: 100%;
@@ -912,12 +892,8 @@
                             color: #333;
                         ">
 
-                        <label style="display: block; margin-bottom: 10px; font-size: 12px; color: white;">
-                            <input type="checkbox" id="auto-upload-checkbox" ${CONFIG.autoUpload ? 'checked' : ''}>
-                            采集完成后自动上传
-                        </label>
-
                         <button id="save-api-config-btn" style="
+                            margin-top: 10px;
                             padding: 8px 16px;
                             background: #28a745;
                             color: white;
@@ -981,8 +957,9 @@
         bindEvents() {
             document.getElementById('start-btn').onclick = () => this.startCollection();
             document.getElementById('stop-btn').onclick = () => this.stopCollection();
-            document.getElementById('export-btn').onclick = () => this.exportData();
-            document.getElementById('clear-btn').onclick = () => this.clearData();
+            // 导出和清空按钮已隐藏，但功能保留（可通过控制台调用）
+            // document.getElementById('export-btn').onclick = () => this.exportData();
+            // document.getElementById('clear-btn').onclick = () => this.clearData();
 
             // 最小化/展开事件
             const minimizeBtn = document.getElementById('minimize-btn');
@@ -1011,10 +988,10 @@
 
             // 保存API配置
             document.getElementById('save-api-config-btn').onclick = () => {
-                CONFIG.apiEnabled = document.getElementById('api-enabled-checkbox').checked;
+                CONFIG.apiEnabled = true;  // 始终启用API上传
                 CONFIG.apiUrl = document.getElementById('api-url-input').value.trim();
                 CONFIG.apiKey = document.getElementById('api-key-input').value.trim();
-                CONFIG.autoUpload = document.getElementById('auto-upload-checkbox').checked;
+                CONFIG.autoUpload = true;  // 始终自动上传
                 saveAPIConfig();
                 alert('配置已保存！');
             };
@@ -1197,8 +1174,6 @@
 
             document.getElementById('collected').textContent = stats.collected;
             document.getElementById('page-count').textContent = document.querySelectorAll('.tile-root').length;
-            document.getElementById('injected').textContent = document.querySelectorAll('[data-ozon-bang="true"]').length;
-            document.getElementById('scroll-count').textContent = this.collector.scrollCount;
 
             // 进度条
             const progressBar = document.getElementById('progress-bar');
