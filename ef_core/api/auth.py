@@ -136,6 +136,80 @@ async def get_current_user_from_api_key(
     return user
 
 
+async def get_current_user_flexible(
+    request: Request,
+    session: AsyncSession = Depends(get_async_session)
+) -> User:
+    """
+    获取当前认证用户（支持 JWT Token 或 API Key）
+
+    优先检查 API Key (X-API-Key header)，如果不存在则尝试 JWT Token
+    """
+    # 1. 尝试 API Key 认证
+    user = await get_current_user_from_api_key(request, session)
+    if user:
+        return user
+
+    # 2. 尝试 JWT Token 认证
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise UnauthorizedError(
+            code="MISSING_CREDENTIALS",
+            detail="Missing authentication credentials"
+        )
+
+    token = auth_header.replace("Bearer ", "")
+    auth_service = get_auth_service()
+
+    try:
+        # 解码令牌
+        payload = auth_service.decode_token(token)
+
+        # 验证令牌类型
+        if payload.get("type") != "access":
+            raise UnauthorizedError(
+                code="INVALID_TOKEN_TYPE",
+                detail="Invalid token type"
+            )
+
+        # 检查黑名单
+        jti = payload.get("jti")
+        if await auth_service.is_token_revoked(jti):
+            raise UnauthorizedError(
+                code="TOKEN_REVOKED",
+                detail="Token has been revoked"
+            )
+
+        # 获取用户
+        user_id = payload.get("sub")
+        stmt = select(User).where(User.id == int(user_id))
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+
+        if not user or not user.is_active:
+            raise UnauthorizedError(
+                code="USER_NOT_FOUND",
+                detail="User not found or inactive"
+            )
+
+        # 设置请求状态（供中间件使用）
+        request.state.user_id = user.id
+        request.state.shop_id = user.primary_shop_id
+        request.state.permissions = user.permissions
+        request.state.auth_method = "jwt"
+
+        return user
+
+    except UnauthorizedError:
+        raise
+    except Exception as e:
+        logger.error("Authentication failed", exc_info=True)
+        raise UnauthorizedError(
+            code="AUTHENTICATION_FAILED",
+            detail="Authentication failed"
+        )
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -147,14 +221,14 @@ async def get_current_user(
     try:
         # 解码令牌
         payload = auth_service.decode_token(credentials.credentials)
-        
+
         # 验证令牌类型
         if payload.get("type") != "access":
             raise UnauthorizedError(
                 code="INVALID_TOKEN_TYPE",
                 detail="Invalid token type"
             )
-        
+
         # 检查黑名单
         jti = payload.get("jti")
         if await auth_service.is_token_revoked(jti):
@@ -162,26 +236,27 @@ async def get_current_user(
                 code="TOKEN_REVOKED",
                 detail="Token has been revoked"
             )
-        
+
         # 获取用户
         user_id = payload.get("sub")
         stmt = select(User).where(User.id == int(user_id))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
-        
+
         if not user or not user.is_active:
             raise UnauthorizedError(
                 code="USER_NOT_FOUND",
                 detail="User not found or inactive"
             )
-        
+
         # 设置请求状态（供中间件使用）
         request.state.user_id = user.id
         request.state.shop_id = user.primary_shop_id
         request.state.permissions = user.permissions
-        
+        request.state.auth_method = "jwt"
+
         return user
-        
+
     except UnauthorizedError:
         raise
     except Exception as e:
@@ -280,13 +355,13 @@ async def refresh_token(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_flexible),
     session: AsyncSession = Depends(get_async_session)
 ):
     """
     获取当前用户信息
-    
-    - 需要有效的访问令牌
+
+    - 支持 JWT Token (Authorization: Bearer <token>) 或 API Key (X-API-Key: <key>)
     - 返回用户基本信息和关联的店铺
     """
     # 加载关联的店铺
@@ -297,10 +372,10 @@ async def get_current_user_info(
     )
     result = await session.execute(stmt)
     user = result.scalar_one()
-    
+
     # 构建响应
     user_data = user.to_dict()
-    
+
     # 添加店铺列表
     shops = []
     if user.primary_shop:
@@ -308,9 +383,9 @@ async def get_current_user_info(
     for shop in user.owned_shops:
         if shop.id != user.primary_shop_id:
             shops.append(shop.to_dict())
-    
+
     user_data["shops"] = shops
-    
+
     return UserResponse(**user_data)
 
 
