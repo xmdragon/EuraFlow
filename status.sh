@@ -50,7 +50,7 @@ fi
 # 显示前端状态
 echo -e "\n${YELLOW}Frontend Status:${NC}"
 if systemctl is-active --quiet nginx 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} Frontend served by Nginx (Production Mode)"
+    echo -e "${GREEN}✓${NC} Frontend served by Nginx"
     # 检查静态文件目录
     if [ -d "web/dist" ] && [ -f "web/dist/index.html" ]; then
         echo -e "${GREEN}✓${NC} Static files present in web/dist"
@@ -59,14 +59,11 @@ if systemctl is-active --quiet nginx 2>/dev/null; then
         echo "  Run 'cd web && npm run build' to build frontend"
     fi
 else
-    echo -e "${YELLOW}!${NC} Nginx not detected (Development Mode)"
-    # 检查是否有开发服务器在运行
-    FRONTEND_STATUS=$(supervisorctl -c supervisord.conf status frontend 2>/dev/null | awk '{print $2}')
-    if [ "$FRONTEND_STATUS" = "RUNNING" ]; then
-        echo -e "${GREEN}✓${NC} Frontend dev server running (npm run dev)"
+    echo -e "${YELLOW}!${NC} Nginx not detected"
+    if [ -d "web/dist" ] && [ -f "web/dist/index.html" ]; then
+        echo -e "${GREEN}✓${NC} Static files built in web/dist (run nginx to serve)"
     else
-        echo "  Frontend dev server not running"
-        echo "  To start: supervisorctl -c supervisord.conf start frontend"
+        echo -e "${YELLOW}!${NC} Static files missing - run 'cd web && npm run build'"
     fi
 fi
 
@@ -78,13 +75,6 @@ if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Backend API is listening on port 8000"
 else
     echo -e "${RED}✗${NC} Backend API is NOT listening on port 8000"
-fi
-
-# 检查 Supervisor Web 端口 (9001)
-if lsof -Pi :9001 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Supervisor Web UI is listening on port 9001"
-else
-    echo -e "${YELLOW}!${NC} Supervisor Web UI is NOT listening on port 9001"
 fi
 
 # 显示日志文件信息
@@ -114,7 +104,5 @@ echo -e "${BLUE}========================================${NC}"
 echo ""
 echo "Backend API:     http://localhost:8000"
 echo "API Docs:        http://localhost:8000/docs"
-echo "Supervisor Web:  http://localhost:9001"
-echo "                 (Username: admin, Password: admin123)"
 echo ""
 echo -e "${BLUE}========================================${NC}"
