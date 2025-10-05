@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 import re
 
 from ef_core.database import get_async_session
-from ef_core.api.auth import get_current_user, get_current_user_from_api_key
+from ef_core.api.auth import get_current_user, get_current_user_from_api_key, get_current_user_flexible
 from ef_core.models.users import User
 from ..services.product_selection_service import ProductSelectionService
 from ..models.product_selection import ProductSelectionItem, ImportHistory
@@ -299,11 +299,11 @@ async def get_products(
     sort_by: str = Query('created_desc', description="排序方式"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_flexible),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    获取商品列表（GET方法）
+    获取商品列表（GET方法，支持JWT Token或API Key认证）
     """
     service = ProductSelectionService()
 
@@ -997,6 +997,9 @@ async def upload_products(
             )
             success_count += result['success'] + result['updated']
             failed_count += result['skipped']
+
+            # 提交事务
+            await db.commit()
 
         logger.info(
             f"API Key批量上传完成: user_id={api_key_user.id}, "

@@ -1138,14 +1138,10 @@
                                 this.updateStatus(`⚠️ 已尝试多次，可能已无更多商品（当前: ${afterCount}/${targetCount}）`);
 
                                 if (afterCount > 0) {
-                                    const shouldContinue = confirm(`当前已收集 ${afterCount} 个商品，未达到目标 ${targetCount}。\n是否继续尝试？`);
-                                    if (!shouldContinue) {
-                                        this.stopCollection();
-                                        return;
-                                    } else {
-                                        forceScrollCount = 0;
-                                        sameCountTimes = 0;
-                                    }
+                                    // 自动停止采集，不再弹出确认框
+                                    this.updateStatus(`⚠️ 已收集 ${afterCount} 个商品，未达到目标 ${targetCount}，自动停止采集`);
+                                    this.stopCollection();
+                                    return;
                                 }
                             }
                         }
