@@ -36,7 +36,12 @@ class AuthService:
         self._fernet = None
         
         # JWT配置
-        self.access_token_expire = timedelta(minutes=15)
+        # 开发环境：延长access token时间，避免频繁过期
+        # 生产环境：建议保持15分钟
+        if self.settings.api_debug:
+            self.access_token_expire = timedelta(hours=8)  # 开发环境8小时
+        else:
+            self.access_token_expire = timedelta(minutes=15)  # 生产环境15分钟
         self.refresh_token_expire = timedelta(days=7)
         self.algorithm = "HS256"
     
