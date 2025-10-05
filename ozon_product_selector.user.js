@@ -1,11 +1,15 @@
 // ==UserScript==
 // @name         Ozon选品助手
 // @namespace    http://euraflow.local/
-// @version      4.0
+// @version      4.1
 // @description  智能采集Ozon商品数据，完全适配虚拟滚动机制
 // @author       EuraFlow Team
 // @match        https://www.ozon.ru/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      localhost
+// @connect      local.euraflow.com
+// @connect      ozon.gxfc.life
+// @connect      *
 // ==/UserScript==
 
 (function() {
@@ -33,6 +37,44 @@
         apiKey: '',                      // API Key
         autoUpload: false                // 自动上传（采集完成后）
     };
+
+    // GM_xmlhttpRequest 的 Promise 包装器（绕过 CSP 限制）
+    function gmFetch(url, options = {}) {
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: options.method || 'GET',
+                url: url,
+                headers: options.headers || {},
+                data: options.body || null,
+                onload: function(response) {
+                    // 模拟 fetch Response 对象
+                    const mockResponse = {
+                        ok: response.status >= 200 && response.status < 300,
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.responseHeaders,
+                        async json() {
+                            try {
+                                return JSON.parse(response.responseText);
+                            } catch (e) {
+                                throw new Error('Invalid JSON response');
+                            }
+                        },
+                        async text() {
+                            return response.responseText;
+                        }
+                    };
+                    resolve(mockResponse);
+                },
+                onerror: function(error) {
+                    reject(new Error(`Network request failed: ${error.statusText || 'Unknown error'}`));
+                },
+                ontimeout: function() {
+                    reject(new Error('Request timeout'));
+                }
+            });
+        });
+    }
 
     // 从localStorage加载API配置
     function loadAPIConfig() {
@@ -1278,9 +1320,9 @@
                     competitor_min_price: this.parseNumber(p['最低跟卖价'])
                 }));
 
-                // 发送请求
+                // 发送请求（使用 GM_xmlhttpRequest 绕过 CSP）
                 const url = `${CONFIG.apiUrl}/api/ef/v1/ozon/product-selection/upload`;
-                const response = await fetch(url, {
+                const response = await gmFetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1332,7 +1374,7 @@
             try {
                 this.updateStatus('🔍 测试连接...');
                 const url = `${CONFIG.apiUrl}/api/ef/v1/auth/me`;
-                const response = await fetch(url, {
+                const response = await gmFetch(url, {
                     headers: { 'X-API-Key': CONFIG.apiKey }
                 });
 
