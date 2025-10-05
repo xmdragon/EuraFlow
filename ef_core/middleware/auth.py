@@ -32,10 +32,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 检查是否为公开路径
         if self._is_public_path(request.url.path):
             return await call_next(request)
-        
-        # 检查认证头
+
+        # 1. 优先检查 X-API-Key 头（用于API Key认证）
+        api_key = request.headers.get("x-api-key")
+        if api_key:
+            # API Key 认证交给路由层处理
+            # 这里只是标记已提供认证凭据，不进行验证
+            return await call_next(request)
+
+        # 2. 检查 Authorization 头（JWT Token认证）
         auth_header = request.headers.get("authorization", "")
-        
+
         if not auth_header:
             # 对于开发环境，允许无认证访问
             from ef_core.config import get_settings
@@ -49,7 +56,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             else:
                 raise UnauthorizedError(
                     code="MISSING_AUTH_HEADER",
-                    detail="Authorization header is required"
+                    detail="Authorization header or X-API-Key header is required"
                 )
         
         # 简化的 token 验证（生产环境需要实现 JWT 验证）
