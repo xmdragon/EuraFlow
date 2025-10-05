@@ -1067,7 +1067,7 @@
 
                 // 收集新商品
                 const beforeCount = this.collector.validatedProducts.size;
-                const newProducts = await this.collector.collectVisibleProducts();
+                await this.collector.collectVisibleProducts();
                 const afterCount = this.collector.validatedProducts.size;
                 const actualNewCount = afterCount - beforeCount;
 
