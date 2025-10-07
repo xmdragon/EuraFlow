@@ -7,9 +7,11 @@ EuraFlow 是一个为中俄跨境电商业务设计的可扩展微内核平台�
 ### 环境要求
 
 - Python 3.12+
+- Node.js 18+ / npm
 - PostgreSQL 12+
 - Redis 6+
 - Git
+- Nginx（生产环境）
 
 ### 开发环境搭建
 
@@ -21,7 +23,11 @@ cd EuraFlow
 
 2. 设置开发环境
 ```bash
-make setup
+# Linux/WSL
+source activate.sh
+
+# macOS
+./setup_macos.sh
 ```
 
 3. 配置环境变量
@@ -32,26 +38,53 @@ cp .env.example .env
 
 4. 初始化数据库
 ```bash
-make db-init
+alembic upgrade head
 ```
 
-5. 启动开发服务器
+5. 构建前端（生产环境）
 ```bash
-make dev
+cd web && npm install && npm run build
+```
+
+6. 启动服务
+```bash
+# Linux/WSL
+./start.sh
+
+# macOS
+./start_macos.sh
 ```
 
 访问 http://localhost:8000/docs 查看 API 文档。
 
 ## 📋 常用命令
 
+### 服务管理
 ```bash
-make help          # 查看所有可用命令
-make setup         # 设置开发环境
-make dev           # 启动开发服务器
-make test          # 运行测试
-make lint          # 代码检查
-make format        # 格式化代码
-make clean         # 清理生成文件
+./start.sh         # 启动所有服务（backend + worker）
+./stop.sh          # 停止所有服务
+./restart.sh       # 重启所有服务
+./status.sh        # 查看服务状态
+```
+
+### 开发工具
+```bash
+# 代码质量检查（pre-commit 自动运行）
+pre-commit run --all-files
+
+# 数据库迁移
+alembic revision -m "description"  # 创建迁移
+alembic upgrade head               # 应用迁移
+alembic downgrade -1               # 回滚一个版本
+
+# 测试
+pytest                             # 运行所有测试
+pytest tests/test_specific.py      # 运行特定测试
+
+# 日志查看
+tail -f logs/backend.log           # 后端日志
+tail -f logs/worker.log            # Worker 日志
+tail -f logs/supervisord.log       # Supervisor 日志
 ```
 
 ## 🏗️ 项目结构
@@ -66,16 +99,28 @@ EuraFlow/
 │   ├── database.py      # 数据库管理
 │   ├── models/          # 数据模型
 │   ├── services/        # 核心服务
-│   ├── api/            # API 路由
-│   ├── tasks/          # Celery 任务
-│   ├── middleware/     # 中间件
-│   └── utils/          # 工具模块
-├── plugins/            # 插件目录
-│   └── ef/channels/ozon/  # Ozon 插件（待实现）
-├── scripts/           # 开发和部署脚本
-├── tests/            # 测试用例
-├── docs/             # 项目文档
-└── alembic/          # 数据库迁移
+│   ├── api/             # API 路由
+│   ├── tasks/           # 任务系统
+│   ├── middleware/      # 中间件
+│   └── utils/           # 工具模块
+├── plugins/             # 插件目录
+│   └── ef/
+│       └── channels/
+│           └── ozon/    # Ozon 渠道插件
+├── web/                 # 前端项目
+│   ├── src/            # React 源码
+│   ├── dist/           # 构建产物
+│   └── package.json    # 前端依赖
+├── scripts/            # 开发和部署脚本
+├── deploy/             # 部署配置
+│   ├── nginx/         # Nginx 配置模板
+│   └── systemd/       # Systemd 服务配置
+├── docs/              # 项目文档
+├── alembic/           # 数据库迁移
+├── logs/              # 日志目录
+├── config/            # 配置目录
+├── supervisord.conf   # Supervisor 配置
+└── .pre-commit-config.yaml  # Git hooks 配置
 ```
 
 ## 🔌 插件开发
@@ -131,11 +176,12 @@ async def handle_order(payload: Dict[str, Any]):
 
 ## 🛠️ 技术栈
 
-- **后端**: Python 3.12, FastAPI, SQLAlchemy 2.0, Celery
+- **后端**: Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Alembic
+- **前端**: TypeScript, React, Vite, TanStack Query, Tailwind CSS
 - **数据库**: PostgreSQL, Redis
-- **消息队列**: Redis Streams
-- **监控**: Prometheus, 结构化日志
-- **部署**: systemd, Nginx
+- **任务队列**: 自研任务运行器（基于 Redis）
+- **监控**: Prometheus 指标, JSON 结构化日志
+- **部署**: Supervisord (开发), systemd (生产), Nginx
 
 ## 📝 开发规范
 
@@ -150,11 +196,23 @@ async def handle_order(payload: Dict[str, Any]):
 
 ### 提交流程
 
+项目配置了 pre-commit hooks，每次 `git commit` 时会自动运行：
+
 ```bash
-make lint          # 代码检查
-make test          # 运行测试
-make format        # 格式化代码
+# pre-commit 会自动执行：
+# - ruff（Python 语法检查和自动修复）
+# - black（Python 代码格式化）
+# - mypy（类型检查）
+# - eslint（TypeScript/React 检查）
+# - prettier（前端代码格式化）
+# - detect-secrets（密钥泄露检测）
+
+git add .
 git commit -m "feat: add new feature"
+
+# 如果 pre-commit 检查失败，修复后重新提交
+# 手动运行所有检查：
+pre-commit run --all-files
 ```
 
 ## 🚀 生产部署
@@ -177,9 +235,15 @@ sudo bash scripts/deploy.sh deploy
 ### 服务管理
 
 ```bash
-make status        # 查看服务状态
-make logs         # 查看服务日志
-systemctl restart ef-api ef-worker ef-scheduler
+# 开发环境（supervisord）
+./status.sh                        # 查看服务状态
+./restart.sh                       # 重启服务
+tail -f logs/backend.log           # 查看日志
+
+# 生产环境（systemd）
+systemctl status ef-api ef-worker  # 查看服务状态
+systemctl restart ef-api ef-worker # 重启服务
+journalctl -u ef-api -f            # 查看日志
 ```
 
 ## 📚 文档
