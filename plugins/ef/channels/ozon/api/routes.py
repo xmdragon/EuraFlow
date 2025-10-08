@@ -1651,10 +1651,12 @@ async def get_orders(
 
     # 搜索条件
     if posting_number:
-        # 搜索订单号或posting_number
-        query = query.where(
-            (OzonOrder.order_number.ilike(f"%{posting_number}%")) |
-            (OzonOrder.posting_number.ilike(f"%{posting_number}%"))
+        # 搜索订单号、Ozon订单号或通过posting关联
+        from plugins.ef.channels.ozon.models.orders import OzonPosting
+        query = query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
+            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
+            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
+            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
         )
 
     if customer_phone:
@@ -1757,9 +1759,19 @@ async def update_order_extra_info(
     """
     from decimal import Decimal
 
-    # 查找订单
+    # 通过 posting_number 查找订单（先查 posting，再找 order）
+    from plugins.ef.channels.ozon.models.orders import OzonPosting
+    posting_result = await db.execute(
+        select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+    )
+    posting = posting_result.scalar_one_or_none()
+
+    if not posting:
+        raise HTTPException(status_code=404, detail="Posting not found")
+
+    # 获取关联的订单
     result = await db.execute(
-        select(OzonOrder).where(OzonOrder.posting_number == posting_number)
+        select(OzonOrder).where(OzonOrder.id == posting.order_id)
     )
     order = result.scalar_one_or_none()
 
@@ -1806,10 +1818,23 @@ async def get_order_detail(
     获取订单详情
     通过posting_number获取单个订单的完整信息
     """
-    # 构建查询
-    query = select(OzonOrder).where(OzonOrder.posting_number == posting_number)
+    # 通过 posting_number 查找订单（先查 posting，再找 order）
+    from plugins.ef.channels.ozon.models.orders import OzonPosting
+    posting_query = select(OzonPosting).where(OzonPosting.posting_number == posting_number)
 
     if shop_id:
+        posting_query = posting_query.where(OzonPosting.shop_id == shop_id)
+
+    posting_result = await db.execute(posting_query)
+    posting = posting_result.scalar_one_or_none()
+
+    if not posting:
+        raise HTTPException(status_code=404, detail="Posting not found")
+
+    # 获取关联的订单
+    query = select(OzonOrder).where(OzonOrder.id == posting.order_id)
+
+    if False:  # shop_id 已经在 posting 查询中检查过了
         query = query.where(OzonOrder.shop_id == shop_id)
 
     # 执行查询

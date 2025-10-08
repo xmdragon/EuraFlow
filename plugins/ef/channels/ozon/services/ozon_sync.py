@@ -684,10 +684,11 @@ class OzonSyncService:
                 SYNC_TASKS[task_id]["progress"] = min(progress, 90)
                 SYNC_TASKS[task_id]["message"] = f"正在同步订单 {item.get('posting_number', 'unknown')}..."
 
-                # 检查订单是否存在
+                # 检查订单是否存在（使用 ozon_order_id）
                 existing = await db.execute(
                     select(OzonOrder).where(
-                        OzonOrder.shop_id == shop_id, OzonOrder.posting_number == item.get("posting_number")
+                        OzonOrder.shop_id == shop_id,
+                        OzonOrder.ozon_order_id == str(item.get("order_id", ""))
                     )
                 )
                 order = existing.scalar_one_or_none()
@@ -817,11 +818,11 @@ class OzonSyncService:
 
                 # 处理这一批订单
                 for idx, item in enumerate(items):
-                    # 检查订单是否存在
+                    # 检查订单是否存在（使用 ozon_order_id）
                     existing = await db.execute(
                         select(OzonOrder).where(
                             OzonOrder.shop_id == shop_id,
-                            OzonOrder.posting_number == item.get("posting_number")
+                            OzonOrder.ozon_order_id == str(item.get("order_id", ""))
                         )
                     )
                     order = existing.scalar_one_or_none()
@@ -960,102 +961,50 @@ class OzonSyncService:
                 return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
             return None
 
-        # 基础字段
+        # 基础字段（映射到 OzonOrder 模型）
         order_data = {
-            "order_id": str(item.get("order_id", "")),
-            "order_number": item.get("order_number", ""),
-            "posting_number": item.get("posting_number", ""),
-            "status": item.get("status", ""),
-            "substatus": item.get("substatus"),
-            "previous_substatus": item.get("previous_substatus"),
-            "delivery_type": item.get("delivery_method", {}).get("tpl_provider", "FBS"),
+            # 订单号映射
+            "order_id": item.get("posting_number", ""),  # 本地订单号（使用 posting_number）
+            "ozon_order_id": str(item.get("order_id", "")),  # Ozon订单号
+            "ozon_order_number": item.get("order_number", ""),  # Ozon订单编号
+
+            # 订单状态
+            "status": item.get("status", ""),  # 映射后的标准状态
+            "ozon_status": item.get("status", ""),  # Ozon原始状态
+
+            # 订单类型
+            "order_type": item.get("delivery_method", {}).get("tpl_provider", "FBS"),  # FBS/FBO
             "is_express": item.get("is_express", False),
             "is_premium": item.get("is_premium", False),
-            "total_price": total_price,
-            "products_price": products_price,
-            "delivery_price": delivery_price,
+
+            # 金额信息
+            "total_amount": total_price,
+            "products_amount": products_price,
+            "delivery_amount": delivery_price,
             "commission_amount": commission_amount,
+
+            # 地址和配送
             "delivery_address": delivery_address,
             "delivery_method": item.get("delivery_method", {}).get("name"),
-            "tracking_number": item.get("tracking_number"),
-            "tpl_integration_type": item.get("tpl_integration_type"),
-            "provider_status": item.get("provider_status"),
+
+            # 原始数据
+            "raw_payload": item,
         }
 
-        # 配送详情字段
-        delivery_method = item.get("delivery_method", {})
-        if delivery_method:
-            order_data.update({
-                "warehouse_id": delivery_method.get("warehouse_id"),
-                "warehouse_name": delivery_method.get("warehouse"),
-                "tpl_provider_id": delivery_method.get("tpl_provider_id"),
-                "tpl_provider_name": delivery_method.get("tpl_provider"),
-                "delivery_method_detail": delivery_method,
-            })
-
-        # 条形码字段
-        barcodes = item.get("barcodes", {})
-        if barcodes:
-            order_data.update({
-                "upper_barcode": barcodes.get("upper_barcode"),
-                "lower_barcode": barcodes.get("lower_barcode"),
-                "barcodes": barcodes,
-            })
-
-        # 取消详情字段
-        cancellation = item.get("cancellation", {})
-        if cancellation:
-            order_data.update({
-                "cancel_reason_id": cancellation.get("cancel_reason_id"),
-                "cancellation_type": cancellation.get("cancellation_type"),
-                "cancelled_after_ship": cancellation.get("cancelled_after_ship", False),
-                "affect_cancellation_rating": cancellation.get("affect_cancellation_rating", False),
-                "cancellation_initiator": cancellation.get("cancellation_initiator"),
-                "cancellation_detail": cancellation,
-            })
-
-        # 分析数据字段
+        # 时间字段（只映射 OzonOrder 模型中存在的字段）
         analytics_data = item.get("analytics_data", {})
         if analytics_data:
             order_data.update({
-                "payment_type": analytics_data.get("payment_type_group_name"),
-                "is_legal": analytics_data.get("is_legal", False),
-                "delivery_date_begin": parse_datetime(analytics_data.get("delivery_date_begin")),
-                "delivery_date_end": parse_datetime(analytics_data.get("delivery_date_end")),
-                "analytics_data": analytics_data,
+                "delivery_date": parse_datetime(analytics_data.get("delivery_date_begin")),
             })
 
-        # 时间字段
+        # 其他时间字段
         order_data.update({
-            "in_process_at": parse_datetime(item.get("in_process_at")),
-            "shipment_date": parse_datetime(item.get("shipment_date")),
-            "delivering_date": parse_datetime(item.get("delivering_date")),
+            "ordered_at": parse_datetime(item.get("in_process_at")) or datetime.utcnow(),  # 必填字段
+            "confirmed_at": parse_datetime(item.get("in_process_at")),
+            "shipped_at": parse_datetime(item.get("shipment_date")),
             "delivered_at": parse_datetime(item.get("delivered_at")),
             "cancelled_at": parse_datetime(item.get("cancelled_at")),
-        })
-
-        # JSON字段
-        order_data.update({
-            "items": item.get("products", []),
-            "financial_data": item.get("financial_data"),
-            "requirements": item.get("requirements"),
-            "optional_info": item.get("optional"),
-            "related_postings": item.get("related_postings"),
-            "product_exemplars": item.get("product_exemplars"),
-            "legal_info": item.get("legal_info"),
-            "translit": item.get("translit"),
-            "addressee": item.get("addressee"),
-        })
-
-        # 同步控制字段
-        order_data.update({
-            "sync_mode": sync_mode,
-            "sync_version": 1,
-        })
-
-        # 其他字段
-        order_data.update({
-            "cancel_reason": item.get("cancel_reason"),
         })
 
         return order_data

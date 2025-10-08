@@ -145,11 +145,11 @@ async def pull_orders_task() -> None:
                         new_orders = 0
 
                         for posting in postings:
-                            # 检查订单是否已存在
+                            # 检查订单是否已存在（使用 ozon_order_id）
                             existing = await db.execute(
                                 select(OzonOrder).where(
                                     OzonOrder.shop_id == shop.id,
-                                    OzonOrder.posting_number == posting.get("posting_number", "")
+                                    OzonOrder.ozon_order_id == str(posting.get("order_id", ""))
                                 )
                             )
 
@@ -308,14 +308,28 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
         print(f"Processing shipment for order {order_id} with tracking {tracking_number}")
 
         async with get_async_session() as db:
-            # 查找订单
+            # 查找订单（通过本地订单号或 Ozon 订单号）
             order_result = await db.execute(
                 select(OzonOrder).where(
                     (OzonOrder.order_id == order_id) |
-                    (OzonOrder.posting_number == order_id)
+                    (OzonOrder.ozon_order_id == order_id) |
+                    (OzonOrder.ozon_order_number == order_id)
                 )
             )
             order = order_result.scalar_one_or_none()
+
+            # 如果还没找到，尝试通过 posting_number 查找
+            if not order:
+                from plugins.ef.channels.ozon.models.orders import OzonPosting
+                posting_result = await db.execute(
+                    select(OzonPosting).where(OzonPosting.posting_number == order_id)
+                )
+                posting = posting_result.scalar_one_or_none()
+                if posting:
+                    order_result = await db.execute(
+                        select(OzonOrder).where(OzonOrder.id == posting.order_id)
+                    )
+                    order = order_result.scalar_one_or_none()
 
             if not order:
                 print(f"Order {order_id} not found in database")
