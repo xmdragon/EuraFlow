@@ -17,6 +17,28 @@ router = APIRouter(prefix="/webhook", tags=["Ozon Webhooks"])
 logger = logging.getLogger(__name__)
 
 
+def ozon_error_response(status_code: int, error_code: str, message: str, details: str = None):
+    """
+    返回符合OZON规范的错误响应
+
+    Args:
+        status_code: HTTP状态码 (4xx或5xx)
+        error_code: OZON错误代码 (ERROR_UNKNOWN, ERROR_PARAMETER_VALUE_MISSED, ERROR_REQUEST_DUPLICATED)
+        message: 错误描述
+        details: 更多信息（可选）
+    """
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "code": error_code,
+                "message": message,
+                "details": details
+            }
+        }
+    )
+
+
 @router.post("")
 async def receive_webhook(
     request: Request,
@@ -51,7 +73,12 @@ async def receive_webhook(
             payload = await request.json()
         except Exception as e:
             logger.error(f"Failed to parse webhook payload: {e}")
-            raise HTTPException(status_code=400, detail="Invalid JSON payload")
+            return ozon_error_response(
+                status_code=400,
+                error_code="ERROR_PARAMETER_VALUE_MISSED",
+                message="Invalid JSON payload",
+                details=str(e)
+            )
 
         # 收集请求头信息
         headers = dict(request.headers)
@@ -73,7 +100,11 @@ async def receive_webhook(
                     }
                 )
             logger.warning("Missing X-Event-Type header in webhook request")
-            raise HTTPException(status_code=400, detail="Missing X-Event-Type header")
+            return ozon_error_response(
+                status_code=400,
+                error_code="ERROR_PARAMETER_VALUE_MISSED",
+                message="Missing X-Event-Type header"
+            )
 
         # 处理Ozon的webhook验证请求（PING）
         # Ozon在配置webhook时会发送ping/test请求来验证URL可达性
@@ -90,7 +121,11 @@ async def receive_webhook(
 
         if not x_ozon_signature:
             logger.warning("Missing X-Ozon-Signature header in webhook request")
-            raise HTTPException(status_code=400, detail="Missing X-Ozon-Signature header")
+            return ozon_error_response(
+                status_code=400,
+                error_code="ERROR_PARAMETER_VALUE_MISSED",
+                message="Missing X-Ozon-Signature header"
+            )
 
         # 从载荷中提取店铺信息
         # Ozon webhook通常在载荷中包含店铺标识信息
@@ -102,7 +137,12 @@ async def receive_webhook(
 
         if not shop_identifier:
             logger.error(f"Cannot identify shop from webhook payload: {payload}")
-            raise HTTPException(status_code=400, detail="Cannot identify shop from payload")
+            return ozon_error_response(
+                status_code=400,
+                error_code="ERROR_PARAMETER_VALUE_MISSED",
+                message="Cannot identify shop from payload",
+                details="Missing company_id or client_id in payload"
+            )
 
         # 查找对应的店铺和Webhook配置
         shop_result = await db.execute(
@@ -116,7 +156,12 @@ async def receive_webhook(
 
         if not shop:
             logger.warning(f"Shop not found for identifier: {shop_identifier}")
-            raise HTTPException(status_code=404, detail="Shop not found or inactive")
+            return ozon_error_response(
+                status_code=404,
+                error_code="ERROR_UNKNOWN",
+                message="Shop not found or inactive",
+                details=f"shop_identifier: {shop_identifier}"
+            )
 
         # 获取Webhook密钥（可选，用于签名验证）
         webhook_secret = None
@@ -157,17 +202,30 @@ async def receive_webhook(
             logger.error(f"Webhook processing failed: {result}")
             # 对于签名验证失败，返回401
             if "signature" in result.get("error", "").lower():
-                raise HTTPException(status_code=401, detail=result.get("error"))
+                return ozon_error_response(
+                    status_code=401,
+                    error_code="ERROR_UNKNOWN",
+                    message="Invalid webhook signature",
+                    details=result.get("error")
+                )
             # 其他错误返回500
-            raise HTTPException(status_code=500, detail=result.get("error", "Processing failed"))
+            return ozon_error_response(
+                status_code=500,
+                error_code="ERROR_UNKNOWN",
+                message="Webhook processing failed",
+                details=result.get("error", "Processing failed")
+            )
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Unexpected error processing webhook: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return ozon_error_response(
+            status_code=500,
+            error_code="ERROR_UNKNOWN",
+            message="Internal server error",
+            details=str(e)
+        )
 
 
 @router.get("/health")
