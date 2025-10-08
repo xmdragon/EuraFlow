@@ -64,11 +64,14 @@ class OzonWebhookHandler:
         Returns:
             处理结果
         """
-        # 验证签名
+        # 验证签名（如果配置了webhook_secret）
         signature = headers.get("X-Ozon-Signature", "")
-        if not self._verify_signature(raw_body, signature):
-            logger.warning(f"Invalid webhook signature for shop {self.shop_id}")
-            return {"success": False, "error": "Invalid signature"}
+        if self.webhook_secret:  # 只有配置了secret才验证签名
+            if not self._verify_signature(raw_body, signature):
+                logger.warning(f"Invalid webhook signature for shop {self.shop_id}")
+                return {"success": False, "error": "Invalid signature"}
+        else:
+            logger.info(f"Skipping signature verification for shop {self.shop_id} (no secret configured)")
         
         # 检查幂等性
         event_id = headers.get("X-Event-Id", f"{event_type}-{datetime.utcnow().timestamp()}")

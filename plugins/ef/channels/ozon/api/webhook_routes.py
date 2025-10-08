@@ -61,6 +61,20 @@ async def receive_webhook(
             logger.warning("Missing X-Event-Type header in webhook request")
             raise HTTPException(status_code=400, detail="Missing X-Event-Type header")
 
+        # 处理Ozon的webhook验证请求（PING）
+        # Ozon在配置webhook时会发送ping/test请求来验证URL可达性
+        if x_event_type.lower() in ('ping', 'test', 'verification'):
+            logger.info(f"Received webhook verification request: {x_event_type}")
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "message": "Webhook endpoint verified",
+                    "event_type": x_event_type,
+                    "event_id": x_event_id
+                }
+            )
+
         if not x_ozon_signature:
             logger.warning("Missing X-Ozon-Signature header in webhook request")
             raise HTTPException(status_code=400, detail="Missing X-Ozon-Signature header")
@@ -91,19 +105,18 @@ async def receive_webhook(
             logger.warning(f"Shop not found for identifier: {shop_identifier}")
             raise HTTPException(status_code=404, detail="Shop not found or inactive")
 
-        # 获取Webhook密钥
+        # 获取Webhook密钥（可选）
         webhook_secret = None
         if shop.config and shop.config.get("webhook_secret"):
             webhook_secret = shop.config["webhook_secret"]
-
-        if not webhook_secret:
-            logger.error(f"Webhook secret not configured for shop {shop.id}")
-            raise HTTPException(status_code=500, detail="Webhook secret not configured")
+            logger.info(f"Using webhook secret for shop {shop.id}")
+        else:
+            logger.warning(f"No webhook secret configured for shop {shop.id}, signature verification will be skipped")
 
         # 创建Webhook处理器实例
         webhook_handler = OzonWebhookHandler(
             shop_id=shop.id,
-            webhook_secret=webhook_secret
+            webhook_secret=webhook_secret or ""  # 使用空字符串如果没有配置secret
         )
 
         # 处理Webhook事件
