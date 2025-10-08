@@ -315,12 +315,6 @@ async def configure_webhook(
     if not is_local and not webhook_url.startswith("https://"):
         raise HTTPException(status_code=400, detail="webhook_url must be HTTPS (except for localhost)")
 
-    # 生成新的webhook_secret或使用提供的
-    webhook_secret = webhook_config.get("webhook_secret")
-    if not webhook_secret or webhook_secret == "******":
-        # 生成32字节的随机secret
-        webhook_secret = secrets.token_hex(32)
-
     # 构建完整的webhook URL（如果提供的是相对路径）
     if not webhook_url.startswith("http"):
         # 获取服务器的基础URL
@@ -330,8 +324,10 @@ async def configure_webhook(
     # 更新店铺配置（重新赋值整个字典以确保SQLAlchemy检测到变化）
     current_config = shop.config.copy() if shop.config else {}
     current_config["webhook_url"] = webhook_url
-    current_config["webhook_secret"] = webhook_secret
     current_config["webhook_configured_at"] = datetime.now().isoformat()
+
+    # Ozon不需要webhook_secret，设置为占位值以表示已配置
+    current_config["webhook_secret"] = "ozon_no_secret_required"
 
     shop.config = current_config  # 重新赋值触发SQLAlchemy的变更检测
     shop.updated_at = datetime.now()
@@ -343,15 +339,12 @@ async def configure_webhook(
         "success": True,
         "message": "Webhook configured successfully",
         "webhook_url": webhook_url,
-        "webhook_secret": webhook_secret,  # 返回真实secret供用户在Ozon后台配置
         "next_steps": [
-            "1. 复制上面的 webhook_secret",
-            "2. 登录 Ozon 卖家后台",
-            "3. 在设置中找到 Webhook 配置页面",
-            "4. 设置 Webhook URL 为: " + webhook_url,
-            "5. 设置 Webhook Secret 为复制的密钥",
-            "6. 启用需要的事件类型",
-            "7. 点击测试按钮验证配置"
+            "1. 登录 Ozon 卖家后台",
+            "2. 进入"设置" → "通知"配置页面",
+            "3. 设置 Webhook URL 为: " + webhook_url,
+            "4. 点击"测试"或"验证"按钮",
+            "5. 验证成功后即可接收实时事件通知"
         ]
     }
 
