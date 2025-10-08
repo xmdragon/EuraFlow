@@ -513,7 +513,7 @@ async def teardown() -> None:
                         OzonShop.stats,
                         '{sync_status}',
                         '"stopped"',
-                        create_missing=True
+                        True
                     )
                 )
             )

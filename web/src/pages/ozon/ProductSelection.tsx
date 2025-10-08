@@ -27,6 +27,9 @@ import {
   Badge,
   Statistic,
   Tabs,
+  Steps,
+  Timeline,
+  Collapse,
 } from 'antd';
 import {
   UploadOutlined,
@@ -36,13 +39,18 @@ import {
   ShoppingOutlined,
   DollarOutlined,
   FieldTimeOutlined,
-  WeightOutlined,
   StarOutlined,
   FileExcelOutlined,
   HistoryOutlined,
   FilterOutlined,
   SyncOutlined,
   DeleteOutlined,
+  BookOutlined,
+  CheckCircleOutlined,
+  QuestionCircleOutlined,
+  LinkOutlined,
+  CodeOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
@@ -312,6 +320,19 @@ const ProductSelection: React.FC = () => {
   const formatWeight = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '-';
     return `${value}g`;
+  };
+
+  // 下载用户脚本
+  const handleDownloadScript = () => {
+    // 创建一个虚拟链接触发下载
+    const scriptUrl = window.location.origin + '/scripts/ozon_product_selector.user.js';
+    const link = document.createElement('a');
+    link.href = scriptUrl;
+    link.download = 'ozon_product_selector.user.js';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    message.success('脚本下载已开始');
   };
 
   // 渲染商品卡片
@@ -893,6 +914,348 @@ const ProductSelection: React.FC = () => {
               },
             ]}
           />
+            )
+          },
+          {
+            key: 'guide',
+            label: <span><BookOutlined /> 使用指南</span>,
+            children: (
+              <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                {/* 脚本介绍 */}
+                <Card>
+                  <Title level={4}>
+                    <RocketOutlined /> Ozon选品助手用户脚本
+                  </Title>
+                  <Paragraph>
+                    智能采集Ozon商品数据的浏览器插件，支持自动滚动、虚拟列表适配、自动上传到EuraFlow平台。
+                  </Paragraph>
+                  <Row gutter={[16, 16]}>
+                    <Col span={8}>
+                      <Card size="small">
+                        <Statistic
+                          title="采集字段"
+                          value={42}
+                          suffix="个"
+                          valueStyle={{ color: '#3f8600' }}
+                        />
+                      </Card>
+                    </Col>
+                    <Col span={8}>
+                      <Card size="small">
+                        <Statistic
+                          title="脚本版本"
+                          value="4.3"
+                          valueStyle={{ color: '#1890ff' }}
+                        />
+                      </Card>
+                    </Col>
+                    <Col span={8}>
+                      <Card size="small">
+                        <Statistic
+                          title="适配平台"
+                          value="Ozon.ru"
+                          valueStyle={{ color: '#722ed1' }}
+                        />
+                      </Card>
+                    </Col>
+                  </Row>
+                </Card>
+
+                {/* 功能特性 */}
+                <Card title="✨ 功能特性">
+                  <Row gutter={[16, 16]}>
+                    <Col span={12}>
+                      <Alert
+                        message="智能采集"
+                        description="自动滚动加载，适配Ozon虚拟滚动机制，智能等待上品帮数据注入"
+                        type="success"
+                        showIcon
+                        icon={<CheckCircleOutlined />}
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Alert
+                        message="自动上传"
+                        description="采集完成后自动上传到EuraFlow，无需手动导出CSV"
+                        type="success"
+                        showIcon
+                        icon={<CheckCircleOutlined />}
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Alert
+                        message="数据验证"
+                        description="实时验证数据完整性，过滤推广商品，确保数据质量"
+                        type="success"
+                        showIcon
+                        icon={<CheckCircleOutlined />}
+                      />
+                    </Col>
+                    <Col span={12}>
+                      <Alert
+                        message="友好界面"
+                        description="可视化控制面板，实时统计，进度显示，操作简单"
+                        type="success"
+                        showIcon
+                        icon={<CheckCircleOutlined />}
+                      />
+                    </Col>
+                  </Row>
+                </Card>
+
+                {/* 安装步骤 */}
+                <Card title="📥 安装步骤">
+                  <Steps
+                    direction="vertical"
+                    current={-1}
+                    items={[
+                      {
+                        title: '安装浏览器扩展',
+                        description: (
+                          <div>
+                            <Paragraph>
+                              安装 Tampermonkey 或 Greasemonkey 浏览器扩展：
+                            </Paragraph>
+                            <Space wrap>
+                              <Link href="https://www.tampermonkey.net/" target="_blank">
+                                <Button type="link" icon={<LinkOutlined />}>
+                                  Chrome/Edge - Tampermonkey
+                                </Button>
+                              </Link>
+                              <Link href="https://addons.mozilla.org/zh-CN/firefox/addon/greasemonkey/" target="_blank">
+                                <Button type="link" icon={<LinkOutlined />}>
+                                  Firefox - Greasemonkey
+                                </Button>
+                              </Link>
+                            </Space>
+                          </div>
+                        ),
+                        icon: <DownloadOutlined />,
+                      },
+                      {
+                        title: '下载用户脚本',
+                        description: (
+                          <Space direction="vertical">
+                            <Paragraph>
+                              点击下方按钮下载用户脚本文件：
+                            </Paragraph>
+                            <Button
+                              type="primary"
+                              icon={<DownloadOutlined />}
+                              onClick={handleDownloadScript}
+                            >
+                              下载 ozon_product_selector.user.js
+                            </Button>
+                            <Alert
+                              message="提示"
+                              description="脚本文件路径：/scripts/ozon_product_selector.user.js"
+                              type="info"
+                              showIcon
+                            />
+                          </Space>
+                        ),
+                        icon: <CodeOutlined />,
+                      },
+                      {
+                        title: '安装脚本',
+                        description: (
+                          <div>
+                            <Paragraph>
+                              将下载的 .user.js 文件拖拽到浏览器窗口，Tampermonkey 会自动识别并弹出安装确认窗口。
+                            </Paragraph>
+                            <Paragraph>
+                              点击"安装"按钮完成安装。
+                            </Paragraph>
+                          </div>
+                        ),
+                        icon: <CheckCircleOutlined />,
+                      },
+                    ]}
+                  />
+                </Card>
+
+                {/* 使用配置 */}
+                <Card title="⚙️ 配置和使用">
+                  <Collapse
+                    items={[
+                      {
+                        key: 'api-config',
+                        label: '1️⃣ API配置',
+                        children: (
+                          <Space direction="vertical" style={{ width: '100%' }}>
+                            <Alert
+                              message="配置API连接信息"
+                              description='在Ozon商品列表页面，点击右下角的🎯图标打开控制面板，展开"API设置"部分。'
+                              type="info"
+                              showIcon
+                            />
+                            <Paragraph>
+                              <Text strong>API地址：</Text>
+                              <Text code>{window.location.origin}</Text>
+                            </Paragraph>
+                            <Paragraph>
+                              <Text strong>API Key：</Text>
+                              <Link href="/dashboard/ozon/api-keys">前往API Keys页面获取 →</Link>
+                            </Paragraph>
+                            <Paragraph>
+                              配置完成后，点击"保存配置"，然后点击"测试连接"确保配置正确。
+                            </Paragraph>
+                          </Space>
+                        ),
+                      },
+                      {
+                        key: 'usage-flow',
+                        label: '2️⃣ 采集流程',
+                        children: (
+                          <Timeline
+                            items={[
+                              {
+                                children: '访问 https://www.ozon.ru 并搜索或浏览商品',
+                                color: 'blue',
+                              },
+                              {
+                                children: '点击页面右下角的 🎯 图标打开控制面板',
+                                color: 'blue',
+                              },
+                              {
+                                children: '设置目标商品数量（默认100个）',
+                                color: 'blue',
+                              },
+                              {
+                                children: '点击"🚀 开始收集"按钮',
+                                color: 'green',
+                              },
+                              {
+                                children: '脚本会自动滚动页面，收集商品数据',
+                                color: 'green',
+                              },
+                              {
+                                children: '采集完成后，数据自动上传到EuraFlow',
+                                color: 'green',
+                              },
+                              {
+                                children: '在"商品搜索"标签页查看导入的数据',
+                                color: 'green',
+                              },
+                            ]}
+                          />
+                        ),
+                      },
+                      {
+                        key: 'data-fields',
+                        label: '3️⃣ 采集字段说明',
+                        children: (
+                          <div>
+                            <Paragraph>
+                              脚本会采集以下42个字段的商品数据：
+                            </Paragraph>
+                            <Row gutter={[8, 8]}>
+                              {[
+                                '商品ID', '商品名称', '商品链接', '商品图片', '品牌',
+                                '销售价格', '原价', '商品评分', '评价次数',
+                                'rFBS各档佣金', 'FBP各档佣金',
+                                '月销量', '月销售额', '日销量', '日销售额',
+                                '包装重量', '包装尺寸', '商品体积',
+                                '跟卖者数量', '最低跟卖价',
+                                '成交率', '商品可用性', '广告费用份额',
+                                '配送时间', '卖家类型', '商品创建日期',
+                              ].map((field) => (
+                                <Col span={6} key={field}>
+                                  <Tag color="blue">{field}</Tag>
+                                </Col>
+                              ))}
+                            </Row>
+                          </div>
+                        ),
+                      },
+                    ]}
+                    defaultActiveKey={['api-config']}
+                  />
+                </Card>
+
+                {/* 常见问题 */}
+                <Card title="❓ 常见问题">
+                  <Collapse
+                    items={[
+                      {
+                        key: 'faq-1',
+                        label: 'Q: API连接测试失败？',
+                        children: (
+                          <div>
+                            <Paragraph>请检查以下几点：</Paragraph>
+                            <ul>
+                              <li>API地址是否正确（不要包含 /api 等路径）</li>
+                              <li>API Key是否有效（可在API Keys页面重新生成）</li>
+                              <li>网络是否通畅（检查VPN或代理设置）</li>
+                              <li>浏览器控制台是否有CORS错误</li>
+                            </ul>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'faq-2',
+                        label: 'Q: 数据上传失败？',
+                        children: (
+                          <div>
+                            <Paragraph>可能的原因：</Paragraph>
+                            <ul>
+                              <li>API Key权限不足 - 确保有"产品选品上传"权限</li>
+                              <li>数据格式不正确 - 检查浏览器控制台错误信息</li>
+                              <li>服务器响应超时 - 稍后重试或联系管理员</li>
+                            </ul>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'faq-3',
+                        label: 'Q: 采集数据不完整？',
+                        children: (
+                          <div>
+                            <Paragraph>可能的原因：</Paragraph>
+                            <ul>
+                              <li>等待时间不足 - 增加滚动等待时间（默认2.5秒）</li>
+                              <li>上品帮插件未安装或未工作 - 确保上品帮正常运行</li>
+                              <li>Ozon页面结构变化 - 联系技术支持更新脚本</li>
+                            </ul>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'faq-4',
+                        label: 'Q: 如何查看采集到的数据？',
+                        children: (
+                          <Paragraph>
+                            数据上传成功后，切换到"商品搜索"标签页即可查看和筛选导入的商品。
+                            您也可以在"导入历史"标签页查看每次导入的详细记录。
+                          </Paragraph>
+                        ),
+                      },
+                    ]}
+                  />
+                </Card>
+
+                {/* 技术支持 */}
+                <Card>
+                  <Alert
+                    message="需要帮助？"
+                    description={
+                      <div>
+                        <Paragraph>
+                          如果遇到问题或需要技术支持，请联系管理员或查看项目文档。
+                        </Paragraph>
+                        <Paragraph>
+                          <Text type="secondary">
+                            脚本版本：v4.3 | 更新时间：2024-10-05
+                          </Text>
+                        </Paragraph>
+                      </div>
+                    }
+                    type="info"
+                    showIcon
+                    icon={<QuestionCircleOutlined />}
+                  />
+                </Card>
+              </Space>
             )
           }
         ]}
