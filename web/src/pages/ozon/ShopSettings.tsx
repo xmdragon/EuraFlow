@@ -901,7 +901,11 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
 
   const handleConfigureWebhook = () => {
     // 自动生成webhook URL
-    const baseUrl = window.location.origin;
+    // 本地开发环境使用后端端口8000，生产环境使用当前域名
+    const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const baseUrl = isDev
+      ? `http://localhost:8000`  // 本地开发直接指向后端
+      : window.location.origin;   // 生产环境使用当前域名
     const webhookUrl = `${baseUrl}/api/ef/v1/ozon/webhook`;
 
     configForm.setFieldsValue({

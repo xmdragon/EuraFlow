@@ -313,9 +313,10 @@ async def configure_webhook(
     if not webhook_url:
         raise HTTPException(status_code=400, detail="webhook_url is required")
 
-    # 确保webhook_url是有效的HTTPS URL
-    if not webhook_url.startswith("https://"):
-        raise HTTPException(status_code=400, detail="webhook_url must be HTTPS")
+    # 确保webhook_url是有效的HTTPS URL（本地开发环境允许HTTP）
+    is_local = webhook_url.startswith("http://localhost") or webhook_url.startswith("http://127.0.0.1")
+    if not is_local and not webhook_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="webhook_url must be HTTPS (except for localhost)")
 
     # 生成新的webhook_secret或使用提供的
     webhook_secret = webhook_config.get("webhook_secret")
