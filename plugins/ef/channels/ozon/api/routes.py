@@ -341,9 +341,9 @@ async def configure_webhook(
         "webhook_url": webhook_url,
         "next_steps": [
             "1. 登录 Ozon 卖家后台",
-            "2. 进入"设置" → "通知"配置页面",
+            "2. 进入【设置】→【通知】配置页面",
             "3. 设置 Webhook URL 为: " + webhook_url,
-            "4. 点击"测试"或"验证"按钮",
+            "4. 点击【测试】或【验证】按钮",
             "5. 验证成功后即可接收实时事件通知"
         ]
     }
