@@ -105,13 +105,13 @@ async def receive_webhook(
             logger.warning(f"Shop not found for identifier: {shop_identifier}")
             raise HTTPException(status_code=404, detail="Shop not found or inactive")
 
-        # 获取Webhook密钥（可选）
+        # 获取Webhook密钥（可选，用于签名验证）
         webhook_secret = None
         if shop.config and shop.config.get("webhook_secret"):
             webhook_secret = shop.config["webhook_secret"]
-            logger.info(f"Using webhook secret for shop {shop.id}")
+            logger.info(f"Webhook signature verification enabled for shop {shop.id}")
         else:
-            logger.warning(f"No webhook secret configured for shop {shop.id}, signature verification will be skipped")
+            logger.info(f"Webhook signature verification disabled for shop {shop.id} (no secret configured)")
 
         # 创建Webhook处理器实例
         webhook_handler = OzonWebhookHandler(
@@ -277,13 +277,13 @@ async def retry_webhook_event(
         )
         shop = shop_result.scalar_one_or_none()
 
-        if not shop or not shop.config.get("webhook_secret"):
-            raise HTTPException(status_code=500, detail="Shop webhook configuration not found")
+        if not shop:
+            raise HTTPException(status_code=500, detail="Shop not found")
 
         # 创建处理器并重新处理
         webhook_handler = OzonWebhookHandler(
             shop_id=shop.id,
-            webhook_secret=shop.config["webhook_secret"]
+            webhook_secret=shop.config.get("webhook_secret", "")
         )
 
         # 重新处理事件（跳过签名验证，因为这是重试）

@@ -60,7 +60,6 @@ interface Shop {
     api_key: string;
   };
   config: {
-    webhook_secret?: string;
     webhook_url?: string;
     sync_interval_minutes?: number;
     auto_sync_enabled?: boolean;
@@ -145,7 +144,6 @@ const ShopSettings: React.FC = () => {
         },
         config: {
           webhook_url: values.webhook_url || '',
-          webhook_secret: values.webhook_secret || '',
           sync_interval_minutes: values.sync_interval_minutes || 30,
           auto_sync_enabled: values.auto_sync_enabled || false,
           rate_limits: {
@@ -174,7 +172,6 @@ const ShopSettings: React.FC = () => {
           currentApiKey && currentApiKey !== '******'
             ? currentApiKey
             : data.api_credentials?.api_key,
-        webhook_secret: data.config?.webhook_secret,
         webhook_url: data.config?.webhook_url,
         sync_interval_minutes: data.config?.sync_interval_minutes,
         auto_sync_enabled: data.config?.auto_sync_enabled,
@@ -234,7 +231,6 @@ const ShopSettings: React.FC = () => {
         shop_name: selectedShop.shop_name,
         client_id: selectedShop.api_credentials?.client_id,
         api_key: selectedShop.api_credentials?.api_key,
-        webhook_secret: selectedShop.config?.webhook_secret,
         webhook_url: selectedShop.config?.webhook_url,
         sync_interval_minutes: selectedShop.config?.sync_interval_minutes,
         auto_sync_enabled: selectedShop.config?.auto_sync_enabled,
@@ -409,7 +405,6 @@ const ShopSettings: React.FC = () => {
                           shop_name: record.shop_name,
                           client_id: record.api_credentials?.client_id,
                           api_key: record.api_credentials?.api_key,
-                          webhook_secret: record.config?.webhook_secret,
                           webhook_url: record.config?.webhook_url,
                           sync_interval_minutes: record.config?.sync_interval_minutes,
                           auto_sync_enabled: record.config?.auto_sync_enabled,
@@ -830,7 +825,6 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
               <li>登录 Ozon 卖家后台</li>
               <li>进入"设置" → "Webhook"配置页面</li>
               <li>设置 Webhook URL: <Text code copyable>{data.webhook_url}</Text></li>
-              <li>设置 Webhook Secret: <Text code copyable>{data.webhook_secret}</Text></li>
               <li>启用以下事件类型：
                 <ul style={{ marginTop: 8 }}>
                   <li>posting.status_changed（订单状态变更）</li>
@@ -1041,8 +1035,8 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
             description={
               <div>
                 <p>1. Webhook URL 用于接收Ozon平台推送的事件通知</p>
-                <p>2. 系统将自动生成安全密钥用于验证请求签名</p>
-                <p>3. 配置完成后，请在Ozon后台设置相应的Webhook配置</p>
+                <p>2. 配置完成后，请在Ozon后台设置相应的Webhook URL</p>
+                <p>3. 系统将自动接收并处理Ozon推送的实时事件</p>
               </div>
             }
             type="info"
