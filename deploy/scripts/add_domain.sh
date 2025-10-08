@@ -168,9 +168,10 @@ add_domain_to_config() {
 
     log_info "添加域名到 Nginx 配置..."
 
-    # 使用sed在所有server_name后添加新域名
+    # 使用sed在所有server_name指令后添加新域名
+    # 使用\s确保匹配的是server_name指令，而不是$server_name变量
     # 这会在每个server_name行的末尾（分号之前）添加新域名
-    sed -i "s/\(server_name[^;]*\);/\1 $new_domain;/" "$config_file"
+    sed -i "s/^\(\s*server_name[^;]*\);/\1 $new_domain;/" "$config_file"
 
     log_success "域名已添加到配置文件"
 }
