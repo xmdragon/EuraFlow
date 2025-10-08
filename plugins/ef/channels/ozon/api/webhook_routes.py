@@ -57,7 +57,21 @@ async def receive_webhook(
         headers = dict(request.headers)
 
         # 基本验证
+        # 如果没有X-Event-Type，检查是否是OZON验证请求
         if not x_event_type:
+            user_agent = headers.get("user-agent", "").lower()
+            # OZON验证请求的User-Agent通常是"ozon-push"或包含"ozon"
+            if "ozon" in user_agent or "push" in user_agent:
+                logger.info(f"Received OZON webhook verification request (no event type): UA={user_agent}")
+                from datetime import datetime
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "status": "success",
+                        "message": "Webhook endpoint verified",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                )
             logger.warning("Missing X-Event-Type header in webhook request")
             raise HTTPException(status_code=400, detail="Missing X-Event-Type header")
 
