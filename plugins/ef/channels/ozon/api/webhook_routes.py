@@ -67,9 +67,9 @@ async def receive_webhook(
                 return JSONResponse(
                     status_code=200,
                     content={
-                        "status": "success",
-                        "message": "Webhook endpoint verified",
-                        "timestamp": datetime.utcnow().isoformat()
+                        "version": "1.0",
+                        "name": "EuraFlow",
+                        "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
                     }
                 )
             logger.warning("Missing X-Event-Type header in webhook request")
@@ -82,10 +82,9 @@ async def receive_webhook(
             return JSONResponse(
                 status_code=200,
                 content={
-                    "status": "success",
-                    "message": "Webhook endpoint verified",
-                    "event_type": x_event_type,
-                    "event_id": x_event_id
+                    "version": "1.0",
+                    "name": "EuraFlow",
+                    "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
                 }
             )
 
@@ -149,10 +148,9 @@ async def receive_webhook(
             return JSONResponse(
                 status_code=200,
                 content={
-                    "status": "success",
-                    "message": "Event processed successfully",
-                    "event_id": result.get("event_id"),
-                    "event_type": x_event_type
+                    "version": "1.0",
+                    "name": "EuraFlow",
+                    "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
                 }
             )
         else:
