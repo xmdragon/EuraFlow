@@ -18,9 +18,6 @@ from ..models import OzonProduct, OzonShop
 from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
 from ..services.image_processing_service import ImageProcessingService, WatermarkPosition
 
-# 使用 get_async_session 作为 get_session 的别名
-get_session = get_async_session
-
 router = APIRouter(prefix="/watermark", tags=["Watermark"])
 logger = logging.getLogger(__name__)
 
@@ -134,7 +131,7 @@ async def create_cloudinary_config(
     api_secret: str = Form(...),
     folder_prefix: str = Form("euraflow"),
     auto_cleanup_days: int = Form(30),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """创建或更新Cloudinary配置（全局唯一）"""
     try:
@@ -187,7 +184,7 @@ async def create_cloudinary_config(
 
 @router.get("/cloudinary/config")
 async def get_cloudinary_config(
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """获取Cloudinary全局配置"""
     # 获取全局配置
@@ -216,7 +213,7 @@ async def get_cloudinary_config(
 
 @router.post("/cloudinary/test")
 async def test_cloudinary_connection(
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """测试Cloudinary连接"""
     # 获取全局配置
@@ -259,7 +256,7 @@ async def create_watermark_config(
     margin_pixels: int = Form(20),
     positions: str = Form('["bottom_right"]'),  # JSON字符串
     watermark_file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """创建水印配置"""
     try:
@@ -329,7 +326,7 @@ async def create_watermark_config(
 
 @router.get("/configs")
 async def list_watermark_configs(
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """获取水印配置列表（全局）"""
     result = await db.execute(
@@ -366,7 +363,7 @@ async def update_watermark_config(
     positions: str = Form('["bottom_right"]'),  # JSON字符串
     color_type: str = Form("white"),
     is_active: bool = Form(True),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """更新水印配置"""
     try:
@@ -414,7 +411,7 @@ async def update_watermark_config(
 @router.delete("/configs/{config_id}")
 async def delete_watermark_config(
     config_id: int,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """删除水印配置"""
     config = await db.get(WatermarkConfig, config_id)
@@ -438,7 +435,7 @@ async def delete_watermark_config(
 @router.post("/preview")
 async def preview_watermark(
     request: WatermarkPreviewRequest,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """预览单图水印效果"""
     try:
@@ -485,7 +482,7 @@ async def preview_watermark(
 @router.post("/batch/preview")
 async def preview_watermark_batch(
     request: BatchPreviewRequest,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """批量预览水印效果，返回每个商品所有图片的预览结果（不进行位置分析）"""
     try:
@@ -626,7 +623,7 @@ async def apply_watermark_batch(
     request: BatchWatermarkRequest,
     sync_mode: bool = Query(True, description="同步处理模式（True:立即处理，False:异步处理）"),
     analyze_mode: str = Query("individual", description="分析模式: 'individual'=每张图片单独分析, 'fast'=使用第一张图片的分析结果"),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """批量应用水印"""
     try:
@@ -769,7 +766,7 @@ async def apply_watermark_batch(
 @router.post("/batch/restore")
 async def restore_original_batch(
     request: BatchRestoreRequest,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """批量还原原图"""
     try:
@@ -831,7 +828,7 @@ async def restore_original_batch(
 @router.get("/tasks/{task_id}")
 async def get_task_status(
     task_id: str,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """获取任务状态"""
     task = await db.get(WatermarkTask, task_id)
@@ -863,7 +860,7 @@ async def list_tasks(
     batch_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     limit: int = Query(100, le=500),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """获取任务列表"""
     query = select(WatermarkTask)
@@ -909,7 +906,7 @@ async def cleanup_old_resources(
     shop_id: Optional[int] = Query(None),
     days: int = Query(30, ge=1),
     dry_run: bool = Query(False),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """清理过期Cloudinary资源"""
     try:

@@ -10,9 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from ef_core.database import get_async_session
-
-# 使用 get_async_session 作为 get_session 的别名
-get_session = get_async_session
 from ..models import OzonShop, OzonProduct, OzonOrder
 from sqlalchemy import select, func
 # from .auth import get_current_user  # Временно отключено для разработки
@@ -1980,7 +1977,7 @@ async def get_sync_logs(
     status: Optional[str] = Query(None, description="状态"),
     limit: int = Query(20, ge=1, le=100, description="返回数量"),
     offset: int = Query(0, ge=0, description="偏移量"),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_async_session)
 ):
     """
     获取同步日志
