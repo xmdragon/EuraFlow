@@ -37,17 +37,18 @@ async def setup(hooks) -> None:
     """插件初始化函数"""
     # 从数据库获取Ozon店铺配置
     try:
-        from ef_core.database import get_async_session
+        from ef_core.database import get_db_manager
         from .models import OzonShop
         from sqlalchemy import select
-        
-        async for db in get_async_session():
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
             # 获取第一个激活的Ozon店铺
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active").limit(1)
             )
             shop = result.scalar_one_or_none()
-            
+
             if not shop:
                 print("Warning: No active Ozon shop found, plugin running in standby mode")
                 # 仍然注册任务，但会在执行时检查配置
@@ -56,13 +57,12 @@ async def setup(hooks) -> None:
                 # 从数据库字段获取API凭据
                 api_key = shop.api_key_enc  # 注意：这里需要解密处理
                 client_id = shop.client_id
-                
+
                 if not api_key or not client_id:
                     print(f"Warning: Shop {shop.shop_name} missing API credentials, plugin running in standby mode")
                     api_key = client_id = None
                 else:
                     print(f"Ozon plugin initialized with shop: {shop.shop_name} (client_id: {client_id})")
-            break
                     
     except Exception as e:
         print(f"Error loading Ozon shop configuration: {e}")
@@ -106,7 +106,7 @@ async def pull_orders_task() -> None:
     拉取 Ozon 订单的定时任务
     """
     try:
-        from ef_core.database import get_async_session
+        from ef_core.database import get_db_manager
         from .models import OzonShop, OzonOrder
         from .api.client import OzonAPIClient
         from sqlalchemy import select
@@ -116,7 +116,8 @@ async def pull_orders_task() -> None:
         print(f"[{current_time.isoformat()}] Pulling orders from Ozon...")
 
         # 获取所有活跃店铺
-        async with get_async_session() as db:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active")
             )
@@ -212,7 +213,7 @@ async def sync_inventory_task() -> None:
     同步库存的定时任务
     """
     try:
-        from ef_core.database import get_async_session
+        from ef_core.database import get_db_manager
         from .models import OzonShop, OzonProduct
         from .api.client import OzonAPIClient
         from sqlalchemy import select
@@ -221,7 +222,8 @@ async def sync_inventory_task() -> None:
         print(f"[{current_time.isoformat()}] Syncing inventory to Ozon...")
 
         # 获取所有活跃店铺
-        async with get_async_session() as db:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active")
             )
@@ -292,7 +294,7 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
         payload: 事件载荷，包含订单和发货信息
     """
     try:
-        from ef_core.database import get_async_session
+        from ef_core.database import get_db_manager
         from .models import OzonShop, OzonOrder
         from .api.client import OzonAPIClient
         from sqlalchemy import select
@@ -307,7 +309,8 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
 
         print(f"Processing shipment for order {order_id} with tracking {tracking_number}")
 
-        async with get_async_session() as db:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
             # 查找订单（通过本地订单号或 Ozon 订单号）
             order_result = await db.execute(
                 select(OzonOrder).where(
@@ -407,14 +410,15 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
             print("Invalid inventory change: missing sku")
             return
         
-        from ef_core.database import get_async_session
+        from ef_core.database import get_db_manager
         from .models import OzonShop, OzonProduct
         from .api.client import OzonAPIClient
         from sqlalchemy import select
 
         print(f"Processing inventory change for SKU {sku}: {quantity}")
 
-        async with get_async_session() as db:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
             # 查找商品
             shop_id = payload.get("shop_id")  # 必须明确指定店铺ID
             if not shop_id:
@@ -493,12 +497,13 @@ async def teardown() -> None:
     print("Ozon plugin shutting down...")
 
     try:
-        from ef_core.database import get_async_session
+        from ef_core.database import get_db_manager
         from .models import OzonShop
         from sqlalchemy import select, update, func
 
         # 关闭所有活跃的API客户端连接
-        async with get_async_session() as db:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
             # 更新所有店铺的同步状态
             await db.execute(
                 update(OzonShop)

@@ -37,6 +37,12 @@ try:
     from .webhook_routes import router as webhook_router
     router.include_router(webhook_router)
 except ImportError as e:
+    import traceback
+    import sys
+    print(f"════════ WEBHOOK IMPORT ERROR ════════", file=sys.stderr)
+    print(f"Error: {e}", file=sys.stderr)
+    print(f"Traceback:\n{traceback.format_exc()}", file=sys.stderr)
+    print(f"═════════════════════════════════════", file=sys.stderr)
     logger.warning(f"Could not import webhook routes: {e}")
 
 
@@ -1939,7 +1945,9 @@ async def sync_orders(
         """在后台执行同步任务"""
         try:
             # 创建新的数据库会话用于异步任务
-            async with get_async_session() as task_db:
+            from ef_core.database import get_db_manager
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as task_db:
                 result = await OzonSyncService.sync_orders(shop_id, task_db, task_id, mode)
                 logger.info(f"Order sync completed: {result}")
         except Exception as e:

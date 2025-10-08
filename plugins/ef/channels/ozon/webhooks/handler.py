@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_async_session
+from ef_core.database import get_db_manager
 from ef_core.utils.logger import get_logger
 
 from ..models.sync import OzonWebhookEvent
@@ -73,8 +73,9 @@ class OzonWebhookHandler:
         # 检查幂等性
         event_id = headers.get("X-Event-Id", f"{event_type}-{datetime.utcnow().timestamp()}")
         idempotency_key = f"{self.shop_id}-{event_id}"
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             # 检查是否已处理
             stmt = select(OzonWebhookEvent).where(
                 OzonWebhookEvent.idempotency_key == idempotency_key
@@ -107,9 +108,9 @@ class OzonWebhookHandler:
         # 异步处理事件
         try:
             result = await self._process_event(event_type, payload, webhook_event)
-            
+
             # 更新事件状态
-            async with get_async_session() as session:
+            async with db_manager.get_session() as session:
                 webhook_event.status = "processed"
                 webhook_event.processed_at = datetime.utcnow()
                 session.add(webhook_event)
@@ -123,9 +124,9 @@ class OzonWebhookHandler:
             
         except Exception as e:
             logger.error(f"Failed to process webhook event {event_id}: {e}")
-            
+
             # 更新事件为失败状态
-            async with get_async_session() as session:
+            async with db_manager.get_session() as session:
                 webhook_event.status = "failed"
                 webhook_event.error_message = str(e)
                 webhook_event.retry_count += 1
@@ -184,11 +185,12 @@ class OzonWebhookHandler:
         new_status = payload.get("status")
         
         logger.info(f"Posting {posting_number} status changed to {new_status}")
-        
+
         # 更新本地状态
         from ..models.orders import OzonPosting
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
@@ -233,10 +235,10 @@ class OzonWebhookHandler:
         try:
             from ..models import OzonShop
             from ..api.client import OzonAPIClient
-            from ef_core.database import get_async_session
             from sqlalchemy import select
 
-            async with get_async_session() as db:
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as db:
                 # 获取所有活跃店铺
                 result = await db.execute(
                     select(OzonShop).where(OzonShop.status == "active")
@@ -280,10 +282,11 @@ class OzonWebhookHandler:
         cancel_reason = payload.get("cancel_reason")
         
         logger.info(f"Posting {posting_number} cancelled: {cancel_reason}")
-        
+
         from ..models.orders import OzonPosting
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
@@ -319,10 +322,11 @@ class OzonWebhookHandler:
         delivered_at = payload.get("delivered_at")
         
         logger.info(f"Posting {posting_number} delivered at {delivered_at}")
-        
+
         from ..models.orders import OzonPosting, OzonOrder
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
@@ -363,11 +367,12 @@ class OzonWebhookHandler:
         new_price = payload.get("new_price")
         
         logger.info(f"Product {product_id} price changed: {old_price} -> {new_price}")
-        
+
         from ..models.products import OzonProduct, OzonPriceHistory
         from decimal import Decimal
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             stmt = select(OzonProduct).where(
                 and_(
                     OzonProduct.shop_id == self.shop_id,
@@ -414,10 +419,11 @@ class OzonWebhookHandler:
         new_stock = payload.get("new_stock")
         
         logger.info(f"Product {product_id} stock changed: {old_stock} -> {new_stock}")
-        
+
         from ..models.products import OzonProduct
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             stmt = select(OzonProduct).where(
                 and_(
                     OzonProduct.shop_id == self.shop_id,
@@ -449,10 +455,11 @@ class OzonWebhookHandler:
         posting_number = payload.get("posting_number")
         
         logger.info(f"Return {return_id} created for posting {posting_number}")
-        
+
         from ..models.orders import OzonRefund, OzonPosting
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             # 查找Posting
             stmt = select(OzonPosting).where(
                 and_(
@@ -495,10 +502,11 @@ class OzonWebhookHandler:
         new_status = payload.get("status")
         
         logger.info(f"Return {return_id} status changed to {new_status}")
-        
+
         from ..models.orders import OzonRefund
-        
-        async with get_async_session() as session:
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
             stmt = select(OzonRefund).where(
                 and_(
                     OzonRefund.shop_id == self.shop_id,

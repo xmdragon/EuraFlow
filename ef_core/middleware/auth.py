@@ -18,10 +18,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
     PUBLIC_PATHS = {
         "/healthz",
         "/docs",
-        "/redoc", 
+        "/redoc",
         "/openapi.json",
         "/api/ef/v1/auth/login",
-        "/api/ef/v1/auth/refresh"
+        "/api/ef/v1/auth/refresh",
+        "/api/ef/v1/ozon/webhook"  # Ozon webhook回调端点
     }
     
     def __init__(self, app, logger=None):
@@ -99,13 +100,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 精确匹配
         if path in self.PUBLIC_PATHS:
             return True
-        
+
         # 前缀匹配
-        public_prefixes = ["/docs", "/redoc"]
+        public_prefixes = ["/docs", "/redoc", "/api/ef/v1/ozon/webhook"]
         for prefix in public_prefixes:
             if path.startswith(prefix):
                 return True
-        
+
         return False
     
     async def _validate_token(self, token: str) -> Optional[dict]:
