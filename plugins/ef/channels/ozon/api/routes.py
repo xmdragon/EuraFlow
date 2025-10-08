@@ -327,16 +327,17 @@ async def configure_webhook(
         base_url = os.getenv("EF__WEBHOOK_BASE_URL", "https://api.euraflow.com")
         webhook_url = f"{base_url}/api/ef/v1/ozon/webhook"
 
-    # 更新店铺配置
-    if not shop.config:
-        shop.config = {}
+    # 更新店铺配置（重新赋值整个字典以确保SQLAlchemy检测到变化）
+    current_config = shop.config.copy() if shop.config else {}
+    current_config["webhook_url"] = webhook_url
+    current_config["webhook_secret"] = webhook_secret
+    current_config["webhook_configured_at"] = datetime.now().isoformat()
 
-    shop.config["webhook_url"] = webhook_url
-    shop.config["webhook_secret"] = webhook_secret
-    shop.config["webhook_configured_at"] = datetime.now().isoformat()
+    shop.config = current_config  # 重新赋值触发SQLAlchemy的变更检测
     shop.updated_at = datetime.now()
 
     await db.commit()
+    await db.refresh(shop)  # 刷新以获取最新数据
 
     return {
         "success": True,
