@@ -2,6 +2,7 @@
 Ozon Webhook 接收端点
 处理来自 Ozon 平台的实时事件通知
 """
+import json
 import logging
 from typing import Dict, Any
 from datetime import datetime
@@ -101,13 +102,13 @@ async def receive_webhook(
         # 收集请求头信息（先获取，用于判断是否为OZON请求）
         headers = dict(request.headers)
 
-        # 获取原始请求体
+        # 获取原始请求体（只读取一次，避免stream被消费）
         raw_body = await request.body()
 
-        # 解析JSON载荷
+        # 手动解析JSON（从raw_body解析，不能再调用request.json()）
         try:
-            payload = await request.json()
-        except Exception as e:
+            payload = json.loads(raw_body) if raw_body else {}
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse webhook payload: {e}")
             # OZON期望即使JSON解析失败也返回200（EMPTY_BODY/WRONG_BODY测试）
             if is_ozon_request(headers):
