@@ -160,7 +160,13 @@ async def update_shop(
     if shop_data.config is not None:
         # 合并配置
         current_config = shop.config or {}
-        current_config.update(shop_data.config)
+
+        # 过滤掉空的webhook字段，避免覆盖已有的webhook配置
+        # webhook配置应该通过专门的 /webhook 端点设置
+        new_config = {k: v for k, v in shop_data.config.items()
+                     if not (k in ('webhook_url', 'webhook_secret') and not v)}
+
+        current_config.update(new_config)
         shop.config = current_config
     
     shop.updated_at = datetime.now()
