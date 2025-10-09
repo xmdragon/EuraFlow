@@ -3,7 +3,7 @@
 处理Ozon订单的拉取、状态同步、发货等
 """
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
 
@@ -41,7 +41,7 @@ class OrderSyncService:
     def __init__(self, shop_id: int, api_client: OzonAPIClient):
         """
         初始化订单同步服务
-        
+
         Args:
             shop_id: 店铺ID
             api_client: Ozon API客户端
@@ -49,6 +49,22 @@ class OrderSyncService:
         self.shop_id = shop_id
         self.api_client = api_client
         self.batch_size = 50
+
+    @staticmethod
+    def _parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
+        """解析datetime字符串，确保返回UTC时区的datetime"""
+        if not dt_str:
+            return None
+        try:
+            # 替换Z为+00:00以支持fromisoformat
+            dt_str = dt_str.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(dt_str)
+            # 如果是naive datetime，添加UTC时区
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except (ValueError, AttributeError):
+            return None
     
     async def sync_orders(
         self,
@@ -70,12 +86,12 @@ class OrderSyncService:
         # 默认时间范围
         if not date_from:
             if full_sync:
-                date_from = datetime.utcnow() - timedelta(days=90)  # 扩展到90天
+                date_from = datetime.now(timezone.utc) - timedelta(days=90)  # 扩展到90天
             else:
-                date_from = datetime.utcnow() - timedelta(hours=24)
-        
+                date_from = datetime.now(timezone.utc) - timedelta(hours=24)
+
         if not date_to:
-            date_to = datetime.utcnow()
+            date_to = datetime.now(timezone.utc)
         
         sync_log = await self._create_sync_log("orders", "full" if full_sync else "incremental")
         
@@ -124,7 +140,7 @@ class OrderSyncService:
                 has_more = len(batch_result["postings"]) == self.batch_size
                 
                 # 更新检查点
-                checkpoint.last_sync_at = datetime.utcnow()
+                checkpoint.last_sync_at = datetime.now(timezone.utc)
                 checkpoint.total_processed = stats["total_processed"]
                 checkpoint.total_success = stats["success"]
                 checkpoint.total_failed = stats["failed"]
@@ -267,9 +283,7 @@ class OrderSyncService:
                 ozon_order_number=order_number,
                 status=self._map_order_status(posting_data.get("status")),
                 ozon_status=posting_data.get("status"),
-                ordered_at=datetime.fromisoformat(
-                    posting_data.get("created_at", "").replace("Z", "+00:00")
-                )
+                ordered_at=self._parse_datetime(posting_data.get("created_at"))
             )
             session.add(order)
             await session.flush()  # 获取order.id
@@ -313,7 +327,7 @@ class OrderSyncService:
         order.raw_payload = posting_data
         
         # 同步信息
-        order.last_sync_at = datetime.utcnow()
+        order.last_sync_at = datetime.now(timezone.utc)
         order.sync_status = "success"
         
         # 查找或创建Posting
@@ -494,7 +508,7 @@ class OrderSyncService:
                 
                 # 更新本地状态
                 posting.status = "delivering"
-                posting.shipped_at = datetime.utcnow()
+                posting.shipped_at = datetime.now(timezone.utc)
                 
                 # 创建包裹记录
                 package = OzonShipmentPackage(
@@ -509,7 +523,7 @@ class OrderSyncService:
                 
                 # 创建Outbox事件
                 outbox_event = OzonOutboxEvent(
-                    event_id=f"ship-{posting.id}-{datetime.utcnow().timestamp()}",
+                    event_id=f"ship-{posting.id}-{datetime.now(timezone.utc).timestamp()}",
                     event_type="posting.shipped",
                     aggregate_type="posting",
                     aggregate_id=str(posting.id),
@@ -549,16 +563,23 @@ class OrderSyncService:
         return carriers.get(carrier_code.upper(), 1)
     
     def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
-        """解析日期字符串"""
+        """解析日期字符串，确保返回UTC时区的datetime"""
         if not date_str:
             return None
-        
+
         try:
             # 处理ISO格式
             if "T" in date_str:
-                return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                dt_str = date_str.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(dt_str)
+                # 确保有时区信息
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
             else:
-                return datetime.strptime(date_str, "%Y-%m-%d")
+                # 解析纯日期格式，添加UTC时区
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
+                return dt.replace(tzinfo=timezone.utc)
         except Exception as e:
             logger.warning(f"Failed to parse date: {date_str}, error: {e}")
             return None
@@ -566,7 +587,7 @@ class OrderSyncService:
     async def _publish_order_event(self, session: AsyncSession, posting_data: Dict):
         """发布订单事件到Outbox"""
         event = OzonOutboxEvent(
-            event_id=f"order-{posting_data['order_id']}-{datetime.utcnow().timestamp()}",
+            event_id=f"order-{posting_data['order_id']}-{datetime.now(timezone.utc).timestamp()}",
             event_type="order.synced",
             aggregate_type="order",
             aggregate_id=posting_data["order_id"],
@@ -614,7 +635,7 @@ class OrderSyncService:
                 entity_type=entity_type,
                 sync_type=sync_type,
                 status="started",
-                started_at=datetime.utcnow()
+                started_at=datetime.now(timezone.utc)
             )
             session.add(sync_log)
             await session.commit()
@@ -631,7 +652,7 @@ class OrderSyncService:
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
             sync_log.status = status
-            sync_log.completed_at = datetime.utcnow()
+            sync_log.completed_at = datetime.now(timezone.utc)
             
             if stats:
                 sync_log.processed_count = stats.get("total_processed", 0)
