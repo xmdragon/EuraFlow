@@ -76,7 +76,13 @@ class OzonProduct(Base):
     
     # 原始数据
     raw_payload = Column(JSONB, comment="Ozon原始数据")
-    
+
+    # 图片和可见性数据
+    images = Column(JSONB, comment="商品图片数据")
+    ozon_visibility_details = Column(JSONB, comment="OZON可见性详情")
+    ozon_status = Column(String(50), comment="OZON原始状态")
+    status_reason = Column(String(200), comment="状态原因说明")
+
     # 同步信息
     last_sync_at = Column(DateTime)
     sync_status = Column(String(50), default="pending")  # pending/syncing/success/failed

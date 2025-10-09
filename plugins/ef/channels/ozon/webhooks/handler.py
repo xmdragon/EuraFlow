@@ -16,6 +16,7 @@ from ef_core.utils.logger import get_logger
 
 from ..models.sync import OzonWebhookEvent
 from ..services.order_sync import OrderSyncService
+from ..utils.datetime_utils import parse_datetime
 
 logger = get_logger(__name__)
 
@@ -471,8 +472,8 @@ class OzonWebhookHandler:
             
             if posting:
                 posting.status = "delivered"
-                posting.delivered_at = datetime.fromisoformat(delivered_at.replace("Z", "+00:00"))
-                
+                posting.delivered_at = parse_datetime(delivered_at)
+
                 # 更新订单状态
                 order = await session.get(OzonOrder, posting.order_id)
                 if order:
@@ -745,7 +746,7 @@ class OzonWebhookHandler:
             if posting:
                 # 更新截止日期
                 if new_cutoff:
-                    posting.shipment_date = datetime.fromisoformat(new_cutoff.replace("Z", "+00:00"))
+                    posting.shipment_date = parse_datetime(new_cutoff)
                 session.add(posting)
                 await session.commit()
 

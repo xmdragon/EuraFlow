@@ -3,7 +3,7 @@ Ozon 平台 API 端点
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ import logging
 
 from ef_core.database import get_async_session
 from ..models import OzonShop, OzonProduct, OzonOrder
+from ..utils.datetime_utils import parse_datetime, parse_date
 from sqlalchemy import select, func
 # from .auth import get_current_user  # Временно отключено для разработки
 
@@ -1682,28 +1683,22 @@ async def get_orders(
 
     if date_from:
         try:
-            # 处理不同的日期格式
-            if 'T' in date_from:
-                # 完整的日期时间格式
-                start_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
-            else:
-                # 仅日期格式，设置为当天的00:00:00
-                start_date = datetime.strptime(date_from, '%Y-%m-%d')
-            query = query.where(OzonOrder.created_at >= start_date)
+            # 使用datetime_utils统一处理日期解析（确保UTC timezone-aware）
+            start_date = parse_date(date_from)
+            if start_date:
+                query = query.where(OzonOrder.created_at >= start_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_from: {date_from}, error: {e}")
 
     if date_to:
         try:
-            # 处理不同的日期格式
-            if 'T' in date_to:
-                # 完整的日期时间格式
-                end_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-            else:
-                # 仅日期格式，设置为当天的23:59:59
-                end_date = datetime.strptime(date_to, '%Y-%m-%d')
-                end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-            query = query.where(OzonOrder.created_at <= end_date)
+            # 使用datetime_utils统一处理日期解析（确保UTC timezone-aware）
+            end_date = parse_date(date_to)
+            if end_date:
+                # 如果是纯日期格式，设置为当天的23:59:59
+                if 'T' not in date_to:
+                    end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                query = query.where(OzonOrder.created_at <= end_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
 
@@ -1728,21 +1723,18 @@ async def get_orders(
         count_query = count_query.where(OzonOrder.order_type == order_type)
     if date_from:
         try:
-            if 'T' in date_from:
-                start_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
-            else:
-                start_date = datetime.strptime(date_from, '%Y-%m-%d')
-            count_query = count_query.where(OzonOrder.created_at >= start_date)
+            start_date = parse_date(date_from)
+            if start_date:
+                count_query = count_query.where(OzonOrder.created_at >= start_date)
         except:
             pass
     if date_to:
         try:
-            if 'T' in date_to:
-                end_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-            else:
-                end_date = datetime.strptime(date_to, '%Y-%m-%d')
-                end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-            count_query = count_query.where(OzonOrder.created_at <= end_date)
+            end_date = parse_date(date_to)
+            if end_date:
+                if 'T' not in date_to:
+                    end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                count_query = count_query.where(OzonOrder.created_at <= end_date)
         except:
             pass
 
