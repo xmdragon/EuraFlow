@@ -133,71 +133,12 @@ def upgrade() -> None:
                    existing_type=sa.DateTime(),
                    existing_nullable=True)
 
-    # ozon_sync_checkpoints table (4 columns)
-    op.alter_column('ozon_sync_checkpoints', 'last_sync_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_checkpoints', 'last_modified_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_checkpoints', 'created_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_checkpoints', 'updated_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-
-    # ozon_sync_logs table (3 columns)
-    op.alter_column('ozon_sync_logs', 'started_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=False)
-    op.alter_column('ozon_sync_logs', 'completed_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_logs', 'created_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-
-    # ozon_webhook_events table (3 columns)
-    op.alter_column('ozon_webhook_events', 'processed_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_webhook_events', 'created_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_webhook_events', 'updated_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-
-    # ozon_api_metrics table (1 column)
-    op.alter_column('ozon_api_metrics', 'requested_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=False)
-
-    # ozon_outbox_events table (3 columns)
-    op.alter_column('ozon_outbox_events', 'sent_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_outbox_events', 'next_retry_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
-    op.alter_column('ozon_outbox_events', 'created_at',
-                   type_=sa.DateTime(timezone=True),
-                   existing_type=sa.DateTime(),
-                   existing_nullable=True)
+    # 注意：以下表尚未创建，当它们被创建时会使用模型中的 DateTime(timezone=True) 定义
+    # - ozon_sync_checkpoints
+    # - ozon_sync_logs
+    # - ozon_webhook_events
+    # - ozon_api_metrics
+    # - ozon_outbox_events
 
     # ozon_chat_messages table (4 columns)
     op.alter_column('ozon_chat_messages', 'read_at',
@@ -377,72 +318,6 @@ def downgrade() -> None:
                    existing_type=sa.DateTime(timezone=True),
                    existing_nullable=True)
     op.alter_column('ozon_refunds', 'updated_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-
-    # ozon_sync_checkpoints table
-    op.alter_column('ozon_sync_checkpoints', 'last_sync_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_checkpoints', 'last_modified_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_checkpoints', 'created_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_checkpoints', 'updated_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-
-    # ozon_sync_logs table
-    op.alter_column('ozon_sync_logs', 'started_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=False)
-    op.alter_column('ozon_sync_logs', 'completed_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_sync_logs', 'created_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-
-    # ozon_webhook_events table
-    op.alter_column('ozon_webhook_events', 'processed_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_webhook_events', 'created_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_webhook_events', 'updated_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-
-    # ozon_api_metrics table
-    op.alter_column('ozon_api_metrics', 'requested_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=False)
-
-    # ozon_outbox_events table
-    op.alter_column('ozon_outbox_events', 'sent_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_outbox_events', 'next_retry_at',
-                   type_=sa.DateTime(),
-                   existing_type=sa.DateTime(timezone=True),
-                   existing_nullable=True)
-    op.alter_column('ozon_outbox_events', 'created_at',
                    type_=sa.DateTime(),
                    existing_type=sa.DateTime(timezone=True),
                    existing_nullable=True)
