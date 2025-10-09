@@ -540,7 +540,7 @@ const ProductList: React.FC = () => {
               <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>
                 {record.ozon_sku ? (
                   <a
-                    href={`https://www.ozon.ru/product/${record.ozon_sku}/`}
+                    href={`https://ozon.ru/product/${record.ozon_sku}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
