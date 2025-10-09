@@ -360,6 +360,52 @@ class OzonWebhookHandler:
         except Exception as e:
             logger.error(f"Failed to trigger order sync for {posting_number}: {e}")
 
+    async def _trigger_product_sync(self, product_id: int = None, offer_id: str = None) -> None:
+        """触发特定商品的同步"""
+        try:
+            from ..models import OzonShop
+            from ..api.client import OzonAPIClient
+            from sqlalchemy import select
+
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as db:
+                # 获取店铺（对于商品，我们使用self.shop_id）
+                result = await db.execute(
+                    select(OzonShop).where(OzonShop.id == self.shop_id)
+                )
+                shop = result.scalar_one_or_none()
+
+                if not shop:
+                    logger.warning(f"Shop {self.shop_id} not found for product sync")
+                    return
+
+                try:
+                    # 创建API客户端
+                    client = OzonAPIClient(
+                        client_id=shop.client_id,
+                        api_key=shop.api_key_enc
+                    )
+
+                    # 获取商品信息（通过offer_id或product_id）
+                    # OZON API通常通过offer_id查询商品详情
+                    if offer_id:
+                        # 调用API获取商品信息（需要实现具体的API方法）
+                        logger.info(f"Triggering product sync for offer_id: {offer_id}")
+                        # TODO: 实现商品详情API调用和保存逻辑
+                        # product_info = await client.get_product_info(offer_id)
+                        # await self._save_product_info(shop.id, product_info, db)
+                    elif product_id:
+                        logger.info(f"Triggering product sync for product_id: {product_id}")
+                        # TODO: 实现商品详情API调用和保存逻辑
+
+                    await client.close()
+
+                except Exception as e:
+                    logger.error(f"Failed to sync product (offer_id={offer_id}, product_id={product_id}) for shop {shop.id}: {e}")
+
+        except Exception as e:
+            logger.error(f"Failed to trigger product sync: {e}")
+
     async def _handle_posting_cancelled(
         self,
         payload: Dict[str, Any],
@@ -753,9 +799,12 @@ class OzonWebhookHandler:
         logger.info(f"Product created: product_id={product_id}, offer_id={offer_id}")
 
         # 触发商品同步
+        import asyncio
+        asyncio.create_task(self._trigger_product_sync(product_id, offer_id))
+
         webhook_event.entity_type = "product"
-        webhook_event.entity_id = str(product_id)
-        return {"product_id": product_id, "message": "Product creation recorded"}
+        webhook_event.entity_id = str(product_id) if product_id else offer_id
+        return {"product_id": product_id, "offer_id": offer_id, "sync_triggered": True}
 
     async def _handle_product_updated(
         self,
@@ -769,9 +818,12 @@ class OzonWebhookHandler:
         logger.info(f"Product updated: product_id={product_id}, offer_id={offer_id}")
 
         # 触发商品同步
+        import asyncio
+        asyncio.create_task(self._trigger_product_sync(product_id, offer_id))
+
         webhook_event.entity_type = "product"
-        webhook_event.entity_id = str(product_id)
-        return {"product_id": product_id, "message": "Product update recorded"}
+        webhook_event.entity_id = str(product_id) if product_id else offer_id
+        return {"product_id": product_id, "offer_id": offer_id, "sync_triggered": True}
 
     async def _handle_product_create_or_update(
         self,
@@ -783,9 +835,15 @@ class OzonWebhookHandler:
 
         logger.info(f"Product create/update batch: {len(items)} items")
 
-        # 批量处理商品变更
+        # 批量处理商品变更 - 为每个商品触发同步
+        import asyncio
+        for item in items:
+            product_id = item.get("product_id")
+            offer_id = item.get("offer_id")
+            asyncio.create_task(self._trigger_product_sync(product_id, offer_id))
+
         webhook_event.entity_type = "product_batch"
-        return {"items_count": len(items), "message": "Product batch operation recorded"}
+        return {"items_count": len(items), "message": "Product batch sync triggered"}
 
     async def _handle_chat_message_created(
         self,
@@ -795,15 +853,75 @@ class OzonWebhookHandler:
         """处理新聊天消息事件 (TYPE_NEW_MESSAGE)"""
         chat_id = payload.get("chat_id")
         message_id = payload.get("message_id")
-        message_type = payload.get("type")  # user/support
+        message_type = payload.get("type", "text")  # text/image/file等
+        sender_type = payload.get("sender_type", "user")  # user/support/seller
+        content = payload.get("text", "")  # 消息文本内容
 
         logger.info(f"New chat message: chat_id={chat_id}, message_id={message_id}, type={message_type}")
 
-        # 聊天功能暂未实现，记录事件
-        webhook_event.entity_type = "chat_message"
-        webhook_event.entity_id = str(message_id)
-        webhook_event.status = "ignored"
-        return {"message": "Chat messages not implemented yet", "chat_id": chat_id}
+        from ..models.chat import OzonChat, OzonChatMessage
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            # 检查聊天会话是否存在，不存在则创建
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+
+            if not chat:
+                # 创建新的聊天会话
+                chat = OzonChat(
+                    shop_id=self.shop_id,
+                    chat_id=chat_id,
+                    chat_type=payload.get("chat_type", "general"),
+                    status="open",
+                    customer_id=payload.get("customer_id"),
+                    customer_name=payload.get("customer_name"),
+                    order_number=payload.get("order_number"),
+                    message_count=0,
+                    unread_count=0
+                )
+                session.add(chat)
+                await session.flush()
+
+            # 创建消息记录
+            message = OzonChatMessage(
+                shop_id=self.shop_id,
+                chat_id=chat_id,
+                message_id=message_id,
+                message_type=message_type,
+                sender_type=sender_type,
+                sender_id=payload.get("sender_id"),
+                sender_name=payload.get("sender_name"),
+                content=content,
+                content_data=payload.get("content_data"),
+                order_number=payload.get("order_number"),
+                is_read=False,
+                metadata=payload
+            )
+            session.add(message)
+
+            # 更新聊天会话统计
+            chat.message_count += 1
+            if sender_type == "user":  # 买家消息，增加未读数
+                chat.unread_count += 1
+            chat.last_message_at = datetime.utcnow()
+            chat.last_message_preview = content[:100] if content else ""
+
+            await session.commit()
+
+            webhook_event.entity_type = "chat_message"
+            webhook_event.entity_id = str(message.id)
+
+            return {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "message_saved": True
+            }
 
     async def _handle_chat_message_updated(
         self,
@@ -813,13 +931,42 @@ class OzonWebhookHandler:
         """处理聊天消息更新事件 (TYPE_UPDATE_MESSAGE)"""
         chat_id = payload.get("chat_id")
         message_id = payload.get("message_id")
+        new_content = payload.get("text", "")
 
         logger.info(f"Chat message updated: chat_id={chat_id}, message_id={message_id}")
 
-        webhook_event.entity_type = "chat_message"
-        webhook_event.entity_id = str(message_id)
-        webhook_event.status = "ignored"
-        return {"message": "Chat messages not implemented yet", "chat_id": chat_id}
+        from ..models.chat import OzonChatMessage
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            # 查找消息
+            stmt = select(OzonChatMessage).where(
+                and_(
+                    OzonChatMessage.shop_id == self.shop_id,
+                    OzonChatMessage.message_id == message_id
+                )
+            )
+            message = await session.scalar(stmt)
+
+            if message:
+                # 更新消息内容
+                message.content = new_content
+                message.is_edited = True
+                message.edited_at = datetime.utcnow()
+                message.metadata = payload
+
+                await session.commit()
+
+                webhook_event.entity_type = "chat_message"
+                webhook_event.entity_id = str(message.id)
+
+                return {
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "message_updated": True
+                }
+
+            return {"message": "Message not found", "chat_id": chat_id}
 
     async def _handle_chat_message_read(
         self,
@@ -832,10 +979,47 @@ class OzonWebhookHandler:
 
         logger.info(f"Message read: chat_id={chat_id}, message_id={message_id}")
 
-        webhook_event.entity_type = "chat_message"
-        webhook_event.entity_id = str(message_id)
-        webhook_event.status = "ignored"
-        return {"message": "Chat messages not implemented yet", "chat_id": chat_id}
+        from ..models.chat import OzonChatMessage, OzonChat
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            # 查找消息
+            stmt = select(OzonChatMessage).where(
+                and_(
+                    OzonChatMessage.shop_id == self.shop_id,
+                    OzonChatMessage.message_id == message_id
+                )
+            )
+            message = await session.scalar(stmt)
+
+            if message:
+                # 标记为已读
+                message.is_read = True
+                message.read_at = datetime.utcnow()
+
+                # 更新聊天会话的未读数
+                chat_stmt = select(OzonChat).where(
+                    and_(
+                        OzonChat.shop_id == self.shop_id,
+                        OzonChat.chat_id == chat_id
+                    )
+                )
+                chat = await session.scalar(chat_stmt)
+                if chat and chat.unread_count > 0:
+                    chat.unread_count -= 1
+
+                await session.commit()
+
+                webhook_event.entity_type = "chat_message"
+                webhook_event.entity_id = str(message.id)
+
+                return {
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "message_read": True
+                }
+
+            return {"message": "Message not found", "chat_id": chat_id}
 
     async def _handle_chat_closed(
         self,
@@ -847,7 +1031,33 @@ class OzonWebhookHandler:
 
         logger.info(f"Chat closed: chat_id={chat_id}")
 
-        webhook_event.entity_type = "chat"
-        webhook_event.entity_id = str(chat_id)
-        webhook_event.status = "ignored"
-        return {"message": "Chat feature not implemented yet", "chat_id": chat_id}
+        from ..models.chat import OzonChat
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            # 查找聊天会话
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+
+            if chat:
+                # 关闭聊天
+                chat.status = "closed"
+                chat.is_closed = True
+                chat.closed_at = datetime.utcnow()
+
+                await session.commit()
+
+                webhook_event.entity_type = "chat"
+                webhook_event.entity_id = str(chat.id)
+
+                return {
+                    "chat_id": chat_id,
+                    "chat_closed": True
+                }
+
+            return {"message": "Chat not found", "chat_id": chat_id}
