@@ -51,7 +51,9 @@ def ozon_success_response(signature: str = None, push_type: str = None, request_
         "body": "OK",
         "sign": signature if signature else "",
         "push_type": push_type if push_type else "",
-        "time": response_time
+        "time": response_time,
+        "name": "EuraFlow",
+        "version": "1.0"
     }
 
     logger.info(f"WEBHOOK RESPONSE (SUCCESS): HTTP 200, content={response_content}")
