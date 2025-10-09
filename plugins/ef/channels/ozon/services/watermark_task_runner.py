@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from ef_core.config import get_settings
 from ..models import WatermarkTask
 from .watermark_processor import WatermarkProcessor
+from ..utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class WatermarkTaskRunner:
 
             # 更新任务状态为处理中
             task.status = "processing"
-            task.processing_started_at = datetime.utcnow()
+            task.processing_started_at = utcnow()
             await session.commit()
 
             # 创建处理器
@@ -99,7 +100,7 @@ class WatermarkTaskRunner:
 
                 # 更新任务状态为完成
                 task.status = "completed"
-                task.completed_at = datetime.utcnow()
+                task.completed_at = utcnow()
                 task.processed_images = result.get("processed_images", [])
                 task.original_images = result.get("original_images", [])
                 task.cloudinary_public_ids = result.get("cloudinary_ids", [])
@@ -110,7 +111,7 @@ class WatermarkTaskRunner:
                 # 还原原图
                 # TODO: 实现还原逻辑
                 task.status = "completed"
-                task.completed_at = datetime.utcnow()
+                task.completed_at = utcnow()
                 logger.info(f"Restore task {task.id} completed")
 
             await session.commit()
@@ -120,7 +121,7 @@ class WatermarkTaskRunner:
             # 更新任务状态为失败
             task.status = "failed"
             task.error_message = str(e)
-            task.completed_at = datetime.utcnow()
+            task.completed_at = utcnow()
             await session.commit()
 
 

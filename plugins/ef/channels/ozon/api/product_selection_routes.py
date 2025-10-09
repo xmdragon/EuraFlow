@@ -22,6 +22,7 @@ from ef_core.models.users import User
 from ..services.product_selection_service import ProductSelectionService
 from ..models.product_selection import ProductSelectionItem, ImportHistory
 from ..services.sync_state_manager import get_sync_state_manager
+from ..utils.datetime_utils import utcnow
 from decimal import Decimal
 
 router = APIRouter(prefix="/product-selection", tags=["Product Selection"])
@@ -776,7 +777,7 @@ async def get_product_detail(
                     import json
                     from datetime import datetime
                     db_product.images_data = images
-                    db_product.images_updated_at = datetime.utcnow()
+                    db_product.images_updated_at = utcnow()
                     await db.commit()
                     logger.info(f"已更新商品 {product_id} 的图片缓存")
                 except Exception as e:

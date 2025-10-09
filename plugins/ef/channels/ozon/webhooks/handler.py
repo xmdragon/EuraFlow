@@ -16,7 +16,7 @@ from ef_core.utils.logger import get_logger
 
 from ..models.sync import OzonWebhookEvent
 from ..services.order_sync import OrderSyncService
-from ..utils.datetime_utils import parse_datetime
+from ..utils.datetime_utils import parse_datetime, utcnow
 
 logger = get_logger(__name__)
 
@@ -144,7 +144,7 @@ class OzonWebhookHandler:
         # 这些测试都期望返回200，所以我们不验证签名，直接接受所有请求
         
         # 检查幂等性
-        event_id = headers.get("X-Event-Id", f"{event_type}-{datetime.utcnow().timestamp()}")
+        event_id = headers.get("X-Event-Id", f"{event_type}-{utcnow().timestamp()}")
         idempotency_key = f"{self.shop_id}-{event_id}"
 
         db_manager = get_db_manager()
@@ -185,7 +185,7 @@ class OzonWebhookHandler:
             # 更新事件状态
             async with db_manager.get_session() as session:
                 webhook_event.status = "processed"
-                webhook_event.processed_at = datetime.utcnow()
+                webhook_event.processed_at = utcnow()
                 session.add(webhook_event)
                 await session.commit()
             
@@ -290,13 +290,13 @@ class OzonWebhookHandler:
             
             if posting:
                 posting.status = new_status
-                posting.updated_at = datetime.utcnow()
+                posting.updated_at = utcnow()
                 
                 # 根据状态更新时间
                 if new_status == "delivered":
-                    posting.delivered_at = datetime.utcnow()
+                    posting.delivered_at = utcnow()
                 elif new_status == "cancelled":
-                    posting.cancelled_at = datetime.utcnow()
+                    posting.cancelled_at = utcnow()
                 
                 session.add(posting)
                 await session.commit()
@@ -435,7 +435,7 @@ class OzonWebhookHandler:
                 posting.is_cancelled = True
                 posting.cancel_reason = cancel_reason.get("reason")
                 posting.cancel_reason_id = cancel_reason.get("reason_id")
-                posting.cancelled_at = datetime.utcnow()
+                posting.cancelled_at = utcnow()
                 
                 session.add(posting)
                 await session.commit()
@@ -616,7 +616,7 @@ class OzonWebhookHandler:
                     refund_amount=Decimal(str(payload.get("amount", "0"))),
                     reason=payload.get("reason"),
                     status="pending",
-                    requested_at=datetime.utcnow()
+                    requested_at=utcnow()
                 )
                 session.add(refund)
                 await session.commit()
@@ -655,9 +655,9 @@ class OzonWebhookHandler:
                 refund.status = new_status
                 
                 if new_status == "approved":
-                    refund.approved_at = datetime.utcnow()
+                    refund.approved_at = utcnow()
                 elif new_status == "completed":
-                    refund.completed_at = datetime.utcnow()
+                    refund.completed_at = utcnow()
                 
                 session.add(refund)
                 await session.commit()
@@ -911,7 +911,7 @@ class OzonWebhookHandler:
             chat.message_count += 1
             if sender_type == "user":  # 买家消息，增加未读数
                 chat.unread_count += 1
-            chat.last_message_at = datetime.utcnow()
+            chat.last_message_at = utcnow()
             chat.last_message_preview = content[:100] if content else ""
 
             await session.commit()
@@ -954,7 +954,7 @@ class OzonWebhookHandler:
                 # 更新消息内容
                 message.content = new_content
                 message.is_edited = True
-                message.edited_at = datetime.utcnow()
+                message.edited_at = utcnow()
                 message.extra_data = payload
 
                 await session.commit()
@@ -997,7 +997,7 @@ class OzonWebhookHandler:
             if message:
                 # 标记为已读
                 message.is_read = True
-                message.read_at = datetime.utcnow()
+                message.read_at = utcnow()
 
                 # 更新聊天会话的未读数
                 chat_stmt = select(OzonChat).where(
@@ -1050,7 +1050,7 @@ class OzonWebhookHandler:
                 # 关闭聊天
                 chat.status = "closed"
                 chat.is_closed = True
-                chat.closed_at = datetime.utcnow()
+                chat.closed_at = utcnow()
 
                 await session.commit()
 

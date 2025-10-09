@@ -7,6 +7,8 @@ from typing import Dict, Optional, Set
 from datetime import datetime
 import logging
 
+from ..utils.datetime_utils import utcnow
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +33,7 @@ class SyncStateManager:
                 return False
 
             self._syncing_shops.add(shop_id)
-            self._sync_start_time[shop_id] = datetime.utcnow()
+            self._sync_start_time[shop_id] = utcnow()
             logger.info(f"Started sync for shop {shop_id}")
             return True
 
@@ -42,7 +44,7 @@ class SyncStateManager:
                 self._syncing_shops.remove(shop_id)
                 start_time = self._sync_start_time.pop(shop_id, None)
                 if start_time:
-                    duration = (datetime.utcnow() - start_time).total_seconds()
+                    duration = (utcnow() - start_time).total_seconds()
                     logger.info(f"Completed sync for shop {shop_id} in {duration:.2f} seconds")
                 else:
                     logger.info(f"Completed sync for shop {shop_id}")
@@ -59,7 +61,7 @@ class SyncStateManager:
             }
 
             if is_syncing and start_time:
-                duration = (datetime.utcnow() - start_time).total_seconds()
+                duration = (utcnow() - start_time).total_seconds()
                 status["duration_seconds"] = duration
 
             return status

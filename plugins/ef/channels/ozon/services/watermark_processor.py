@@ -15,6 +15,7 @@ from ..models import OzonProduct, WatermarkConfig, WatermarkTask, OzonShop
 from .cloudinary_service import CloudinaryService, CloudinaryConfigManager
 from .ozon_api_service import OzonApiService
 from .image_processing_service import ImageProcessingService, WatermarkPosition, WatermarkColor
+from ..utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -370,7 +371,7 @@ class WatermarkProcessor:
                     "additional": processed_images[1:] if len(processed_images) > 1 else []
                 }
                 product.watermark_applied = True
-                product.watermark_applied_at = datetime.utcnow()
+                product.watermark_applied_at = utcnow()
                 await self.db.commit()
 
             return result
@@ -405,9 +406,9 @@ class WatermarkProcessor:
                 task.error_message = error_message
 
             if status == "processing":
-                task.processing_started_at = datetime.utcnow()
+                task.processing_started_at = utcnow()
             elif status in ["completed", "failed"]:
-                task.completed_at = datetime.utcnow()
+                task.completed_at = utcnow()
 
             await self.db.commit()
 
@@ -444,7 +445,7 @@ class WatermarkProcessor:
             try:
                 # 更新任务状态为处理中
                 task.status = "processing"
-                task.processing_started_at = datetime.utcnow()
+                task.processing_started_at = utcnow()
                 await self.db.commit()
 
                 # 处理单个商品

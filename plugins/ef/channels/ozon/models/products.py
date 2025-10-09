@@ -84,14 +84,14 @@ class OzonProduct(Base):
     status_reason = Column(String(200), comment="状态原因说明")
 
     # 同步信息
-    last_sync_at = Column(DateTime)
+    last_sync_at = Column(DateTime(timezone=True))
     sync_status = Column(String(50), default="pending")  # pending/syncing/success/failed
     sync_error = Column(String(1000))
-    
+
     # 时间戳
-    ozon_created_at = Column(DateTime, comment="OZON平台创建时间")
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    ozon_created_at = Column(DateTime(timezone=True), comment="OZON平台创建时间")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     # 关系
     variants = relationship("OzonProductVariant", back_populates="product", cascade="all, delete-orphan")
@@ -133,9 +133,9 @@ class OzonProductVariant(Base):
     
     # 图片
     images = Column(JSONB)
-    
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     # 关系
     product = relationship("OzonProduct", back_populates="variants")
@@ -163,8 +163,8 @@ class OzonProductAttribute(Base):
     
     # 是否必填
     is_required = Column(Boolean, default=False)
-    
-    created_at = Column(DateTime, default=utcnow)
+
+    created_at = Column(DateTime(timezone=True), default=utcnow)
     
     # 关系
     product = relationship("OzonProduct", back_populates="attributes")
@@ -194,8 +194,8 @@ class OzonPriceHistory(Base):
     source = Column(String(50))  # manual/rule/competitor/promotion
     
     # 生效时间
-    effective_at = Column(DateTime, default=utcnow)
-    created_at = Column(DateTime, default=utcnow)
+    effective_at = Column(DateTime(timezone=True), default=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
     
     # 关系
     product = relationship("OzonProduct", back_populates="price_history")
@@ -215,22 +215,22 @@ class OzonInventorySnapshot(Base):
     warehouse_id = Column(Integer)
     
     # 快照时间
-    snapshot_date = Column(DateTime, nullable=False)
-    
+    snapshot_date = Column(DateTime(timezone=True), nullable=False)
+
     # 库存数据（JSON数组）
     inventory_data = Column(JSONB, nullable=False)
     # 格式: [{"sku": "xxx", "offer_id": "xxx", "stock": 100, "reserved": 10}, ...]
-    
+
     # 统计
     total_skus = Column(Integer, default=0)
     total_stock = Column(Integer, default=0)
     total_value = Column(Numeric(18, 4))
-    
+
     # 对账状态
     reconciliation_status = Column(String(50))  # pending/matched/mismatched
     discrepancies = Column(JSONB)
-    
-    created_at = Column(DateTime, default=utcnow)
+
+    created_at = Column(DateTime(timezone=True), default=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_inventory_snapshot", "shop_id", "snapshot_date"),

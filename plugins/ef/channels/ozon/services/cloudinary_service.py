@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.utils.logger import get_logger
 from ..models.watermark import CloudinaryConfig
-from ..utils.datetime_utils import parse_datetime
+from ..utils.datetime_utils import parse_datetime, utcnow
 
 logger = get_logger(__name__)
 
@@ -82,7 +82,7 @@ class CloudinaryService:
                     "transformations_limit": usage.get("transformations", {}).get("limit"),
                 },
                 "quota_usage_percent": self._calculate_quota_usage(usage),
-                "tested_at": datetime.utcnow().isoformat()
+                "tested_at": utcnow().isoformat()
             }
 
             logger.info(f"Cloudinary connection test successful: {result}")
@@ -93,7 +93,7 @@ class CloudinaryService:
             return {
                 "success": False,
                 "error": str(e),
-                "tested_at": datetime.utcnow().isoformat()
+                "tested_at": utcnow().isoformat()
             }
 
     def _calculate_quota_usage(self, usage: Dict) -> Optional[float]:
@@ -437,7 +437,7 @@ class CloudinaryService:
             清理结果
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = utcnow() - timedelta(days=days_old)
 
             # 列出文件夹中的所有资源
             list_result = await self.list_resources(folder=folder, max_results=500)
@@ -593,8 +593,8 @@ class CloudinaryConfigManager:
             if test_result["success"]:
                 config.storage_used_bytes = test_result["usage"]["storage_used_bytes"]
                 config.bandwidth_used_bytes = test_result["usage"]["bandwidth_used_bytes"]
-                config.last_quota_check = datetime.utcnow()
-                config.last_test_at = datetime.utcnow()
+                config.last_quota_check = utcnow()
+                config.last_test_at = utcnow()
                 config.last_test_success = True
 
                 await db.commit()

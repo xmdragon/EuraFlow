@@ -11,7 +11,7 @@ import logging
 
 from ef_core.database import get_async_session
 from ..models import OzonShop, OzonProduct, OzonOrder
-from ..utils.datetime_utils import parse_datetime, parse_date
+from ..utils.datetime_utils import parse_datetime, parse_date, utcnow
 from sqlalchemy import select, func
 # from .auth import get_current_user  # Временно отключено для разработки
 
@@ -388,7 +388,7 @@ async def test_webhook(
     test_payload = {
         "company_id": shop.client_id,
         "event_type": "test",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": utcnow().isoformat() + "Z",
         "data": {
             "message": "This is a test webhook event",
             "shop_id": shop.id
@@ -409,7 +409,7 @@ async def test_webhook(
     headers = {
         "Content-Type": "application/json",
         "X-Ozon-Signature": signature,
-        "X-Event-Id": f"test-{datetime.utcnow().timestamp()}",
+        "X-Event-Id": f"test-{utcnow().timestamp()}",
         "X-Event-Type": "test",
         "User-Agent": "Ozon-Webhook-Test/1.0"
     }
@@ -501,7 +501,7 @@ async def trigger_sync(
         "status": "pending",
         "progress": 0,
         "message": "任务已创建，正在启动...",
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": utcnow().isoformat(),
         "type": sync_type,
         "shop_id": shop_id
     }
@@ -534,7 +534,7 @@ async def trigger_sync(
                     "progress": 0,
                     "message": f"同步失败: {str(e)}",
                     "error": str(e),
-                    "completed_at": datetime.utcnow().isoformat(),
+                    "completed_at": utcnow().isoformat(),
                     "type": sync_type
                 }
 
@@ -579,7 +579,7 @@ async def debug_sync_status():
         'status': 'running',
         'progress': 75,
         'message': 'Debug task',
-        'started_at': datetime.utcnow().isoformat()
+        'started_at': utcnow().isoformat()
     }
 
     # Get all tasks
@@ -2089,7 +2089,7 @@ async def get_sync_logs(
                 content = f"{entity_name}同步{status_name}"
             
             # 计算相对时间
-            time_diff = datetime.utcnow() - log.started_at
+            time_diff = utcnow() - log.started_at
             if time_diff.days > 0:
                 time_str = f"{time_diff.days}天前"
             elif time_diff.seconds > 3600:
@@ -2252,7 +2252,7 @@ async def get_statistics(
         # 收入统计（今日、本周、本月）
         from datetime import datetime, timedelta
 
-        now = datetime.utcnow()
+        now = utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=now.weekday())
         month_start = today_start.replace(day=1)

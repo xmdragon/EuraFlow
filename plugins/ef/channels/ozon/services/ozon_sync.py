@@ -71,7 +71,7 @@ class OzonSyncService:
                 "status": "running",
                 "progress": 0,
                 "message": "正在获取店铺信息...",
-                "started_at": datetime.utcnow().isoformat(),
+                "started_at": utcnow().isoformat(),
                 "type": "products",
             }
 
@@ -102,7 +102,7 @@ class OzonSyncService:
             filter_params = {}
             if mode == "incremental":
                 # 获取最后同步时间或默认7天前
-                last_sync_time = datetime.utcnow() - timedelta(days=7)
+                last_sync_time = utcnow() - timedelta(days=7)
                 filter_params["last_changed_since"] = last_sync_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                 logger.info(f"Incremental sync: fetching products changed since {last_sync_time}")
 
@@ -493,8 +493,8 @@ class OzonSyncService:
                                 product.depth = None
 
                             product.sync_status = "success"
-                            product.last_sync_at = datetime.utcnow()
-                            product.updated_at = datetime.utcnow()
+                            product.last_sync_at = utcnow()
+                            product.updated_at = utcnow()
                         else:
                             # 创建新商品
                             # 解析OZON平台创建时间
@@ -539,7 +539,7 @@ class OzonSyncService:
                                 available=stock_info["present"] if stock_info else item.get("stocks", {}).get("present", 0),
                                 images=images_data,
                                 sync_status="success",
-                                last_sync_at=datetime.utcnow(),
+                                last_sync_at=utcnow(),
                             )
 
                             # 添加尺寸信息（如果有）
@@ -648,7 +648,7 @@ class OzonSyncService:
             logger.info(f"归档商品: {archived_count}个")
 
             # 更新店铺最后同步时间
-            shop.last_sync_at = datetime.utcnow()
+            shop.last_sync_at = utcnow()
             await db.commit()
 
             # 记录最终统计
@@ -659,7 +659,7 @@ class OzonSyncService:
                 "status": "completed",
                 "progress": 100,
                 "message": f"同步完成，共同步{total_synced}个商品（不活跃: {inactive_count}, 归档: {archived_count}）",
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": utcnow().isoformat(),
                 "type": "products",
                 "result": {
                     "total_synced": total_synced,
@@ -678,7 +678,7 @@ class OzonSyncService:
                 "progress": SYNC_TASKS.get(task_id, {}).get("progress", 0),
                 "message": f"同步失败: {str(e)}",
                 "error": str(e),
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": utcnow().isoformat(),
                 "type": "products",
             }
             raise
@@ -707,7 +707,7 @@ class OzonSyncService:
                 "status": "running",
                 "progress": 0,
                 "message": "正在获取店铺信息...",
-                "started_at": datetime.utcnow().isoformat(),
+                "started_at": utcnow().isoformat(),
                 "type": "orders",
                 "mode": "incremental",
             }
@@ -729,8 +729,8 @@ class OzonSyncService:
             # 获取订单列表（最近7天）
             total_synced = 0
             # 使用UTC时间，传递datetime对象
-            date_from = datetime.utcnow() - timedelta(days=7)
-            date_to = datetime.utcnow()
+            date_from = utcnow() - timedelta(days=7)
+            date_to = utcnow()
 
             SYNC_TASKS[task_id]["message"] = "正在获取订单列表..."
 
@@ -772,13 +772,13 @@ class OzonSyncService:
                         if hasattr(order, key):
                             setattr(order, key, value)
                     order.sync_status = "success"
-                    order.last_sync_at = datetime.utcnow()
-                    order.updated_at = datetime.utcnow()
+                    order.last_sync_at = utcnow()
+                    order.updated_at = utcnow()
                 else:
                     # 创建新订单
                     order = OzonOrder(shop_id=shop_id, **order_data)
                     order.sync_status = "success"
-                    order.last_sync_at = datetime.utcnow()
+                    order.last_sync_at = utcnow()
                     db.add(order)
 
                 total_synced += 1
@@ -787,7 +787,7 @@ class OzonSyncService:
             await db.commit()
 
             # 更新店铺最后同步时间
-            shop.last_sync_at = datetime.utcnow()
+            shop.last_sync_at = utcnow()
             await db.commit()
 
             # 完成
@@ -795,7 +795,7 @@ class OzonSyncService:
                 "status": "completed",
                 "progress": 100,
                 "message": f"增量同步完成，共同步{total_synced}个订单",
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": utcnow().isoformat(),
                 "type": "orders",
                 "mode": "incremental",
                 "result": {"total_synced": total_synced},
@@ -810,7 +810,7 @@ class OzonSyncService:
                 "progress": SYNC_TASKS.get(task_id, {}).get("progress", 0),
                 "message": f"增量同步失败: {str(e)}",
                 "error": str(e),
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": utcnow().isoformat(),
                 "type": "orders",
                 "mode": "incremental",
             }
@@ -825,7 +825,7 @@ class OzonSyncService:
                 "status": "running",
                 "progress": 0,
                 "message": "正在获取店铺信息...",
-                "started_at": datetime.utcnow().isoformat(),
+                "started_at": utcnow().isoformat(),
                 "type": "orders",
                 "mode": "full",
             }
@@ -846,8 +846,8 @@ class OzonSyncService:
 
             total_synced = 0
             # 全量同步：从很久以前开始（比如1年前）
-            date_from = datetime.utcnow() - timedelta(days=365)
-            date_to = datetime.utcnow()
+            date_from = utcnow() - timedelta(days=365)
+            date_to = utcnow()
 
             SYNC_TASKS[task_id]["message"] = "正在获取所有历史订单..."
             SYNC_TASKS[task_id]["progress"] = 10
@@ -908,13 +908,13 @@ class OzonSyncService:
                             if hasattr(order, key):
                                 setattr(order, key, value)
                         order.sync_status = "success"
-                        order.last_sync_at = datetime.utcnow()
-                        order.updated_at = datetime.utcnow()
+                        order.last_sync_at = utcnow()
+                        order.updated_at = utcnow()
                     else:
                         # 创建新订单
                         order = OzonOrder(shop_id=shop_id, **order_data)
                         order.sync_status = "success"
-                        order.last_sync_at = datetime.utcnow()
+                        order.last_sync_at = utcnow()
                         db.add(order)
 
                     total_synced += 1
@@ -929,7 +929,7 @@ class OzonSyncService:
                     has_more = False
 
             # 更新店铺最后同步时间
-            shop.last_sync_at = datetime.utcnow()
+            shop.last_sync_at = utcnow()
             await db.commit()
 
             # 完成
@@ -937,7 +937,7 @@ class OzonSyncService:
                 "status": "completed",
                 "progress": 100,
                 "message": f"全量同步完成，共同步{total_synced}个订单",
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": utcnow().isoformat(),
                 "type": "orders",
                 "mode": "full",
                 "result": {"total_synced": total_synced},
@@ -952,7 +952,7 @@ class OzonSyncService:
                 "progress": SYNC_TASKS.get(task_id, {}).get("progress", 0),
                 "message": f"全量同步失败: {str(e)}",
                 "error": str(e),
-                "failed_at": datetime.utcnow().isoformat(),
+                "failed_at": utcnow().isoformat(),
                 "type": "orders",
                 "mode": "full",
             }
@@ -1059,7 +1059,7 @@ class OzonSyncService:
 
         # 其他时间字段
         order_data.update({
-            "ordered_at": parse_datetime(item.get("in_process_at")) or datetime.utcnow(),  # 必填字段
+            "ordered_at": parse_datetime(item.get("in_process_at")) or utcnow(),  # 必填字段
             "confirmed_at": parse_datetime(item.get("in_process_at")),
             "shipped_at": parse_datetime(item.get("shipment_date")),
             "delivered_at": parse_datetime(item.get("delivered_at")),

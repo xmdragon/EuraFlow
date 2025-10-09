@@ -14,6 +14,7 @@ from sqlalchemy import select
 from ef_core.database import get_async_session
 from ..models.ozon_shops import OzonShop
 from ..webhooks.handler import OzonWebhookHandler
+from ..utils.datetime_utils import utcnow
 
 router = APIRouter(prefix="/webhook", tags=["Ozon Webhooks"])
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ def ozon_success_response(signature: str = None, push_type: str = None, request_
         request_time: OZON请求中的time字段（应该回显而不是生成新时间）
     """
     # 优先使用OZON发送的时间，如果没有则使用当前时间
-    response_time = request_time if request_time else datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    response_time = request_time if request_time else utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
     response_content = {
         "result": True,
@@ -487,7 +488,7 @@ async def retry_webhook_event(
         # 更新事件状态
         from datetime import datetime
         event.status = "processed" if result else "failed"
-        event.processed_at = datetime.utcnow()
+        event.processed_at = utcnow()
         event.retry_count += 1
 
         await db.commit()

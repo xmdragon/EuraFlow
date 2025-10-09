@@ -17,6 +17,7 @@ from ..models.watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
 from ..models import OzonProduct, OzonShop
 from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
 from ..services.image_processing_service import ImageProcessingService, WatermarkPosition
+from ..utils.datetime_utils import utcnow
 
 router = APIRouter(prefix="/watermark", tags=["Watermark"])
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ async def create_cloudinary_config(
             existing_config.api_secret_encrypted = api_secret  # TODO: 加密
             existing_config.folder_prefix = folder_prefix
             existing_config.auto_cleanup_days = auto_cleanup_days
-            existing_config.updated_at = datetime.utcnow()
+            existing_config.updated_at = utcnow()
         else:
             # 创建新配置
             existing_config = CloudinaryConfig(
@@ -233,13 +234,13 @@ async def test_cloudinary_connection(
     result = await service.test_connection()
 
     # 更新测试结果
-    config.last_test_at = datetime.utcnow()
+    config.last_test_at = utcnow()
     config.last_test_success = result["success"]
 
     if result["success"]:
         config.storage_used_bytes = result["usage"]["storage_used_bytes"]
         config.bandwidth_used_bytes = result["usage"]["bandwidth_used_bytes"]
-        config.last_quota_check = datetime.utcnow()
+        config.last_quota_check = utcnow()
 
     await db.commit()
 
@@ -383,7 +384,7 @@ async def update_watermark_config(
         config.positions = positions_list
         config.color_type = color_type
         config.is_active = is_active
-        config.updated_at = datetime.utcnow()
+        config.updated_at = utcnow()
 
         await db.commit()
         await db.refresh(config)
@@ -664,7 +665,7 @@ async def apply_watermark_batch(
             .values(
                 status="cancelled",
                 error_message="Cancelled due to new task",
-                completed_at=datetime.utcnow()
+                completed_at=utcnow()
             )
         )
         await db.commit()
@@ -699,7 +700,7 @@ async def apply_watermark_batch(
                 try:
                     # 更新任务状态为处理中
                     task.status = "processing"
-                    task.processing_started_at = datetime.utcnow()
+                    task.processing_started_at = utcnow()
                     await db.commit()
 
                     # 获取该商品的手动位置选择（如果有）
@@ -719,7 +720,7 @@ async def apply_watermark_batch(
 
                     # 更新任务状态为完成
                     task.status = "completed"
-                    task.completed_at = datetime.utcnow()
+                    task.completed_at = utcnow()
                     task.processed_images = result.get("processed_images", [])
                     task.original_images = result.get("original_images", [])
                     task.cloudinary_public_ids = result.get("cloudinary_ids", [])
@@ -730,7 +731,7 @@ async def apply_watermark_batch(
                     logger.error(f"Failed to process task {task.id}: {e}")
                     task.status = "failed"
                     task.error_message = str(e)
-                    task.completed_at = datetime.utcnow()
+                    task.completed_at = utcnow()
                     failed_count += 1
 
                 await db.commit()
