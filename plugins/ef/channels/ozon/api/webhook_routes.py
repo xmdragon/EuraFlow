@@ -33,22 +33,20 @@ def is_ozon_request(headers: dict) -> bool:
     return "ozon" in user_agent or "push" in user_agent
 
 
-def ozon_success_response(request_time: str = None):
+def ozon_success_response(signature: str = None, push_type: str = None):
     """
     返回符合OZON规范的成功响应
     OZON期望所有webhook都返回这个格式，即使处理过程中有错误
 
     Args:
-        request_time: OZON请求中的time字段（应该回显而不是生成新时间）
+        signature: 原样回显请求里的签名值，没有就留空字符串
+        push_type: 原样回显推送类型（message_type），没有就留空字符串
     """
-    # 优先使用OZON发送的时间，如果没有则使用当前时间
-    response_time = request_time if request_time else datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
     response_content = {
         "result": True,
-        "version": "1.0",
-        "name": "EuraFlow",
-        "time": response_time
+        "body": "OK",
+        "sign": signature if signature else "",
+        "push_type": push_type if push_type else ""
     }
 
     logger.info(f"WEBHOOK RESPONSE (SUCCESS): HTTP 200, content={response_content}")
@@ -161,8 +159,9 @@ async def receive_webhook(
             # OZON期望即使JSON解析失败也返回200（EMPTY_BODY/WRONG_BODY测试）
             if is_ozon_request(headers):
                 logger.warning(f"OZON request with invalid JSON, returning 200: {e}")
-                # JSON解析失败，无法获取time字段，使用当前时间
-                return ozon_success_response()
+                # JSON解析失败，回显签名（如果有）
+                actual_signature = signature or x_ozon_signature
+                return ozon_success_response(signature=actual_signature, push_type="")
             return ozon_error_response(
                 status_code=400,
                 error_code="ERROR_PARAMETER_VALUE_MISSED",
@@ -192,8 +191,9 @@ async def receive_webhook(
             # OZON验证请求的User-Agent通常是"ozon-push"或包含"ozon"
             if is_ozon_request(headers):
                 logger.info(f"Received OZON webhook request without event type (TYPE_PING verification)")
-                # 回显OZON发送的时间
-                return ozon_success_response(request_time)
+                # 提取签名并回显
+                actual_signature = signature or x_ozon_signature
+                return ozon_success_response(signature=actual_signature, push_type="")
             logger.warning("Missing both X-Event-Type header and message_type in payload")
             return ozon_error_response(
                 status_code=400,
@@ -225,8 +225,8 @@ async def receive_webhook(
         # 注意：OZON的测试包括EMPTY_SIGN、INVALID_SIGN等，都期望返回200 + 标准格式
         if event_type.lower() in ('ping', 'test', 'verification', 'type_ping'):
             logger.info(f"Received webhook verification request: {event_type}")
-            # 回显OZON发送的时间
-            return ozon_success_response(request_time)
+            # 回显签名和推送类型
+            return ozon_success_response(signature=actual_signature, push_type=event_type)
 
         # 从载荷中提取店铺信息
         # Ozon webhook通常在载荷中包含店铺标识信息
@@ -241,8 +241,8 @@ async def receive_webhook(
             # OZON期望即使无法识别店铺也返回200
             if is_ozon_request(headers):
                 logger.warning("OZON request without shop identifier, returning 200 for compatibility")
-                # 回显OZON发送的时间
-                return ozon_success_response(request_time)
+                # 回显签名和推送类型
+                return ozon_success_response(signature=actual_signature, push_type=event_type)
             return ozon_error_response(
                 status_code=400,
                 error_code="ERROR_PARAMETER_VALUE_MISSED",
@@ -265,8 +265,8 @@ async def receive_webhook(
             # OZON期望即使店铺未找到也返回200
             if is_ozon_request(headers):
                 logger.warning(f"OZON request for unknown shop {shop_identifier}, returning 200 for compatibility")
-                # 回显OZON发送的时间
-                return ozon_success_response(request_time)
+                # 回显签名和推送类型
+                return ozon_success_response(signature=actual_signature, push_type=event_type)
             return ozon_error_response(
                 status_code=404,
                 error_code="ERROR_UNKNOWN",
@@ -302,8 +302,8 @@ async def receive_webhook(
         # 记录处理结果
         if result.get("success"):
             logger.info(f"Webhook processed successfully: {result}")
-            # 按OZON规范：成功处理返回 HTTP 200 + {version, name, time}
-            return ozon_success_response(request_time)
+            # 按OZON规范：成功处理返回 HTTP 200 + {result, body, sign, push_type}
+            return ozon_success_response(signature=actual_signature, push_type=event_type)
         else:
             logger.error(f"Webhook processing failed: {result}")
 
