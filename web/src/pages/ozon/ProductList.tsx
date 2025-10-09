@@ -513,9 +513,9 @@ const ProductList: React.FC = () => {
             {/* 商品信息 */}
             <Space direction="vertical" size="small" style={{ flex: 1 }}>
               <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>
-                {record.ozon_sku ? (
+                {record.ozon_product_id ? (
                   <a
-                    href={`https://www.ozon.ru/product/${record.ozon_sku}/`}
+                    href={`https://www.ozon.ru/product/${record.ozon_product_id}/`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
