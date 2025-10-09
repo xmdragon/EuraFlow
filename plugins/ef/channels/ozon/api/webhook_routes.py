@@ -33,17 +33,23 @@ def is_ozon_request(headers: dict) -> bool:
     return "ozon" in user_agent or "push" in user_agent
 
 
-def ozon_success_response():
+def ozon_success_response(request_time: str = None):
     """
     返回符合OZON规范的成功响应
     OZON期望所有webhook都返回这个格式，即使处理过程中有错误
+
+    Args:
+        request_time: OZON请求中的time字段（应该回显而不是生成新时间）
     """
+    # 优先使用OZON发送的时间，如果没有则使用当前时间
+    response_time = request_time if request_time else datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
     return JSONResponse(
         status_code=200,
         content={
             "version": "1.0",
             "name": "EuraFlow",
-            "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            "time": response_time
         }
     )
 
@@ -113,6 +119,7 @@ async def receive_webhook(
             # OZON期望即使JSON解析失败也返回200（EMPTY_BODY/WRONG_BODY测试）
             if is_ozon_request(headers):
                 logger.warning(f"OZON request with invalid JSON, returning 200: {e}")
+                # JSON解析失败，无法获取time字段，使用当前时间
                 return ozon_success_response()
             return ozon_error_response(
                 status_code=400,
@@ -121,13 +128,17 @@ async def receive_webhook(
                 details=str(e)
             )
 
+        # 提取OZON发送的时间（用于回显）
+        request_time = payload.get("time")
+
         # 基本验证
         # 如果没有X-Event-Type，检查是否是OZON验证请求
         if not x_event_type:
             # OZON验证请求的User-Agent通常是"ozon-push"或包含"ozon"
             if is_ozon_request(headers):
                 logger.info(f"Received OZON webhook request without event type, returning 200")
-                return ozon_success_response()
+                # 回显OZON发送的时间
+                return ozon_success_response(request_time)
             logger.warning("Missing X-Event-Type header in webhook request")
             return ozon_error_response(
                 status_code=400,
@@ -139,14 +150,16 @@ async def receive_webhook(
         # Ozon在配置webhook时会发送ping/test请求来验证URL可达性
         if x_event_type.lower() in ('ping', 'test', 'verification'):
             logger.info(f"Received webhook verification request: {x_event_type}")
-            return ozon_success_response()
+            # 回显OZON发送的时间
+            return ozon_success_response(request_time)
 
         if not x_ozon_signature:
             logger.warning("Missing X-Ozon-Signature header in webhook request")
             # OZON测试EMPTY_SIGN场景：期望返回200
             if is_ozon_request(headers):
                 logger.warning("OZON request without signature, returning 200 for compatibility")
-                return ozon_success_response()
+                # 回显OZON发送的时间
+                return ozon_success_response(request_time)
             return ozon_error_response(
                 status_code=400,
                 error_code="ERROR_PARAMETER_VALUE_MISSED",
@@ -166,7 +179,8 @@ async def receive_webhook(
             # OZON期望即使无法识别店铺也返回200
             if is_ozon_request(headers):
                 logger.warning("OZON request without shop identifier, returning 200 for compatibility")
-                return ozon_success_response()
+                # 回显OZON发送的时间
+                return ozon_success_response(request_time)
             return ozon_error_response(
                 status_code=400,
                 error_code="ERROR_PARAMETER_VALUE_MISSED",
@@ -189,7 +203,8 @@ async def receive_webhook(
             # OZON期望即使店铺未找到也返回200
             if is_ozon_request(headers):
                 logger.warning(f"OZON request for unknown shop {shop_identifier}, returning 200 for compatibility")
-                return ozon_success_response()
+                # 回显OZON发送的时间
+                return ozon_success_response(request_time)
             return ozon_error_response(
                 status_code=404,
                 error_code="ERROR_UNKNOWN",
@@ -224,14 +239,16 @@ async def receive_webhook(
         # 记录处理结果
         if result.get("success"):
             logger.info(f"Webhook processed successfully: {result}")
-            return ozon_success_response()
+            # 回显OZON发送的时间
+            return ozon_success_response(request_time)
         else:
             logger.error(f"Webhook processing failed: {result}")
             # OZON期望即使处理失败也返回200
             # 这包括INVALID_SIGN（签名验证失败）场景
             if is_ozon_request(headers):
                 logger.warning(f"OZON request processing failed, returning 200 for compatibility: {result.get('error')}")
-                return ozon_success_response()
+                # 回显OZON发送的时间
+                return ozon_success_response(request_time)
             # 对于非OZON请求，返回具体错误
             if "signature" in result.get("error", "").lower():
                 return ozon_error_response(
@@ -257,6 +274,7 @@ async def receive_webhook(
             headers_dict = dict(request.headers) if hasattr(request, 'headers') else {}
             if is_ozon_request(headers_dict):
                 logger.warning(f"OZON request caused unexpected error, returning 200 for compatibility: {e}")
+                # 意外错误时无法获取request_time，使用None
                 return ozon_success_response()
         except:
             pass
