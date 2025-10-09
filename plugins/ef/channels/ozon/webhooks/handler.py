@@ -901,7 +901,7 @@ class OzonWebhookHandler:
                 content_data=payload.get("content_data"),
                 order_number=payload.get("order_number"),
                 is_read=False,
-                metadata=payload
+                extra_data=payload
             )
             session.add(message)
 
@@ -953,7 +953,7 @@ class OzonWebhookHandler:
                 message.content = new_content
                 message.is_edited = True
                 message.edited_at = datetime.utcnow()
-                message.metadata = payload
+                message.extra_data = payload
 
                 await session.commit()
 
