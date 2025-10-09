@@ -42,6 +42,12 @@ except ImportError as e:
     print(f"═════════════════════════════════════", file=sys.stderr)
     logger.warning(f"Could not import webhook routes: {e}")
 
+try:
+    from .chat_routes import router as chat_router
+    router.include_router(chat_router)
+except ImportError as e:
+    logger.warning(f"Could not import chat routes: {e}")
+
 
 # DTO 模型
 class ShopCreateDTO(BaseModel):
@@ -2218,7 +2224,7 @@ async def get_statistics(
 
         # 今日收入
         today_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_price))
+            select(func.sum(OzonOrder.total_amount))
             .where(
                 OzonOrder.created_at >= today_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),
@@ -2229,7 +2235,7 @@ async def get_statistics(
 
         # 本周收入
         week_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_price))
+            select(func.sum(OzonOrder.total_amount))
             .where(
                 OzonOrder.created_at >= week_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),
@@ -2240,7 +2246,7 @@ async def get_statistics(
 
         # 本月收入
         month_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_price))
+            select(func.sum(OzonOrder.total_amount))
             .where(
                 OzonOrder.created_at >= month_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),
