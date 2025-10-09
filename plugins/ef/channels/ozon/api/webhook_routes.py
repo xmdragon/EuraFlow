@@ -246,45 +246,38 @@ async def receive_webhook(
         # 记录处理结果
         if result.get("success"):
             logger.info(f"Webhook processed successfully: {result}")
-            # 回显OZON发送的时间
+            # 按OZON规范：成功处理返回 HTTP 200 + {version, name, time}
             return ozon_success_response(request_time)
         else:
             logger.error(f"Webhook processing failed: {result}")
-            # OZON期望即使处理失败也返回200
-            # 这包括INVALID_SIGN（签名验证失败）场景
-            if is_ozon_request(headers):
-                logger.warning(f"OZON request processing failed, returning 200 for compatibility: {result.get('error')}")
-                # 回显OZON发送的时间
-                return ozon_success_response(request_time)
-            # 对于非OZON请求，返回具体错误
-            if "signature" in result.get("error", "").lower():
+
+            # 按OZON API规范：处理失败应返回 HTTP 4xx/5xx + {error: {code, message, details}}
+            # 参考文档：section/如果有一个错误
+            error_message = result.get("error", "Processing failed")
+
+            # 签名验证失败 → 401
+            if "signature" in error_message.lower():
                 return ozon_error_response(
                     status_code=401,
                     error_code="ERROR_UNKNOWN",
                     message="Invalid webhook signature",
-                    details=result.get("error")
+                    details=error_message
                 )
+
+            # 其他处理失败 → 500
             return ozon_error_response(
                 status_code=500,
                 error_code="ERROR_UNKNOWN",
                 message="Webhook processing failed",
-                details=result.get("error", "Processing failed")
+                details=error_message
             )
 
     except Exception as e:
         logger.error(f"Unexpected error processing webhook: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        # OZON期望即使发生意外错误也返回200
-        # 获取headers（可能在异常前已设置）
-        try:
-            headers_dict = dict(request.headers) if hasattr(request, 'headers') else {}
-            if is_ozon_request(headers_dict):
-                logger.warning(f"OZON request caused unexpected error, returning 200 for compatibility: {e}")
-                # 意外错误时无法获取request_time，使用None
-                return ozon_success_response()
-        except:
-            pass
+
+        # 按OZON API规范：意外错误返回 HTTP 5xx + {error: {code, message, details}}
         return ozon_error_response(
             status_code=500,
             error_code="ERROR_UNKNOWN",
