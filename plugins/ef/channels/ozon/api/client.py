@@ -475,9 +475,13 @@ class OzonAPIClient:
             limit: 每页数量
             offset: 偏移量
         """
+        # 将timezone-aware datetime转换为ISO格式（移除tzinfo后添加Z）
+        since_str = date_from.replace(tzinfo=None).isoformat() + "Z"
+        to_str = date_to.replace(tzinfo=None).isoformat() + "Z"
+
         data = {
             "dir": "asc",
-            "filter": {"since": date_from.isoformat() + "Z", "to": date_to.isoformat() + "Z"},
+            "filter": {"since": since_str, "to": to_str},
             "limit": limit,
             "offset": offset,
             "with": {"analytics_data": True, "financial_data": True},
