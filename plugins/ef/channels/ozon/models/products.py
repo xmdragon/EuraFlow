@@ -78,6 +78,7 @@ class OzonProduct(Base):
     sync_error = Column(String(1000))
     
     # 时间戳
+    ozon_created_at = Column(DateTime, comment="OZON平台创建时间")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

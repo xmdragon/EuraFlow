@@ -1,7 +1,7 @@
 """
 Ozon 订单相关数据模型
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -13,6 +13,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
 from ef_core.database import Base
+
+
+def utcnow():
+    """返回UTC时区的当前时间"""
+    return datetime.now(timezone.utc)
 
 
 class OzonOrder(Base):
@@ -75,8 +80,8 @@ class OzonOrder(Base):
     sync_status = Column(String(50), default="pending")
     
     # 时间戳
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # 关系
     postings = relationship("OzonPosting", back_populates="order", cascade="all, delete-orphan")
@@ -134,8 +139,8 @@ class OzonPosting(Base):
     delivered_at = Column(DateTime)
     cancelled_at = Column(DateTime)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # 关系
     order = relationship("OzonOrder", back_populates="postings")
@@ -172,7 +177,7 @@ class OzonOrderItem(Base):
     # 状态
     status = Column(String(50))  # pending/confirmed/shipped/delivered/cancelled/returned
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     
     # 关系
     order = relationship("OzonOrder", back_populates="items")
@@ -214,8 +219,8 @@ class OzonShipmentPackage(Base):
     status_updated_at = Column(DateTime)
     tracking_data = Column(JSONB)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # 关系
     posting = relationship("OzonPosting", back_populates="packages")
@@ -262,8 +267,8 @@ class OzonRefund(Base):
     approved_at = Column(DateTime)
     completed_at = Column(DateTime)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # 关系
     order = relationship("OzonOrder", back_populates="refunds")
