@@ -304,6 +304,7 @@ class OzonSyncService:
                         # 获取价格信息（优先级：价格API > 商品详情 > 列表）
                         price = None
                         old_price = None
+                        currency_code = None
 
                         # 第一优先级：使用价格API的数据（最新、最准确）
                         if price_info:
@@ -312,10 +313,14 @@ class OzonSyncService:
                             if idx == 0 and visibility_type == "VISIBLE":
                                 logger.info(f"Using price from price API: price={price}, old_price={old_price}")
 
-                        # 第二优先级：从v3 API获取价格
+                        # 第二优先级：从v3 API获取价格和货币代码
                         if not price and product_details:
                             price = product_details.get("price")
                             old_price = product_details.get("old_price")
+
+                        # 获取货币代码（始终从详情中获取）
+                        if product_details:
+                            currency_code = product_details.get("currency_code")
 
                         # 第三优先级：使用列表中的价格
                         if not price and "price" in item:
@@ -453,6 +458,10 @@ class OzonSyncService:
                             if old_price_decimal is not None:
                                 product.old_price = old_price_decimal
 
+                            # 更新货币代码
+                            if currency_code:
+                                product.currency_code = currency_code
+
                             # 更新库存 - 使用v4 API的真实库存数据
                             if stock_info:
                                 product.stock = stock_info["total"]
@@ -522,6 +531,7 @@ class OzonSyncService:
                                 ozon_created_at=ozon_created_at,  # OZON平台创建时间
                                 price=safe_decimal_conversion(price) or Decimal("0"),
                                 old_price=safe_decimal_conversion(old_price),
+                                currency_code=currency_code,  # 货币代码
                                 # 使用v4 API的库存数据
                                 stock=stock_info["total"] if stock_info else item.get("stocks", {}).get("present", 0) + item.get("stocks", {}).get("reserved", 0),
                                 reserved=stock_info["reserved"] if stock_info else item.get("stocks", {}).get("reserved", 0),

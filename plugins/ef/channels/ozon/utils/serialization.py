@@ -67,6 +67,9 @@ def serialize_product_prices(product_dict: dict) -> dict:
         if field in product_dict and product_dict[field] is not None:
             product_dict[field] = format_currency(product_dict[field])
 
+    # 保留货币代码字段（不转换）
+    # currency_code 字段应该直接从数据库传递，不需要格式化
+
     return product_dict
 
 

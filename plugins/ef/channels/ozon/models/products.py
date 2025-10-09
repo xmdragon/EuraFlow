@@ -56,6 +56,7 @@ class OzonProduct(Base):
     premium_price = Column(Numeric(18, 4), comment="会员价")
     cost = Column(Numeric(18, 4), comment="成本")
     min_price = Column(Numeric(18, 4), comment="最低价")
+    currency_code = Column(String(10), comment="货币代码(CNY/RUB/USD等)")
     
     # 库存信息
     stock = Column(Integer, default=0)
