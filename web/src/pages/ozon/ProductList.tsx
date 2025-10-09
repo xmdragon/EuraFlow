@@ -166,6 +166,9 @@ const ProductList: React.FC = () => {
   const { data: watermarkConfigsData } = useQuery({
     queryKey: ['watermarkConfigs'],
     queryFn: () => watermarkApi.getWatermarkConfigs(),
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
+    retry: 1, // 减少重试次数
   });
 
   useEffect(() => {

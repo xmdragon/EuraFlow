@@ -23,13 +23,30 @@ def get_router() -> Optional[APIRouter]:
     except ImportError as e:
         # 如果是部分导入错误但router已加载，继续使用
         import sys
+        import traceback
+
+        # 打印详细错误信息便于调试
+        print(f"════════ OZON ROUTER IMPORT ERROR ════════")
+        print(f"Error: {e}")
+        print("Full traceback:")
+        traceback.print_exc()
+        print(f"═══════════════════════════════════════════")
+
         if 'plugins.ef.channels.ozon.api.routes' in sys.modules:
-            from .api.routes import router
-            return router
-        print(f"Error loading Ozon routes: {e}")
+            try:
+                from .api.routes import router
+                print("✓ Successfully recovered router from sys.modules")
+                return router
+            except Exception as recovery_error:
+                print(f"✗ Failed to recover router: {recovery_error}")
+
         return None
     except Exception as e:
-        print(f"Error loading Ozon routes: {e}")
+        import traceback
+        print(f"════════ OZON ROUTER UNEXPECTED ERROR ════════")
+        print(f"Error: {e}")
+        traceback.print_exc()
+        print(f"═════════════════════════════════════════════")
         return None
 
 

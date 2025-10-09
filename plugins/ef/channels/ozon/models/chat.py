@@ -47,7 +47,7 @@ class OzonChatMessage(Base):
     product_id = Column(BigInteger)  # 关联的商品ID
 
     # 元数据
-    metadata = Column(JSONB)  # 其他元数据
+    extra_data = Column(JSONB)  # 其他元数据（避免与SQLAlchemy保留字metadata冲突）
 
     # 时间
     read_at = Column(DateTime)  # 已读时间
@@ -98,7 +98,7 @@ class OzonChat(Base):
     last_message_preview = Column(String(500))  # 最后消息预览
 
     # 元数据
-    metadata = Column(JSONB)
+    extra_data = Column(JSONB)  # 其他元数据（避免与SQLAlchemy保留字metadata冲突）
 
     # 时间
     closed_at = Column(DateTime)  # 关闭时间

@@ -887,6 +887,185 @@ class OzonAPIClient:
             resource_type="analytics"
         )
 
+    # ========== 聊天相关 API ==========
+
+    async def get_chat_list(
+        self,
+        chat_id_list: Optional[List[str]] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """
+        获取聊天列表
+
+        Args:
+            chat_id_list: 聊天ID列表（可选，用于获取指定聊天）
+            limit: 返回数量限制（最大100）
+            offset: 偏移量
+
+        Returns:
+            聊天列表数据
+        """
+        data = {
+            "limit": min(limit, 100),
+            "offset": offset
+        }
+
+        if chat_id_list:
+            data["chat_id_list"] = chat_id_list
+
+        return await self._request(
+            "POST",
+            "/v3/chat/list",
+            data=data,
+            resource_type="default"
+        )
+
+    async def get_chat_history(
+        self,
+        chat_id: str,
+        from_message_id: Optional[int] = None,
+        limit: int = 100
+    ) -> Dict[str, Any]:
+        """
+        获取聊天历史消息
+
+        Args:
+            chat_id: 聊天ID
+            from_message_id: 起始消息ID（用于分页）
+            limit: 返回数量限制（最大100）
+
+        Returns:
+            聊天历史数据
+        """
+        data = {
+            "chat_id": chat_id,
+            "limit": min(limit, 100)
+        }
+
+        if from_message_id:
+            data["from_message_id"] = from_message_id
+
+        return await self._request(
+            "POST",
+            "/v3/chat/history",
+            data=data,
+            resource_type="default"
+        )
+
+    async def send_chat_message(
+        self,
+        chat_id: str,
+        text: str
+    ) -> Dict[str, Any]:
+        """
+        发送聊天消息
+
+        Args:
+            chat_id: 聊天ID
+            text: 消息文本内容
+
+        Returns:
+            发送结果
+        """
+        data = {
+            "chat_id": chat_id,
+            "text": text
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/chat/send/message",
+            data=data,
+            resource_type="default"
+        )
+
+    async def send_chat_file(
+        self,
+        chat_id: str,
+        file_url: str,
+        file_name: str
+    ) -> Dict[str, Any]:
+        """
+        发送聊天文件
+
+        Args:
+            chat_id: 聊天ID
+            file_url: 文件URL
+            file_name: 文件名
+
+        Returns:
+            发送结果
+        """
+        data = {
+            "chat_id": chat_id,
+            "file": {
+                "url": file_url,
+                "name": file_name
+            }
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/chat/send/file",
+            data=data,
+            resource_type="default"
+        )
+
+    async def mark_chat_as_read(
+        self,
+        chat_id: str
+    ) -> Dict[str, Any]:
+        """
+        标记聊天为已读
+
+        Args:
+            chat_id: 聊天ID
+
+        Returns:
+            操作结果
+        """
+        data = {
+            "chat_id": chat_id
+        }
+
+        return await self._request(
+            "POST",
+            "/v2/chat/read",
+            data=data,
+            resource_type="default"
+        )
+
+    async def get_chat_updates(
+        self,
+        chat_id_list: Optional[List[str]] = None,
+        from_message_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        获取聊天更新
+
+        Args:
+            chat_id_list: 聊天ID列表
+            from_message_id: 起始消息ID
+
+        Returns:
+            聊天更新数据
+        """
+        data = {}
+
+        if chat_id_list:
+            data["chat_id_list"] = chat_id_list
+
+        if from_message_id:
+            data["from_message_id"] = from_message_id
+
+        return await self._request(
+            "POST",
+            "/v1/chat/updates",
+            data=data,
+            resource_type="default"
+        )
+
     # ========== Webhook 相关 ==========
 
     def verify_webhook_signature(self, payload: bytes, signature: str, secret: str) -> bool:
