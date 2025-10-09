@@ -55,10 +55,10 @@ class OzonChatMessage(Base):
     extra_data = Column('metadata', JSONB)  # 其他元数据
 
     # 时间
-    read_at = Column(DateTime)  # 已读时间
-    edited_at = Column(DateTime)  # 编辑时间
-    created_at = Column(DateTime, default=utcnow, nullable=False)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    read_at = Column(DateTime(timezone=True))  # 已读时间
+    edited_at = Column(DateTime(timezone=True))  # 编辑时间
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
         Index("idx_ozon_chat_shop_chat", "shop_id", "chat_id", "created_at"),
@@ -99,16 +99,16 @@ class OzonChat(Base):
     unread_count = Column(Integer, default=0)  # 未读消息数
 
     # 最后消息
-    last_message_at = Column(DateTime)  # 最后消息时间
+    last_message_at = Column(DateTime(timezone=True))  # 最后消息时间
     last_message_preview = Column(String(500))  # 最后消息预览
 
     # 元数据（Python属性名用extra_data，数据库列名是metadata）
     extra_data = Column('metadata', JSONB)  # 其他元数据
 
     # 时间
-    closed_at = Column(DateTime)  # 关闭时间
-    created_at = Column(DateTime, default=utcnow, nullable=False)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    closed_at = Column(DateTime(timezone=True))  # 关闭时间
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
         Index("idx_ozon_chat_shop_status", "shop_id", "status", "last_message_at"),

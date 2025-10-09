@@ -30,8 +30,8 @@ class OzonSyncCheckpoint(Base):
     
     # 检查点信息
     last_cursor = Column(String(500))  # 游标或last_id
-    last_sync_at = Column(DateTime)
-    last_modified_at = Column(DateTime)  # 最后修改时间（用于增量同步）
+    last_sync_at = Column(DateTime(timezone=True))
+    last_modified_at = Column(DateTime(timezone=True))  # 最后修改时间（用于增量同步）
     
     # 同步状态
     status = Column(String(50), default="idle")  # idle/running/failed
@@ -46,8 +46,8 @@ class OzonSyncCheckpoint(Base):
     # 配置
     config = Column(JSONB)  # 同步配置（批次大小、筛选条件等）
     
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     __table_args__ = (
         UniqueConstraint("shop_id", "entity_type", name="uq_ozon_checkpoint"),
@@ -87,10 +87,10 @@ class OzonSyncLog(Base):
     rate_limit_hits = Column(Integer, default=0)  # 触发限流次数
     
     # 时间
-    started_at = Column(DateTime, nullable=False)
-    completed_at = Column(DateTime)
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    completed_at = Column(DateTime(timezone=True))
     
-    created_at = Column(DateTime, default=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_sync_log_shop", "shop_id", "entity_type", "started_at"),
@@ -122,7 +122,7 @@ class OzonWebhookEvent(Base):
     
     # 处理状态
     status = Column(String(50), default="pending")  # pending/processing/processed/failed/ignored
-    processed_at = Column(DateTime)
+    processed_at = Column(DateTime(timezone=True))
     retry_count = Column(Integer, default=0)
     
     # 幂等性
@@ -135,8 +135,8 @@ class OzonWebhookEvent(Base):
     entity_type = Column(String(50))  # order/posting/product等
     entity_id = Column(String(100))  # 关联的实体ID
     
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_webhook_status", "status", "created_at"),
@@ -175,7 +175,7 @@ class OzonApiMetrics(Base):
     retry_after = Column(Integer)
     
     # 时间
-    requested_at = Column(DateTime, nullable=False)
+    requested_at = Column(DateTime(timezone=True), nullable=False)
     
     __table_args__ = (
         Index("idx_ozon_metrics_shop", "shop_id", "requested_at"),
@@ -203,14 +203,14 @@ class OzonOutboxEvent(Base):
     
     # 发送状态
     status = Column(String(50), default="pending")  # pending/sent/failed
-    sent_at = Column(DateTime)
+    sent_at = Column(DateTime(timezone=True))
     retry_count = Column(Integer, default=0)
-    next_retry_at = Column(DateTime)
+    next_retry_at = Column(DateTime(timezone=True))
     
     # 错误信息
     error_message = Column(String(1000))
     
-    created_at = Column(DateTime, default=utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_outbox_status", "status", "next_retry_at"),

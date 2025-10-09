@@ -74,15 +74,15 @@ class ProductSelectionItem(Base):
     ad_cost_share = Column(Numeric(5, 2), comment="广告费用份额(%)")
 
     # 商品创建日期（在平台上）
-    product_created_date = Column(DateTime, comment="商品创建日期")
+    product_created_date = Column(DateTime(timezone=True), comment="商品创建日期")
 
     # 商品图片信息
     images_data = Column(JSON, comment="商品图片信息列表")
-    images_updated_at = Column(DateTime, comment="图片信息更新时间")
+    images_updated_at = Column(DateTime(timezone=True), comment="图片信息更新时间")
 
     # 系统字段
-    created_at = Column(DateTime, default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
 
     # 索引定义
     __table_args__ = (
@@ -139,7 +139,7 @@ class ImportHistory(Base):
 
     # 导入信息
     imported_by = Column(Integer, nullable=False, comment="导入用户ID")
-    import_time = Column(DateTime, default=func.now(), nullable=False, comment="导入时间")
+    import_time = Column(DateTime(timezone=True), default=func.now(), nullable=False, comment="导入时间")
     import_strategy = Column(String(20), default='update', comment="导入策略(skip/update/append)")
 
     # 导入结果统计
@@ -156,7 +156,7 @@ class ImportHistory(Base):
     # 处理时间
     process_duration = Column(Integer, comment="处理耗时(秒)")
 
-    created_at = Column(DateTime, default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
 
     def to_dict(self):
         """转换为字典"""
