@@ -168,6 +168,28 @@ class OzonSyncService:
                         except Exception as e:
                             logger.error(f"Failed to get {visibility_type} products details batch: {e}")
 
+                    # 批量获取价格信息（使用专门的价格API获取最新价格）
+                    products_price_map = {}
+                    if offer_ids:
+                        try:
+                            # 分批处理价格查询，每批最多1000个
+                            price_batch_size = 1000
+                            for i in range(0, len(offer_ids), price_batch_size):
+                                batch_ids = offer_ids[i : i + price_batch_size]
+                                price_response = await client.get_product_prices(offer_ids=batch_ids)
+
+                                if price_response.get("result", {}).get("items"):
+                                    for price_item in price_response["result"]["items"]:
+                                        if price_item.get("offer_id"):
+                                            products_price_map[price_item["offer_id"]] = {
+                                                "price": price_item.get("price"),
+                                                "old_price": price_item.get("old_price"),
+                                                "min_price": price_item.get("min_price"),
+                                                "price_index": price_item.get("price_index")
+                                            }
+                        except Exception as e:
+                            logger.error(f"Failed to get {visibility_type} products prices batch: {e}")
+
                     # 批量获取库存信息
                     products_stock_map = {}
                     if offer_ids:
@@ -219,8 +241,9 @@ class OzonSyncService:
                         SYNC_TASKS[task_id]["progress"] = min(progress, 90)
                         SYNC_TASKS[task_id]["message"] = f"正在同步商品 {item.get('offer_id', 'unknown')} ({total_synced + idx + 1}/{total_products if total_products else '?'})..."
 
-                        # 从批量查询结果中获取商品详情和库存信息
+                        # 从批量查询结果中获取商品详情、价格和库存信息
                         product_details = products_detail_map.get(item.get("offer_id")) if item.get("offer_id") else None
+                        price_info = products_price_map.get(item.get("offer_id")) if item.get("offer_id") else None
                         stock_info = products_stock_map.get(item.get("offer_id")) if item.get("offer_id") else None
 
                         # 检查商品是否存在
@@ -262,15 +285,23 @@ class OzonSyncService:
                                     if idx == 0:
                                         logger.info(f"Extracted {len(images_list)} image URLs from images field")
 
-                        # 获取价格信息（优先使用详细信息中的价格）
+                        # 获取价格信息（优先级：价格API > 商品详情 > 列表）
                         price = None
                         old_price = None
-                        if product_details:
-                            # 从v3 API获取价格（v3返回的是字符串格式）
+
+                        # 第一优先级：使用价格API的数据（最新、最准确）
+                        if price_info:
+                            price = price_info.get("price")
+                            old_price = price_info.get("old_price")
+                            if idx == 0 and visibility_type == "VISIBLE":
+                                logger.info(f"Using price from price API: price={price}, old_price={old_price}")
+
+                        # 第二优先级：从v3 API获取价格
+                        if not price and product_details:
                             price = product_details.get("price")
                             old_price = product_details.get("old_price")
 
-                        # 如果详细信息没有价格，使用列表中的价格
+                        # 第三优先级：使用列表中的价格
                         if not price and "price" in item:
                             price = item["price"]
                         if not old_price and "old_price" in item:
@@ -398,10 +429,10 @@ class OzonSyncService:
                             # 保存状态原因
                             product.status_reason = status_reason
 
-                            # 更新价格
-                            if price:
+                            # 更新价格（允许价格为0，使用 is not None 判断）
+                            if price is not None:
                                 product.price = Decimal(str(price))
-                            if old_price:
+                            if old_price is not None:
                                 product.old_price = Decimal(str(old_price))
 
                             # 更新库存 - 使用v4 API的真实库存数据
