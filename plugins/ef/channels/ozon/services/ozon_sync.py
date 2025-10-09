@@ -447,18 +447,22 @@ class OzonSyncService:
                                 product.reserved = stocks.get("reserved", 0)
                                 product.available = stocks.get("present", 0)
 
-                            # 更新图片
-                            if images_data:
-                                product.images = images_data
+                            # 更新图片（无条件更新，允许None清空）
+                            product.images = images_data
 
-                            # 更新尺寸信息（如果有）
+                            # 更新尺寸信息（无条件更新，允许None清空）
                             if product_details:
                                 dimensions = product_details.get("dimensions", {})
-                                if dimensions:
-                                    product.weight = dimensions.get("weight")
-                                    product.width = dimensions.get("width")
-                                    product.height = dimensions.get("height")
-                                    product.depth = dimensions.get("depth")
+                                product.weight = dimensions.get("weight") if dimensions else None
+                                product.width = dimensions.get("width") if dimensions else None
+                                product.height = dimensions.get("height") if dimensions else None
+                                product.depth = dimensions.get("depth") if dimensions else None
+                            else:
+                                # 如果没有product_details，清空尺寸信息
+                                product.weight = None
+                                product.width = None
+                                product.height = None
+                                product.depth = None
 
                             product.sync_status = "success"
                             product.last_sync_at = datetime.utcnow()
