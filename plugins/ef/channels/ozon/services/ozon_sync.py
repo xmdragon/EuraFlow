@@ -35,6 +35,22 @@ def safe_int_conversion(value) -> Optional[int]:
         return None
 
 
+def safe_decimal_conversion(value) -> Optional[Decimal]:
+    """安全地将值转换为Decimal，失败时返回None"""
+    if value is None:
+        return None
+    try:
+        # 处理空字符串
+        str_value = str(value).strip()
+        if not str_value or str_value == "":
+            return None
+        # 转换为Decimal
+        return Decimal(str_value)
+    except (ValueError, TypeError, AttributeError, Exception):
+        logger.warning(f"Failed to convert value to Decimal: {value}")
+        return None
+
+
 class OzonSyncService:
     """Ozon同步服务"""
 
@@ -429,11 +445,13 @@ class OzonSyncService:
                             # 保存状态原因
                             product.status_reason = status_reason
 
-                            # 更新价格（允许价格为0，使用 is not None 判断）
-                            if price is not None:
-                                product.price = Decimal(str(price))
-                            if old_price is not None:
-                                product.old_price = Decimal(str(old_price))
+                            # 更新价格（使用安全转换，自动处理空字符串等无效值）
+                            price_decimal = safe_decimal_conversion(price)
+                            if price_decimal is not None:
+                                product.price = price_decimal
+                            old_price_decimal = safe_decimal_conversion(old_price)
+                            if old_price_decimal is not None:
+                                product.old_price = old_price_decimal
 
                             # 更新库存 - 使用v4 API的真实库存数据
                             if stock_info:
@@ -502,8 +520,8 @@ class OzonSyncService:
                                 ozon_has_fbs_stocks=item.get("has_fbs_stocks", False),
                                 ozon_is_discounted=item.get("is_discounted", False),
                                 ozon_created_at=ozon_created_at,  # OZON平台创建时间
-                                price=Decimal(str(price)) if price else Decimal("0"),
-                                old_price=Decimal(str(old_price)) if old_price else None,
+                                price=safe_decimal_conversion(price) or Decimal("0"),
+                                old_price=safe_decimal_conversion(old_price),
                                 # 使用v4 API的库存数据
                                 stock=stock_info["total"] if stock_info else item.get("stocks", {}).get("present", 0) + item.get("stocks", {}).get("reserved", 0),
                                 reserved=stock_info["reserved"] if stock_info else item.get("stocks", {}).get("reserved", 0),
