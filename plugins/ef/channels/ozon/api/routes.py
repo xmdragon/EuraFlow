@@ -2421,13 +2421,17 @@ async def get_order_report(
             shop_id_list = [int(sid) for sid in shop_ids.split(",")]
             conditions.append(OzonOrder.shop_id.in_(shop_id_list))
 
-        # 查询订单数据
+        # 查询订单数据（添加eager loading避免懒加载）
+        from sqlalchemy.orm import selectinload
+
         orders_query = select(
             OzonOrder,
             OzonShop.shop_name
         ).join(
             OzonShop, OzonOrder.shop_id == OzonShop.id
-        ).where(and_(*conditions))
+        ).where(and_(*conditions)).options(
+            selectinload(OzonOrder.items)
+        )
 
         result = await db.execute(orders_query)
         orders_with_shop = result.all()
