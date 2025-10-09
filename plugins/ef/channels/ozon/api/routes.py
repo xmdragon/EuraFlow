@@ -388,7 +388,7 @@ async def test_webhook(
     test_payload = {
         "company_id": shop.client_id,
         "event_type": "test",
-        "timestamp": utcnow().isoformat() + "Z",
+        "timestamp": utcnow().replace(tzinfo=None).isoformat() + "Z",
         "data": {
             "message": "This is a test webhook event",
             "shop_id": shop.id
