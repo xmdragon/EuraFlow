@@ -781,10 +781,17 @@ class OzonSyncService:
                     order.last_sync_at = utcnow()
                     db.add(order)
 
-                total_synced += 1
+                # 立即提交每个订单（用于调试）
+                try:
+                    await db.commit()
+                    total_synced += 1
+                except Exception as e:
+                    logger.error(f"Failed to save order {item.get('posting_number')}: {e}")
+                    logger.error(f"Order data: {order_data}")
+                    await db.rollback()
+                    raise
 
-            # 提交所有更改
-            await db.commit()
+            # 所有订单已在循环中提交
 
             # 更新店铺最后同步时间
             shop.last_sync_at = utcnow()
