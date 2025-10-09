@@ -59,6 +59,18 @@ import './ProductList.css';
 const { Option } = Select;
 const { confirm } = Modal;
 
+// 将商品标题转换为OZON URL slug格式
+const generateOzonSlug = (title: string): string => {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\u0400-\u04FFa-z0-9\s-]/g, '') // 保留西里尔字母、拉丁字母、数字、空格和连字符
+    .replace(/\s+/g, '-') // 将空格替换为连字符
+    .replace(/-+/g, '-') // 将多个连字符替换为单个
+    .replace(/^-|-$/g, ''); // 移除首尾的连字符
+};
+
 const ProductList: React.FC = () => {
   const queryClient = useQueryClient();
 
@@ -515,7 +527,7 @@ const ProductList: React.FC = () => {
               <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>
                 {record.ozon_product_id ? (
                   <a
-                    href={`https://www.ozon.ru/product/${record.ozon_product_id}/`}
+                    href={`https://www.ozon.ru/product/${generateOzonSlug(text)}-${record.ozon_product_id}/`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
