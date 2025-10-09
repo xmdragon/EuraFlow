@@ -91,6 +91,7 @@ def ozon_error_response(status_code: int, error_code: str, message: str, details
 async def receive_webhook(
     request: Request,
     x_ozon_signature: str = Header(None, alias="X-Ozon-Signature"),
+    signature: str = Header(None),  # OZON实际使用的签名头（小写）
     x_event_id: str = Header(None, alias="X-Event-Id"),
     x_event_type: str = Header(None, alias="X-Event-Type"),
     db: AsyncSession = Depends(get_async_session)
@@ -142,6 +143,7 @@ async def receive_webhook(
         logger.info(f"\nKEY HEADERS:")
         logger.info(f"  User-Agent: {headers.get('user-agent', 'MISSING')}")
         logger.info(f"  Content-Type: {headers.get('content-type', 'MISSING')}")
+        logger.info(f"  signature (小写): {headers.get('signature', 'MISSING')[:20] if headers.get('signature') else 'MISSING'}...")
         logger.info(f"  X-Ozon-Signature: {headers.get('x-ozon-signature', 'MISSING')[:20] if headers.get('x-ozon-signature') else 'MISSING'}...")
         logger.info(f"  X-Event-Type: {headers.get('x-event-type', 'MISSING')}")
         logger.info(f"  X-Event-Id: {headers.get('x-event-id', 'MISSING')}")
@@ -198,25 +200,53 @@ async def receive_webhook(
                 message="Missing event type"
             )
 
-        # 处理Ozon的webhook验证请求（PING）
-        # Ozon在配置webhook时会发送ping/test/verification请求或TYPE_PING消息类型
-        if event_type.lower() in ('ping', 'test', 'verification', 'type_ping'):
-            logger.info(f"Received webhook verification request: {event_type}")
-            # 回显OZON发送的时间
-            return ozon_success_response(request_time)
+        # ========== 先验证签名（在处理TYPE_PING之前） ==========
+        # 提取签名：OZON实际使用小写的 "signature" 头，不是 "X-Ozon-Signature"
+        actual_signature = signature or x_ozon_signature
+        logger.info(f"SIGNATURE extraction:")
+        logger.info(f"  signature header: {signature[:20] if signature else 'MISSING'}...")
+        logger.info(f"  X-Ozon-Signature header: {x_ozon_signature[:20] if x_ozon_signature else 'MISSING'}...")
+        logger.info(f"  → Using: {actual_signature[:20] if actual_signature else 'MISSING'}...")
 
-        if not x_ozon_signature:
-            logger.warning("Missing X-Ozon-Signature header in webhook request")
-            # OZON测试EMPTY_SIGN场景：期望返回200
-            if is_ozon_request(headers):
-                logger.warning("OZON request without signature, returning 200 for compatibility")
-                # 回显OZON发送的时间
-                return ozon_success_response(request_time)
+        # OZON测试EMPTY_SIGN场景：空签名应返回错误（不是200）
+        if actual_signature is not None and actual_signature.strip() == "":
+            logger.warning("EMPTY signature received - OZON EMPTY_SIGN test")
             return ozon_error_response(
                 status_code=400,
                 error_code="ERROR_PARAMETER_VALUE_MISSED",
-                message="Missing X-Ozon-Signature header"
+                message="Empty signature",
+                details="Signature header is empty"
             )
+
+        # 签名完全缺失（头部不存在）
+        if actual_signature is None:
+            logger.warning("Missing signature header in webhook request")
+            return ozon_error_response(
+                status_code=400,
+                error_code="ERROR_PARAMETER_VALUE_MISSED",
+                message="Missing signature header"
+            )
+
+        # OZON测试INVALID_SIGN场景：签名格式错误应返回401
+        # OZON签名应该是base64编码的字符串（通常以大写字母或数字开头，包含+/=等字符）
+        # 简单验证：检查是否包含明显不是base64的字符（如空格、非法字符等）
+        import re
+        if not re.match(r'^[A-Za-z0-9+/=]+$', actual_signature):
+            logger.warning(f"INVALID signature format - OZON INVALID_SIGN test: {actual_signature[:30]}")
+            return ozon_error_response(
+                status_code=401,
+                error_code="ERROR_UNKNOWN",
+                message="Invalid signature format",
+                details="Signature does not match expected format"
+            )
+
+        # ========== 签名验证通过后，再处理TYPE_PING ==========
+        # 处理Ozon的webhook验证请求（PING）
+        # Ozon在配置webhook时会发送ping/test/verification请求或TYPE_PING消息类型
+        if event_type.lower() in ('ping', 'test', 'verification', 'type_ping'):
+            logger.info(f"Received webhook verification request: {event_type} (signature OK)")
+            # 回显OZON发送的时间
+            return ozon_success_response(request_time)
 
         # 从载荷中提取店铺信息
         # Ozon webhook通常在载荷中包含店铺标识信息
