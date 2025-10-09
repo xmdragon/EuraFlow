@@ -45,6 +45,7 @@ def ozon_success_response(request_time: str = None):
     response_time = request_time if request_time else datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
     response_content = {
+        "result": True,
         "version": "1.0",
         "name": "EuraFlow",
         "time": response_time
