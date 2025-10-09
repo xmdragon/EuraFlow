@@ -739,3 +739,27 @@ export const getChatStats = async (shopId: number): Promise<ChatStats> => {
   const response = await apiClient.get(`/ozon/chats/${shopId}/stats`);
   return response.data.data;
 };
+
+// ========== 报表相关 API ==========
+
+// 获取订单报表
+export const getOrderReport = async (month: string, shopIds?: string): Promise<any> => {
+  const params = new URLSearchParams({ month });
+  if (shopIds) {
+    params.append('shop_ids', shopIds);
+  }
+  const response = await apiClient.get(`/ozon/reports/orders?${params.toString()}`);
+  return response.data;
+};
+
+// 导出订单报表
+export const exportOrderReport = async (month: string, shopIds?: string): Promise<Blob> => {
+  const params = new URLSearchParams({ month });
+  if (shopIds) {
+    params.append('shop_ids', shopIds);
+  }
+  const response = await apiClient.get(`/ozon/reports/orders/export?${params.toString()}`, {
+    responseType: 'blob'
+  });
+  return response.data;
+};

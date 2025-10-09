@@ -32,6 +32,7 @@ import type { ColumnsType } from 'antd/es/table';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
 import { formatRMB, formatPercent } from '../../utils/currency';
+import * as ozonApi from '@/services/ozonApi';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -77,19 +78,8 @@ const OrderReport: React.FC = () => {
   const { data: reportData, isLoading, refetch } = useQuery<ReportResponse>({
     queryKey: ['ozonOrderReport', selectedMonth, selectedShops],
     queryFn: async () => {
-      const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : '';
-      const response = await fetch(
-        `/api/ef/v1/ozon/reports/orders?month=${selectedMonth}${
-          shopIds ? `&shop_ids=${shopIds}` : ''
-        }`
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || '获取报表失败');
-      }
-
-      return response.json();
+      const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : undefined;
+      return await ozonApi.getOrderReport(selectedMonth, shopIds);
     },
     enabled: !!selectedMonth && selectedShops.length > 0,
     retry: 1, // 减少重试次数
@@ -199,24 +189,13 @@ const OrderReport: React.FC = () => {
   const handleExport = async () => {
     try {
       setIsExporting(true);
-      const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : '';
-      const url = `/api/ef/v1/ozon/reports/orders/export?month=${selectedMonth}${
-        shopIds ? `&shop_ids=${shopIds}` : ''
-      }`;
+      const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : undefined;
 
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error('导出失败');
-      }
-
-      // 获取文件名
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const filenameMatch = contentDisposition?.match(/filename=(.+)/);
-      const filename = filenameMatch ? filenameMatch[1] : `ozon_order_report_${selectedMonth}.xlsx`;
+      // 调用API获取blob
+      const blob = await ozonApi.exportOrderReport(selectedMonth, shopIds);
 
       // 下载文件
-      const blob = await response.blob();
+      const filename = `ozon_order_report_${selectedMonth}.xlsx`;
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
