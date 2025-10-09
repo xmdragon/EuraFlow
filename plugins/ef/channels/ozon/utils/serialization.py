@@ -81,9 +81,9 @@ def serialize_order_amounts(order_dict: dict) -> dict:
         处理后的订单字典
     """
     amount_fields = [
-        'total_amount', 'products_amount', 'delivery_amount',
-        'commission_amount', 'products_price', 'delivery_price',
-        'commission_price', 'refund_amount', 'commission_refund'
+        'total_price', 'products_price', 'delivery_price',
+        'commission_amount', 'commission_price',
+        'refund_amount', 'commission_refund'
     ]
 
     for field in amount_fields:
@@ -98,7 +98,7 @@ def serialize_order_amounts(order_dict: dict) -> dict:
                     product['price'] = format_currency(product['price'])
                 if 'discount' in product and product['discount'] is not None:
                     product['discount'] = format_currency(product['discount'])
-                if 'total_amount' in product and product['total_amount'] is not None:
-                    product['total_amount'] = format_currency(product['total_amount'])
+                if 'total_price' in product and product['total_price'] is not None:
+                    product['total_price'] = format_currency(product['total_price'])
 
     return order_dict

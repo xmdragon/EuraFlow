@@ -2224,7 +2224,7 @@ async def get_statistics(
 
         # 今日收入
         today_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_amount))
+            select(func.sum(OzonOrder.total_price))
             .where(
                 OzonOrder.created_at >= today_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),
@@ -2235,7 +2235,7 @@ async def get_statistics(
 
         # 本周收入
         week_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_amount))
+            select(func.sum(OzonOrder.total_price))
             .where(
                 OzonOrder.created_at >= week_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),
@@ -2246,7 +2246,7 @@ async def get_statistics(
 
         # 本月收入
         month_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_amount))
+            select(func.sum(OzonOrder.total_price))
             .where(
                 OzonOrder.created_at >= month_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),

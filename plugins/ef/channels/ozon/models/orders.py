@@ -41,9 +41,9 @@ class OzonOrder(Base):
     is_premium = Column(Boolean, default=False)
     
     # 金额信息（Decimal避免精度问题）
-    total_amount = Column(Numeric(18, 4), nullable=False)
-    products_amount = Column(Numeric(18, 4))
-    delivery_amount = Column(Numeric(18, 4))
+    total_price = Column(Numeric(18, 4), nullable=False)
+    products_price = Column(Numeric(18, 4))
+    delivery_price = Column(Numeric(18, 4))
     commission_amount = Column(Numeric(18, 4))
     
     # 客户信息

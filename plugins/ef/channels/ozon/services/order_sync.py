@@ -282,9 +282,9 @@ class OrderSyncService:
         analytics = posting_data.get("analytics_data", {})
         financial = posting_data.get("financial_data", {})
         
-        order.total_amount = Decimal(str(analytics.get("total_price", "0")))
-        order.products_amount = Decimal(str(analytics.get("products_price", "0")))
-        order.delivery_amount = Decimal(str(analytics.get("delivery_cost", "0")))
+        order.total_price = Decimal(str(analytics.get("total_price", "0")))
+        order.products_price = Decimal(str(analytics.get("products_price", "0")))
+        order.delivery_price = Decimal(str(analytics.get("delivery_cost", "0")))
         order.commission_amount = Decimal(str(financial.get("commission_amount", "0")))
         
         # 客户信息
@@ -387,7 +387,7 @@ class OrderSyncService:
                 name=product_data.get("name"),
                 quantity=product_data.get("quantity", 0),
                 price=Decimal(str(product_data.get("price", "0"))),
-                total_amount=Decimal(str(
+                total_price=Decimal(str(
                     product_data.get("quantity", 0) * float(product_data.get("price", "0"))
                 ))
             )

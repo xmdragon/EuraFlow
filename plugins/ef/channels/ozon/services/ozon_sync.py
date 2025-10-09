@@ -978,9 +978,9 @@ class OzonSyncService:
             "is_premium": item.get("is_premium", False),
 
             # 金额信息
-            "total_amount": total_price,
-            "products_amount": products_price,
-            "delivery_amount": delivery_price,
+            "total_price": total_price,
+            "products_price": products_price,
+            "delivery_price": delivery_price,
             "commission_amount": commission_amount,
 
             # 地址和配送
