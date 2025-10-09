@@ -692,6 +692,10 @@ const OrderList: React.FC = () => {
   };
 
   const handleSync = () => {
+    if (!selectedShop) {
+      message.warning('请先选择店铺');
+      return;
+    }
     const dateRange = filterForm.getFieldValue('dateRange');
     syncOrdersMutation.mutate({
       dateFrom: dateRange?.[0]?.format('YYYY-MM-DD'),
@@ -908,6 +912,7 @@ const OrderList: React.FC = () => {
             icon={<SyncOutlined />}
             onClick={handleSync}
             loading={syncOrdersMutation.isPending}
+            disabled={!selectedShop}
           >
             同步订单
           </Button>
