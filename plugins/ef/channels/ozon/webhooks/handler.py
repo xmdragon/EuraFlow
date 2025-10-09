@@ -20,16 +20,47 @@ from ..services.order_sync import OrderSyncService
 logger = get_logger(__name__)
 
 
+# OZON message_type 到内部事件类型的映射
+# 基于 OZON API 文档：https://docs.ozon.ru/api/seller/#tag/push_types
+OZON_MESSAGE_TYPE_MAPPING = {
+    "TYPE_PING": "ping",  # 连接检查
+    "TYPE_NEW_POSTING": "posting.created",  # 新订单
+    "TYPE_POSTING_CANCELLED": "posting.cancelled",  # 订单取消
+    "TYPE_STATE_CHANGED": "posting.status_changed",  # 订单状态变更
+    "TYPE_CUTOFF_DATE_CHANGED": "posting.cutoff_date_changed",  # 截止日期变更
+    "TYPE_DELIVERY_DATE_CHANGED": "posting.delivery_date_changed",  # 配送日期变更
+    "TYPE_CREATE_OR_UPDATE_ITEM": "product.create_or_update",  # 商品创建/更新
+    "TYPE_CREATE_ITEM": "product.created",  # 商品创建
+    "TYPE_UPDATE_ITEM": "product.updated",  # 商品更新
+    "TYPE_STOCKS_CHANGED": "product.stock_changed",  # 库存变更
+    "TYPE_NEW_MESSAGE": "chat.message_created",  # 新消息
+    "TYPE_UPDATE_MESSAGE": "chat.message_updated",  # 消息更新
+    "TYPE_MESSAGE_READ": "chat.message_read",  # 消息已读
+    "TYPE_CHAT_CLOSED": "chat.closed",  # 聊天关闭
+}
+
+
 class OzonWebhookHandler:
     """Ozon Webhook 处理器"""
-    
-    # 支持的事件类型
+
+    # 支持的事件类型（内部格式）
     SUPPORTED_EVENTS = {
+        "ping",
+        "posting.created",
+        "posting.cancelled",
         "posting.status_changed",
-        "posting.cancelled", 
         "posting.delivered",
+        "posting.cutoff_date_changed",
+        "posting.delivery_date_changed",
+        "product.created",
+        "product.updated",
+        "product.create_or_update",
         "product.price_changed",
         "product.stock_changed",
+        "chat.message_created",
+        "chat.message_updated",
+        "chat.message_read",
+        "chat.closed",
         "return.created",
         "return.status_changed"
     }
@@ -37,13 +68,49 @@ class OzonWebhookHandler:
     def __init__(self, shop_id: int, webhook_secret: str):
         """
         初始化 Webhook 处理器
-        
+
         Args:
             shop_id: 店铺ID
             webhook_secret: Webhook 密钥
         """
         self.shop_id = shop_id
         self.webhook_secret = webhook_secret
+
+    @staticmethod
+    def normalize_event_type(event_type: str, payload: Dict[str, Any] = None) -> str:
+        """
+        规范化事件类型：将OZON的TYPE_*格式转换为内部事件类型
+
+        优先级：
+        1. 如果payload包含message_type，使用映射表转换
+        2. 否则使用传入的event_type（可能来自X-Event-Type头）
+
+        Args:
+            event_type: 原始事件类型（来自X-Event-Type头或其他来源）
+            payload: 事件载荷（可能包含message_type字段）
+
+        Returns:
+            规范化的内部事件类型
+        """
+        # 优先从payload中提取message_type
+        if payload and "message_type" in payload:
+            ozon_type = payload["message_type"]
+            normalized = OZON_MESSAGE_TYPE_MAPPING.get(ozon_type)
+            if normalized:
+                logger.debug(f"Normalized event type: {ozon_type} -> {normalized}")
+                return normalized
+            logger.warning(f"Unknown OZON message_type: {ozon_type}, using as-is")
+            return ozon_type
+
+        # 如果event_type本身就是TYPE_*格式，尝试转换
+        if event_type and event_type.startswith("TYPE_"):
+            normalized = OZON_MESSAGE_TYPE_MAPPING.get(event_type)
+            if normalized:
+                logger.debug(f"Normalized event type: {event_type} -> {normalized}")
+                return normalized
+
+        # 否则直接返回原始event_type
+        return event_type or "unknown"
     
     async def handle_webhook(
         self,
@@ -54,16 +121,20 @@ class OzonWebhookHandler:
     ) -> Dict[str, Any]:
         """
         处理 Webhook 请求
-        
+
         Args:
-            event_type: 事件类型
+            event_type: 事件类型（来自X-Event-Type头或其他来源）
             payload: 事件载荷
             headers: 请求头
             raw_body: 原始请求体
-            
+
         Returns:
             处理结果
         """
+        # 规范化事件类型（支持OZON的TYPE_*格式和payload中的message_type）
+        event_type = self.normalize_event_type(event_type, payload)
+        logger.info(f"Processing webhook event: {event_type}")
+
         # 验证签名（如果配置了webhook_secret）
         signature = headers.get("X-Ozon-Signature", "")
         if self.webhook_secret:  # 只有配置了secret才验证签名
@@ -150,32 +221,48 @@ class OzonWebhookHandler:
     ) -> Dict[str, Any]:
         """
         处理具体事件
-        
+
         Args:
-            event_type: 事件类型
+            event_type: 事件类型（已规范化的内部格式）
             payload: 事件载荷
             webhook_event: Webhook事件记录
-            
+
         Returns:
             处理结果
         """
         # 根据事件类型分发处理
         handlers = {
-            "posting.status_changed": self._handle_posting_status_changed,
+            # 连接检查
+            "ping": self._handle_ping,
+            # 订单相关
+            "posting.created": self._handle_posting_created,
             "posting.cancelled": self._handle_posting_cancelled,
+            "posting.status_changed": self._handle_posting_status_changed,
             "posting.delivered": self._handle_posting_delivered,
+            "posting.cutoff_date_changed": self._handle_posting_cutoff_date_changed,
+            "posting.delivery_date_changed": self._handle_posting_delivery_date_changed,
+            # 商品相关
+            "product.created": self._handle_product_created,
+            "product.updated": self._handle_product_updated,
+            "product.create_or_update": self._handle_product_create_or_update,
             "product.price_changed": self._handle_product_price_changed,
             "product.stock_changed": self._handle_product_stock_changed,
+            # 聊天相关
+            "chat.message_created": self._handle_chat_message_created,
+            "chat.message_updated": self._handle_chat_message_updated,
+            "chat.message_read": self._handle_chat_message_read,
+            "chat.closed": self._handle_chat_closed,
+            # 退货相关
             "return.created": self._handle_return_created,
             "return.status_changed": self._handle_return_status_changed
         }
-        
+
         handler = handlers.get(event_type)
         if not handler:
             logger.warning(f"Unsupported webhook event type: {event_type}")
             webhook_event.status = "ignored"
             return {"message": "Event type not supported"}
-        
+
         return await handler(payload, webhook_event)
     
     async def _handle_posting_status_changed(
@@ -539,11 +626,11 @@ class OzonWebhookHandler:
     def _verify_signature(self, raw_body: bytes, signature: str) -> bool:
         """
         验证Webhook签名
-        
+
         Args:
             raw_body: 原始请求体
             signature: 请求签名
-            
+
         Returns:
             签名是否有效
         """
@@ -552,5 +639,217 @@ class OzonWebhookHandler:
             raw_body,
             hashlib.sha256
         ).hexdigest()
-        
+
         return hmac.compare_digest(signature, expected_signature)
+
+    # ========== 新增的事件处理器 ==========
+
+    async def _handle_ping(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理PING/连接检查事件"""
+        logger.info("Received PING/verification request from OZON")
+        webhook_event.status = "processed"
+        return {"message": "PING received", "verified": True}
+
+    async def _handle_posting_created(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理新订单创建事件 (TYPE_NEW_POSTING)"""
+        posting_number = payload.get("posting_number")
+        products = payload.get("products", [])
+
+        logger.info(f"New posting created: {posting_number} with {len(products)} products")
+
+        # 触发订单同步
+        import asyncio
+        asyncio.create_task(self._trigger_order_sync(posting_number))
+
+        webhook_event.entity_type = "posting"
+        webhook_event.entity_id = posting_number
+        return {"posting_number": posting_number, "sync_triggered": True}
+
+    async def _handle_posting_cutoff_date_changed(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理订单截止日期变更事件 (TYPE_CUTOFF_DATE_CHANGED)"""
+        posting_number = payload.get("posting_number")
+        old_cutoff = payload.get("old_cutoff_date")
+        new_cutoff = payload.get("new_cutoff_date")
+
+        logger.info(f"Posting {posting_number} cutoff date changed: {old_cutoff} -> {new_cutoff}")
+
+        from ..models.orders import OzonPosting
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            stmt = select(OzonPosting).where(
+                and_(
+                    OzonPosting.shop_id == self.shop_id,
+                    OzonPosting.posting_number == posting_number
+                )
+            )
+            posting = await session.scalar(stmt)
+
+            if posting:
+                # 更新截止日期
+                if new_cutoff:
+                    posting.shipment_date = datetime.fromisoformat(new_cutoff.replace("Z", "+00:00"))
+                session.add(posting)
+                await session.commit()
+
+                webhook_event.entity_type = "posting"
+                webhook_event.entity_id = str(posting.id)
+                return {"posting_id": posting.id, "cutoff_date_updated": True}
+
+            return {"message": "Posting not found"}
+
+    async def _handle_posting_delivery_date_changed(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理订单配送日期变更事件 (TYPE_DELIVERY_DATE_CHANGED)"""
+        posting_number = payload.get("posting_number")
+        old_delivery = payload.get("old_delivery_date")
+        new_delivery = payload.get("new_delivery_date")
+
+        logger.info(f"Posting {posting_number} delivery date changed: {old_delivery} -> {new_delivery}")
+
+        from ..models.orders import OzonPosting
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            stmt = select(OzonPosting).where(
+                and_(
+                    OzonPosting.shop_id == self.shop_id,
+                    OzonPosting.posting_number == posting_number
+                )
+            )
+            posting = await session.scalar(stmt)
+
+            if posting:
+                # 记录日志，不直接更新delivered_at（实际妥投由posting.delivered事件处理）
+                logger.info(f"Delivery date updated for posting {posting.id}")
+                webhook_event.entity_type = "posting"
+                webhook_event.entity_id = str(posting.id)
+                return {"posting_id": posting.id, "delivery_date_recorded": True}
+
+            return {"message": "Posting not found"}
+
+    async def _handle_product_created(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理商品创建事件 (TYPE_CREATE_ITEM)"""
+        product_id = payload.get("product_id")
+        offer_id = payload.get("offer_id")
+
+        logger.info(f"Product created: product_id={product_id}, offer_id={offer_id}")
+
+        # 触发商品同步
+        webhook_event.entity_type = "product"
+        webhook_event.entity_id = str(product_id)
+        return {"product_id": product_id, "message": "Product creation recorded"}
+
+    async def _handle_product_updated(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理商品更新事件 (TYPE_UPDATE_ITEM)"""
+        product_id = payload.get("product_id")
+        offer_id = payload.get("offer_id")
+
+        logger.info(f"Product updated: product_id={product_id}, offer_id={offer_id}")
+
+        # 触发商品同步
+        webhook_event.entity_type = "product"
+        webhook_event.entity_id = str(product_id)
+        return {"product_id": product_id, "message": "Product update recorded"}
+
+    async def _handle_product_create_or_update(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理商品创建或更新事件 (TYPE_CREATE_OR_UPDATE_ITEM)"""
+        items = payload.get("items", [])
+
+        logger.info(f"Product create/update batch: {len(items)} items")
+
+        # 批量处理商品变更
+        webhook_event.entity_type = "product_batch"
+        return {"items_count": len(items), "message": "Product batch operation recorded"}
+
+    async def _handle_chat_message_created(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理新聊天消息事件 (TYPE_NEW_MESSAGE)"""
+        chat_id = payload.get("chat_id")
+        message_id = payload.get("message_id")
+        message_type = payload.get("type")  # user/support
+
+        logger.info(f"New chat message: chat_id={chat_id}, message_id={message_id}, type={message_type}")
+
+        # 聊天功能暂未实现，记录事件
+        webhook_event.entity_type = "chat_message"
+        webhook_event.entity_id = str(message_id)
+        webhook_event.status = "ignored"
+        return {"message": "Chat messages not implemented yet", "chat_id": chat_id}
+
+    async def _handle_chat_message_updated(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理聊天消息更新事件 (TYPE_UPDATE_MESSAGE)"""
+        chat_id = payload.get("chat_id")
+        message_id = payload.get("message_id")
+
+        logger.info(f"Chat message updated: chat_id={chat_id}, message_id={message_id}")
+
+        webhook_event.entity_type = "chat_message"
+        webhook_event.entity_id = str(message_id)
+        webhook_event.status = "ignored"
+        return {"message": "Chat messages not implemented yet", "chat_id": chat_id}
+
+    async def _handle_chat_message_read(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理消息已读事件 (TYPE_MESSAGE_READ)"""
+        chat_id = payload.get("chat_id")
+        message_id = payload.get("message_id")
+
+        logger.info(f"Message read: chat_id={chat_id}, message_id={message_id}")
+
+        webhook_event.entity_type = "chat_message"
+        webhook_event.entity_id = str(message_id)
+        webhook_event.status = "ignored"
+        return {"message": "Chat messages not implemented yet", "chat_id": chat_id}
+
+    async def _handle_chat_closed(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理聊天关闭事件 (TYPE_CHAT_CLOSED)"""
+        chat_id = payload.get("chat_id")
+
+        logger.info(f"Chat closed: chat_id={chat_id}")
+
+        webhook_event.entity_type = "chat"
+        webhook_event.entity_id = str(chat_id)
+        webhook_event.status = "ignored"
+        return {"message": "Chat feature not implemented yet", "chat_id": chat_id}

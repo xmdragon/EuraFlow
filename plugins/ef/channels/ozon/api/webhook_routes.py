@@ -131,25 +131,31 @@ async def receive_webhook(
         # 提取OZON发送的时间（用于回显）
         request_time = payload.get("time")
 
-        # 基本验证
-        # 如果没有X-Event-Type，检查是否是OZON验证请求
-        if not x_event_type:
+        # 提取事件类型：优先使用X-Event-Type头，fallback到payload的message_type
+        # 根据OZON文档，实际事件类型在payload的message_type字段中（TYPE_PING, TYPE_NEW_POSTING等）
+        event_type = x_event_type
+        if not event_type and "message_type" in payload:
+            event_type = payload["message_type"]
+            logger.info(f"Using message_type from payload: {event_type}")
+
+        # 基本验证：如果两者都没有，检查是否是OZON验证请求
+        if not event_type:
             # OZON验证请求的User-Agent通常是"ozon-push"或包含"ozon"
             if is_ozon_request(headers):
-                logger.info(f"Received OZON webhook request without event type, returning 200")
+                logger.info(f"Received OZON webhook request without event type (TYPE_PING verification)")
                 # 回显OZON发送的时间
                 return ozon_success_response(request_time)
-            logger.warning("Missing X-Event-Type header in webhook request")
+            logger.warning("Missing both X-Event-Type header and message_type in payload")
             return ozon_error_response(
                 status_code=400,
                 error_code="ERROR_PARAMETER_VALUE_MISSED",
-                message="Missing X-Event-Type header"
+                message="Missing event type"
             )
 
         # 处理Ozon的webhook验证请求（PING）
-        # Ozon在配置webhook时会发送ping/test请求来验证URL可达性
-        if x_event_type.lower() in ('ping', 'test', 'verification'):
-            logger.info(f"Received webhook verification request: {x_event_type}")
+        # Ozon在配置webhook时会发送ping/test/verification请求或TYPE_PING消息类型
+        if event_type.lower() in ('ping', 'test', 'verification', 'type_ping'):
+            logger.info(f"Received webhook verification request: {event_type}")
             # 回显OZON发送的时间
             return ozon_success_response(request_time)
 
@@ -227,10 +233,11 @@ async def receive_webhook(
         )
 
         # 处理Webhook事件
-        logger.info(f"Processing webhook event: type={x_event_type}, shop_id={shop.id}, event_id={x_event_id}")
+        # event_type可能来自X-Event-Type头或payload的message_type字段
+        logger.info(f"Processing webhook event: type={event_type}, shop_id={shop.id}, event_id={x_event_id}")
 
         result = await webhook_handler.handle_webhook(
-            event_type=x_event_type,
+            event_type=event_type,  # 使用提取出的event_type（支持TYPE_*格式）
             payload=payload,
             headers=headers,
             raw_body=raw_body
