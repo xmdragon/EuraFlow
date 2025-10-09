@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.utils.logger import get_logger
 from ..models.watermark import CloudinaryConfig
+from ..utils.datetime_utils import parse_datetime
 
 logger = get_logger(__name__)
 
@@ -447,10 +448,8 @@ class CloudinaryService:
             # 筛选过期资源
             old_resources = []
             for resource in list_result["resources"]:
-                created_at = datetime.fromisoformat(
-                    resource["created_at"].replace("Z", "+00:00")
-                )
-                if created_at < cutoff_date:
+                created_at = parse_datetime(resource["created_at"])
+                if created_at and created_at < cutoff_date:
                     old_resources.append(resource["public_id"])
 
             if not old_resources:

@@ -2391,10 +2391,10 @@ async def get_order_report(
         year = int(year)
         month_num = int(month_num)
 
-        # 计算月份的开始和结束日期
-        start_date = datetime(year, month_num, 1)
+        # 计算月份的开始和结束日期（UTC timezone-aware）
+        start_date = datetime(year, month_num, 1, tzinfo=timezone.utc)
         last_day = calendar.monthrange(year, month_num)[1]
-        end_date = datetime(year, month_num, last_day, 23, 59, 59)
+        end_date = datetime(year, month_num, last_day, 23, 59, 59, tzinfo=timezone.utc)
 
         # 构建查询条件
         conditions = [

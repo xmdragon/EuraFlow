@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import OzonShop, OzonProduct, OzonOrder
 from ..api.client import OzonAPIClient
+from ..utils.datetime_utils import parse_datetime, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -351,7 +352,7 @@ class OzonSyncService:
                             # 更新OZON平台创建时间（如果之前没有）
                             if not product.ozon_created_at and product_details and product_details.get("created_at"):
                                 try:
-                                    product.ozon_created_at = datetime.fromisoformat(product_details["created_at"].replace("Z", "+00:00"))
+                                    product.ozon_created_at = parse_datetime(product_details["created_at"])
                                 except (ValueError, TypeError) as e:
                                     logger.warning(f"Failed to parse created_at for product {item.get('offer_id')}: {e}")
 
@@ -501,7 +502,7 @@ class OzonSyncService:
                             if product_details and product_details.get("created_at"):
                                 try:
                                     # OZON API返回的时间格式: "2019-08-24T14:15:22Z"
-                                    ozon_created_at = datetime.fromisoformat(product_details["created_at"].replace("Z", "+00:00"))
+                                    ozon_created_at = parse_datetime(product_details["created_at"])
                                 except (ValueError, TypeError) as e:
                                     logger.warning(f"Failed to parse created_at for product {item.get('offer_id')}: {e}")
 
@@ -1019,11 +1020,6 @@ class OzonSyncService:
                          sync_mode: str) -> Dict[str, Any]:
         """映射订单字段到数据库模型"""
 
-        def parse_datetime(dt_str):
-            if dt_str:
-                return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-            return None
-
         # 基础字段（映射到 OzonOrder 模型）
         order_data = {
             # 订单号映射
@@ -1080,16 +1076,16 @@ class OzonSyncService:
     @staticmethod
     def clear_old_tasks():
         """清理旧任务（超过1小时的）"""
-        now = datetime.utcnow()
+        now = utcnow()
         to_remove = []
         for task_id, task in SYNC_TASKS.items():
             if task.get("completed_at"):
-                completed_at = datetime.fromisoformat(task["completed_at"])
-                if now - completed_at > timedelta(hours=1):
+                completed_at = parse_datetime(task["completed_at"])
+                if completed_at and now - completed_at > timedelta(hours=1):
                     to_remove.append(task_id)
             elif task.get("started_at"):
-                started_at = datetime.fromisoformat(task["started_at"])
-                if now - started_at > timedelta(hours=2):
+                started_at = parse_datetime(task["started_at"])
+                if started_at and now - started_at > timedelta(hours=2):
                     to_remove.append(task_id)
 
         for task_id in to_remove:

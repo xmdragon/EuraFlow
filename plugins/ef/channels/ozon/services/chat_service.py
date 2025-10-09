@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ef_core.database import get_db_manager
 from ..models.chat import OzonChat, OzonChatMessage
 from ..api.client import OzonAPIClient
+from ..utils.datetime_utils import parse_datetime, utcnow
 
 
 class OzonChatService:
@@ -286,7 +287,7 @@ class OzonChatService:
                 msg_result = await session.execute(msg_stmt)
                 messages = msg_result.scalars().all()
 
-                read_at = datetime.utcnow()
+                read_at = utcnow()
                 for msg in messages:
                     msg.is_read = True
                     msg.read_at = read_at
@@ -318,7 +319,7 @@ class OzonChatService:
 
             chat.status = "closed"
             chat.is_closed = True
-            chat.closed_at = datetime.utcnow()
+            chat.closed_at = utcnow()
 
             await session.commit()
 
@@ -511,7 +512,7 @@ class OzonChatService:
             product_id=chat_data.get("product_id"),
             message_count=chat_data.get("message_count", 0),
             unread_count=chat_data.get("unread_count", 0),
-            last_message_at=self._parse_datetime(chat_data.get("last_message_at")),
+            last_message_at=parse_datetime(chat_data.get("last_message_at")),
             last_message_preview=chat_data.get("last_message_preview"),
             extra_data=chat_data
         )
@@ -527,20 +528,10 @@ class OzonChatService:
         chat.message_count = chat_data.get("message_count", chat.message_count)
         chat.unread_count = chat_data.get("unread_count", chat.unread_count)
 
-        last_message_at = self._parse_datetime(chat_data.get("last_message_at"))
+        last_message_at = parse_datetime(chat_data.get("last_message_at"))
         if last_message_at:
             chat.last_message_at = last_message_at
 
         chat.last_message_preview = chat_data.get("last_message_preview", chat.last_message_preview)
         chat.extra_data = chat_data
-        chat.updated_at = datetime.utcnow()
-
-    def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
-        """解析日期时间字符串"""
-        if not dt_str:
-            return None
-        try:
-            # 处理OZON的时间格式（ISO 8601）
-            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-        except (ValueError, AttributeError):
-            return None
+        chat.updated_at = utcnow()
