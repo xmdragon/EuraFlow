@@ -346,16 +346,22 @@ class OzonChatService:
         new_count = 0
         updated_count = 0
 
-        # 获取聊天列表
-        offset = 0
+        # 获取聊天列表 - 使用cursor分页
         limit = 100
+        cursor = None
+        max_pages = 50  # 防止无限循环，最多50页
 
-        while True:
-            result = await api_client.get_chat_list(
-                chat_id_list=chat_id_list,
-                limit=limit,
-                offset=offset
-            )
+        for page in range(max_pages):
+            # 构建请求参数
+            params = {
+                "limit": limit
+            }
+            if cursor:
+                params["cursor"] = cursor
+            if chat_id_list:
+                params["chat_id_list"] = chat_id_list
+
+            result = await api_client.get_chat_list(**params)
 
             chats_data = result.get("chats", [])
             if not chats_data:
@@ -390,11 +396,15 @@ class OzonChatService:
 
                 await session.commit()
 
-            # 如果返回的数量少于limit，说明已经是最后一页
-            if len(chats_data) < limit:
+            # 检查是否还有更多数据
+            has_next = result.get("has_next", False)
+            if not has_next:
                 break
 
-            offset += limit
+            # 获取下一页的cursor
+            cursor = result.get("cursor")
+            if not cursor:
+                break
 
         return {
             "synced_count": synced_count,

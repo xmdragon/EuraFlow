@@ -893,7 +893,7 @@ class OzonAPIClient:
         self,
         chat_id_list: Optional[List[str]] = None,
         limit: int = 100,
-        offset: int = 0
+        cursor: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         获取聊天列表
@@ -901,15 +901,21 @@ class OzonAPIClient:
         Args:
             chat_id_list: 聊天ID列表（可选，用于获取指定聊天）
             limit: 返回数量限制（最大100）
-            offset: 偏移量
+            cursor: 分页游标（可选）
 
         Returns:
-            聊天列表数据
+            聊天列表数据，包含：
+            - chats: 聊天列表
+            - cursor: 下一页游标
+            - has_next: 是否有下一页
+            - total_unread_count: 总未读数
         """
         data = {
-            "limit": min(limit, 100),
-            "offset": offset
+            "limit": min(limit, 100)
         }
+
+        if cursor:
+            data["cursor"] = cursor
 
         if chat_id_list:
             data["chat_id_list"] = chat_id_list
