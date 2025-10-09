@@ -107,7 +107,7 @@ const ProductList: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
-  const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({});
+  const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({ status: 'on_sale' });
 
   // 水印相关状态
   const [watermarkModalVisible, setWatermarkModalVisible] = useState(false);
@@ -201,6 +201,11 @@ const ProductList: React.FC = () => {
       setWatermarkConfigs(watermarkConfigsData);
     }
   }, [watermarkConfigsData]);
+
+  // 设置表单默认值为"销售中"
+  useEffect(() => {
+    filterForm.setFieldsValue({ status: 'on_sale' });
+  }, [filterForm]);
 
   // 应用水印 - 默认使用异步模式
   const applyWatermarkMutation = useMutation({
@@ -886,7 +891,8 @@ const ProductList: React.FC = () => {
 
   const handleReset = () => {
     filterForm.resetFields();
-    setFilterValues({});
+    filterForm.setFieldsValue({ status: 'on_sale' }); // 重置后保持"销售中"为默认值
+    setFilterValues({ status: 'on_sale' });
     setCurrentPage(1);
     refetch();
   };
