@@ -607,3 +607,135 @@ export const retryWebhookEvent = async (eventId: string) => {
   const response = await apiClient.post(`/ozon/webhook/events/${eventId}/retry`);
   return response.data;
 };
+
+// ==================== 聊天相关 API ====================
+
+export interface OzonChat {
+  id: number;
+  chat_id: string;
+  chat_type?: string;
+  subject?: string;
+  customer_id?: string;
+  customer_name?: string;
+  status: string;
+  is_closed: boolean;
+  order_number?: string;
+  product_id?: number;
+  message_count: number;
+  unread_count: number;
+  last_message_at?: string;
+  last_message_preview?: string;
+  closed_at?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface OzonChatMessage {
+  id: number;
+  chat_id: string;
+  message_id: string;
+  message_type?: string;
+  sender_type: string;
+  sender_id?: string;
+  sender_name?: string;
+  content?: string;
+  content_data?: any;
+  is_read: boolean;
+  is_deleted: boolean;
+  is_edited: boolean;
+  order_number?: string;
+  product_id?: number;
+  read_at?: string;
+  edited_at?: string;
+  created_at: string;
+}
+
+export interface ChatStats {
+  total_chats: number;
+  active_chats: number;
+  total_unread: number;
+  unread_chats: number;
+}
+
+// 获取聊天列表
+export const getChats = async (
+  shopId: number,
+  params?: {
+    status?: string;
+    has_unread?: boolean;
+    order_number?: string;
+    limit?: number;
+    offset?: number;
+  }
+): Promise<{ items: OzonChat[]; total: number; limit: number; offset: number }> => {
+  const response = await apiClient.get(`/ozon/chats/${shopId}`, { params });
+  return response.data.data;
+};
+
+// 获取聊天详情
+export const getChatDetail = async (shopId: number, chatId: string): Promise<OzonChat> => {
+  const response = await apiClient.get(`/ozon/chats/${shopId}/${chatId}`);
+  return response.data.data;
+};
+
+// 获取聊天消息列表
+export const getChatMessages = async (
+  shopId: number,
+  chatId: string,
+  params?: {
+    limit?: number;
+    offset?: number;
+    before_message_id?: string;
+  }
+): Promise<{ items: OzonChatMessage[]; total: number; chat_id: string }> => {
+  const response = await apiClient.get(`/ozon/chats/${shopId}/${chatId}/messages`, { params });
+  return response.data.data;
+};
+
+// 发送消息
+export const sendChatMessage = async (
+  shopId: number,
+  chatId: string,
+  content: string
+): Promise<any> => {
+  const response = await apiClient.post(`/ozon/chats/${shopId}/${chatId}/messages`, { content });
+  return response.data.data;
+};
+
+// 发送文件
+export const sendChatFile = async (
+  shopId: number,
+  chatId: string,
+  fileUrl: string,
+  fileName: string
+): Promise<any> => {
+  const response = await apiClient.post(`/ozon/chats/${shopId}/${chatId}/files`, {
+    file_url: fileUrl,
+    file_name: fileName,
+  });
+  return response.data.data;
+};
+
+// 标记聊天为已读
+export const markChatAsRead = async (shopId: number, chatId: string): Promise<any> => {
+  const response = await apiClient.post(`/ozon/chats/${shopId}/${chatId}/read`);
+  return response.data.data;
+};
+
+// 关闭聊天
+export const closeChat = async (shopId: number, chatId: string): Promise<any> => {
+  const response = await apiClient.post(`/ozon/chats/${shopId}/${chatId}/close`);
+  return response.data.data;
+};
+
+// 同步聊天数据
+export const syncChats = async (shopId: number, chatIdList?: string[]): Promise<any> => {
+  const response = await apiClient.post(`/ozon/chats/${shopId}/sync`, chatIdList || null);
+  return response.data.data;
+};
+
+// 获取聊天统计信息
+export const getChatStats = async (shopId: number): Promise<ChatStats> => {
+  const response = await apiClient.get(`/ozon/chats/${shopId}/stats`);
+  return response.data.data;
+};

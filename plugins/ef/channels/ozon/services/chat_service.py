@@ -1,0 +1,536 @@
+"""OZON聊天服务"""
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from sqlalchemy import select, and_, or_, desc, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ef_core.database import get_db_manager
+from ..models.chat import OzonChat, OzonChatMessage
+from ..api.client import OzonAPIClient
+
+
+class OzonChatService:
+    """OZON聊天服务"""
+
+    def __init__(self, shop_id: int):
+        self.shop_id = shop_id
+        self.db_manager = get_db_manager()
+
+    async def get_chats(
+        self,
+        status: Optional[str] = None,
+        has_unread: Optional[bool] = None,
+        order_number: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """获取聊天列表
+
+        Args:
+            status: 聊天状态筛选 (open/closed)
+            has_unread: 是否有未读消息
+            order_number: 订单号筛选
+            limit: 每页数量
+            offset: 偏移量
+
+        Returns:
+            {
+                "items": [...],
+                "total": int,
+                "limit": int,
+                "offset": int
+            }
+        """
+        async with self.db_manager.get_session() as session:
+            # 构建查询条件
+            conditions = [OzonChat.shop_id == self.shop_id]
+
+            if status:
+                conditions.append(OzonChat.status == status)
+
+            if has_unread is not None:
+                if has_unread:
+                    conditions.append(OzonChat.unread_count > 0)
+                else:
+                    conditions.append(OzonChat.unread_count == 0)
+
+            if order_number:
+                conditions.append(OzonChat.order_number == order_number)
+
+            # 查询总数
+            count_stmt = select(func.count()).select_from(OzonChat).where(and_(*conditions))
+            total = await session.scalar(count_stmt)
+
+            # 查询列表
+            stmt = (
+                select(OzonChat)
+                .where(and_(*conditions))
+                .order_by(desc(OzonChat.last_message_at))
+                .limit(limit)
+                .offset(offset)
+            )
+            result = await session.execute(stmt)
+            chats = result.scalars().all()
+
+            return {
+                "items": [self._chat_to_dict(chat) for chat in chats],
+                "total": total or 0,
+                "limit": limit,
+                "offset": offset
+            }
+
+    async def get_chat_detail(self, chat_id: str) -> Optional[Dict[str, Any]]:
+        """获取聊天详情"""
+        async with self.db_manager.get_session() as session:
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+
+            if not chat:
+                return None
+
+            return self._chat_to_dict(chat)
+
+    async def get_messages(
+        self,
+        chat_id: str,
+        limit: int = 50,
+        offset: int = 0,
+        before_message_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """获取聊天消息列表
+
+        Args:
+            chat_id: 聊天ID
+            limit: 每页数量
+            offset: 偏移量
+            before_message_id: 获取此消息之前的消息
+
+        Returns:
+            {
+                "items": [...],
+                "total": int,
+                "chat_id": str
+            }
+        """
+        async with self.db_manager.get_session() as session:
+            # 验证聊天是否属于此店铺
+            chat_stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(chat_stmt)
+            if not chat:
+                return {"items": [], "total": 0, "chat_id": chat_id}
+
+            # 构建消息查询条件
+            conditions = [
+                OzonChatMessage.shop_id == self.shop_id,
+                OzonChatMessage.chat_id == chat_id,
+                OzonChatMessage.is_deleted == False
+            ]
+
+            if before_message_id:
+                # 获取参考消息的创建时间
+                ref_stmt = select(OzonChatMessage.created_at).where(
+                    OzonChatMessage.message_id == before_message_id
+                )
+                ref_time = await session.scalar(ref_stmt)
+                if ref_time:
+                    conditions.append(OzonChatMessage.created_at < ref_time)
+
+            # 查询总数
+            count_stmt = select(func.count()).select_from(OzonChatMessage).where(and_(*conditions))
+            total = await session.scalar(count_stmt)
+
+            # 查询消息列表（按时间倒序）
+            stmt = (
+                select(OzonChatMessage)
+                .where(and_(*conditions))
+                .order_by(desc(OzonChatMessage.created_at))
+                .limit(limit)
+                .offset(offset)
+            )
+            result = await session.execute(stmt)
+            messages = result.scalars().all()
+
+            return {
+                "items": [self._message_to_dict(msg) for msg in reversed(messages)],
+                "total": total or 0,
+                "chat_id": chat_id
+            }
+
+    async def send_message(
+        self,
+        chat_id: str,
+        content: str,
+        api_client: OzonAPIClient
+    ) -> Dict[str, Any]:
+        """发送文本消息
+
+        Args:
+            chat_id: 聊天ID
+            content: 消息内容
+            api_client: OZON API客户端
+
+        Returns:
+            发送结果
+        """
+        # 验证聊天是否属于此店铺
+        async with self.db_manager.get_session() as session:
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+            if not chat:
+                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+
+        # 调用OZON API发送消息
+        result = await api_client.send_chat_message(chat_id, content)
+
+        return result
+
+    async def send_file(
+        self,
+        chat_id: str,
+        file_url: str,
+        file_name: str,
+        api_client: OzonAPIClient
+    ) -> Dict[str, Any]:
+        """发送文件消息
+
+        Args:
+            chat_id: 聊天ID
+            file_url: 文件URL
+            file_name: 文件名
+            api_client: OZON API客户端
+
+        Returns:
+            发送结果
+        """
+        # 验证聊天是否属于此店铺
+        async with self.db_manager.get_session() as session:
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+            if not chat:
+                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+
+        # 调用OZON API发送文件
+        result = await api_client.send_chat_file(chat_id, file_url, file_name)
+
+        return result
+
+    async def mark_as_read(
+        self,
+        chat_id: str,
+        api_client: OzonAPIClient
+    ) -> Dict[str, Any]:
+        """标记聊天为已读
+
+        Args:
+            chat_id: 聊天ID
+            api_client: OZON API客户端
+
+        Returns:
+            操作结果
+        """
+        # 验证聊天是否属于此店铺
+        async with self.db_manager.get_session() as session:
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+            if not chat:
+                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+
+        # 调用OZON API标记已读
+        result = await api_client.mark_chat_as_read(chat_id)
+
+        # 更新本地数据库
+        async with self.db_manager.get_session() as session:
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+            if chat:
+                chat.unread_count = 0
+
+                # 标记所有未读消息为已读
+                msg_stmt = select(OzonChatMessage).where(
+                    and_(
+                        OzonChatMessage.shop_id == self.shop_id,
+                        OzonChatMessage.chat_id == chat_id,
+                        OzonChatMessage.is_read == False
+                    )
+                )
+                msg_result = await session.execute(msg_stmt)
+                messages = msg_result.scalars().all()
+
+                read_at = datetime.utcnow()
+                for msg in messages:
+                    msg.is_read = True
+                    msg.read_at = read_at
+
+                await session.commit()
+
+        return result
+
+    async def close_chat(self, chat_id: str) -> Dict[str, Any]:
+        """关闭聊天
+
+        Args:
+            chat_id: 聊天ID
+
+        Returns:
+            操作结果
+        """
+        async with self.db_manager.get_session() as session:
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+
+            if not chat:
+                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+
+            chat.status = "closed"
+            chat.is_closed = True
+            chat.closed_at = datetime.utcnow()
+
+            await session.commit()
+
+            return {
+                "chat_id": chat_id,
+                "status": "closed",
+                "closed_at": chat.closed_at.isoformat()
+            }
+
+    async def sync_chats(
+        self,
+        api_client: OzonAPIClient,
+        chat_id_list: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """从OZON同步聊天数据
+
+        Args:
+            api_client: OZON API客户端
+            chat_id_list: 要同步的聊天ID列表（为空则同步全部）
+
+        Returns:
+            同步结果统计
+        """
+        synced_count = 0
+        new_count = 0
+        updated_count = 0
+
+        # 获取聊天列表
+        offset = 0
+        limit = 100
+
+        while True:
+            result = await api_client.get_chat_list(
+                chat_id_list=chat_id_list,
+                limit=limit,
+                offset=offset
+            )
+
+            chats_data = result.get("chats", [])
+            if not chats_data:
+                break
+
+            async with self.db_manager.get_session() as session:
+                for chat_data in chats_data:
+                    chat_id = chat_data.get("chat_id")
+                    if not chat_id:
+                        continue
+
+                    # 检查聊天是否已存在
+                    stmt = select(OzonChat).where(
+                        and_(
+                            OzonChat.shop_id == self.shop_id,
+                            OzonChat.chat_id == chat_id
+                        )
+                    )
+                    existing_chat = await session.scalar(stmt)
+
+                    if existing_chat:
+                        # 更新现有聊天
+                        self._update_chat_from_api(existing_chat, chat_data)
+                        updated_count += 1
+                    else:
+                        # 创建新聊天
+                        new_chat = self._create_chat_from_api(chat_data)
+                        session.add(new_chat)
+                        new_count += 1
+
+                    synced_count += 1
+
+                await session.commit()
+
+            # 如果返回的数量少于limit，说明已经是最后一页
+            if len(chats_data) < limit:
+                break
+
+            offset += limit
+
+        return {
+            "synced_count": synced_count,
+            "new_count": new_count,
+            "updated_count": updated_count
+        }
+
+    async def get_chat_stats(self) -> Dict[str, Any]:
+        """获取聊天统计信息"""
+        async with self.db_manager.get_session() as session:
+            # 总聊天数
+            total_stmt = select(func.count()).select_from(OzonChat).where(
+                OzonChat.shop_id == self.shop_id
+            )
+            total_chats = await session.scalar(total_stmt)
+
+            # 活跃聊天数
+            active_stmt = select(func.count()).select_from(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.status == "open"
+                )
+            )
+            active_chats = await session.scalar(active_stmt)
+
+            # 未读消息总数
+            unread_stmt = select(func.sum(OzonChat.unread_count)).where(
+                OzonChat.shop_id == self.shop_id
+            )
+            total_unread = await session.scalar(unread_stmt)
+
+            # 有未读消息的聊天数
+            unread_chats_stmt = select(func.count()).select_from(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.unread_count > 0
+                )
+            )
+            unread_chats = await session.scalar(unread_chats_stmt)
+
+            return {
+                "total_chats": total_chats or 0,
+                "active_chats": active_chats or 0,
+                "total_unread": int(total_unread or 0),
+                "unread_chats": unread_chats or 0
+            }
+
+    def _chat_to_dict(self, chat: OzonChat) -> Dict[str, Any]:
+        """将聊天对象转换为字典"""
+        return {
+            "id": chat.id,
+            "chat_id": chat.chat_id,
+            "chat_type": chat.chat_type,
+            "subject": chat.subject,
+            "customer_id": chat.customer_id,
+            "customer_name": chat.customer_name,
+            "status": chat.status,
+            "is_closed": chat.is_closed,
+            "order_number": chat.order_number,
+            "product_id": chat.product_id,
+            "message_count": chat.message_count,
+            "unread_count": chat.unread_count,
+            "last_message_at": chat.last_message_at.isoformat() if chat.last_message_at else None,
+            "last_message_preview": chat.last_message_preview,
+            "closed_at": chat.closed_at.isoformat() if chat.closed_at else None,
+            "created_at": chat.created_at.isoformat(),
+            "updated_at": chat.updated_at.isoformat() if chat.updated_at else None
+        }
+
+    def _message_to_dict(self, message: OzonChatMessage) -> Dict[str, Any]:
+        """将消息对象转换为字典"""
+        return {
+            "id": message.id,
+            "chat_id": message.chat_id,
+            "message_id": message.message_id,
+            "message_type": message.message_type,
+            "sender_type": message.sender_type,
+            "sender_id": message.sender_id,
+            "sender_name": message.sender_name,
+            "content": message.content,
+            "content_data": message.content_data,
+            "is_read": message.is_read,
+            "is_deleted": message.is_deleted,
+            "is_edited": message.is_edited,
+            "order_number": message.order_number,
+            "product_id": message.product_id,
+            "read_at": message.read_at.isoformat() if message.read_at else None,
+            "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+            "created_at": message.created_at.isoformat()
+        }
+
+    def _create_chat_from_api(self, chat_data: Dict[str, Any]) -> OzonChat:
+        """从OZON API数据创建聊天对象"""
+        return OzonChat(
+            shop_id=self.shop_id,
+            chat_id=chat_data["chat_id"],
+            chat_type=chat_data.get("chat_type"),
+            subject=chat_data.get("subject"),
+            customer_id=chat_data.get("customer_id"),
+            customer_name=chat_data.get("customer_name"),
+            status=chat_data.get("status", "open"),
+            is_closed=chat_data.get("is_closed", False),
+            order_number=chat_data.get("order_number"),
+            product_id=chat_data.get("product_id"),
+            message_count=chat_data.get("message_count", 0),
+            unread_count=chat_data.get("unread_count", 0),
+            last_message_at=self._parse_datetime(chat_data.get("last_message_at")),
+            last_message_preview=chat_data.get("last_message_preview"),
+            metadata=chat_data
+        )
+
+    def _update_chat_from_api(self, chat: OzonChat, chat_data: Dict[str, Any]) -> None:
+        """用OZON API数据更新聊天对象"""
+        chat.chat_type = chat_data.get("chat_type", chat.chat_type)
+        chat.subject = chat_data.get("subject", chat.subject)
+        chat.customer_id = chat_data.get("customer_id", chat.customer_id)
+        chat.customer_name = chat_data.get("customer_name", chat.customer_name)
+        chat.status = chat_data.get("status", chat.status)
+        chat.is_closed = chat_data.get("is_closed", chat.is_closed)
+        chat.message_count = chat_data.get("message_count", chat.message_count)
+        chat.unread_count = chat_data.get("unread_count", chat.unread_count)
+
+        last_message_at = self._parse_datetime(chat_data.get("last_message_at"))
+        if last_message_at:
+            chat.last_message_at = last_message_at
+
+        chat.last_message_preview = chat_data.get("last_message_preview", chat.last_message_preview)
+        chat.metadata = chat_data
+        chat.updated_at = datetime.utcnow()
+
+    def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
+        """解析日期时间字符串"""
+        if not dt_str:
+            return None
+        try:
+            # 处理OZON的时间格式（ISO 8601）
+            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            return None

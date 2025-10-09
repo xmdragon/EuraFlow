@@ -1648,8 +1648,13 @@ async def get_orders(
     """获取 Ozon 订单列表，支持多种搜索条件"""
     from datetime import datetime
 
-    # 构建查询
-    query = select(OzonOrder)
+    # 构建查询（使用 selectinload 避免懒加载问题）
+    from sqlalchemy.orm import selectinload
+    query = select(OzonOrder).options(
+        selectinload(OzonOrder.postings),
+        selectinload(OzonOrder.items),
+        selectinload(OzonOrder.refunds)
+    )
 
     # 应用过滤条件
     if shop_id:
@@ -1701,11 +1706,49 @@ async def get_orders(
             query = query.where(OzonOrder.created_at <= end_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
-    
-    # 执行查询获取总数
-    total_result = await db.execute(select(func.count()).select_from(query.subquery()))
+
+    # 执行查询获取总数（重新构建查询以避免 subquery 问题）
+    count_query = select(func.count(OzonOrder.id))
+
+    # 应用相同的过滤条件
+    if shop_id:
+        count_query = count_query.where(OzonOrder.shop_id == shop_id)
+    if status:
+        count_query = count_query.where(OzonOrder.status == status)
+    if posting_number:
+        from plugins.ef.channels.ozon.models.orders import OzonPosting
+        count_query = count_query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
+            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
+            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
+            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
+        )
+    if customer_phone:
+        count_query = count_query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
+    if order_type:
+        count_query = count_query.where(OzonOrder.order_type == order_type)
+    if date_from:
+        try:
+            if 'T' in date_from:
+                start_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            else:
+                start_date = datetime.strptime(date_from, '%Y-%m-%d')
+            count_query = count_query.where(OzonOrder.created_at >= start_date)
+        except:
+            pass
+    if date_to:
+        try:
+            if 'T' in date_to:
+                end_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            else:
+                end_date = datetime.strptime(date_to, '%Y-%m-%d')
+                end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            count_query = count_query.where(OzonOrder.created_at <= end_date)
+        except:
+            pass
+
+    total_result = await db.execute(count_query)
     total = total_result.scalar()
-    
+
     # 添加分页
     query = query.offset(offset).limit(limit).order_by(OzonOrder.created_at.desc())
     

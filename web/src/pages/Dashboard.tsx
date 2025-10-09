@@ -11,6 +11,7 @@ import {
   FileTextOutlined,
   PictureOutlined,
   KeyOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy } from 'react';
@@ -109,6 +110,12 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate('/dashboard/ozon/reports'),
         },
         {
+          key: 'ozon-chats',
+          icon: <MessageOutlined />,
+          label: '聊天管理',
+          onClick: () => navigate('/dashboard/ozon/chats'),
+        },
+        {
           key: 'ozon-watermark',
           icon: <PictureOutlined />,
           label: '水印管理',
@@ -149,6 +156,7 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/products')) return 'ozon-products';
     if (path.includes('/ozon/orders')) return 'ozon-orders';
     if (path.includes('/ozon/reports')) return 'ozon-reports';
+    if (path.includes('/ozon/chat')) return 'ozon-chats';
     if (path.includes('/ozon/watermark')) return 'ozon-watermark';
     if (path.includes('/ozon/api-keys')) return 'ozon-api-keys';
     if (path.includes('/ozon/settings')) return 'ozon-settings';
