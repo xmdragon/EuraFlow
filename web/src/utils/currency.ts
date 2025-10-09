@@ -45,6 +45,43 @@ export const formatRMB = (value: string | number | null | undefined): string => 
 };
 
 /**
+ * 根据货币代码获取货币符号
+ * @param currencyCode - 货币代码 (CNY/RUB/USD等)
+ * @returns 对应的货币符号
+ */
+export const getCurrencySymbol = (currencyCode: string | null | undefined): string => {
+  if (!currencyCode) {
+    return '¥'; // 默认人民币
+  }
+
+  const symbols: Record<string, string> = {
+    'CNY': '¥',   // 人民币
+    'RUB': '₽',   // 俄罗斯卢布
+    'USD': '$',   // 美元
+    'EUR': '€',   // 欧元
+    'GBP': '£',   // 英镑
+    'JPY': '¥',   // 日元
+    'KRW': '₩',   // 韩元
+  };
+
+  return symbols[currencyCode.toUpperCase()] || currencyCode;
+};
+
+/**
+ * 根据货币代码格式化金额
+ * @param value - 金额值
+ * @param currencyCode - 货币代码 (CNY/RUB/USD等)
+ * @returns 格式化后的金额字符串,带正确的货币符号
+ */
+export const formatPriceWithCurrency = (
+  value: string | number | null | undefined,
+  currencyCode: string | null | undefined
+): string => {
+  const symbol = getCurrencySymbol(currencyCode);
+  return formatCurrency(value, symbol);
+};
+
+/**
  * 格式化百分比，统一显示为2位小数
  * @param value - 百分比值
  * @param suffix - 后缀，默认为 '%'

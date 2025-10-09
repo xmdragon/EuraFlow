@@ -51,7 +51,7 @@ import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
 import * as watermarkApi from '@/services/watermarkApi';
-import { formatRuble, calculateMargin } from '../../utils/currency';
+import { formatRuble, calculateMargin, formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import './ProductList.css';
@@ -565,7 +565,7 @@ const ProductList: React.FC = () => {
         return (
           <Space direction="vertical" size="small">
             <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 16 }}>
-              {formatRuble(price)}
+              {formatPriceWithCurrency(price, record.currency_code)}
             </span>
             {oldPrice && oldPrice > price && (
               <span
@@ -575,11 +575,11 @@ const ProductList: React.FC = () => {
                   fontSize: 12,
                 }}
               >
-                {formatRuble(oldPrice)}
+                {formatPriceWithCurrency(oldPrice, record.currency_code)}
               </span>
             )}
             {cost && price > 0 && (
-              <Tooltip title={`成本: ${formatRuble(cost)}`}>
+              <Tooltip title={`成本: ${formatPriceWithCurrency(cost, record.currency_code)}`}>
                 <span
                   style={{
                     fontSize: 12,
@@ -1413,7 +1413,7 @@ const ProductList: React.FC = () => {
               style={{ width: '100%' }}
               min={0}
               precision={2}
-              prefix="₽"
+              prefix={selectedProduct ? getCurrencySymbol(selectedProduct.currency_code) : (selectedRows.length > 0 ? getCurrencySymbol(selectedRows[0].currency_code) : '¥')}
               placeholder="请输入售价"
             />
           </Form.Item>
@@ -1422,7 +1422,7 @@ const ProductList: React.FC = () => {
               style={{ width: '100%' }}
               min={0}
               precision={2}
-              prefix="₽"
+              prefix={selectedProduct ? getCurrencySymbol(selectedProduct.currency_code) : (selectedRows.length > 0 ? getCurrencySymbol(selectedRows[0].currency_code) : '¥')}
               placeholder="可选，用于显示折扣"
             />
           </Form.Item>
@@ -1570,7 +1570,7 @@ const ProductList: React.FC = () => {
                     style={{ width: '100%' }}
                     min={0}
                     precision={2}
-                    prefix="₽"
+                    prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="请输入售价"
                   />
                 </Form.Item>
@@ -1581,7 +1581,7 @@ const ProductList: React.FC = () => {
                     style={{ width: '100%' }}
                     min={0}
                     precision={2}
-                    prefix="₽"
+                    prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="请输入原价"
                   />
                 </Form.Item>
@@ -1595,7 +1595,7 @@ const ProductList: React.FC = () => {
                     style={{ width: '100%' }}
                     min={0}
                     precision={2}
-                    prefix="₽"
+                    prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="成本价"
                   />
                 </Form.Item>

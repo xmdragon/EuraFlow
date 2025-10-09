@@ -94,7 +94,8 @@ class OzonProduct(Base):
         Index("idx_ozon_products_status", "status"),
         Index("idx_ozon_products_ozon_archived", "ozon_archived"),
         Index("idx_ozon_products_ozon_visibility", "ozon_visibility_status"),
-        Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at")
+        Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at"),
+        {"extend_existing": True}
     )
 
 

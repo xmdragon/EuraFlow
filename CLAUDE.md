@@ -152,10 +152,9 @@
 
 ### 前后端服务管理
 - **正确启动方式**：使用项目根目录的脚本
-  - 完全重启：`./stop-all.sh && ./start-all.sh`
-  - 单独停止：`./stop-all.sh`
-  - 单独启动：`./start-all.sh`
-  - 便捷重启：`./restart-all.sh`（如果存在）
+  - 启动服务：`./start.sh`
+  - 停止服务：`./stop.sh`
+  - 重启服务：`./restart.sh`
 
 - **禁止的启动方式**：
   - ❌ `cd web && npm run dev` - 会在随机端口启动，无法与后端正确通信
@@ -167,9 +166,9 @@
 - 日志文件：`backend.log`, `frontend.log`
 
 ### 开发调试流程
-1. 修改代码后需要重启：`./stop-all.sh && ./start-all.sh`
+1. 修改代码后需要重启：`./restart.sh`
 2. 查看服务状态：检查日志文件或访问健康检查端点
-3. 前端热更新：start-all.sh启动的前端支持文件变更自动刷新
+3. 前端热更新：start.sh启动的前端支持文件变更自动刷新
 
 ---
 
@@ -254,7 +253,7 @@ ef_ozon_shipments_push_fail_total (counter)
 - **状态管理**：基于OZON原生字段（has_fbo_stocks, has_fbs_stocks, archived）判断
 
 ### 服务启动与重启规范
-- **统一使用脚本**：`./stop-all.sh && ./start-all.sh` 或 `./restart-all.sh`
+- **统一使用脚本**：`./start.sh`、`./stop.sh`、`./restart.sh`
 - **禁止**：`cd web && npm run dev` 方式启动（会在新端口启动）
 - **日志查看**：backend.log 和 frontend.log
 

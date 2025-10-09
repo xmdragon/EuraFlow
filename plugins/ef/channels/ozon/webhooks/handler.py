@@ -502,7 +502,8 @@ class OzonWebhookHandler:
         
         logger.info(f"Product {product_id} price changed: {old_price} -> {new_price}")
 
-        from ..models.products import OzonProduct, OzonPriceHistory
+        from ..models import OzonProduct
+        from ..models.products import OzonPriceHistory
         from decimal import Decimal
 
         db_manager = get_db_manager()
@@ -554,7 +555,7 @@ class OzonWebhookHandler:
         
         logger.info(f"Product {product_id} stock changed: {old_stock} -> {new_stock}")
 
-        from ..models.products import OzonProduct
+        from ..models import OzonProduct
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
