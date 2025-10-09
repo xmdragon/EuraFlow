@@ -58,6 +58,9 @@ async def get_shop_and_client(
             shop_id=shop.id
         )
 
+        # 让shop对象脱离session，避免session关闭后无法访问
+        session.expunge(shop)
+
         return shop, client
 
 
