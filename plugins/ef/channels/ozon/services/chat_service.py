@@ -503,7 +503,7 @@ class OzonChatService:
             unread_count=chat_data.get("unread_count", 0),
             last_message_at=self._parse_datetime(chat_data.get("last_message_at")),
             last_message_preview=chat_data.get("last_message_preview"),
-            metadata=chat_data
+            extra_data=chat_data
         )
 
     def _update_chat_from_api(self, chat: OzonChat, chat_data: Dict[str, Any]) -> None:
@@ -522,7 +522,7 @@ class OzonChatService:
             chat.last_message_at = last_message_at
 
         chat.last_message_preview = chat_data.get("last_message_preview", chat.last_message_preview)
-        chat.metadata = chat_data
+        chat.extra_data = chat_data
         chat.updated_at = datetime.utcnow()
 
     def _parse_datetime(self, dt_str: Optional[str]) -> Optional[datetime]:
