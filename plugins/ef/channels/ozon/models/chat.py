@@ -2,7 +2,7 @@
 OZON聊天消息数据模型
 处理买家和客服的聊天消息
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import (
@@ -12,6 +12,11 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 
 from ef_core.database import Base
+
+
+def utcnow():
+    """返回UTC时区的当前时间"""
+    return datetime.now(timezone.utc)
 
 
 class OzonChatMessage(Base):
@@ -52,8 +57,8 @@ class OzonChatMessage(Base):
     # 时间
     read_at = Column(DateTime)  # 已读时间
     edited_at = Column(DateTime)  # 编辑时间
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
         Index("idx_ozon_chat_shop_chat", "shop_id", "chat_id", "created_at"),
@@ -102,8 +107,8 @@ class OzonChat(Base):
 
     # 时间
     closed_at = Column(DateTime)  # 关闭时间
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
         Index("idx_ozon_chat_shop_status", "shop_id", "status", "last_message_at"),

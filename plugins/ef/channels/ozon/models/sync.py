@@ -1,7 +1,7 @@
 """
 同步和运维相关数据模型
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import (
@@ -11,6 +11,11 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 
 from ef_core.database import Base
+
+
+def utcnow():
+    """返回UTC时区的当前时间"""
+    return datetime.now(timezone.utc)
 
 
 class OzonSyncCheckpoint(Base):
@@ -41,8 +46,8 @@ class OzonSyncCheckpoint(Base):
     # 配置
     config = Column(JSONB)  # 同步配置（批次大小、筛选条件等）
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     __table_args__ = (
         UniqueConstraint("shop_id", "entity_type", name="uq_ozon_checkpoint"),
@@ -85,7 +90,7 @@ class OzonSyncLog(Base):
     started_at = Column(DateTime, nullable=False)
     completed_at = Column(DateTime)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_sync_log_shop", "shop_id", "entity_type", "started_at"),
@@ -130,8 +135,8 @@ class OzonWebhookEvent(Base):
     entity_type = Column(String(50))  # order/posting/product等
     entity_id = Column(String(100))  # 关联的实体ID
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_webhook_status", "status", "created_at"),
@@ -205,7 +210,7 @@ class OzonOutboxEvent(Base):
     # 错误信息
     error_message = Column(String(1000))
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_outbox_status", "status", "next_retry_at"),

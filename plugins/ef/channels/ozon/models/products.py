@@ -1,7 +1,7 @@
 """
 Ozon 商品相关数据模型
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional, Dict, Any, List
 
@@ -13,6 +13,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
 from ef_core.database import Base
+
+
+def utcnow():
+    """返回UTC时区的当前时间"""
+    return datetime.now(timezone.utc)
 
 
 class OzonProduct(Base):
@@ -79,8 +84,8 @@ class OzonProduct(Base):
     
     # 时间戳
     ozon_created_at = Column(DateTime, comment="OZON平台创建时间")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # 关系
     variants = relationship("OzonProductVariant", back_populates="product", cascade="all, delete-orphan")
@@ -123,8 +128,8 @@ class OzonProductVariant(Base):
     # 图片
     images = Column(JSONB)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # 关系
     product = relationship("OzonProduct", back_populates="variants")
@@ -153,7 +158,7 @@ class OzonProductAttribute(Base):
     # 是否必填
     is_required = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     
     # 关系
     product = relationship("OzonProduct", back_populates="attributes")
@@ -183,8 +188,8 @@ class OzonPriceHistory(Base):
     source = Column(String(50))  # manual/rule/competitor/promotion
     
     # 生效时间
-    effective_at = Column(DateTime, default=datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    effective_at = Column(DateTime, default=utcnow)
+    created_at = Column(DateTime, default=utcnow)
     
     # 关系
     product = relationship("OzonProduct", back_populates="price_history")
@@ -219,7 +224,7 @@ class OzonInventorySnapshot(Base):
     reconciliation_status = Column(String(50))  # pending/matched/mismatched
     discrepancies = Column(JSONB)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     
     __table_args__ = (
         Index("idx_ozon_inventory_snapshot", "shop_id", "snapshot_date"),
