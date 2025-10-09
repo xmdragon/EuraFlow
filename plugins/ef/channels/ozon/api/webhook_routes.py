@@ -44,13 +44,17 @@ def ozon_success_response(request_time: str = None):
     # 优先使用OZON发送的时间，如果没有则使用当前时间
     response_time = request_time if request_time else datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    response_content = {
+        "version": "1.0",
+        "name": "EuraFlow",
+        "time": response_time
+    }
+
+    logger.info(f"WEBHOOK RESPONSE (SUCCESS): HTTP 200, content={response_content}")
+
     return JSONResponse(
         status_code=200,
-        content={
-            "version": "1.0",
-            "name": "EuraFlow",
-            "time": response_time
-        }
+        content=response_content
     )
 
 
@@ -67,15 +71,19 @@ def ozon_error_response(status_code: int, error_code: str, message: str, details
         message: 错误描述
         details: 更多信息（可选）
     """
+    response_content = {
+        "error": {
+            "code": error_code,
+            "message": message,
+            "details": details
+        }
+    }
+
+    logger.warning(f"WEBHOOK RESPONSE (ERROR): HTTP {status_code}, content={response_content}")
+
     return JSONResponse(
         status_code=status_code,
-        content={
-            "error": {
-                "code": error_code,
-                "message": message,
-                "details": details
-            }
-        }
+        content=response_content
     )
 
 
@@ -111,11 +119,42 @@ async def receive_webhook(
         # 获取原始请求体（只读取一次，避免stream被消费）
         raw_body = await request.body()
 
+        # ========== 详细日志记录：OZON请求诊断 ==========
+        logger.info("=" * 80)
+        logger.info("WEBHOOK REQUEST RECEIVED - DETAILED LOG")
+        logger.info("=" * 80)
+
+        # 记录所有请求头
+        logger.info("REQUEST HEADERS:")
+        for key, value in headers.items():
+            # 脱敏处理：如果是签名，只显示前10个字符
+            if key.lower() in ['x-ozon-signature', 'authorization']:
+                logger.info(f"  {key}: {value[:10]}..." if len(value) > 10 else f"  {key}: {value}")
+            else:
+                logger.info(f"  {key}: {value}")
+
+        # 记录原始请求体（限制长度）
+        logger.info(f"\nRAW BODY (first 500 chars):")
+        logger.info(f"  {raw_body[:500].decode('utf-8', errors='replace') if raw_body else 'EMPTY'}")
+        logger.info(f"  Body length: {len(raw_body) if raw_body else 0} bytes")
+
+        # 记录关键头部
+        logger.info(f"\nKEY HEADERS:")
+        logger.info(f"  User-Agent: {headers.get('user-agent', 'MISSING')}")
+        logger.info(f"  Content-Type: {headers.get('content-type', 'MISSING')}")
+        logger.info(f"  X-Ozon-Signature: {headers.get('x-ozon-signature', 'MISSING')[:20] if headers.get('x-ozon-signature') else 'MISSING'}...")
+        logger.info(f"  X-Event-Type: {headers.get('x-event-type', 'MISSING')}")
+        logger.info(f"  X-Event-Id: {headers.get('x-event-id', 'MISSING')}")
+
+        logger.info("=" * 80)
+
         # 手动解析JSON（从raw_body解析，不能再调用request.json()）
         try:
             payload = json.loads(raw_body) if raw_body else {}
+            logger.info(f"PARSED PAYLOAD: {payload}")
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse webhook payload: {e}")
+            logger.error(f"Raw body that failed to parse: {raw_body}")
             # OZON期望即使JSON解析失败也返回200（EMPTY_BODY/WRONG_BODY测试）
             if is_ozon_request(headers):
                 logger.warning(f"OZON request with invalid JSON, returning 200: {e}")
@@ -130,13 +169,20 @@ async def receive_webhook(
 
         # 提取OZON发送的时间（用于回显）
         request_time = payload.get("time")
+        logger.info(f"REQUEST TIME from payload: {request_time}")
 
         # 提取事件类型：优先使用X-Event-Type头，fallback到payload的message_type
         # 根据OZON文档，实际事件类型在payload的message_type字段中（TYPE_PING, TYPE_NEW_POSTING等）
         event_type = x_event_type
+        logger.info(f"EVENT TYPE extraction:")
+        logger.info(f"  X-Event-Type header: {x_event_type or 'MISSING'}")
+        logger.info(f"  message_type in payload: {payload.get('message_type', 'MISSING')}")
+
         if not event_type and "message_type" in payload:
             event_type = payload["message_type"]
-            logger.info(f"Using message_type from payload: {event_type}")
+            logger.info(f"  → Using message_type from payload: {event_type}")
+        else:
+            logger.info(f"  → Using X-Event-Type header: {event_type or 'NONE'}")
 
         # 基本验证：如果两者都没有，检查是否是OZON验证请求
         if not event_type:
