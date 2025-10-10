@@ -313,8 +313,12 @@ const OrderList: React.FC = () => {
 
   // 同步订单
   const syncOrdersMutation = useMutation({
-    mutationFn: ({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) =>
-      ozonApi.syncOrders(selectedShop, dateFrom, dateTo),
+    mutationFn: (fullSync: boolean) => {
+      if (!selectedShop) {
+        throw new Error('请先选择店铺');
+      }
+      return ozonApi.syncOrdersDirect(selectedShop, fullSync ? 'full' : 'incremental');
+    },
     onSuccess: (data) => {
       message.success('订单同步任务已启动');
       setSyncTaskId(data.task_id);
@@ -572,15 +576,18 @@ const OrderList: React.FC = () => {
     });
   };
 
-  const handleSync = () => {
+  const handleSync = (fullSync: boolean) => {
     if (!selectedShop) {
       message.warning('请先选择店铺');
       return;
     }
-    const dateRange = filterForm.getFieldValue('dateRange');
-    syncOrdersMutation.mutate({
-      dateFrom: dateRange?.[0]?.format('YYYY-MM-DD'),
-      dateTo: dateRange?.[1]?.format('YYYY-MM-DD'),
+
+    confirm({
+      title: fullSync ? '确认执行全量同步？' : '确认执行增量同步？',
+      content: fullSync ? '全量同步将拉取所有历史订单数据，耗时较长' : '增量同步将只拉取最近7天的订单',
+      onOk: () => {
+        syncOrdersMutation.mutate(fullSync);
+      },
     });
   };
 
@@ -737,11 +744,19 @@ const OrderList: React.FC = () => {
           <Button
             type="primary"
             icon={<SyncOutlined />}
-            onClick={handleSync}
+            onClick={() => handleSync(false)}
             loading={syncOrdersMutation.isPending}
             disabled={!selectedShop}
           >
-            同步订单
+            增量同步
+          </Button>
+          <Button
+            icon={<SyncOutlined />}
+            onClick={() => handleSync(true)}
+            loading={syncOrdersMutation.isPending}
+            disabled={!selectedShop}
+          >
+            全量同步
           </Button>
           <Button
             icon={<TruckOutlined />}
