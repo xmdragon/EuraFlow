@@ -113,12 +113,11 @@ class OzonSyncService:
                 logger.info(f"Incremental sync: fetching products changed since {last_sync_time}")
 
             # 需要同步的不同状态
-            # 注意：OZON API不支持ARCHIVED作为visibility类型
-            # 归档商品需要通过filter的visibility和archived参数组合获取
+            # 注意：OZON API的archived参数实际上是过滤掉归档商品，不是获取归档商品
+            # 我们只同步VISIBLE和INVISIBLE，归档商品通过商品详情中的archived字段识别
             visibility_filters = [
                 ({"visibility": "VISIBLE"}, "可见商品"),
                 ({"visibility": "INVISIBLE"}, "不可见商品"),
-                ({"visibility": "ALL", "archived": True}, "归档商品"),  # 获取归档商品
             ]
 
             all_synced_products = []  # 存储所有同步的商品
