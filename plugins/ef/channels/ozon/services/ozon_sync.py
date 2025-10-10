@@ -818,11 +818,12 @@ class OzonSyncService:
                 SYNC_TASKS[task_id]["message"] = f"正在同步订单 {item.get('posting_number', 'unknown')}..."
 
                 # 检查订单是否存在（使用 ozon_order_id）
+                # 注意：使用limit(1)处理历史重复数据
                 existing = await db.execute(
                     select(OzonOrder).where(
                         OzonOrder.shop_id == shop_id,
                         OzonOrder.ozon_order_id == str(item.get("order_id", ""))
-                    )
+                    ).limit(1)
                 )
                 order = existing.scalar_one_or_none()
 
@@ -974,11 +975,12 @@ class OzonSyncService:
                 # 处理这一批订单
                 for idx, item in enumerate(items):
                     # 检查订单是否存在（使用 ozon_order_id）
+                    # 注意：使用first()而不是scalar_one_or_none()，因为可能存在历史重复数据
                     existing = await db.execute(
                         select(OzonOrder).where(
                             OzonOrder.shop_id == shop_id,
                             OzonOrder.ozon_order_id == str(item.get("order_id", ""))
-                        )
+                        ).limit(1)
                     )
                     order = existing.scalar_one_or_none()
 
