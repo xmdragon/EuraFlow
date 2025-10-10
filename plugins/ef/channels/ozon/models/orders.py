@@ -95,6 +95,33 @@ class OzonOrder(Base):
         Index("idx_ozon_orders_sync", "sync_status", "last_sync_at")
     )
 
+    def to_dict(self):
+        """转换为字典，包含关联的商品明细"""
+        # 调用父类方法获取基础字段
+        result = super().to_dict()
+
+        # 添加关联的商品明细
+        if self.items:
+            result['items'] = [
+                {
+                    'id': item.id,
+                    'sku': item.sku,
+                    'offer_id': item.offer_id,
+                    'ozon_sku': item.ozon_sku,
+                    'name': item.name,
+                    'quantity': item.quantity,
+                    'price': str(item.price),
+                    'discount': str(item.discount),
+                    'total_amount': str(item.total_amount),
+                    'status': item.status
+                }
+                for item in self.items
+            ]
+        else:
+            result['items'] = []
+
+        return result
+
 
 class OzonPosting(Base):
     """Ozon 发货单（Posting维度）"""
