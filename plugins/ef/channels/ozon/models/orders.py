@@ -169,11 +169,11 @@ class OzonPosting(Base):
     
     # 发货信息
     shipment_date = Column(DateTime(timezone=True))
-    delivery_method_id = Column(Integer)
+    delivery_method_id = Column(BigInteger)  # OZON API可能返回超大ID
     delivery_method_name = Column(String(200))
-    
+
     # 仓库
-    warehouse_id = Column(Integer)
+    warehouse_id = Column(BigInteger)  # OZON API可能返回超大ID
     warehouse_name = Column(String(200))
     
     # 包裹信息
