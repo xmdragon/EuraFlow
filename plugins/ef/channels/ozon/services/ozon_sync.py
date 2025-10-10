@@ -12,7 +12,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import OzonShop, OzonProduct, OzonOrder
+from ..models import OzonShop, OzonProduct, OzonOrder, OzonOrderItem
 from ..api.client import OzonAPIClient
 from ..utils.datetime_utils import parse_datetime, utcnow
 
@@ -850,6 +850,13 @@ class OzonSyncService:
                     order.last_sync_at = utcnow()
                     db.add(order)
 
+                # Flush确保order获得id，然后同步订单明细
+                await db.flush()
+
+                # 同步订单商品明细
+                products_data = item.get("products", [])
+                await OzonSyncService._sync_order_items(db, order, products_data)
+
                 # 立即提交每个订单（用于调试）
                 try:
                     await db.commit()
@@ -992,6 +999,13 @@ class OzonSyncService:
                         order.sync_status = "success"
                         order.last_sync_at = utcnow()
                         db.add(order)
+
+                    # Flush确保order获得id，然后同步订单明细
+                    await db.flush()
+
+                    # 同步订单商品明细
+                    products_data = item.get("products", [])
+                    await OzonSyncService._sync_order_items(db, order, products_data)
 
                     total_synced += 1
 
@@ -1143,6 +1157,82 @@ class OzonSyncService:
         })
 
         return order_data
+
+    @staticmethod
+    async def _sync_order_items(db: AsyncSession, order: OzonOrder, products_data: list) -> None:
+        """同步订单商品明细
+
+        Args:
+            db: 数据库会话
+            order: 订单对象
+            products_data: API返回的商品数组
+        """
+        if not products_data:
+            return
+
+        # 获取现有明细（用于更新/删除）
+        existing_items_result = await db.execute(
+            select(OzonOrderItem).where(OzonOrderItem.order_id == order.id)
+        )
+        existing_items = {item.sku: item for item in existing_items_result.scalars().all()}
+
+        synced_skus = set()
+
+        # 遍历API返回的商品
+        for product in products_data:
+            sku = product.get("sku", "")
+            if not sku:
+                logger.warning(f"Product without SKU in order {order.order_id}: {product}")
+                continue
+
+            synced_skus.add(sku)
+
+            # 解析商品数据
+            quantity = product.get("quantity", 1)
+            price = safe_decimal_conversion(product.get("price", 0)) or Decimal("0")
+
+            # 计算折扣
+            offer_id = product.get("offer_id", "")
+            name = product.get("name", "")
+
+            # 计算总价
+            total_amount = price * quantity
+
+            # 检查是否已存在
+            if sku in existing_items:
+                # 更新现有明细
+                item = existing_items[sku]
+                item.quantity = quantity
+                item.price = price
+                item.total_amount = total_amount
+                item.name = name
+                item.offer_id = offer_id
+                # 状态继承订单状态
+                item.status = order.status
+            else:
+                # 创建新明细
+                item = OzonOrderItem(
+                    order_id=order.id,
+                    sku=sku,
+                    offer_id=offer_id,
+                    name=name,
+                    quantity=quantity,
+                    price=price,
+                    discount=Decimal("0"),  # OZON API暂不返回单品折扣
+                    total_amount=total_amount,
+                    status=order.status,
+                )
+                db.add(item)
+
+        # 删除不再存在的明细（订单更新时商品被移除）
+        for sku, item in existing_items.items():
+            if sku not in synced_skus:
+                db.delete(item)
+
+        logger.info(
+            f"Synced {len(synced_skus)} items for order {order.order_id}",
+            extra={"order_id": order.order_id, "items_count": len(synced_skus)}
+        )
 
     @staticmethod
     def get_task_status(task_id: str) -> Optional[Dict[str, Any]]:
