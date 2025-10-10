@@ -931,8 +931,8 @@ class OzonSyncService:
             SYNC_TASKS[task_id]["message"] = "正在连接Ozon API..."
 
             total_synced = 0
-            # 全量同步：从很久以前开始（比如1年前）
-            date_from = utcnow() - timedelta(days=365)
+            # 全量同步：OZON API限制最大364天，设置为360天（约1年）更安全
+            date_from = utcnow() - timedelta(days=360)
             date_to = utcnow()
 
             SYNC_TASKS[task_id]["message"] = "正在获取所有历史订单..."
@@ -953,9 +953,11 @@ class OzonSyncService:
                     )
                 except Exception as e:
                     logger.error(f"Failed to fetch orders batch at offset {offset}: {e}")
-                    break
+                    raise  # 重新抛出异常，让任务状态变为failed而不是completed
 
-                items = orders_data.get("result", {}).get("postings", [])
+                result = orders_data.get("result", {})
+                items = result.get("postings", [])
+                has_next = result.get("has_next", False)
 
                 if not items:
                     has_more = False
@@ -965,6 +967,9 @@ class OzonSyncService:
                 progress = 10 + (80 * total_synced / max(1000, total_synced + len(items)))
                 SYNC_TASKS[task_id]["progress"] = min(progress, 90)
                 SYNC_TASKS[task_id]["message"] = f"正在同步第{offset + 1}-{offset + len(items)}个订单..."
+
+                # 记录分页信息
+                logger.info(f"Batch at offset {offset}: got {len(items)} orders, has_next={has_next}")
 
                 # 处理这一批订单
                 for idx, item in enumerate(items):
@@ -1018,11 +1023,13 @@ class OzonSyncService:
                 # 每批次提交一次，避免事务过大
                 await db.commit()
 
-                offset += batch_size
-
-                # 如果返回的数量小于批次大小，说明没有更多数据了
-                if len(items) < batch_size:
+                # 根据API返回的has_next判断是否继续
+                # 如果API没有返回has_next，则通过items数量判断
+                if not has_next or len(items) < batch_size:
                     has_more = False
+                    logger.info(f"No more orders to fetch: has_next={has_next}, items_count={len(items)}")
+                else:
+                    offset += batch_size
 
             # 更新店铺最后同步时间
             shop.last_sync_at = utcnow()
