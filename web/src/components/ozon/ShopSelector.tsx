@@ -60,6 +60,8 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
 
     if (!isMultiple && value === undefined && selectedShop === null && shops.length > 0) {
       const savedShopId = localStorage.getItem('ozon_selected_shop');
+
+      // 如果有保存的店铺ID且不是'all'，尝试使用
       if (savedShopId && savedShopId !== 'all') {
         const shopId = parseInt(savedShopId, 10);
         if (shops.find((s) => s.id === shopId)) {
@@ -69,10 +71,12 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         }
       }
 
-      // 自动选择第一个店铺
+      // 否则自动选择第一个店铺
       const shopId = shops[0].id;
       setSelectedShop(shopId);
       onChange?.(shopId);
+      // 更新 localStorage
+      localStorage.setItem('ozon_selected_shop', shopId.toString());
     }
   }, [shops, selectedShop, onChange, value, isMultiple]);
 

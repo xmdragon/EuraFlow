@@ -379,7 +379,7 @@ const OrderList: React.FC = () => {
   // 表格列定义
   const columns: any[] = [
     {
-      title: 'Posting号',
+      title: '货件编号',
       dataIndex: 'posting_number',
       key: 'posting_number',
       width: 150,
@@ -639,7 +639,7 @@ const OrderList: React.FC = () => {
                   const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
                   setSelectedShop(normalized);
                 }}
-                showAllOption={true}
+                showAllOption={false}
                 style={{ minWidth: 200 }}
               />
             </Space>

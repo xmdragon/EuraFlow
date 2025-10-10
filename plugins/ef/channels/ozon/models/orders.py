@@ -96,7 +96,7 @@ class OzonOrder(Base):
     )
 
     def to_dict(self):
-        """转换为字典，包含关联的商品明细"""
+        """转换为字典，包含关联的商品明细和posting信息"""
         # 调用父类方法获取基础字段
         result = super().to_dict()
 
@@ -119,6 +119,34 @@ class OzonOrder(Base):
             ]
         else:
             result['items'] = []
+
+        # 添加第一个posting的关键信息到订单级别（便于前端显示）
+        if self.postings and len(self.postings) > 0:
+            first_posting = self.postings[0]
+            result['posting_number'] = first_posting.posting_number
+            result['posting_status'] = first_posting.status
+            result['in_process_at'] = first_posting.in_process_at.isoformat() if first_posting.in_process_at else None
+            result['warehouse_name'] = first_posting.warehouse_name
+
+            # 添加完整的postings列表
+            result['postings'] = [
+                {
+                    'id': posting.id,
+                    'posting_number': posting.posting_number,
+                    'status': posting.status,
+                    'warehouse_name': posting.warehouse_name,
+                    'delivery_method_name': posting.delivery_method_name,
+                    'shipped_at': posting.shipped_at.isoformat() if posting.shipped_at else None,
+                    'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
+                }
+                for posting in self.postings
+            ]
+        else:
+            result['posting_number'] = None
+            result['posting_status'] = None
+            result['in_process_at'] = None
+            result['warehouse_name'] = None
+            result['postings'] = []
 
         return result
 
