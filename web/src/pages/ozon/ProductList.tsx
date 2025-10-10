@@ -1405,9 +1405,9 @@ const ProductList: React.FC = () => {
                   setCurrentPage(1);
                   setSelectedRows([]);
                   // 保存到localStorage
-                  localStorage.setItem('ozon_selected_shop', normalized?.toString() || 'all');
+                  localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
                 }}
-                showAllOption={true}
+                showAllOption={false}
                 style={{ minWidth: 200 }}
               />
             </Space>
