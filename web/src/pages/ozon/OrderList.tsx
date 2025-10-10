@@ -229,10 +229,10 @@ const OrderList: React.FC = () => {
     confirmed: { color: 'processing', text: '已确认', icon: <CheckCircleOutlined /> },
     processing: { color: 'processing', text: '处理中', icon: <SyncOutlined spin /> },
     awaiting_packaging: { color: 'processing', text: '等待备货', icon: <ClockCircleOutlined /> },
-    awaiting_deliver: { color: 'processing', text: '等待发运', icon: <TruckOutlined /> },
+    awaiting_deliver: { color: 'warning', text: '等待发运', icon: <TruckOutlined /> },
     delivering: { color: 'cyan', text: '运输中', icon: <TruckOutlined /> },
     shipped: { color: 'cyan', text: '已发货', icon: <TruckOutlined /> },
-    delivered: { color: 'success', text: '已送达', icon: <CheckCircleOutlined /> },
+    delivered: { color: 'success', text: '已签收', icon: <CheckCircleOutlined /> },
     cancelled: { color: 'error', text: '已取消', icon: <CloseCircleOutlined /> },
   };
 
@@ -600,15 +600,14 @@ const OrderList: React.FC = () => {
     message.info('批量发货功能开发中');
   };
 
-  // 统计数据 - 使用API返回的总数，详细分类从当前页数据计算
-  const orders = ordersData?.data || [];
-  const stats = {
-    total: ordersData?.total || 0, // 使用API返回的真实总数
-    pending: orders.filter((o) => o.status === 'pending').length,
-    processing: orders.filter((o) => ['processing', 'awaiting_packaging', 'awaiting_deliver'].includes(o.status)).length,
-    shipped: orders.filter((o) => ['shipped', 'delivering'].includes(o.status)).length,
-    delivered: orders.filter((o) => o.status === 'delivered').length,
-    cancelled: orders.filter((o) => o.status === 'cancelled').length,
+  // 统计数据 - 使用API返回的全局统计数据
+  const stats = ordersData?.stats || {
+    total: 0,
+    awaiting_packaging: 0,
+    awaiting_deliver: 0,
+    delivering: 0,
+    delivered: 0,
+    cancelled: 0,
   };
 
   return (
@@ -708,7 +707,7 @@ const OrderList: React.FC = () => {
           items={[
             {
               label: (
-                <Badge count={stats.total} offset={[10, 0]}>
+                <Badge count={stats.total} offset={[10, 0]} overflowCount={999}>
                   全部
                 </Badge>
               ),
@@ -716,39 +715,39 @@ const OrderList: React.FC = () => {
             },
             {
               label: (
-                <Badge count={stats.pending} offset={[10, 0]}>
-                  待处理
+                <Badge count={stats.awaiting_packaging} offset={[10, 0]} overflowCount={999}>
+                  等待备货
                 </Badge>
               ),
-              key: 'pending',
+              key: 'awaiting_packaging',
             },
             {
               label: (
-                <Badge count={stats.processing} offset={[10, 0]}>
-                  处理中
+                <Badge count={stats.awaiting_deliver} offset={[10, 0]} overflowCount={999}>
+                  等待发运
                 </Badge>
               ),
-              key: 'processing',
+              key: 'awaiting_deliver',
             },
             {
               label: (
-                <Badge count={stats.shipped} offset={[10, 0]}>
-                  已发货
+                <Badge count={stats.delivering} offset={[10, 0]} overflowCount={999}>
+                  运输中
                 </Badge>
               ),
-              key: 'shipped',
+              key: 'delivering',
             },
             {
               label: (
-                <Badge count={stats.delivered} offset={[10, 0]}>
-                  已送达
+                <Badge count={stats.delivered} offset={[10, 0]} overflowCount={999}>
+                  已签收
                 </Badge>
               ),
               key: 'delivered',
             },
             {
               label: (
-                <Badge count={stats.cancelled} offset={[10, 0]}>
+                <Badge count={stats.cancelled} offset={[10, 0]} overflowCount={999}>
                   已取消
                 </Badge>
               ),

@@ -1741,9 +1741,36 @@ async def get_orders(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
+    # 计算全局统计（所有状态，不受当前status筛选影响）
+    # 只按shop_id筛选，包含所有状态的统计
+    stats_query = select(
+        OzonOrder.status,
+        func.count(OzonOrder.id).label('count')
+    )
+    if shop_id:
+        stats_query = stats_query.where(OzonOrder.shop_id == shop_id)
+    stats_query = stats_query.group_by(OzonOrder.status)
+
+    stats_result = await db.execute(stats_query)
+    status_counts = {row.status: row.count for row in stats_result}
+
+    # 构建统计数据字典
+    global_stats = {
+        "total": sum(status_counts.values()),
+        "awaiting_packaging": status_counts.get('awaiting_packaging', 0),
+        "awaiting_deliver": status_counts.get('awaiting_deliver', 0),
+        "delivering": status_counts.get('delivering', 0),
+        "delivered": status_counts.get('delivered', 0),
+        "cancelled": status_counts.get('cancelled', 0),
+        # 其他可能的状态
+        "pending": status_counts.get('pending', 0),
+        "processing": status_counts.get('processing', 0),
+        "confirmed": status_counts.get('confirmed', 0),
+    }
+
     # 添加分页
     query = query.offset(offset).limit(limit).order_by(OzonOrder.ordered_at.desc())
-    
+
     # 执行查询
     result = await db.execute(query)
     orders = result.scalars().all()
@@ -1790,6 +1817,7 @@ async def get_orders(
         "total": total,
         "offset": offset,
         "limit": limit,
+        "stats": global_stats,  # 全局统计数据
         "offer_id_images": offer_id_images  # 额外返回offer_id图片映射，前端可选使用
     }
 
