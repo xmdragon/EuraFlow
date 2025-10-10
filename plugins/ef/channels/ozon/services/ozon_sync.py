@@ -1180,7 +1180,8 @@ class OzonSyncService:
 
         # 遍历API返回的商品
         for product in products_data:
-            sku = product.get("sku", "")
+            # SKU可能是整数，需要转换为字符串
+            sku = str(product.get("sku", "")) if product.get("sku") else ""
             if not sku:
                 logger.warning(f"Product without SKU in order {order.order_id}: {product}")
                 continue
@@ -1191,8 +1192,8 @@ class OzonSyncService:
             quantity = product.get("quantity", 1)
             price = safe_decimal_conversion(product.get("price", 0)) or Decimal("0")
 
-            # 计算折扣
-            offer_id = product.get("offer_id", "")
+            # offer_id也可能是整数，转换为字符串
+            offer_id = str(product.get("offer_id", "")) if product.get("offer_id") else ""
             name = product.get("name", "")
 
             # 计算总价
