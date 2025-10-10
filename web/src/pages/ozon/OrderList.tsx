@@ -499,7 +499,7 @@ const OrderList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 100,
       fixed: 'right',
       render: (_: any, record: ozonApi.Order) => {
         const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(record.status);
@@ -507,14 +507,6 @@ const OrderList: React.FC = () => {
 
         return (
           <Space size="small">
-            <Button
-              type="link"
-              size="small"
-              onClick={() => showOrderDetail(record)}
-              style={{ padding: 0 }}
-            >
-              查看
-            </Button>
             {canShip && (
               <Button
                 type="link"
@@ -618,7 +610,7 @@ const OrderList: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       {/* 同步进度显示 */}
       {syncStatus && syncStatus.status === 'running' && (
         <Alert
@@ -641,7 +633,7 @@ const OrderList: React.FC = () => {
       )}
 
       {/* 搜索过滤 */}
-      <Card style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
         <Row style={{ marginBottom: 16 }}>
           <Col flex="auto">
             <Space size="large">
@@ -703,7 +695,7 @@ const OrderList: React.FC = () => {
       </Card>
 
       {/* 订单列表 */}
-      <Card>
+      <Card bodyStyle={{ padding: 16 }}>
         {/* 状态标签页 */}
         <Tabs
           activeKey={activeTab}
