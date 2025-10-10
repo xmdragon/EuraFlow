@@ -95,8 +95,14 @@ class OzonSyncService:
             last_id = ""
             total_products = 0  # 总商品数，用于准确计算进度
             estimated_total = 0  # 估计的总数
-            inactive_count = 0  # 统计不活跃商品数量
-            archived_count = 0  # 统计归档商品数量
+
+            # 状态统计计数器
+            on_sale_count = 0  # 销售中
+            ready_to_sell_count = 0  # 准备销售
+            error_count = 0  # 错误
+            pending_modification_count = 0  # 待修改
+            inactive_count = 0  # 已下架
+            archived_count = 0  # 已归档
 
             # 增量同步：设置时间过滤
             filter_params = {}
@@ -392,17 +398,30 @@ class OzonSyncService:
                                 has_price = True
                                 has_stock = True
 
-                            # 新的5种状态映射逻辑
+                            # 新的5种状态映射逻辑 - 优先级修复版
                             visibility_type = item.get("_sync_visibility_type", "UNKNOWN")
 
                             # 判断状态原因
                             status_reason = None
 
-                            if product.ozon_archived or product.is_archived:
+                            # ===== 优先级1: 归档状态（最高优先级）=====
+                            # 检查多个归档字段，任一为真即判定为归档
+                            is_archived = (
+                                product.ozon_archived or
+                                product.is_archived or
+                                (product_details and (
+                                    product_details.get("is_archived", False) or
+                                    product_details.get("is_autoarchived", False)
+                                ))
+                            )
+
+                            if is_archived:
                                 product.status = "archived"
                                 product.ozon_status = "archived"
                                 status_reason = "商品已归档"
                                 archived_count += 1
+
+                            # ===== 优先级2: INVISIBLE商品细分 =====
                             elif visibility_type == "INVISIBLE":
                                 # INVISIBLE商品需要进一步区分
                                 # 检查是否有错误信息（如违规、审核不通过）
@@ -410,22 +429,27 @@ class OzonSyncService:
                                     product.status = "error"
                                     product.ozon_status = "error"
                                     status_reason = "商品信息有误或违规"
+                                    error_count += 1
                                 # 检查是否需要修改（如待审核、待补充信息）
                                 elif product_details and product_details.get("moderation_status") == "PENDING":
                                     product.status = "pending_modification"
                                     product.ozon_status = "pending_modification"
                                     status_reason = "商品待修改或审核中"
+                                    pending_modification_count += 1
                                 else:
                                     product.status = "inactive"
                                     product.ozon_status = "inactive"
                                     status_reason = "商品已下架"
+                                    inactive_count += 1
                                 product.visibility = False  # 确保visibility为False
-                                inactive_count += 1
+
+                            # ===== 优先级3: VISIBLE商品细分 =====
                             elif visibility_details.get("has_price", True) and visibility_details.get("has_stock", True):
                                 # 既有价格又有库存，商品在售
                                 product.status = "on_sale"
                                 product.ozon_status = "on_sale"
                                 status_reason = "商品正常销售中"
+                                on_sale_count += 1
                             elif not visibility_details.get("has_price", True) or not visibility_details.get("has_stock", True):
                                 # 缺少价格或库存，准备销售状态
                                 product.status = "ready_to_sell"
@@ -434,14 +458,17 @@ class OzonSyncService:
                                     status_reason = "商品缺少价格信息"
                                 else:
                                     status_reason = "商品缺少库存"
+                                ready_to_sell_count += 1
                             elif not price or price == "0" or price == "0.0000":
                                 product.status = "ready_to_sell"
                                 product.ozon_status = "ready_to_sell"
                                 status_reason = "商品价格为0"
+                                ready_to_sell_count += 1
                             elif not product.ozon_has_fbo_stocks and not product.ozon_has_fbs_stocks:
                                 product.status = "ready_to_sell"
                                 product.ozon_status = "ready_to_sell"
                                 status_reason = "商品无任何库存"
+                                ready_to_sell_count += 1
                             else:
                                 product.status = "inactive"
                                 product.ozon_status = "inactive"
@@ -562,7 +589,7 @@ class OzonSyncService:
                                 if product_details.get("is_archived") or product_details.get("is_autoarchived"):
                                     product.ozon_archived = True
 
-                            # 新建商品也使用5种状态映射
+                            # 新建商品也使用5种状态映射 - 优先级修复版
                             visibility_type = item.get("_sync_visibility_type", "UNKNOWN")
                             visibility_details = product_details.get("visibility_details", {}) if product_details else {}
                             product.ozon_visibility_details = visibility_details if visibility_details else None
@@ -570,11 +597,24 @@ class OzonSyncService:
                             # 判断状态原因
                             status_reason = None
 
-                            if product.ozon_archived or product.is_archived:
+                            # ===== 优先级1: 归档状态（最高优先级）=====
+                            # 检查多个归档字段，任一为真即判定为归档
+                            is_archived = (
+                                product.ozon_archived or
+                                product.is_archived or
+                                (product_details and (
+                                    product_details.get("is_archived", False) or
+                                    product_details.get("is_autoarchived", False)
+                                ))
+                            )
+
+                            if is_archived:
                                 product.status = "archived"
                                 product.ozon_status = "archived"
                                 status_reason = "商品已归档"
                                 archived_count += 1
+
+                            # ===== 优先级2: INVISIBLE商品细分 =====
                             elif visibility_type == "INVISIBLE":
                                 # INVISIBLE商品需要进一步区分
                                 # 检查是否有错误信息
@@ -582,22 +622,27 @@ class OzonSyncService:
                                     product.status = "error"
                                     product.ozon_status = "error"
                                     status_reason = "商品信息有误或违规"
+                                    error_count += 1
                                 # 检查是否需要修改
                                 elif product_details and product_details.get("moderation_status") == "PENDING":
                                     product.status = "pending_modification"
                                     product.ozon_status = "pending_modification"
                                     status_reason = "商品待修改或审核中"
+                                    pending_modification_count += 1
                                 else:
                                     product.status = "inactive"
                                     product.ozon_status = "inactive"
                                     status_reason = "商品已下架"
+                                    inactive_count += 1
                                 product.visibility = False
-                                inactive_count += 1
+
+                            # ===== 优先级3: VISIBLE商品细分 =====
                             elif visibility_details.get("has_price", True) and visibility_details.get("has_stock", True):
                                 # 既有价格又有库存，商品在售
                                 product.status = "on_sale"
                                 product.ozon_status = "on_sale"
                                 status_reason = "商品正常销售中"
+                                on_sale_count += 1
                             elif not visibility_details.get("has_price", True) or not visibility_details.get("has_stock", True):
                                 # 缺少价格或库存，准备销售状态
                                 product.status = "ready_to_sell"
@@ -606,18 +651,22 @@ class OzonSyncService:
                                     status_reason = "商品缺少价格信息"
                                 else:
                                     status_reason = "商品缺少库存"
+                                ready_to_sell_count += 1
                             elif not price or price == "0" or price == "0.0000":
                                 product.status = "ready_to_sell"
                                 product.ozon_status = "ready_to_sell"
                                 status_reason = "商品价格为0"
+                                ready_to_sell_count += 1
                             elif not product.ozon_has_fbo_stocks and not product.ozon_has_fbs_stocks:
                                 product.status = "ready_to_sell"
                                 product.ozon_status = "ready_to_sell"
                                 status_reason = "商品无任何库存"
+                                ready_to_sell_count += 1
                             else:
                                 product.status = "on_sale"
                                 product.ozon_status = "on_sale"
                                 status_reason = "商品正常销售中"
+                                on_sale_count += 1
 
                             # 保存状态原因
                             product.status_reason = status_reason
@@ -643,29 +692,36 @@ class OzonSyncService:
 
             logger.info(f"\n=== 同步完成 ===")
             logger.info(f"总共同步商品: {total_synced}个")
-            logger.info(f"活跃商品: {total_synced - inactive_count - archived_count}个")
-            logger.info(f"不活跃商品: {inactive_count}个")
-            logger.info(f"归档商品: {archived_count}个")
+            logger.info(f"\n状态分布统计：")
+            logger.info(f"  • 销售中 (on_sale): {on_sale_count}个")
+            logger.info(f"  • 准备销售 (ready_to_sell): {ready_to_sell_count}个")
+            logger.info(f"  • 错误 (error): {error_count}个")
+            logger.info(f"  • 待修改 (pending_modification): {pending_modification_count}个")
+            logger.info(f"  • 已下架 (inactive): {inactive_count}个")
+            logger.info(f"  • 已归档 (archived): {archived_count}个")
 
             # 更新店铺最后同步时间
             shop.last_sync_at = utcnow()
             await db.commit()
 
             # 记录最终统计
-            logger.info(f"同步完成统计: 总计={total_synced}, 不活跃={inactive_count}, 归档={archived_count}, 活跃={total_synced - inactive_count - archived_count}")
+            logger.info(f"同步完成统计: 总计={total_synced}, 销售中={on_sale_count}, 准备销售={ready_to_sell_count}, 错误={error_count}, 待修改={pending_modification_count}, 已下架={inactive_count}, 已归档={archived_count}")
 
             # 完成
             SYNC_TASKS[task_id] = {
                 "status": "completed",
                 "progress": 100,
-                "message": f"同步完成，共同步{total_synced}个商品（不活跃: {inactive_count}, 归档: {archived_count}）",
+                "message": f"同步完成，共同步{total_synced}个商品（销售中: {on_sale_count}, 准备销售: {ready_to_sell_count}, 已归档: {archived_count}）",
                 "completed_at": utcnow().isoformat(),
                 "type": "products",
                 "result": {
                     "total_synced": total_synced,
+                    "on_sale_count": on_sale_count,
+                    "ready_to_sell_count": ready_to_sell_count,
+                    "error_count": error_count,
+                    "pending_modification_count": pending_modification_count,
                     "inactive_count": inactive_count,
                     "archived_count": archived_count,
-                    "active_count": total_synced - inactive_count - archived_count
                 },
             }
 
