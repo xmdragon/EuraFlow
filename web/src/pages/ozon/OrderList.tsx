@@ -393,17 +393,17 @@ const OrderList: React.FC = () => {
         <Card
           style={{
             width: '100%',
-            marginBottom: 8,
+            marginBottom: 4,
             borderRadius: 8,
             boxShadow:
               '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
           }}
-          styles={{ body: { padding: '16px' } }}
+          styles={{ body: { padding: '10px' } }}
         >
-          <Flex gap={16} align="flex-start" wrap="wrap">
+          <Flex gap={12} align="flex-start" wrap="wrap">
             {/* 商品图片 */}
             <Avatar
-              size={80}
+              size={60}
               src={productImage || undefined}
               icon={<ShoppingCartOutlined />}
               style={{
@@ -415,7 +415,7 @@ const OrderList: React.FC = () => {
 
             {/* 订单信息 */}
             <div style={{ flex: 1, minWidth: 280 }}>
-              <div style={{ marginBottom: 8 }}>
+              <div style={{ marginBottom: 6 }}>
                 <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
                   <div>
                     <Text
@@ -449,14 +449,14 @@ const OrderList: React.FC = () => {
               </div>
 
               {/* 商品信息 */}
-              <div style={{ marginBottom: 8 }}>
+              <div style={{ marginBottom: 6 }}>
                 <Space>
                   <ShoppingCartOutlined style={{ color: '#666' }} />
                   <Text type="secondary">
                     {items.length} 种商品，共 {totalItems} 件
                   </Text>
                 </Space>
-                <div style={{ marginTop: 8 }}>
+                <div style={{ marginTop: 6 }}>
                   {items.slice(0, 2).map((item, index) => (
                     <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                       <Avatar
@@ -510,90 +510,50 @@ const OrderList: React.FC = () => {
                 </div>
               </div>
 
-              {/* 客户和配送信息 */}
-              <div style={{ marginBottom: 8 }}>
-                <Row gutter={[16, 8]}>
-                  <Col xs={24} sm={12}>
-                    <Space size="small">
-                      <PhoneOutlined style={{ color: '#666' }} />
-                      {order.customer_phone ? (
-                        <Text copyable style={{ fontSize: 13 }}>
-                          {order.customer_phone}
-                        </Text>
-                      ) : (
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          隐私保护
-                        </Text>
-                      )}
-                    </Space>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Space size="small">
-                      <EnvironmentOutlined style={{ color: '#666' }} />
-                      {order.delivery_address ? (
-                        <Tooltip
-                          title={`${order.delivery_address.region || ''}${order.delivery_address.city || ''}`}
-                        >
-                          <Text ellipsis style={{ fontSize: 13, maxWidth: 150 }}>
-                            {order.delivery_address.city || order.delivery_address.region || '部分地址'}
-                          </Text>
-                        </Tooltip>
-                      ) : (
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          地址保护
-                        </Text>
-                      )}
-                    </Space>
-                  </Col>
-                </Row>
-              </div>
-
               {/* 金额和时间信息 */}
               <div>
-                <Row gutter={[16, 12]} align="middle">
+                <Row gutter={[12, 8]} align="middle">
                   <Col xs={24} lg="auto" flex="auto">
-                    <Row gutter={[16, 8]} wrap>
+                    <Row gutter={[12, 6]} wrap>
                       <Col xs={8} sm={6} lg="auto">
                         <div>
                           <Text type="secondary" style={{ fontSize: 12 }}>
-                            商品金额
+                            价格
                           </Text>
                           <div>
                             <Text strong style={{ color: '#52c41a', fontSize: 14 }}>
                               ₽{' '}
-                              {formatPrice(order.products_price || order.products_amount || order.total_amount)}
+                              {formatPrice(order.total_price || order.total_amount)}
                             </Text>
                           </div>
                         </div>
                       </Col>
-                      {order.commission_amount && (
-                        <Col xs={8} sm={6} lg="auto">
+                      <Col xs={8} sm={6} lg="auto">
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            配送服务
+                          </Text>
                           <div>
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                              平台佣金
+                            <Text style={{ fontSize: 13 }}>
+                              {order.delivery_method || order.order_type || 'FBS'}
                             </Text>
-                            <div>
-                              <Text style={{ fontSize: 13, color: '#666' }}>
-                                ₽ {formatPrice(order.commission_amount)}
-                              </Text>
-                            </div>
                           </div>
-                        </Col>
-                      )}
-                      {order.delivery_price && (
-                        <Col xs={8} sm={6} lg="auto">
+                        </div>
+                      </Col>
+                      <Col xs={8} sm={6} lg="auto">
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            预计送达
+                          </Text>
                           <div>
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                              运费
+                            <Text style={{ fontSize: 13 }}>
+                              {order.delivery_date
+                                ? moment(order.delivery_date).format('MM-DD')
+                                : '-'}
                             </Text>
-                            <div>
-                              <Text style={{ fontSize: 13, color: '#666' }}>
-                                ₽ {formatPrice(order.delivery_price)}
-                              </Text>
-                            </div>
                           </div>
-                        </Col>
-                      )}
+                        </div>
+                      </Col>
                       <Col xs={8} sm={6} lg="auto">
                         <div>
                           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -727,8 +687,8 @@ const OrderList: React.FC = () => {
   const stats = {
     total: ordersData?.total || 0, // 使用API返回的真实总数
     pending: orders.filter((o) => o.status === 'pending').length,
-    processing: orders.filter((o) => o.status === 'processing').length,
-    shipped: orders.filter((o) => o.status === 'shipped').length,
+    processing: orders.filter((o) => ['processing', 'awaiting_packaging', 'awaiting_deliver'].includes(o.status)).length,
+    shipped: orders.filter((o) => ['shipped', 'delivering'].includes(o.status)).length,
     delivered: orders.filter((o) => o.status === 'delivered').length,
     cancelled: orders.filter((o) => o.status === 'cancelled').length,
   };
@@ -755,64 +715,6 @@ const OrderList: React.FC = () => {
           style={{ marginBottom: 16 }}
         />
       )}
-
-      {/* 统计卡片 */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="总订单数"
-              value={stats.total || 0}
-              prefix={<ShoppingCartOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="待处理"
-              value={stats.pending || 0}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="处理中"
-              value={stats.processing || 0}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="已发货"
-              value={stats.shipped || 0}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="已送达"
-              value={stats.delivered || 0}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              title="已取消"
-              value={stats.cancelled || 0}
-              valueStyle={{ color: '#ff4d4f' }}
-            />
-          </Card>
-        </Col>
-      </Row>
 
       {/* 搜索过滤 */}
       <Card style={{ marginBottom: 16 }}>
@@ -885,7 +787,14 @@ const OrderList: React.FC = () => {
             setCurrentPage(1); // 切换Tab时重置到第一页
           }}
           items={[
-            { label: '全部', key: 'all' },
+            {
+              label: (
+                <Badge count={stats.total} offset={[10, 0]}>
+                  全部
+                </Badge>
+              ),
+              key: 'all',
+            },
             {
               label: (
                 <Badge count={stats.pending} offset={[10, 0]}>
@@ -902,9 +811,30 @@ const OrderList: React.FC = () => {
               ),
               key: 'processing',
             },
-            { label: '已发货', key: 'shipped' },
-            { label: '已送达', key: 'delivered' },
-            { label: '已取消', key: 'cancelled' },
+            {
+              label: (
+                <Badge count={stats.shipped} offset={[10, 0]}>
+                  已发货
+                </Badge>
+              ),
+              key: 'shipped',
+            },
+            {
+              label: (
+                <Badge count={stats.delivered} offset={[10, 0]}>
+                  已送达
+                </Badge>
+              ),
+              key: 'delivered',
+            },
+            {
+              label: (
+                <Badge count={stats.cancelled} offset={[10, 0]}>
+                  已取消
+                </Badge>
+              ),
+              key: 'cancelled',
+            },
           ]}
         />
 
