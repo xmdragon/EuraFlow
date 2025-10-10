@@ -1753,8 +1753,8 @@ async def get_orders(
     for order in orders:
         if order.items:
             for item in order.items:
-                if item.get("offer_id"):
-                    all_offer_ids.add(item["offer_id"])
+                if item.offer_id:
+                    all_offer_ids.add(item.offer_id)
 
     # 批量查询商品图片（使用offer_id匹配）
     offer_id_images = {}
