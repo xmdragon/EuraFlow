@@ -113,27 +113,34 @@ class OzonSyncService:
                 logger.info(f"Incremental sync: fetching products changed since {last_sync_time}")
 
             # 需要同步的不同状态
+            # 注意：OZON API不支持ARCHIVED作为visibility类型
+            # 归档商品需要通过filter的visibility和archived参数组合获取
             visibility_filters = [
-                ("VISIBLE", "可见商品"),
-                ("INVISIBLE", "不可见商品"),  # 关键：单独同步不可见商品
+                ({"visibility": "VISIBLE"}, "可见商品"),
+                ({"visibility": "INVISIBLE"}, "不可见商品"),
+                ({"visibility": "ALL", "archived": True}, "归档商品"),  # 获取归档商品
             ]
 
             all_synced_products = []  # 存储所有同步的商品
 
-            for visibility_type, description in visibility_filters:
-                logger.info(f"\n=== 开始同步 {description} ({visibility_type}) ===")
+            for filter_config, description in visibility_filters:
+                # 为了保持日志可读性，提取visibility类型描述
+                visibility_desc = filter_config.get("visibility", "UNKNOWN")
+                is_archived = filter_config.get("archived", False)
+                filter_label = f"{visibility_desc}{'(archived)' if is_archived else ''}"
+
+                logger.info(f"\n=== 开始同步 {description} ({filter_label}) ===")
                 page = 1
                 last_id = ""
 
                 while True:
                     # 调用API获取商品
                     SYNC_TASKS[task_id]["message"] = f"正在获取{description}第{page}页..."
-                    logger.info(f"Fetching {visibility_type} page {page} with last_id: {last_id}")
+                    logger.info(f"Fetching {filter_label} page {page} with last_id: {last_id}")
 
                     try:
-                        # 构建过滤器
-                        product_filter = {"visibility": visibility_type}
-                        product_filter.update(filter_params)  # 添加时间过滤（增量同步时）
+                        # 构建过滤器：合并基础filter和时间过滤
+                        product_filter = {**filter_config, **filter_params}
 
                         products_data = await client.get_products(
                             limit=100,
@@ -141,7 +148,7 @@ class OzonSyncService:
                             filter=product_filter
                         )
                     except Exception as e:
-                        logger.error(f"Failed to fetch {visibility_type} products: {e}")
+                        logger.error(f"Failed to fetch {filter_label} products: {e}")
                         # 继续下一个状态，不中断整个同步
                         break
 
@@ -159,7 +166,7 @@ class OzonSyncService:
                         total_products += visibility_total  # 累加到总数
 
                     logger.info(
-                        f"{visibility_type} Page {page}: Got {len(items)} products, last_id: {result.get('last_id', 'None')}"
+                        f"{filter_label} Page {page}: Got {len(items)} products, last_id: {result.get('last_id', 'None')}"
                     )
 
                     if not items:
@@ -168,9 +175,11 @@ class OzonSyncService:
                     # 收集所有offer_id用于批量查询
                     offer_ids = [item.get("offer_id") for item in items if item.get("offer_id")]
 
-                    # 将商品添加到总列表，标记visibility状态
+                    # 将商品添加到总列表，标记来源
                     for item in items:
-                        item["_sync_visibility_type"] = visibility_type  # 标记来源
+                        # 标记商品来源：存储visibility类型和archived状态
+                        item["_sync_visibility_type"] = visibility_desc
+                        item["_sync_is_archived"] = is_archived
                         all_synced_products.append(item)
 
                     # 批量获取商品详细信息（包含图片）
@@ -189,7 +198,7 @@ class OzonSyncService:
                                         if product_detail.get("offer_id"):
                                             products_detail_map[product_detail["offer_id"]] = product_detail
                         except Exception as e:
-                            logger.error(f"Failed to get {visibility_type} products details batch: {e}")
+                            logger.error(f"Failed to get {filter_label} products details batch: {e}")
 
                     # 批量获取价格信息（使用专门的价格API获取最新价格）
                     products_price_map = {}
@@ -211,7 +220,7 @@ class OzonSyncService:
                                                 "price_index": price_item.get("price_index")
                                             }
                         except Exception as e:
-                            logger.error(f"Failed to get {visibility_type} products prices batch: {e}")
+                            logger.error(f"Failed to get {filter_label} products prices batch: {e}")
 
                     # 批量获取库存信息
                     products_stock_map = {}
@@ -242,10 +251,10 @@ class OzonSyncService:
                                             }
 
                                             # 调试第一个库存信息（仅在VISIBLE时显示）
-                                            if i == 0 and stock_item == stock_response["result"]["items"][0] and visibility_type == "VISIBLE":
+                                            if i == 0 and stock_item == stock_response["result"]["items"][0] and visibility_desc == "VISIBLE":
                                                 logger.info(f"Stock info from v4 API: offer_id={stock_item.get('offer_id')}, present={total_present}, reserved={total_reserved}")
                         except Exception as e:
-                            logger.error(f"Failed to get {visibility_type} products stock batch: {e}")
+                            logger.error(f"Failed to get {filter_label} products stock batch: {e}")
 
                     # 处理每个商品
                     for idx, item in enumerate(items):
@@ -317,7 +326,7 @@ class OzonSyncService:
                         if price_info:
                             price = price_info.get("price")
                             old_price = price_info.get("old_price")
-                            if idx == 0 and visibility_type == "VISIBLE":
+                            if idx == 0 and visibility_desc == "VISIBLE":
                                 logger.info(f"Using price from price API: price={price}, old_price={old_price}")
 
                         # 第二优先级：从v3 API获取价格和货币代码
@@ -400,6 +409,7 @@ class OzonSyncService:
 
                             # 新的5种状态映射逻辑 - 优先级修复版
                             visibility_type = item.get("_sync_visibility_type", "UNKNOWN")
+                            sync_is_archived = item.get("_sync_is_archived", False)  # 从filter标记中获取
 
                             # 判断状态原因
                             status_reason = None
@@ -407,6 +417,7 @@ class OzonSyncService:
                             # ===== 优先级1: 归档状态（最高优先级）=====
                             # 检查多个归档字段，任一为真即判定为归档
                             is_archived = (
+                                sync_is_archived or  # 优先检查filter标记（归档商品专用过滤器）
                                 product.ozon_archived or
                                 product.is_archived or
                                 (product_details and (
@@ -591,6 +602,7 @@ class OzonSyncService:
 
                             # 新建商品也使用5种状态映射 - 优先级修复版
                             visibility_type = item.get("_sync_visibility_type", "UNKNOWN")
+                            sync_is_archived = item.get("_sync_is_archived", False)  # 从filter标记中获取
                             visibility_details = product_details.get("visibility_details", {}) if product_details else {}
                             product.ozon_visibility_details = visibility_details if visibility_details else None
 
@@ -600,6 +612,7 @@ class OzonSyncService:
                             # ===== 优先级1: 归档状态（最高优先级）=====
                             # 检查多个归档字段，任一为真即判定为归档
                             is_archived = (
+                                sync_is_archived or  # 优先检查filter标记（归档商品专用过滤器）
                                 product.ozon_archived or
                                 product.is_archived or
                                 (product_details and (
@@ -681,9 +694,9 @@ class OzonSyncService:
                     if next_id:
                         last_id = next_id
                         page += 1
-                        logger.info(f"{visibility_type} 第{page-1}页处理完成，继续第{page}页...")
+                        logger.info(f"{filter_label} 第{page-1}页处理完成，继续第{page}页...")
                     else:
-                        logger.info(f"{visibility_type} 同步完成，共处理了 {page} 页")
+                        logger.info(f"{filter_label} 同步完成，共处理了 {page} 页")
                         break
 
             # 提交所有商品的处理结果
