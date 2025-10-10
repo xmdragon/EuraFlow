@@ -12,7 +12,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import OzonShop, OzonProduct, OzonOrder, OzonOrderItem
+from ..models import OzonShop, OzonProduct, OzonOrder, OzonOrderItem, OzonPosting
 from ..api.client import OzonAPIClient
 from ..utils.datetime_utils import parse_datetime, utcnow
 
@@ -850,12 +850,15 @@ class OzonSyncService:
                     order.last_sync_at = utcnow()
                     db.add(order)
 
-                # Flush确保order获得id，然后同步订单明细
+                # Flush确保order获得id，然后同步订单明细和posting
                 await db.flush()
 
                 # 同步订单商品明细
                 products_data = item.get("products", [])
                 await OzonSyncService._sync_order_items(db, order, products_data)
+
+                # 同步posting信息（OZON API返回的是posting维度的数据）
+                await OzonSyncService._sync_posting(db, order, item, shop_id)
 
                 # 立即提交每个订单（用于调试）
                 try:
@@ -1000,12 +1003,15 @@ class OzonSyncService:
                         order.last_sync_at = utcnow()
                         db.add(order)
 
-                    # Flush确保order获得id，然后同步订单明细
+                    # Flush确保order获得id，然后同步订单明细和posting
                     await db.flush()
 
                     # 同步订单商品明细
                     products_data = item.get("products", [])
                     await OzonSyncService._sync_order_items(db, order, products_data)
+
+                    # 同步posting信息（OZON API返回的是posting维度的数据）
+                    await OzonSyncService._sync_posting(db, order, item, shop_id)
 
                     total_synced += 1
 
@@ -1157,6 +1163,74 @@ class OzonSyncService:
         })
 
         return order_data
+
+    @staticmethod
+    async def _sync_posting(db: AsyncSession, order: OzonOrder, posting_data: Dict[str, Any], shop_id: int) -> None:
+        """同步订单的posting信息
+
+        Args:
+            db: 数据库会话
+            order: 订单对象
+            posting_data: OZON API返回的posting数据
+            shop_id: 店铺ID
+        """
+        posting_number = posting_data.get("posting_number")
+        if not posting_number:
+            logger.warning(f"Posting without posting_number for order {order.order_id}")
+            return
+
+        # 查找或创建Posting
+        existing_posting_result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = existing_posting_result.scalar_one_or_none()
+
+        if not posting:
+            # 创建新posting
+            posting = OzonPosting(
+                order_id=order.id,
+                shop_id=shop_id,
+                posting_number=posting_number,
+                ozon_posting_number=posting_data.get("posting_number"),
+                status=posting_data.get("status", ""),
+            )
+            db.add(posting)
+        else:
+            # 更新现有posting
+            posting.status = posting_data.get("status", "")
+
+        # 更新posting的详细信息
+        posting.substatus = posting_data.get("substatus")
+        posting.shipment_date = parse_datetime(posting_data.get("shipment_date"))
+        posting.in_process_at = parse_datetime(posting_data.get("in_process_at"))
+        posting.shipped_at = parse_datetime(posting_data.get("shipment_date"))
+        posting.delivered_at = parse_datetime(posting_data.get("delivering_date"))
+
+        # 配送方式信息
+        delivery_method = posting_data.get("delivery_method", {})
+        if delivery_method:
+            posting.delivery_method_id = delivery_method.get("id")
+            posting.delivery_method_name = delivery_method.get("name")
+            posting.warehouse_id = delivery_method.get("warehouse_id")
+            posting.warehouse_name = delivery_method.get("warehouse")
+
+        # 取消信息
+        cancellation = posting_data.get("cancellation")
+        if cancellation:
+            posting.is_cancelled = True
+            posting.cancel_reason_id = cancellation.get("cancel_reason_id")
+            posting.cancel_reason = cancellation.get("cancel_reason")
+            posting.cancelled_at = parse_datetime(cancellation.get("cancelled_at"))
+        else:
+            posting.is_cancelled = False
+
+        # 保存原始数据
+        posting.raw_payload = posting_data
+
+        logger.info(
+            f"Synced posting {posting_number} for order {order.order_id}",
+            extra={"posting_number": posting_number, "order_id": order.order_id, "status": posting.status}
+        )
 
     @staticmethod
     async def _sync_order_items(db: AsyncSession, order: OzonOrder, products_data: list) -> None:
