@@ -19,7 +19,6 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  List,
   Button,
   Space,
   Card,
@@ -377,257 +376,169 @@ const OrderList: React.FC = () => {
     },
   });
 
-  // 渲染订单卡片项
-  const renderOrderItem = (order: ozonApi.Order) => {
-    const items = order.items || [];
-    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-    const statusConfig_item = statusConfig[order.status] || statusConfig.pending;
-    const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(order.status);
-    const canCancel = order.status !== 'cancelled' && order.status !== 'delivered';
+  // 表格列定义
+  const columns: any[] = [
+    {
+      title: 'Posting号',
+      dataIndex: 'posting_number',
+      key: 'posting_number',
+      width: 150,
+      fixed: 'left',
+      render: (text: string, record: ozonApi.Order) => (
+        <a onClick={() => showOrderDetail(record)} style={{ color: '#1890ff' }}>
+          {text}
+        </a>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: string) => {
+        const config = statusConfig[status] || statusConfig.pending;
+        return (
+          <Tag color={config.color} style={{ margin: 0 }}>
+            {config.text}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: '下单时间',
+      dataIndex: 'in_process_at',
+      key: 'in_process_at',
+      width: 140,
+      render: (date: string) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
+    },
+    {
+      title: '商品',
+      dataIndex: 'items',
+      key: 'items',
+      width: 300,
+      render: (_: any, record: ozonApi.Order) => {
+        const items = record.items || [];
+        const firstItem = items[0];
+        const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
-    // 获取主要商品的图片
-    const productImage = getOrderItemImage(order);
+        if (!firstItem) return '-';
 
-    return (
-      <List.Item style={{ padding: 0 }}>
-        <Card
-          style={{
-            width: '100%',
-            marginBottom: 4,
-            borderRadius: 8,
-            boxShadow:
-              '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-          }}
-          styles={{ body: { padding: '10px' } }}
-        >
-          <Flex gap={12} align="flex-start" wrap="wrap">
-            {/* 商品图片 */}
+        const imageUrl = firstItem.image || (firstItem.offer_id && offerIdImageMap[firstItem.offer_id]);
+
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Avatar
-              size={60}
-              src={productImage || undefined}
+              size={40}
+              src={imageUrl}
               icon={<ShoppingCartOutlined />}
-              style={{
-                flexShrink: 0,
-                borderRadius: 8,
-                backgroundColor: '#f5f5f5',
-              }}
+              shape="square"
+              style={{ flexShrink: 0 }}
             />
-
-            {/* 订单信息 */}
-            <div style={{ flex: 1, minWidth: 280 }}>
-              <div style={{ marginBottom: 6 }}>
-                <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-                  <div>
-                    <Text
-                      strong
-                      style={{ fontSize: 16, color: '#1890ff', cursor: 'pointer' }}
-                      onClick={() => showOrderDetail(order)}
-                    >
-                      {order.order_number || order.order_id}
-                    </Text>
-                    <div style={{ marginTop: 4 }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        Posting: {order.posting_number}
-                      </Text>
-                    </div>
-                  </div>
-
-                  {/* 状态标签 */}
-                  <Tag
-                    color={statusConfig_item.color}
-                    icon={statusConfig_item.icon}
-                    style={{
-                      borderRadius: 16,
-                      padding: '4px 12px',
-                      fontSize: 12,
-                      border: 'none',
-                    }}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {firstItem.sku ? (
+                  <a
+                    href={`https://www.ozon.ru/product/${firstItem.sku}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#1890ff' }}
                   >
-                    {statusConfig_item.text}
-                  </Tag>
-                </Space>
+                    {firstItem.name || firstItem.sku}
+                  </a>
+                ) : (
+                  firstItem.name || firstItem.sku
+                )}
               </div>
-
-              {/* 商品信息 */}
-              <div style={{ marginBottom: 6 }}>
-                <Space>
-                  <ShoppingCartOutlined style={{ color: '#666' }} />
-                  <Text type="secondary">
-                    {items.length} 种商品，共 {totalItems} 件
-                  </Text>
-                </Space>
-                <div style={{ marginTop: 6 }}>
-                  {items.slice(0, 2).map((item, index) => (
-                    <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                      <Avatar
-                        size="small"
-                        src={item.image || (item.offer_id && offerIdImageMap[item.offer_id] ? offerIdImageMap[item.offer_id] : undefined)}
-                        icon={!item.image && !(item.offer_id && offerIdImageMap[item.offer_id]) ? <ShoppingCartOutlined /> : undefined}
-                        shape="square"
-                        style={{ marginRight: 8, flexShrink: 0 }}
-                      />
-                      <Text
-                        ellipsis
-                        style={{
-                          fontSize: 13,
-                          color: '#333',
-                          flex: 1,
-                        }}
-                        title={`${item.name || item.sku} × ${item.quantity} - ${formatRuble(item.price)}`}
-                      >
-                        {item.sku ? (
-                          <>
-                            <a
-                              href={`https://www.ozon.ru/product/${item.sku}/`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                color: '#1890ff',
-                                textDecoration: 'none',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.textDecoration = 'underline';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.textDecoration = 'none';
-                              }}
-                            >
-                              {item.name || item.sku}
-                            </a>
-                            {' × '}{item.quantity} - {formatRuble(item.price)}
-                          </>
-                        ) : (
-                          <>{item.name || item.sku} × {item.quantity} - {formatRuble(item.price)}</>
-                        )}
-                      </Text>
-                    </div>
-                  ))}
-                  {items.length > 2 && (
-                    <Text style={{ fontSize: 12, color: '#1890ff' }}>
-                      还有 {items.length - 2} 个商品...
-                    </Text>
-                  )}
-                </div>
-              </div>
-
-              {/* 金额和时间信息 */}
-              <div>
-                <Row gutter={[12, 8]} align="middle">
-                  <Col xs={24} lg="auto" flex="auto">
-                    <Row gutter={[12, 6]} wrap>
-                      <Col xs={8} sm={6} lg="auto">
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            价格
-                          </Text>
-                          <div>
-                            <Text strong style={{ color: '#52c41a', fontSize: 14 }}>
-                              ₽{' '}
-                              {formatPrice(order.total_price || order.total_amount)}
-                            </Text>
-                          </div>
-                        </div>
-                      </Col>
-                      <Col xs={8} sm={6} lg="auto">
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            配送服务
-                          </Text>
-                          <div>
-                            <Text style={{ fontSize: 13 }}>
-                              {order.delivery_method || order.order_type || 'FBS'}
-                            </Text>
-                          </div>
-                        </div>
-                      </Col>
-                      <Col xs={8} sm={6} lg="auto">
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            预计送达
-                          </Text>
-                          <div>
-                            <Text style={{ fontSize: 13 }}>
-                              {order.delivery_date
-                                ? moment(order.delivery_date).format('MM-DD')
-                                : '-'}
-                            </Text>
-                          </div>
-                        </div>
-                      </Col>
-                      <Col xs={8} sm={6} lg="auto">
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            处理时间
-                          </Text>
-                          <div>
-                            <Text style={{ fontSize: 13 }}>
-                              {order.in_process_at
-                                ? moment(order.in_process_at).format('MM-DD HH:mm')
-                                : '-'}
-                            </Text>
-                          </div>
-                        </div>
-                      </Col>
-                    </Row>
-                  </Col>
-
-                  {/* 操作按钮 */}
-                  <Col xs={24} lg="auto">
-                    <Space wrap>
-                      <Button
-                        type="primary"
-                        ghost
-                        size="small"
-                        onClick={() => showOrderDetail(order)}
-                      >
-                        查看
-                      </Button>
-                      {canShip && (
-                        <Button
-                          type="primary"
-                          size="small"
-                          icon={<TruckOutlined />}
-                          onClick={() => handleShip(order)}
-                        >
-                          发货
-                        </Button>
-                      )}
-                      <Dropdown
-                        menu={{
-                          items: [
-                            {
-                              key: 'detail',
-                              icon: <FileTextOutlined />,
-                              label: '订单详情',
-                              onClick: () => showOrderDetail(order),
-                            },
-                            {
-                              key: 'print',
-                              icon: <PrinterOutlined />,
-                              label: '打印面单',
-                            },
-                            canCancel && {
-                              key: 'cancel',
-                              icon: <CloseCircleOutlined />,
-                              label: '取消订单',
-                              danger: true,
-                              onClick: () => handleCancel(order),
-                            },
-                          ].filter(Boolean),
-                        }}
-                      >
-                        <Button size="small" icon={<MoreOutlined />} />
-                      </Dropdown>
-                    </Space>
-                  </Col>
-                </Row>
+              <div style={{ fontSize: 12, color: '#999' }}>
+                {items.length} 种，共 {totalItems} 件
               </div>
             </div>
-          </Flex>
-        </Card>
-      </List.Item>
-    );
-  };
+          </div>
+        );
+      },
+    },
+    {
+      title: '价格',
+      dataIndex: 'total_price',
+      key: 'total_price',
+      width: 100,
+      align: 'right',
+      render: (price: any, record: ozonApi.Order) => (
+        <span style={{ color: '#52c41a', fontWeight: 500 }}>
+          ₽ {formatPrice(price || record.total_amount)}
+        </span>
+      ),
+    },
+    {
+      title: '配送',
+      dataIndex: 'order_type',
+      key: 'order_type',
+      width: 100,
+      render: (type: string, record: ozonApi.Order) => (
+        <span>{record.delivery_method || type || 'FBS'}</span>
+      ),
+    },
+    {
+      title: '预计送达',
+      dataIndex: 'delivery_date',
+      key: 'delivery_date',
+      width: 100,
+      render: (date: string) => (date ? moment(date).format('MM-DD') : '-'),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 150,
+      fixed: 'right',
+      render: (_: any, record: ozonApi.Order) => {
+        const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(record.status);
+        const canCancel = record.status !== 'cancelled' && record.status !== 'delivered';
+
+        return (
+          <Space size="small">
+            <Button
+              type="link"
+              size="small"
+              onClick={() => showOrderDetail(record)}
+              style={{ padding: 0 }}
+            >
+              查看
+            </Button>
+            {canShip && (
+              <Button
+                type="link"
+                size="small"
+                onClick={() => handleShip(record)}
+                style={{ padding: 0 }}
+              >
+                发货
+              </Button>
+            )}
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'print',
+                    icon: <PrinterOutlined />,
+                    label: '打印面单',
+                  },
+                  canCancel && {
+                    key: 'cancel',
+                    icon: <CloseCircleOutlined />,
+                    label: '取消订单',
+                    danger: true,
+                    onClick: () => handleCancel(record),
+                  },
+                ].filter(Boolean),
+              }}
+            >
+              <Button type="link" size="small" icon={<MoreOutlined />} style={{ padding: 0 }} />
+            </Dropdown>
+          </Space>
+        );
+      },
+    },
+  ];
 
   // 处理函数
   const showOrderDetail = (order: ozonApi.Order) => {
@@ -748,9 +659,6 @@ const OrderList: React.FC = () => {
           <Form.Item name="posting_number">
             <Input placeholder="Posting号" prefix={<SearchOutlined />} />
           </Form.Item>
-          <Form.Item name="customer_phone">
-            <Input placeholder="客户电话" />
-          </Form.Item>
           <Form.Item name="order_type">
             <Select placeholder="订单类型" style={{ width: 120 }} allowClear>
               <Option value="FBS">FBS</Option>
@@ -867,10 +775,11 @@ const OrderList: React.FC = () => {
         </Space>
 
         {/* 订单列表 */}
-        <List
+        <Table
           loading={isLoading}
+          columns={columns}
           dataSource={ordersData?.data || []}
-          renderItem={renderOrderItem}
+          rowKey="posting_number"
           pagination={{
             current: currentPage,
             pageSize: pageSize,
@@ -884,6 +793,8 @@ const OrderList: React.FC = () => {
             },
             style: { marginTop: 16, textAlign: 'center' },
           }}
+          scroll={{ x: 1200 }}
+          size="small"
         />
       </Card>
 
