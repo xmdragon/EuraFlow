@@ -178,6 +178,8 @@ export interface ProductFilter {
   visibility?: string;
   archived?: boolean;
   brand?: string;
+  sort_by?: string;  // 排序字段
+  sort_order?: 'asc' | 'desc';  // 排序方向
 }
 
 export interface PriceUpdate {

@@ -109,6 +109,35 @@ const ProductList: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({ status: 'on_sale' });
 
+  // 排序状态管理
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
+
+  // 列显示配置状态管理（从localStorage加载）
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('ozon_product_visible_columns');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse visible columns config:', e);
+      }
+    }
+    // 默认显示所有列
+    return {
+      sku: true,
+      info: true,
+      price: true,
+      stock: true,
+      status: true,
+      visibility: true,
+      created_at: true,
+      last_sync: true,
+      actions: true, // 操作列始终显示
+    };
+  });
+  const [columnConfigVisible, setColumnConfigVisible] = useState(false);
+
   // 水印相关状态
   const [watermarkModalVisible, setWatermarkModalVisible] = useState(false);
   const [watermarkConfigs, setWatermarkConfigs] = useState<watermarkApi.WatermarkConfig[]>([]);
@@ -129,14 +158,77 @@ const ProductList: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [currentPreviewProduct, setCurrentPreviewProduct] = useState<any>(null);
 
+  // 保存列配置到localStorage
+  useEffect(() => {
+    localStorage.setItem('ozon_product_visible_columns', JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  // 处理排序
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      // 同一字段：无排序 → 升序 → 降序 → 无排序
+      if (sortOrder === null) {
+        setSortOrder('asc');
+      } else if (sortOrder === 'asc') {
+        setSortOrder('desc');
+      } else {
+        setSortBy(null);
+        setSortOrder(null);
+      }
+    } else {
+      // 切换到新字段，默认升序
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+    // 重置到第一页
+    setCurrentPage(1);
+  };
+
+  // 列标题排序组件
+  const SortableColumnTitle: React.FC<{ title: string; field: string }> = ({ title, field }) => {
+    const isActive = sortBy === field;
+    const isAsc = isActive && sortOrder === 'asc';
+    const isDesc = isActive && sortOrder === 'desc';
+
+    return (
+      <div
+        style={{
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          userSelect: 'none',
+        }}
+        onClick={() => handleSort(field)}
+      >
+        <span>{title}</span>
+        <span style={{ display: 'inline-flex', flexDirection: 'column', fontSize: '10px' }}>
+          <span style={{ lineHeight: 1, color: isAsc ? '#1890ff' : '#bfbfbf' }}>▲</span>
+          <span style={{ lineHeight: 1, color: isDesc ? '#1890ff' : '#bfbfbf' }}>▼</span>
+        </span>
+      </div>
+    );
+  };
+
   // 查询商品列表
   const {
     data: productsData,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues],
-    queryFn: () => ozonApi.getProducts(currentPage, pageSize, { ...filterValues, shop_id: selectedShop }),
+    queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues, sortBy, sortOrder],
+    queryFn: () => {
+      const params: ozonApi.ProductFilter = {
+        ...filterValues,
+        shop_id: selectedShop,
+      };
+      // 添加排序参数
+      if (sortBy && sortOrder) {
+        params.sort_by = sortBy;
+        params.sort_order = sortOrder;
+      }
+      return ozonApi.getProducts(currentPage, pageSize, params);
+    },
     refetchInterval: 30000, // 30秒自动刷新
     // 只有选中店铺后才发送请求
     enabled: selectedShop !== null && selectedShop !== undefined,
@@ -401,9 +493,9 @@ const ProductList: React.FC = () => {
   });
 
   // 表格列定义
-  const columns: ColumnsType<ozonApi.Product> = [
+  const allColumns: ColumnsType<ozonApi.Product> = [
     {
-      title: 'SKU/编码',
+      title: <SortableColumnTitle title="SKU/编码" field="sku" />,
       dataIndex: 'sku',
       key: 'sku',
       width: 200,
@@ -483,9 +575,9 @@ const ProductList: React.FC = () => {
       ),
     },
     {
-      title: '商品信息',
+      title: <SortableColumnTitle title="商品信息" field="title" />,
       dataIndex: 'title',
-      key: 'title',
+      key: 'info',
       width: 350,
       render: (text, record) => {
         // 准备所有图片URL用于预览
@@ -583,7 +675,7 @@ const ProductList: React.FC = () => {
       },
     },
     {
-      title: '价格',
+      title: <SortableColumnTitle title="价格" field="price" />,
       key: 'price',
       width: 150,
       render: (_, record) => {
@@ -625,7 +717,7 @@ const ProductList: React.FC = () => {
       },
     },
     {
-      title: '库存',
+      title: <SortableColumnTitle title="库存" field="stock" />,
       key: 'stock',
       width: 120,
       render: (_, record) => {
@@ -701,9 +793,9 @@ const ProductList: React.FC = () => {
       render: (visible) => <Switch checked={visible} disabled />,
     },
     {
-      title: '创建时间',
+      title: <SortableColumnTitle title="创建时间" field="created_at" />,
       dataIndex: 'ozon_created_at',
-      key: 'ozon_created_at',
+      key: 'created_at',
       width: 150,
       render: (date, record) => {
         // 优先显示OZON平台创建时间，如果没有则显示本地创建时间
@@ -828,6 +920,23 @@ const ProductList: React.FC = () => {
       ),
     },
   ];
+
+  // 根据visibleColumns过滤显示的列
+  const columns = allColumns.filter((col) => {
+    const key = col.key as string;
+    // 操作列始终显示
+    if (key === 'action') return true;
+    // 其他列根据配置显示
+    return visibleColumns[key] !== false;
+  });
+
+  // 列显示配置变更处理
+  const handleColumnVisibilityChange = (key: string, visible: boolean) => {
+    setVisibleColumns((prev) => ({
+      ...prev,
+      [key]: visible,
+    }));
+  };
 
   // 处理函数
   const handleEdit = (product: ozonApi.Product) => {
@@ -1350,43 +1459,53 @@ const ProductList: React.FC = () => {
 
       {/* 操作按钮 */}
       <Card>
-        <Space style={{ marginBottom: 16 }}>
-          <Button
-            type="primary"
-            icon={<SyncOutlined />}
-            onClick={() => handleSync(false)}
-            loading={syncProductsMutation.isPending}
-          >
-            增量同步
-          </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => handleSync(true)}
-            loading={syncProductsMutation.isPending}
-          >
-            全量同步
-          </Button>
-          <Button
-            icon={<DollarOutlined />}
-            onClick={handleBatchPriceUpdate}
-            disabled={selectedRows.length === 0}
-          >
-            批量调价
-          </Button>
-          <Button
-            icon={<ShoppingOutlined />}
-            onClick={handleBatchStockUpdate}
-            disabled={selectedRows.length === 0}
-          >
-            批量改库存
-          </Button>
-          <Button icon={<UploadOutlined />} onClick={handleImport}>
-            导入商品
-          </Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>
-            导出数据
-          </Button>
-        </Space>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <Space>
+            <Button
+              type="primary"
+              icon={<SyncOutlined />}
+              onClick={() => handleSync(false)}
+              loading={syncProductsMutation.isPending}
+            >
+              增量同步
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => handleSync(true)}
+              loading={syncProductsMutation.isPending}
+            >
+              全量同步
+            </Button>
+            <Button
+              icon={<DollarOutlined />}
+              onClick={handleBatchPriceUpdate}
+              disabled={selectedRows.length === 0}
+            >
+              批量调价
+            </Button>
+            <Button
+              icon={<ShoppingOutlined />}
+              onClick={handleBatchStockUpdate}
+              disabled={selectedRows.length === 0}
+            >
+              批量改库存
+            </Button>
+            <Button icon={<UploadOutlined />} onClick={handleImport}>
+              导入商品
+            </Button>
+            <Button icon={<DownloadOutlined />} onClick={handleExport}>
+              导出数据
+            </Button>
+          </Space>
+          <Tooltip title="列显示设置">
+            <Button
+              icon={<SettingOutlined />}
+              onClick={() => setColumnConfigVisible(true)}
+            >
+              列设置
+            </Button>
+          </Tooltip>
+        </div>
 
         {/* 商品表格 */}
         <Table
@@ -2205,6 +2324,95 @@ const ProductList: React.FC = () => {
           });
         }}
       />
+
+      {/* 列显示配置Modal */}
+      <Modal
+        title="列显示设置"
+        open={columnConfigVisible}
+        onCancel={() => setColumnConfigVisible(false)}
+        onOk={() => setColumnConfigVisible(false)}
+        width={400}
+      >
+        <div style={{ padding: '12px 0' }}>
+          <Alert
+            message="选择要显示的列"
+            description="取消勾选可隐藏对应的列，设置会自动保存"
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div>
+              <Switch
+                checked={visibleColumns.sku}
+                onChange={(checked) => handleColumnVisibilityChange('sku', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>SKU/编码</span>
+            </div>
+            <div>
+              <Switch
+                checked={visibleColumns.info}
+                onChange={(checked) => handleColumnVisibilityChange('info', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>商品信息</span>
+            </div>
+            <div>
+              <Switch
+                checked={visibleColumns.price}
+                onChange={(checked) => handleColumnVisibilityChange('price', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>价格</span>
+            </div>
+            <div>
+              <Switch
+                checked={visibleColumns.stock}
+                onChange={(checked) => handleColumnVisibilityChange('stock', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>库存</span>
+            </div>
+            <div>
+              <Switch
+                checked={visibleColumns.status}
+                onChange={(checked) => handleColumnVisibilityChange('status', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>状态</span>
+            </div>
+            <div>
+              <Switch
+                checked={visibleColumns.visibility}
+                onChange={(checked) => handleColumnVisibilityChange('visibility', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>可见性</span>
+            </div>
+            <div>
+              <Switch
+                checked={visibleColumns.created_at}
+                onChange={(checked) => handleColumnVisibilityChange('created_at', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>创建时间</span>
+            </div>
+            <div>
+              <Switch
+                checked={visibleColumns.last_sync}
+                onChange={(checked) => handleColumnVisibilityChange('last_sync', checked)}
+                style={{ marginRight: 8 }}
+              />
+              <span>最后同步</span>
+            </div>
+            <Divider style={{ margin: '12px 0' }} />
+            <div style={{ color: '#999', fontSize: 12 }}>
+              <SettingOutlined /> 操作列始终显示
+            </div>
+          </Space>
+        </div>
+      </Modal>
     </div>
   );
 };
