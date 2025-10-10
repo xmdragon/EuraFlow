@@ -657,7 +657,7 @@ const OrderList: React.FC = () => {
             <RangePicker />
           </Form.Item>
           <Form.Item name="posting_number">
-            <Input placeholder="Posting号" prefix={<SearchOutlined />} />
+            <Input placeholder="货件编号" prefix={<SearchOutlined />} />
           </Form.Item>
           <Form.Item name="order_type">
             <Select placeholder="订单类型" style={{ width: 120 }} allowClear>
