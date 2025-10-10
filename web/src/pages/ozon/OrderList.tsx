@@ -406,8 +406,8 @@ const OrderList: React.FC = () => {
     },
     {
       title: '下单时间',
-      dataIndex: 'in_process_at',
-      key: 'in_process_at',
+      dataIndex: 'ordered_at',
+      key: 'ordered_at',
       width: 140,
       render: (date: string) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
     },

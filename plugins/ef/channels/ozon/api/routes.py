@@ -1686,7 +1686,7 @@ async def get_orders(
             # 使用datetime_utils统一处理日期解析（确保UTC timezone-aware）
             start_date = parse_date(date_from)
             if start_date:
-                query = query.where(OzonOrder.created_at >= start_date)
+                query = query.where(OzonOrder.ordered_at >= start_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_from: {date_from}, error: {e}")
 
@@ -1698,7 +1698,7 @@ async def get_orders(
                 # 如果是纯日期格式，设置为当天的23:59:59
                 if 'T' not in date_to:
                     end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-                query = query.where(OzonOrder.created_at <= end_date)
+                query = query.where(OzonOrder.ordered_at <= end_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
 
@@ -1725,7 +1725,7 @@ async def get_orders(
         try:
             start_date = parse_date(date_from)
             if start_date:
-                count_query = count_query.where(OzonOrder.created_at >= start_date)
+                count_query = count_query.where(OzonOrder.ordered_at >= start_date)
         except:
             pass
     if date_to:
@@ -1734,7 +1734,7 @@ async def get_orders(
             if end_date:
                 if 'T' not in date_to:
                     end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-                count_query = count_query.where(OzonOrder.created_at <= end_date)
+                count_query = count_query.where(OzonOrder.ordered_at <= end_date)
         except:
             pass
 
@@ -1742,7 +1742,7 @@ async def get_orders(
     total = total_result.scalar()
 
     # 添加分页
-    query = query.offset(offset).limit(limit).order_by(OzonOrder.created_at.desc())
+    query = query.offset(offset).limit(limit).order_by(OzonOrder.ordered_at.desc())
     
     # 执行查询
     result = await db.execute(query)
