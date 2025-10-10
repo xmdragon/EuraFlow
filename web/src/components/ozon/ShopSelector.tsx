@@ -116,6 +116,10 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         if (isMultiple) {
           return (selectedShop as number[] | null) ?? [];
         }
+        // 如果不显示"全部"选项，且当前值为null，则显示undefined让Select显示placeholder
+        if (!showAllOption && selectedShop === null) {
+          return undefined;
+        }
         return selectedShop === null ? 'all' : selectedShop;
       })()}
       onChange={handleChange}
