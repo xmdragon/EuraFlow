@@ -706,52 +706,28 @@ const OrderList: React.FC = () => {
           }}
           items={[
             {
-              label: (
-                <Badge count={stats.total} offset={[10, 0]} overflowCount={999}>
-                  全部
-                </Badge>
-              ),
-              key: 'all',
-            },
-            {
-              label: (
-                <Badge count={stats.awaiting_packaging} offset={[10, 0]} overflowCount={999}>
-                  等待备货
-                </Badge>
-              ),
+              label: `等待备货 ${stats.awaiting_packaging || 0}`,
               key: 'awaiting_packaging',
             },
             {
-              label: (
-                <Badge count={stats.awaiting_deliver} offset={[10, 0]} overflowCount={999}>
-                  等待发运
-                </Badge>
-              ),
+              label: `等待发运 ${stats.awaiting_deliver || 0}`,
               key: 'awaiting_deliver',
             },
             {
-              label: (
-                <Badge count={stats.delivering} offset={[10, 0]} overflowCount={999}>
-                  运输中
-                </Badge>
-              ),
+              label: `运输中 ${stats.delivering || 0}`,
               key: 'delivering',
             },
             {
-              label: (
-                <Badge count={stats.delivered} offset={[10, 0]} overflowCount={999}>
-                  已签收
-                </Badge>
-              ),
+              label: `已签收 ${stats.delivered || 0}`,
               key: 'delivered',
             },
             {
-              label: (
-                <Badge count={stats.cancelled} offset={[10, 0]} overflowCount={999}>
-                  已取消
-                </Badge>
-              ),
+              label: `已取消 ${stats.cancelled || 0}`,
               key: 'cancelled',
+            },
+            {
+              label: '所有',
+              key: 'all',
             },
           ]}
         />
