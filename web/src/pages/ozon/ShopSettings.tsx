@@ -696,15 +696,6 @@ const ShopSettings: React.FC = () => {
                       </>
                     ),
                   },
-                  {
-                    label: (
-                      <span>
-                        <TruckOutlined /> 跨境巴士配置
-                      </span>
-                    ),
-                    key: '4',
-                    children: <Kuajing84Configuration />,
-                  },
                 ]}
               />
 
@@ -728,6 +719,22 @@ const ShopSettings: React.FC = () => {
             </Form>
           </>
         )}
+
+        {/* 跨境巴士全局配置 */}
+        <Divider />
+        <Card className={styles.globalConfigCard}>
+          <Title level={4}>
+            <TruckOutlined /> 跨境巴士全局配置
+          </Title>
+          <Alert
+            message="全局配置说明"
+            description="跨境巴士配置为全局设置，配置一次后所有店铺的订单都可以使用该账号进行物流同步。配置与具体店铺无关。"
+            type="warning"
+            showIcon
+            className={styles.globalConfigAlert}
+          />
+          <Kuajing84Configuration />
+        </Card>
       </Card>
 
       {/* 添加店铺弹窗 */}
@@ -885,14 +892,6 @@ const Kuajing84Configuration: React.FC = () => {
 
   return (
     <div>
-      <Alert
-        message="跨境巴士物流同步"
-        description="配置跨境巴士账号后，可将国内物流单号自动同步到跨境巴士平台。系统将自动管理登录会话和Cookie。"
-        type="info"
-        showIcon
-        className={styles.webhookAlert}
-      />
-
       <Card size="small" title="账号配置" className={styles.kuajing84ConfigCard}>
         <Form
           form={configForm}
@@ -993,7 +992,7 @@ const Kuajing84Configuration: React.FC = () => {
 
       <Alert
         message="同步日志查看"
-        description="跨境巴士同步日志可在订单详情页的「跨境巴士同步」标签页中查看。全局配置保存成功后，所有店铺的订单都可以使用该账号进行同步。"
+        description="跨境巴士同步日志可在订单详情页的「跨境巴士同步」标签页中查看。"
         type="info"
         showIcon
       />
