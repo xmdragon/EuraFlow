@@ -48,9 +48,11 @@ export default defineConfig({
             return 'vendor-router';
           }
 
-          // 2. React 核心库（使用精确匹配，避免误匹配 react-router）
+          // 2. React 核心库和 React 生态库
+          // 包含: react, react-dom, scheduler, @tanstack/react-query 等所有依赖 React 的库
           if (id.match(/node_modules\/(react|react-dom|scheduler)\//) ||
-              id.match(/node_modules[\\/](react|react-dom|scheduler)[\\/]/)) {
+              id.match(/node_modules[\\/](react|react-dom|scheduler)[\\/]/) ||
+              id.includes('node_modules/@tanstack/react-query')) {
             return 'vendor-react';
           }
 
