@@ -190,7 +190,7 @@ const OzonDashboard: React.FC = () => {
           <Card title="商品统计" extra={<SyncOutlined />}>
             <Space direction="vertical" className={styles.productStatsContent}>
               <div className={styles.statRow}>
-                <Text>活跃商品:</Text>
+                <Text>销售商品:</Text>
                 <Text strong>{stats.products.active}</Text>
               </div>
               <Progress
