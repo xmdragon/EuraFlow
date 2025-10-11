@@ -880,7 +880,7 @@ const Kuajing84Configuration: React.FC = () => {
     }
   };
 
-  const logs = logsData?.data || [];
+  // const logs = logsData?.data || [];  // 已移除：日志在订单详情页查看
   const isConfigured = configData?.data?.username;
 
   return (
