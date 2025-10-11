@@ -1,0 +1,69 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 店铺选择器 =====
+.shopCard {
+  margin-bottom: $spacing-md;
+
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+// ===== 统计行 =====
+.statsRow {
+  margin-bottom: $spacing-md;
+}
+
+.successValue :global(.ant-statistic-content) {
+  color: #3f8600;
+}
+
+.errorValue :global(.ant-statistic-content) {
+  color: #cf1322;
+}
+
+// ===== 筛选区域 =====
+.filterCard {
+  margin-bottom: $spacing-md;
+
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+.filterSpace {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.searchInput {
+  width: 200px;
+}
+
+.filterSelect {
+  width: 120px;
+}
+
+// ===== 列表区域 =====
+.listCard {
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+.chatListItem {
+  cursor: pointer;
+
+  &.unread {
+    background-color: #f0f5ff;
+  }
+}
+
+.chatMessage {
+  margin-bottom: 4px;
+}
+
+.chatMeta {
+  font-size: $font-size-sm;
+}

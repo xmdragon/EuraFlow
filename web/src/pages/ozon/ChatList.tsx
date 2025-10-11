@@ -35,6 +35,7 @@ import moment from 'moment';
 
 import * as ozonApi from '@/services/ozonApi';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import styles from './ChatList.module.scss';
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -148,7 +149,7 @@ const ChatList: React.FC = () => {
   return (
     <div>
       {/* 店铺选择器 */}
-      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
+      <Card className={styles.shopCard}>
         <ShopSelector
           value={selectedShopId}
           onChange={(shopId) => {
@@ -161,7 +162,7 @@ const ChatList: React.FC = () => {
       {selectedShopId && (
         <>
           {/* 统计卡片 */}
-          <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Row gutter={16} className={styles.statsRow}>
             <Col span={6}>
               <Card>
                 <Statistic
@@ -173,22 +174,24 @@ const ChatList: React.FC = () => {
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic
-                  title="活跃聊天"
-                  value={statsData?.active_chats || 0}
-                  prefix={<MessageOutlined />}
-                  valueStyle={{ color: '#3f8600' }}
-                />
+                <div className={styles.successValue}>
+                  <Statistic
+                    title="活跃聊天"
+                    value={statsData?.active_chats || 0}
+                    prefix={<MessageOutlined />}
+                  />
+                </div>
               </Card>
             </Col>
             <Col span={6}>
               <Card>
-                <Statistic
-                  title="未读消息"
-                  value={statsData?.total_unread || 0}
-                  prefix={<Badge status="error" />}
-                  valueStyle={{ color: '#cf1322' }}
-                />
+                <div className={styles.errorValue}>
+                  <Statistic
+                    title="未读消息"
+                    value={statsData?.total_unread || 0}
+                    prefix={<Badge status="error" />}
+                  />
+                </div>
               </Card>
             </Col>
             <Col span={6}>
@@ -203,13 +206,13 @@ const ChatList: React.FC = () => {
           </Row>
 
           {/* 筛选和操作栏 */}
-          <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
-            <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Card className={styles.filterCard}>
+            <Space wrap className={styles.filterSpace}>
               <Space>
                 <Search
                   placeholder="搜索订单号"
                   allowClear
-                  style={{ width: 200 }}
+                  className={styles.searchInput}
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   onSearch={() => setCurrentPage(1)}
@@ -221,7 +224,7 @@ const ChatList: React.FC = () => {
                     setStatusFilter(value);
                     setCurrentPage(1);
                   }}
-                  style={{ width: 120 }}
+                  className={styles.filterSelect}
                 >
                   <Select.Option value="all">全部状态</Select.Option>
                   <Select.Option value="open">进行中</Select.Option>
@@ -233,7 +236,7 @@ const ChatList: React.FC = () => {
                     setUnreadFilter(value);
                     setCurrentPage(1);
                   }}
-                  style={{ width: 120 }}
+                  className={styles.filterSelect}
                 >
                   <Select.Option value="all">全部消息</Select.Option>
                   <Select.Option value="unread">未读</Select.Option>
@@ -253,7 +256,7 @@ const ChatList: React.FC = () => {
           </Card>
 
           {/* 聊天列表 */}
-          <Card bodyStyle={{ padding: 16 }}>
+          <Card className={styles.listCard}>
             <Spin spinning={isLoading}>
               {chatsData?.items && chatsData.items.length > 0 ? (
                 <List
@@ -269,10 +272,7 @@ const ChatList: React.FC = () => {
                   }}
                   renderItem={(chat) => (
                     <List.Item
-                      style={{
-                        cursor: 'pointer',
-                        backgroundColor: chat.unread_count > 0 ? '#f0f5ff' : 'transparent',
-                      }}
+                      className={`${styles.chatListItem} ${chat.unread_count > 0 ? styles.unread : ''}`}
                       onClick={() => handleChatClick(chat)}
                       actions={[
                         chat.unread_count > 0 && (
@@ -306,17 +306,17 @@ const ChatList: React.FC = () => {
                         }
                         description={
                           <div>
-                            <div style={{ marginBottom: 4 }}>
+                            <div className={styles.chatMessage}>
                               {chat.last_message_preview || '暂无消息'}
                             </div>
                             <Space size="small">
-                              <Text type="secondary" style={{ fontSize: 12 }}>
+                              <Text type="secondary" className={styles.chatMeta}>
                                 <ClockCircleOutlined />
                                 {chat.last_message_at
                                   ? moment(chat.last_message_at).format('YYYY-MM-DD HH:mm')
                                   : ''}
                               </Text>
-                              <Text type="secondary" style={{ fontSize: 12 }}>
+                              <Text type="secondary" className={styles.chatMeta}>
                                 {chat.message_count} 条消息
                               </Text>
                             </Space>
