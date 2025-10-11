@@ -628,13 +628,13 @@ const OrderList: React.FC = () => {
             setSyncStatus(null);
             setSyncTaskId(null);
           }}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 8 }}
         />
       )}
 
       {/* 搜索过滤 */}
-      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
-        <Row style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 8 }} bodyStyle={{ padding: 8 }}>
+        <Row style={{ marginBottom: 8 }}>
           <Col flex="auto">
             <Space size="large">
               <span style={{ fontWeight: 500 }}>选择店铺:</span>
@@ -695,7 +695,7 @@ const OrderList: React.FC = () => {
       </Card>
 
       {/* 订单列表 */}
-      <Card bodyStyle={{ padding: 16 }}>
+      <Card bodyStyle={{ padding: 8 }}>
         {/* 状态标签页 */}
         <Tabs
           activeKey={activeTab}
@@ -732,7 +732,7 @@ const OrderList: React.FC = () => {
         />
 
         {/* 操作按钮 */}
-        <Space style={{ marginBottom: 16 }}>
+        <Space style={{ marginBottom: 8 }}>
           <Button
             type="primary"
             icon={<SyncOutlined />}

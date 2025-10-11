@@ -1265,7 +1265,7 @@ const ProductList: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       {/* 同步进度显示 */}
       {syncStatus && syncStatus.status === 'running' && (
         <Alert
@@ -1283,12 +1283,12 @@ const ProductList: React.FC = () => {
             setSyncStatus(null);
             setSyncTaskId(null);
           }}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 8 }}
         />
       )}
 
       {/* 统计卡片 */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
+      <Row gutter={8} style={{ marginBottom: 8 }}>
         <Col span={6}>
           <Card>
             <Statistic
@@ -1391,8 +1391,8 @@ const ProductList: React.FC = () => {
       </Row>
 
       {/* 搜索过滤 */}
-      <Card style={{ marginBottom: 16 }}>
-        <Row style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 8 }} bodyStyle={{ padding: 8 }}>
+        <Row style={{ marginBottom: 8 }}>
           <Col flex="auto">
             <Space size="large">
               <span style={{ fontWeight: 500 }}>选择店铺:</span>
@@ -1458,8 +1458,8 @@ const ProductList: React.FC = () => {
       </Card>
 
       {/* 操作按钮 */}
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <Card bodyStyle={{ padding: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <Space>
             <Button
               type="primary"

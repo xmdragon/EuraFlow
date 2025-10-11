@@ -112,8 +112,8 @@ const OzonDashboard: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: 24, background: '#f0f2f5', minHeight: '100vh' }}>
-      <Row style={{ marginBottom: 24 }} align="middle" justify="space-between">
+    <div style={{ background: '#f0f2f5', minHeight: '100vh' }}>
+      <Row style={{ marginBottom: 8 }} align="middle" justify="space-between">
         <Col>
           <Title level={2} style={{ marginBottom: 0 }}>
             Ozon 管理概览
@@ -130,7 +130,7 @@ const OzonDashboard: React.FC = () => {
       </Row>
 
       {/* 概览统计 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      <Row gutter={[8, 8]} style={{ marginBottom: 8 }}>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
@@ -188,7 +188,7 @@ const OzonDashboard: React.FC = () => {
       </Row>
 
       {/* 详细统计 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+      <Row gutter={[8, 8]} style={{ marginBottom: 8 }}>
         <Col xs={24} lg={12}>
           <Card title="商品统计" extra={<SyncOutlined />}>
             <Space direction="vertical" style={{ width: '100%' }}>
