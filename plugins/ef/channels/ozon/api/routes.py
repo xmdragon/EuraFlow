@@ -1674,7 +1674,6 @@ async def get_orders(
     # 搜索条件
     if posting_number:
         # 搜索订单号、Ozon订单号或通过posting关联
-        from plugins.ef.channels.ozon.models.orders import OzonPosting
         query = query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
             (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
             (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
