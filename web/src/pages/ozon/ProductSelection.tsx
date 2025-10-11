@@ -242,18 +242,26 @@ const ProductSelection: React.FC = () => {
 
   // 显示商品图片
   const showProductImages = async (product: api.ProductSelectionItem) => {
+    // 立即打开Modal，显示加载状态
+    setSelectedProductImages([]);
+    setCurrentImageIndex(0);
+    setImageModalVisible(true);
+
+    // 异步加载图片
     try {
       const response = await api.getProductDetail(product.product_id);
       if (response.success && response.data.images.length > 0) {
         // 提取图片URL数组
         const imageUrls = response.data.images.map((img: any) => img.url);
         setSelectedProductImages(imageUrls);
-        setCurrentImageIndex(0);
-        setImageModalVisible(true);
       } else {
+        // 如果没有图片，关闭Modal并提示
+        setImageModalVisible(false);
         message.info('该商品暂无更多图片');
       }
     } catch (error) {
+      // 出错时关闭Modal并提示
+      setImageModalVisible(false);
       message.error('获取商品图片失败');
       console.error('获取商品图片失败:', error);
     }
