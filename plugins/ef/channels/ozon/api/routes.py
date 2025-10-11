@@ -1658,7 +1658,7 @@ async def get_orders(
     # 构建查询（使用 selectinload 避免懒加载问题）
     from sqlalchemy.orm import selectinload
     query = select(OzonOrder).options(
-        selectinload(OzonOrder.postings),
+        selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
         selectinload(OzonOrder.items),
         selectinload(OzonOrder.refunds)
     )
