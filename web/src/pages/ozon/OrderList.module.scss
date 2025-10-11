@@ -32,6 +32,12 @@
   flex-shrink: 0;
 }
 
+.productAvatarHoverable {
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
 .productInfo {
   flex: 1;
   min-width: 0;
@@ -99,6 +105,13 @@
 // ===== 详情弹窗 =====
 .productImage {
   object-fit: cover;
+}
+
+.productPreviewImage {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  display: block;
 }
 
 .productImagePlaceholder {

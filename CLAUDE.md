@@ -156,6 +156,7 @@
 - **无超时/无限重试** → 外部 API 默认超时（10s）与指数退避（≤5 次）。
 - **漏指标/日志脱敏** → JSON 日志脱敏电话/邮箱/地址；指标按 `ef_*` 命名。
 - **幂等缺失** → 写操作支持 `Idempotency-Key`（或业务幂等键）。
+- **样式硬编码** → **禁止** `style={{...}}`；样式统一写入 `.module.scss` 文件。
 
 ---
 
@@ -179,6 +180,7 @@
 ## 8) 代码风格与组织
 - Python：`mypy --strict`、`ruff`、`black 120 cols`；分层：路由 → 服务 → 仓储；事务粒度清晰。
 - TypeScript：`strict: true`；React 组件大写、Hook 以 `use*`；错误边界/空态齐全。
+- **样式分离**：**禁止在 TypeScript/React 组件中使用 inline style**（`style={{...}}`）；所有样式必须写入对应的 `.module.scss` 文件中，使用 `className={styles.xxx}` 引用。
 - 命名：表/索引/约束按 `CODESTYLE.md`；事件 `ef.{domain}.{object}.{verb}`。
 
 ---

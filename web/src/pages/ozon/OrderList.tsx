@@ -497,12 +497,7 @@ const OrderList: React.FC = () => {
                   <img
                     src={imageUrl}
                     alt="商品预览"
-                    style={{
-                      width: '200px',
-                      height: '200px',
-                      objectFit: 'contain',
-                      display: 'block',
-                    }}
+                    className={styles.productPreviewImage}
                   />
                 }
                 mouseEnterDelay={0.3}
@@ -512,8 +507,7 @@ const OrderList: React.FC = () => {
                   size={40}
                   src={imageUrl}
                   shape="square"
-                  className={styles.productAvatar}
-                  style={{ cursor: 'pointer' }}
+                  className={styles.productAvatarHoverable}
                 />
               </Tooltip>
             ) : (
