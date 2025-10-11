@@ -373,11 +373,26 @@ class OrderSyncService:
         
         # 处理订单商品
         await self._process_order_items(session, order, posting_data.get("products", []))
-        
-        # 处理包裹信息（如果有）
+
+        # 处理包裹信息
+        # 对于需要追踪号码的状态，如果列表接口未返回packages，则调用详情接口
+        posting_status = posting_data.get("status")
+        needs_tracking = posting_status in ["awaiting_deliver", "delivering", "delivered"]
+
         if posting_data.get("packages"):
+            # 列表接口有返回packages，直接处理
             await self._process_packages(session, posting, posting_data["packages"])
-        
+        elif needs_tracking:
+            # 需要追踪号码但列表接口未返回，调用详情接口获取完整包裹信息
+            try:
+                detail_response = await self.api_client.get_posting_details(posting_number)
+                detail_data = detail_response.get("result", {})
+                if detail_data.get("packages"):
+                    await self._process_packages(session, posting, detail_data["packages"])
+                    logger.info(f"Fetched package details for posting {posting_number}, packages: {len(detail_data['packages'])}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch package details for posting {posting_number}: {e}")
+
         return posting
     
     async def _process_order_items(
@@ -415,25 +430,33 @@ class OrderSyncService:
     ):
         """处理包裹信息"""
         for package_data in packages:
+            package_number = package_data.get("package_number") or package_data.get("id") or f"PKG-{posting.id}-{len(packages)}"
+
             # 查找或创建包裹
             stmt = select(OzonShipmentPackage).where(
                 and_(
                     OzonShipmentPackage.posting_id == posting.id,
-                    OzonShipmentPackage.package_number == package_data.get("package_number")
+                    OzonShipmentPackage.package_number == package_number
                 )
             )
             package = await session.scalar(stmt)
-            
+
             if not package:
                 package = OzonShipmentPackage(
                     posting_id=posting.id,
-                    package_number=package_data.get("package_number")
+                    package_number=package_number
                 )
                 session.add(package)
-            
+
             # 更新包裹信息
             package.tracking_number = package_data.get("tracking_number")
+            package.carrier_name = package_data.get("carrier_name")
+            package.carrier_code = package_data.get("carrier_code")
             package.status = package_data.get("status")
+
+            # 更新时间戳
+            if package_data.get("status_updated_at"):
+                package.status_updated_at = self._parse_date(package_data["status_updated_at"])
             
     async def ship_posting(
         self,
