@@ -19,6 +19,12 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    // 确保 React 只有一个实例
+    dedupe: ['react', 'react-dom'],
+  },
+  // 优化依赖预构建
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'antd'],
   },
   build: {
     // 设置chunk大小警告限制
@@ -51,12 +57,9 @@ export default defineConfig({
             return 'vendor-misc';
           }
         },
-        // 用于从入口点创建单独的块
-        chunkFileNames: (chunkInfo) => {
-          const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop() : 'chunk';
-          return `assets/js/${facadeModuleId}-[hash].js`;
-        },
-        // 用于命名代码拆分的块
+        // 用于命名代码拆分的块（保留 manualChunks 的命名）
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        // 用于命名入口文件
         entryFileNames: 'assets/js/[name]-[hash].js',
         // 用于命名静态资源
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
