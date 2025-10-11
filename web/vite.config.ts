@@ -26,6 +26,14 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', 'antd'],
   },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // 明确使用 sass-embedded，避免 legacy-js-api 警告
+        api: 'modern-compiler',
+      },
+    },
+  },
   build: {
     // 设置chunk大小警告限制
     chunkSizeWarningLimit: 1000,
