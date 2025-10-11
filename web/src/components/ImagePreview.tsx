@@ -133,9 +133,8 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     message.success('图片开始下载');
   };
 
-  if (!images || images.length === 0) {
-    return null;
-  }
+  // 当没有图片但visible为true时，也显示Modal（用于loading状态）
+  const hasImages = images && images.length > 0;
 
   return (
     <Modal
@@ -173,8 +172,8 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
         minWidth: '400px',
         minHeight: '300px',
       }}>
-        {/* 加载动画 */}
-        {loading && (
+        {/* 加载动画 - 当loading或没有图片时显示 */}
+        {(loading || !hasImages) && (
           <div style={{
             position: 'absolute',
             top: '50%',
@@ -182,40 +181,42 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
             transform: 'translate(-50%, -50%)',
             zIndex: 10,
           }}>
-            <Spin size="large" />
+            <Spin size="large" tip="加载图片中..." />
           </div>
         )}
 
-        {/* 图片 */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '40px',
-          minHeight: '300px',
-        }}>
-          <img
-            src={images[currentIndex]}
-            alt={`预览图片 ${currentIndex + 1}`}
-            style={{
-              maxWidth: '70vw',
-              maxHeight: '70vh',
-              display: 'block',
-              transform: `scale(${scale}) rotate(${rotate}deg)`,
-              transition: 'transform 0.3s ease',
-              userSelect: 'none',
-            }}
-            onLoad={() => setLoading(false)}
-            onError={() => {
-              setLoading(false);
-              message.error('图片加载失败');
-            }}
-            draggable={false}
-          />
-        </div>
+        {/* 图片 - 只有当有图片时才渲染 */}
+        {hasImages && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px',
+            minHeight: '300px',
+          }}>
+            <img
+              src={images[currentIndex]}
+              alt={`预览图片 ${currentIndex + 1}`}
+              style={{
+                maxWidth: '70vw',
+                maxHeight: '70vh',
+                display: 'block',
+                transform: `scale(${scale}) rotate(${rotate}deg)`,
+                transition: 'transform 0.3s ease',
+                userSelect: 'none',
+              }}
+              onLoad={() => setLoading(false)}
+              onError={() => {
+                setLoading(false);
+                message.error('图片加载失败');
+              }}
+              draggable={false}
+            />
+          </div>
+        )}
 
-        {/* 左箭头 */}
-        {currentIndex > 0 && (
+        {/* 左箭头 - 只在有图片时显示 */}
+        {hasImages && currentIndex > 0 && (
           <Button
             type="text"
             icon={<LeftOutlined />}
@@ -235,8 +236,8 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
           />
         )}
 
-        {/* 右箭头 */}
-        {currentIndex < images.length - 1 && (
+        {/* 右箭头 - 只在有图片时显示 */}
+        {hasImages && currentIndex < images.length - 1 && (
           <Button
             type="text"
             icon={<RightOutlined />}
@@ -274,8 +275,8 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
           }}
         />
 
-        {/* 顶部信息栏 */}
-        {images.length > 1 && (
+        {/* 顶部信息栏 - 只在有多张图片时显示 */}
+        {hasImages && images.length > 1 && (
           <div style={{
             position: 'absolute',
             top: 10,
@@ -291,8 +292,9 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
           </div>
         )}
 
-        {/* 底部工具栏 */}
-        <div style={{
+        {/* 底部工具栏 - 只在有图片时显示 */}
+        {hasImages && (
+          <div style={{
           position: 'absolute',
           bottom: 10,
           left: '50%',
@@ -370,6 +372,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
             )}
           </Space>
         </div>
+        )}
       </div>
     </Modal>
   );
