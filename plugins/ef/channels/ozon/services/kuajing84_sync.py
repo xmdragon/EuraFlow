@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.ozon_shops import OzonShop
 from ..models.orders import OzonOrder
 from ..models.kuajing84 import Kuajing84SyncLog
+from ..models.kuajing84_global_config import Kuajing84GlobalConfig
 from .kuajing84_client import Kuajing84Client
 
 logger = logging.getLogger(__name__)
@@ -44,16 +45,14 @@ class Kuajing84SyncService:
 
     async def save_kuajing84_config(
         self,
-        shop_id: int,
         username: str,
         password: str,
         enabled: bool = True
     ) -> Dict[str, any]:
         """
-        保存跨境巴士配置
+        保存跨境巴士全局配置（单例模式）
 
         Args:
-            shop_id: 店铺ID
             username: 跨境巴士用户名
             password: 跨境巴士密码
             enabled: 是否启用
@@ -61,119 +60,118 @@ class Kuajing84SyncService:
         Returns:
             保存结果
         """
-        logger.info(f"保存跨境巴士配置，shop_id: {shop_id}, username: {username}")
+        logger.info(f"保存跨境巴士全局配置，username: {username}")
 
-        # 查询店铺
+        # 查询全局配置（id固定为1）
         result = await self.db.execute(
-            select(OzonShop).where(OzonShop.id == shop_id)
+            select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
         )
-        shop = result.scalar_one_or_none()
-
-        if not shop:
-            raise ValueError(f"店铺不存在: {shop_id}")
+        config = result.scalar_one_or_none()
 
         # 加密密码
         encrypted_password = self._encrypt(password)
 
-        # 更新配置
-        shop.kuajing84_config = {
-            "enabled": enabled,
-            "base_url": "https://www.kuajing84.com",
-            "username": username,
-            "password": encrypted_password,
-            "cookie": None,  # 首次保存不包含 Cookie
-            "cookie_expires_at": None
-        }
+        if config:
+            # 更新现有配置
+            config.username = username
+            config.password = encrypted_password
+            config.enabled = enabled
+            config.cookie = None  # 清空旧Cookie
+            config.cookie_expires_at = None
+        else:
+            # 创建新配置
+            config = Kuajing84GlobalConfig(
+                id=1,
+                username=username,
+                password=encrypted_password,
+                enabled=enabled,
+                base_url="https://www.kuajing84.com",
+                cookie=None,
+                cookie_expires_at=None
+            )
+            self.db.add(config)
 
         await self.db.commit()
 
-        logger.info(f"跨境巴士配置保存成功，shop_id: {shop_id}")
+        logger.info("跨境巴士全局配置保存成功")
 
         return {
             "success": True,
             "message": "配置保存成功"
         }
 
-    async def get_kuajing84_config(self, shop_id: int) -> Optional[Dict[str, any]]:
+    async def get_kuajing84_config(self) -> Optional[Dict[str, any]]:
         """
-        获取跨境巴士配置
-
-        Args:
-            shop_id: 店铺ID
+        获取跨境巴士全局配置
 
         Returns:
             配置信息，如果未配置返回 None
         """
         result = await self.db.execute(
-            select(OzonShop).where(OzonShop.id == shop_id)
+            select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
         )
-        shop = result.scalar_one_or_none()
+        config = result.scalar_one_or_none()
 
-        if not shop or not shop.kuajing84_config:
+        if not config:
             return None
 
-        config = shop.kuajing84_config.copy()
+        return {
+            "enabled": config.enabled,
+            "username": config.username,
+            "base_url": config.base_url,
+            "has_cookie": config.cookie is not None,
+        }
 
-        # 解密密码（API返回时不包含密码，仅内部使用）
-        return config
-
-    async def _get_valid_cookies(self, shop: OzonShop) -> Optional[list]:
+    async def _get_valid_cookies(self) -> Optional[list]:
         """
         获取有效的 Cookie，如果 Cookie 过期则重新登录
-
-        Args:
-            shop: 店铺对象
 
         Returns:
             Cookie 列表，如果获取失败返回 None
         """
-        config = shop.kuajing84_config
+        # 查询全局配置
+        result = await self.db.execute(
+            select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
+        )
+        config = result.scalar_one_or_none()
 
-        if not config or not config.get("enabled"):
-            logger.warning(f"跨境巴士未启用，shop_id: {shop.id}")
+        if not config or not config.enabled:
+            logger.warning("跨境巴士未启用")
             return None
 
         # 检查 Cookie 是否存在且未过期
-        cookie = config.get("cookie")
-        expires_at = config.get("cookie_expires_at")
-
-        if cookie and expires_at:
-            expires_time = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-            if datetime.utcnow() < expires_time:
-                logger.debug(f"使用缓存的 Cookie，shop_id: {shop.id}")
-                return cookie
+        if config.cookie and config.cookie_expires_at:
+            if datetime.utcnow() < config.cookie_expires_at:
+                logger.debug("使用缓存的 Cookie")
+                return config.cookie
 
         # Cookie 不存在或已过期，重新登录
-        logger.info(f"Cookie 已过期或不存在，重新登录，shop_id: {shop.id}")
+        logger.info("Cookie 已过期或不存在，重新登录")
 
-        username = config.get("username")
-        encrypted_password = config.get("password")
-
-        if not username or not encrypted_password:
-            logger.error(f"跨境巴士配置不完整，shop_id: {shop.id}")
+        if not config.username or not config.password:
+            logger.error("跨境巴士配置不完整")
             return None
 
         # 解密密码
-        password = self._decrypt(encrypted_password)
+        password = self._decrypt(config.password)
 
         # 登录获取 Cookie
-        async with Kuajing84Client(base_url=config.get("base_url", "https://www.kuajing84.com")) as client:
+        async with Kuajing84Client(base_url=config.base_url) as client:
             try:
-                login_result = await client.login(username, password)
+                login_result = await client.login(config.username, password)
 
                 # 更新配置中的 Cookie
-                config["cookie"] = login_result["cookies"]
-                config["cookie_expires_at"] = login_result["expires_at"]
+                config.cookie = login_result["cookies"]
+                config.cookie_expires_at = datetime.fromisoformat(login_result["expires_at"].replace("Z", "+00:00"))
 
-                shop.kuajing84_config = config
                 await self.db.commit()
 
-                logger.info(f"登录成功并更新 Cookie，shop_id: {shop.id}")
+                logger.info("登录成功并更新 Cookie")
 
                 return login_result["cookies"]
 
             except Exception as e:
-                logger.error(f"登录跨境巴士失败，shop_id: {shop.id}, error: {e}")
+                logger.error(f"登录跨境巴士失败，error: {e}")
                 return None
 
     async def sync_logistics_order(
@@ -237,7 +235,7 @@ class Kuajing84SyncService:
 
         try:
             # 4. 获取有效的 Cookie
-            cookies = await self._get_valid_cookies(shop)
+            cookies = await self._get_valid_cookies()
 
             if not cookies:
                 sync_log.sync_status = "failed"
@@ -250,10 +248,15 @@ class Kuajing84SyncService:
                     "log_id": sync_log.id
                 }
 
-            # 5. 查找跨境巴士订单 oid
-            async with Kuajing84Client(
-                base_url=shop.kuajing84_config.get("base_url", "https://www.kuajing84.com")
-            ) as client:
+            # 5. 获取全局配置的base_url
+            result = await self.db.execute(
+                select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
+            )
+            global_config = result.scalar_one_or_none()
+            base_url = global_config.base_url if global_config else "https://www.kuajing84.com"
+
+            # 6. 查找跨境巴士订单 oid
+            async with Kuajing84Client(base_url=base_url) as client:
                 oid = await client.find_order_oid(
                     order_number=sync_log.order_number,
                     cookies=cookies

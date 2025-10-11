@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_db
-from ef_core.config import settings
+from ef_core.database import get_async_session
+from ef_core.config import get_settings
 from ..services.kuajing84_sync import Kuajing84SyncService
 
 logger = logging.getLogger(__name__)
@@ -19,8 +19,7 @@ router = APIRouter(prefix="/kuajing84", tags=["跨境巴士同步"])
 # ============ Pydantic 模型 ============
 
 class Kuajing84ConfigRequest(BaseModel):
-    """跨境巴士配置请求"""
-    shop_id: int = Field(..., description="店铺ID")
+    """跨境巴士全局配置请求"""
     username: str = Field(..., min_length=1, max_length=100, description="跨境巴士用户名")
     password: str = Field(..., min_length=1, max_length=100, description="跨境巴士密码")
     enabled: bool = Field(True, description="是否启用")
@@ -67,8 +66,10 @@ class SyncLogsResponse(BaseModel):
 
 # ============ 依赖注入 ============
 
-def get_kuajing84_service(db: AsyncSession = Depends(get_db)) -> Kuajing84SyncService:
+async def get_kuajing84_service(db: AsyncSession = Depends(get_async_session)) -> Kuajing84SyncService:
     """获取跨境巴士同步服务实例"""
+    settings = get_settings()
+
     # 从环境变量获取加密密钥
     encryption_key = getattr(settings, "ENCRYPTION_KEY", None)
 
@@ -91,16 +92,14 @@ async def save_config(
     service: Kuajing84SyncService = Depends(get_kuajing84_service)
 ):
     """
-    保存跨境巴士配置
+    保存跨境巴士全局配置（单例模式）
 
-    - **shop_id**: 店铺ID
     - **username**: 跨境巴士用户名
     - **password**: 跨境巴士密码
     - **enabled**: 是否启用（默认true）
     """
     try:
         result = await service.save_kuajing84_config(
-            shop_id=request.shop_id,
             username=request.username,
             password=request.password,
             enabled=request.enabled
@@ -118,32 +117,21 @@ async def save_config(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/config/{shop_id}", response_model=Kuajing84ConfigResponse)
+@router.get("/config", response_model=Kuajing84ConfigResponse)
 async def get_config(
-    shop_id: int,
     service: Kuajing84SyncService = Depends(get_kuajing84_service)
 ):
     """
-    获取跨境巴士配置
-
-    - **shop_id**: 店铺ID
+    获取跨境巴士全局配置
     """
     try:
-        config = await service.get_kuajing84_config(shop_id=shop_id)
+        config = await service.get_kuajing84_config()
 
         if config:
-            # 移除敏感信息
-            safe_config = {
-                "enabled": config.get("enabled", False),
-                "username": config.get("username"),
-                "base_url": config.get("base_url"),
-                "has_cookie": config.get("cookie") is not None
-            }
-
             return Kuajing84ConfigResponse(
                 success=True,
                 message="配置获取成功",
-                data=safe_config
+                data=config
             )
         else:
             return Kuajing84ConfigResponse(

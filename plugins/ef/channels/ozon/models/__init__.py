@@ -7,6 +7,7 @@ from .watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
 from .product_selection import ProductSelectionItem, ImportHistory
 from .chat import OzonChat, OzonChatMessage
 from .kuajing84 import Kuajing84SyncLog
+from .kuajing84_global_config import Kuajing84GlobalConfig
 
 __all__ = [
     "OzonShop",
@@ -23,5 +24,6 @@ __all__ = [
     "ImportHistory",
     "OzonChat",
     "OzonChatMessage",
-    "Kuajing84SyncLog"
+    "Kuajing84SyncLog",
+    "Kuajing84GlobalConfig",
 ]

@@ -703,7 +703,7 @@ const ShopSettings: React.FC = () => {
                       </span>
                     ),
                     key: '4',
-                    children: <Kuajing84Configuration selectedShop={selectedShop} />,
+                    children: <Kuajing84Configuration />,
                   },
                 ]}
               />
@@ -797,33 +797,30 @@ const ShopSettings: React.FC = () => {
   );
 };
 
-// 跨境巴士配置组件
-const Kuajing84Configuration: React.FC<{ selectedShop: Shop | null }> = ({ selectedShop }) => {
+// 跨境巴士全局配置组件
+const Kuajing84Configuration: React.FC = () => {
   const [configForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
 
-  // 获取跨境巴士配置
+  // 获取跨境巴士全局配置
   const { data: configData, refetch: refetchConfig } = useQuery({
-    queryKey: ['ozon', 'kuajing84-config', selectedShop?.id],
-    queryFn: () => ozonApi.getKuajing84Config(selectedShop!.id),
-    enabled: !!selectedShop?.id,
+    queryKey: ['ozon', 'kuajing84-global-config'],
+    queryFn: () => ozonApi.getKuajing84Config(),
     staleTime: 30 * 1000,
   });
 
-  // 获取同步日志
-  const { data: logsData, refetch: refetchLogs } = useQuery({
-    queryKey: ['ozon', 'kuajing84-logs', selectedShop?.id],
-    queryFn: () => ozonApi.getKuajing84SyncLogs(selectedShop!.id),
-    enabled: !!selectedShop?.id,
-    staleTime: 10 * 1000,
-  });
+  // 暂时移除日志查询（需要全局日志接口）
+  // const { data: logsData, refetch: refetchLogs } = useQuery({
+  //   queryKey: ['ozon', 'kuajing84-logs'],
+  //   queryFn: () => ozonApi.getKuajing84SyncLogs(),
+  //   staleTime: 10 * 1000,
+  // });
 
-  // 保存配置
+  // 保存全局配置
   const saveConfigMutation = useMutation({
     mutationFn: async (values: any) => {
       return ozonApi.saveKuajing84Config({
-        shop_id: selectedShop!.id,
         username: values.username,
         password: values.password,
         enabled: values.enabled || false,
@@ -994,85 +991,12 @@ const Kuajing84Configuration: React.FC<{ selectedShop: Shop | null }> = ({ selec
 
       <Divider />
 
-      <Card size="small" title={
-        <Space>
-          <Text>同步日志</Text>
-          <Button
-            size="small"
-            icon={<ReloadOutlined />}
-            onClick={() => refetchLogs()}
-          >
-            刷新
-          </Button>
-        </Space>
-      }>
-        <Table
-          dataSource={logs}
-          loading={loading}
-          size="small"
-          rowKey="id"
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          columns={[
-            {
-              title: '订单号',
-              dataIndex: 'order_number',
-              key: 'order_number',
-              width: 150,
-              render: (text) => <Text code>{text}</Text>,
-            },
-            {
-              title: '物流单号',
-              dataIndex: 'logistics_order',
-              key: 'logistics_order',
-              width: 150,
-              render: (text) => <Text>{text}</Text>,
-            },
-            {
-              title: '跨境巴士OID',
-              dataIndex: 'kuajing84_oid',
-              key: 'kuajing84_oid',
-              width: 120,
-              render: (text) => text ? <Text code>{text}</Text> : '-',
-            },
-            {
-              title: '同步状态',
-              dataIndex: 'sync_status',
-              key: 'sync_status',
-              width: 100,
-              render: (status) => {
-                const statusConfig: Record<string, { color: string; text: string }> = {
-                  pending: { color: 'default', text: '待同步' },
-                  success: { color: 'success', text: '成功' },
-                  failed: { color: 'error', text: '失败' },
-                };
-                const config = statusConfig[status] || statusConfig.pending;
-                return <Badge status={config.color as any} text={config.text} />;
-              },
-            },
-            {
-              title: '尝试次数',
-              dataIndex: 'attempts',
-              key: 'attempts',
-              width: 80,
-              align: 'center',
-            },
-            {
-              title: '错误信息',
-              dataIndex: 'error_message',
-              key: 'error_message',
-              ellipsis: true,
-              render: (error) => error ? <Tooltip title={error}><Text type="danger">{error}</Text></Tooltip> : '-',
-            },
-            {
-              title: '同步时间',
-              dataIndex: 'synced_at',
-              key: 'synced_at',
-              width: 150,
-              render: (time) => time ? new Date(time).toLocaleString() : '-',
-            },
-          ]}
-        />
-      </Card>
+      <Alert
+        message="同步日志查看"
+        description="跨境巴士同步日志可在订单详情页的"跨境巴士同步"标签页中查看。全局配置保存成功后，所有店铺的订单都可以使用该账号进行同步。"
+        type="info"
+        showIcon
+      />
     </div>
   );
 };

@@ -770,3 +770,61 @@ export const exportOrderReport = async (month: string, shopIds?: string): Promis
   });
   return response.data;
 };
+
+// ========== 跨境巴士同步 API ==========
+
+export interface Kuajing84Config {
+  enabled: boolean;
+  username?: string;
+  base_url?: string;
+  has_cookie?: boolean;
+}
+
+export interface Kuajing84ConfigRequest {
+  username: string;
+  password: string;
+  enabled: boolean;
+}
+
+export interface Kuajing84SyncLog {
+  id: number;
+  order_number: string;
+  logistics_order: string;
+  kuajing84_oid?: string;
+  sync_status: 'pending' | 'success' | 'failed';
+  error_message?: string;
+  attempts: number;
+  created_at: string;
+  synced_at?: string;
+}
+
+// 保存跨境巴士全局配置
+export const saveKuajing84Config = async (config: Kuajing84ConfigRequest) => {
+  const response = await apiClient.post('/ozon/kuajing84/config', config);
+  return response.data;
+};
+
+// 获取跨境巴士全局配置
+export const getKuajing84Config = async (): Promise<{ success: boolean; data?: Kuajing84Config; message?: string }> => {
+  const response = await apiClient.get('/ozon/kuajing84/config');
+  return response.data;
+};
+
+// 同步物流单号到跨境巴士
+export const syncToKuajing84 = async (ozonOrderId: number, logisticsOrder: string) => {
+  const response = await apiClient.post('/ozon/kuajing84/sync', {
+    ozon_order_id: ozonOrderId,
+    logistics_order: logisticsOrder,
+  });
+  return response.data;
+};
+
+// 获取跨境巴士同步日志
+export const getKuajing84SyncLogs = async (shopId: number, status?: string, limit: number = 50): Promise<{ success: boolean; data: Kuajing84SyncLog[] }> => {
+  const params: any = { limit };
+  if (status) {
+    params.status = status;
+  }
+  const response = await apiClient.get(`/ozon/kuajing84/logs/${shopId}`, { params });
+  return response.data;
+};
