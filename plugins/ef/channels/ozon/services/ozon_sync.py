@@ -1314,7 +1314,7 @@ class OzonSyncService:
         # 删除不再存在的明细（订单更新时商品被移除）
         for sku, item in existing_items.items():
             if sku not in synced_skus:
-                db.delete(item)
+                await db.delete(item)
 
         logger.info(
             f"Synced {len(synced_skus)} items for order {order.order_id}",

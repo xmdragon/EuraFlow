@@ -1716,7 +1716,6 @@ async def get_orders(
     if status:
         count_query = count_query.where(OzonOrder.status == status)
     if posting_number:
-        from plugins.ef.channels.ozon.models.orders import OzonPosting
         count_query = count_query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
             (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
             (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
@@ -1838,7 +1837,6 @@ async def update_order_extra_info(
     from decimal import Decimal
 
     # 通过 posting_number 查找订单（先查 posting，再找 order）
-    from plugins.ef.channels.ozon.models.orders import OzonPosting
     posting_result = await db.execute(
         select(OzonPosting).where(OzonPosting.posting_number == posting_number)
     )
@@ -1901,7 +1899,6 @@ async def get_order_detail(
     通过posting_number获取单个订单的完整信息
     """
     # 通过 posting_number 查找订单（先查 posting，再找 order）
-    from plugins.ef.channels.ozon.models.orders import OzonPosting
     posting_query = select(OzonPosting).where(OzonPosting.posting_number == posting_number)
 
     if shop_id:
