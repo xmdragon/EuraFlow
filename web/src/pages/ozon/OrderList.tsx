@@ -16,6 +16,7 @@ import {
   EnvironmentOutlined,
   FileTextOutlined,
   MoreOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -438,6 +439,19 @@ const OrderList: React.FC = () => {
     },
     onError: (error: any) => {
       message.error(`取消失败: ${error.message}`);
+    },
+  });
+
+  // 同步到跨境巴士
+  const syncToKuajing84Mutation = useMutation({
+    mutationFn: ({ ozonOrderId, logisticsOrder }: { ozonOrderId: number; logisticsOrder: string }) =>
+      ozonApi.syncToKuajing84(ozonOrderId, logisticsOrder),
+    onSuccess: () => {
+      message.success('同步到跨境巴士成功');
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+    },
+    onError: (error: any) => {
+      message.error(`同步失败: ${error.message}`);
     },
   });
 
@@ -1112,6 +1126,96 @@ const OrderList: React.FC = () => {
                     </Descriptions>
                   </Card>
                 )),
+              },
+              {
+                label: (
+                  <span>
+                    <SendOutlined /> 跨境巴士同步
+                  </span>
+                ),
+                key: '6',
+                children: (
+                  <>
+                    <Alert
+                      message="物流单号同步"
+                      description="将国内物流单号同步到跨境巴士平台，便于物流追踪。请确保已在店铺设置中配置跨境巴士账号。"
+                      type="info"
+                      showIcon
+                      className={styles.alertMargin}
+                    />
+
+                    {selectedOrder.domestic_tracking_number && (
+                      <Alert
+                        message="当前国内物流单号"
+                        description={selectedOrder.domestic_tracking_number}
+                        type="success"
+                        showIcon
+                        className={styles.alertMargin}
+                      />
+                    )}
+
+                    <Form
+                      layout="vertical"
+                      onFinish={(values) => {
+                        if (!selectedOrder.id) {
+                          message.error('订单ID不存在');
+                          return;
+                        }
+                        syncToKuajing84Mutation.mutate({
+                          ozonOrderId: selectedOrder.id,
+                          logisticsOrder: values.logistics_order,
+                        });
+                      }}
+                      initialValues={{
+                        logistics_order: selectedOrder.domestic_tracking_number || '',
+                      }}
+                    >
+                      <Form.Item
+                        name="logistics_order"
+                        label="国内物流单号"
+                        rules={[{ required: true, message: '请输入国内物流单号' }]}
+                      >
+                        <Input
+                          placeholder="请输入国内物流单号"
+                          prefix={<TruckOutlined />}
+                        />
+                      </Form.Item>
+
+                      <Form.Item>
+                        <Space>
+                          <Button
+                            type="primary"
+                            htmlType="submit"
+                            icon={<SendOutlined />}
+                            loading={syncToKuajing84Mutation.isPending}
+                          >
+                            同步到跨境巴士
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              // 刷新当前订单的kuajing84同步日志
+                              message.info('同步日志查询功能开发中');
+                            }}
+                          >
+                            查看同步日志
+                          </Button>
+                        </Space>
+                      </Form.Item>
+                    </Form>
+
+                    <Divider />
+
+                    <div>
+                      <Text strong>使用说明：</Text>
+                      <ol className={styles.instructionList}>
+                        <li>在"额外信息"标签页中填写国内物流单号</li>
+                        <li>确保已在店铺设置中配置跨境巴士账号</li>
+                        <li>点击"同步到跨境巴士"按钮进行同步</li>
+                        <li>系统将自动在跨境巴士平台中查找订单并更新物流单号</li>
+                      </ol>
+                    </div>
+                  </>
+                ),
               },
             ]}
           />

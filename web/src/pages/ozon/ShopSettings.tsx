@@ -17,6 +17,8 @@ import {
   EditOutlined,
   DeleteOutlined,
   ShoppingOutlined,
+  TruckOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -694,6 +696,15 @@ const ShopSettings: React.FC = () => {
                       </>
                     ),
                   },
+                  {
+                    label: (
+                      <span>
+                        <TruckOutlined /> 跨境巴士配置
+                      </span>
+                    ),
+                    key: '4',
+                    children: <Kuajing84Configuration selectedShop={selectedShop} />,
+                  },
                 ]}
               />
 
@@ -782,6 +793,286 @@ const ShopSettings: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+    </div>
+  );
+};
+
+// 跨境巴士配置组件
+const Kuajing84Configuration: React.FC<{ selectedShop: Shop | null }> = ({ selectedShop }) => {
+  const [configForm] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+
+  // 获取跨境巴士配置
+  const { data: configData, refetch: refetchConfig } = useQuery({
+    queryKey: ['ozon', 'kuajing84-config', selectedShop?.id],
+    queryFn: () => ozonApi.getKuajing84Config(selectedShop!.id),
+    enabled: !!selectedShop?.id,
+    staleTime: 30 * 1000,
+  });
+
+  // 获取同步日志
+  const { data: logsData, refetch: refetchLogs } = useQuery({
+    queryKey: ['ozon', 'kuajing84-logs', selectedShop?.id],
+    queryFn: () => ozonApi.getKuajing84SyncLogs(selectedShop!.id),
+    enabled: !!selectedShop?.id,
+    staleTime: 10 * 1000,
+  });
+
+  // 保存配置
+  const saveConfigMutation = useMutation({
+    mutationFn: async (values: any) => {
+      return ozonApi.saveKuajing84Config({
+        shop_id: selectedShop!.id,
+        username: values.username,
+        password: values.password,
+        enabled: values.enabled || false,
+      });
+    },
+    onSuccess: () => {
+      message.success('跨境巴士配置已保存');
+      refetchConfig();
+      // 清空密码字段（出于安全考虑）
+      configForm.setFieldsValue({ password: '' });
+    },
+    onError: (error: any) => {
+      message.error(`保存失败: ${error.message}`);
+    },
+  });
+
+  // 设置表单初始值
+  useEffect(() => {
+    if (configData?.data) {
+      configForm.setFieldsValue({
+        enabled: configData.data.enabled || false,
+        username: configData.data.username || '',
+        password: '', // 密码不回显
+      });
+    }
+  }, [configData, configForm]);
+
+  const handleSaveConfig = (values: any) => {
+    // 如果密码为空，不发送密码字段（保留原密码）
+    if (!values.password && configData?.data?.username) {
+      confirm({
+        title: '确认保存',
+        content: '未输入密码，将保留原密码。是否继续？',
+        onOk: () => {
+          saveConfigMutation.mutate({
+            ...values,
+            password: '******', // 占位符，后端会忽略
+          });
+        },
+      });
+    } else if (!values.password) {
+      message.warning('请输入密码');
+    } else {
+      saveConfigMutation.mutate(values);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    try {
+      // 测试逻辑：调用登录接口验证
+      message.info('测试连接功能开发中...');
+    } catch (error: any) {
+      message.error(`测试失败: ${error.message}`);
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const logs = logsData?.data || [];
+  const isConfigured = configData?.data?.username;
+
+  return (
+    <div>
+      <Alert
+        message="跨境巴士物流同步"
+        description="配置跨境巴士账号后，可将国内物流单号自动同步到跨境巴士平台。系统将自动管理登录会话和Cookie。"
+        type="info"
+        showIcon
+        className={styles.webhookAlert}
+      />
+
+      <Card size="small" title="账号配置" className={styles.kuajing84ConfigCard}>
+        <Form
+          form={configForm}
+          layout="vertical"
+          onFinish={handleSaveConfig}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="username"
+                label="用户名"
+                rules={[{ required: true, message: '请输入跨境巴士用户名' }]}
+              >
+                <Input placeholder="跨境巴士账号" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="password"
+                label="密码"
+                rules={[
+                  {
+                    required: !isConfigured,
+                    message: '请输入密码',
+                  },
+                ]}
+                extra={isConfigured ? '留空则保留原密码' : ''}
+              >
+                <Input.Password placeholder="跨境巴士密码" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="enabled"
+                label="启用状态"
+                valuePropName="checked"
+              >
+                <Switch checkedChildren="启用" unCheckedChildren="停用" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {isConfigured && (
+            <Alert
+              message="配置状态"
+              description={
+                <Space direction="vertical">
+                  <div>
+                    <Badge status={configData.data.enabled ? 'success' : 'default'} />
+                    <Text>{configData.data.enabled ? '已启用' : '已停用'}</Text>
+                  </div>
+                  <div>
+                    <Text type="secondary">用户名: </Text>
+                    <Text code>{configData.data.username}</Text>
+                  </div>
+                  {configData.data.has_cookie && (
+                    <div>
+                      <CheckCircleOutlined className={styles.statusSuccess} />
+                      <Text type="success"> Cookie有效</Text>
+                    </div>
+                  )}
+                </Space>
+              }
+              type="success"
+              showIcon
+              className={styles.configStatusAlert}
+            />
+          )}
+
+          <Form.Item>
+            <Space>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<SaveOutlined />}
+                loading={saveConfigMutation.isPending}
+              >
+                保存配置
+              </Button>
+              {isConfigured && (
+                <Button
+                  icon={<ApiOutlined />}
+                  onClick={handleTestConnection}
+                  loading={testingConnection}
+                >
+                  测试连接
+                </Button>
+              )}
+            </Space>
+          </Form.Item>
+        </Form>
+      </Card>
+
+      <Divider />
+
+      <Card size="small" title={
+        <Space>
+          <Text>同步日志</Text>
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={() => refetchLogs()}
+          >
+            刷新
+          </Button>
+        </Space>
+      }>
+        <Table
+          dataSource={logs}
+          loading={loading}
+          size="small"
+          rowKey="id"
+          pagination={{ pageSize: 10, showSizeChanger: false }}
+          columns={[
+            {
+              title: '订单号',
+              dataIndex: 'order_number',
+              key: 'order_number',
+              width: 150,
+              render: (text) => <Text code>{text}</Text>,
+            },
+            {
+              title: '物流单号',
+              dataIndex: 'logistics_order',
+              key: 'logistics_order',
+              width: 150,
+              render: (text) => <Text>{text}</Text>,
+            },
+            {
+              title: '跨境巴士OID',
+              dataIndex: 'kuajing84_oid',
+              key: 'kuajing84_oid',
+              width: 120,
+              render: (text) => text ? <Text code>{text}</Text> : '-',
+            },
+            {
+              title: '同步状态',
+              dataIndex: 'sync_status',
+              key: 'sync_status',
+              width: 100,
+              render: (status) => {
+                const statusConfig: Record<string, { color: string; text: string }> = {
+                  pending: { color: 'default', text: '待同步' },
+                  success: { color: 'success', text: '成功' },
+                  failed: { color: 'error', text: '失败' },
+                };
+                const config = statusConfig[status] || statusConfig.pending;
+                return <Badge status={config.color as any} text={config.text} />;
+              },
+            },
+            {
+              title: '尝试次数',
+              dataIndex: 'attempts',
+              key: 'attempts',
+              width: 80,
+              align: 'center',
+            },
+            {
+              title: '错误信息',
+              dataIndex: 'error_message',
+              key: 'error_message',
+              ellipsis: true,
+              render: (error) => error ? <Tooltip title={error}><Text type="danger">{error}</Text></Tooltip> : '-',
+            },
+            {
+              title: '同步时间',
+              dataIndex: 'synced_at',
+              key: 'synced_at',
+              width: 150,
+              render: (time) => time ? new Date(time).toLocaleString() : '-',
+            },
+          ]}
+        />
+      </Card>
     </div>
   );
 };
