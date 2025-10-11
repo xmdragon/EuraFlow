@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Card, Form, Switch, Select, Button, Row, Col, Typography, Space, message, Divider } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Form, Switch, Select, Button, Row, Col, Typography, Space, message, Divider, Spin } from 'antd';
 import { BellOutlined, GlobalOutlined, DatabaseOutlined, SecurityScanOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -33,6 +33,7 @@ interface SettingsData {
 const Settings: React.FC = () => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // 默认设置
   const defaultSettings: SettingsData = {
@@ -60,18 +61,69 @@ const Settings: React.FC = () => {
     },
   };
 
+  // 加载用户设置
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/ef/v1/settings', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          form.setFieldsValue(data);
+        } else {
+          // 如果获取失败，使用默认设置
+          form.setFieldsValue(defaultSettings);
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+        // 出错时使用默认设置
+        form.setFieldsValue(defaultSettings);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, [form, defaultSettings]);
+
   const handleSave = async (values: any) => {
     setSaving(true);
     try {
-      // TODO: 保存设置到后端
-      console.log('Saving settings:', values);
+      const response = await fetch('/api/ef/v1/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存设置失败');
+      }
+
       message.success('设置已保存');
     } catch (error) {
       message.error('保存设置失败');
+      console.error('Failed to save settings:', error);
     } finally {
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -80,7 +132,6 @@ const Settings: React.FC = () => {
       <Form
         form={form}
         layout="vertical"
-        initialValues={defaultSettings}
         onFinish={handleSave}
       >
         <Row gutter={8}>

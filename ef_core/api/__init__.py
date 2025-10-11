@@ -13,6 +13,7 @@ from .inventory import router as inventory_router
 from .listings import router as listings_router
 from .system import router as system_router
 from .finance import router as finance_router
+from .settings import router as settings_router
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ api_router = APIRouter()
 # 注册核心路由
 api_router.include_router(auth_router, tags=["Authentication"])
 api_router.include_router(api_keys_router, tags=["API Keys"])
+api_router.include_router(settings_router, tags=["Settings"])
 api_router.include_router(orders_router, prefix="/orders", tags=["Orders"])
 api_router.include_router(shipments_router, prefix="/shipments", tags=["Shipments"])
 api_router.include_router(inventory_router, prefix="/inventory", tags=["Inventory"])
