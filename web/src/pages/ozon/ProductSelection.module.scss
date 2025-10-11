@@ -172,6 +172,10 @@
   color: #fa8c16;
 }
 
+.placeholderText {
+  color: #999;
+}
+
 // ===== 评分 =====
 .ratingSection {
   font-size: 11px;
@@ -274,4 +278,17 @@
 
 .apiConfigCode {
   // API地址代码块样式
+}
+
+// ===== 通用表单控件样式 =====
+.fullWidthInput {
+  width: 100%;
+}
+
+.halfWidthInput {
+  width: 50%;
+}
+
+.compactSpace {
+  width: 100%;
 }

@@ -57,6 +57,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
+import styles from './ProductSelection.module.scss';
 
 const { Option } = Select;
 const { Title, Text, Link, Paragraph } = Typography;
@@ -135,7 +136,7 @@ const ProductSelection: React.FC = () => {
       title: '确认清空所有数据？',
       content: (
         <div>
-          <p style={{ color: '#ff4d4f', marginBottom: 8 }}>
+          <p className={styles.dangerText}>
             ⚠️ 此操作将永久删除您账号下的所有选品数据，无法恢复！
           </p>
           <p>包括：</p>
@@ -351,67 +352,30 @@ const ProductSelection: React.FC = () => {
         cover={
           product.image_url ? (
             <div
-              style={{
-                height: 160,
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#f0f0f0',
-                cursor: 'pointer',
-                position: 'relative'
-              }}
+              className={styles.productCover}
               onClick={() => window.open(product.ozon_link, '_blank')}
             >
               <img
                 alt={product.product_name_cn}
                 src={product.image_url}
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                className={styles.productImage}
               />
               <div
-                style={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: 'rgba(0, 0, 0, 0.6)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s',
-                }}
+                className={styles.previewIconOverlay}
                 onClick={(e) => {
                   e.stopPropagation();
                   showProductImages(product);
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
-                  e.currentTarget.style.transform = 'scale(1.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
               >
-                <PlusOutlined style={{ color: 'white', fontSize: 14 }} />
+                <PlusOutlined />
               </div>
             </div>
           ) : (
             <div
-              style={{
-                height: 160,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#f0f0f0',
-                cursor: 'pointer'
-              }}
+              className={styles.productImagePlaceholder}
               onClick={() => window.open(product.ozon_link, '_blank')}
             >
-              <ShoppingOutlined style={{ fontSize: 40, color: '#ccc' }} />
+              <ShoppingOutlined />
             </div>
           )
         }
@@ -422,30 +386,30 @@ const ProductSelection: React.FC = () => {
             size="small"
             icon={<ShoppingOutlined />}
             onClick={() => window.open(product.ozon_link, '_blank')}
-            style={{ fontSize: '12px' }}
+            className={styles.viewButton}
           >
             查看
           </Button>,
         ]}
       >
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div className={styles.productCardBody}>
           {/* 商品名称 */}
-          <Paragraph ellipsis={{ rows: 2, tooltip: product.product_name_cn }} style={{ fontSize: '12px', lineHeight: '1.4', marginBottom: 0 }}>
+          <Paragraph ellipsis={{ rows: 2, tooltip: product.product_name_cn }} className={styles.productName}>
             {product.product_name_cn || product.product_name_ru}
           </Paragraph>
           {/* 价格信息 */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Text strong style={{ fontSize: 16, color: '#ff4d4f' }}>
+          <div className={styles.priceContainer}>
+            <div className={styles.priceRow}>
+              <Text strong className={styles.currentPrice}>
                 ¥{formatPrice(product.current_price)}
               </Text>
               {product.original_price && (
-                <Text delete style={{ color: '#999', fontSize: '12px' }}>
+                <Text delete className={styles.originalPrice}>
                   ¥{formatPrice(product.original_price)}
                 </Text>
               )}
               {product.original_price && discount > 0 && (
-                <Tag color="red" style={{ margin: 0, padding: '0 4px', fontSize: '11px', lineHeight: '18px' }}>
+                <Tag color="red" className={styles.discountTag}>
                   -{discount}%
                 </Tag>
               )}
@@ -453,45 +417,45 @@ const ProductSelection: React.FC = () => {
           </div>
 
           {/* 品牌 */}
-          <div style={{ fontSize: '11px', lineHeight: '1.2' }}>
+          <div className={styles.brandInfo}>
             <Text type="secondary">品牌: </Text>
             <Text strong>{product.brand || '无品牌'}</Text>
           </div>
 
           {/* 佣金率 - 紧凑布局 */}
-          <div style={{ background: '#f5f5f5', padding: '3px 4px', borderRadius: '2px', marginTop: '2px' }}>
-            <Row gutter={4} style={{ marginBottom: '2px' }}>
+          <div className={styles.commissionBox}>
+            <Row gutter={4} className={styles.commissionRow}>
               <Col span={12}>
-                <Text style={{ fontSize: '10px', color: '#666' }}>rFBS≤1500:</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.rfbs_commission_low)}</Text>
+                <Text className={styles.commissionLabel}>rFBS≤1500:</Text>
+                <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_low)}</Text>
               </Col>
               <Col span={12}>
-                <Text style={{ fontSize: '10px', color: '#666' }}>FBP≤1500:</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.fbp_commission_low)}</Text>
+                <Text className={styles.commissionLabel}>FBP≤1500:</Text>
+                <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_low)}</Text>
               </Col>
             </Row>
             <Row gutter={4}>
               <Col span={12}>
-                <Text style={{ fontSize: '10px', color: '#666' }}>rFBS(1.5-5k):</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.rfbs_commission_mid)}</Text>
+                <Text className={styles.commissionLabel}>rFBS(1.5-5k):</Text>
+                <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_mid)}</Text>
               </Col>
               <Col span={12}>
-                <Text style={{ fontSize: '10px', color: '#666' }}>FBP(1.5-5k):</Text>
-                <Text strong style={{ fontSize: '11px', marginLeft: '2px' }}>{formatPercentage(product.fbp_commission_mid)}</Text>
+                <Text className={styles.commissionLabel}>FBP(1.5-5k):</Text>
+                <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_mid)}</Text>
               </Col>
             </Row>
           </div>
 
           {/* 销量和重量 */}
-          <Row gutter={4} style={{ marginTop: '4px' }}>
+          <Row gutter={4} className={styles.statsRow}>
             <Col span={12}>
-              <div style={{ fontSize: '11px' }}>
+              <div className={styles.statsItem}>
                 <Text type="secondary">月销: </Text>
                 <Text strong>{formatNumber(product.monthly_sales_volume)}</Text>
               </div>
             </Col>
             <Col span={12}>
-              <div style={{ fontSize: '11px' }}>
+              <div className={styles.statsItem}>
                 <Text type="secondary">重量: </Text>
                 <Text strong>{formatWeight(product.package_weight)}</Text>
               </div>
@@ -499,33 +463,33 @@ const ProductSelection: React.FC = () => {
           </Row>
 
           {/* 竞争对手数据 */}
-          <div style={{ marginTop: '4px' }}>
+          <div className={styles.competitorSection}>
             <Row gutter={4}>
               <Col span={12}>
-                <div style={{ fontSize: '11px' }}>
+                <div className={styles.competitorItem}>
                   <Text type="secondary">跟卖者: </Text>
                   {product.competitor_count !== null && product.competitor_count !== undefined ? (
                     <Text
                       strong
-                      style={{ color: '#fa8c16', cursor: product.competitor_count > 0 ? 'pointer' : 'default' }}
+                      className={`${styles.competitorCount} ${product.competitor_count === 0 ? styles.disabled : ''}`}
                       onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
                     >
                       {product.competitor_count}家
                     </Text>
                   ) : (
-                    <Text style={{ color: '#999' }}>-</Text>
+                    <Text className={styles.placeholderText}>-</Text>
                   )}
                 </div>
               </Col>
               <Col span={12}>
-                <div style={{ fontSize: '11px' }}>
+                <div className={styles.competitorItem}>
                   <Text type="secondary">跟卖最低价: </Text>
                   {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
-                    <Text strong style={{ color: '#fa8c16' }}>
+                    <Text strong className={styles.competitorPrice}>
                       ¥{formatPrice(product.competitor_min_price)}
                     </Text>
                   ) : (
-                    <Text style={{ color: '#999' }}>-</Text>
+                    <Text className={styles.placeholderText}>-</Text>
                   )}
                 </div>
               </Col>
@@ -534,10 +498,10 @@ const ProductSelection: React.FC = () => {
 
           {/* 评分 - 更紧凑 */}
           {product.rating && (
-            <div style={{ fontSize: '11px', marginTop: '2px' }}>
-              <StarOutlined style={{ color: '#faad14', fontSize: '11px' }} />
-              <Text strong style={{ marginLeft: 2 }}>{product.rating}</Text>
-              <Text type="secondary" style={{ marginLeft: 2 }}>({product.review_count})</Text>
+            <div className={styles.ratingSection}>
+              <StarOutlined />
+              <Text strong className={styles.ratingValue}>{product.rating}</Text>
+              <Text type="secondary" className={styles.reviewCount}>({product.review_count})</Text>
             </div>
           )}
         </div>
@@ -557,7 +521,7 @@ const ProductSelection: React.FC = () => {
             children: (
               <>
           {/* 搜索表单 */}
-          <Card style={{ marginBottom: 24 }}>
+          <Card className={styles.searchFormCard}>
             <Form
               form={form}
               layout="vertical"
@@ -615,7 +579,7 @@ const ProductSelection: React.FC = () => {
                       min={0}
                       max={100}
                       precision={1}
-                      style={{ width: '100%' }}
+                      className={styles.fullWidthInput}
                       placeholder="%"
                       suffix="%"
                     />
@@ -629,7 +593,7 @@ const ProductSelection: React.FC = () => {
                       min={0}
                       max={100}
                       precision={1}
-                      style={{ width: '100%' }}
+                      className={styles.fullWidthInput}
                       placeholder="%"
                       suffix="%"
                     />
@@ -642,7 +606,7 @@ const ProductSelection: React.FC = () => {
                       min={0}
                       max={100}
                       precision={1}
-                      style={{ width: '100%' }}
+                      className={styles.fullWidthInput}
                       placeholder="%"
                       suffix="%"
                     />
@@ -655,7 +619,7 @@ const ProductSelection: React.FC = () => {
                       min={0}
                       max={100}
                       precision={1}
-                      style={{ width: '100%' }}
+                      className={styles.fullWidthInput}
                       placeholder="%"
                       suffix="%"
                     />
@@ -665,18 +629,18 @@ const ProductSelection: React.FC = () => {
                 {/* 第三行：月销量、重量 */}
                 <Col xs={24} sm={12} md={12} lg={8} xl={6}>
                   <Form.Item label="月销量">
-                    <Space.Compact style={{ width: '100%' }}>
+                    <Space.Compact className={styles.fullWidthInput}>
                       <Form.Item name="monthly_sales_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          className={styles.halfWidthInput}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="monthly_sales_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          className={styles.halfWidthInput}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -688,7 +652,7 @@ const ProductSelection: React.FC = () => {
                   <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
-                      style={{ width: '100%' }}
+                      className={styles.fullWidthInput}
                       placeholder="g"
                       suffix="g"
                     />
@@ -698,18 +662,18 @@ const ProductSelection: React.FC = () => {
                 {/* 第四行：跟卖者相关 */}
                 <Col xs={24} sm={12} md={12} lg={8} xl={6}>
                   <Form.Item label="跟卖者数量">
-                    <Space.Compact style={{ width: '100%' }}>
+                    <Space.Compact className={styles.fullWidthInput}>
                       <Form.Item name="competitor_count_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          className={styles.halfWidthInput}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="competitor_count_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          className={styles.halfWidthInput}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -719,18 +683,18 @@ const ProductSelection: React.FC = () => {
 
                 <Col xs={24} sm={12} md={12} lg={8} xl={6}>
                   <Form.Item label="最低跟卖价">
-                    <Space.Compact style={{ width: '100%' }}>
+                    <Space.Compact className={styles.fullWidthInput}>
                       <Form.Item name="competitor_min_price_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          className={styles.halfWidthInput}
                           placeholder="最小₽"
                         />
                       </Form.Item>
                       <Form.Item name="competitor_min_price_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          className={styles.halfWidthInput}
                           placeholder="最大₽"
                         />
                       </Form.Item>
@@ -756,7 +720,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 搜索结果统计 */}
           {productsData?.data && (
-            <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Row gutter={16} className={styles.searchStats}>
               <Col>
                 <Statistic
                   title="搜索结果"
@@ -789,7 +753,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 分页 */}
           {productsData?.data && productsData.data.total > 0 && (
-            <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <div className={styles.pagination}>
               <Space.Compact>
                 <Button
                   disabled={currentPage === 1}
@@ -817,7 +781,7 @@ const ProductSelection: React.FC = () => {
             label: <span><UploadOutlined /> 数据导入</span>,
             children: (
           <Card>
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <Space direction="vertical" size="large" className={styles.fullWidthInput}>
               <Alert
                 message="导入说明"
                 description={
@@ -840,7 +804,7 @@ const ProductSelection: React.FC = () => {
                 maxCount={1}
               >
                 <p className="ant-upload-drag-icon">
-                  <FileExcelOutlined style={{ fontSize: 48, color: '#40a9ff' }} />
+                  <FileExcelOutlined className={styles.uploadIcon} />
                 </p>
                 <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
                 <p className="ant-upload-hint">
@@ -952,7 +916,7 @@ const ProductSelection: React.FC = () => {
             key: 'guide',
             label: <span><BookOutlined /> 使用指南</span>,
             children: (
-              <Space direction="vertical" size="large" style={{ width: '100%' }}>
+              <Space direction="vertical" size="large" className={styles.fullWidthInput}>
                 {/* 脚本介绍 */}
                 <Card>
                   <Title level={4}>
@@ -1114,7 +1078,7 @@ const ProductSelection: React.FC = () => {
                         key: 'api-config',
                         label: '1️⃣ API配置',
                         children: (
-                          <Space direction="vertical" style={{ width: '100%' }}>
+                          <Space direction="vertical" className={styles.fullWidthInput}>
                             <Alert
                               message="配置API连接信息"
                               description='在Ozon商品列表页面，点击右下角的🎯图标打开控制面板，展开"API设置"部分。'
@@ -1307,21 +1271,21 @@ const ProductSelection: React.FC = () => {
       >
         {selectedProductCompetitors && (
           <div>
-            <div style={{ marginBottom: 16 }}>
+            <div className={styles.competitorModalHeader}>
               <Text strong>{selectedProductCompetitors.product_name_cn || selectedProductCompetitors.product_name_ru}</Text>
             </div>
             <Alert
               message={`共发现 ${selectedProductCompetitors.competitor_count || 0} 个跟卖者`}
               type="info"
-              style={{ marginBottom: 16 }}
+              className={styles.competitorModalAlert}
             />
-            <div style={{ textAlign: 'center', padding: '20px' }}>
+            <div className={styles.competitorModalContent}>
               {selectedProductCompetitors.competitor_min_price ? (
                 <>
                   <Text type="secondary">跟卖者数据已从选品导入中获取</Text>
-                  <div style={{ marginTop: 10 }}>
+                  <div className={styles.competitorMinPrice}>
                     <Text>最低跟卖价: </Text>
-                    <Text strong style={{ color: '#fa8c16', fontSize: '18px' }}>
+                    <Text strong className={styles.competitorMinPriceValue}>
                       ¥{formatPrice(selectedProductCompetitors.competitor_min_price)}
                     </Text>
                   </div>
@@ -1355,7 +1319,7 @@ const ProductSelection: React.FC = () => {
         width={800}
       >
         {previewData && (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Space direction="vertical" size="middle" className={styles.fullWidthInput}>
             <Alert
               message={`文件包含 ${previewData.total_rows} 行数据`}
               type="info"
@@ -1366,7 +1330,7 @@ const ProductSelection: React.FC = () => {
               <Select
                 value={importStrategy}
                 onChange={setImportStrategy}
-                style={{ width: 200, marginLeft: 8 }}
+                className={styles.importStrategySelector}
               >
                 <Option value="skip">跳过重复记录</Option>
                 <Option value="update">更新已有记录</Option>
@@ -1376,8 +1340,8 @@ const ProductSelection: React.FC = () => {
 
             <div>
               <Text strong>数据预览（前5行）：</Text>
-              <div style={{ overflowX: 'auto', marginTop: 8 }}>
-                <pre style={{ fontSize: 12 }}>
+              <div className={styles.dataPreview}>
+                <pre>
                   {JSON.stringify(previewData.preview?.slice(0, 5), null, 2)}
                 </pre>
               </div>
