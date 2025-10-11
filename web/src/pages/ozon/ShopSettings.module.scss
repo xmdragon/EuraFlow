@@ -1,0 +1,119 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 加载状态 =====
+.loadingCard {
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+    text-align: center;
+  }
+}
+
+.loadingText {
+  margin-top: 8px;
+}
+
+// ===== 错误状态 =====
+.errorCard {
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+// ===== 主卡片 =====
+.mainCard {
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+// ===== 店铺列表卡片 =====
+.shopListCard {
+  margin-bottom: $spacing-lg;
+
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+.addButtonRow {
+  margin-bottom: $spacing-md;
+}
+
+// ===== 空状态 =====
+.emptyState {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  color: #ccc;
+  margin-bottom: $spacing-md;
+}
+
+.emptyText {
+  display: block;
+  margin-bottom: $spacing-lg;
+}
+
+// ===== 当前编辑提示 =====
+.currentShopAlert {
+  margin-bottom: $spacing-lg;
+}
+
+// ===== 统计行 =====
+.statsRow {
+  margin-bottom: $spacing-lg;
+}
+
+// ===== 状态图标 =====
+.statusSuccess {
+  color: #52c41a;
+}
+
+.statusError {
+  color: #ff4d4f;
+}
+
+// ===== Webhook 配置标题 =====
+.webhookSubtitle {
+  font-size: 14px;
+  margin-left: 8px;
+}
+
+// ===== 表单控件 =====
+.fullWidthInput {
+  width: 100%;
+}
+
+.warehouseButton {
+  margin-top: $spacing-md;
+  width: 100%;
+}
+
+// ===== Webhook 组件 =====
+.webhookAlert {
+  margin-bottom: $spacing-md;
+}
+
+.webhookStatusCard {
+  width: 100%;
+}
+
+.webhookUrlCode {
+  font-size: 12px;
+}
+
+.webhookEventsContainer {
+  font-size: 12px;
+}
+
+.webhookEventTag {
+  margin-bottom: 4px;
+}
+
+// ===== Modal Alert =====
+.modalAlert {
+  margin-bottom: $spacing-md;
+}

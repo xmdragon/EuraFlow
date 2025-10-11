@@ -45,6 +45,7 @@ import {
 } from 'antd';
 import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
+import styles from './ShopSettings.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option: _Option } = Select;
@@ -283,16 +284,16 @@ const ShopSettings: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Card bodyStyle={{ padding: 16, textAlign: 'center' }}>
+      <Card className={styles.loadingCard}>
         <Spin size="large" />
-        <div style={{ marginTop: 8 }}>加载店铺信息...</div>
+        <div className={styles.loadingText}>加载店铺信息...</div>
       </Card>
     );
   }
 
   if (error) {
     return (
-      <Card bodyStyle={{ padding: 16 }}>
+      <Card className={styles.errorCard}>
         <Alert
           message="加载失败"
           description={`无法加载店铺信息: ${error instanceof Error ? error.message : '未知错误'}`}
@@ -307,26 +308,26 @@ const ShopSettings: React.FC = () => {
 
   return (
     <div>
-      <Card bodyStyle={{ padding: 16 }}>
+      <Card className={styles.mainCard}>
         <Title level={4}>
           <ShopOutlined /> Ozon 店铺管理
         </Title>
 
         {/* 店铺列表 */}
-        <Card style={{ marginBottom: 24 }} bodyStyle={{ padding: 16 }}>
-          <div style={{ marginBottom: 16 }}>
+        <Card className={styles.shopListCard}>
+          <div className={styles.addButtonRow}>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
               添加店铺
             </Button>
           </div>
 
           {shops.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 0' }}>
-              <ShopOutlined style={{ fontSize: 48, color: '#ccc', marginBottom: 16 }} />
+            <div className={styles.emptyState}>
+              <ShopOutlined className={styles.emptyIcon} />
               <Title level={5} type="secondary">
                 暂无店铺
               </Title>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 24 }}>
+              <Text type="secondary" className={styles.emptyText}>
                 您还没有添加任何Ozon店铺，点击上方"添加店铺"按钮开始配置
               </Text>
               <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
@@ -438,11 +439,11 @@ const ShopSettings: React.FC = () => {
               message={`当前编辑店铺: ${selectedShop.shop_name}`}
               type="info"
               showIcon
-              style={{ marginBottom: 24 }}
+              className={styles.currentShopAlert}
             />
 
             {/* 店铺统计 */}
-            <Row gutter={16} style={{ marginBottom: 24 }}>
+            <Row gutter={16} className={styles.statsRow}>
               <Col span={6}>
                 <Card>
                   <Statistic
@@ -468,9 +469,9 @@ const ShopSettings: React.FC = () => {
                     value={selectedShop.stats?.sync_status === 'success' ? '正常' : '异常'}
                     prefix={
                       selectedShop.stats?.sync_status === 'success' ? (
-                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                        <CheckCircleOutlined className={styles.statusSuccess} />
                       ) : (
-                        <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />
+                        <ExclamationCircleOutlined className={styles.statusError} />
                       )
                     }
                   />
@@ -549,7 +550,7 @@ const ShopSettings: React.FC = () => {
 
                         <Title level={5}>
                           Webhook配置
-                          <Text type="secondary" style={{ fontSize: 14, marginLeft: 8 }}>
+                          <Text type="secondary" className={styles.webhookSubtitle}>
                             实时事件通知
                           </Text>
                         </Title>
@@ -579,7 +580,7 @@ const ShopSettings: React.FC = () => {
                           </Col>
                           <Col span={12}>
                             <Form.Item name="sync_interval_minutes" label="同步间隔（分钟）">
-                              <InputNumber min={5} max={1440} style={{ width: '100%' }} />
+                              <InputNumber min={5} max={1440} className={styles.fullWidthInput} />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -637,17 +638,17 @@ const ShopSettings: React.FC = () => {
                         <Row gutter={16}>
                           <Col span={8}>
                             <Form.Item name="rate_limit_products" label="商品接口（req/s）">
-                              <InputNumber min={1} max={100} style={{ width: '100%' }} />
+                              <InputNumber min={1} max={100} className={styles.fullWidthInput} />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_orders" label="订单接口（req/s）">
-                              <InputNumber min={1} max={100} style={{ width: '100%' }} />
+                              <InputNumber min={1} max={100} className={styles.fullWidthInput} />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_postings" label="发货接口（req/s）">
-                              <InputNumber min={1} max={100} style={{ width: '100%' }} />
+                              <InputNumber min={1} max={100} className={styles.fullWidthInput} />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -685,7 +686,7 @@ const ShopSettings: React.FC = () => {
 
                         <Button
                           type="dashed"
-                          style={{ marginTop: 16, width: '100%' }}
+                          className={styles.warehouseButton}
                           icon={<PlusOutlined />}
                         >
                           添加仓库映射
@@ -768,7 +769,7 @@ const ShopSettings: React.FC = () => {
             }
             type="info"
             showIcon
-            style={{ marginBottom: 16 }}
+            className={styles.modalAlert}
           />
 
           <Form.Item>
@@ -925,13 +926,13 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
         description="配置Webhook后，系统将实时接收Ozon平台的事件通知，如订单状态变更、商品价格变更等，无需定时轮询，提高响应速度。"
         type="info"
         showIcon
-        style={{ marginBottom: 16 }}
+        className={styles.webhookAlert}
       />
 
       <Row gutter={16}>
         <Col span={12}>
           <Card size="small" title="配置状态">
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space direction="vertical" className={styles.webhookStatusCard}>
               <div>
                 <Badge
                   status={webhookEnabled ? 'success' : 'default'}
@@ -941,7 +942,7 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
               {webhookEnabled && (
                 <div>
                   <Text type="secondary">URL: </Text>
-                  <Text code style={{ fontSize: 12 }}>
+                  <Text code className={styles.webhookUrlCode}>
                     {webhookData.webhook_url || 'N/A'}
                   </Text>
                 </div>
@@ -992,9 +993,9 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
         </Col>
         <Col span={12}>
           <Card size="small" title="支持的事件">
-            <div style={{ fontSize: 12 }}>
+            <div className={styles.webhookEventsContainer}>
               {webhookData?.supported_events?.map((event: string) => (
-                <Tag key={event} size="small" style={{ marginBottom: 4 }}>
+                <Tag key={event} size="small" className={styles.webhookEventTag}>
                   {event}
                 </Tag>
               )) || (
@@ -1041,7 +1042,7 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
             }
             type="info"
             showIcon
-            style={{ marginBottom: 16 }}
+            className={styles.modalAlert}
           />
 
           <Form.Item>
