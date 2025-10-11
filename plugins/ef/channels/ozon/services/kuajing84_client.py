@@ -7,6 +7,7 @@
 """
 
 import logging
+import re
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
@@ -185,6 +186,50 @@ class Kuajing84Client:
         except Exception as e:
             logger.error(f"检查 Cookie 有效性失败: {e}")
             return False
+
+    async def get_customer_id(self, cookies: List[Dict]) -> Optional[str]:
+        """
+        获取客户ID（从控制台页面提取）
+
+        Args:
+            cookies: Cookie 列表
+
+        Returns:
+            客户ID，如果获取失败返回 None
+        """
+        try:
+            # 将 cookies 列表转换为字典
+            cookies_dict = {c["name"]: c["value"] for c in cookies}
+
+            async with httpx.AsyncClient(
+                cookies=cookies_dict,
+                timeout=self.timeout,
+                follow_redirects=True
+            ) as client:
+                # 访问控制台页面
+                response = await client.get(
+                    f"{self.base_url}/index/console/index.html"
+                )
+
+                if response.status_code == 200:
+                    html = response.text
+
+                    # 查找客户ID（格式：客户ID:35308 或 客户ID：35308）
+                    match = re.search(r"客户ID[：:]\s*(\d+)", html)
+                    if match:
+                        customer_id = match.group(1)
+                        logger.info(f"成功获取客户ID: {customer_id}")
+                        return customer_id
+                    else:
+                        logger.warning("控制台页面未找到客户ID")
+                        return None
+                else:
+                    logger.error(f"访问控制台页面失败，状态码: {response.status_code}")
+                    return None
+
+        except Exception as e:
+            logger.error(f"获取客户ID失败: {e}")
+            return None
 
     async def find_order_oid(
         self, order_number: str, cookies: List[Dict], max_pages: int = 10

@@ -31,6 +31,7 @@ class Kuajing84GlobalConfig(Base):
         nullable=True,
         comment="Cookie过期时间"
     )
+    customer_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="客户ID（从控制台页面获取）")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", comment="是否启用")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

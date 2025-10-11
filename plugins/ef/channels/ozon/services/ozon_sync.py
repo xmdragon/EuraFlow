@@ -1334,36 +1334,46 @@ class OzonSyncService:
         posting_status = posting_data.get("status")
         needs_tracking = posting_status in ["awaiting_deliver", "delivering", "delivered"]
 
+        logger.error(f"[DEBUG _sync_packages] posting_number={posting.posting_number}, status={posting_status}, needs_tracking={needs_tracking}")
+
         # 如果列表API返回了packages，直接处理
         if posting_data.get("packages"):
             packages_list = posting_data["packages"]
+            logger.error(f"[DEBUG] Found {len(packages_list)} packages in list API for posting {posting.posting_number}")
             logger.info(f"Found {len(packages_list)} packages in list API for posting {posting.posting_number}")
         elif needs_tracking:
             # 需要追踪号码但列表接口未返回，调用详情接口
+            logger.error(f"[DEBUG] Calling detail API for posting {posting.posting_number}")
             try:
                 # 获取shop信息以创建API客户端
                 shop_result = await db.execute(select(OzonShop).where(OzonShop.id == posting.shop_id))
                 shop = shop_result.scalar_one_or_none()
 
                 if not shop:
+                    logger.error(f"[DEBUG] Shop {posting.shop_id} not found")
                     logger.warning(f"Shop {posting.shop_id} not found for posting {posting.posting_number}")
                     return
 
                 # 创建API客户端
                 client = OzonAPIClient(shop.client_id, shop.api_key_enc)
+                logger.error(f"[DEBUG] Created API client, calling get_posting_details...")
 
                 # 调用详情接口
                 detail_response = await client.get_posting_details(posting.posting_number)
                 detail_data = detail_response.get("result", {})
+                logger.error(f"[DEBUG] Detail API response: has_packages={bool(detail_data.get('packages'))}, posting={posting.posting_number}")
 
                 if detail_data.get("packages"):
                     packages_list = detail_data["packages"]
+                    logger.error(f"[DEBUG] Fetched {len(packages_list)} packages from detail API")
                     logger.info(f"Fetched {len(packages_list)} packages from detail API for posting {posting.posting_number}")
                 else:
+                    logger.error(f"[DEBUG] No packages in detail API response for posting {posting.posting_number}")
                     logger.info(f"No packages found in detail API for posting {posting.posting_number}")
                     return
 
             except Exception as e:
+                logger.error(f"[DEBUG] Exception calling detail API: {e}")
                 logger.warning(f"Failed to fetch package details for posting {posting.posting_number}: {e}")
                 return
         else:

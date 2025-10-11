@@ -120,6 +120,7 @@ class Kuajing84SyncService:
             "username": config.username,
             "base_url": config.base_url,
             "has_cookie": config.cookie is not None,
+            "customer_id": config.customer_id,
         }
 
     async def test_connection(self) -> Dict[str, any]:
@@ -168,18 +169,31 @@ class Kuajing84SyncService:
                     "message": "无法获取有效的 Cookie，请检查用户名和密码"
                 }
 
-            # 刷新配置以获取最新的过期时间
+            # 刷新配置以获取最新的过期时间和客户ID
             await self.db.refresh(config)
+
+            # 获取客户ID（如果还没有）
+            if not config.customer_id:
+                logger.info("尝试获取客户ID")
+                async with Kuajing84Client(base_url=config.base_url) as client:
+                    customer_id = await client.get_customer_id(cookies)
+                    if customer_id:
+                        config.customer_id = customer_id
+                        await self.db.commit()
+                        logger.info(f"客户ID已保存: {customer_id}")
+                    else:
+                        logger.warning("未能获取客户ID，但不影响测试连接")
 
             logger.info("测试连接成功")
 
             return {
                 "success": True,
-                "message": f"连接测试成功！成功获取 {len(cookies)} 个 Cookie",
+                "message": f"连接测试成功！成功获取 {len(cookies)} 个 Cookie" + (f"，客户ID: {config.customer_id}" if config.customer_id else ""),
                 "data": {
                     "username": config.username,
                     "cookie_count": len(cookies),
-                    "expires_at": config.cookie_expires_at.isoformat() if config.cookie_expires_at else None
+                    "expires_at": config.cookie_expires_at.isoformat() if config.cookie_expires_at else None,
+                    "customer_id": config.customer_id
                 }
             }
 
