@@ -512,7 +512,7 @@ const OrderList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 80,
+      width: 50,
       fixed: 'right',
       render: (_: any, record: ozonApi.Order) => {
         const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(record.status);
