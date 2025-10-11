@@ -1,0 +1,97 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 链接样式 =====
+.link {
+  color: $primary-color;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ===== 标签样式 =====
+.tag {
+  margin: 0;
+}
+
+// ===== 价格样式 =====
+.price {
+  color: $success-color;
+  font-weight: $font-weight-medium;
+}
+
+// ===== 商品单元格 =====
+.productCell {
+  @include flex-row;
+  gap: $spacing-xs;
+}
+
+.productAvatar {
+  flex-shrink: 0;
+}
+
+.productInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.productName {
+  font-size: 13px;
+  color: #333;
+  @include text-ellipsis(1);
+}
+
+.productCount {
+  font-size: $font-size-sm;
+  color: #999;
+}
+
+// ===== 按钮样式 =====
+.linkButton {
+  padding: 0;
+}
+
+// ===== 筛选区域 =====
+.filterCard {
+  margin-bottom: $spacing-xs;
+}
+
+.filterRow {
+  margin-bottom: $spacing-xs;
+}
+
+.shopLabel {
+  font-weight: $font-weight-medium;
+}
+
+.shopSelector {
+  min-width: 200px;
+}
+
+.typeSelect {
+  width: 120px;
+}
+
+// ===== 列表区域 =====
+.actionSpace {
+  margin-bottom: $spacing-xs;
+}
+
+// ===== 详情弹窗 =====
+.productImage {
+  object-fit: cover;
+}
+
+.productImagePlaceholder {
+  background-color: #f0f0f0;
+}
+
+.postingCard {
+  margin-bottom: $spacing-md;
+}
+
+.alertMargin {
+  margin-bottom: $spacing-md;
+}

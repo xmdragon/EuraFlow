@@ -1,0 +1,75 @@
+@import './variables.scss';
+@import './mixins.scss';
+
+// ===== 间距工具类 =====
+.p8 { padding: $spacing-xs; }
+.p12 { padding: $spacing-sm; }
+.p16 { padding: $spacing-md; }
+.p24 { padding: $spacing-lg; }
+
+.pt8 { padding-top: $spacing-xs; }
+.pt16 { padding-top: $spacing-md; }
+.pt24 { padding-top: $spacing-lg; }
+
+.pb8 { padding-bottom: $spacing-xs; }
+.pb16 { padding-bottom: $spacing-md; }
+.pb24 { padding-bottom: $spacing-lg; }
+
+.m8 { margin: $spacing-xs; }
+.m16 { margin: $spacing-md; }
+.m24 { margin: $spacing-lg; }
+
+.mb8 { margin-bottom: $spacing-xs; }
+.mb16 { margin-bottom: $spacing-md; }
+.mb24 { margin-bottom: $spacing-lg; }
+
+.mt8 { margin-top: $spacing-xs; }
+.mt16 { margin-top: $spacing-md; }
+.mt24 { margin-top: $spacing-lg; }
+
+// ===== 文本样式 =====
+.textPrimary { color: $text-primary; }
+.textSecondary { color: $text-secondary; }
+.textDisabled { color: $text-disabled; }
+.textSuccess { color: $success-color; }
+.textWarning { color: $warning-color; }
+.textDanger { color: $error-color; }
+.textInfo { color: $info-color; }
+
+.fontNormal { font-weight: $font-weight-normal; }
+.fontMedium { font-weight: $font-weight-medium; }
+.fontBold { font-weight: $font-weight-bold; }
+
+.fontSize12 { font-size: $font-size-sm; }
+.fontSize14 { font-size: $font-size-base; }
+.fontSize16 { font-size: $font-size-lg; }
+.fontSize20 { font-size: $font-size-xl; }
+
+.ellipsis { @include text-ellipsis(1); }
+.ellipsis2 { @include text-ellipsis(2); }
+.ellipsis3 { @include text-ellipsis(3); }
+
+// ===== 布局工具类 =====
+.flexCenter { @include flex-center; }
+.flexBetween { @include flex-between; }
+.flexRow { @include flex-row; }
+.flexColumn { @include flex-column; }
+
+.flex1 { flex: 1; }
+.flexShrink0 { flex-shrink: 0; }
+
+.minWidth0 { min-width: 0; }
+
+// ===== 卡片 =====
+.card { @include card-style; }
+
+// ===== 其他常用样式 =====
+.pointer { cursor: pointer; }
+.textCenter { text-align: center; }
+.textRight { text-align: right; }
+
+.fullWidth { width: 100%; }
+.fullHeight { height: 100%; }
+
+.bgWhite { background-color: $white; }
+.bgGray { background-color: $background-color; }

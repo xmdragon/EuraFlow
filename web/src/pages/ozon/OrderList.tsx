@@ -52,6 +52,7 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { formatRuble } from '../../utils/currency';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import styles from './OrderList.module.scss';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -396,7 +397,7 @@ const OrderList: React.FC = () => {
       width: 150,
       fixed: 'left',
       render: (text: string, record: ozonApi.Order) => (
-        <a onClick={() => showOrderDetail(record)} style={{ color: '#1890ff' }}>
+        <a onClick={() => showOrderDetail(record)} className={styles.link}>
           {text}
         </a>
       ),
@@ -409,7 +410,7 @@ const OrderList: React.FC = () => {
       render: (status: string) => {
         const config = statusConfig[status] || statusConfig.pending;
         return (
-          <Tag color={config.color} style={{ margin: 0 }}>
+          <Tag color={config.color} className={styles.tag}>
             {config.text}
           </Tag>
         );
@@ -437,22 +438,22 @@ const OrderList: React.FC = () => {
         const imageUrl = firstItem.image || (firstItem.offer_id && offerIdImageMap[firstItem.offer_id]);
 
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className={styles.productCell}>
             <Avatar
               size={40}
               src={imageUrl}
               icon={<ShoppingCartOutlined />}
               shape="square"
-              style={{ flexShrink: 0 }}
+              className={styles.productAvatar}
             />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div className={styles.productInfo}>
+              <div className={styles.productName}>
                 {firstItem.sku ? (
                   <a
                     href={`https://www.ozon.ru/product/${firstItem.sku}/`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: '#1890ff' }}
+                    className={styles.link}
                   >
                     {firstItem.name || firstItem.sku}
                   </a>
@@ -460,7 +461,7 @@ const OrderList: React.FC = () => {
                   firstItem.name || firstItem.sku
                 )}
               </div>
-              <div style={{ fontSize: 12, color: '#999' }}>
+              <div className={styles.productCount}>
                 {items.length} 种，共 {totalItems} 件
               </div>
             </div>
@@ -486,7 +487,7 @@ const OrderList: React.FC = () => {
         const symbol = currencySymbols[currency] || '¥';
 
         return (
-          <span style={{ color: '#52c41a', fontWeight: 500 }}>
+          <span className={styles.price}>
             {symbol} {formatPrice(price || record.total_amount)}
           </span>
         );
@@ -542,7 +543,7 @@ const OrderList: React.FC = () => {
               ].filter(Boolean),
             }}
           >
-            <Button type="link" size="small" icon={<MoreOutlined />} style={{ padding: 0 }} />
+            <Button type="link" size="small" icon={<MoreOutlined />} className={styles.linkButton} />
           </Dropdown>
         );
       },
@@ -634,16 +635,16 @@ const OrderList: React.FC = () => {
             setSyncStatus(null);
             setSyncTaskId(null);
           }}
-          style={{ marginBottom: 8 }}
+          className={styles.filterCard}
         />
       )}
 
       {/* 搜索过滤 */}
-      <Card style={{ marginBottom: 8 }} bodyStyle={{ padding: 8 }}>
-        <Row style={{ marginBottom: 8 }}>
+      <Card className={styles.filterCard} bodyStyle={{ padding: 8 }}>
+        <Row className={styles.filterRow}>
           <Col flex="auto">
             <Space size="large">
-              <span style={{ fontWeight: 500 }}>选择店铺:</span>
+              <span className={styles.shopLabel}>选择店铺:</span>
               <ShopSelector
                 value={selectedShop}
                 onChange={(shopId) => {
@@ -655,7 +656,7 @@ const OrderList: React.FC = () => {
                   localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
                 }}
                 showAllOption={false}
-                style={{ minWidth: 200 }}
+                className={styles.shopSelector}
               />
             </Space>
           </Col>
@@ -675,7 +676,7 @@ const OrderList: React.FC = () => {
             <Input placeholder="货件编号" prefix={<SearchOutlined />} />
           </Form.Item>
           <Form.Item name="order_type">
-            <Select placeholder="订单类型" style={{ width: 120 }} allowClear>
+            <Select placeholder="订单类型" className={styles.typeSelect} allowClear>
               <Option value="FBS">FBS</Option>
               <Option value="FBO">FBO</Option>
               <Option value="CrossDock">CrossDock</Option>
@@ -738,7 +739,7 @@ const OrderList: React.FC = () => {
         />
 
         {/* 操作按钮 */}
-        <Space style={{ marginBottom: 8 }}>
+        <Space className={styles.actionSpace}>
           <Button
             type="primary"
             icon={<SyncOutlined />}
@@ -869,14 +870,14 @@ const OrderList: React.FC = () => {
                               src={imageUrl}
                               size={60}
                               shape="square"
-                              style={{ objectFit: 'cover' }}
+                              className={styles.productImage}
                             />
                           ) : (
                             <Avatar
                               icon={<ShoppingCartOutlined />}
                               size={60}
                               shape="square"
-                              style={{ backgroundColor: '#f0f0f0' }}
+                              className={styles.productImagePlaceholder}
                             />
                           );
                         },
@@ -893,16 +894,7 @@ const OrderList: React.FC = () => {
                                 href={`https://www.ozon.ru/product/${record.sku}/`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                style={{
-                                  color: '#1890ff',
-                                  textDecoration: 'none',
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.textDecoration = 'underline';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.textDecoration = 'none';
-                                }}
+                                className={styles.link}
                               >
                                 {name || record.sku}
                               </a>
@@ -995,7 +987,7 @@ const OrderList: React.FC = () => {
                 label: '物流信息',
                 key: '5',
                 children: selectedOrder.postings?.map((posting) => (
-                  <Card key={posting.id} style={{ marginBottom: 16 }}>
+                  <Card key={posting.id} className={styles.postingCard}>
                     <Descriptions bordered size="small">
                       <Descriptions.Item label="Posting号">
                         {posting.posting_number}
@@ -1048,7 +1040,7 @@ const OrderList: React.FC = () => {
             message="发货信息"
             description={`Posting号: ${selectedPosting?.posting_number}`}
             type="info"
-            style={{ marginBottom: 16 }}
+            className={styles.alertMargin}
           />
 
           <Form.Item
