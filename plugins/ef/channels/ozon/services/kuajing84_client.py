@@ -232,15 +232,14 @@ class Kuajing84Client:
             return None
 
     async def find_order_oid(
-        self, order_number: str, cookies: List[Dict], max_pages: int = 10
+        self, order_number: str, cookies: List[Dict]
     ) -> Optional[str]:
         """
-        根据 order_number 查找订单的 oid
+        根据 order_number 查找订单的 oid（使用搜索功能）
 
         Args:
             order_number: 订单号
             cookies: Cookie 列表
-            max_pages: 最多搜索的页数
 
         Returns:
             订单 oid，如果找不到返回 None
@@ -254,44 +253,71 @@ class Kuajing84Client:
             cookies=cookies_dict,
             timeout=self.timeout
         ) as client:
-            for page in range(1, max_pages + 1):
-                try:
-                    # 发送订单列表请求
-                    response = await client.post(
-                        f"{self.base_url}/index/Accountorder/order_list_purchase",
-                        data={"page": page},
-                        headers={
-                            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                            "X-Requested-With": "XMLHttpRequest",
-                        },
-                    )
+            try:
+                # 构造搜索表单数据
+                form_data = {
+                    "page": "1",
+                    "limit": "15",
+                    "platform_id": "0",
+                    "shipping_carrier": "0",
+                    "is_discard": "1",
+                    "country": "",
+                    "account": "",
+                    "shop_id": "",
+                    "sku": "",
+                    "goods_num": "",
+                    "order_number": order_number,  # 关键搜索参数
+                    "order_status": "",
+                    "tracking_no": "",
+                    "warehouse": "",
+                    "place_time": "",
+                    "is_save_search": "1",
+                    "order_type": "status DESC,place_time DESC",
+                    "order_type_id": "1"
+                }
 
-                    if response.status_code != 200:
-                        logger.error(f"订单列表请求失败，状态码: {response.status_code}")
-                        continue
+                # 发送搜索请求
+                response = await client.post(
+                    f"{self.base_url}/index/Accountorder/order_list_purchase",
+                    data=form_data,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
 
-                    data = response.json()
+                if response.status_code != 200:
+                    logger.error(f"订单搜索请求失败，状态码: {response.status_code}")
+                    return None
 
-                    if data.get("code") != 0:
-                        logger.error(f"订单列表返回错误: {data}")
-                        break
+                data = response.json()
 
-                    # 遍历订单列表查找匹配的 order_number
-                    orders = data.get("data", [])
-                    for order in orders:
-                        if order.get("order_number") == order_number:
-                            oid = str(order.get("id"))
-                            logger.info(f"找到订单 oid: {oid}")
-                            return oid
+                if data.get("code") != 0:
+                    logger.error(f"订单搜索返回错误: {data}")
+                    return None
 
-                    logger.debug(f"第 {page} 页未找到订单，继续搜索")
+                # 查找匹配的订单
+                orders = data.get("data", [])
 
-                except Exception as e:
-                    logger.error(f"查找订单 oid 失败（第 {page} 页）: {e}")
-                    continue
+                if not orders:
+                    logger.warning(f"未找到订单: {order_number}")
+                    return None
 
-        logger.warning(f"未找到订单 {order_number} 的 oid（已搜索 {max_pages} 页）")
-        return None
+                # 遍历结果查找精确匹配的订单号
+                for order in orders:
+                    if order.get("order_number") == order_number:
+                        oid = str(order.get("id"))
+                        logger.info(f"找到订单 oid: {oid}")
+                        return oid
+
+                # 如果没有精确匹配，记录找到的订单号
+                found_orders = [o.get("order_number") for o in orders]
+                logger.warning(f"未找到精确匹配的订单 {order_number}，搜索结果: {found_orders}")
+                return None
+
+            except Exception as e:
+                logger.error(f"查找订单 oid 失败: {e}")
+                return None
 
     async def submit_logistics_order(
         self,

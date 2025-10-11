@@ -22,7 +22,7 @@
         visibleWindowMax: 12,            // 最大可见窗口
         scrollStepSize: 1.2,             // 每次滚动视口倍数
         scrollWaitTime: 2500,            // 滚动后等待时间
-        bangInjectionWait: 2000,         // 等待上品帮注入时间
+        bangInjectionWait: 5000,         // 等待上品帮注入时间（增加到5秒，确保跟卖数据完全加载）
         maxScrollAttempts: 200,          // 最大滚动次数
         noChangeThreshold: 5,            // 无变化阈值
         forceScrollThreshold: 3,         // 强制滚动阈值
@@ -662,16 +662,31 @@
             return '-';
         }
 
-        // 等待上品帮注入
+        // 等待上品帮注入完整数据（包括跟卖者信息）
         async waitForBangInjection(element, maxWait = CONFIG.bangInjectionWait) {
             const startTime = Date.now();
 
             while (Date.now() - startTime < maxWait) {
-                const hasBang = element.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
-                if (hasBang) {
-                    return true;
+                const bangElement = element.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+                if (bangElement) {
+                    const bangText = bangElement.textContent || '';
+
+                    // 检查关键数据是否已加载（跟卖者信息）
+                    const hasSellerCount = /等(\d+)个卖家/.test(bangText) || />(\d+)<\/span>\s*个卖家/.test(bangText);
+                    const hasMinPrice = /跟卖最低价[：:]\s*(\d+(?:\s*\d+)*)\s*[₽￥]/.test(bangText);
+
+                    // 如果包含"跟卖"关键词，必须等待完整数据
+                    if (bangText.includes('跟卖') || bangText.includes('卖家')) {
+                        if (hasSellerCount && hasMinPrice) {
+                            return true;  // 跟卖数据完整
+                        }
+                        // 否则继续等待
+                    } else if (bangText.length > 50) {
+                        // 如果没有跟卖信息但有其他数据（长度>50），也认为有效
+                        return true;
+                    }
                 }
-                await this.sleep(100);
+                await this.sleep(200);  // 增加检查间隔到200ms
             }
 
             return false;
