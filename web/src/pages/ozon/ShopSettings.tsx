@@ -993,7 +993,7 @@ const Kuajing84Configuration: React.FC = () => {
 
       <Alert
         message="同步日志查看"
-        description="跨境巴士同步日志可在订单详情页的"跨境巴士同步"标签页中查看。全局配置保存成功后，所有店铺的订单都可以使用该账号进行同步。"
+        description="跨境巴士同步日志可在订单详情页的「跨境巴士同步」标签页中查看。全局配置保存成功后，所有店铺的订单都可以使用该账号进行同步。"
         type="info"
         showIcon
       />
