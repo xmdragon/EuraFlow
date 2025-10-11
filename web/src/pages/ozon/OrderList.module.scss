@@ -108,10 +108,24 @@
 }
 
 .productPreviewImage {
-  width: 200px;
   height: 200px;
+  width: auto;
+  max-width: 400px;
   object-fit: contain;
   display: block;
+}
+
+// 图片预览悬浮窗透明背景
+:global(.product-preview-tooltip) {
+  :global(.ant-tooltip-inner) {
+    background-color: transparent;
+    padding: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  :global(.ant-tooltip-arrow) {
+    display: none;
+  }
 }
 
 .productImagePlaceholder {

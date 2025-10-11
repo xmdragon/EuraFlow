@@ -501,7 +501,7 @@ const OrderList: React.FC = () => {
                   />
                 }
                 mouseEnterDelay={0.3}
-                overlayInnerStyle={{ padding: 0 }}
+                overlayClassName="product-preview-tooltip"
               >
                 <Avatar
                   size={40}
