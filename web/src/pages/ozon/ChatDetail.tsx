@@ -33,6 +33,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import moment from 'moment';
 
 import * as ozonApi from '@/services/ozonApi';
+import styles from './ChatDetail.module.scss';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
@@ -168,41 +169,23 @@ const ChatDetail: React.FC = () => {
     return (
       <div
         key={msg.id}
-        style={{
-          display: 'flex',
-          justifyContent: isUser ? 'flex-start' : 'flex-end',
-          marginBottom: 16,
-        }}
+        className={`${styles.messageContainer} ${isUser ? styles.userMessage : styles.sellerMessage}`}
       >
         <div
-          style={{
-            maxWidth: '70%',
-            display: 'flex',
-            flexDirection: isUser ? 'row' : 'row-reverse',
-            alignItems: 'flex-start',
-          }}
+          className={`${styles.messageWrapper} ${isUser ? styles.userWrapper : styles.sellerWrapper}`}
         >
           <Avatar
-            style={{ margin: isUser ? '0 8px 0 0' : '0 0 0 8px' }}
+            className={`${styles.messageAvatar} ${isUser ? styles.userAvatar : styles.sellerAvatar}`}
             icon={<UserOutlined />}
           />
           <div>
             <div
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                backgroundColor: isUser ? '#f0f0f0' : '#1890ff',
-                color: isUser ? '#000' : '#fff',
-              }}
+              className={`${styles.messageBubble} ${isUser ? styles.userBubble : styles.sellerBubble}`}
             >
-              <div style={{ marginBottom: 4 }}>
+              <div className={styles.senderNameContainer}>
                 <Text
                   strong
-                  style={{
-                    fontSize: 12,
-                    color: isUser ? '#666' : '#fff',
-                    opacity: 0.8,
-                  }}
+                  className={`${styles.senderName} ${isUser ? styles.userName : styles.sellerName}`}
                 >
                   {msg.sender_name || (isSeller ? '卖家' : '客户')}
                 </Text>
@@ -210,15 +193,12 @@ const ChatDetail: React.FC = () => {
               <div>{msg.content}</div>
             </div>
             <div
-              style={{
-                textAlign: isUser ? 'left' : 'right',
-                marginTop: 4,
-              }}
+              className={`${styles.messageTimeContainer} ${isUser ? styles.userTimeContainer : styles.sellerTimeContainer}`}
             >
-              <Text type="secondary" style={{ fontSize: 12 }}>
+              <Text type="secondary" className={styles.messageTime}>
                 {moment(msg.created_at).format('MM-DD HH:mm')}
                 {msg.is_read && (
-                  <CheckOutlined style={{ marginLeft: 4, color: '#52c41a' }} />
+                  <CheckOutlined className={styles.readIcon} />
                 )}
               </Text>
             </div>
@@ -230,19 +210,19 @@ const ChatDetail: React.FC = () => {
 
   if (!shopId || !chatId) {
     return (
-      <div style={{ padding: 24 }}>
+      <div className={styles.emptyContainer}>
         <Empty description="缺少必要参数" />
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className={styles.pageContainer}>
       {/* 返回按钮 */}
       <Button
         icon={<ArrowLeftOutlined />}
         onClick={() => navigate('/ozon/chats')}
-        style={{ marginBottom: 16 }}
+        className={styles.backButton}
       >
         返回聊天列表
       </Button>
@@ -251,11 +231,11 @@ const ChatDetail: React.FC = () => {
         {chatData && (
           <>
             {/* 聊天信息卡片 */}
-            <Card style={{ marginBottom: 16 }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Card className={styles.chatInfoCard}>
+              <Space direction="vertical" className={styles.fullWidthSpace}>
+                <div className={styles.chatHeader}>
                   <Space>
-                    <Title level={4} style={{ margin: 0 }}>
+                    <Title level={4} className={styles.chatTitle}>
                       {chatData.customer_name || '未知客户'}
                     </Title>
                     {getStatusTag(chatData.status)}
@@ -317,7 +297,7 @@ const ChatDetail: React.FC = () => {
             {/* 消息列表卡片 */}
             <Card
               title="消息记录"
-              style={{ marginBottom: 16 }}
+              className={styles.messageCard}
               bodyStyle={{ height: 500, overflowY: 'auto' }}
             >
               <Spin spinning={messagesLoading}>
@@ -335,7 +315,7 @@ const ChatDetail: React.FC = () => {
             {/* 发送消息卡片 */}
             {chatData.status === 'open' && (
               <Card>
-                <Space.Compact style={{ width: '100%' }}>
+                <Space.Compact className={styles.sendCompact}>
                   <TextArea
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
@@ -353,7 +333,7 @@ const ChatDetail: React.FC = () => {
                     icon={<SendOutlined />}
                     onClick={handleSendMessage}
                     loading={sendMessageMutation.isPending}
-                    style={{ height: 'auto' }}
+                    className={styles.sendButton}
                   >
                     发送 (Ctrl+Enter)
                   </Button>

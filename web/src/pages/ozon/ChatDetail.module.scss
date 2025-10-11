@@ -1,0 +1,139 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 页面容器 =====
+.pageContainer {
+  padding: $spacing-lg;
+}
+
+.emptyContainer {
+  padding: $spacing-lg;
+}
+
+// ===== 按钮 =====
+.backButton {
+  margin-bottom: $spacing-md;
+}
+
+// ===== 卡片 =====
+.chatInfoCard {
+  margin-bottom: $spacing-md;
+}
+
+.messageCard {
+  margin-bottom: $spacing-md;
+}
+
+// ===== 聊天信息头部 =====
+.chatHeader {
+  @include flex-between;
+  align-items: center;
+}
+
+.chatTitle {
+  margin: 0;
+}
+
+.fullWidthSpace {
+  width: 100%;
+}
+
+// ===== 消息列表 =====
+.messageContainer {
+  display: flex;
+  margin-bottom: $spacing-md;
+
+  &.userMessage {
+    justify-content: flex-start;
+  }
+
+  &.sellerMessage {
+    justify-content: flex-end;
+  }
+}
+
+.messageWrapper {
+  max-width: 70%;
+  display: flex;
+  align-items: flex-start;
+
+  &.userWrapper {
+    flex-direction: row;
+  }
+
+  &.sellerWrapper {
+    flex-direction: row-reverse;
+  }
+}
+
+.messageAvatar {
+  &.userAvatar {
+    margin: 0 8px 0 0;
+  }
+
+  &.sellerAvatar {
+    margin: 0 0 0 8px;
+  }
+}
+
+.messageBubble {
+  padding: 8px 12px;
+  border-radius: 8px;
+
+  &.userBubble {
+    background-color: #f0f0f0;
+    color: #000;
+  }
+
+  &.sellerBubble {
+    background-color: #1890ff;
+    color: #fff;
+  }
+}
+
+.senderNameContainer {
+  margin-bottom: 4px;
+}
+
+.senderName {
+  font-size: 12px;
+  opacity: 0.8;
+
+  &.userName {
+    color: #666;
+  }
+
+  &.sellerName {
+    color: #fff;
+  }
+}
+
+.messageTimeContainer {
+  margin-top: 4px;
+
+  &.userTimeContainer {
+    text-align: left;
+  }
+
+  &.sellerTimeContainer {
+    text-align: right;
+  }
+}
+
+.messageTime {
+  font-size: 12px;
+}
+
+.readIcon {
+  margin-left: 4px;
+  color: #52c41a;
+}
+
+// ===== 发送区域 =====
+.sendCompact {
+  width: 100%;
+}
+
+.sendButton {
+  height: auto;
+}
