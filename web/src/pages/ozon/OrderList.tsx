@@ -296,8 +296,16 @@ const OrderList: React.FC = () => {
       }
     });
 
+    // 如果用户搜索了 posting_number，进行二次过滤，只保留匹配的货件
+    const searchPostingNumber = searchParams.posting_number?.trim();
+    if (searchPostingNumber) {
+      return flattened.filter(posting =>
+        posting.posting_number.toLowerCase().includes(searchPostingNumber.toLowerCase())
+      );
+    }
+
     return flattened;
-  }, [ordersData]);
+  }, [ordersData, searchParams.posting_number]);
 
   // 使用统一的货币格式化函数
   const formatPrice = (price: any): string => {
