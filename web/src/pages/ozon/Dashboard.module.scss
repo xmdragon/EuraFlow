@@ -1,0 +1,89 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 页面容器 =====
+.pageContainer {
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+// ===== 页面标题行 =====
+.titleRow {
+  margin-bottom: 8px;
+}
+
+.pageTitle {
+  margin-bottom: 0;
+}
+
+.shopSelector {
+  min-width: 200px;
+}
+
+// ===== 统计卡片行 =====
+.statsRow {
+  margin-bottom: 8px;
+}
+
+.detailRow {
+  margin-bottom: 8px;
+}
+
+// ===== Statistic 值样式 =====
+.statSuccess :global(.ant-statistic-content) {
+  color: #3f8600;
+}
+
+.statError :global(.ant-statistic-content) {
+  color: #cf1322;
+}
+
+.statInfo :global(.ant-statistic-content) {
+  color: #1890ff;
+}
+
+// ===== 店铺名称值样式 =====
+.shopNameValue {
+  color: #1890ff;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+// ===== 商品统计卡片内容 =====
+.productStatsContent {
+  width: 100%;
+}
+
+.statRow {
+  @include flex-between;
+}
+
+// ===== 订单统计列样式 =====
+.orderStatCol {
+  margin-top: $spacing-md;
+}
+
+.orderStatDelivered :global(.ant-statistic-content) {
+  color: #3f8600;
+}
+
+.orderStatCancelled :global(.ant-statistic-content) {
+  color: #cf1322;
+}
+
+// ===== 状态图标样式 =====
+.statusSuccess {
+  color: #52c41a;
+}
+
+.statusError {
+  color: #ff4d4f;
+}
+
+.statusSyncing {
+  color: #1890ff;
+}
+
+.statusDefault {
+  color: #d9d9d9;
+}

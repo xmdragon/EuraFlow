@@ -15,6 +15,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import * as ozonApi from '../../services/ozonApi';
 import ShopSelector from '../../components/ozon/ShopSelector';
+import styles from './Dashboard.module.scss';
 
 const { Title, Text } = Typography;
 
@@ -88,13 +89,13 @@ const OzonDashboard: React.FC = () => {
   const getStatusIcon = (status: 'success' | 'error' | 'syncing') => {
     switch (status) {
       case 'success':
-        return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+        return <CheckCircleOutlined className={styles.statusSuccess} />;
       case 'error':
-        return <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />;
+        return <ExclamationCircleOutlined className={styles.statusError} />;
       case 'syncing':
-        return <SyncOutlined spin style={{ color: '#1890ff' }} />;
+        return <SyncOutlined spin className={styles.statusSyncing} />;
       default:
-        return <ClockCircleOutlined style={{ color: '#d9d9d9' }} />;
+        return <ClockCircleOutlined className={styles.statusDefault} />;
     }
   };
 
@@ -112,10 +113,10 @@ const OzonDashboard: React.FC = () => {
   };
 
   return (
-    <div style={{ background: '#f0f2f5', minHeight: '100vh' }}>
-      <Row style={{ marginBottom: 8 }} align="middle" justify="space-between">
+    <div className={styles.pageContainer}>
+      <Row className={styles.titleRow} align="middle" justify="space-between">
         <Col>
-          <Title level={2} style={{ marginBottom: 0 }}>
+          <Title level={2} className={styles.pageTitle}>
             Ozon 管理概览
           </Title>
         </Col>
@@ -124,46 +125,43 @@ const OzonDashboard: React.FC = () => {
             value={selectedShop}
             onChange={handleShopChange}
             showAllOption={true}
-            style={{ minWidth: 200 }}
+            className={styles.shopSelector}
           />
         </Col>
       </Row>
 
       {/* 概览统计 */}
-      <Row gutter={[8, 8]} style={{ marginBottom: 8 }}>
+      <Row gutter={[8, 8]} className={styles.statsRow}>
         <Col xs={24} sm={12} md={6}>
-          <Card>
+          <Card className={styles.statSuccess}>
             <Statistic
               title="总商品数"
               value={stats.products.total}
               prefix={<ShoppingOutlined />}
-              valueStyle={{ color: '#3f8600' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card>
+          <Card className={styles.statError}>
             <Statistic
               title="待处理订单"
               value={stats.orders.pending}
               prefix={<ShoppingCartOutlined />}
-              valueStyle={{ color: '#cf1322' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card>
+          <Card className={styles.statSuccess}>
             <Statistic
               title="今日销售额"
               value={stats.revenue.today}
               precision={2}
               prefix="¥"
-              valueStyle={{ color: '#3f8600' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card>
+          <Card className={styles.statInfo}>
             <Statistic
               title={selectedShop ? "当前店铺" : "活跃店铺"}
               value={
@@ -172,10 +170,9 @@ const OzonDashboard: React.FC = () => {
                   : shops?.data?.length || 0
               }
               prefix={selectedShop ? null : <ShoppingOutlined />}
-              valueStyle={{ color: '#1890ff' }}
               valueRender={(value) =>
                 typeof value === 'string' && isNaN(Number(value)) ? (
-                  <Text style={{ color: '#1890ff', fontSize: 20, fontWeight: 600 }}>
+                  <Text className={styles.shopNameValue}>
                     {value}
                   </Text>
                 ) : (
@@ -188,11 +185,11 @@ const OzonDashboard: React.FC = () => {
       </Row>
 
       {/* 详细统计 */}
-      <Row gutter={[8, 8]} style={{ marginBottom: 8 }}>
+      <Row gutter={[8, 8]} className={styles.detailRow}>
         <Col xs={24} lg={12}>
           <Card title="商品统计" extra={<SyncOutlined />}>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Space direction="vertical" className={styles.productStatsContent}>
+              <div className={styles.statRow}>
                 <Text>活跃商品:</Text>
                 <Text strong>{stats.products.active}</Text>
               </div>
@@ -200,7 +197,7 @@ const OzonDashboard: React.FC = () => {
                 percent={Math.round((stats.products.active / stats.products.total) * 100)}
                 status="success"
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div className={styles.statRow}>
                 <Text>缺货商品:</Text>
                 <Text type="warning">{stats.products.outOfStock}</Text>
               </div>
@@ -208,7 +205,7 @@ const OzonDashboard: React.FC = () => {
                 percent={Math.round((stats.products.outOfStock / stats.products.total) * 100)}
                 status="exception"
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div className={styles.statRow}>
                 <Text>已同步商品:</Text>
                 <Text type="success">{stats.products.synced}</Text>
               </div>
@@ -229,19 +226,21 @@ const OzonDashboard: React.FC = () => {
               <Col span={12}>
                 <Statistic title="已发货" value={stats.orders.shipped} />
               </Col>
-              <Col span={12} style={{ marginTop: 16 }}>
-                <Statistic
-                  title="已完成"
-                  value={stats.orders.delivered}
-                  valueStyle={{ color: '#3f8600' }}
-                />
+              <Col span={12} className={styles.orderStatCol}>
+                <Card className={styles.orderStatDelivered}>
+                  <Statistic
+                    title="已完成"
+                    value={stats.orders.delivered}
+                  />
+                </Card>
               </Col>
-              <Col span={12} style={{ marginTop: 16 }}>
-                <Statistic
-                  title="已取消"
-                  value={stats.orders.cancelled}
-                  valueStyle={{ color: '#cf1322' }}
-                />
+              <Col span={12} className={styles.orderStatCol}>
+                <Card className={styles.orderStatCancelled}>
+                  <Statistic
+                    title="已取消"
+                    value={stats.orders.cancelled}
+                  />
+                </Card>
               </Col>
             </Row>
           </Card>
