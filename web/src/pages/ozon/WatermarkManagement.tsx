@@ -39,6 +39,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
 import * as watermarkApi from '@/services/watermarkApi';
+import styles from './WatermarkManagement.module.scss';
 
 const { Option } = Select;
 
@@ -273,7 +274,7 @@ const WatermarkManagement: React.FC = () => {
           alt="水印"
           width={50}
           height={50}
-          style={{ objectFit: 'contain' }}
+          className={styles.previewImage}
         />
       ),
     },
@@ -425,7 +426,7 @@ const WatermarkManagement: React.FC = () => {
   return (
     <div className="watermark-management">
       {/* Cloudinary全局配置 */}
-      <Card title="Cloudinary全局配置" style={{ marginBottom: 16 }}>
+      <Card title="Cloudinary全局配置" className={styles.cloudinaryCard}>
         <Spin spinning={cloudinaryLoading}>
           <Form
             form={cloudinaryForm}
@@ -477,7 +478,7 @@ const WatermarkManagement: React.FC = () => {
                   label="自动清理天数"
                   initialValue={30}
                 >
-                  <InputNumber min={1} max={365} style={{ width: '100%' }} />
+                  <InputNumber min={1} max={365} className={styles.fullWidthInput} />
                 </Form.Item>
               </Col>
             </Row>
@@ -492,7 +493,7 @@ const WatermarkManagement: React.FC = () => {
           </Form>
 
           {cloudinaryConfig && (
-            <div style={{ marginTop: 24 }}>
+            <div className={styles.configStatus}>
               <Divider orientation="left">配置状态</Divider>
               <Row gutter={16}>
                 <Col span={6}>
@@ -501,9 +502,9 @@ const WatermarkManagement: React.FC = () => {
                     value={cloudinaryConfig.last_test_success ? '正常' : '异常'}
                     prefix={
                       cloudinaryConfig.last_test_success ? (
-                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                        <CheckCircleOutlined className={styles.statusSuccess} />
                       ) : (
-                        <CloseCircleOutlined style={{ color: '#f5222d' }} />
+                        <CloseCircleOutlined className={styles.statusError} />
                       )
                     }
                   />
@@ -539,7 +540,7 @@ const WatermarkManagement: React.FC = () => {
                                     defaultValue={30}
                                     min={1}
                                     max={365}
-                                    style={{ width: 100 }}
+                                    className={styles.smallInput}
                                   />
                                 </div>
                               ),
@@ -579,13 +580,13 @@ const WatermarkManagement: React.FC = () => {
                     form={watermarkForm}
                     layout="inline"
                     onFinish={(values) => createWatermarkMutation.mutate(values)}
-                    style={{ marginBottom: 16 }}
+                    className={styles.watermarkForm}
                   >
                     <Form.Item
                       name="name"
                       rules={[{ required: true, message: '请输入水印名称' }]}
                     >
-                      <Input placeholder="水印名称" style={{ width: 150 }} />
+                      <Input placeholder="水印名称" className={styles.mediumInput} />
                     </Form.Item>
                     <Form.Item
                       name="watermarkFile"
@@ -603,7 +604,7 @@ const WatermarkManagement: React.FC = () => {
                       </Upload>
                     </Form.Item>
                     <Form.Item name="color_type" initialValue="white">
-                      <Select style={{ width: 100 }}>
+                      <Select className={styles.smallInput}>
                         <Option value="white">白色</Option>
                         <Option value="blue">蓝色</Option>
                         <Option value="black">黑色</Option>
@@ -618,7 +619,7 @@ const WatermarkManagement: React.FC = () => {
                         formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
                         parser={(value) => Number(value?.replace('%', '')) / 100}
                         placeholder="缩放比例"
-                        style={{ width: 100 }}
+                        className={styles.smallInput}
                       />
                     </Form.Item>
                     <Form.Item name="opacity" label="透明度" initialValue={0.8}>
@@ -629,7 +630,7 @@ const WatermarkManagement: React.FC = () => {
                         formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
                         parser={(value) => Number(value?.replace('%', '')) / 100}
                         placeholder="透明度"
-                        style={{ width: 100 }}
+                        className={styles.smallInput}
                       />
                     </Form.Item>
                     <Form.Item>
@@ -658,7 +659,7 @@ const WatermarkManagement: React.FC = () => {
               ),
               children: (
                 <>
-                  <Space style={{ marginBottom: 16 }}>
+                  <Space className={styles.taskToolbar}>
                     <Button icon={<ReloadOutlined />} onClick={() => refetchTasks()}>
                       刷新
                     </Button>
@@ -724,7 +725,7 @@ const WatermarkManagement: React.FC = () => {
                     step={SCALE_RATIO_STEP}
                     formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
                     parser={(value) => Number(value?.replace('%', '')) / 100}
-                    style={{ width: '100%' }}
+                    className={styles.fullWidthInput}
                   />
                 </Form.Item>
               </Col>
@@ -740,7 +741,7 @@ const WatermarkManagement: React.FC = () => {
                     step={OPACITY_STEP}
                     formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
                     parser={(value) => Number(value?.replace('%', '')) / 100}
-                    style={{ width: '100%' }}
+                    className={styles.fullWidthInput}
                   />
                 </Form.Item>
               </Col>
@@ -753,7 +754,7 @@ const WatermarkManagement: React.FC = () => {
                   <InputNumber
                     min={0}
                     max={100}
-                    style={{ width: '100%' }}
+                    className={styles.fullWidthInput}
                   />
                 </Form.Item>
               </Col>
@@ -787,17 +788,7 @@ const WatermarkManagement: React.FC = () => {
               </Col>
             </Row>
             <Form.Item label="水印位置（点击选择）">
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: 12,
-                  padding: 16,
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 8,
-                  backgroundColor: '#fafafa',
-                }}
-              >
+              <div className={styles.positionGrid}>
                 {gridLayout.flat().map(({ key, label }) => {
                   const isSelected = selectedPositions.includes(key);
                   return (
@@ -810,19 +801,7 @@ const WatermarkManagement: React.FC = () => {
                           setSelectedPositions([...selectedPositions, key]);
                         }
                       }}
-                      style={{
-                        backgroundColor: isSelected ? '#1890ff' : '#fff',
-                        color: isSelected ? '#fff' : '#333',
-                        border: `2px solid ${isSelected ? '#1890ff' : '#d9d9d9'}`,
-                        borderRadius: 6,
-                        padding: '12px 8px',
-                        textAlign: 'center',
-                        fontSize: 14,
-                        fontWeight: isSelected ? 600 : 400,
-                        cursor: 'pointer',
-                        transition: 'all 0.3s',
-                        userSelect: 'none',
-                      }}
+                      className={`${styles.positionCell} ${isSelected ? styles.selected : ''}`}
                     >
                       {label}
                     </div>
@@ -830,7 +809,7 @@ const WatermarkManagement: React.FC = () => {
                 })}
               </div>
               {selectedPositions.length === 0 && (
-                <div style={{ color: '#ff4d4f', marginTop: 8 }}>
+                <div className={styles.positionError}>
                   请至少选择一个位置
                 </div>
               )}
@@ -849,11 +828,11 @@ const WatermarkManagement: React.FC = () => {
       >
         {selectedWatermark && (
           <div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div className={styles.previewContainer}>
               <Image
                 src={selectedWatermark.image_url}
                 alt="水印预览"
-                style={{ maxWidth: 200, maxHeight: 200 }}
+                className={styles.previewImageLarge}
               />
             </div>
             <Divider />
@@ -863,33 +842,13 @@ const WatermarkManagement: React.FC = () => {
             <p><strong>透明度:</strong> {(selectedWatermark.opacity * 100).toFixed(0)}%</p>
             <p><strong>边距:</strong> {selectedWatermark.margin_pixels}px</p>
             <p><strong>允许位置:</strong></p>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 8,
-                padding: 12,
-                border: '1px dashed #d9d9d9',
-                borderRadius: 8,
-                maxWidth: 240,
-                marginLeft: 20,
-              }}
-            >
+            <div className={styles.previewPositionGrid}>
               {gridLayout.flat().map(({ key, label }) => {
                 const enabled = selectedWatermark.positions?.includes(key) ?? false;
                 return (
                   <div
                     key={key}
-                    style={{
-                      backgroundColor: enabled ? '#e6f7ff' : '#f5f5f5',
-                      color: enabled ? '#1890ff' : '#999',
-                      border: enabled ? '1px solid #91d5ff' : '1px dashed #d9d9d9',
-                      borderRadius: 6,
-                      padding: '8px 4px',
-                      textAlign: 'center',
-                      fontSize: 12,
-                      fontWeight: enabled ? 600 : 400,
-                    }}
+                    className={`${styles.previewPositionCell} ${enabled ? styles.enabled : ''}`}
                   >
                     {label}
                   </div>

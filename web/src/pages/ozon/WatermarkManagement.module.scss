@@ -1,0 +1,129 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 卡片 =====
+.cloudinaryCard {
+  margin-bottom: $spacing-md;
+}
+
+// ===== 预览图片 =====
+.previewImage {
+  object-fit: contain;
+}
+
+// ===== 表单控件 =====
+.fullWidthInput {
+  width: 100%;
+}
+
+.mediumInput {
+  width: 150px;
+}
+
+.smallInput {
+  width: 100px;
+}
+
+// ===== 配置状态区域 =====
+.configStatus {
+  margin-top: $spacing-lg;
+}
+
+// ===== 状态图标 =====
+.statusSuccess {
+  color: #52c41a;
+}
+
+.statusError {
+  color: #f5222d;
+}
+
+// ===== 表单间距 =====
+.watermarkForm {
+  margin-bottom: $spacing-md;
+}
+
+.taskToolbar {
+  margin-bottom: $spacing-md;
+}
+
+// ===== 位置选择器网格 =====
+.positionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: $spacing-md;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+
+.positionCell {
+  background-color: #fff;
+  color: #333;
+  border: 2px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.3s;
+  user-select: none;
+
+  &.selected {
+    background-color: #1890ff;
+    color: #fff;
+    border-color: #1890ff;
+    font-weight: 600;
+  }
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.positionError {
+  color: #ff4d4f;
+  margin-top: 8px;
+}
+
+// ===== 预览Modal =====
+.previewContainer {
+  text-align: center;
+  margin-bottom: $spacing-md;
+}
+
+.previewImageLarge {
+  max-width: 200px;
+  max-height: 200px;
+}
+
+.previewPositionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 8px;
+  max-width: 240px;
+  margin-left: 20px;
+}
+
+.previewPositionCell {
+  background-color: #f5f5f5;
+  color: #999;
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 400;
+
+  &.enabled {
+    background-color: #e6f7ff;
+    color: #1890ff;
+    border: 1px solid #91d5ff;
+    font-weight: 600;
+  }
+}
