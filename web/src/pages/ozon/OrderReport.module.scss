@@ -1,0 +1,86 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 主卡片 =====
+.mainCard {
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+// ===== 筛选区域 =====
+.filterRow {
+  margin-bottom: $spacing-lg;
+}
+
+.filterLabel {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.filterSelect {
+  width: 100%;
+}
+
+// ===== 空状态提示 =====
+.emptyHint {
+  text-align: center;
+  padding: 40px 0;
+  color: #999;
+}
+
+// ===== 统计汇总行 =====
+.summaryRow {
+  margin-bottom: $spacing-lg;
+}
+
+// ===== Statistic 值样式 =====
+.statSales :global(.ant-statistic-content) {
+  color: #1890ff;
+}
+
+.statPurchase :global(.ant-statistic-content) {
+  color: #faad14;
+}
+
+.statCost :global(.ant-statistic-content) {
+  color: #ff7875;
+}
+
+.statProfit :global(.ant-statistic-content) {
+  &.positive {
+    color: $success-color;
+  }
+  &.negative {
+    color: $error-color;
+  }
+}
+
+.statProfitRate :global(.ant-statistic-content) {
+  &.positive {
+    color: $success-color;
+  }
+  &.negative {
+    color: $error-color;
+  }
+}
+
+// ===== 表格单元格样式 =====
+.profitCell {
+  &.positive {
+    color: $success-color;
+  }
+  &.negative {
+    color: $error-color;
+  }
+}
+
+// ===== 表格汇总行样式 =====
+.summaryProfit {
+  &.positive {
+    color: $success-color;
+  }
+  &.negative {
+    color: $error-color;
+  }
+}

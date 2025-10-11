@@ -33,6 +33,7 @@ import type { ColumnsType } from 'antd/es/table';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import { formatRMB, formatPercent } from '../../utils/currency';
 import * as ozonApi from '@/services/ozonApi';
+import styles from './OrderReport.module.scss';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -176,7 +177,7 @@ const OrderReport: React.FC = () => {
       render: (value) => {
         const profit = parseFloat(value || '0');
         return (
-          <span style={{ color: profit >= 0 ? '#52c41a' : '#ff4d4f' }}>
+          <span className={`${styles.profitCell} ${profit >= 0 ? styles.positive : styles.negative}`}>
             {formatMoney(value)}
           </span>
         );
@@ -234,22 +235,22 @@ const OrderReport: React.FC = () => {
 
   return (
     <div>
-      <Card bodyStyle={{ padding: 16 }}>
+      <Card className={styles.mainCard}>
         <Title level={4}>订单报表</Title>
 
         {/* 筛选区域 */}
-        <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Row gutter={16} className={styles.filterRow}>
           <Col span={6}>
-            <label style={{ display: 'block', marginBottom: 8 }}>选择月份：</label>
+            <label className={styles.filterLabel}>选择月份：</label>
             <Select
               value={selectedMonth}
               onChange={setSelectedMonth}
-              style={{ width: '100%' }}
+              className={styles.filterSelect}
               options={generateMonthOptions()}
             />
           </Col>
           <Col span={10}>
-            <label style={{ display: 'block', marginBottom: 8 }}>选择店铺：</label>
+            <label className={styles.filterLabel}>选择店铺：</label>
             <ShopSelector
               value={selectedShops}
               onChange={(value) => {
@@ -263,12 +264,12 @@ const OrderReport: React.FC = () => {
               }}
               mode="multiple"
               placeholder="全部店铺"
-              style={{ width: '100%' }}
+              className={styles.filterSelect}
               showAllOption={false}
             />
           </Col>
           <Col span={8}>
-            <label style={{ display: 'block', marginBottom: 8 }}>&nbsp;</label>
+            <label className={styles.filterLabel}>&nbsp;</label>
             <Space>
               <Button type="primary" onClick={() => refetch()}>
                 查询
@@ -287,7 +288,7 @@ const OrderReport: React.FC = () => {
 
         {/* 提示信息 */}
         {selectedShops.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+          <div className={styles.emptyHint}>
             请选择店铺后查看报表数据
           </div>
         )}
@@ -296,63 +297,54 @@ const OrderReport: React.FC = () => {
         {summary && (
           <>
             <Divider orientation="left">统计汇总</Divider>
-            <Row gutter={16} style={{ marginBottom: 24 }}>
+            <Row gutter={16} className={styles.summaryRow}>
               <Col span={4}>
-                <Card>
+                <Card className={styles.statSales}>
                   <Statistic
                     title="销售总额"
                     value={summary.total_sales}
                     prefix="¥"
                     precision={2}
-                    valueStyle={{ color: '#1890ff' }}
                   />
                 </Card>
               </Col>
               <Col span={4}>
-                <Card>
+                <Card className={styles.statPurchase}>
                   <Statistic
                     title="进货总额"
                     value={summary.total_purchase}
                     prefix="¥"
                     precision={2}
-                    valueStyle={{ color: '#faad14' }}
                   />
                 </Card>
               </Col>
               <Col span={4}>
-                <Card>
+                <Card className={styles.statCost}>
                   <Statistic
                     title="费用总额"
                     value={summary.total_cost}
                     prefix="¥"
                     precision={2}
-                    valueStyle={{ color: '#ff7875' }}
                   />
                 </Card>
               </Col>
               <Col span={4}>
-                <Card>
+                <Card className={`${styles.statProfit} ${parseFloat(summary.total_profit) >= 0 ? styles.positive : styles.negative}`}>
                   <Statistic
                     title="利润总额"
                     value={summary.total_profit}
                     prefix="¥"
                     precision={2}
-                    valueStyle={{
-                      color: parseFloat(summary.total_profit) >= 0 ? '#52c41a' : '#ff4d4f',
-                    }}
                   />
                 </Card>
               </Col>
               <Col span={4}>
-                <Card>
+                <Card className={`${styles.statProfitRate} ${summary.profit_rate >= 0 ? styles.positive : styles.negative}`}>
                   <Statistic
                     title="利润率"
                     value={summary.profit_rate}
                     suffix="%"
                     precision={2}
-                    valueStyle={{
-                      color: summary.profit_rate >= 0 ? '#52c41a' : '#ff4d4f',
-                    }}
                     prefix={summary.profit_rate >= 0 ? <RiseOutlined /> : null}
                   />
                 </Card>
@@ -424,7 +416,7 @@ const OrderReport: React.FC = () => {
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={9}>-</Table.Summary.Cell>
                   <Table.Summary.Cell index={10} align="right">
-                    <strong style={{ color: pageProfit >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                    <strong className={`${styles.summaryProfit} ${pageProfit >= 0 ? styles.positive : styles.negative}`}>
                       {formatMoney(pageProfit)}
                     </strong>
                   </Table.Summary.Cell>
