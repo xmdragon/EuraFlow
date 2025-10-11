@@ -235,7 +235,7 @@ const Dashboard: React.FC = () => {
           </Space>
         </Header>
 
-        <Content style={{ margin: 24, padding: 24, background: '#f5f5f5' }}>
+        <Content style={{ margin: 2, padding: 2, background: '#f5f5f5' }}>
           <Suspense fallback={<PageLoading />}>
             <Routes>
               <Route
