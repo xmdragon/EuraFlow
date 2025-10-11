@@ -35,8 +35,8 @@ export default defineConfig({
     },
   },
   build: {
-    // 设置chunk大小警告限制
-    chunkSizeWarningLimit: 1000,
+    // 设置chunk大小警告限制（Ant Design 单个 chunk 约 1.1 MB，gzip 后 348 KB）
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
         // 优化代码分割策略：将大的vendor拆分为多个小chunk
