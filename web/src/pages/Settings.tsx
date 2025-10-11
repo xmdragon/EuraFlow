@@ -74,8 +74,8 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={3}>系统设置</Title>
+    <div>
+      <Title level={3} style={{ marginBottom: 16 }}>系统设置</Title>
 
       <Form
         form={form}
@@ -83,7 +83,7 @@ const Settings: React.FC = () => {
         initialValues={defaultSettings}
         onFinish={handleSave}
       >
-        <Row gutter={24}>
+        <Row gutter={8}>
           {/* 通知设置 */}
           <Col xs={24} lg={12}>
             <Card
@@ -209,7 +209,7 @@ const Settings: React.FC = () => {
                 </Space>
               }
               bordered={false}
-              style={{ marginTop: 24 }}
+              style={{ marginTop: 8 }}
             >
               <Form.Item
                 name={['sync', 'auto_sync']}
@@ -252,7 +252,7 @@ const Settings: React.FC = () => {
                 </Space>
               }
               bordered={false}
-              style={{ marginTop: 24 }}
+              style={{ marginTop: 8 }}
             >
               <Form.Item
                 name={['security', 'two_factor_auth']}
@@ -278,7 +278,7 @@ const Settings: React.FC = () => {
           </Col>
         </Row>
 
-        <Row style={{ marginTop: 24 }}>
+        <Row style={{ marginTop: 8 }}>
           <Col>
             <Space>
               <Button type="primary" htmlType="submit" loading={saving}>

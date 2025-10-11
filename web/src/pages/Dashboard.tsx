@@ -52,12 +52,6 @@ const Dashboard: React.FC = () => {
       label: '个人资料',
       onClick: () => navigate('/dashboard/profile'),
     },
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: '设置',
-      onClick: () => navigate('/dashboard/settings'),
-    },
     { type: 'divider' as const },
     {
       key: 'logout',
@@ -140,6 +134,12 @@ const Dashboard: React.FC = () => {
       icon: <CalculatorOutlined />,
       label: '财务计算',
       onClick: () => navigate('/dashboard/finance'),
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: '系统设置',
+      onClick: () => navigate('/dashboard/settings'),
     },
     ...(user?.role === 'admin' ? [{
       key: 'users',
