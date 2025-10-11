@@ -50,7 +50,8 @@ import moment from 'moment';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
-import { formatRuble } from '../../utils/currency';
+import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
+import { useCurrency } from '../../hooks/useCurrency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import styles from './OrderList.module.scss';
 
@@ -68,6 +69,10 @@ interface ExtraInfoFormProps {
 const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdatingExtraInfo }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+  const { symbol: userSymbol } = useCurrency();
+
+  // 优先使用订单货币，否则使用用户设置
+  const orderSymbol = getCurrencySymbol(selectedOrder?.currency_code) || userSymbol;
 
   // 当选中订单变化时，更新表单
   useEffect(() => {
@@ -129,7 +134,7 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
               },
             ]}
           >
-            <Input placeholder="进货价格" prefix="₽" />
+            <Input placeholder="进货价格" prefix={orderSymbol} />
           </Form.Item>
         </Col>
         <Col span={12}>
@@ -144,7 +149,7 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
               },
             ]}
           >
-            <Input placeholder="物料成本" prefix="₽" />
+            <Input placeholder="物料成本" prefix={orderSymbol} />
           </Form.Item>
         </Col>
       </Row>
@@ -197,6 +202,7 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
 
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
+  const { currency: userCurrency, symbol: userSymbol } = useCurrency();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -307,9 +313,12 @@ const OrderList: React.FC = () => {
     return flattened;
   }, [ordersData, searchParams.posting_number]);
 
-  // 使用统一的货币格式化函数
+  // 使用统一的货币格式化函数（移除货币符号）
   const formatPrice = (price: any): string => {
-    return formatRuble(price).replace('₽', '').trim(); // 返回不带符号的格式化数字
+    // 移除所有可能的货币符号
+    return formatPriceWithFallback(price, null, userCurrency)
+      .replace(/^[¥₽$€£]/g, '')
+      .trim();
   };
 
   // offer_id到图片的映射，从订单数据中提取
@@ -548,15 +557,9 @@ const OrderList: React.FC = () => {
       align: 'right',
       render: (_: any, record: ozonApi.PostingWithOrder) => {
         const order = record.order;
-        // 货币符号映射，默认CNY
-        const currencySymbols: Record<string, string> = {
-          'RUB': '₽',
-          'CNY': '¥',
-          'USD': '$',
-          'EUR': '€',
-        };
-        const currency = order.currency_code || 'CNY';
-        const symbol = currencySymbols[currency] || '¥';
+        // 优先使用订单货币，否则使用用户设置，最后默认CNY
+        const currency = order.currency_code || userCurrency || 'CNY';
+        const symbol = getCurrencySymbol(currency);
 
         return (
           <span className={styles.price}>
@@ -901,16 +904,34 @@ const OrderList: React.FC = () => {
                       {selectedOrder.order_type || 'FBS'}
                     </Descriptions.Item>
                     <Descriptions.Item label="总金额">
-                      {formatRuble(selectedOrder.total_price || selectedOrder.total_amount)}
+                      {formatPriceWithFallback(
+                        selectedOrder.total_price || selectedOrder.total_amount,
+                        selectedOrder.currency_code,
+                        userCurrency
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="商品金额">
-                      {formatRuble(selectedOrder.products_price || selectedOrder.products_amount)}
+                      {formatPriceWithFallback(
+                        selectedOrder.products_price || selectedOrder.products_amount,
+                        selectedOrder.currency_code,
+                        userCurrency
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="运费">
-                      {selectedOrder.delivery_price || selectedOrder.delivery_amount ? formatRuble(selectedOrder.delivery_price || selectedOrder.delivery_amount) : '-'}
+                      {selectedOrder.delivery_price || selectedOrder.delivery_amount
+                        ? formatPriceWithFallback(
+                            selectedOrder.delivery_price || selectedOrder.delivery_amount,
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )
+                        : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="佣金">
-                      {formatRuble(selectedOrder.commission_amount)}
+                      {formatPriceWithFallback(
+                        selectedOrder.commission_amount,
+                        selectedOrder.currency_code,
+                        userCurrency
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="下单时间">
                       {selectedOrder.ordered_at ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss') :
@@ -982,14 +1003,22 @@ const OrderList: React.FC = () => {
                         dataIndex: 'price',
                         key: 'price',
                         width: 100,
-                        render: (price) => formatRuble(price),
+                        render: (price) => formatPriceWithFallback(
+                          price,
+                          selectedOrder?.currency_code,
+                          userCurrency
+                        ),
                       },
                       {
                         title: '小计',
                         dataIndex: 'total_amount',
                         key: 'total_amount',
                         width: 100,
-                        render: (amount) => formatRuble(amount),
+                        render: (amount) => formatPriceWithFallback(
+                          amount,
+                          selectedOrder?.currency_code,
+                          userCurrency
+                        ),
                       },
                     ]}
                   />

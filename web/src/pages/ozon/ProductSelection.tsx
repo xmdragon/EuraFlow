@@ -57,6 +57,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
+import { useCurrency } from '../../hooks/useCurrency';
 import styles from './ProductSelection.module.scss';
 
 const { Option } = Select;
@@ -65,6 +66,7 @@ const { Title, Text, Link, Paragraph } = Typography;
 const ProductSelection: React.FC = () => {
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
+  const { currency: userCurrency, symbol: userSymbol } = useCurrency();
 
   // 状态管理
   const [activeTab, setActiveTab] = useState('search');
@@ -409,11 +411,11 @@ const ProductSelection: React.FC = () => {
           <div className={styles.priceContainer}>
             <div className={styles.priceRow}>
               <Text strong className={styles.currentPrice}>
-                ¥{formatPrice(product.current_price)}
+                {userSymbol}{formatPrice(product.current_price)}
               </Text>
               {product.original_price && (
                 <Text delete className={styles.originalPrice}>
-                  ¥{formatPrice(product.original_price)}
+                  {userSymbol}{formatPrice(product.original_price)}
                 </Text>
               )}
               {product.original_price && discount > 0 && (
@@ -494,7 +496,7 @@ const ProductSelection: React.FC = () => {
                   <Text type="secondary">跟卖最低价: </Text>
                   {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
                     <Text strong className={styles.competitorPrice}>
-                      ¥{formatPrice(product.competitor_min_price)}
+                      {userSymbol}{formatPrice(product.competitor_min_price)}
                     </Text>
                   ) : (
                     <Text className={styles.placeholderText}>-</Text>
@@ -696,14 +698,14 @@ const ProductSelection: React.FC = () => {
                         <InputNumber
                           min={0}
                           className={styles.halfWidthInput}
-                          placeholder="最小₽"
+                          placeholder={`最小${userSymbol}`}
                         />
                       </Form.Item>
                       <Form.Item name="competitor_min_price_max" noStyle>
                         <InputNumber
                           min={0}
                           className={styles.halfWidthInput}
-                          placeholder="最大₽"
+                          placeholder={`最大${userSymbol}`}
                         />
                       </Form.Item>
                     </Space.Compact>
@@ -1294,7 +1296,7 @@ const ProductSelection: React.FC = () => {
                   <div className={styles.competitorMinPrice}>
                     <Text>最低跟卖价: </Text>
                     <Text strong className={styles.competitorMinPriceValue}>
-                      ¥{formatPrice(selectedProductCompetitors.competitor_min_price)}
+                      {userSymbol}{formatPrice(selectedProductCompetitors.competitor_min_price)}
                     </Text>
                   </div>
                 </>

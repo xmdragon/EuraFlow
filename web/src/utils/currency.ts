@@ -99,6 +99,24 @@ export const formatPercent = (
 };
 
 /**
+ * 根据货币代码或用户设置格式化金额（优先使用数据货币）
+ * @param value - 金额值
+ * @param dataCurrency - 数据中的货币代码（优先使用）
+ * @param userCurrency - 用户设置的默认货币（回退使用）
+ * @returns 格式化后的金额字符串
+ */
+export const formatPriceWithFallback = (
+  value: string | number | null | undefined,
+  dataCurrency: string | null | undefined,
+  userCurrency: string = 'CNY'
+): string => {
+  // 优先使用数据中的货币，否则使用用户设置，最后默认CNY
+  const currency = dataCurrency || userCurrency || 'CNY';
+  const symbol = getCurrencySymbol(currency);
+  return formatCurrency(value, symbol);
+};
+
+/**
  * 计算毛利率
  * @param price - 售价
  * @param cost - 成本
