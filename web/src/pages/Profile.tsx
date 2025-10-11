@@ -65,10 +65,10 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={3}>个人资料</Title>
+    <div>
+      <Title level={3} style={{ marginBottom: 16 }}>个人资料</Title>
 
-      <Row gutter={24}>
+      <Row gutter={8}>
         <Col xs={24} lg={12}>
           <Card title="基本信息" bordered={false}>
             <Form
@@ -83,23 +83,19 @@ const Profile: React.FC = () => {
               <Form.Item
                 label="用户名"
                 name="username"
-                rules={[
-                  { min: 3, message: '用户名至少3个字符' },
-                  { max: 50, message: '用户名最多50个字符' },
-                ]}
+                tooltip="用户名创建后不可修改"
               >
-                <Input prefix={<UserOutlined />} placeholder="请输入用户名" />
+                <Input prefix={<UserOutlined />} placeholder="请输入用户名" disabled />
               </Form.Item>
 
               <Form.Item
                 label="邮箱"
                 name="email"
                 rules={[
-                  { required: true, message: '请输入邮箱' },
                   { type: 'email', message: '请输入有效的邮箱地址' },
                 ]}
               >
-                <Input prefix={<MailOutlined />} placeholder="请输入邮箱" />
+                <Input prefix={<MailOutlined />} placeholder="请输入邮箱（可选）" />
               </Form.Item>
 
               <Form.Item>
