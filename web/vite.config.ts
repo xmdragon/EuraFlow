@@ -39,33 +39,19 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        // 优化代码分割策略：将大的vendor拆分为多个小chunk
+        // 简化分包策略：只分两个 vendor chunk，确保依赖关系正确
         manualChunks(id) {
-          // 注意：匹配顺序很重要！先匹配更具体的路径，再匹配通用路径
-
-          // 1. React Router（必须在 React 之前匹配，避免被 react 匹配）
-          if (id.includes('node_modules/react-router')) {
-            return 'vendor-router';
-          }
-
-          // 2. React 核心库和 React 生态库
-          // 包含: react, react-dom, scheduler, @tanstack/react-query 等所有依赖 React 的库
-          if (id.match(/node_modules\/(react|react-dom|scheduler)\//) ||
-              id.match(/node_modules[\\/](react|react-dom|scheduler)[\\/]/) ||
-              id.includes('node_modules/@tanstack/react-query')) {
-            return 'vendor-react';
-          }
-
-          // 3. Ant Design 生态（最大的库，包含所有 rc-* 组件）
+          // 1. Ant Design 相关（最大的依赖，单独打包）
           if (id.includes('node_modules/antd') ||
               id.includes('node_modules/@ant-design') ||
               id.includes('node_modules/rc-')) {
             return 'vendor-antd';
           }
 
-          // 4. 其他第三方库（TanStack Query、dayjs、axios 等）
+          // 2. 所有其他第三方库（React、Router、TanStack Query、dayjs、axios 等）
+          // 放在一起确保依赖关系正确
           if (id.includes('node_modules')) {
-            return 'vendor-misc';
+            return 'vendor';
           }
         },
         // 用于命名代码拆分的块（保留 manualChunks 的命名）
