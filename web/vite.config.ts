@@ -1,10 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { visualizer } from 'rollup-plugin-visualizer'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    visualizer({
+      open: true,
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
   server: {
     host: '0.0.0.0',  // 允许局域网访问
     port: 3000,
@@ -25,11 +34,30 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // 简化代码分割策略，避免React导入问题
+        // 优化代码分割策略：将大的vendor拆分为多个小chunk
         manualChunks(id) {
-          // 将所有node_modules的内容放在一个大的vendor chunk中
+          // 1. React 核心库（react + react-dom + scheduler 必须在一起，避免多实例问题）
+          if (id.includes('node_modules/react') ||
+              id.includes('node_modules/react-dom') ||
+              id.includes('node_modules/scheduler')) {
+            return 'vendor-react';
+          }
+
+          // 2. Ant Design 生态（最大的库，包含所有 rc-* 组件）
+          if (id.includes('node_modules/antd') ||
+              id.includes('node_modules/@ant-design') ||
+              id.includes('node_modules/rc-')) {
+            return 'vendor-antd';
+          }
+
+          // 3. React Router
+          if (id.includes('node_modules/react-router')) {
+            return 'vendor-router';
+          }
+
+          // 4. 其他第三方库（TanStack Query、dayjs、axios 等）
           if (id.includes('node_modules')) {
-            return 'vendor';
+            return 'vendor-misc';
           }
         },
         // 用于从入口点创建单独的块
