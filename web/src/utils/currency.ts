@@ -46,7 +46,7 @@ export const formatRMB = (value: string | number | null | undefined): string => 
 
 /**
  * 根据货币代码获取货币符号
- * @param currencyCode - 货币代码 (CNY/RUB/USD等)
+ * @param currencyCode - 货币代码 (CNY/RUB/USD)
  * @returns 对应的货币符号
  */
 export const getCurrencySymbol = (currencyCode: string | null | undefined): string => {
@@ -58,13 +58,9 @@ export const getCurrencySymbol = (currencyCode: string | null | undefined): stri
     'CNY': '¥',   // 人民币
     'RUB': '₽',   // 俄罗斯卢布
     'USD': '$',   // 美元
-    'EUR': '€',   // 欧元
-    'GBP': '£',   // 英镑
-    'JPY': '¥',   // 日元
-    'KRW': '₩',   // 韩元
   };
 
-  return symbols[currencyCode.toUpperCase()] || currencyCode;
+  return symbols[currencyCode.toUpperCase()] || '¥'; // 未知货币默认使用人民币符号
 };
 
 /**
