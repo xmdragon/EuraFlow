@@ -971,8 +971,9 @@ class OzonSyncService:
                 for idx, item in enumerate(items):
                     # 更新进度和消息 - 与增量同步保持一致
                     current_count = total_synced + idx + 1
-                    # 使用估算进度（假设最多2000个订单，避免进度过快）
-                    estimated_total = max(2000, current_count)
+                    # 使用估算进度（假设最多500个订单，让进度增长更明显）
+                    # 如果订单数超过500，动态调整估算值避免超过90%
+                    estimated_total = max(500, current_count * 1.1) if current_count > 500 else 500
                     progress = 10 + (80 * current_count / estimated_total)
                     SYNC_TASKS[task_id]["progress"] = min(progress, 90)
                     SYNC_TASKS[task_id]["message"] = f"正在同步订单 {item.get('posting_number', 'unknown')}..."
