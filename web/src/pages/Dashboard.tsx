@@ -313,11 +313,6 @@ const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
                 </Card>
               </Col>
             </Row>
-
-            <div style={{ marginTop: 40 }}>
-              <p style={{ color: '#999' }}>当前已连接的电商平台：</p>
-              <Title level={4}>Ozon (俄罗斯)</Title>
-            </div>
           </div>
         </Card>
       </Col>
