@@ -263,6 +263,42 @@ const OrderList: React.FC = () => {
     staleTime: 10000, // 数据10秒内不会被认为是过期的
   });
 
+  // 展开订单数据为货件维度（PostingWithOrder 数组）
+  const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
+    if (!ordersData?.data) return [];
+
+    const flattened: ozonApi.PostingWithOrder[] = [];
+    ordersData.data.forEach((order: ozonApi.Order) => {
+      // 如果订单有 postings，展开每个 posting
+      if (order.postings && order.postings.length > 0) {
+        order.postings.forEach((posting) => {
+          flattened.push({
+            ...posting,
+            order: order  // 关联完整的订单信息
+          });
+        });
+      } else {
+        // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
+        // 这是为了兼容可能存在的没有 postings 数组的订单
+        if (order.posting_number) {
+          flattened.push({
+            id: order.id,
+            posting_number: order.posting_number,
+            status: order.status,
+            shipment_date: order.shipment_date,
+            delivery_method_name: order.delivery_method,
+            warehouse_name: order.warehouse_name,
+            packages_count: 1,
+            is_cancelled: order.status === 'cancelled',
+            order: order
+          } as ozonApi.PostingWithOrder);
+        }
+      }
+    });
+
+    return flattened;
+  }, [ordersData]);
+
   // 使用统一的货币格式化函数
   const formatPrice = (price: any): string => {
     return formatRuble(price).replace('₽', '').trim(); // 返回不带符号的格式化数字
@@ -388,7 +424,7 @@ const OrderList: React.FC = () => {
     },
   });
 
-  // 表格列定义
+  // 表格列定义（货件维度）
   const columns: any[] = [
     {
       title: '货件编号',
@@ -396,8 +432,8 @@ const OrderList: React.FC = () => {
       key: 'posting_number',
       width: 150,
       fixed: 'left',
-      render: (text: string, record: ozonApi.Order) => (
-        <a onClick={() => showOrderDetail(record)} className={styles.link}>
+      render: (text: string, record: ozonApi.PostingWithOrder) => (
+        <a onClick={() => showOrderDetail(record.order)} className={styles.link}>
           {text}
         </a>
       ),
@@ -425,11 +461,10 @@ const OrderList: React.FC = () => {
     },
     {
       title: '商品',
-      dataIndex: 'items',
       key: 'items',
       width: 300,
-      render: (_: any, record: ozonApi.Order) => {
-        const items = record.items || [];
+      render: (_: any, record: ozonApi.PostingWithOrder) => {
+        const items = record.order.items || [];
         const firstItem = items[0];
         const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -471,11 +506,11 @@ const OrderList: React.FC = () => {
     },
     {
       title: '价格',
-      dataIndex: 'total_price',
       key: 'total_price',
       width: 100,
       align: 'right',
-      render: (price: any, record: ozonApi.Order) => {
+      render: (_: any, record: ozonApi.PostingWithOrder) => {
+        const order = record.order;
         // 货币符号映射，默认CNY
         const currencySymbols: Record<string, string> = {
           'RUB': '₽',
@@ -483,38 +518,39 @@ const OrderList: React.FC = () => {
           'USD': '$',
           'EUR': '€',
         };
-        const currency = record.currency_code || 'CNY';
+        const currency = order.currency_code || 'CNY';
         const symbol = currencySymbols[currency] || '¥';
 
         return (
           <span className={styles.price}>
-            {symbol} {formatPrice(price || record.total_amount)}
+            {symbol} {formatPrice(order.total_price || order.total_amount)}
           </span>
         );
       },
     },
     {
       title: '配送',
-      dataIndex: 'order_type',
       key: 'order_type',
       width: 100,
-      render: (type: string, record: ozonApi.Order) => (
-        <span>{record.delivery_method || type || 'FBS'}</span>
+      render: (_: any, record: ozonApi.PostingWithOrder) => (
+        <span>{record.delivery_method_name || record.order.delivery_method || record.order.order_type || 'FBS'}</span>
       ),
     },
     {
       title: '预计送达',
-      dataIndex: 'delivery_date',
       key: 'delivery_date',
       width: 100,
-      render: (date: string) => (date ? moment(date).format('MM-DD') : '-'),
+      render: (_: any, record: ozonApi.PostingWithOrder) => {
+        const date = record.order.delivery_date;
+        return date ? moment(date).format('MM-DD') : '-';
+      },
     },
     {
       title: '操作',
       key: 'action',
       width: 50,
       fixed: 'right',
-      render: (_: any, record: ozonApi.Order) => {
+      render: (_: any, record: ozonApi.PostingWithOrder) => {
         const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(record.status);
         const canCancel = record.status !== 'cancelled' && record.status !== 'delivered';
 
@@ -556,19 +592,19 @@ const OrderList: React.FC = () => {
     setDetailModalVisible(true);
   };
 
-  const handleShip = (order: ozonApi.Order) => {
-    setSelectedOrder(order);
-    setSelectedPosting({ posting_number: order.posting_number } as any);
+  const handleShip = (postingWithOrder: ozonApi.PostingWithOrder) => {
+    setSelectedOrder(postingWithOrder.order);
+    setSelectedPosting(postingWithOrder);
     setShipModalVisible(true);
   };
 
-  const handleCancel = (order: ozonApi.Order) => {
+  const handleCancel = (postingWithOrder: ozonApi.PostingWithOrder) => {
     confirm({
       title: '确认取消订单？',
-      content: `订单号: ${order.order_number}`,
+      content: `订单号: ${postingWithOrder.order.order_number || postingWithOrder.order.order_id}，货件号: ${postingWithOrder.posting_number}`,
       onOk: () => {
         cancelOrderMutation.mutate({
-          postingNumber: order.posting_number,
+          postingNumber: postingWithOrder.posting_number,
           reason: '卖家取消',
         });
       },
@@ -774,19 +810,19 @@ const OrderList: React.FC = () => {
           <Button icon={<DownloadOutlined />}>导出订单</Button>
         </Space>
 
-        {/* 订单列表 */}
+        {/* 货件列表（以货件为单位显示）*/}
         <Table
           loading={isLoading}
           columns={columns}
-          dataSource={ordersData?.data || []}
+          dataSource={postingsData}
           rowKey="posting_number"
           pagination={{
             current: currentPage,
             pageSize: pageSize,
-            total: ordersData?.total || 0,
+            total: postingsData.length,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条订单`,
+            showTotal: (total) => `共 ${total} 条货件`,
             onChange: (page, size) => {
               setCurrentPage(page);
               setPageSize(size || 50);

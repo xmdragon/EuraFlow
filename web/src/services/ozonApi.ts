@@ -350,6 +350,11 @@ export interface Posting {
   cancelled_at?: string;
 }
 
+// 货件与订单的组合类型（用于列表展示）
+export interface PostingWithOrder extends Posting {
+  order: Order;  // 关联的完整订单信息
+}
+
 export interface OrderFilter {
   shop_id?: number | null;
   status?: string;
