@@ -45,6 +45,7 @@ import {
   Table,
   InputNumber,
   Divider,
+  Image,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
@@ -468,6 +469,15 @@ const OrderList: React.FC = () => {
       render: (date: string) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
     },
     {
+      title: '订单时间',
+      key: 'ordered_at',
+      width: 140,
+      render: (_: any, record: ozonApi.PostingWithOrder) => {
+        const date = record.order.ordered_at;
+        return date ? moment(date).format('MM-DD HH:mm') : '-';
+      },
+    },
+    {
       title: '商品',
       key: 'items',
       width: 300,
@@ -482,13 +492,25 @@ const OrderList: React.FC = () => {
 
         return (
           <div className={styles.productCell}>
-            <Avatar
-              size={40}
-              src={imageUrl}
-              icon={<ShoppingCartOutlined />}
-              shape="square"
-              className={styles.productAvatar}
-            />
+            {imageUrl ? (
+              <Image
+                src={imageUrl}
+                width={40}
+                height={40}
+                style={{ objectFit: 'cover', borderRadius: 4 }}
+                preview={{
+                  mask: '预览',
+                }}
+                fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='20'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E"
+              />
+            ) : (
+              <Avatar
+                size={40}
+                icon={<ShoppingCartOutlined />}
+                shape="square"
+                className={styles.productAvatar}
+              />
+            )}
             <div className={styles.productInfo}>
               <div className={styles.productName}>
                 {firstItem.sku ? (
