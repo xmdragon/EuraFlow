@@ -461,8 +461,8 @@ class Kuajing84Client:
                 # 24. Big_check_section_order
                 params.append(('field[Big_check_section_order]', '1'))
 
-                # 25. data_status
-                params.append(('field[data_status]', '0'))
+                # 25. data_status（1表示已填写完成）
+                params.append(('field[data_status]', '1'))
 
                 # Step 4: URL编码并提交
                 encoded_data = urlencode(params)
