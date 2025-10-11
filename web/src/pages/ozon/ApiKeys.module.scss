@@ -1,0 +1,92 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 卡片样式 =====
+.headerCard {
+  margin-bottom: $spacing-md;
+
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+.apiInfoCard {
+  margin-bottom: $spacing-md;
+  background: #f0f5ff;
+  border: 1px solid #91d5ff;
+
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+.listCard {
+  :global(.ant-card-body) {
+    padding: $spacing-md;
+  }
+}
+
+// ===== 标题区域 =====
+.headerRow {
+  @include flex-between;
+  align-items: center;
+}
+
+.titleSection {
+  // 标题部分
+}
+
+.pageTitle {
+  margin-bottom: 4px;
+}
+
+.titleIcon {
+  margin-right: 8px;
+}
+
+// ===== API 地址显示 =====
+.apiRow {
+  @include flex-between;
+  align-items: center;
+}
+
+.apiLabel {
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.apiAddress {
+  font-size: 13px;
+}
+
+.apiHint {
+  font-size: 12px;
+  display: block;
+  margin-top: 8px;
+}
+
+// ===== Alert =====
+.usageAlert {
+  margin-bottom: $spacing-lg;
+}
+
+.usageList {
+  margin-top: 8px;
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+// ===== Modal Alert =====
+.modalAlert {
+  margin-bottom: $spacing-md;
+}
+
+// ===== Key 显示框 =====
+.keyDisplay {
+  padding: $spacing-md;
+  background: #f5f5f5;
+  border-radius: $border-radius-base;
+  font-family: monospace;
+  word-break: break-all;
+  position: relative;
+}

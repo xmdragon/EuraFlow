@@ -36,6 +36,7 @@ import {
   APIKey,
   CreateAPIKeyRequest,
 } from '../../services/apiKeyService';
+import styles from './ApiKeys.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -226,11 +227,11 @@ const ApiKeys: React.FC = () => {
   return (
     <div>
       {/* 标题和操作 */}
-      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={2} style={{ marginBottom: 4 }}>
-              <KeyOutlined style={{ marginRight: 8 }} />
+      <Card className={styles.headerCard}>
+        <div className={styles.headerRow}>
+          <div className={styles.titleSection}>
+            <Title level={2} className={styles.pageTitle}>
+              <KeyOutlined className={styles.titleIcon} />
               API密钥管理
             </Title>
             <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
@@ -246,16 +247,16 @@ const ApiKeys: React.FC = () => {
       </Card>
 
       {/* API地址显示 */}
-      <Card style={{ marginBottom: 16, background: '#f0f5ff', border: '1px solid #91d5ff' }} bodyStyle={{ padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Card className={styles.apiInfoCard}>
+        <div className={styles.apiRow}>
           <div>
-            <Text strong style={{ fontSize: 14, marginRight: 8 }}>📡 API 地址：</Text>
-            <Text code copyable={{ text: window.location.origin }} style={{ fontSize: 13 }}>
+            <Text strong className={styles.apiLabel}>📡 API 地址：</Text>
+            <Text code copyable={{ text: window.location.origin }} className={styles.apiAddress}>
               {window.location.origin}
             </Text>
           </div>
         </div>
-        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+        <Text type="secondary" className={styles.apiHint}>
           在 Tampermonkey 脚本中填写此地址和下方创建的 API Key
         </Text>
       </Card>
@@ -264,7 +265,7 @@ const ApiKeys: React.FC = () => {
       <Alert
         message="使用说明"
         description={
-          <ol style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
+          <ol className={styles.usageList}>
             <li>点击"创建API Key"生成新密钥，立即复制保存（仅显示一次）</li>
             <li>在 Ozon 网站打开 Tampermonkey 脚本控制面板，展开"⚙️ API设置"</li>
             <li>填写上方的 <strong>API 地址</strong> 和刚才复制的 <strong>API Key</strong></li>
@@ -275,11 +276,11 @@ const ApiKeys: React.FC = () => {
         type="info"
         showIcon
         icon={<SafetyOutlined />}
-        style={{ marginBottom: 24 }}
+        className={styles.usageAlert}
       />
 
       {/* API Keys列表 */}
-      <Card bodyStyle={{ padding: 16 }}>
+      <Card className={styles.listCard}>
         <Table
           dataSource={keys}
           columns={columns}
@@ -309,7 +310,7 @@ const ApiKeys: React.FC = () => {
           description="API Key仅在创建时显示一次，请务必复制保存！"
           type="warning"
           showIcon
-          style={{ marginBottom: 16 }}
+          className={styles.modalAlert}
         />
         <Form
           form={form}
@@ -381,18 +382,9 @@ const ApiKeys: React.FC = () => {
           description="此Key将仅显示一次，关闭后无法再次查看。"
           type="warning"
           showIcon
-          style={{ marginBottom: 16 }}
+          className={styles.modalAlert}
         />
-        <div
-          style={{
-            padding: 16,
-            background: '#f5f5f5',
-            borderRadius: 4,
-            fontFamily: 'monospace',
-            wordBreak: 'break-all',
-            position: 'relative',
-          }}
-        >
+        <div className={styles.keyDisplay}>
           <Text code copyable={{ text: newKeyData?.key || '' }}>
             {newKeyData?.key}
           </Text>
