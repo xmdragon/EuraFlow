@@ -326,7 +326,7 @@ class Kuajing84Client:
         cookies: List[Dict],
     ) -> Dict[str, any]:
         """
-        提交物流单号
+        提交物流单号（构建完整的25个字段）
 
         Args:
             oid: 跨境巴士订单 oid
@@ -350,15 +350,129 @@ class Kuajing84Client:
             timeout=self.timeout
         ) as client:
             try:
-                # 提交物流单号
-                # 假设接口为 POST /index/Accountorder/order_purchase_manual_post
+                # Step 1: 获取订单详情页HTML
+                detail_url = f"{self.base_url}/index/Accountorder/order_purchase_manual/oid/{oid}/currPage/3/order_type/1"
+
+                logger.debug(f"获取订单详情页: {detail_url}")
+                response = await client.get(detail_url)
+
+                if response.status_code != 200:
+                    logger.error(f"访问订单详情页失败，状态码: {response.status_code}")
+                    return {
+                        "success": False,
+                        "message": f"访问订单详情页失败，状态码: {response.status_code}"
+                    }
+
+                html = response.text
+
+                # Step 2: 使用 BeautifulSoup 解析HTML，提取所有表单字段
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(html, 'html.parser')
+
+                # 提取基础字段
+                sid = soup.find('input', {'name': 'order_sid', 'id': 'order_sid'})
+                section = soup.find('input', {'name': 'order_section_id', 'id': 'order_section_id'})
+                order_id_input = soup.find('input', {'name': 'order_id'})
+                country_select = soup.find('select', {'name': 'country'})
+                order_number_input = soup.find('input', {'name': 'order_number'})
+                sheet_order_sn_input = soup.find('input', {'name': 'sheet_order_sn'})
+                sheet_input = soup.find('input', {'name': 'sheet'})
+                box_label_input = soup.find('input', {'name': 'box_label'})
+                group_num_input = soup.find('input', {'name': 'group_num'})
+                introduce_textarea = soup.find('textarea', {'name': 'introduce'})
+
+                # 提取 package_list 字段
+                img_input = soup.find('input', {'name': 'img'})
+                goods_id_input = soup.find('input', {'name': 'goods_id'})
+                package_id_input = soup.find('input', {'name': 'package_id'})
+                sku_id_input = soup.find('input', {'name': 'sku_id'})
+                num_input = soup.find('input', {'name': 'num'})
+                describe_textarea = soup.find('textarea', {'name': 'describe'})
+                from_platform_input = soup.find('input', {'name': 'from_platform'})
+                from_order_input = soup.find('input', {'name': 'from_order'})
+                package_of_select = soup.find('select', {'name': 'package_of'})
+
+                # 提取 add_service (checked radio)
+                add_service_radio = soup.find('input', {'type': 'radio', 'checked': True})
+
+                # Step 3: 构建表单数据（25个字段，严格按照实际提交的格式）
+                from urllib.parse import urlencode
+
+                params = []
+
+                # 1. field[sid]
+                params.append(('field[sid]', sid.get('value') if sid else ""))
+
+                # 2-10. field[order_data][0][...]
+                params.append(('field[order_data][0][order_id]', str(order_id_input.get('value') if order_id_input else oid)))
+                params.append(('field[order_data][0][section]', str(section.get('value') if section else "")))
+                params.append(('field[order_data][0][order_number]', order_number_input.get('value') if order_number_input else ""))
+                params.append(('field[order_data][0][sheet_order_sn]', sheet_order_sn_input.get('value', '') if sheet_order_sn_input else ""))
+                params.append(('field[order_data][0][introduce]', introduce_textarea.get_text() if introduce_textarea else ""))
+
+                # country: 如果没有选中项，使用第一个非空option（默认值）
+                country_value = ""
+                if country_select:
+                    selected_option = country_select.find('option', selected=True)
+                    if selected_option and selected_option.get('value'):
+                        country_value = selected_option.get('value')
+                    else:
+                        # 没有 selected 或值为空，使用第一个有值的 option
+                        first_option = country_select.find('option', value=lambda x: x and x != "")
+                        if first_option:
+                            country_value = first_option.get('value', '')
+                params.append(('field[order_data][0][country]', country_value))
+
+                params.append(('field[order_data][0][sheet]', sheet_input.get('value', '') if sheet_input else ""))
+                params.append(('field[order_data][0][box_label]', box_label_input.get('value', '') if box_label_input else ""))
+                params.append(('field[order_data][0][group_num]', str(group_num_input.get('value') if group_num_input else "1")))
+
+                # 11. add_service
+                if add_service_radio:
+                    params.append(('field[order_data][0][add_service][0][id]', str(add_service_radio.get('value'))))
+
+                # 12-21. package_list
+                # package_of: 如果没有选中项，使用第一个option（默认值）
+                package_of_value = ""
+                if package_of_select:
+                    selected_option = package_of_select.find('option', selected=True)
+                    if selected_option:
+                        package_of_value = selected_option.get('value', '')
+                    else:
+                        # 没有 selected 属性，使用第一个 option（默认选中）
+                        first_option = package_of_select.find('option')
+                        if first_option:
+                            package_of_value = first_option.get('value', '')
+                params.append(('field[order_data][0][package_list][0][package_of]', package_of_value))
+                params.append(('field[order_data][0][package_list][0][logistics_order]', logistics_order))  # 物流单号
+                params.append(('field[order_data][0][package_list][0][num]', str(num_input.get('value') if num_input else "1")))
+                params.append(('field[order_data][0][package_list][0][img]', img_input.get('value', '') if img_input else ""))
+                params.append(('field[order_data][0][package_list][0][sku_id]', str(sku_id_input.get('value', '0') if sku_id_input else "0")))
+                params.append(('field[order_data][0][package_list][0][describe]', describe_textarea.get_text() if describe_textarea else ""))
+                params.append(('field[order_data][0][package_list][0][id]', str(package_id_input.get('value', '0') if package_id_input else "0")))
+                params.append(('field[order_data][0][package_list][0][goods_id]', str(goods_id_input.get('value', '') if goods_id_input else "")))
+                params.append(('field[order_data][0][package_list][0][from_platform]', str(from_platform_input.get('value', '0') if from_platform_input else "0")))
+                params.append(('field[order_data][0][package_list][0][from_order]', from_order_input.get('value', '') if from_order_input else ""))
+
+                # 22-23. is_show_img/sku
+                params.append(('field[order_data][0][is_show_img]', '0'))
+                params.append(('field[order_data][0][is_show_sku]', '0'))
+
+                # 24. Big_check_section_order
+                params.append(('field[Big_check_section_order]', '1'))
+
+                # 25. data_status
+                params.append(('field[data_status]', '0'))
+
+                # Step 4: URL编码并提交
+                encoded_data = urlencode(params)
+
+                logger.debug(f"提交数据字段数: {len(params)}")
+                logger.debug(f"提交数据长度: {len(encoded_data)} 字符")
+
                 response = await client.post(
-                    f"{self.base_url}/index/Accountorder/order_purchase_manual_post",
-                    data={
-                        "oid": oid,
-                        "logistics_order": logistics_order,
-                        "agreement_box": "1",  # 同意协议
-                    },
+                    f"{self.base_url}/index/Accountordersubmit/order_purchase_manual_post",
+                    content=encoded_data,
                     headers={
                         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                         "X-Requested-With": "XMLHttpRequest",
@@ -372,7 +486,7 @@ class Kuajing84Client:
                     result = response.json()
                     logger.debug(f"提交响应: {result}")
 
-                    if result.get("code") == 200:
+                    if result.get("code") == 200 or result.get("code") == 0:
                         logger.info("物流单号提交成功")
                         return {
                             "success": True,
@@ -388,6 +502,7 @@ class Kuajing84Client:
 
                 except Exception as e:
                     logger.error(f"解析提交响应失败: {e}")
+                    logger.error(f"响应内容: {response.text[:500]}")
                     return {
                         "success": False,
                         "message": f"提交失败: {e}"
@@ -400,7 +515,7 @@ class Kuajing84Client:
                     "message": "提交超时，请稍后重试"
                 }
             except Exception as e:
-                logger.error(f"提交物流单号异常: {e}")
+                logger.error(f"提交物流单号异常: {e}", exc_info=True)
                 return {
                     "success": False,
                     "message": f"提交异常: {str(e)}"
