@@ -127,6 +127,7 @@ class OzonOrder(Base):
             result['posting_status'] = first_posting.status
             result['in_process_at'] = first_posting.in_process_at.isoformat() if first_posting.in_process_at else None
             result['warehouse_name'] = first_posting.warehouse_name
+            result['shipment_date'] = first_posting.shipment_date.isoformat() if first_posting.shipment_date else None
 
             # 添加完整的postings列表
             result['postings'] = [
@@ -136,6 +137,7 @@ class OzonOrder(Base):
                     'status': posting.status,
                     'warehouse_name': posting.warehouse_name,
                     'delivery_method_name': posting.delivery_method_name,
+                    'shipment_date': posting.shipment_date.isoformat() if posting.shipment_date else None,
                     'shipped_at': posting.shipped_at.isoformat() if posting.shipped_at else None,
                     'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
                 }
@@ -146,6 +148,7 @@ class OzonOrder(Base):
             result['posting_status'] = None
             result['in_process_at'] = None
             result['warehouse_name'] = None
+            result['shipment_date'] = None
             result['postings'] = []
 
         return result

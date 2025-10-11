@@ -416,9 +416,9 @@ const OrderList: React.FC = () => {
       },
     },
     {
-      title: '下单时间',
-      dataIndex: 'ordered_at',
-      key: 'ordered_at',
+      title: '发货截止',
+      dataIndex: 'shipment_date',
+      key: 'shipment_date',
       width: 140,
       render: (date: string) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
     },
@@ -474,11 +474,23 @@ const OrderList: React.FC = () => {
       key: 'total_price',
       width: 100,
       align: 'right',
-      render: (price: any, record: ozonApi.Order) => (
-        <span style={{ color: '#52c41a', fontWeight: 500 }}>
-          ₽ {formatPrice(price || record.total_amount)}
-        </span>
-      ),
+      render: (price: any, record: ozonApi.Order) => {
+        // 货币符号映射，默认CNY
+        const currencySymbols: Record<string, string> = {
+          'RUB': '₽',
+          'CNY': '¥',
+          'USD': '$',
+          'EUR': '€',
+        };
+        const currency = record.currency_code || 'CNY';
+        const symbol = currencySymbols[currency] || '¥';
+
+        return (
+          <span style={{ color: '#52c41a', fontWeight: 500 }}>
+            {symbol} {formatPrice(price || record.total_amount)}
+          </span>
+        );
+      },
     },
     {
       title: '配送',
@@ -499,45 +511,39 @@ const OrderList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 100,
+      width: 80,
       fixed: 'right',
       render: (_: any, record: ozonApi.Order) => {
         const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(record.status);
         const canCancel = record.status !== 'cancelled' && record.status !== 'delivered';
 
         return (
-          <Space size="small">
-            {canShip && (
-              <Button
-                type="link"
-                size="small"
-                onClick={() => handleShip(record)}
-                style={{ padding: 0 }}
-              >
-                发货
-              </Button>
-            )}
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'print',
-                    icon: <PrinterOutlined />,
-                    label: '打印面单',
-                  },
-                  canCancel && {
-                    key: 'cancel',
-                    icon: <CloseCircleOutlined />,
-                    label: '取消订单',
-                    danger: true,
-                    onClick: () => handleCancel(record),
-                  },
-                ].filter(Boolean),
-              }}
-            >
-              <Button type="link" size="small" icon={<MoreOutlined />} style={{ padding: 0 }} />
-            </Dropdown>
-          </Space>
+          <Dropdown
+            menu={{
+              items: [
+                canShip && {
+                  key: 'ship',
+                  icon: <TruckOutlined />,
+                  label: '发货',
+                  onClick: () => handleShip(record),
+                },
+                {
+                  key: 'print',
+                  icon: <PrinterOutlined />,
+                  label: '打印面单',
+                },
+                canCancel && {
+                  key: 'cancel',
+                  icon: <CloseCircleOutlined />,
+                  label: '取消订单',
+                  danger: true,
+                  onClick: () => handleCancel(record),
+                },
+              ].filter(Boolean),
+            }}
+          >
+            <Button type="link" size="small" icon={<MoreOutlined />} style={{ padding: 0 }} />
+          </Dropdown>
         );
       },
     },
