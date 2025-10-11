@@ -56,6 +56,11 @@
 // ===== 筛选区域 =====
 .filterCard {
   margin-bottom: $spacing-xs;
+
+  // Card body 样式
+  :global(.ant-card-body) {
+    padding: $spacing-xs;
+  }
 }
 
 .filterRow {
@@ -75,8 +80,20 @@
 }
 
 // ===== 列表区域 =====
+.listCard {
+  // Card body 样式
+  :global(.ant-card-body) {
+    padding: $spacing-xs;
+  }
+}
+
 .actionSpace {
   margin-bottom: $spacing-xs;
+}
+
+.pagination {
+  margin-top: $spacing-md;
+  text-align: center;
 }
 
 // ===== 详情弹窗 =====

@@ -640,7 +640,7 @@ const OrderList: React.FC = () => {
       )}
 
       {/* 搜索过滤 */}
-      <Card className={styles.filterCard} bodyStyle={{ padding: 8 }}>
+      <Card className={styles.filterCard}>
         <Row className={styles.filterRow}>
           <Col flex="auto">
             <Space size="large">
@@ -702,7 +702,7 @@ const OrderList: React.FC = () => {
       </Card>
 
       {/* 订单列表 */}
-      <Card bodyStyle={{ padding: 8 }}>
+      <Card className={styles.listCard}>
         {/* 状态标签页 */}
         <Tabs
           activeKey={activeTab}
@@ -791,7 +791,7 @@ const OrderList: React.FC = () => {
               setCurrentPage(page);
               setPageSize(size || 50);
             },
-            style: { marginTop: 16, textAlign: 'center' },
+            className: styles.pagination,
           }}
           scroll={{ x: 1200 }}
           size="small"
