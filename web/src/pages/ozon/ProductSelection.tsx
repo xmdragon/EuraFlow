@@ -51,6 +51,7 @@ import {
   LinkOutlined,
   CodeOutlined,
   RocketOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
@@ -357,15 +358,46 @@ const ProductSelection: React.FC = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: '#f0f0f0',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                position: 'relative'
               }}
-              onClick={() => showProductImages(product)}
+              onClick={() => window.open(product.ozon_link, '_blank')}
             >
               <img
                 alt={product.product_name_cn}
                 src={product.image_url}
                 style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
               />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showProductImages(product);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                <PlusOutlined style={{ color: 'white', fontSize: 14 }} />
+              </div>
             </div>
           ) : (
             <div
@@ -377,7 +409,7 @@ const ProductSelection: React.FC = () => {
                 background: '#f0f0f0',
                 cursor: 'pointer'
               }}
-              onClick={() => showProductImages(product)}
+              onClick={() => window.open(product.ozon_link, '_blank')}
             >
               <ShoppingOutlined style={{ fontSize: 40, color: '#ccc' }} />
             </div>
