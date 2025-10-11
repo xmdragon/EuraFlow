@@ -28,6 +28,10 @@ croniter==1.4.1
 pandas==2.3.2
 beautifulsoup4==4.14.2
 
+# Browser Automation
+playwright==1.40.0
+cryptography==41.0.7
+
 # Image Processing
 Pillow==10.1.0
 cloudinary==1.37.0

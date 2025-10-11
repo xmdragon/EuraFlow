@@ -97,6 +97,7 @@ class OzonOrder(Base):
     postings = relationship("OzonPosting", back_populates="order", cascade="all, delete-orphan")
     items = relationship("OzonOrderItem", back_populates="order", cascade="all, delete-orphan")
     refunds = relationship("OzonRefund", back_populates="order", cascade="all, delete-orphan")
+    kuajing84_sync_logs = relationship("Kuajing84SyncLog", back_populates="ozon_order", cascade="all, delete-orphan")
     
     __table_args__ = (
         UniqueConstraint("shop_id", "ozon_order_id", name="uq_ozon_orders_shop_order"),

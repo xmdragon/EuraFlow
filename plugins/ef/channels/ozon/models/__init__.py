@@ -6,6 +6,7 @@ from .orders import OzonOrder, OzonPosting, OzonOrderItem, OzonShipmentPackage, 
 from .watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
 from .product_selection import ProductSelectionItem, ImportHistory
 from .chat import OzonChat, OzonChatMessage
+from .kuajing84 import Kuajing84SyncLog
 
 __all__ = [
     "OzonShop",
@@ -21,5 +22,6 @@ __all__ = [
     "ProductSelectionItem",
     "ImportHistory",
     "OzonChat",
-    "OzonChatMessage"
+    "OzonChatMessage",
+    "Kuajing84SyncLog"
 ]

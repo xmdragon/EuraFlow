@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey, UniqueConstraint, func
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 
 from ef_core.models.base import Base
 
@@ -82,7 +83,14 @@ class OzonShop(Base):
         nullable=True,
         comment="店铺统计信息"
     )
-    
+
+    # 跨境巴士配置
+    kuajing84_config: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="跨境巴士配置（用户名、密码、Cookie等）"
+    )
+
     # 时间戳
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
