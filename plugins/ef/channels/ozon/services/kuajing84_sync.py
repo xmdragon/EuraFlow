@@ -5,7 +5,7 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 from cryptography.fernet import Fernet
@@ -126,6 +126,9 @@ class Kuajing84SyncService:
         """
         测试跨境巴士连接（使用已保存的配置进行登录测试）
 
+        如果已有有效的 Cookie，则直接返回成功；
+        如果 Cookie 过期或不存在，则重新登录并保存。
+
         Returns:
             测试结果
         """
@@ -143,64 +146,68 @@ class Kuajing84SyncService:
                 "message": "未配置跨境巴士账号，请先保存配置"
             }
 
+        if not config.enabled:
+            return {
+                "success": False,
+                "message": "跨境巴士功能未启用"
+            }
+
         if not config.username or not config.password:
             return {
                 "success": False,
                 "message": "跨境巴士配置不完整（缺少用户名或密码）"
             }
 
-        # 解密密码
+        # 使用 _get_valid_cookies 方法（会自动检查、复用或重新登录）
         try:
-            password = self._decrypt(config.password)
-        except Exception as e:
-            logger.error(f"解密密码失败: {e}")
-            return {
-                "success": False,
-                "message": "配置解密失败，请重新保存配置"
-            }
+            cookies = await self._get_valid_cookies()
 
-        # 尝试登录
-        async with Kuajing84Client(base_url=config.base_url) as client:
-            try:
-                login_result = await client.login(config.username, password)
-
-                logger.info("测试连接成功")
-
+            if not cookies:
                 return {
-                    "success": True,
-                    "message": f"连接测试成功！成功获取 {len(login_result['cookies'])} 个 Cookie",
-                    "data": {
-                        "username": config.username,
-                        "cookie_count": len(login_result['cookies']),
-                        "expires_at": login_result['expires_at']
-                    }
+                    "success": False,
+                    "message": "无法获取有效的 Cookie，请检查用户名和密码"
                 }
 
-            except Exception as e:
-                logger.error(f"测试连接失败: {e}")
-                error_message = str(e)
+            # 刷新配置以获取最新的过期时间
+            await self.db.refresh(config)
 
-                # 根据错误信息提供更友好的提示
-                if "验证码" in error_message or "captcha" in error_message.lower():
-                    return {
-                        "success": False,
-                        "message": "登录需要验证码，无法自动测试。请联系管理员。"
-                    }
-                elif "密码错误" in error_message or "用户名错误" in error_message:
-                    return {
-                        "success": False,
-                        "message": "用户名或密码错误，请检查配置"
-                    }
-                elif "timeout" in error_message.lower() or "超时" in error_message:
-                    return {
-                        "success": False,
-                        "message": "连接超时，请检查网络或稍后重试"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"连接测试失败: {error_message}"
-                    }
+            logger.info("测试连接成功")
+
+            return {
+                "success": True,
+                "message": f"连接测试成功！成功获取 {len(cookies)} 个 Cookie",
+                "data": {
+                    "username": config.username,
+                    "cookie_count": len(cookies),
+                    "expires_at": config.cookie_expires_at.isoformat() if config.cookie_expires_at else None
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"测试连接失败: {e}")
+            error_message = str(e)
+
+            # 根据错误信息提供更友好的提示
+            if "验证码" in error_message or "captcha" in error_message.lower():
+                return {
+                    "success": False,
+                    "message": "登录需要验证码，无法自动测试。请联系管理员。"
+                }
+            elif "密码错误" in error_message or "用户名错误" in error_message:
+                return {
+                    "success": False,
+                    "message": "用户名或密码错误，请检查配置"
+                }
+            elif "timeout" in error_message.lower() or "超时" in error_message:
+                return {
+                    "success": False,
+                    "message": "连接超时，请检查网络或稍后重试"
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"连接测试失败: {error_message}"
+                }
 
     async def _get_valid_cookies(self) -> Optional[list]:
         """
@@ -221,7 +228,7 @@ class Kuajing84SyncService:
 
         # 检查 Cookie 是否存在且未过期
         if config.cookie and config.cookie_expires_at:
-            if datetime.utcnow() < config.cookie_expires_at:
+            if datetime.now(timezone.utc) < config.cookie_expires_at:
                 logger.debug("使用缓存的 Cookie")
                 return config.cookie
 
@@ -368,7 +375,7 @@ class Kuajing84SyncService:
 
                 if submit_result["success"]:
                     sync_log.sync_status = "success"
-                    sync_log.synced_at = datetime.utcnow()
+                    sync_log.synced_at = datetime.now(timezone.utc)
                     await self.db.commit()
 
                     logger.info(f"物流单号同步成功，log_id: {sync_log.id}")
