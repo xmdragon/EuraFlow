@@ -20,6 +20,7 @@ import styles from './Dashboard.module.scss';
 const { Title, Text } = Typography;
 
 const OzonDashboard: React.FC = () => {
+  // 初始化为 null 表示"全部店铺"
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [debouncedShop, setDebouncedShop] = useState<number | null>(null);
 
@@ -46,10 +47,9 @@ const OzonDashboard: React.FC = () => {
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });
 
-  // 等待ShopSelector完成初始化且获取到具体店铺ID后再请求数据
-  // 完全避免shop_id=null的请求，除非用户明确选择了"全部店铺"
-  const shouldFetchData = !!shops?.data?.length && debouncedShop !== undefined &&
-    debouncedShop !== null;
+  // 等待ShopSelector完成初始化后再请求数据
+  // 允许 debouncedShop 为 null（表示全部店铺）
+  const shouldFetchData = !!shops?.data?.length && debouncedShop !== undefined;
 
 
   // 获取统计数据（使用防抖后的店铺ID）

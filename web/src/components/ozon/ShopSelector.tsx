@@ -71,14 +71,16 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         }
       }
 
-      // 否则自动选择第一个店铺
-      const shopId = shops[0].id;
-      setSelectedShop(shopId);
-      onChange?.(shopId);
-      // 更新 localStorage
-      localStorage.setItem('ozon_selected_shop', shopId.toString());
+      // 如果不显示"全部"选项，才自动选择第一个店铺
+      if (!showAllOption) {
+        const shopId = shops[0].id;
+        setSelectedShop(shopId);
+        onChange?.(shopId);
+        // 更新 localStorage
+        localStorage.setItem('ozon_selected_shop', shopId.toString());
+      }
     }
-  }, [shops, selectedShop, onChange, value, isMultiple]);
+  }, [shops, selectedShop, onChange, value, isMultiple, showAllOption]);
 
   const handleChange = (shopId: number | string | (number | string)[]) => {
     if (isMultiple) {
