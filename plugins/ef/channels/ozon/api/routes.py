@@ -1854,15 +1854,17 @@ async def update_order_extra_info(
     # 更新字段
     if "purchase_price" in extra_info:
         order.purchase_price = Decimal(str(extra_info["purchase_price"])) if extra_info["purchase_price"] else None
+        order.purchase_price_updated_at = utcnow()  # 记录进货价格更新时间
     if "domestic_tracking_number" in extra_info:
         order.domestic_tracking_number = extra_info["domestic_tracking_number"]
+        order.domestic_tracking_updated_at = utcnow()  # 记录国内物流单号更新时间
     if "material_cost" in extra_info:
         order.material_cost = Decimal(str(extra_info["material_cost"])) if extra_info["material_cost"] else None
     if "order_notes" in extra_info:
         order.order_notes = extra_info["order_notes"]
 
     # 更新时间戳
-    order.updated_at = datetime.now()
+    order.updated_at = utcnow()
 
     await db.commit()
     await db.refresh(order)
@@ -1873,11 +1875,13 @@ async def update_order_extra_info(
         "success": True,
         "message": "Order extra info updated successfully",
         "data": {
-            "posting_number": order.posting_number,
+            "posting_number": posting.posting_number,
             "purchase_price": format_currency(order.purchase_price),
             "domestic_tracking_number": order.domestic_tracking_number,
             "material_cost": format_currency(order.material_cost),
-            "order_notes": order.order_notes
+            "order_notes": order.order_notes,
+            "purchase_price_updated_at": order.purchase_price_updated_at.isoformat() if order.purchase_price_updated_at else None,
+            "domestic_tracking_updated_at": order.domestic_tracking_updated_at.isoformat() if order.domestic_tracking_updated_at else None
         }
     }
 
