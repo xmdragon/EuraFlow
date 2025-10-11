@@ -108,9 +108,10 @@
 }
 
 .productPreviewImage {
-  height: 200px;
-  width: auto;
+  width: 200px;
+  height: auto;
   max-width: 400px;
+  max-height: 400px;
   object-fit: contain;
   display: block;
 }
