@@ -591,6 +591,42 @@ const OrderList: React.FC = () => {
       ),
     },
     {
+      title: '追踪号码',
+      key: 'tracking_number',
+      width: 160,
+      render: (_: any, record: ozonApi.PostingWithOrder) => {
+        // 备货中的订单不显示追踪号码
+        if (record.status === 'awaiting_packaging') {
+          return '-';
+        }
+
+        // 获取第一个包裹的追踪号码
+        const packages = record.packages || [];
+        if (packages.length === 0) {
+          return '-';
+        }
+
+        const firstPackage = packages[0];
+        if (!firstPackage.tracking_number) {
+          return '-';
+        }
+
+        // 如果有多个包裹，显示提示
+        if (packages.length > 1) {
+          return (
+            <Tooltip title={`共${packages.length}个包裹`}>
+              <span>
+                {firstPackage.tracking_number}
+                <Tag color="blue" style={{ marginLeft: 4 }}>+{packages.length - 1}</Tag>
+              </span>
+            </Tooltip>
+          );
+        }
+
+        return firstPackage.tracking_number;
+      },
+    },
+    {
       title: '预计送达',
       key: 'delivery_date',
       width: 100,

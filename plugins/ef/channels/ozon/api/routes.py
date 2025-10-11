@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from ef_core.database import get_async_session
-from ..models import OzonShop, OzonProduct, OzonOrder
+from ..models import OzonShop, OzonProduct, OzonOrder, OzonPosting
 from ..utils.datetime_utils import parse_datetime, parse_date, utcnow
 from sqlalchemy import select, func
 # from .auth import get_current_user  # Временно отключено для разработки

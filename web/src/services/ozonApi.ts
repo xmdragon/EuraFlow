@@ -332,6 +332,13 @@ export interface OrderItem {
   image?: string;
 }
 
+export interface ShipmentPackage {
+  id: number;
+  tracking_number?: string;
+  carrier_name?: string;
+  carrier_code?: string;
+}
+
 export interface Posting {
   id: number;
   posting_number: string;
@@ -348,6 +355,7 @@ export interface Posting {
   shipped_at?: string;
   delivered_at?: string;
   cancelled_at?: string;
+  packages?: ShipmentPackage[];
 }
 
 // 货件与订单的组合类型（用于列表展示）

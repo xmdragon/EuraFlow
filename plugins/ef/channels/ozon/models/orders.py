@@ -151,6 +151,15 @@ class OzonOrder(Base):
                     'shipment_date': posting.shipment_date.isoformat() if posting.shipment_date else None,
                     'shipped_at': posting.shipped_at.isoformat() if posting.shipped_at else None,
                     'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
+                    'packages': [
+                        {
+                            'id': pkg.id,
+                            'tracking_number': pkg.tracking_number,
+                            'carrier_name': pkg.carrier_name,
+                            'carrier_code': pkg.carrier_code,
+                        }
+                        for pkg in posting.packages
+                    ] if posting.packages else []
                 }
                 for posting in self.postings
             ]
