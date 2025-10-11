@@ -9,10 +9,10 @@ from typing import Dict, Any, Optional
 from decimal import Decimal
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import OzonShop, OzonProduct, OzonOrder, OzonOrderItem, OzonPosting
+from ..models import OzonShop, OzonProduct, OzonOrder, OzonOrderItem, OzonPosting, OzonShipmentPackage
 from ..api.client import OzonAPIClient
 from ..utils.datetime_utils import parse_datetime, utcnow
 
@@ -1236,6 +1236,9 @@ class OzonSyncService:
         # 保存原始数据
         posting.raw_payload = posting_data
 
+        # 同步包裹信息（如果有）
+        await OzonSyncService._sync_packages(db, posting, posting_data)
+
         logger.info(
             f"Synced posting {posting_number} for order {order.order_id}",
             extra={"posting_number": posting_number, "order_id": order.order_id, "status": posting.status}
@@ -1317,6 +1320,90 @@ class OzonSyncService:
             f"Synced {len(synced_skus)} items for order {order.order_id}",
             extra={"order_id": order.order_id, "items_count": len(synced_skus)}
         )
+
+    @staticmethod
+    async def _sync_packages(db: AsyncSession, posting: OzonPosting, posting_data: Dict[str, Any]) -> None:
+        """同步包裹信息
+
+        Args:
+            db: 数据库会话
+            posting: Posting对象
+            posting_data: OZON API返回的posting数据
+        """
+        # 检查posting状态是否需要包裹信息
+        posting_status = posting_data.get("status")
+        needs_tracking = posting_status in ["awaiting_deliver", "delivering", "delivered"]
+
+        # 如果列表API返回了packages，直接处理
+        if posting_data.get("packages"):
+            packages_list = posting_data["packages"]
+            logger.info(f"Found {len(packages_list)} packages in list API for posting {posting.posting_number}")
+        elif needs_tracking:
+            # 需要追踪号码但列表接口未返回，调用详情接口
+            try:
+                # 获取shop信息以创建API客户端
+                shop_result = await db.execute(select(OzonShop).where(OzonShop.id == posting.shop_id))
+                shop = shop_result.scalar_one_or_none()
+
+                if not shop:
+                    logger.warning(f"Shop {posting.shop_id} not found for posting {posting.posting_number}")
+                    return
+
+                # 创建API客户端
+                client = OzonAPIClient(shop.client_id, shop.api_key_enc)
+
+                # 调用详情接口
+                detail_response = await client.get_posting_details(posting.posting_number)
+                detail_data = detail_response.get("result", {})
+
+                if detail_data.get("packages"):
+                    packages_list = detail_data["packages"]
+                    logger.info(f"Fetched {len(packages_list)} packages from detail API for posting {posting.posting_number}")
+                else:
+                    logger.info(f"No packages found in detail API for posting {posting.posting_number}")
+                    return
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch package details for posting {posting.posting_number}: {e}")
+                return
+        else:
+            # 不需要追踪号码，跳过
+            return
+
+        # 处理包裹信息
+        for package_data in packages_list:
+            package_number = package_data.get("package_number") or package_data.get("id")
+            if not package_number:
+                logger.warning(f"Package without package_number for posting {posting.posting_number}")
+                continue
+
+            # 查找或创建包裹
+            existing_package_result = await db.execute(
+                select(OzonShipmentPackage).where(
+                    and_(
+                        OzonShipmentPackage.posting_id == posting.id,
+                        OzonShipmentPackage.package_number == package_number
+                    )
+                )
+            )
+            package = existing_package_result.scalar_one_or_none()
+
+            if not package:
+                package = OzonShipmentPackage(
+                    posting_id=posting.id,
+                    package_number=package_number
+                )
+                db.add(package)
+
+            # 更新包裹信息
+            package.tracking_number = package_data.get("tracking_number")
+            package.carrier_name = package_data.get("carrier_name")
+            package.carrier_code = package_data.get("carrier_code")
+            package.status = package_data.get("status")
+
+            # 更新时间戳
+            if package_data.get("status_updated_at"):
+                package.status_updated_at = parse_datetime(package_data["status_updated_at"])
 
     @staticmethod
     def get_task_status(task_id: str) -> Optional[Dict[str, Any]]:
