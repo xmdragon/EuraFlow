@@ -45,7 +45,6 @@ import {
   Table,
   InputNumber,
   Divider,
-  Image,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
@@ -493,16 +492,30 @@ const OrderList: React.FC = () => {
         return (
           <div className={styles.productCell}>
             {imageUrl ? (
-              <Image
-                src={imageUrl}
-                width={40}
-                height={40}
-                style={{ objectFit: 'cover', borderRadius: 4 }}
-                preview={{
-                  mask: '预览',
-                }}
-                fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='20'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E"
-              />
+              <Tooltip
+                title={
+                  <img
+                    src={imageUrl}
+                    alt="商品预览"
+                    style={{
+                      width: '200px',
+                      height: '200px',
+                      objectFit: 'contain',
+                      display: 'block',
+                    }}
+                  />
+                }
+                mouseEnterDelay={0.3}
+                overlayInnerStyle={{ padding: 0 }}
+              >
+                <Avatar
+                  size={40}
+                  src={imageUrl}
+                  shape="square"
+                  className={styles.productAvatar}
+                  style={{ cursor: 'pointer' }}
+                />
+              </Tooltip>
             ) : (
               <Avatar
                 size={40}
