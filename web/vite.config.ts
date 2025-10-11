@@ -35,36 +35,14 @@ export default defineConfig({
     },
   },
   build: {
-    // 设置chunk大小警告限制（Ant Design 单个 chunk 约 1.1 MB，gzip 后 348 KB）
-    chunkSizeWarningLimit: 1500,
+    // 设置chunk大小警告限制（单一 vendor 约 1.5 MB，gzip 后 480 KB）
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        // 优化代码分割策略：将大的vendor拆分为多个小chunk
+        // 不做代码分割，所有第三方库打包在一起，避免依赖顺序问题
         manualChunks(id) {
-          // 注意：匹配顺序很重要！先匹配更具体的路径，再匹配通用路径
-
-          // 1. React Router（必须在 React 之前匹配，避免被 react 匹配）
-          if (id.includes('node_modules/react-router')) {
-            return 'vendor-router';
-          }
-
-          // 2. React 核心库（使用精确匹配，避免误匹配 react-router）
-          // react + react-dom + scheduler 必须在一起，避免多实例问题！
-          if (id.match(/node_modules\/(react|react-dom|scheduler)\//) ||
-              id.match(/node_modules[\\/](react|react-dom|scheduler)[\\/]/)) {
-            return 'vendor-react';
-          }
-
-          // 3. Ant Design 生态（最大的库，包含所有 rc-* 组件）
-          if (id.includes('node_modules/antd') ||
-              id.includes('node_modules/@ant-design') ||
-              id.includes('node_modules/rc-')) {
-            return 'vendor-antd';
-          }
-
-          // 4. 其他第三方库（TanStack Query、dayjs、axios 等）
           if (id.includes('node_modules')) {
-            return 'vendor-misc';
+            return 'vendor';  // 所有第三方库统一打包
           }
         },
         // 用于命名代码拆分的块（保留 manualChunks 的命名）
