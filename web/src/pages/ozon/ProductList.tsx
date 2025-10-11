@@ -55,6 +55,7 @@ import { formatRuble, calculateMargin, formatPriceWithCurrency, getCurrencySymbo
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import './ProductList.css';
+import styles from './ProductList.module.scss';
 
 const { Option } = Select;
 const { confirm } = Modal;
@@ -1300,102 +1301,96 @@ const ProductList: React.FC = () => {
         </Col>
         <Col span={4}>
           <Card
-            style={{ cursor: 'pointer' }}
+            className={`${styles.statsCard} ${styles.success}`}
             onClick={() => {
               filterForm.setFieldsValue({ status: 'on_sale' });
               setFilterValues({ ...filterValues, status: 'on_sale' });
             }}
           >
             <Statistic
-              title={<span style={{ color: '#52c41a' }}>销售中</span>}
+              title={<span className={styles.title}>销售中</span>}
               value={globalStats?.products?.on_sale || 0}
-              valueStyle={{ color: '#52c41a' }}
             />
           </Card>
         </Col>
         <Col span={4}>
           <Card
-            style={{ cursor: 'pointer' }}
+            className={`${styles.statsCard} ${styles.warning}`}
             onClick={() => {
               filterForm.setFieldsValue({ status: 'ready_to_sell' });
               setFilterValues({ ...filterValues, status: 'ready_to_sell' });
             }}
           >
             <Statistic
-              title={<span style={{ color: '#faad14' }}>准备销售</span>}
+              title={<span className={styles.title}>准备销售</span>}
               value={globalStats?.products?.ready_to_sell || 0}
-              valueStyle={{ color: '#faad14' }}
             />
           </Card>
         </Col>
         <Col span={4}>
           <Card
-            style={{ cursor: 'pointer' }}
+            className={`${styles.statsCard} ${styles.error}`}
             onClick={() => {
               filterForm.setFieldsValue({ status: 'error' });
               setFilterValues({ ...filterValues, status: 'error' });
             }}
           >
             <Statistic
-              title={<span style={{ color: '#f5222d' }}>错误</span>}
+              title={<span className={styles.title}>错误</span>}
               value={globalStats?.products?.error || 0}
-              valueStyle={{ color: '#f5222d' }}
             />
           </Card>
         </Col>
         <Col span={4}>
           <Card
-            style={{ cursor: 'pointer' }}
+            className={`${styles.statsCard} ${styles.info}`}
             onClick={() => {
               filterForm.setFieldsValue({ status: 'pending_modification' });
               setFilterValues({ ...filterValues, status: 'pending_modification' });
             }}
           >
             <Statistic
-              title={<span style={{ color: '#1890ff' }}>待修改</span>}
+              title={<span className={styles.title}>待修改</span>}
               value={globalStats?.products?.pending_modification || 0}
-              valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
         <Col span={4}>
           <Card
-            style={{ cursor: 'pointer' }}
+            className={`${styles.statsCard} ${styles.inactive}`}
             onClick={() => {
               filterForm.setFieldsValue({ status: 'inactive' });
               setFilterValues({ ...filterValues, status: 'inactive' });
             }}
           >
             <Statistic
-              title={<span style={{ color: '#8c8c8c' }}>已下架</span>}
+              title={<span className={styles.title}>已下架</span>}
               value={globalStats?.products?.inactive || 0}
-              valueStyle={{ color: '#8c8c8c' }}
             />
           </Card>
         </Col>
         <Col span={4}>
           <Card
-            style={{ cursor: 'pointer' }}
+            className={`${styles.statsCard} ${styles.archived}`}
             onClick={() => {
               filterForm.setFieldsValue({ status: 'archived' });
               setFilterValues({ ...filterValues, status: 'archived' });
             }}
           >
             <Statistic
-              title={<span style={{ color: '#bfbfbf' }}>已归档</span>}
+              title={<span className={styles.title}>已归档</span>}
               value={globalStats?.products?.archived || 0}
-              valueStyle={{ color: '#bfbfbf' }}
             />
           </Card>
         </Col>
       </Row>
 
       {/* 搜索过滤 */}
-      <Card style={{ marginBottom: 8 }} bodyStyle={{ padding: 8 }}>
-        <Row style={{ marginBottom: 8 }}>
+      <Card className={styles.filterCard}>
+        <Row className={styles.filterRow}>
           <Col flex="auto">
             <Space size="large">
-              <span style={{ fontWeight: 500 }}>选择店铺:</span>
+              <span className={styles.shopLabel}>选择店铺:</span>
               <ShopSelector
                 value={selectedShop}
                 onChange={(shopId) => {
@@ -1408,7 +1403,7 @@ const ProductList: React.FC = () => {
                   localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
                 }}
                 showAllOption={false}
-                style={{ minWidth: 200 }}
+                className={styles.shopSelector}
               />
             </Space>
           </Col>
@@ -1458,8 +1453,8 @@ const ProductList: React.FC = () => {
       </Card>
 
       {/* 操作按钮 */}
-      <Card bodyStyle={{ padding: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+      <Card className={styles.productListCard}>
+        <div className={styles.actionWrapper}>
           <Space>
             <Button
               type="primary"

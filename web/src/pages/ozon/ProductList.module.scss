@@ -1,0 +1,275 @@
+@import '@/styles/variables.scss';
+@import '@/styles/mixins.scss';
+
+// ===== 统计卡片 =====
+.statsCard {
+  cursor: pointer;
+
+  &.success {
+    .title { color: $success-color; }
+    :global(.ant-statistic-content) { color: $success-color; }
+  }
+
+  &.warning {
+    .title { color: $warning-color; }
+    :global(.ant-statistic-content) { color: $warning-color; }
+  }
+
+  &.error {
+    .title { color: $error-color; }
+    :global(.ant-statistic-content) { color: $error-color; }
+  }
+
+  &.info {
+    .title { color: $info-color; }
+    :global(.ant-statistic-content) { color: $info-color; }
+  }
+
+  &.inactive {
+    .title { color: #8c8c8c; }
+    :global(.ant-statistic-content) { color: #8c8c8c; }
+  }
+
+  &.archived {
+    .title { color: #bfbfbf; }
+    :global(.ant-statistic-content) { color: #bfbfbf; }
+  }
+}
+
+// ===== 筛选区域 =====
+.filterCard {
+  margin-bottom: $spacing-xs;
+
+  :global(.ant-card-body) {
+    padding: $spacing-xs;
+  }
+}
+
+.filterRow {
+  margin-bottom: $spacing-xs;
+}
+
+.shopLabel {
+  font-weight: $font-weight-medium;
+}
+
+.shopSelector {
+  min-width: 200px;
+}
+
+// ===== 产品列表区域 =====
+.productListCard {
+  :global(.ant-card-body) {
+    padding: $spacing-xs;
+  }
+}
+
+.actionWrapper {
+  @include flex-between;
+  margin-bottom: $spacing-xs;
+}
+
+.actionSpace {
+  // 用于操作按钮的 Space 组件
+}
+
+// ===== 排序箭头 =====
+.sortArrows {
+  display: inline-flex;
+  flex-direction: column;
+  font-size: 10px;
+
+  .arrowUp,
+  .arrowDown {
+    line-height: 1;
+  }
+
+  .arrowUp {
+    &.active { color: $primary-color; }
+    &.inactive { color: #bfbfbf; }
+  }
+
+  .arrowDown {
+    &.active { color: $primary-color; }
+    &.inactive { color: #bfbfbf; }
+  }
+}
+
+// ===== SKU 单元格 =====
+.skuCell {
+  @include flex-row;
+  gap: 4px;
+}
+
+.skuLabel {
+  font-size: 11px;
+  color: #666;
+  min-width: 40px;
+}
+
+.skuValue {
+  font-weight: $font-weight-bold;
+}
+
+.skuBadge {
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+
+.skuBadgeInner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+
+.skuBadgeCount {
+  padding: 0 4px;
+  height: 20px;
+  min-width: 20px;
+}
+
+.ozonSkuValue {
+  font-size: 13px;
+  color: $primary-color;
+  font-weight: $font-weight-medium;
+}
+
+.ozonBadge {
+  position: relative;
+  width: 10px;
+  height: 10px;
+}
+
+.ozonBadgeInner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1.5px solid white;
+}
+
+.ozonBadgeCount {
+  padding: 0 4px;
+  height: 16px;
+  min-width: 16px;
+  font-size: 10px;
+}
+
+// ===== 商品单元格 =====
+.productCell {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.productImageWrapper {
+  flex-shrink: 0;
+}
+
+.productImage {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: $border-radius-base;
+}
+
+.productImagePlaceholder {
+  width: 80px;
+  height: 80px;
+  background-color: #f5f5f5;
+  @include flex-center;
+  border-radius: $border-radius-base;
+
+  :global(.anticon) {
+    font-size: 20px;
+  }
+}
+
+.productInfo {
+  flex: 1;
+}
+
+.productName {
+  font-weight: $font-weight-medium;
+  word-break: break-word;
+}
+
+.productNameLink {
+  color: $primary-color;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.productBarcode {
+  font-size: $font-size-sm;
+  color: #999;
+}
+
+// ===== 价格单元格 =====
+.priceCell {
+  font-weight: $font-weight-bold;
+  color: $success-color;
+  font-size: 16px;
+}
+
+.priceRow {
+  @include flex-row;
+  gap: 4px;
+}
+
+.priceLabel {
+  font-size: 11px;
+  color: #666;
+  font-weight: $font-weight-normal;
+}
+
+.priceValue {
+  font-size: 11px;
+  color: #333;
+  font-weight: $font-weight-normal;
+}
+
+// ===== 库存单元格 =====
+.stockCell {
+  @include flex-row;
+  gap: 8px;
+}
+
+.stockItem {
+  @include flex-row;
+  gap: 4px;
+  align-items: center;
+}
+
+.stockLabel {
+  font-size: 11px;
+  color: #666;
+}
+
+.stockValue {
+  font-weight: $font-weight-medium;
+
+  &.low { color: $error-color; }
+  &.medium { color: $warning-color; }
+  &.high { color: $success-color; }
+}
+
+// ===== 同步状态 =====
+.syncInfo {
+  @include flex-row;
+  gap: 4px;
+}
+
+.syncLabel {
+  font-size: 11px;
+  color: #999;
+}
+
+// ===== 操作按钮 =====
+.actionButton {
+  padding: 0;
+}
