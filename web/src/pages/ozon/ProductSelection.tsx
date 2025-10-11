@@ -514,7 +514,7 @@ const ProductSelection: React.FC = () => {
   };
 
   return (
-    <Card title="选品助手" style={{ margin: 24 }}>
+    <Card title="选品助手">
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
