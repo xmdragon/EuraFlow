@@ -1,49 +1,45 @@
 """跨境巴士平台客户端
 
-使用 Playwright 模拟浏览器操作，实现：
+使用 httpx 进行 HTTP 请求，实现：
 1. 登录获取 Cookie
 2. 订单查询（根据 order_number 查找 oid）
 3. 物流单号提交
 """
 
-import json
 import logging
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
-from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeout
 import httpx
 
 logger = logging.getLogger(__name__)
 
 
 class Kuajing84Client:
-    """跨境巴士平台客户端"""
+    """跨境巴士平台客户端（使用 HTTP 请求）"""
 
     def __init__(
         self,
         base_url: str = "https://www.kuajing84.com",
-        headless: bool = True,
-        timeout: int = 30000,
+        timeout: float = 30.0,
     ):
         self.base_url = base_url
-        self.headless = headless
         self.timeout = timeout
-        self._browser: Optional[Browser] = None
+        self._client: Optional[httpx.AsyncClient] = None
 
     async def __aenter__(self):
         """异步上下文管理器入口"""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """异步上下文管理器退出，关闭浏览器"""
+        """异步上下文管理器退出"""
         await self.close()
 
     async def close(self):
-        """关闭浏览器"""
-        if self._browser:
-            await self._browser.close()
-            self._browser = None
+        """关闭客户端"""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
 
     async def login(
         self, username: str, password: str
@@ -53,12 +49,12 @@ class Kuajing84Client:
 
         Args:
             username: 用户名
-            password: 密码
+            password: 密码（明文）
 
         Returns:
             包含 Cookie 和过期时间的字典:
             {
-                "cookies": [...],  # Cookie 列表
+                "cookies": [...],  # Cookie 列表（字典格式）
                 "expires_at": "2025-10-12T10:00:00Z"  # 过期时间
             }
 
@@ -67,124 +63,85 @@ class Kuajing84Client:
         """
         logger.info(f"开始登录跨境巴士，用户名: {username}")
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=self.headless)
-            page = await browser.new_page()
+        async with httpx.AsyncClient(
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            timeout=self.timeout,
+            follow_redirects=True
+        ) as client:
+
+            # 1. 访问登录页获取 session cookies
+            try:
+                response = await client.get(f"{self.base_url}/index/login/login.html")
+                logger.debug(f"登录页面访问成功，状态码: {response.status_code}")
+            except Exception as e:
+                logger.error(f"访问登录页失败: {e}")
+                raise Exception(f"访问登录页失败: {e}")
+
+            # 2. 提交登录表单
+            # 表单字段名：field[username] 和 field[password]
+            login_data = {
+                "field[username]": username,
+                "field[password]": password,
+            }
 
             try:
-                # 1. 访问登录页
-                await page.goto(
+                response = await client.post(
                     f"{self.base_url}/index/login/login.html",
-                    wait_until="networkidle",
-                    timeout=self.timeout,
+                    data=login_data
                 )
-                logger.debug("登录页面加载完成")
 
-                # 2. 选择"卖家登录"
-                # 根据 HTML 结构，可能需要点击选择卖家登录选项卡
-                # 这里假设有一个卖家登录的选择器（需要根据实际页面调整）
+                logger.debug(f"登录请求完成，状态码: {response.status_code}")
+
+                # 3. 解析登录响应
                 try:
-                    # 尝试多种可能的选择器
-                    seller_login_selectors = [
-                        'text="卖家登录"',
-                        'text="卖家登陆"',
-                        '.seller-login',
-                        '[data-type="seller"]'
-                    ]
+                    result = response.json()
+                    logger.debug(f"登录响应: {result}")
 
-                    for selector in seller_login_selectors:
-                        try:
-                            await page.click(selector, timeout=3000)
-                            logger.debug(f"点击卖家登录选择器成功: {selector}")
-                            break
-                        except:
-                            continue
-                except Exception as e:
-                    logger.warning(f"未找到卖家登录选择器，可能已在卖家登录页面: {e}")
+                    if result.get("code") == 200:
+                        logger.info("登录成功")
 
-                # 3. 填写用户名和密码
-                # 根据常见表单命名，尝试多种选择器
-                username_selectors = [
-                    'input[name="username"]',
-                    'input[name="account"]',
-                    'input[type="text"]',
-                    '#username',
-                    '#account'
-                ]
+                        # 4. 提取 cookies 并转换为兼容格式
+                        # 注意：使用 client.cookies 而不是 response.cookies
+                        # 因为 session cookies 是在访问登录页时设置的，保存在 client 对象中
+                        cookies_list = []
+                        for name, value in client.cookies.items():
+                            cookies_list.append({
+                                "name": name,
+                                "value": value,
+                                "domain": ".kuajing84.com",
+                                "path": "/",
+                            })
 
-                password_selectors = [
-                    'input[name="password"]',
-                    'input[type="password"]',
-                    '#password'
-                ]
+                        # Cookie 过期时间设为24小时后
+                        expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat() + "Z"
 
-                # 填写用户名
-                for selector in username_selectors:
-                    try:
-                        await page.fill(selector, username, timeout=3000)
-                        logger.debug(f"填写用户名成功: {selector}")
-                        break
-                    except:
-                        continue
+                        logger.info(f"成功获取 {len(cookies_list)} 个 Cookie")
 
-                # 填写密码
-                for selector in password_selectors:
-                    try:
-                        await page.fill(selector, password, timeout=3000)
-                        logger.debug(f"填写密码成功: {selector}")
-                        break
-                    except:
-                        continue
-
-                # 4. 点击登录按钮
-                login_button_selectors = [
-                    'button[type="submit"]',
-                    'button:has-text("登录")',
-                    'button:has-text("登陆")',
-                    '.login-btn',
-                    '#login-btn'
-                ]
-
-                for selector in login_button_selectors:
-                    try:
-                        await page.click(selector, timeout=3000)
-                        logger.debug(f"点击登录按钮成功: {selector}")
-                        break
-                    except:
-                        continue
-
-                # 5. 等待跳转到首页/控制台
-                try:
-                    await page.wait_for_url(
-                        "**/index/console/**",
-                        timeout=self.timeout
-                    )
-                    logger.info("登录成功，已跳转到控制台")
-                except PlaywrightTimeout:
-                    # 检查是否有错误提示
-                    error_text = await page.text_content("body")
-                    if "验证码" in error_text or "captcha" in error_text.lower():
-                        raise Exception("登录需要验证码，请联系管理员")
-                    elif "密码错误" in error_text or "用户名错误" in error_text:
-                        raise Exception("用户名或密码错误")
+                        return {
+                            "cookies": cookies_list,
+                            "expires_at": expires_at
+                        }
                     else:
-                        raise Exception(f"登录超时或失败: {error_text[:200]}")
+                        error_msg = result.get("msg", "登录失败")
+                        logger.error(f"登录失败: {error_msg}")
+                        raise Exception(f"登录失败: {error_msg}")
 
-                # 6. 提取 Cookie
-                cookies = await page.context.cookies()
+                except Exception as e:
+                    logger.error(f"解析登录响应失败: {e}")
+                    raise Exception(f"登录失败: {e}")
 
-                # Cookie 过期时间设为24小时后（可以根据实际情况调整）
-                expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat() + "Z"
-
-                logger.info(f"成功获取 {len(cookies)} 个 Cookie")
-
-                return {
-                    "cookies": cookies,
-                    "expires_at": expires_at
-                }
-
-            finally:
-                await browser.close()
+            except httpx.TimeoutException:
+                logger.error("登录请求超时")
+                raise Exception("登录请求超时，请检查网络")
+            except Exception as e:
+                logger.error(f"登录请求失败: {e}")
+                raise Exception(f"登录失败: {e}")
 
     async def check_cookie_valid(self, cookies: List[Dict]) -> bool:
         """
@@ -197,30 +154,33 @@ class Kuajing84Client:
             True 表示有效，False 表示无效
         """
         try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=self.headless)
-                context = await browser.new_context()
+            # 将 cookies 列表转换为字典
+            cookies_dict = {c["name"]: c["value"] for c in cookies}
 
-                # 添加 Cookie
-                await context.add_cookies(cookies)
-
-                page = await context.new_page()
-
+            async with httpx.AsyncClient(
+                cookies=cookies_dict,
+                timeout=self.timeout,
+                follow_redirects=False  # 不自动跟随重定向
+            ) as client:
                 # 访问控制台页面，检查是否跳转到登录页
-                await page.goto(
+                response = await client.get(
                     f"{self.base_url}/index/console/index",
-                    wait_until="networkidle",
-                    timeout=self.timeout
                 )
 
-                # 如果 URL 包含 login，说明 Cookie 已失效
-                current_url = page.url
-                is_valid = "/login/" not in current_url
+                # 如果被重定向到登录页，说明 Cookie 已失效
+                if response.status_code == 302:
+                    location = response.headers.get("location", "")
+                    if "login" in location:
+                        logger.info("Cookie 已失效（跳转到登录页）")
+                        return False
 
-                await browser.close()
+                # 如果返回 200，说明 Cookie 有效
+                if response.status_code == 200:
+                    logger.info("Cookie 有效")
+                    return True
 
-                logger.info(f"Cookie 有效性检查: {is_valid}, 当前URL: {current_url}")
-                return is_valid
+                logger.warning(f"Cookie 验证返回异常状态码: {response.status_code}")
+                return False
 
         except Exception as e:
             logger.error(f"检查 Cookie 有效性失败: {e}")
@@ -242,8 +202,13 @@ class Kuajing84Client:
         """
         logger.info(f"开始查找订单 oid，order_number: {order_number}")
 
-        # 使用 httpx 发送 AJAX 请求
-        async with httpx.AsyncClient(cookies={c["name"]: c["value"] for c in cookies}) as client:
+        # 将 cookies 列表转换为字典
+        cookies_dict = {c["name"]: c["value"] for c in cookies}
+
+        async with httpx.AsyncClient(
+            cookies=cookies_dict,
+            timeout=self.timeout
+        ) as client:
             for page in range(1, max_pages + 1):
                 try:
                     # 发送订单列表请求
@@ -254,7 +219,6 @@ class Kuajing84Client:
                             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                             "X-Requested-With": "XMLHttpRequest",
                         },
-                        timeout=30.0
                     )
 
                     if response.status_code != 200:
@@ -304,72 +268,69 @@ class Kuajing84Client:
                 "success": True/False,
                 "message": "提交结果消息"
             }
-
-        Raises:
-            Exception: 提交失败
         """
         logger.info(f"开始提交物流单号，oid: {oid}, logistics_order: {logistics_order}")
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=self.headless)
-            context = await browser.new_context()
+        # 将 cookies 列表转换为字典
+        cookies_dict = {c["name"]: c["value"] for c in cookies}
 
-            # 添加 Cookie
-            await context.add_cookies(cookies)
-
-            page = await context.new_page()
-
+        async with httpx.AsyncClient(
+            cookies=cookies_dict,
+            timeout=self.timeout
+        ) as client:
             try:
-                # 1. 访问订单表单页
-                form_url = f"{self.base_url}/index/Accountorder/order_purchase_manual/oid/{oid}/currPage/3/order_type/1"
-                await page.goto(form_url, wait_until="networkidle", timeout=self.timeout)
-                logger.debug("订单表单页加载完成")
-
-                # 2. 填写物流单号
-                # 根据 HTML 分析，字段名为 logistics_order
-                await page.fill('input[name="logistics_order"]', logistics_order)
-                logger.debug(f"填写物流单号: {logistics_order}")
-
-                # 3. 勾选协议复选框
-                # 字段名为 agreement_box
-                await page.check('input[name="agreement_box"]')
-                logger.debug("已勾选协议复选框")
-
-                # 4. 点击提交按钮（"预报订单"）
-                # 根据 HTML 分析，按钮 id 为 submit_website
-                submit_button = page.locator('#submit_website')
-                await submit_button.click()
-                logger.debug("已点击提交按钮")
-
-                # 5. 等待提交结果
-                # 监听 AJAX 响应
-                response = await page.wait_for_response(
-                    lambda r: "order_purchase_manual_post" in r.url,
-                    timeout=self.timeout
+                # 提交物流单号
+                # 假设接口为 POST /index/Accountorder/order_purchase_manual_post
+                response = await client.post(
+                    f"{self.base_url}/index/Accountorder/order_purchase_manual_post",
+                    data={
+                        "oid": oid,
+                        "logistics_order": logistics_order,
+                        "agreement_box": "1",  # 同意协议
+                    },
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
                 )
 
-                result = await response.json()
+                logger.debug(f"提交请求完成，状态码: {response.status_code}")
 
-                if result.get("code") == 200:
-                    logger.info("物流单号提交成功")
-                    return {
-                        "success": True,
-                        "message": result.get("msg", "提交成功")
-                    }
-                else:
-                    error_msg = result.get("msg", "提交失败")
-                    logger.error(f"物流单号提交失败: {error_msg}")
+                # 解析响应
+                try:
+                    result = response.json()
+                    logger.debug(f"提交响应: {result}")
+
+                    if result.get("code") == 200:
+                        logger.info("物流单号提交成功")
+                        return {
+                            "success": True,
+                            "message": result.get("msg", "提交成功")
+                        }
+                    else:
+                        error_msg = result.get("msg", "提交失败")
+                        logger.error(f"物流单号提交失败: {error_msg}")
+                        return {
+                            "success": False,
+                            "message": error_msg
+                        }
+
+                except Exception as e:
+                    logger.error(f"解析提交响应失败: {e}")
                     return {
                         "success": False,
-                        "message": error_msg
+                        "message": f"提交失败: {e}"
                     }
 
+            except httpx.TimeoutException:
+                logger.error("提交请求超时")
+                return {
+                    "success": False,
+                    "message": "提交超时，请稍后重试"
+                }
             except Exception as e:
                 logger.error(f"提交物流单号异常: {e}")
                 return {
                     "success": False,
                     "message": f"提交异常: {str(e)}"
                 }
-
-            finally:
-                await browser.close()
