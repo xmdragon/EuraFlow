@@ -818,6 +818,12 @@ export const getKuajing84Config = async (): Promise<{ success: boolean; data?: K
   return response.data;
 };
 
+// 测试跨境巴士连接
+export const testKuajing84Connection = async (): Promise<{ success: boolean; message: string; data?: any }> => {
+  const response = await apiClient.post('/ozon/kuajing84/test-connection');
+  return response.data;
+};
+
 // 同步物流单号到跨境巴士
 export const syncToKuajing84 = async (ozonOrderId: number, logisticsOrder: string) => {
   const response = await apiClient.post('/ozon/kuajing84/sync', {

@@ -145,6 +145,27 @@ async def get_config(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.post("/test-connection", response_model=Kuajing84ConfigResponse)
+async def test_connection(
+    service: Kuajing84SyncService = Depends(get_kuajing84_service)
+):
+    """
+    测试跨境巴士连接（使用已保存的配置进行登录测试）
+    """
+    try:
+        result = await service.test_connection()
+
+        return Kuajing84ConfigResponse(
+            success=result["success"],
+            message=result["message"],
+            data=result.get("data")
+        )
+
+    except Exception as e:
+        logger.error(f"测试连接失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 @router.post("/sync", response_model=SyncLogisticsResponse)
 async def sync_logistics_order(
     request: SyncLogisticsRequest,

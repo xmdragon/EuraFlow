@@ -122,6 +122,86 @@ class Kuajing84SyncService:
             "has_cookie": config.cookie is not None,
         }
 
+    async def test_connection(self) -> Dict[str, any]:
+        """
+        测试跨境巴士连接（使用已保存的配置进行登录测试）
+
+        Returns:
+            测试结果
+        """
+        logger.info("开始测试跨境巴士连接")
+
+        # 查询全局配置
+        result = await self.db.execute(
+            select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
+        )
+        config = result.scalar_one_or_none()
+
+        if not config:
+            return {
+                "success": False,
+                "message": "未配置跨境巴士账号，请先保存配置"
+            }
+
+        if not config.username or not config.password:
+            return {
+                "success": False,
+                "message": "跨境巴士配置不完整（缺少用户名或密码）"
+            }
+
+        # 解密密码
+        try:
+            password = self._decrypt(config.password)
+        except Exception as e:
+            logger.error(f"解密密码失败: {e}")
+            return {
+                "success": False,
+                "message": "配置解密失败，请重新保存配置"
+            }
+
+        # 尝试登录
+        async with Kuajing84Client(base_url=config.base_url) as client:
+            try:
+                login_result = await client.login(config.username, password)
+
+                logger.info("测试连接成功")
+
+                return {
+                    "success": True,
+                    "message": f"连接测试成功！成功获取 {len(login_result['cookies'])} 个 Cookie",
+                    "data": {
+                        "username": config.username,
+                        "cookie_count": len(login_result['cookies']),
+                        "expires_at": login_result['expires_at']
+                    }
+                }
+
+            except Exception as e:
+                logger.error(f"测试连接失败: {e}")
+                error_message = str(e)
+
+                # 根据错误信息提供更友好的提示
+                if "验证码" in error_message or "captcha" in error_message.lower():
+                    return {
+                        "success": False,
+                        "message": "登录需要验证码，无法自动测试。请联系管理员。"
+                    }
+                elif "密码错误" in error_message or "用户名错误" in error_message:
+                    return {
+                        "success": False,
+                        "message": "用户名或密码错误，请检查配置"
+                    }
+                elif "timeout" in error_message.lower() or "超时" in error_message:
+                    return {
+                        "success": False,
+                        "message": "连接超时，请检查网络或稍后重试"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"连接测试失败: {error_message}"
+                    }
+
     async def _get_valid_cookies(self) -> Optional[list]:
         """
         获取有效的 Cookie，如果 Cookie 过期则重新登录

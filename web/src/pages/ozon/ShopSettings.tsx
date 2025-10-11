@@ -878,10 +878,15 @@ const Kuajing84Configuration: React.FC = () => {
   const handleTestConnection = async () => {
     setTestingConnection(true);
     try {
-      // 测试逻辑：调用登录接口验证
-      message.info('测试连接功能开发中...');
+      const result = await ozonApi.testKuajing84Connection();
+
+      if (result.success) {
+        message.success(result.message);
+      } else {
+        message.error(result.message);
+      }
     } catch (error: any) {
-      message.error(`测试失败: ${error.message}`);
+      message.error(`测试失败: ${error.response?.data?.message || error.message}`);
     } finally {
       setTestingConnection(false);
     }
