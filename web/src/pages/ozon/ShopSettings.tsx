@@ -283,37 +283,37 @@ const ShopSettings: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
+      <Card bodyStyle={{ padding: 16, textAlign: 'center' }}>
         <Spin size="large" />
         <div style={{ marginTop: 8 }}>加载店铺信息...</div>
-      </div>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: 24 }}>
+      <Card bodyStyle={{ padding: 16 }}>
         <Alert
           message="加载失败"
           description={`无法加载店铺信息: ${error instanceof Error ? error.message : '未知错误'}`}
           type="error"
           showIcon
         />
-      </div>
+      </Card>
     );
   }
 
   const shops = shopsData?.data || [];
 
   return (
-    <div style={{ padding: 24 }}>
-      <Card>
+    <div>
+      <Card bodyStyle={{ padding: 16 }}>
         <Title level={4}>
           <ShopOutlined /> Ozon 店铺管理
         </Title>
 
         {/* 店铺列表 */}
-        <Card style={{ marginBottom: 24 }}>
+        <Card style={{ marginBottom: 24 }} bodyStyle={{ padding: 16 }}>
           <div style={{ marginBottom: 16 }}>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
               添加店铺

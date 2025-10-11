@@ -146,9 +146,9 @@ const ChatList: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div>
       {/* 店铺选择器 */}
-      <Card style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
         <ShopSelector
           value={selectedShopId}
           onChange={(shopId) => {
@@ -203,7 +203,7 @@ const ChatList: React.FC = () => {
           </Row>
 
           {/* 筛选和操作栏 */}
-          <Card style={{ marginBottom: 16 }}>
+          <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
             <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
               <Space>
                 <Search
@@ -253,7 +253,7 @@ const ChatList: React.FC = () => {
           </Card>
 
           {/* 聊天列表 */}
-          <Card>
+          <Card bodyStyle={{ padding: 16 }}>
             <Spin spinning={isLoading}>
               {chatsData?.items && chatsData.items.length > 0 ? (
                 <List

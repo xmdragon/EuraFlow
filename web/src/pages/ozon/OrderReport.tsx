@@ -233,8 +233,8 @@ const OrderReport: React.FC = () => {
   const summary = reportData?.summary;
 
   return (
-    <div style={{ padding: 24 }}>
-      <Card>
+    <div>
+      <Card bodyStyle={{ padding: 16 }}>
         <Title level={4}>订单报表</Title>
 
         {/* 筛选区域 */}

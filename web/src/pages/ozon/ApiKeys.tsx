@@ -224,27 +224,29 @@ const ApiKeys: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div>
       {/* 标题和操作 */}
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <Title level={2}>
-            <KeyOutlined style={{ marginRight: 8 }} />
-            API密钥管理
-          </Title>
-          <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
+      <Card style={{ marginBottom: 16 }} bodyStyle={{ padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <Title level={2} style={{ marginBottom: 4 }}>
+              <KeyOutlined style={{ marginRight: 8 }} />
+              API密钥管理
+            </Title>
+            <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
+          </div>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setCreateModalVisible(true)}
+          >
+            创建API Key
+          </Button>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setCreateModalVisible(true)}
-        >
-          创建API Key
-        </Button>
-      </div>
+      </Card>
 
       {/* API地址显示 */}
-      <Card style={{ marginBottom: 16, background: '#f0f5ff', border: '1px solid #91d5ff' }}>
+      <Card style={{ marginBottom: 16, background: '#f0f5ff', border: '1px solid #91d5ff' }} bodyStyle={{ padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <Text strong style={{ fontSize: 14, marginRight: 8 }}>📡 API 地址：</Text>
@@ -277,7 +279,7 @@ const ApiKeys: React.FC = () => {
       />
 
       {/* API Keys列表 */}
-      <Card>
+      <Card bodyStyle={{ padding: 16 }}>
         <Table
           dataSource={keys}
           columns={columns}
