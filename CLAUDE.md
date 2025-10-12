@@ -80,6 +80,7 @@
 - ❌ **越界修改**：严格遵守模块边界，禁止跨目录 import 私有实现
 - ❌ **精度和时区错误**：金额必须 Decimal，时间必须 UTC
 - ❌ **缺失可观测性**：所有关键路径必须有指标、日志、Trace
+- ❌ **危险的数据库操作**：迁移脚本禁止使用 DROP TABLE、TRUNCATE、DELETE FROM（无WHERE）等破坏性SQL；必须使用安全的INSERT/UPDATE操作
 
 ### 价值观（Core Values）
 - **工程卓越**：追求代码质量、架构优雅、性能极致
