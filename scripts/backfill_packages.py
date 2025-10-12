@@ -29,16 +29,23 @@ async def backfill_packages():
 
     async with db_manager.get_session() as db:
         # 查找所有需要追踪号码但没有packages的posting
+        # 只处理最近30天的订单，避免处理太老的已删除订单
+        from datetime import timedelta
+        from plugins.ef.channels.ozon.utils.datetime_utils import utcnow
+        cutoff_date = utcnow() - timedelta(days=30)
+
         result = await db.execute(
             select(OzonPosting)
             .outerjoin(OzonShipmentPackage, OzonPosting.id == OzonShipmentPackage.posting_id)
             .where(
                 and_(
                     OzonPosting.status.in_(['awaiting_deliver', 'delivering', 'delivered']),
-                    OzonShipmentPackage.id == None  # 没有关联的packages
+                    OzonShipmentPackage.id == None,  # 没有关联的packages
+                    OzonPosting.created_at >= cutoff_date  # 最近30天
                 )
             )
             .distinct()
+            .limit(100)  # 先处理100个进行测试
         )
         postings = result.scalars().all()
 
@@ -68,13 +75,14 @@ async def backfill_packages():
 
                 shop = shops[posting.shop_id]
 
-                # 创建API客户端
-                client = OzonAPIClient(shop.client_id, shop.api_key_enc)
-
                 logger.info(f"[{idx}/{total}] 正在获取 {posting.posting_number} 的包裹信息...")
 
-                # 调用详情接口
-                detail_response = await client.get_posting_details(posting.posting_number)
+                # 创建API客户端并获取数据
+                async with OzonAPIClient(shop.client_id, shop.api_key_enc) as client:
+                    # 调用详情接口
+                    detail_response = await client.get_posting_details(posting.posting_number)
+
+                # 客户端已关闭，现在可以安全地进行数据库操作
                 detail_data = detail_response.get("result", {})
 
                 # 处理包裹信息
@@ -130,7 +138,12 @@ async def backfill_packages():
                     await asyncio.sleep(1)
 
             except Exception as e:
-                logger.error(f"  └─ 错误: {e}")
+                error_msg = str(e)
+                # 404错误表示posting在OZON已不存在（可能是很旧的订单）
+                if "404" in error_msg:
+                    logger.warning(f"  └─ Posting不存在于OZON (404)，跳过")
+                else:
+                    logger.error(f"  └─ 错误: {e}")
                 errors += 1
                 await db.rollback()
                 continue
