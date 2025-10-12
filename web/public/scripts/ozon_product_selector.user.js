@@ -266,10 +266,12 @@
                 let foundReview = false;
                 for (const span of reviewSpans) {
                     const text = span.textContent.trim();
-                    // 匹配评价数格式 (如: 74 отзыва, 7 отзывов)
-                    const reviewMatch = text.match(/(\d+)\s*отзыв/);
+                    // 匹配评价数格式 (如: 74 отзыва, 7 отзывов, 9 860 отзывов)
+                    // 支持空格分隔的数字（如 "9 860"）
+                    const reviewMatch = text.match(/([\d\s]+)\s*отзыв/);
                     if (reviewMatch) {
-                        data['评价次数'] = reviewMatch[1];
+                        // 移除所有空格，只保留数字
+                        data['评价次数'] = reviewMatch[1].replace(/\s/g, '');
                         foundReview = true;
                         break;
                     }

@@ -522,7 +522,7 @@ const ProductSelection: React.FC = () => {
                   showProductImages(product);
                 }}
               >
-                <PlusOutlined />
+                <SearchOutlined />
               </div>
             </div>
           ) : (
@@ -578,7 +578,7 @@ const ProductSelection: React.FC = () => {
           {fieldConfig.brand && (
             <div className={styles.brandInfo}>
               <Text type="secondary">品牌: </Text>
-              <Text strong>{product.brand || '无品牌'}</Text>
+              <Text>{product.brand || '无品牌'}</Text>
             </div>
           )}
 
