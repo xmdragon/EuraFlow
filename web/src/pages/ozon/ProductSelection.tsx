@@ -101,7 +101,7 @@ const ProductSelection: React.FC = () => {
   // 状态管理
   const [activeTab, setActiveTab] = useState('search');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100); // 后端限制最大100，用于无限滚动
+  const [pageSize, setPageSize] = useState(24); // 初始值，会根据容器宽度动态调整
   const [historyPage, setHistoryPage] = useState(1);  // 导入历史分页
   const [searchParams, setSearchParams] = useState<api.ProductSearchParams>({});
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -116,9 +116,11 @@ const ProductSelection: React.FC = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // 无限滚动相关状态
-  const [displayCount, setDisplayCount] = useState(0); // 当前显示的商品数量
+  const [allProducts, setAllProducts] = useState<api.ProductSelectionItem[]>([]); // 累积所有已加载的商品
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量（动态计算）
+  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize（itemsPerRow * 4）
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
+  const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
 
   // 字段配置状态
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
@@ -151,7 +153,7 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === 'history',
   });
 
-  // 计算每行显示数量（根据容器宽度）
+  // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
   useEffect(() => {
     const calculateItemsPerRow = () => {
       const container = document.querySelector(`.${styles.productGrid}`);
@@ -161,6 +163,11 @@ const ProductSelection: React.FC = () => {
         const gap = 16; // 间距
         const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
         setItemsPerRow(columns);
+
+        // 动态设置初始pageSize：列数 × 4行，但不超过后端限制100
+        const calculatedPageSize = Math.min(columns * 4, 100);
+        setInitialPageSize(calculatedPageSize);
+        setPageSize(calculatedPageSize);
       }
     };
 
@@ -169,40 +176,48 @@ const ProductSelection: React.FC = () => {
     return () => window.removeEventListener('resize', calculateItemsPerRow);
   }, []);
 
-  // 初始显示4行商品
+  // 当收到新数据时，累积到 allProducts
   useEffect(() => {
     if (productsData?.data?.items) {
-      const initialCount = itemsPerRow * 4;
-      setDisplayCount(Math.min(initialCount, productsData.data.items.length));
-    }
-  }, [productsData?.data?.items, itemsPerRow]);
+      if (currentPage === 1) {
+        // 第一页，替换数据
+        setAllProducts(productsData.data.items);
+      } else {
+        // 后续页，追加数据
+        setAllProducts(prev => [...prev, ...productsData.data.items]);
+      }
 
-  // 滚动监听：滚动到80%加载2行
+      // 检查是否还有更多数据
+      const totalLoaded = currentPage === 1
+        ? productsData.data.items.length
+        : allProducts.length + productsData.data.items.length;
+      setHasMoreData(totalLoaded < productsData.data.total);
+      setIsLoadingMore(false);
+    }
+  }, [productsData?.data]);
+
+  // 滚动监听：滚动到80%加载下一页（pageSize为初始值的一半）
   useEffect(() => {
     const handleScroll = () => {
-      if (!productsData?.data?.items || isLoadingMore) return;
+      if (isLoadingMore || !hasMoreData) return;
 
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const windowHeight = window.innerHeight;
       const documentHeight = document.documentElement.scrollHeight;
       const scrollPercent = (scrollTop + windowHeight) / documentHeight;
 
-      if (scrollPercent > 0.8 && displayCount < productsData.data.items.length) {
+      if (scrollPercent > 0.8) {
         setIsLoadingMore(true);
-        // 延迟一下模拟加载效果
-        setTimeout(() => {
-          setDisplayCount(prev => {
-            const newCount = Math.min(prev + itemsPerRow * 2, productsData.data.items.length);
-            setIsLoadingMore(false);
-            return newCount;
-          });
-        }, 300);
+        // 设置pageSize为初始值的一半，但至少为1行，不超过100
+        const loadMoreSize = Math.min(Math.max(Math.floor(initialPageSize / 2), itemsPerRow), 100);
+        setPageSize(loadMoreSize);
+        setCurrentPage(prev => prev + 1);
       }
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [displayCount, productsData?.data?.items, itemsPerRow, isLoadingMore]);
+  }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
 
   // 清空数据mutation
   const clearDataMutation = useMutation({
@@ -278,6 +293,9 @@ const ProductSelection: React.FC = () => {
 
     setSearchParams(params);
     setCurrentPage(1);
+    setAllProducts([]); // 清空已加载的商品
+    setHasMoreData(true); // 重置标志
+    setPageSize(initialPageSize); // 重置为初始pageSize
   };
 
   // 处理重置
@@ -285,6 +303,9 @@ const ProductSelection: React.FC = () => {
     form.resetFields();
     setSearchParams({});
     setCurrentPage(1);
+    setAllProducts([]); // 清空已加载的商品
+    setHasMoreData(true); // 重置标志
+    setPageSize(initialPageSize); // 重置为初始pageSize
   };
 
   // 处理文件上传 - 直接导入，不预览
@@ -899,7 +920,7 @@ const ProductSelection: React.FC = () => {
                 <Space>
                   <Statistic
                     title="已加载"
-                    value={displayCount}
+                    value={allProducts.length}
                     suffix={`/ ${productsData.data.total} 件商品`}
                   />
                 </Space>
@@ -916,11 +937,11 @@ const ProductSelection: React.FC = () => {
           )}
 
           {/* 商品列表 - CSS Grid布局 */}
-          <Spin spinning={productsLoading}>
-            {productsData?.data?.items && productsData.data.items.length > 0 ? (
+          <Spin spinning={productsLoading && currentPage === 1}>
+            {allProducts.length > 0 ? (
               <>
                 <div className={styles.productGrid}>
-                  {productsData.data.items.slice(0, displayCount).map((product) => (
+                  {allProducts.map((product) => (
                     <div key={product.id}>
                       {renderProductCard(product)}
                     </div>
@@ -934,9 +955,9 @@ const ProductSelection: React.FC = () => {
                   </div>
                 )}
                 {/* 已加载完所有数据 */}
-                {!isLoadingMore && displayCount >= productsData.data.items.length && productsData.data.items.length > 0 && (
+                {!hasMoreData && allProducts.length > 0 && (
                   <div className={styles.loadingMore}>
-                    <Text type="secondary">已显示全部 {productsData.data.items.length} 件商品</Text>
+                    <Text type="secondary">已显示全部 {allProducts.length} 件商品</Text>
                   </div>
                 )}
               </>
