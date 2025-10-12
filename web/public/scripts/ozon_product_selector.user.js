@@ -1115,7 +1115,6 @@
 
         async runCollection(targetCount) {
             // 首次收集（跳过等待，直接采集已有数据）
-            this.updateStatus(`🔍 正在扫描当前页面商品...`);
             await this.collector.collectVisibleProducts(true);
             this.updateStats();
 
@@ -1178,23 +1177,18 @@
                             forceScrollCount++;
 
                             if (forceScrollCount <= 3) {
-                                this.updateStatus(`⚡ 强制滚动以加载更多内容 (${forceScrollCount}/3)`);
                                 window.scrollTo(0, document.body.scrollHeight);
                                 await this.collector.sleep(3000);
 
                                 const newPageHeight = document.body.scrollHeight;
                                 if (newPageHeight > pageHeight) {
-                                    this.updateStatus(`✨ 检测到新内容，页面高度增加`);
                                     sameCountTimes = 0;
                                     this.collector.noChangeCount = 0;
                                     continue;
                                 }
                             } else {
-                                this.updateStatus(`⚠️ 已尝试多次，可能已无更多商品（当前: ${afterCount}/${targetCount}）`);
-
                                 if (afterCount > 0) {
-                                    // 自动停止采集，不再弹出确认框
-                                    this.updateStatus(`⚠️ 已收集 ${afterCount} 个商品，未达到目标 ${targetCount}，自动停止采集`);
+                                    this.updateStatus(`✅ 已收集 ${afterCount} 个商品`);
                                     this.stopCollection();
                                     return;
                                 }
@@ -1205,7 +1199,7 @@
                     }
 
                     if (this.collector.noChangeCount >= CONFIG.noChangeThreshold * 2) {
-                        this.updateStatus(`⚠️ 长时间无新商品，停止收集（当前: ${afterCount}/${targetCount}）`);
+                        this.updateStatus(`✅ 已收集 ${afterCount} 个商品`);
                         this.stopCollection();
                         return;
                     }
@@ -1214,7 +1208,6 @@
                     sameCountTimes = 0;
                     forceScrollCount = 0;
                     lastCollectedCount = afterCount;
-                    this.updateStatus(`📦 新增 ${actualNewCount} 个商品，总计: ${afterCount}/${targetCount}`);
                 }
 
                 this.updateStats();
@@ -1227,7 +1220,7 @@
                 }
             }
 
-            this.updateStatus(`⚠️ 达到最大滚动次数`);
+            this.updateStatus(`✅ 已收集 ${this.collector.validatedProducts.size} 个商品`);
             this.stopCollection();
         }
 
