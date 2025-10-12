@@ -858,10 +858,14 @@
             this.panel.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="margin: 0; font-size: 18px;">🎯 Ozon选品助手</h3>
-                    <button id="minimize-btn" style="background: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.5);
-                            color: white; font-size: 16px; cursor: pointer; padding: 4px 8px;
-                            margin-left: 10px; border-radius: 6px; font-weight: bold;
-                            transition: all 0.3s; min-width: 30px;">➖</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="settings-btn" style="background: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.5);
+                                color: white; font-size: 16px; cursor: pointer; padding: 4px 8px;
+                                border-radius: 6px; font-weight: bold; transition: all 0.3s; min-width: 30px;">⚙️</button>
+                        <button id="minimize-btn" style="background: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.5);
+                                color: white; font-size: 16px; cursor: pointer; padding: 4px 8px;
+                                border-radius: 6px; font-weight: bold; transition: all 0.3s; min-width: 30px;">➖</button>
+                    </div>
                 </div>
 
                 <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
@@ -889,83 +893,73 @@
                     </div>
                 </div>
 
-                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 14px; opacity: 0.9;">📊 实时统计</h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
+                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 12px;">
                         <div>✅ 已收集: <span id="collected" style="font-weight: bold;">0</span></div>
-                        <div>📦 页面商品: <span id="page-count" style="font-weight: bold;">0</span></div>
+                        <div id="status" style="text-align: right; opacity: 0.9;">⏳ 等待开始...</div>
                     </div>
-                    <div style="margin-top: 12px;">
-                        <div style="background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
-                            <div id="progress-bar" style="background: linear-gradient(90deg, #48bb78, #68d391);
-                                    height: 100%; width: 0%; transition: width 0.3s; display: flex;
-                                    align-items: center; justify-content: center; font-size: 11px;">
-                                <span id="progress-text" style="color: white; font-weight: bold;">0%</span>
-                            </div>
+                    <div style="background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
+                        <div id="progress-bar" style="background: linear-gradient(90deg, #48bb78, #68d391);
+                                height: 100%; width: 0%; transition: width 0.3s; display: flex;
+                                align-items: center; justify-content: center; font-size: 11px;">
+                            <span id="progress-text" style="color: white; font-weight: bold;">0%</span>
                         </div>
                     </div>
-                    <div id="status" style="margin-top: 10px; font-size: 12px; opacity: 0.9;
-                             min-height: 20px; text-align: center;">
-                        ⏳ 等待开始...
-                    </div>
                 </div>
-
-                <!-- API设置区域（可折叠） -->
-                <details style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 6px;">
-                    <summary style="cursor: pointer; font-weight: 500; padding: 5px; color: white;">⚙️ API设置</summary>
-                    <div style="margin-top: 10px;">
-                        <label style="display: block; margin-bottom: 5px; font-size: 12px; color: white;">API地址:</label>
-                        <input type="text" id="api-url-input" value="${CONFIG.apiUrl}" placeholder="https://your-domain.com" style="
-                            width: 100%;
-                            padding: 8px;
-                            border: 1px solid rgba(255,255,255,0.3);
-                            border-radius: 4px;
-                            margin-bottom: 10px;
-                            font-size: 12px;
-                            background: rgba(255,255,255,0.9);
-                            color: #333;
-                        ">
-
-                        <label style="display: block; margin-bottom: 5px; font-size: 12px; color: white;">API Key:</label>
-                        <input type="password" id="api-key-input" value="${CONFIG.apiKey}" placeholder="ef_live_xxxxx..." style="
-                            width: 100%;
-                            padding: 8px;
-                            border: 1px solid rgba(255,255,255,0.3);
-                            border-radius: 4px;
-                            margin-bottom: 10px;
-                            font-size: 12px;
-                            background: rgba(255,255,255,0.9);
-                            color: #333;
-                        ">
-
-                        <button id="save-api-config-btn" style="
-                            margin-top: 10px;
-                            padding: 8px 16px;
-                            background: #28a745;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            width: 100%;
-                            margin-bottom: 5px;
-                            font-size: 12px;
-                        ">💾 保存配置</button>
-
-                        <button id="test-api-btn" style="
-                            padding: 8px 16px;
-                            background: #17a2b8;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            width: 100%;
-                            font-size: 12px;
-                        ">🔍 测试连接</button>
-                    </div>
-                </details>
             `;
 
             document.body.appendChild(this.panel);
+
+            // 创建API设置模态框
+            this.apiModal = document.createElement('div');
+            this.apiModal.id = 'ozon-api-modal';
+            this.apiModal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 2147483648;
+                display: none;
+                align-items: center;
+                justify-content: center;
+            `;
+            this.apiModal.innerHTML = `
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            padding: 20px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                            min-width: 360px; max-width: 400px; color: white;
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0; font-size: 18px;">⚙️ API设置</h3>
+                        <button id="close-modal-btn" style="background: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.5);
+                                color: white; font-size: 16px; cursor: pointer; padding: 4px 8px;
+                                border-radius: 6px; font-weight: bold; transition: all 0.3s; min-width: 30px;">✕</button>
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-size: 12px;">API地址:</label>
+                        <input type="text" id="api-url-input" value="${CONFIG.apiUrl}" placeholder="https://your-domain.com"
+                               style="width: 100%; padding: 8px; border: 1px solid rgba(255,255,255,0.3);
+                                      border-radius: 4px; margin-bottom: 10px; font-size: 12px;
+                                      background: rgba(255,255,255,0.9); color: #333; box-sizing: border-box;">
+
+                        <label style="display: block; margin-bottom: 5px; font-size: 12px;">API Key:</label>
+                        <input type="password" id="api-key-input" value="${CONFIG.apiKey}" placeholder="ef_live_xxxxx..."
+                               style="width: 100%; padding: 8px; border: 1px solid rgba(255,255,255,0.3);
+                                      border-radius: 4px; margin-bottom: 10px; font-size: 12px;
+                                      background: rgba(255,255,255,0.9); color: #333; box-sizing: border-box;">
+
+                        <button id="save-api-config-btn" style="margin-top: 10px; padding: 8px 16px; background: #28a745;
+                                color: white; border: none; border-radius: 4px; cursor: pointer;
+                                width: 100%; margin-bottom: 5px; font-size: 12px; transition: all 0.3s;">💾 保存配置</button>
+
+                        <button id="test-api-btn" style="padding: 8px 16px; background: #17a2b8; color: white;
+                                border: none; border-radius: 4px; cursor: pointer;
+                                width: 100%; font-size: 12px; transition: all 0.3s;">🔍 测试连接</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(this.apiModal);
 
             // 创建最小化图标
             this.minimizedIcon = document.createElement('div');
@@ -1003,9 +997,22 @@
         bindEvents() {
             document.getElementById('start-btn').onclick = () => this.startCollection();
             document.getElementById('stop-btn').onclick = () => this.stopCollection();
-            // 导出和清空按钮已隐藏，但功能保留（可通过控制台调用）
-            // document.getElementById('export-btn').onclick = () => this.exportData();
-            // document.getElementById('clear-btn').onclick = () => this.clearData();
+
+            // 设置按钮事件
+            const settingsBtn = document.getElementById('settings-btn');
+            settingsBtn.onclick = () => {
+                this.apiModal.style.display = 'flex';
+            };
+
+            // 设置按钮悬停效果
+            settingsBtn.onmouseover = () => {
+                settingsBtn.style.background = 'rgba(255,255,255,0.5)';
+                settingsBtn.style.transform = 'scale(1.1)';
+            };
+            settingsBtn.onmouseout = () => {
+                settingsBtn.style.background = 'rgba(255,255,255,0.3)';
+                settingsBtn.style.transform = 'scale(1)';
+            };
 
             // 最小化/展开事件
             const minimizeBtn = document.getElementById('minimize-btn');
@@ -1029,8 +1036,28 @@
                 this.minimizedIcon.style.display = 'none';
             };
 
-            // 上传按钮已隐藏（功能保留，采集完成自动上传）
-            // document.getElementById('upload-api-btn').onclick = () => this.uploadToAPI();
+            // API模态框关闭事件
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            closeModalBtn.onclick = () => {
+                this.apiModal.style.display = 'none';
+            };
+
+            // 关闭按钮悬停效果
+            closeModalBtn.onmouseover = () => {
+                closeModalBtn.style.background = 'rgba(255,255,255,0.5)';
+                closeModalBtn.style.transform = 'scale(1.1)';
+            };
+            closeModalBtn.onmouseout = () => {
+                closeModalBtn.style.background = 'rgba(255,255,255,0.3)';
+                closeModalBtn.style.transform = 'scale(1)';
+            };
+
+            // 点击模态框外部关闭
+            this.apiModal.onclick = (e) => {
+                if (e.target === this.apiModal) {
+                    this.apiModal.style.display = 'none';
+                }
+            };
 
             // 保存API配置
             document.getElementById('save-api-config-btn').onclick = () => {
@@ -1218,7 +1245,6 @@
             const progress = Math.min((stats.collected / targetCount) * 100, 100);
 
             document.getElementById('collected').textContent = stats.collected;
-            document.getElementById('page-count').textContent = document.querySelectorAll('.tile-root').length;
 
             // 进度条
             const progressBar = document.getElementById('progress-bar');
@@ -1411,6 +1437,7 @@
             this.collector.destroy();
             this.panel?.remove();
             this.minimizedIcon?.remove();
+            this.apiModal?.remove();
         }
     }
 
