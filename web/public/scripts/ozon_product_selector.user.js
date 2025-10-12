@@ -494,10 +494,18 @@
                 }
 
                 // 解析跟卖最低价
-                // 匹配格式: "跟卖最低价：326 ₽" 或 "跟卖最低价：326 ￥"
-                const minPriceMatch = bangText.match(/跟卖最低价[：:]\s*(\d+(?:\s*\d+)*)\s*[₽￥]/);
-                if (minPriceMatch) {
-                    bangData['最低跟卖价'] = minPriceMatch[1].replace(/\s/g, '');
+                // 先检查是否为"无跟卖"
+                const noCompetitorMatch = bangText.match(/跟卖最低价[：:]\s*无跟卖/);
+                if (noCompetitorMatch) {
+                    bangData['最低跟卖价'] = '无跟卖';
+                } else {
+                    // 提取价格（支持逗号和空格分隔，不限制货币）
+                    // 匹配格式: "跟卖最低价：50,87" 或 "跟卖最低价：5 087"
+                    const minPriceMatch = bangText.match(/跟卖最低价[：:]\s*([\d\s,]+)/);
+                    if (minPriceMatch) {
+                        // 移除所有空格和逗号，只保留数字
+                        bangData['最低跟卖价'] = minPriceMatch[1].replace(/[\s,]/g, '');
+                    }
                 }
 
                 // 解析商品创建日期
@@ -792,9 +800,11 @@
                             const bangText = bangElement.textContent || '';
                             // 判断条件：
                             // 1. 内容充足（> 50字符）
-                            // 2. 包含跟卖数据（跟卖数据比其他数据晚到达，是最后的标志）
+                            // 2. 包含"跟卖最低价"字段（可能是价格或"无跟卖"）
                             const hasContent = bangText.trim().length > 50;
-                            const hasCompetitorData = bangText.includes('跟卖') || bangText.includes('个卖家');
+                            const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,]+/.test(bangText);  // 有价格
+                            const hasNoCompetitor = /跟卖最低价[：:]\s*无跟卖/.test(bangText);  // 明确无跟卖
+                            const hasCompetitorData = hasMinPrice || hasNoCompetitor;
 
                             if (hasContent && hasCompetitorData) {
                                 console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪（含跟卖数据），立即采集`);
