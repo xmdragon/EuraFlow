@@ -22,7 +22,7 @@
         visibleWindowMax: 12,            // 最大可见窗口
         scrollStepSize: 1.2,             // 每次滚动视口倍数
         scrollWaitTime: 2500,            // 滚动后等待时间
-        bangInjectionWait: 5000,         // 等待上品帮注入时间（增加到5秒，确保跟卖数据完全加载）
+        bangInjectionWait: 3000,         // 等待上品帮注入时间（3秒，足够完整数据加载）
         maxScrollAttempts: 200,          // 最大滚动次数
         noChangeThreshold: 5,            // 无变化阈值
         forceScrollThreshold: 3,         // 强制滚动阈值
@@ -665,35 +665,53 @@
         // 等待上品帮注入完整数据（包括跟卖者信息）
         async waitForBangInjection(element, maxWait = CONFIG.bangInjectionWait) {
             const startTime = Date.now();
+            const quickCheckPhase = 2000;  // 快速检查阶段：前2秒
+            const earlyGiveUpTime = 1000;  // 提前放弃时间：1秒内无元素
+            let bangElementFound = false;
 
             while (Date.now() - startTime < maxWait) {
+                const elapsed = Date.now() - startTime;
                 const bangElement = element.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+
                 if (bangElement) {
+                    bangElementFound = true;
                     const bangText = bangElement.textContent || '';
 
-                    // 检查关键数据是否已加载（跟卖者信息）
+                    // 情况1: 检测到"无跟卖"文本 → 这是有效数据
+                    if (bangText.includes('无跟卖')) {
+                        return true;
+                    }
+
+                    // 情况2: 检查有数字的跟卖数据
                     const hasSellerCount = /等(\d+)个卖家/.test(bangText) || />(\d+)<\/span>\s*个卖家/.test(bangText);
                     const hasMinPrice = /跟卖最低价[：:]\s*(\d+(?:\s*\d+)*)\s*[₽￥]/.test(bangText);
 
-                    // 如果包含"跟卖"关键词，必须等待完整数据
                     if (bangText.includes('跟卖') || bangText.includes('卖家')) {
                         if (hasSellerCount && hasMinPrice) {
-                            return true;  // 跟卖数据完整
+                            return true;  // 跟卖数据完整（有数字）
                         }
-                        // 否则继续等待
+                        // 继续等待
                     } else if (bangText.length > 50) {
-                        // 如果没有跟卖信息但有其他数据（长度>50），也认为有效
+                        // 情况3: 没有跟卖关键词，但有其他数据（品牌、佣金等）
                         return true;
                     }
+                } else {
+                    // 提前放弃：1秒后元素还没出现，可能是推广商品
+                    if (elapsed > earlyGiveUpTime && !bangElementFound) {
+                        return false;
+                    }
                 }
-                await this.sleep(200);  // 增加检查间隔到200ms
+
+                // 动态调整检查间隔：前2秒100ms，2-3秒200ms
+                const checkInterval = elapsed < quickCheckPhase ? 100 : 200;
+                await this.sleep(checkInterval);
             }
 
             return false;
         }
 
         // 收集单个商品的完整数据
-        async collectSingleProduct(element) {
+        async collectSingleProduct(element, skipWait = false) {
             const contentChanged = this.detectContentChange(element);
             const fingerprint = this.generateProductFingerprint(element);
 
@@ -702,12 +720,14 @@
                 return null;
             }
 
-            // 等待上品帮数据
-            const hasBangData = await this.waitForBangInjection(element);
+            // 等待上品帮数据（可跳过）
+            if (!skipWait) {
+                const hasBangData = await this.waitForBangInjection(element);
 
-            // 如果没有上品帮数据，跳过该商品（可能是推广商品）
-            if (!hasBangData) {
-                return null;
+                // 如果没有上品帮数据，跳过该商品（可能是推广商品）
+                if (!hasBangData) {
+                    return null;
+                }
             }
 
             // 提取完整数据
@@ -723,27 +743,53 @@
             return completeProduct;
         }
 
-        // 批量收集可见商品
+        // 批量收集可见商品（按行优化：只检查每行最后1个商品）
         async collectVisibleProducts() {
             // 只处理有上品帮标记的商品
             const withBangMark = document.querySelectorAll('.tile-root[data-ozon-bang="true"]');
+            const elements = Array.from(withBangMark);
 
             const newProducts = [];
             const processedFingerprints = new Set();
 
-            // 只处理已注入上品帮数据的商品
-            for (const element of withBangMark) {
+            // 按行分组（上品帮按行注入数据，通常1行=4个商品）
+            const rowSize = 4;
+            const rows = [];
+            for (let i = 0; i < elements.length; i += rowSize) {
+                rows.push(elements.slice(i, i + rowSize));
+            }
+
+            // 逐行处理
+            for (const row of rows) {
+                if (row.length === 0) continue;
+
                 try {
-                    const fingerprint = this.generateProductFingerprint(element);
-                    if (!processedFingerprints.has(fingerprint)) {
-                        processedFingerprints.add(fingerprint);
-                        const product = await this.collectSingleProduct(element);
-                        if (product) {
-                            newProducts.push(product);
+                    // 只等待最后一个商品的数据
+                    const lastElement = row[row.length - 1];
+                    const hasBangData = await this.waitForBangInjection(lastElement);
+
+                    // 如果最后一个没数据，跳过整行
+                    if (!hasBangData) continue;
+
+                    // 最后一个有数据 → 前面的肯定都有数据（同一行同时注入）
+                    // 直接采集所有商品（不等待）
+                    for (const element of row) {
+                        try {
+                            const fingerprint = this.generateProductFingerprint(element);
+                            if (!processedFingerprints.has(fingerprint)) {
+                                processedFingerprints.add(fingerprint);
+                                // skipWait=true：跳过等待，直接采集
+                                const product = await this.collectSingleProduct(element, true);
+                                if (product) {
+                                    newProducts.push(product);
+                                }
+                            }
+                        } catch (error) {
+                            // 错误处理：单个商品收集失败
                         }
                     }
                 } catch (error) {
-                    // 错误处理：商品收集失败
+                    // 错误处理：整行收集失败
                 }
             }
 
@@ -1065,11 +1111,10 @@
                 let scrollDistance;
                 if (isNearBottom) {
                     scrollDistance = pageHeight - currentScroll;
-                    this.updateStatus(`📍 滚动到底部触发加载...`);
                 } else {
                     scrollDistance = viewportHeight * CONFIG.scrollStepSize;
-                    this.updateStatus(`🔄 滚动 #${this.collector.scrollCount}，等待加载...`);
                 }
+                this.updateStatus(`⏳ 等待加载...`);
 
                 // 执行滚动
                 window.scrollTo({
