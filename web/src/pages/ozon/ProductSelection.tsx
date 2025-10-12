@@ -503,7 +503,7 @@ const ProductSelection: React.FC = () => {
         key={product.id}
         hoverable
         size="small"
-        styles={{ body: { padding: '8px', minHeight: '240px', display: 'flex', flexDirection: 'column' } }}
+        className={styles.productCard}
         cover={
           product.image_url ? (
             <div

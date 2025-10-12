@@ -19,7 +19,12 @@
 
 // ===== 商品卡片 =====
 .productCard {
-  // 由 Ant Design Card 的 styles prop 控制
+  :global(.ant-card-body) {
+    padding: 0 !important;
+    min-height: 240px;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 .productCover {
