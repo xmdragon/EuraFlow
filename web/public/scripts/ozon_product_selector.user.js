@@ -878,33 +878,26 @@
                                style="width: 80px; padding: 6px 8px; border: none; border-radius: 4px;
                                       background: rgba(255,255,255,0.9); color: #333; font-size: 14px; text-align: center;">
                     </div>
-                    <div style="display: flex; gap: 10px;">
-                        <button id="start-btn" style="flex: 1; padding: 10px; border: none;
-                                border-radius: 6px; background: #48bb78; color: white;
-                                font-weight: bold; cursor: pointer; transition: all 0.3s;">
-                            🚀 开始收集
-                        </button>
-                        <button id="stop-btn" style="flex: 1; padding: 10px; border: none;
-                                border-radius: 6px; background: #f56565; color: white;
-                                font-weight: bold; cursor: pointer; transition: all 0.3s;"
-                                disabled>
-                            ⏸️ 停止
-                        </button>
-                    </div>
-                </div>
 
-                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px;">
-                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 12px;">
-                        <div>✅ 已收集: <span id="collected" style="font-weight: bold;">0</span></div>
-                        <div id="status" style="text-align: right; opacity: 0.9;">⏳ 等待开始...</div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
-                        <div id="progress-bar" style="background: linear-gradient(90deg, #48bb78, #68d391);
-                                height: 100%; width: 0%; transition: width 0.3s; display: flex;
-                                align-items: center; justify-content: center; font-size: 11px;">
-                            <span id="progress-text" style="color: white; font-weight: bold;">0%</span>
+                    <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 12px;">
+                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 10px;">
+                            <div>✅ 已收集: <span id="collected" style="font-weight: bold;">0</span></div>
+                            <div id="status" style="text-align: right; opacity: 0.9;">⏳ 等待开始...</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
+                            <div id="progress-bar" style="background: linear-gradient(90deg, #48bb78, #68d391);
+                                    height: 100%; width: 0%; transition: width 0.3s; display: flex;
+                                    align-items: center; justify-content: center; font-size: 11px;">
+                                <span id="progress-text" style="color: white; font-weight: bold;">0%</span>
+                            </div>
                         </div>
                     </div>
+
+                    <button id="toggle-btn" style="width: 100%; padding: 10px; border: none;
+                            border-radius: 6px; background: #48bb78; color: white;
+                            font-weight: bold; cursor: pointer; transition: all 0.3s;">
+                        🚀 开始
+                    </button>
                 </div>
             `;
 
@@ -995,8 +988,17 @@
         }
 
         bindEvents() {
-            document.getElementById('start-btn').onclick = () => this.startCollection();
-            document.getElementById('stop-btn').onclick = () => this.stopCollection();
+            // Toggle按钮事件
+            const toggleBtn = document.getElementById('toggle-btn');
+            toggleBtn.onclick = () => {
+                if (this.collector.isRunning) {
+                    // 停止收集
+                    this.stopCollection();
+                } else {
+                    // 开始收集
+                    this.startCollection();
+                }
+            };
 
             // 设置按钮事件
             const settingsBtn = document.getElementById('settings-btn');
@@ -1099,9 +1101,10 @@
 
             const targetCount = parseInt(document.getElementById('target-count').value) || CONFIG.targetProductCount;
 
-            // 更新UI
-            document.getElementById('start-btn').disabled = true;
-            document.getElementById('stop-btn').disabled = false;
+            // 更新UI：切换按钮为红色"停止"
+            const toggleBtn = document.getElementById('toggle-btn');
+            toggleBtn.style.background = '#f56565';
+            toggleBtn.innerHTML = '⏸️ 停止';
             this.updateStatus(`🚀 开始收集，目标: ${targetCount} 个商品`);
 
             // 开始收集流程
@@ -1227,8 +1230,11 @@
 
         stopCollection() {
             this.collector.isRunning = false;
-            document.getElementById('start-btn').disabled = false;
-            document.getElementById('stop-btn').disabled = true;
+
+            // 更新UI：切换按钮为绿色"开始"
+            const toggleBtn = document.getElementById('toggle-btn');
+            toggleBtn.style.background = '#48bb78';
+            toggleBtn.innerHTML = '🚀 开始';
             this.updateStats();
 
             // 如果启用自动上传
