@@ -84,6 +84,8 @@
   font-size: 12px;
   line-height: 1.4;
   margin-bottom: 0;
+  height: 33.6px; // 固定高度：12px * 1.4 * 2行 = 33.6px
+  overflow: hidden;
 }
 
 .priceContainer {
