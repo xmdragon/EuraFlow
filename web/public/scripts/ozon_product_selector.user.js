@@ -843,7 +843,7 @@
                 position: fixed;
                 bottom: 20px;
                 right: 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #5b9bd5;
                 color: white;
                 padding: 20px;
                 border-radius: 12px;
@@ -920,7 +920,7 @@
                 justify-content: center;
             `;
             this.apiModal.innerHTML = `
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                <div style="background: #5b9bd5;
                             padding: 20px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
                             min-width: 360px; max-width: 400px; color: white;
                             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -964,7 +964,7 @@
                 right: 45px;
                 width: 50px;
                 height: 50px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #5b9bd5;
                 border-radius: 50%;
                 display: flex;
                 align-items: center;
