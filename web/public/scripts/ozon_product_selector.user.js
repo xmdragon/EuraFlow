@@ -699,6 +699,7 @@
 
             // 如果已经收集过且内容未变化，跳过
             if (!contentChanged && this.validatedProducts.has(fingerprint)) {
+                console.log('[Ozon Selector] ⏭️  collectSingleProduct返回null: 内容未变化且已收集过 (fingerprint:', fingerprint.substring(0, 30), '...)');
                 return null;
             }
 
@@ -708,6 +709,7 @@
 
                 // 如果没有上品帮数据，跳过该商品（可能是推广商品）
                 if (!hasBangData) {
+                    console.log('[Ozon Selector] ⏭️  collectSingleProduct返回null: 没有上品帮数据 (fingerprint:', fingerprint.substring(0, 30), '...)');
                     return null;
                 }
             }
@@ -722,6 +724,7 @@
             this.elementProductMap.set(element, fingerprint);
             this.stats.collected = this.validatedProducts.size;
 
+            console.log('[Ozon Selector] 💾 collectSingleProduct成功: 商品已保存 (fingerprint:', fingerprint.substring(0, 30), '...)');
             return completeProduct;
         }
 
@@ -744,28 +747,55 @@
 
             // 辅助函数：采集一行商品
             const collectRow = async (row) => {
+                console.log('[Ozon Selector] 🔄 开始采集行 - row.length:', row.length);
+                let skippedCount = 0, collectedCount = 0;
                 for (const element of row) {
                     try {
                         const fingerprint = this.generateProductFingerprint(element);
-                        if (!processedFingerprints.has(fingerprint)) {
-                            processedFingerprints.add(fingerprint);
-                            // 直接采集，不等待
-                            const product = await this.collectSingleProduct(element, true);
-                            if (product) {
-                                newProducts.push(product);
-                            }
+                        console.log('[Ozon Selector]   - fingerprint:', fingerprint.substring(0, 50));
+
+                        if (processedFingerprints.has(fingerprint)) {
+                            console.log('[Ozon Selector]     ⚠️  已在processedFingerprints中，跳过');
+                            skippedCount++;
+                            continue;
+                        }
+
+                        processedFingerprints.add(fingerprint);
+
+                        // 检查是否已在validatedProducts中
+                        if (this.validatedProducts.has(fingerprint)) {
+                            console.log('[Ozon Selector]     ⚠️  已在validatedProducts中，跳过（重复商品）');
+                            skippedCount++;
+                            continue;
+                        }
+
+                        // 直接采集，不等待
+                        const product = await this.collectSingleProduct(element, true);
+                        if (product) {
+                            console.log('[Ozon Selector]     ✅ 采集成功');
+                            newProducts.push(product);
+                            collectedCount++;
+                        } else {
+                            console.log('[Ozon Selector]     ❌ collectSingleProduct返回null');
                         }
                     } catch (error) {
-                        // 错误处理：单个商品收集失败
+                        console.error('[Ozon Selector]     ❌ 采集失败:', error.message);
                     }
                 }
+                console.log('[Ozon Selector] ✅ 行采集完成 - 新增:', collectedCount, '跳过:', skippedCount);
             };
 
             if (skipWait) {
                 // 首次扫描：直接采集所有行
+                console.log('[Ozon Selector] 🚀 首次扫描开始 - 总行数:', rows.length, '总元素:', elements.length);
+                const beforeFirstScan = newProducts.length;
                 for (const row of rows) {
                     if (row.length === 0) continue;
                     await collectRow(row);
+                }
+                console.log('[Ozon Selector] ✅ 首次扫描完成 - 新增商品:', newProducts.length - beforeFirstScan);
+                if (newProducts.length > 0) {
+                    console.log('[Ozon Selector] 📋 采集的商品fingerprints:', newProducts.map(p => p.fingerprint).slice(0, 5), '...(共' + newProducts.length + '个)');
                 }
             } else {
                 // 滚动后：并行轮询，每200ms检查所有行
@@ -808,6 +838,8 @@
 
                             if (hasContent && hasCompetitorData) {
                                 console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪（含跟卖数据），立即采集`);
+                                // 打印bangText示例（前150字符）以确认数据格式
+                                console.log(`[Ozon Selector] 📄 bangText示例:`, bangText.substring(0, 150).replace(/\s+/g, ' ') + '...');
                                 // 这行准备好了，立即采集
                                 const rowStartCount = newProducts.length;
                                 await collectRow(row);
