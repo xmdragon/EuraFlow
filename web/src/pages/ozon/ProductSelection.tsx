@@ -663,21 +663,27 @@ const ProductSelection: React.FC = () => {
             </div>
           )}
 
-          {/* 评分 - 更紧凑 */}
-          {fieldConfig.rating && product.rating && (
-            <div className={styles.ratingSection}>
-              <StarOutlined />
-              <Text strong className={styles.ratingValue}>{product.rating}</Text>
-              <Text type="secondary" className={styles.reviewCount}>({product.review_count})</Text>
-            </div>
-          )}
-
           {/* 上架时间 */}
           {fieldConfig.listingDate && (
             <div className={styles.listingDate}>
               <Text type="secondary" style={{ fontSize: '11px' }}>
                 上架: {formatDate(product.created_at)}
               </Text>
+            </div>
+          )}
+
+          {/* 评分 - 保持空行以确保布局一致 */}
+          {fieldConfig.rating && (
+            <div className={styles.ratingSection}>
+              {product.rating ? (
+                <>
+                  <StarOutlined />
+                  <Text strong className={styles.ratingValue}>{product.rating}</Text>
+                  <Text type="secondary" className={styles.reviewCount}>({product.review_count})</Text>
+                </>
+              ) : (
+                <span>&nbsp;</span>
+              )}
             </div>
           )}
         </div>
