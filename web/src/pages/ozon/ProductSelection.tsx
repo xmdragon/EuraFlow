@@ -724,7 +724,7 @@ const ProductSelection: React.FC = () => {
                       showSearch
                       style={{ width: '10em' }}
                       filterOption={(input, option) =>
-                        (option?.children as string).toLowerCase().includes(input.toLowerCase())
+                        String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
                       }
                     >
                       {brandsData?.data?.map((brand) => (
