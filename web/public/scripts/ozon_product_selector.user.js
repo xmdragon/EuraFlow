@@ -764,8 +764,16 @@
                 const processedRows = new Set();
                 const maxWait = CONFIG.bangInjectionWait;
                 const startTime = Date.now();
+                let checkCount = 0;
+
+                console.log('[Ozon Selector] 🔍 开始并行轮询检测 - 总行数:', rows.length, '最大等待:', maxWait + 'ms');
 
                 while (processedRows.size < rows.length && Date.now() - startTime < maxWait) {
+                    checkCount++;
+                    const beforeCollect = newProducts.length;
+
+                    console.log(`[Ozon Selector] ⏱️  第${checkCount}次检测 - 已处理:`, processedRows.size, '/', rows.length, `(${Math.round(Date.now() - startTime)}ms)`);
+
                     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
                         // 已处理的行跳过
                         if (processedRows.has(rowIndex)) continue;
@@ -781,10 +789,19 @@
                         const bangElement = lastElement.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
 
                         if (bangElement && bangElement.textContent.trim().length > 50) {
+                            console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪，立即采集`);
                             // 这行准备好了，立即采集
+                            const rowStartCount = newProducts.length;
                             await collectRow(row);
+                            const rowNewCount = newProducts.length - rowStartCount;
+                            console.log(`[Ozon Selector] 📦 行${rowIndex} 采集完成 - 新增 ${rowNewCount} 个商品`);
                             processedRows.add(rowIndex);
                         }
+                    }
+
+                    const cycleNewCount = newProducts.length - beforeCollect;
+                    if (cycleNewCount > 0) {
+                        console.log(`[Ozon Selector] 🎯 本轮采集到 ${cycleNewCount} 个新商品`);
                     }
 
                     // 如果还有未处理的行，等待200ms后继续检查
@@ -792,6 +809,9 @@
                         await this.sleep(CONFIG.bangCheckInterval);
                     }
                 }
+
+                const elapsed = Date.now() - startTime;
+                console.log(`[Ozon Selector] ✨ 并行轮询完成 - 耗时: ${elapsed}ms, 检测次数: ${checkCount}, 采集商品: ${newProducts.length}, 处理行数: ${processedRows.size}/${rows.length}`);
             }
 
             return newProducts;
@@ -1153,14 +1173,7 @@
                     behavior: 'smooth'
                 });
 
-                // 等待DOM更新
-                await this.collector.sleep(CONFIG.scrollWaitTime);
-
-                if (isNearBottom) {
-                    await this.collector.sleep(1000);
-                }
-
-                // 收集新商品（并行轮询）
+                // 收集新商品（并行轮询，无等待直接开始检测）
                 const beforeCount = this.collector.validatedProducts.size;
                 this.updateStatus(`⏳ 等待数据加载...`);
                 await this.collector.collectVisibleProducts(false);
@@ -1178,7 +1191,7 @@
 
                             if (forceScrollCount <= 3) {
                                 window.scrollTo(0, document.body.scrollHeight);
-                                await this.collector.sleep(3000);
+                                await this.collector.sleep(500);
 
                                 const newPageHeight = document.body.scrollHeight;
                                 if (newPageHeight > pageHeight) {
