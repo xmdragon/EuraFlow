@@ -884,12 +884,13 @@
                             <div>✅ 已收集: <span id="collected" style="font-weight: bold;">0</span></div>
                             <div id="status" style="text-align: right; opacity: 0.9;">⏳ 等待开始...</div>
                         </div>
-                        <div style="background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
+                        <div style="position: relative; background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
                             <div id="progress-bar" style="background: linear-gradient(90deg, #48bb78, #68d391);
-                                    height: 100%; width: 0%; transition: width 0.3s; display: flex;
-                                    align-items: center; justify-content: center; font-size: 11px;">
-                                <span id="progress-text" style="color: white; font-weight: bold;">0%</span>
+                                    height: 100%; width: 0%; transition: width 0.3s;">
                             </div>
+                            <span id="progress-text" style="position: absolute; top: 0; left: 0; right: 0;
+                                    height: 100%; display: flex; align-items: center; justify-content: center;
+                                    color: white; font-weight: bold; font-size: 11px; pointer-events: none;">0%</span>
                         </div>
                     </div>
 
