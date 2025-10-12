@@ -52,6 +52,8 @@ import {
   CodeOutlined,
   RocketOutlined,
   PlusOutlined,
+  SettingOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
@@ -63,6 +65,30 @@ import styles from './ProductSelection.module.scss';
 const { Option } = Select;
 const { Title, Text, Link, Paragraph } = Typography;
 
+// 字段配置接口
+interface FieldConfig {
+  brand: boolean;
+  originalPrice: boolean;
+  rfbsCommission: boolean;
+  fbpCommission: boolean;
+  monthlySales: boolean;
+  weight: boolean;
+  competitors: boolean;
+  rating: boolean;
+}
+
+// 默认字段配置（全部显示）
+const defaultFieldConfig: FieldConfig = {
+  brand: true,
+  originalPrice: true,
+  rfbsCommission: true,
+  fbpCommission: true,
+  monthlySales: true,
+  weight: true,
+  competitors: true,
+  rating: true,
+};
+
 const ProductSelection: React.FC = () => {
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
@@ -71,7 +97,7 @@ const ProductSelection: React.FC = () => {
   // 状态管理
   const [activeTab, setActiveTab] = useState('search');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(24);
+  const [pageSize, setPageSize] = useState(1000); // 改为一次获取更多数据用于无限滚动
   const [historyPage, setHistoryPage] = useState(1);  // 导入历史分页
   const [searchParams, setSearchParams] = useState<api.ProductSearchParams>({});
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -84,6 +110,18 @@ const ProductSelection: React.FC = () => {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedProductImages, setSelectedProductImages] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // 无限滚动相关状态
+  const [displayCount, setDisplayCount] = useState(0); // 当前显示的商品数量
+  const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量（动态计算）
+  const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
+
+  // 字段配置状态
+  const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
+    const saved = localStorage.getItem('productFieldConfig');
+    return saved ? JSON.parse(saved) : defaultFieldConfig;
+  });
+  const [fieldConfigVisible, setFieldConfigVisible] = useState(false);
 
   // 查询品牌列表
   const { data: brandsData } = useQuery({
@@ -103,11 +141,64 @@ const ProductSelection: React.FC = () => {
   });
 
   // 查询导入历史
-  const { data: historyData, refetch: refetchHistory } = useQuery({
+  const { data: historyData, refetch: refetchHistory} = useQuery({
     queryKey: ['productSelectionHistory', historyPage],
     queryFn: () => api.getImportHistory(historyPage, 10),
     enabled: activeTab === 'history',
   });
+
+  // 计算每行显示数量（根据容器宽度）
+  useEffect(() => {
+    const calculateItemsPerRow = () => {
+      const container = document.querySelector(`.${styles.productGrid}`);
+      if (container) {
+        const containerWidth = container.clientWidth;
+        const itemWidth = 160; // 固定宽度
+        const gap = 16; // 间距
+        const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
+        setItemsPerRow(columns);
+      }
+    };
+
+    calculateItemsPerRow();
+    window.addEventListener('resize', calculateItemsPerRow);
+    return () => window.removeEventListener('resize', calculateItemsPerRow);
+  }, []);
+
+  // 初始显示4行商品
+  useEffect(() => {
+    if (productsData?.data?.items) {
+      const initialCount = itemsPerRow * 4;
+      setDisplayCount(Math.min(initialCount, productsData.data.items.length));
+    }
+  }, [productsData?.data?.items, itemsPerRow]);
+
+  // 滚动监听：滚动到80%加载2行
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!productsData?.data?.items || isLoadingMore) return;
+
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrollPercent = (scrollTop + windowHeight) / documentHeight;
+
+      if (scrollPercent > 0.8 && displayCount < productsData.data.items.length) {
+        setIsLoadingMore(true);
+        // 延迟一下模拟加载效果
+        setTimeout(() => {
+          setDisplayCount(prev => {
+            const newCount = Math.min(prev + itemsPerRow * 2, productsData.data.items.length);
+            setIsLoadingMore(false);
+            return newCount;
+          });
+        }, 300);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [displayCount, productsData?.data?.items, itemsPerRow, isLoadingMore]);
 
   // 清空数据mutation
   const clearDataMutation = useMutation({
@@ -347,6 +438,21 @@ const ProductSelection: React.FC = () => {
     message.success('脚本下载已开始');
   };
 
+  // 保存字段配置
+  const saveFieldConfig = (config: FieldConfig) => {
+    setFieldConfig(config);
+    localStorage.setItem('productFieldConfig', JSON.stringify(config));
+    message.success('字段配置已保存');
+    setFieldConfigVisible(false);
+  };
+
+  // 重置字段配置
+  const resetFieldConfig = () => {
+    setFieldConfig(defaultFieldConfig);
+    localStorage.removeItem('productFieldConfig');
+    message.success('已恢复默认配置');
+  };
+
   // 渲染商品卡片
   const renderProductCard = (product: api.ProductSelectionItem) => {
     const discount = product.original_price
@@ -403,111 +509,130 @@ const ProductSelection: React.FC = () => {
         ]}
       >
         <div className={styles.productCardBody}>
-          {/* 商品名称 */}
+          {/* 商品名称 - 始终显示 */}
           <Paragraph ellipsis={{ rows: 2, tooltip: product.product_name_cn }} className={styles.productName}>
             {product.product_name_cn || product.product_name_ru}
           </Paragraph>
-          {/* 价格信息 */}
+
+          {/* 价格信息 - 始终显示当前价 */}
           <div className={styles.priceContainer}>
             <div className={styles.priceRow}>
               <Text strong className={styles.currentPrice}>
                 {userSymbol}{formatPrice(product.current_price)}
               </Text>
-              {product.original_price && (
-                <Text delete className={styles.originalPrice}>
-                  {userSymbol}{formatPrice(product.original_price)}
-                </Text>
-              )}
-              {product.original_price && discount > 0 && (
-                <Tag color="red" className={styles.discountTag}>
-                  -{discount}%
-                </Tag>
+              {fieldConfig.originalPrice && product.original_price && (
+                <>
+                  <Text delete className={styles.originalPrice}>
+                    {userSymbol}{formatPrice(product.original_price)}
+                  </Text>
+                  {discount > 0 && (
+                    <Tag color="red" className={styles.discountTag}>
+                      -{discount}%
+                    </Tag>
+                  )}
+                </>
               )}
             </div>
           </div>
 
           {/* 品牌 */}
-          <div className={styles.brandInfo}>
-            <Text type="secondary">品牌: </Text>
-            <Text strong>{product.brand || '无品牌'}</Text>
-          </div>
+          {fieldConfig.brand && (
+            <div className={styles.brandInfo}>
+              <Text type="secondary">品牌: </Text>
+              <Text strong>{product.brand || '无品牌'}</Text>
+            </div>
+          )}
 
           {/* 佣金率 - 紧凑布局 */}
-          <div className={styles.commissionBox}>
-            <Row gutter={4} className={styles.commissionRow}>
-              <Col span={12}>
-                <Text className={styles.commissionLabel}>rFBS≤1500:</Text>
-                <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_low)}</Text>
-              </Col>
-              <Col span={12}>
-                <Text className={styles.commissionLabel}>FBP≤1500:</Text>
-                <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_low)}</Text>
-              </Col>
-            </Row>
-            <Row gutter={4}>
-              <Col span={12}>
-                <Text className={styles.commissionLabel}>rFBS(1.5-5k):</Text>
-                <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_mid)}</Text>
-              </Col>
-              <Col span={12}>
-                <Text className={styles.commissionLabel}>FBP(1.5-5k):</Text>
-                <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_mid)}</Text>
-              </Col>
-            </Row>
-          </div>
+          {(fieldConfig.rfbsCommission || fieldConfig.fbpCommission) && (
+            <div className={styles.commissionBox}>
+              {fieldConfig.rfbsCommission && (
+                <Row gutter={4} className={styles.commissionRow}>
+                  <Col span={12}>
+                    <Text className={styles.commissionLabel}>rFBS≤1500:</Text>
+                    <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_low)}</Text>
+                  </Col>
+                  <Col span={12}>
+                    <Text className={styles.commissionLabel}>rFBS(1.5-5k):</Text>
+                    <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_mid)}</Text>
+                  </Col>
+                </Row>
+              )}
+              {fieldConfig.fbpCommission && (
+                <Row gutter={4}>
+                  <Col span={12}>
+                    <Text className={styles.commissionLabel}>FBP≤1500:</Text>
+                    <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_low)}</Text>
+                  </Col>
+                  <Col span={12}>
+                    <Text className={styles.commissionLabel}>FBP(1.5-5k):</Text>
+                    <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_mid)}</Text>
+                  </Col>
+                </Row>
+              )}
+            </div>
+          )}
 
           {/* 销量和重量 */}
-          <Row gutter={4} className={styles.statsRow}>
-            <Col span={12}>
-              <div className={styles.statsItem}>
-                <Text type="secondary">月销: </Text>
-                <Text strong>{formatNumber(product.monthly_sales_volume)}</Text>
-              </div>
-            </Col>
-            <Col span={12}>
-              <div className={styles.statsItem}>
-                <Text type="secondary">重量: </Text>
-                <Text strong>{formatWeight(product.package_weight)}</Text>
-              </div>
-            </Col>
-          </Row>
+          {(fieldConfig.monthlySales || fieldConfig.weight) && (
+            <Row gutter={4} className={styles.statsRow}>
+              {fieldConfig.monthlySales && (
+                <Col span={fieldConfig.weight ? 12 : 24}>
+                  <div className={styles.statsItem}>
+                    <Text type="secondary">月销: </Text>
+                    <Text strong>{formatNumber(product.monthly_sales_volume)}</Text>
+                  </div>
+                </Col>
+              )}
+              {fieldConfig.weight && (
+                <Col span={fieldConfig.monthlySales ? 12 : 24}>
+                  <div className={styles.statsItem}>
+                    <Text type="secondary">重量: </Text>
+                    <Text strong>{formatWeight(product.package_weight)}</Text>
+                  </div>
+                </Col>
+              )}
+            </Row>
+          )}
 
           {/* 竞争对手数据 */}
-          <div className={styles.competitorSection}>
-            <Row gutter={4}>
-              <Col span={12}>
-                <div className={styles.competitorItem}>
-                  <Text type="secondary">跟卖者: </Text>
-                  {product.competitor_count !== null && product.competitor_count !== undefined ? (
-                    <Text
-                      strong
-                      className={`${styles.competitorCount} ${product.competitor_count === 0 ? styles.disabled : ''}`}
-                      onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
-                    >
-                      {product.competitor_count}家
-                    </Text>
-                  ) : (
-                    <Text className={styles.placeholderText}>-</Text>
-                  )}
-                </div>
-              </Col>
-              <Col span={12}>
-                <div className={styles.competitorItem}>
-                  <Text type="secondary">跟卖最低价: </Text>
-                  {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
-                    <Text strong className={styles.competitorPrice}>
-                      {userSymbol}{formatPrice(product.competitor_min_price)}
-                    </Text>
-                  ) : (
-                    <Text className={styles.placeholderText}>-</Text>
-                  )}
-                </div>
-              </Col>
-            </Row>
-          </div>
+          {fieldConfig.competitors && (
+            <div className={styles.competitorSection}>
+              <Row gutter={4}>
+                <Col span={12}>
+                  <div className={styles.competitorItem}>
+                    <Text type="secondary">跟卖者: </Text>
+                    {product.competitor_count !== null && product.competitor_count !== undefined ? (
+                      <Text
+                        strong
+                        className={`${styles.competitorCount} ${product.competitor_count === 0 ? styles.disabled : ''}`}
+                        onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
+                      >
+                        {product.competitor_count}家
+                      </Text>
+                    ) : (
+                      <Text className={styles.placeholderText}>-</Text>
+                    )}
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div className={styles.competitorItem}>
+                    <Text type="secondary">跟卖最低价: </Text>
+                    {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
+                      <Text strong className={styles.competitorPrice}>
+                        {userSymbol}{formatPrice(product.competitor_min_price)}
+                      </Text>
+                    ) : (
+                      <Text className={styles.placeholderText}>-</Text>
+                    )}
+                  </div>
+                </Col>
+              </Row>
+            </div>
+          )}
 
           {/* 评分 - 更紧凑 */}
-          {product.rating && (
+          {fieldConfig.rating && product.rating && (
             <div className={styles.ratingSection}>
               <StarOutlined />
               <Text strong className={styles.ratingValue}>{product.rating}</Text>
@@ -728,61 +853,58 @@ const ProductSelection: React.FC = () => {
             </Form>
           </Card>
 
-          {/* 搜索结果统计 */}
+          {/* 搜索结果统计和配置按钮 */}
           {productsData?.data && (
-            <Row gutter={16} className={styles.searchStats}>
+            <Row justify="space-between" align="middle" className={styles.searchStats}>
               <Col>
-                <Statistic
-                  title="搜索结果"
-                  value={productsData.data.total}
-                  suffix="件商品"
-                />
+                <Space>
+                  <Statistic
+                    title="已加载"
+                    value={displayCount}
+                    suffix={`/ ${productsData.data.total} 件商品`}
+                  />
+                </Space>
               </Col>
               <Col>
-                <Text type="secondary">
-                  第 {productsData.data.page} 页，共 {productsData.data.total_pages} 页
-                </Text>
+                <Button
+                  icon={<SettingOutlined />}
+                  onClick={() => setFieldConfigVisible(true)}
+                >
+                  配置字段
+                </Button>
               </Col>
             </Row>
           )}
 
-          {/* 商品列表 */}
+          {/* 商品列表 - CSS Grid布局 */}
           <Spin spinning={productsLoading}>
             {productsData?.data?.items && productsData.data.items.length > 0 ? (
-              <Row gutter={[16, 16]}>
-                {productsData.data.items.map((product) => (
-                  <Col key={product.id} xs={24} sm={12} md={8} lg={6} xl={4}>
-                    {renderProductCard(product)}
-                  </Col>
-                ))}
-              </Row>
+              <>
+                <div className={styles.productGrid}>
+                  {productsData.data.items.slice(0, displayCount).map((product) => (
+                    <div key={product.id}>
+                      {renderProductCard(product)}
+                    </div>
+                  ))}
+                </div>
+                {/* 加载更多提示 */}
+                {isLoadingMore && (
+                  <div className={styles.loadingMore}>
+                    <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+                    <Text type="secondary" style={{ marginLeft: 12 }}>加载中...</Text>
+                  </div>
+                )}
+                {/* 已加载完所有数据 */}
+                {!isLoadingMore && displayCount >= productsData.data.items.length && productsData.data.items.length > 0 && (
+                  <div className={styles.loadingMore}>
+                    <Text type="secondary">已显示全部 {productsData.data.items.length} 件商品</Text>
+                  </div>
+                )}
+              </>
             ) : (
               <Empty description="暂无商品数据" />
             )}
           </Spin>
-
-          {/* 分页 */}
-          {productsData?.data && productsData.data.total > 0 && (
-            <div className={styles.pagination}>
-              <Space.Compact>
-                <Button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                >
-                  上一页
-                </Button>
-                <Button>
-                  {currentPage} / {productsData.data.total_pages}
-                </Button>
-                <Button
-                  disabled={currentPage === productsData.data.total_pages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                >
-                  下一页
-                </Button>
-              </Space.Compact>
-            </div>
-          )}
               </>
             )
           },
@@ -1315,6 +1437,126 @@ const ProductSelection: React.FC = () => {
         initialIndex={currentImageIndex}
         onClose={() => setImageModalVisible(false)}
       />
+
+      {/* 字段配置Modal */}
+      <Modal
+        title="配置显示字段"
+        open={fieldConfigVisible}
+        onOk={() => saveFieldConfig(fieldConfig)}
+        onCancel={() => setFieldConfigVisible(false)}
+        okText="保存"
+        cancelText="取消"
+        width={500}
+      >
+        <div className={styles.fieldConfigList}>
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.brand}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, brand: e.target.checked })}
+                id="field-brand"
+              />
+              <label htmlFor="field-brand">品牌</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.originalPrice}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, originalPrice: e.target.checked })}
+                id="field-originalPrice"
+              />
+              <label htmlFor="field-originalPrice">原价和折扣</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.rfbsCommission}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, rfbsCommission: e.target.checked })}
+                id="field-rfbsCommission"
+              />
+              <label htmlFor="field-rfbsCommission">rFBS佣金率</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.fbpCommission}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, fbpCommission: e.target.checked })}
+                id="field-fbpCommission"
+              />
+              <label htmlFor="field-fbpCommission">FBP佣金率</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.monthlySales}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, monthlySales: e.target.checked })}
+                id="field-monthlySales"
+              />
+              <label htmlFor="field-monthlySales">月销量</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.weight}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, weight: e.target.checked })}
+                id="field-weight"
+              />
+              <label htmlFor="field-weight">重量</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.competitors}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, competitors: e.target.checked })}
+                id="field-competitors"
+              />
+              <label htmlFor="field-competitors">竞争对手信息</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.rating}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, rating: e.target.checked })}
+                id="field-rating"
+              />
+              <label htmlFor="field-rating">评分和评价</label>
+            </Space>
+          </div>
+        </div>
+
+        <Divider />
+
+        <Space>
+          <Button onClick={resetFieldConfig} size="small">
+            恢复默认
+          </Button>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            注意：商品名称和当前价格始终显示
+          </Text>
+        </Space>
+      </Modal>
 
       {/* 导入预览和确认弹窗 */}
       <Modal
