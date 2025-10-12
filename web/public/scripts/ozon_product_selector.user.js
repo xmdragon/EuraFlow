@@ -784,18 +784,27 @@
                             continue;
                         }
 
-                        // 快速检查：不等待，只看最后一个商品是否有数据
+                        // 快速检查：检查最后一个商品是否有完整数据（包括跟卖数据）
                         const lastElement = row[row.length - 1];
                         const bangElement = lastElement.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
 
-                        if (bangElement && bangElement.textContent.trim().length > 50) {
-                            console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪，立即采集`);
-                            // 这行准备好了，立即采集
-                            const rowStartCount = newProducts.length;
-                            await collectRow(row);
-                            const rowNewCount = newProducts.length - rowStartCount;
-                            console.log(`[Ozon Selector] 📦 行${rowIndex} 采集完成 - 新增 ${rowNewCount} 个商品`);
-                            processedRows.add(rowIndex);
+                        if (bangElement) {
+                            const bangText = bangElement.textContent || '';
+                            // 判断条件：
+                            // 1. 内容充足（> 50字符）
+                            // 2. 包含跟卖数据（跟卖数据比其他数据晚到达，是最后的标志）
+                            const hasContent = bangText.trim().length > 50;
+                            const hasCompetitorData = bangText.includes('跟卖') || bangText.includes('个卖家');
+
+                            if (hasContent && hasCompetitorData) {
+                                console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪（含跟卖数据），立即采集`);
+                                // 这行准备好了，立即采集
+                                const rowStartCount = newProducts.length;
+                                await collectRow(row);
+                                const rowNewCount = newProducts.length - rowStartCount;
+                                console.log(`[Ozon Selector] 📦 行${rowIndex} 采集完成 - 新增 ${rowNewCount} 个商品`);
+                                processedRows.add(rowIndex);
+                            }
                         }
                     }
 
