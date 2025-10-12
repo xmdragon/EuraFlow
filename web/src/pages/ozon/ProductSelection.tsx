@@ -640,36 +640,27 @@ const ProductSelection: React.FC = () => {
 
           {/* 竞争对手数据 */}
           {fieldConfig.competitors && (
-            <Row gutter={4} className={styles.statsRow}>
-              <Col span={12}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">跟卖: </Text>
-                  {product.competitor_count !== null && product.competitor_count !== undefined ? (
-                    <Text
-                      strong
-                      className={`${styles.competitorCount} ${product.competitor_count === 0 ? styles.disabled : ''}`}
-                      onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
-                    >
-                      {product.competitor_count}
-                    </Text>
-                  ) : (
-                    <Text className={styles.placeholderText}>-</Text>
-                  )}
-                </div>
-              </Col>
-              <Col span={12}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">最低: </Text>
-                  {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
-                    <Text strong className={styles.competitorPrice}>
-                      {userSymbol}{formatPrice(product.competitor_min_price)}
-                    </Text>
-                  ) : (
-                    <Text className={styles.placeholderText}>-</Text>
-                  )}
-                </div>
-              </Col>
-            </Row>
+            <div className={styles.statsItem}>
+              <Text type="secondary">跟卖: </Text>
+              {product.competitor_count !== null && product.competitor_count !== undefined ? (
+                product.competitor_count > 0 ? (
+                  <Text
+                    strong
+                    className={styles.competitorCount}
+                    onClick={() => showCompetitorsList(product)}
+                  >
+                    {product.competitor_count}
+                    {product.competitor_min_price !== null && product.competitor_min_price !== undefined && (
+                      <>（{userSymbol}{formatPrice(product.competitor_min_price)}）</>
+                    )}
+                  </Text>
+                ) : (
+                  <Text className={styles.placeholderText}>无跟卖</Text>
+                )
+              ) : (
+                <Text className={styles.placeholderText}>无数据</Text>
+              )}
+            </div>
           )}
 
           {/* 评分 - 更紧凑 */}
