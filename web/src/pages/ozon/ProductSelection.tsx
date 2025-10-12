@@ -97,7 +97,7 @@ const ProductSelection: React.FC = () => {
   // 状态管理
   const [activeTab, setActiveTab] = useState('search');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(1000); // 改为一次获取更多数据用于无限滚动
+  const [pageSize, setPageSize] = useState(100); // 后端限制最大100，用于无限滚动
   const [historyPage, setHistoryPage] = useState(1);  // 导入历史分页
   const [searchParams, setSearchParams] = useState<api.ProductSearchParams>({});
   const [fileList, setFileList] = useState<UploadFile[]>([]);
