@@ -744,7 +744,8 @@
         }
 
         // 批量收集可见商品（按行优化：只检查每行最后1个商品）
-        async collectVisibleProducts() {
+        // skipWait: true = 跳过等待（用于首次扫描已有数据），false = 等待注入（用于滚动后新商品）
+        async collectVisibleProducts(skipWait = false, onProgress = null) {
             // 只处理有上品帮标记的商品
             const withBangMark = document.querySelectorAll('.tile-root[data-ozon-bang="true"]');
             const elements = Array.from(withBangMark);
@@ -760,18 +761,20 @@
             }
 
             // 逐行处理
-            for (const row of rows) {
+            for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+                const row = rows[rowIndex];
                 if (row.length === 0) continue;
 
                 try {
-                    // 只等待最后一个商品的数据
-                    const lastElement = row[row.length - 1];
-                    const hasBangData = await this.waitForBangInjection(lastElement);
+                    // 如果不跳过等待，检查最后一个商品的数据
+                    if (!skipWait) {
+                        const lastElement = row[row.length - 1];
+                        const hasBangData = await this.waitForBangInjection(lastElement);
 
-                    // 如果最后一个没数据，跳过整行
-                    if (!hasBangData) continue;
+                        // 如果最后一个没数据，跳过整行
+                        if (!hasBangData) continue;
+                    }
 
-                    // 最后一个有数据 → 前面的肯定都有数据（同一行同时注入）
                     // 直接采集所有商品（不等待）
                     for (const element of row) {
                         try {
@@ -782,6 +785,11 @@
                                 const product = await this.collectSingleProduct(element, true);
                                 if (product) {
                                     newProducts.push(product);
+
+                                    // 实时进度回调
+                                    if (onProgress) {
+                                        onProgress(this.validatedProducts.size);
+                                    }
                                 }
                             }
                         } catch (error) {
@@ -1113,9 +1121,15 @@
         }
 
         async runCollection(targetCount) {
-            // 首次收集
-            await this.collector.collectVisibleProducts();
+            // 首次收集（跳过等待，直接采集已有数据）
+            this.updateStatus(`🔍 正在扫描当前页面商品...`);
+            await this.collector.collectVisibleProducts(true, (count) => {
+                // 实时更新进度
+                this.updateStats();
+                this.updateStatus(`📦 已采集 ${count} 个商品...`);
+            });
             this.updateStats();
+            this.updateStatus(`✅ 首次扫描完成，已采集 ${this.collector.validatedProducts.size} 个商品`);
 
             let lastCollectedCount = this.collector.validatedProducts.size;
             let sameCountTimes = 0;
@@ -1145,7 +1159,7 @@
                 } else {
                     scrollDistance = viewportHeight * CONFIG.scrollStepSize;
                 }
-                this.updateStatus(`⏳ 等待加载...`);
+                this.updateStatus(`⏬ 滚动加载更多商品...`);
 
                 // 执行滚动
                 window.scrollTo({
@@ -1160,9 +1174,14 @@
                     await this.collector.sleep(1000);
                 }
 
-                // 收集新商品
+                // 收集新商品（等待上品帮注入）
                 const beforeCount = this.collector.validatedProducts.size;
-                await this.collector.collectVisibleProducts();
+                this.updateStatus(`⏳ 等待数据加载...`);
+                await this.collector.collectVisibleProducts(false, (count) => {
+                    // 实时更新进度
+                    this.updateStats();
+                    this.updateStatus(`📦 正在采集... ${count}/${targetCount}`);
+                });
                 const afterCount = this.collector.validatedProducts.size;
                 const actualNewCount = afterCount - beforeCount;
 
