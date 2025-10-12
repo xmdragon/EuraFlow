@@ -869,14 +869,14 @@
                 </div>
 
                 <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
-                    <div style="margin-bottom: 12px;">
-                        <label style="display: block; margin-bottom: 5px; font-size: 12px; opacity: 0.9;">
-                            目标商品数量:
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <label style="font-size: 12px; opacity: 0.9; white-space: nowrap;">
+                            采集数量:
                         </label>
                         <input type="number" id="target-count" value="${CONFIG.targetProductCount}"
                                min="10" max="500"
-                               style="width: 100%; padding: 8px; border: none; border-radius: 4px;
-                                      background: rgba(255,255,255,0.9); color: #333; font-size: 14px;">
+                               style="width: 80px; padding: 6px 8px; border: none; border-radius: 4px;
+                                      background: rgba(255,255,255,0.9); color: #333; font-size: 14px; text-align: center;">
                     </div>
                     <div style="display: flex; gap: 10px;">
                         <button id="start-btn" style="flex: 1; padding: 10px; border: none;
