@@ -45,6 +45,8 @@ export interface ProductSearchParams {
   competitor_count_max?: number;
   competitor_min_price_min?: number;
   competitor_min_price_max?: number;
+  created_at_start?: string;  // 上架时间开始
+  created_at_end?: string;    // 上架时间结束
   sort_by?: 'sales_desc' | 'sales_asc' | 'weight_asc' | 'price_asc' | 'price_desc' | 'created_desc' | 'created_asc';
   page?: number;
   page_size?: number;

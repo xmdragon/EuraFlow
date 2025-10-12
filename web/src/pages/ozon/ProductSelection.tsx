@@ -30,6 +30,8 @@ import {
   Steps,
   Timeline,
   Collapse,
+  DatePicker,
+  Tooltip,
 } from 'antd';
 import {
   UploadOutlined,
@@ -75,6 +77,7 @@ interface FieldConfig {
   weight: boolean;
   competitors: boolean;
   rating: boolean;
+  listingDate: boolean;  // 上架时间
 }
 
 // 默认字段配置（全部显示）
@@ -87,6 +90,7 @@ const defaultFieldConfig: FieldConfig = {
   weight: true,
   competitors: true,
   rating: true,
+  listingDate: true,
 };
 
 const ProductSelection: React.FC = () => {
@@ -266,6 +270,10 @@ const ProductSelection: React.FC = () => {
     if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max;
     if (values.competitor_min_price_min) params.competitor_min_price_min = values.competitor_min_price_min;
     if (values.competitor_min_price_max) params.competitor_min_price_max = values.competitor_min_price_max;
+    if (values.listing_date && values.listing_date.length === 2) {
+      params.created_at_start = values.listing_date[0].format('YYYY-MM-DD');
+      params.created_at_end = values.listing_date[1].format('YYYY-MM-DD');
+    }
     if (values.sort_by) params.sort_by = values.sort_by;
 
     setSearchParams(params);
@@ -407,10 +415,10 @@ const ProductSelection: React.FC = () => {
     return (priceInKopecks / 100).toFixed(2);
   };
 
-  // 格式化百分比显示
+  // 格式化百分比显示（不显示%符号）
   const formatPercentage = (value: number | null | undefined): string => {
     if (value === null || value === undefined || value === 0) return '-';
-    return `${value}%`;
+    return `${value}`;
   };
 
   // 格式化数量显示
@@ -423,6 +431,16 @@ const ProductSelection: React.FC = () => {
   const formatWeight = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '-';
     return `${value}g`;
+  };
+
+  // 格式化日期显示
+  const formatDate = (dateStr: string): string => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '-');
   };
 
   // 下载用户脚本
@@ -543,34 +561,38 @@ const ProductSelection: React.FC = () => {
             </div>
           )}
 
-          {/* 佣金率 - 紧凑布局 */}
-          {(fieldConfig.rfbsCommission || fieldConfig.fbpCommission) && (
-            <div className={styles.commissionBox}>
-              {fieldConfig.rfbsCommission && (
-                <Row gutter={4} className={styles.commissionRow}>
-                  <Col span={12}>
-                    <Text className={styles.commissionLabel}>rFBS≤1500:</Text>
-                    <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_low)}</Text>
-                  </Col>
-                  <Col span={12}>
-                    <Text className={styles.commissionLabel}>rFBS(1.5-5k):</Text>
-                    <Text strong className={styles.commissionValue}>{formatPercentage(product.rfbs_commission_mid)}</Text>
-                  </Col>
-                </Row>
-              )}
-              {fieldConfig.fbpCommission && (
-                <Row gutter={4}>
-                  <Col span={12}>
-                    <Text className={styles.commissionLabel}>FBP≤1500:</Text>
-                    <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_low)}</Text>
-                  </Col>
-                  <Col span={12}>
-                    <Text className={styles.commissionLabel}>FBP(1.5-5k):</Text>
-                    <Text strong className={styles.commissionValue}>{formatPercentage(product.fbp_commission_mid)}</Text>
-                  </Col>
-                </Row>
-              )}
-            </div>
+          {/* 佣金率 - 统一布局 */}
+          {fieldConfig.rfbsCommission && (
+            <Row gutter={4} className={styles.statsRow}>
+              <Col span={12}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">rFBS低: </Text>
+                  <Text strong>{formatPercentage(product.rfbs_commission_low)}</Text>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">rFBS中: </Text>
+                  <Text strong>{formatPercentage(product.rfbs_commission_mid)}</Text>
+                </div>
+              </Col>
+            </Row>
+          )}
+          {fieldConfig.fbpCommission && (
+            <Row gutter={4} className={styles.statsRow}>
+              <Col span={12}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">FBP低: </Text>
+                  <Text strong>{formatPercentage(product.fbp_commission_low)}</Text>
+                </div>
+              </Col>
+              <Col span={12}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">FBP中: </Text>
+                  <Text strong>{formatPercentage(product.fbp_commission_mid)}</Text>
+                </div>
+              </Col>
+            </Row>
           )}
 
           {/* 销量和重量 */}
@@ -597,38 +619,36 @@ const ProductSelection: React.FC = () => {
 
           {/* 竞争对手数据 */}
           {fieldConfig.competitors && (
-            <div className={styles.competitorSection}>
-              <Row gutter={4}>
-                <Col span={12}>
-                  <div className={styles.competitorItem}>
-                    <Text type="secondary">跟卖者: </Text>
-                    {product.competitor_count !== null && product.competitor_count !== undefined ? (
-                      <Text
-                        strong
-                        className={`${styles.competitorCount} ${product.competitor_count === 0 ? styles.disabled : ''}`}
-                        onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
-                      >
-                        {product.competitor_count}家
-                      </Text>
-                    ) : (
-                      <Text className={styles.placeholderText}>-</Text>
-                    )}
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div className={styles.competitorItem}>
-                    <Text type="secondary">跟卖最低价: </Text>
-                    {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
-                      <Text strong className={styles.competitorPrice}>
-                        {userSymbol}{formatPrice(product.competitor_min_price)}
-                      </Text>
-                    ) : (
-                      <Text className={styles.placeholderText}>-</Text>
-                    )}
-                  </div>
-                </Col>
-              </Row>
-            </div>
+            <Row gutter={4} className={styles.statsRow}>
+              <Col span={12}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">跟卖: </Text>
+                  {product.competitor_count !== null && product.competitor_count !== undefined ? (
+                    <Text
+                      strong
+                      className={`${styles.competitorCount} ${product.competitor_count === 0 ? styles.disabled : ''}`}
+                      onClick={() => product.competitor_count && product.competitor_count > 0 && showCompetitorsList(product)}
+                    >
+                      {product.competitor_count}
+                    </Text>
+                  ) : (
+                    <Text className={styles.placeholderText}>-</Text>
+                  )}
+                </div>
+              </Col>
+              <Col span={12}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">最低: </Text>
+                  {product.competitor_min_price !== null && product.competitor_min_price !== undefined ? (
+                    <Text strong className={styles.competitorPrice}>
+                      {userSymbol}{formatPrice(product.competitor_min_price)}
+                    </Text>
+                  ) : (
+                    <Text className={styles.placeholderText}>-</Text>
+                  )}
+                </div>
+              </Col>
+            </Row>
           )}
 
           {/* 评分 - 更紧凑 */}
@@ -637,6 +657,15 @@ const ProductSelection: React.FC = () => {
               <StarOutlined />
               <Text strong className={styles.ratingValue}>{product.rating}</Text>
               <Text type="secondary" className={styles.reviewCount}>({product.review_count})</Text>
+            </div>
+          )}
+
+          {/* 上架时间 */}
+          {fieldConfig.listingDate && (
+            <div className={styles.listingDate}>
+              <Text type="secondary" style={{ fontSize: '11px' }}>
+                上架: {formatDate(product.created_at)}
+              </Text>
             </div>
           )}
         </div>
@@ -664,23 +693,24 @@ const ProductSelection: React.FC = () => {
               initialValues={{ sort_by: 'created_desc' }}
             >
               <Row gutter={[16, 16]}>
-                {/* 第一行：商品名称、品牌、排序 */}
-                <Col xs={24} sm={24} md={8} lg={6} xl={6}>
+                {/* 第一行：商品名称、品牌、上架时间、排序 */}
+                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
                   <Form.Item label="商品名称" name="product_name">
                     <Input
-                      placeholder="输入商品名称搜索"
+                      placeholder="商品名称"
                       allowClear
-                      prefix={<SearchOutlined />}
+                      style={{ width: '10em' }}
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+                <Col xs={24} sm={12} md={8} lg={4} xl={3}>
                   <Form.Item label="品牌" name="brand">
                     <Select
-                      placeholder="选择品牌"
+                      placeholder="品牌"
                       allowClear
                       showSearch
+                      style={{ width: '10em' }}
                       filterOption={(input, option) =>
                         (option?.children as string).toLowerCase().includes(input.toLowerCase())
                       }
@@ -694,9 +724,18 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+                <Col xs={24} sm={12} md={8} lg={6} xl={5}>
+                  <Form.Item label="上架时间" name="listing_date">
+                    <DatePicker.RangePicker
+                      style={{ width: '100%' }}
+                      format="YYYY-MM-DD"
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} sm={12} md={8} lg={4} xl={3}>
                   <Form.Item label="排序" name="sort_by">
-                    <Select placeholder="最新导入">
+                    <Select placeholder="最新导入" style={{ width: '10em' }}>
                       <Option value="created_desc">最新导入</Option>
                       <Option value="created_asc">最早导入</Option>
                       <Option value="sales_desc">销量↓</Option>
@@ -708,53 +747,53 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={24} lg={6} xl={4}>
+                {/* 第二行：佣金率字段 */}
+                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
                   <Form.Item label="rFBS≤1500" name="rfbs_low_max">
                     <InputNumber
                       min={0}
                       max={100}
                       precision={1}
-                      className={styles.fullWidthInput}
+                      style={{ width: '4em' }}
                       placeholder="%"
                       suffix="%"
                     />
                   </Form.Item>
                 </Col>
 
-                {/* 第二行：佣金率字段 */}
-                <Col xs={24} sm={12} md={6} lg={6} xl={3}>
+                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
                   <Form.Item label="rFBS 1501-5000" name="rfbs_mid_max">
                     <InputNumber
                       min={0}
                       max={100}
                       precision={1}
-                      className={styles.fullWidthInput}
+                      style={{ width: '4em' }}
                       placeholder="%"
                       suffix="%"
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={6} lg={6} xl={3}>
+                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
                   <Form.Item label="FBP≤1500" name="fbp_low_max">
                     <InputNumber
                       min={0}
                       max={100}
                       precision={1}
-                      className={styles.fullWidthInput}
+                      style={{ width: '4em' }}
                       placeholder="%"
                       suffix="%"
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={6} lg={6} xl={3}>
+                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
                   <Form.Item label="FBP 1501-5000" name="fbp_mid_max">
                     <InputNumber
                       min={0}
                       max={100}
                       precision={1}
-                      className={styles.fullWidthInput}
+                      style={{ width: '4em' }}
                       placeholder="%"
                       suffix="%"
                     />
@@ -762,20 +801,20 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 {/* 第三行：月销量、重量 */}
-                <Col xs={24} sm={12} md={12} lg={8} xl={6}>
+                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
                   <Form.Item label="月销量">
-                    <Space.Compact className={styles.fullWidthInput}>
+                    <Space.Compact>
                       <Form.Item name="monthly_sales_min" noStyle>
                         <InputNumber
                           min={0}
-                          className={styles.halfWidthInput}
+                          style={{ width: '4em' }}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="monthly_sales_max" noStyle>
                         <InputNumber
                           min={0}
-                          className={styles.halfWidthInput}
+                          style={{ width: '4em' }}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -783,11 +822,11 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
+                <Col xs={24} sm={12} md={6} lg={4} xl={2}>
                   <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
-                      className={styles.fullWidthInput}
+                      style={{ width: '4em' }}
                       placeholder="g"
                       suffix="g"
                     />
@@ -795,20 +834,20 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 {/* 第四行：跟卖者相关 */}
-                <Col xs={24} sm={12} md={12} lg={8} xl={6}>
+                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
                   <Form.Item label="跟卖者数量">
-                    <Space.Compact className={styles.fullWidthInput}>
+                    <Space.Compact>
                       <Form.Item name="competitor_count_min" noStyle>
                         <InputNumber
                           min={0}
-                          className={styles.halfWidthInput}
+                          style={{ width: '4em' }}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="competitor_count_max" noStyle>
                         <InputNumber
                           min={0}
-                          className={styles.halfWidthInput}
+                          style={{ width: '4em' }}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -816,20 +855,20 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={12} lg={8} xl={6}>
+                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
                   <Form.Item label="最低跟卖价">
-                    <Space.Compact className={styles.fullWidthInput}>
+                    <Space.Compact>
                       <Form.Item name="competitor_min_price_min" noStyle>
                         <InputNumber
                           min={0}
-                          className={styles.halfWidthInput}
+                          style={{ width: '4em' }}
                           placeholder={`最小${userSymbol}`}
                         />
                       </Form.Item>
                       <Form.Item name="competitor_min_price_max" noStyle>
                         <InputNumber
                           min={0}
-                          className={styles.halfWidthInput}
+                          style={{ width: '4em' }}
                           placeholder={`最大${userSymbol}`}
                         />
                       </Form.Item>
@@ -866,12 +905,12 @@ const ProductSelection: React.FC = () => {
                 </Space>
               </Col>
               <Col>
-                <Button
-                  icon={<SettingOutlined />}
-                  onClick={() => setFieldConfigVisible(true)}
-                >
-                  配置字段
-                </Button>
+                <Tooltip title="配置字段">
+                  <Button
+                    icon={<SettingOutlined />}
+                    onClick={() => setFieldConfigVisible(true)}
+                  />
+                </Tooltip>
               </Col>
             </Row>
           )}
@@ -1542,6 +1581,18 @@ const ProductSelection: React.FC = () => {
                 id="field-rating"
               />
               <label htmlFor="field-rating">评分和评价</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.listingDate}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, listingDate: e.target.checked })}
+                id="field-listingDate"
+              />
+              <label htmlFor="field-listingDate">上架时间</label>
             </Space>
           </div>
         </div>

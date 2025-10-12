@@ -119,34 +119,18 @@
   line-height: 1.2;
 }
 
-// ===== 佣金信息 =====
-.commissionBox {
-  background: #f5f5f5;
-  padding: 3px 4px;
-  border-radius: 2px;
-  margin-top: 2px;
-}
-
-.commissionRow {
-  margin-bottom: 2px;
-}
-
-.commissionLabel {
-  font-size: 10px;
-  color: #666;
-}
-
-.commissionValue {
-  font-size: 11px;
-  margin-left: 2px;
-}
-
-// ===== 销量和重量 =====
+// ===== 统计信息（销量、重量、佣金等） =====
 .statsRow {
   margin-top: 4px;
 }
 
 .statsItem {
+  font-size: 11px;
+}
+
+// ===== 上架时间 =====
+.listingDate {
+  margin-top: 4px;
   font-size: 11px;
 }
 
