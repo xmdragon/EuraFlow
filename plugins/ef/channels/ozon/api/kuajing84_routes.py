@@ -71,13 +71,13 @@ async def get_kuajing84_service(db: AsyncSession = Depends(get_async_session)) -
     settings = get_settings()
 
     # 从环境变量获取加密密钥
-    encryption_key = getattr(settings, "ENCRYPTION_KEY", None)
+    encryption_key = getattr(settings, "encryption_key", None)
 
     if not encryption_key:
-        # 如果没有配置加密密钥，使用 SECRET_KEY 派生一个
+        # 如果没有配置加密密钥，使用 secret_key 派生一个
         import hashlib
         import base64
-        secret_key = getattr(settings, "SECRET_KEY", "default-secret-key")
+        secret_key = settings.secret_key  # 直接访问属性
         derived_key = hashlib.sha256(secret_key.encode()).digest()
         encryption_key = base64.urlsafe_b64encode(derived_key)
 
