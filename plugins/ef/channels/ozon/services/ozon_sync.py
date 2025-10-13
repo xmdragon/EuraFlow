@@ -1189,8 +1189,8 @@ class OzonSyncService:
 
         # 基础字段（映射到 OzonOrder 模型）
         order_data = {
-            # 订单号映射
-            "order_id": item.get("posting_number", ""),  # 本地订单号（使用 posting_number）
+            # 订单号映射（修复：使用OZON order_id而非posting_number）
+            "order_id": str(item.get("order_id", "")),  # 本地订单号（使用OZON order_id）
             "ozon_order_id": str(item.get("order_id", "")),  # Ozon订单号
             "ozon_order_number": item.get("order_number", ""),  # Ozon订单编号
 
