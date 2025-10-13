@@ -45,6 +45,8 @@ class ProductSearchRequest(BaseModel):
     competitor_count_max: Optional[int] = Field(None, description="最大跟卖者数量")
     competitor_min_price_min: Optional[float] = Field(None, description="最低跟卖价下限")
     competitor_min_price_max: Optional[float] = Field(None, description="最低跟卖价上限")
+    batch_id: Optional[int] = Field(None, description="批次ID")
+    is_read: Optional[bool] = Field(None, description="是否已读（None=全部,True=已读,False=未读）")
     sort_by: Optional[str] = Field('created_desc', description="排序方式")
     page: Optional[int] = Field(1, ge=1, description="页码")
     page_size: Optional[int] = Field(20, ge=1, le=100, description="每页数量")
@@ -127,6 +129,18 @@ class ProductsUploadResponse(BaseModel):
     success_count: int
     failed_count: int
     errors: Optional[List[Dict[str, Any]]] = None
+
+
+class MarkAsReadRequest(BaseModel):
+    """标记为已读请求"""
+    product_ids: List[int] = Field(..., description="商品ID列表")
+
+
+class MarkAsReadResponse(BaseModel):
+    """标记为已读响应"""
+    success: bool
+    marked_count: int = Field(..., description="成功标记的商品数量")
+    message: Optional[str] = None
 
 
 # API 端点
@@ -387,6 +401,51 @@ async def get_import_history(
         'success': True,
         'data': result
     }
+
+
+@router.post("/products/mark-as-read", response_model=MarkAsReadResponse)
+async def mark_products_as_read(
+    request: MarkAsReadRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    批量标记商品为已读
+
+    Args:
+        request: 包含商品ID列表的请求
+    """
+    try:
+        from sqlalchemy import update
+
+        # 更新商品为已读状态
+        result = await db.execute(
+            update(ProductSelectionItem)
+            .where(
+                ProductSelectionItem.id.in_(request.product_ids),
+                ProductSelectionItem.user_id == current_user.id
+            )
+            .values(
+                is_read=True,
+                read_at=utcnow()
+            )
+        )
+
+        await db.commit()
+        marked_count = result.rowcount
+
+        logger.info(f"用户 {current_user.id} 标记了 {marked_count} 个商品为已读")
+
+        return MarkAsReadResponse(
+            success=True,
+            marked_count=marked_count,
+            message=f"成功标记 {marked_count} 个商品为已读"
+        )
+
+    except Exception as e:
+        logger.error(f"标记商品为已读失败: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"标记失败: {str(e)}")
 
 
 @router.post("/clear-all-data")

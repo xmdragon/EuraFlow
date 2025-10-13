@@ -497,6 +497,11 @@ class ProductSelectionService:
                     'column_mapping': self.COLUMN_MAPPING
                 }
 
+            # 先保存导入历史记录以获取batch_id
+            db.add(import_history)
+            await db.flush()  # 获取import_history.id但不提交事务
+            batch_id = import_history.id
+
             # 批量处理数据
             batch_size = 100
             success_count = 0
@@ -513,8 +518,9 @@ class ProductSelectionService:
                     try:
                         cleaned_data = self._clean_row(row)
                         if cleaned_data and cleaned_data.get('product_id'):
-                            # 添加user_id到每个清洗后的数据项
+                            # 添加user_id和batch_id到每个清洗后的数据项
                             cleaned_data['user_id'] = user_id
+                            cleaned_data['batch_id'] = batch_id
                             batch_items.append(cleaned_data)
                         else:
                             failed_count += 1
@@ -552,7 +558,7 @@ class ProductSelectionService:
             import_history.error_details = error_details[:100]  # 只保留前100个错误
             import_history.process_duration = int(time.time() - start_time)
 
-            db.add(import_history)
+            # import_history已在前面添加，这里只需提交
             await db.commit()
 
             return {
@@ -808,6 +814,18 @@ class ProductSelectionService:
         if filters.get('competitor_min_price_max'):
             conditions.append(
                 ProductSelectionItem.competitor_min_price <= Decimal(str(filters['competitor_min_price_max']))
+            )
+
+        # 批次过滤
+        if filters.get('batch_id') is not None:
+            conditions.append(
+                ProductSelectionItem.batch_id == filters['batch_id']
+            )
+
+        # 已读状态过滤
+        if filters.get('is_read') is not None:
+            conditions.append(
+                ProductSelectionItem.is_read == filters['is_read']
             )
 
         if conditions:

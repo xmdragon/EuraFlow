@@ -1,7 +1,7 @@
 """
 选品助手数据模型
 """
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, JSON, Text, Index, UniqueConstraint, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, JSON, Text, Index, UniqueConstraint, ForeignKey, Boolean
 from sqlalchemy.sql import func
 from datetime import datetime
 from decimal import Decimal as D
@@ -80,6 +80,11 @@ class ProductSelectionItem(Base):
     images_data = Column(JSON, comment="商品图片信息列表")
     images_updated_at = Column(DateTime(timezone=True), comment="图片信息更新时间")
 
+    # 批次管理字段
+    batch_id = Column(Integer, ForeignKey("ozon_product_selection_import_history.id"), nullable=True, index=True, comment="导入批次ID")
+    is_read = Column(Boolean, default=False, nullable=False, comment="是否已读")
+    read_at = Column(DateTime(timezone=True), nullable=True, comment="标记已读时间")
+
     # 系统字段
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
@@ -90,6 +95,7 @@ class ProductSelectionItem(Base):
         Index('idx_sales_weight', 'monthly_sales_volume', 'package_weight'),
         Index('idx_commission', 'rfbs_commission_low', 'rfbs_commission_mid',
               'fbp_commission_low', 'fbp_commission_mid'),
+        Index('idx_batch_read', 'batch_id', 'is_read'),
     )
 
     def to_dict(self):
@@ -121,6 +127,11 @@ class ProductSelectionItem(Base):
             # 图片数据
             'images_data': self.images_data,
             'images_updated_at': self.images_updated_at.isoformat() if self.images_updated_at else None,
+            # 批次管理
+            'batch_id': self.batch_id,
+            'is_read': self.is_read,
+            'read_at': self.read_at.isoformat() if self.read_at else None,
+            # 系统字段
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

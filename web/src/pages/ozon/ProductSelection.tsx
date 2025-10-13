@@ -32,6 +32,7 @@ import {
   Collapse,
   DatePicker,
   Tooltip,
+  Checkbox,
 } from 'antd';
 import {
   UploadOutlined,
@@ -115,6 +116,10 @@ const ProductSelection: React.FC = () => {
   const [selectedProductImages, setSelectedProductImages] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  // 批次管理和选择状态
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+  const [markingAsRead, setMarkingAsRead] = useState(false);
+
   // 无限滚动相关状态
   const [allProducts, setAllProducts] = useState<api.ProductSelectionItem[]>([]); // 累积所有已加载的商品
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量（动态计算）
@@ -128,6 +133,21 @@ const ProductSelection: React.FC = () => {
     return saved ? JSON.parse(saved) : defaultFieldConfig;
   });
   const [fieldConfigVisible, setFieldConfigVisible] = useState(false);
+
+  // 处理URL参数（批次ID和已读状态）
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const batchId = params.get('batch_id');
+    const isReadParam = params.get('is_read');
+
+    if (batchId) {
+      // 从批次链接进来，显示该批次所有商品
+      setSearchParams(prev => ({ ...prev, batch_id: parseInt(batchId) }));
+    } else if (isReadParam === null || isReadParam === 'false') {
+      // 默认或明确指定只显示未读商品
+      setSearchParams(prev => ({ ...prev, is_read: false }));
+    }
+  }, []);
 
   // 查询品牌列表
   const { data: brandsData } = useQuery({
@@ -301,11 +321,49 @@ const ProductSelection: React.FC = () => {
   // 处理重置
   const handleReset = () => {
     form.resetFields();
-    setSearchParams({});
+    setSearchParams({ is_read: false }); // 重置时默认显示未读商品
     setCurrentPage(1);
     setAllProducts([]); // 清空已加载的商品
     setHasMoreData(true); // 重置标志
     setPageSize(initialPageSize); // 重置为初始pageSize
+    setSelectedProductIds(new Set()); // 清空选择
+  };
+
+  // 切换商品选择状态
+  const toggleProductSelection = (productId: number) => {
+    setSelectedProductIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  // 批量标记已读
+  const handleMarkAsRead = async () => {
+    if (selectedProductIds.size === 0) {
+      message.warning('请先选择商品');
+      return;
+    }
+
+    setMarkingAsRead(true);
+    try {
+      const result = await api.markProductsAsRead(Array.from(selectedProductIds));
+      if (result.success) {
+        message.success(`成功标记 ${result.marked_count} 个商品为已读`);
+        setSelectedProductIds(new Set()); // 清空选择
+        refetchProducts(); // 刷新商品列表
+      } else {
+        message.error('标记失败');
+      }
+    } catch (error: any) {
+      message.error('标记失败: ' + error.message);
+    } finally {
+      setMarkingAsRead(false);
+    }
   };
 
   // 处理文件上传 - 直接导入，不预览
@@ -510,6 +568,16 @@ const ProductSelection: React.FC = () => {
               className={styles.productCover}
               onClick={() => window.open(product.ozon_link, '_blank')}
             >
+              {/* 复选框 - 左上角 */}
+              <Checkbox
+                className={styles.productCheckbox}
+                checked={selectedProductIds.has(product.id)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  toggleProductSelection(product.id);
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
               <img
                 alt={product.product_name_cn}
                 src={product.image_url}
@@ -530,6 +598,16 @@ const ProductSelection: React.FC = () => {
               className={styles.productImagePlaceholder}
               onClick={() => window.open(product.ozon_link, '_blank')}
             >
+              {/* 复选框 - 左上角 */}
+              <Checkbox
+                className={styles.productCheckbox}
+                checked={selectedProductIds.has(product.id)}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  toggleProductSelection(product.id);
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
               <ShoppingOutlined />
             </div>
           )
@@ -920,6 +998,16 @@ const ProductSelection: React.FC = () => {
                     value={allProducts.length}
                     suffix={`/ ${productsData.data.total} 件商品`}
                   />
+                  {selectedProductIds.size > 0 && (
+                    <Button
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      onClick={handleMarkAsRead}
+                      loading={markingAsRead}
+                    >
+                      已阅 ({selectedProductIds.size})
+                    </Button>
+                  )}
                 </Space>
               </Col>
               <Col>
@@ -1042,6 +1130,31 @@ const ProductSelection: React.FC = () => {
                 title: '文件名',
                 dataIndex: 'file_name',
                 key: 'file_name',
+              },
+              {
+                title: '批次链接',
+                dataIndex: 'id',
+                key: 'batch_link',
+                render: (id: number, record: api.ImportHistory) => (
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<LinkOutlined />}
+                    onClick={() => {
+                      // 切换到商品搜索标签并设置批次过滤
+                      setActiveTab('search');
+                      setSearchParams({ batch_id: id });
+                      setCurrentPage(1);
+                      setAllProducts([]);
+                      setHasMoreData(true);
+                      setPageSize(initialPageSize);
+                      // 更新URL
+                      window.history.pushState({}, '', `?batch_id=${id}`);
+                    }}
+                  >
+                    查看批次 #{id}
+                  </Button>
+                ),
               },
               {
                 title: '导入时间',

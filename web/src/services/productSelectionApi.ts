@@ -27,6 +27,10 @@ export interface ProductSelectionItem {
   competitor_min_price?: number;
   market_min_price?: number;
   price_index?: number;
+  // 批次管理
+  batch_id?: number;
+  is_read?: boolean;
+  read_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +51,8 @@ export interface ProductSearchParams {
   competitor_min_price_max?: number;
   created_at_start?: string;  // 上架时间开始
   created_at_end?: string;    // 上架时间结束
+  batch_id?: number;  // 批次ID过滤
+  is_read?: boolean;  // 已读状态过滤
   sort_by?: 'sales_desc' | 'sales_asc' | 'weight_asc' | 'price_asc' | 'price_desc' | 'created_desc' | 'created_asc';
   page?: number;
   page_size?: number;
@@ -227,5 +233,17 @@ export const clearAllData = async (): Promise<{
   error?: string;
 }> => {
   const response = await axios.post('/api/ef/v1/ozon/product-selection/clear-all-data');
+  return response.data;
+};
+
+// 批量标记商品为已读
+export const markProductsAsRead = async (productIds: number[]): Promise<{
+  success: boolean;
+  marked_count: number;
+  message?: string;
+}> => {
+  const response = await axios.post('/api/ef/v1/ozon/product-selection/products/mark-as-read', {
+    product_ids: productIds,
+  });
   return response.data;
 };
