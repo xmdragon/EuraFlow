@@ -1854,25 +1854,66 @@ async def update_order_extra_info(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # 更新字段
-    if "purchase_price" in extra_info:
-        order.purchase_price = Decimal(str(extra_info["purchase_price"])) if extra_info["purchase_price"] else None
-        order.purchase_price_updated_at = utcnow()  # 记录进货价格更新时间
-    if "domestic_tracking_number" in extra_info:
-        order.domestic_tracking_number = extra_info["domestic_tracking_number"]
-        order.domestic_tracking_updated_at = utcnow()  # 记录国内物流单号更新时间
-    if "material_cost" in extra_info:
-        order.material_cost = Decimal(str(extra_info["material_cost"])) if extra_info["material_cost"] else None
-    if "order_notes" in extra_info:
-        order.order_notes = extra_info["order_notes"]
-    if "source_platform" in extra_info:
-        order.source_platform = extra_info["source_platform"]
+    # 更新字段（智能检测值变化，只在真正变化时更新时间戳）
+    try:
+        # purchase_price - 带时间戳，需要比较旧值
+        if "purchase_price" in extra_info:
+            new_value = extra_info["purchase_price"]
+            old_value = order.purchase_price
 
-    # 更新时间戳
-    order.updated_at = utcnow()
+            # 标准化新值：空字符串或None → None，有效字符串 → Decimal
+            if new_value and str(new_value).strip():
+                new_value_normalized = Decimal(str(new_value).strip())
+            else:
+                new_value_normalized = None
 
-    await db.commit()
-    await db.refresh(order)
+            # 只有当值真正变化时才更新字段和时间戳
+            if new_value_normalized != old_value:
+                order.purchase_price = new_value_normalized
+                order.purchase_price_updated_at = utcnow()
+
+        # domestic_tracking_number - 带时间戳，需要比较旧值
+        if "domestic_tracking_number" in extra_info:
+            new_value = extra_info["domestic_tracking_number"]
+            old_value = order.domestic_tracking_number
+
+            # 标准化新值：空字符串或None → None，有效字符串 → trim后的字符串
+            if new_value and str(new_value).strip():
+                new_value_normalized = str(new_value).strip()
+            else:
+                new_value_normalized = None
+
+            # 只有当值真正变化时才更新字段和时间戳
+            if new_value_normalized != old_value:
+                order.domestic_tracking_number = new_value_normalized
+                order.domestic_tracking_updated_at = utcnow()
+
+        # material_cost - 无时间戳，直接更新
+        if "material_cost" in extra_info:
+            value = extra_info["material_cost"]
+            if value and str(value).strip():
+                order.material_cost = Decimal(str(value).strip())
+            else:
+                order.material_cost = None
+
+        # order_notes - 无时间戳，直接更新
+        if "order_notes" in extra_info:
+            value = extra_info["order_notes"]
+            order.order_notes = str(value).strip() if value and str(value).strip() else None
+
+        # source_platform - 无时间戳，直接更新
+        if "source_platform" in extra_info:
+            value = extra_info["source_platform"]
+            order.source_platform = str(value).strip() if value and str(value).strip() else None
+
+        # 更新全局时间戳
+        order.updated_at = utcnow()
+
+        await db.commit()
+        await db.refresh(order)
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"更新订单信息失败: {str(e)}")
 
     from ..utils.serialization import format_currency
 
