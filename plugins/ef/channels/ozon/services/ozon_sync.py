@@ -769,7 +769,7 @@ class OzonSyncService:
 
     @staticmethod
     async def _sync_orders_incremental(shop_id: int, db: AsyncSession, task_id: str) -> Dict[str, Any]:
-        """增量同步订单 - 最近7天"""
+        """增量同步订单 - 最近7天（支持分页）"""
         try:
             # 更新任务状态
             SYNC_TASKS[task_id] = {
@@ -802,76 +802,103 @@ class OzonSyncService:
             date_to = utcnow()
 
             SYNC_TASKS[task_id]["message"] = "正在获取订单列表..."
+            SYNC_TASKS[task_id]["progress"] = 10
 
-            try:
-                orders_data = await client.get_orders(date_from=date_from, date_to=date_to, limit=100)
-            except Exception as e:
-                logger.error(f"Failed to fetch orders: {e}")
-                raise
+            # 分批获取订单（添加分页支持）
+            batch_size = 100
+            offset = 0
+            has_more = True
 
-            items = orders_data.get("result", {}).get("postings", [])
-
-            # 处理每个订单
-            for idx, item in enumerate(items):
-                progress = 10 + (80 * (idx + 1) / len(items)) if items else 90
-                SYNC_TASKS[task_id]["progress"] = min(progress, 90)
-                SYNC_TASKS[task_id]["message"] = f"正在同步订单 {item.get('posting_number', 'unknown')}..."
-
-                # 检查订单是否存在（使用 ozon_order_id）
-                # 注意：使用limit(1)处理历史重复数据
-                existing = await db.execute(
-                    select(OzonOrder).where(
-                        OzonOrder.shop_id == shop_id,
-                        OzonOrder.ozon_order_id == str(item.get("order_id", ""))
-                    ).limit(1)
-                )
-                order = existing.scalar_one_or_none()
-
-                # 计算订单金额
-                total_price, products_price, delivery_price, commission_amount, delivery_address = \
-                    OzonSyncService._calculate_order_amounts(item)
-
-                # 映射完整字段
-                order_data = OzonSyncService._map_order_fields(item, total_price, products_price,
-                                                            delivery_price, commission_amount,
-                                                            delivery_address, "incremental")
-
-                if order:
-                    # 更新现有订单
-                    for key, value in order_data.items():
-                        if hasattr(order, key):
-                            setattr(order, key, value)
-                    order.sync_status = "success"
-                    order.last_sync_at = utcnow()
-                    order.updated_at = utcnow()
-                else:
-                    # 创建新订单
-                    order = OzonOrder(shop_id=shop_id, **order_data)
-                    order.sync_status = "success"
-                    order.last_sync_at = utcnow()
-                    db.add(order)
-
-                # Flush确保order获得id，然后同步订单明细和posting
-                await db.flush()
-
-                # 同步订单商品明细
-                products_data = item.get("products", [])
-                await OzonSyncService._sync_order_items(db, order, products_data)
-
-                # 同步posting信息（OZON API返回的是posting维度的数据）
-                await OzonSyncService._sync_posting(db, order, item, shop_id)
-
-                # 立即提交每个订单（用于调试）
+            while has_more:
                 try:
-                    await db.commit()
-                    total_synced += 1
+                    orders_data = await client.get_orders(
+                        date_from=date_from,
+                        date_to=date_to,
+                        limit=batch_size,
+                        offset=offset
+                    )
                 except Exception as e:
-                    logger.error(f"Failed to save order {item.get('posting_number')}: {e}")
-                    logger.error(f"Order data: {order_data}")
-                    await db.rollback()
+                    logger.error(f"Failed to fetch orders batch at offset {offset}: {e}")
                     raise
 
-            # 所有订单已在循环中提交
+                result = orders_data.get("result", {})
+                items = result.get("postings", [])
+                has_next = result.get("has_next", False)
+
+                if not items:
+                    has_more = False
+                    break
+
+                # 记录分页信息
+                logger.info(f"Incremental sync batch at offset {offset}: got {len(items)} orders, has_next={has_next}")
+
+                # 处理这一批订单
+                for idx, item in enumerate(items):
+                    # 更新进度和消息
+                    current_count = total_synced + idx + 1
+                    # 使用估算进度（假设最多300个订单，让进度增长更明显）
+                    # 如果订单数超过300，动态调整估算值避免超过90%
+                    estimated_total = max(300, current_count * 1.1) if current_count > 300 else 300
+                    progress = 10 + (80 * current_count / estimated_total)
+                    SYNC_TASKS[task_id]["progress"] = min(progress, 90)
+                    SYNC_TASKS[task_id]["message"] = f"正在同步订单 {item.get('posting_number', 'unknown')}..."
+
+                    # 检查订单是否存在（使用 ozon_order_id）
+                    # 注意：使用limit(1)处理历史重复数据
+                    existing = await db.execute(
+                        select(OzonOrder).where(
+                            OzonOrder.shop_id == shop_id,
+                            OzonOrder.ozon_order_id == str(item.get("order_id", ""))
+                        ).limit(1)
+                    )
+                    order = existing.scalar_one_or_none()
+
+                    # 计算订单金额
+                    total_price, products_price, delivery_price, commission_amount, delivery_address = \
+                        OzonSyncService._calculate_order_amounts(item)
+
+                    # 映射完整字段
+                    order_data = OzonSyncService._map_order_fields(item, total_price, products_price,
+                                                                delivery_price, commission_amount,
+                                                                delivery_address, "incremental")
+
+                    if order:
+                        # 更新现有订单
+                        for key, value in order_data.items():
+                            if hasattr(order, key):
+                                setattr(order, key, value)
+                        order.sync_status = "success"
+                        order.last_sync_at = utcnow()
+                        order.updated_at = utcnow()
+                    else:
+                        # 创建新订单
+                        order = OzonOrder(shop_id=shop_id, **order_data)
+                        order.sync_status = "success"
+                        order.last_sync_at = utcnow()
+                        db.add(order)
+
+                    # Flush确保order获得id，然后同步订单明细和posting
+                    await db.flush()
+
+                    # 同步订单商品明细
+                    products_data = item.get("products", [])
+                    await OzonSyncService._sync_order_items(db, order, products_data)
+
+                    # 同步posting信息（OZON API返回的是posting维度的数据）
+                    await OzonSyncService._sync_posting(db, order, item, shop_id)
+
+                    total_synced += 1
+
+                # 每批次提交一次，避免事务过大
+                await db.commit()
+
+                # 根据API返回的has_next判断是否继续
+                # 如果API没有返回has_next，则通过items数量判断
+                if not has_next or len(items) < batch_size:
+                    has_more = False
+                    logger.info(f"No more orders to fetch: has_next={has_next}, items_count={len(items)}")
+                else:
+                    offset += batch_size
 
             # 更新店铺最后同步时间
             shop.last_sync_at = utcnow()
