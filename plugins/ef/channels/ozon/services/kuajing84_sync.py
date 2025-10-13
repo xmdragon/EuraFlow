@@ -54,7 +54,7 @@ class Kuajing84SyncService:
 
         Args:
             username: 跨境巴士用户名
-            password: 跨境巴士密码
+            password: 跨境巴士密码（如果为 '******' 则保留原密码）
             enabled: 是否启用
 
         Returns:
@@ -68,22 +68,34 @@ class Kuajing84SyncService:
         )
         config = result.scalar_one_or_none()
 
-        # 加密密码
-        encrypted_password = self._encrypt(password)
+        # 检查密码是否为占位符（前端用于保留原密码）
+        is_placeholder = password == '******'
 
         if config:
             # 更新现有配置
             config.username = username
-            config.password = encrypted_password
+
+            # 只有在密码不是占位符时才更新密码
+            if not is_placeholder:
+                config.password = self._encrypt(password)
+                # 密码更新时清空旧Cookie（需要重新登录）
+                config.cookie = None
+                config.cookie_expires_at = None
+
             config.enabled = enabled
-            config.cookie = None  # 清空旧Cookie
-            config.cookie_expires_at = None
         else:
+            # 创建新配置时，密码不能为占位符
+            if is_placeholder:
+                return {
+                    "success": False,
+                    "message": "首次配置必须提供真实密码"
+                }
+
             # 创建新配置
             config = Kuajing84GlobalConfig(
                 id=1,
                 username=username,
-                password=encrypted_password,
+                password=self._encrypt(password),
                 enabled=enabled,
                 base_url="https://www.kuajing84.com",
                 cookie=None,
