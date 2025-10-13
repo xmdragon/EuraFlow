@@ -77,8 +77,11 @@ class Kuajing84MaterialCostSyncService:
             # 2. 查询需要同步的订单（只取一个，单线程模式）
             # 确保订单有posting且posting_number不为空
             from ..models.orders import OzonPosting
+            from sqlalchemy.orm import selectinload
+
             order_result = await session.execute(
                 select(OzonOrder)
+                .options(selectinload(OzonOrder.postings))  # 预加载postings关系
                 .where(OzonOrder.material_cost == None)
                 .join(OzonOrder.postings)
                 .where(OzonPosting.posting_number != None)
@@ -188,7 +191,11 @@ class Kuajing84MaterialCostSyncService:
         # 如果成功处理了订单，在extra_data中添加posting_number
         if processed_posting_number:
             result["posting_number"] = processed_posting_number
+            logger.info(f"Returning result with posting_number: {processed_posting_number}")
+        else:
+            logger.warning("No posting_number to return in result")
 
+        logger.info(f"Final result: {result}")
         return result
 
     async def _fetch_kuajing84_order(
