@@ -80,9 +80,9 @@ class OzonOrder(Base):
     sync_status = Column(String(50), default="pending")
 
     # 额外信息（财务和物流）
-    purchase_price = Column(Numeric(18, 4), comment="进货价格")
+    purchase_price = Column(Numeric(18, 2), comment="进货价格")
     domestic_tracking_number = Column(String(200), comment="国内物流单号")
-    material_cost = Column(Numeric(18, 4), comment="材料费用（包装、标签等）")
+    material_cost = Column(Numeric(18, 2), comment="材料费用（包装、标签等）")
     order_notes = Column(String(1000), comment="订单备注")
     source_platform = Column(String(50), comment="采集平台")
 

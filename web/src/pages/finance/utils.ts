@@ -60,7 +60,7 @@ export function calculateProfit(data: CalculationData): CalculationData {
   const profit = Number((price - cost - shipping - platformFee - packingFee).toFixed(2));
 
   // 计算利润率 = 利润 / 售价
-  const profitRate = price > 0 ? Number((profit / price).toFixed(4)) : 0;
+  const profitRate = price > 0 ? Number((profit / price).toFixed(2)) : 0;
 
   return {
     ...data,
