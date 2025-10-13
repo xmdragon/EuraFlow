@@ -743,7 +743,7 @@ const ProductSelection: React.FC = () => {
           {fieldConfig.listingDate && (
             <div className={styles.listingDate}>
               <Text type="secondary" style={{ fontSize: '11px' }}>
-                上架: {formatDate(product.product_created_date || product.created_at)}
+                上架: {product.product_created_date ? formatDate(product.product_created_date) : '无数据'}
               </Text>
             </div>
           )}
