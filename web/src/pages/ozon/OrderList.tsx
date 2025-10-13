@@ -95,21 +95,12 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
     try {
       setIsUpdatingExtraInfo(true);
 
-      // 调用API更新订单额外信息
-      const response = await fetch(
-        `/api/ef/v1/ozon/orders/${selectedOrder?.posting_number}/extra-info`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(values),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('更新失败');
+      if (!selectedOrder?.posting_number) {
+        throw new Error('订单号不存在');
       }
+
+      // 调用API更新订单额外信息
+      await ozonApi.updateOrderExtraInfo(selectedOrder.posting_number, values);
 
       message.success('订单额外信息更新成功');
 

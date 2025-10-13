@@ -842,3 +842,17 @@ export const getKuajing84SyncLogs = async (shopId: number, status?: string, limi
   const response = await apiClient.get(`/ozon/kuajing84/logs/${shopId}`, { params });
   return response.data;
 };
+
+// 更新订单额外信息
+export interface OrderExtraInfo {
+  purchase_price?: string;
+  material_cost?: string;
+  domestic_tracking_number?: string;
+  order_notes?: string;
+  source_platform?: string;
+}
+
+export const updateOrderExtraInfo = async (postingNumber: string, extraInfo: OrderExtraInfo) => {
+  const response = await apiClient.put(`/ozon/orders/${postingNumber}/extra-info`, extraInfo);
+  return response.data;
+};
