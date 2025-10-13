@@ -559,12 +559,12 @@
             }
 
             // 只依赖货币符号，完全忽略翻译后的文字
-            // 例如：即使显示"日元"文字，只要有￥符号就认定为人民币
-            if (priceText.includes('￥') || priceText.includes('¥')) {
-                this.detectedCurrency = '￥';
-            } else {
-                // 默认：OZON.ru是俄罗斯网站，使用卢布（无论翻译后显示什么）
+            // 如果明确有₽符号 → 卢布
+            if (priceText.includes('₽')) {
                 this.detectedCurrency = '₽';
+            } else {
+                // 默认：人民币（翻译后可能显示"日元"、"¥"或无符号）
+                this.detectedCurrency = '￥';
             }
 
             return this.detectedCurrency;
