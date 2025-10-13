@@ -21,6 +21,33 @@ from .kuajing84_client import Kuajing84Client
 logger = logging.getLogger(__name__)
 
 
+def create_kuajing84_sync_service(db: AsyncSession) -> "Kuajing84SyncService":
+    """
+    创建 Kuajing84SyncService 实例（统一的工厂函数）
+
+    确保加密密钥生成逻辑在所有地方保持一致
+
+    Args:
+        db: 数据库会话
+
+    Returns:
+        Kuajing84SyncService 实例
+    """
+    from ef_core.config import get_settings
+    import hashlib
+    import base64
+
+    settings = get_settings()
+    encryption_key = getattr(settings, "encryption_key", None)
+
+    if not encryption_key:
+        secret_key = settings.secret_key
+        derived_key = hashlib.sha256(secret_key.encode()).digest()
+        encryption_key = base64.urlsafe_b64encode(derived_key)
+
+    return Kuajing84SyncService(db=db, encryption_key=encryption_key)
+
+
 class Kuajing84SyncService:
     """跨境巴士同步服务"""
 

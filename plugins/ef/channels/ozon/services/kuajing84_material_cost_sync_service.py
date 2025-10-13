@@ -1,6 +1,6 @@
 """
 跨境巴士物料成本自动同步服务
-每次处理一个订单，延迟5秒（单线程模式）
+每5分钟运行一次，每次处理10个订单，订单间延迟10秒
 """
 import logging
 import asyncio
@@ -12,9 +12,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
-from ..models.orders import OzonOrder
+from ..models.orders import OzonOrder, OzonPosting
 from ..models.kuajing84_global_config import Kuajing84GlobalConfig
+from ..models.sync_service import SyncServiceLog
+from .kuajing84_sync import create_kuajing84_sync_service
 from .kuajing84_client import Kuajing84Client
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -24,33 +27,32 @@ class Kuajing84MaterialCostSyncService:
 
     def __init__(self):
         """初始化服务"""
-        self.delay_seconds = 5  # 每条记录之间的延迟（秒）
+        self.delay_seconds = 10  # 每条记录之间的延迟（秒）
+        self.batch_size = 10  # 每次处理的订单数量
 
     async def sync_material_costs(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        同步物料成本主流程（单线程模式）
-        每次只处理一个订单，延迟5秒
+        同步物料成本主流程
+        预先登录，批量处理10个订单，每个订单间隔10秒
 
         Args:
             config: 服务配置
-                - delay_seconds: 延迟时间（默认5秒）
+                - delay_seconds: 延迟时间（默认10秒）
 
         Returns:
             同步结果统计
         """
         delay_seconds = config.get("delay_seconds", self.delay_seconds)
 
-        logger.info(f"Starting material cost sync (single-thread mode), delay={delay_seconds}s")
+        logger.info(f"Starting material cost sync (batch mode), delay={delay_seconds}s, batch_size={self.batch_size}")
 
         stats = {
             "records_processed": 0,
             "records_updated": 0,
             "records_skipped": 0,
-            "errors": []
+            "errors": [],
+            "posting_numbers": []  # 记录处理的posting_number列表
         }
-
-        # 保存posting_number用于返回结果
-        processed_posting_number = None
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
@@ -67,174 +69,189 @@ class Kuajing84MaterialCostSyncService:
                     "message": "跨境巴士未启用"
                 }
 
-            if not kuajing84_config.cookie:
-                logger.warning("Kuajing84 cookie is missing, skipping sync")
+            # 2. 预先登录获取有效Cookie
+            logger.info("Pre-login to get valid cookies")
+            sync_service = create_kuajing84_sync_service(session)
+            valid_cookies = await sync_service._get_valid_cookies()
+
+            if not valid_cookies:
+                logger.error("Failed to get valid cookies, cannot proceed")
                 return {
                     **stats,
-                    "message": "跨境巴士Cookie缺失，请先测试连接"
+                    "message": "无法获取有效的Cookie，请检查跨境巴士配置或测试连接"
                 }
 
-            # 2. 查询需要同步的订单（只取一个，单线程模式）
-            # 确保订单有posting且posting_number不为空
-            from ..models.orders import OzonPosting
+            logger.info(f"Successfully obtained {len(valid_cookies)} cookies")
+
+            # 3. 查询需要同步的订单（批量查询10个）
             from sqlalchemy.orm import selectinload
 
-            order_result = await session.execute(
+            orders_result = await session.execute(
                 select(OzonOrder)
                 .options(selectinload(OzonOrder.postings))  # 预加载postings关系
                 .where(OzonOrder.material_cost == None)
                 .join(OzonOrder.postings)
                 .where(OzonPosting.posting_number != None)
                 .where(OzonPosting.posting_number != '')
-                .limit(1)
+                .limit(self.batch_size)
             )
-            order = order_result.scalar_one_or_none()
+            orders = orders_result.scalars().all()
 
-            if not order:
+            if not orders:
                 logger.info("No orders need material cost sync")
                 return {
                     **stats,
                     "message": "没有需要同步物料成本的订单"
                 }
 
-            logger.info(f"Processing order {order.id}")
+            logger.info(f"Found {len(orders)} orders to process")
 
-            # 3. 处理这一个订单
-            # 获取第一个有效的posting_number（在session内访问）
-            posting_number = None
-            for posting in order.postings:
-                if posting.posting_number:
-                    posting_number = posting.posting_number
-                    break
+            # 4. 循环处理每个订单
+            for order in orders:
+                # 获取第一个有效的posting_number
+                posting_number = None
+                for posting in order.postings:
+                    if posting.posting_number:
+                        posting_number = posting.posting_number
+                        break
 
-            if not posting_number:
-                logger.warning(f"Order {order.id} has no valid posting_number, skipping")
-                stats["records_processed"] += 1
-                stats["records_skipped"] += 1
-                # 等待5秒后返回
-                await asyncio.sleep(delay_seconds)
-            else:
-                # 保存到外部变量，用于返回结果
-                processed_posting_number = posting_number
+                if not posting_number:
+                    logger.warning(f"Order {order.id} has no valid posting_number, skipping")
+                    stats["records_processed"] += 1
+                    stats["records_skipped"] += 1
+                    continue
+
                 logger.info(f"Processing order {order.id} with posting_number: {posting_number}")
+                stats["records_processed"] += 1
+                stats["posting_numbers"].append(posting_number)
+
+                # 记录开始时间
+                started_at = datetime.now(timezone.utc)
+                run_id = f"kuajing84_material_cost_{uuid.uuid4().hex[:12]}"
 
                 try:
-                        stats["records_processed"] += 1
+                    # 使用有效的Cookie查询跨境巴士订单信息
+                    result = await self._fetch_kuajing84_order(
+                        posting_number=posting_number,
+                        cookies=valid_cookies,
+                        base_url=kuajing84_config.base_url
+                    )
 
-                        # 使用 Kuajing84SyncService 获取有效的Cookie（会自动刷新过期的Cookie）
-                        from .kuajing84_sync import Kuajing84SyncService
-                        from ef_core.config import get_settings
-                        import hashlib
-                        import base64
+                    # 如果返回Cookie过期，刷新Cookie并重试
+                    if not result["success"] and "Cookie已过期" in result.get("message", ""):
+                        logger.warning(f"Cookie expired while processing {posting_number}, refreshing...")
 
-                        settings = get_settings()
-                        encryption_key = getattr(settings, "encryption_key", None)
-                        if not encryption_key:
-                            secret_key = settings.secret_key
-                            derived_key = hashlib.sha256(secret_key.encode()).digest()
-                            encryption_key = base64.urlsafe_b64encode(derived_key)
+                        # 强制刷新Cookie（清空数据库缓存）
+                        kuajing84_config.cookie = None
+                        kuajing84_config.cookie_expires_at = None
+                        await session.commit()
 
-                        sync_service = Kuajing84SyncService(db=session, encryption_key=encryption_key)
+                        # 重新获取Cookie
                         valid_cookies = await sync_service._get_valid_cookies()
 
-                        if not valid_cookies:
-                            logger.error("无法获取有效的Cookie")
-                            stats["records_skipped"] += 1
-                            stats["errors"].append({
-                                "order_id": order.id,
-                                "posting_number": posting_number,
-                                "error": "Cookie获取失败，请检查跨境巴士配置"
-                            })
-                            # 等待5秒后返回
-                            await asyncio.sleep(delay_seconds)
-                        else:
-                            # 使用有效的Cookie查询跨境巴士订单信息
+                        if valid_cookies:
+                            logger.info("Cookie refreshed successfully, retrying API request")
+                            # 使用新Cookie重试
                             result = await self._fetch_kuajing84_order(
                                 posting_number=posting_number,
                                 cookies=valid_cookies,
                                 base_url=kuajing84_config.base_url
                             )
+                        else:
+                            logger.error("Failed to refresh cookie")
+                            result = {
+                                "success": False,
+                                "message": "Cookie刷新失败，无法重新登录"
+                            }
 
-                            # 如果返回Cookie过期，强制刷新Cookie并重试一次
-                            if not result["success"] and "Cookie已过期" in result.get("message", ""):
-                                logger.warning(f"Cookie expired, forcing refresh and retrying for {posting_number}")
+                    # 处理查询结果
+                    order_updated = False
+                    log_status = "failed"
+                    error_message = None
 
-                                # 强制刷新Cookie（重新登录）
-                                sync_service = Kuajing84SyncService(db=session, encryption_key=encryption_key)
-                                # 清空数据库中的cookie，强制重新登录
-                                kuajing84_config.cookie = None
-                                kuajing84_config.cookie_expires_at = None
-                                await session.commit()
+                    if result["success"]:
+                        # 检查订单状态是否为"已打包"
+                        if result["order_status_info"] == "已打包":
+                            # 更新物料成本
+                            material_cost = Decimal(str(result["money"]))
+                            order.material_cost = material_cost
 
-                                # 重新获取有效Cookie
-                                valid_cookies = await sync_service._get_valid_cookies()
-
-                                if valid_cookies:
-                                    logger.info("Cookie refreshed successfully, retrying API request")
-                                    # 使用新Cookie重试
-                                    result = await self._fetch_kuajing84_order(
-                                        posting_number=posting_number,
-                                        cookies=valid_cookies,
-                                        base_url=kuajing84_config.base_url
-                                    )
-                                else:
-                                    logger.error("Failed to refresh cookie")
-                                    result = {
-                                        "success": False,
-                                        "message": "Cookie刷新失败，无法重新登录"
-                                    }
-
-                            if result["success"]:
-                                # 检查订单状态是否为"已打包"
-                                if result["order_status_info"] == "已打包":
-                                    # 更新物料成本
-                                    material_cost = Decimal(str(result["money"]))
-                                    order.material_cost = material_cost
-
-                                    # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
-                                    if not order.domestic_tracking_number and result.get("logistics_order"):
-                                        order.domestic_tracking_number = result["logistics_order"]
-                                        order.domestic_tracking_updated_at = datetime.now(timezone.utc)
-                                        logger.info(
-                                            f"Updated domestic tracking number for order {order.id}, "
-                                            f"tracking_number={result['logistics_order']}"
-                                        )
-
-                                    logger.info(
-                                        f"Updated material cost for order {order.id}, "
-                                        f"posting_number={posting_number}, cost={material_cost}"
-                                    )
-
-                                    stats["records_updated"] += 1
-
-                                    # 提交变更
-                                    await session.commit()
-                                else:
-                                    logger.info(
-                                        f"Order {order.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
-                                    )
-                                    stats["records_skipped"] += 1
-                            else:
-                                logger.warning(
-                                    f"Failed to fetch order from Kuajing84, "
-                                    f"posting_number={posting_number}, reason={result.get('message')}"
+                            # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
+                            if not order.domestic_tracking_number and result.get("logistics_order"):
+                                order.domestic_tracking_number = result["logistics_order"]
+                                order.domestic_tracking_updated_at = datetime.now(timezone.utc)
+                                logger.info(
+                                    f"Updated domestic tracking number for order {order.id}, "
+                                    f"tracking_number={result['logistics_order']}"
                                 )
-                                stats["records_skipped"] += 1
-                                stats["errors"].append({
-                                    "order_id": order.id,
-                                    "posting_number": posting_number,
-                                    "error": result.get("message", "Unknown error")
-                                })
 
-                            # 频率控制：等待5秒
-                            await asyncio.sleep(delay_seconds)
+                            logger.info(
+                                f"Updated material cost for order {order.id}, "
+                                f"posting_number={posting_number}, cost={material_cost}"
+                            )
+
+                            stats["records_updated"] += 1
+                            order_updated = True
+                            log_status = "success"
+
+                            # 提交变更
+                            await session.commit()
+                        else:
+                            logger.info(
+                                f"Order {order.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
+                            )
+                            stats["records_skipped"] += 1
+                            error_message = f"订单状态不符: {result['order_status_info']}"
+                    else:
+                        logger.warning(
+                            f"Failed to fetch order from Kuajing84, "
+                            f"posting_number={posting_number}, reason={result.get('message')}"
+                        )
+                        stats["records_skipped"] += 1
+                        error_message = result.get("message", "Unknown error")
+                        stats["errors"].append({
+                            "order_id": order.id,
+                            "posting_number": posting_number,
+                            "error": error_message
+                        })
 
                 except Exception as e:
                     logger.error(f"Error syncing order {order.id}: {e}", exc_info=True)
+                    error_message = str(e)
+                    log_status = "failed"
+                    order_updated = False
                     stats["errors"].append({
                         "order_id": order.id,
-                        "error": str(e)
+                        "posting_number": posting_number,
+                        "error": error_message
                     })
+
+                # 创建日志记录
+                finished_at = datetime.now(timezone.utc)
+                execution_time_ms = int((finished_at - started_at).total_seconds() * 1000)
+
+                sync_log = SyncServiceLog(
+                    service_key="kuajing84_material_cost",
+                    run_id=run_id,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    status=log_status,
+                    records_processed=1,
+                    records_updated=1 if order_updated else 0,
+                    execution_time_ms=execution_time_ms,
+                    error_message=error_message,
+                    extra_data={
+                        "posting_number": posting_number,
+                        "order_id": order.id
+                    }
+                )
+                session.add(sync_log)
+                await session.commit()
+                logger.info(f"Created log for posting_number={posting_number}, status={log_status}")
+
+                # 频率控制：等待指定秒数（除最后一个订单）
+                if order != orders[-1]:
+                    await asyncio.sleep(delay_seconds)
 
         logger.info(
             f"Material cost sync completed: "
@@ -244,28 +261,20 @@ class Kuajing84MaterialCostSyncService:
             f"errors={len(stats['errors'])}"
         )
 
+        # 生成结果消息
         if stats["records_updated"] > 0:
-            message = f"成功更新1条订单物料成本"
+            message = f"成功更新{stats['records_updated']}条订单物料成本"
         elif stats["records_skipped"] > 0:
-            message = f"订单已跳过（状态不符或查询失败）"
+            message = f"处理了{stats['records_processed']}条订单，但没有更新（状态不符或查询失败）"
+        elif len(stats["errors"]) > 0:
+            message = f"处理失败，共{len(stats['errors'])}个错误"
         else:
-            message = f"处理失败"
+            message = "没有需要同步的订单"
 
-        # 返回结果（包含posting_number用于日志显示）
-        result = {
+        return {
             **stats,
             "message": message
         }
-
-        # 如果成功处理了订单，在extra_data中添加posting_number
-        if processed_posting_number:
-            result["posting_number"] = processed_posting_number
-            logger.info(f"Returning result with posting_number: {processed_posting_number}")
-        else:
-            logger.warning("No posting_number to return in result")
-
-        logger.info(f"Final result: {result}")
-        return result
 
     async def _fetch_kuajing84_order(
         self,
