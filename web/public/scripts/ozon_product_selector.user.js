@@ -558,17 +558,12 @@
                 return this.detectedCurrency; // 已检测过，直接返回
             }
 
-            // 只考虑卢布和人民币
+            // 只依赖货币符号，完全忽略翻译后的文字
+            // 例如：即使显示"日元"文字，只要有￥符号就认定为人民币
             if (priceText.includes('￥') || priceText.includes('¥')) {
                 this.detectedCurrency = '￥';
-            } else if (priceText.includes('CNY') || priceText.includes('元')) {
-                this.detectedCurrency = '￥';
-            } else if (priceText.includes('₽')) {
-                this.detectedCurrency = '₽';
-            } else if (priceText.includes('RUB') || priceText.includes('руб')) {
-                this.detectedCurrency = '₽';
             } else {
-                // 默认：OZON.ru使用卢布
+                // 默认：OZON.ru是俄罗斯网站，使用卢布（无论翻译后显示什么）
                 this.detectedCurrency = '₽';
             }
 
