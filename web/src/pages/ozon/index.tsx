@@ -16,6 +16,7 @@ const ProductSelection = lazy(() => import('./ProductSelection'));
 const ApiKeys = lazy(() => import('./ApiKeys'));
 const ChatList = lazy(() => import('./ChatList'));
 const ChatDetail = lazy(() => import('./ChatDetail'));
+const SyncServices = lazy(() => import('./SyncServices'));
 
 // 加载中组件
 const PageLoading = () => (
@@ -35,6 +36,7 @@ const OzonManagement: React.FC = () => {
         <Route path="reports" element={<OrderReport />} />
         <Route path="watermark" element={<WatermarkManagement />} />
         <Route path="api-keys" element={<ApiKeys />} />
+        <Route path="sync-services" element={<SyncServices />} />
         <Route path="settings" element={<ShopSettings />} />
         <Route path="chats" element={<ChatList />} />
         <Route path="chat/:chatId" element={<ChatDetail />} />

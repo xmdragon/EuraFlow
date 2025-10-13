@@ -12,6 +12,7 @@ import {
   PictureOutlined,
   KeyOutlined,
   MessageOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy } from 'react';
@@ -122,6 +123,12 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate('/dashboard/ozon/api-keys'),
         },
         {
+          key: 'ozon-sync-services',
+          icon: <SyncOutlined />,
+          label: '后台服务',
+          onClick: () => navigate('/dashboard/ozon/sync-services'),
+        },
+        {
           key: 'ozon-settings',
           icon: <SettingOutlined />,
           label: '店铺设置',
@@ -159,6 +166,7 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/chat')) return 'ozon-chats';
     if (path.includes('/ozon/watermark')) return 'ozon-watermark';
     if (path.includes('/ozon/api-keys')) return 'ozon-api-keys';
+    if (path.includes('/ozon/sync-services')) return 'ozon-sync-services';
     if (path.includes('/ozon/settings')) return 'ozon-settings';
     if (path.includes('/ozon')) return 'ozon-dashboard';
     if (path.includes('/finance')) return 'finance';
