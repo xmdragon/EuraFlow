@@ -932,7 +932,7 @@
                 </div>
 
                 <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
                         <label style="font-size: 12px; opacity: 0.9; white-space: nowrap;">
                             采集数量:
                         </label>
@@ -940,17 +940,6 @@
                                min="10" max="500"
                                style="width: 80px; padding: 6px 8px; border: none; border-radius: 4px;
                                       background: rgba(255,255,255,0.9); color: #333; font-size: 14px; text-align: center;">
-                    </div>
-
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-                        <label style="font-size: 12px; opacity: 0.9; white-space: nowrap;" title="每两次滚动之间的延迟，避免触发反爬虫">
-                            滚动延迟:
-                        </label>
-                        <input type="number" id="scroll-delay" value="${CONFIG.scrollDelay / 1000}"
-                               min="0" max="30" step="0.5"
-                               style="width: 60px; padding: 6px 8px; border: none; border-radius: 4px;
-                                      background: rgba(255,255,255,0.9); color: #333; font-size: 14px; text-align: center;">
-                        <span style="font-size: 12px; opacity: 0.8;">秒</span>
                     </div>
 
                     <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 12px;">
@@ -1175,8 +1164,6 @@
             this.collector.clear();
 
             const targetCount = parseInt(document.getElementById('target-count').value) || CONFIG.targetProductCount;
-            const scrollDelaySeconds = parseFloat(document.getElementById('scroll-delay').value) || 5;
-            CONFIG.scrollDelay = scrollDelaySeconds * 1000; // 转换为毫秒
 
             // 更新UI：切换按钮为红色"停止"
             const toggleBtn = document.getElementById('toggle-btn');
