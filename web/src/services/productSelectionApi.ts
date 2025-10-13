@@ -31,6 +31,8 @@ export interface ProductSelectionItem {
   batch_id?: number;
   is_read?: boolean;
   read_at?: string;
+  // 商品上架时间
+  product_created_date?: string;
   created_at: string;
   updated_at: string;
 }

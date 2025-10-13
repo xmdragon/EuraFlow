@@ -131,6 +131,8 @@ class ProductSelectionItem(Base):
             'batch_id': self.batch_id,
             'is_read': self.is_read,
             'read_at': self.read_at.isoformat() if self.read_at else None,
+            # 商品上架时间
+            'product_created_date': self.product_created_date.isoformat() if self.product_created_date else None,
             # 系统字段
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

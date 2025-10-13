@@ -8,7 +8,19 @@
 
 // ===== 搜索表单卡片 =====
 .searchFormCard {
-  margin-bottom: $spacing-lg;
+  margin-bottom: 2px;
+
+  :global(.ant-card-body) {
+    padding: 2px !important;
+  }
+
+  // inline表单样式优化
+  :global(.ant-form-inline) {
+    :global(.ant-form-item) {
+      margin-right: 8px;
+      margin-bottom: 4px;
+    }
+  }
 }
 
 // ===== 数据管理警告 =====
@@ -21,7 +33,7 @@
 .productCard {
   :global(.ant-card-body) {
     padding: 1px !important;
-    min-height: 240px;
+    min-height: 180px;
     display: flex;
     flex-direction: column;
   }
@@ -193,6 +205,8 @@
 .ratingSection {
   font-size: 11px;
   margin-top: 2px;
+  min-height: 16px;
+  line-height: 16px;
 
   :global(.anticon) {
     color: #faad14;
@@ -215,7 +229,8 @@
 
 // ===== 搜索结果统计 =====
 .searchStats {
-  margin-bottom: $spacing-md;
+  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 // ===== 商品网格布局 =====

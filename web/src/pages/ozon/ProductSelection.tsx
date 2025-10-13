@@ -1,7 +1,7 @@
 /**
  * 选品助手页面
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Row,
@@ -154,6 +154,16 @@ const ProductSelection: React.FC = () => {
     queryKey: ['productSelectionBrands'],
     queryFn: api.getBrands,
   });
+
+  // 从当前商品列表提取品牌（动态更新）
+  const currentBrands = useMemo(() => {
+    if (allProducts.length > 0) {
+      const brands = new Set(allProducts.map(p => p.brand).filter(Boolean));
+      return Array.from(brands).sort();
+    }
+    // 如果没有商品数据，使用全局品牌列表
+    return brandsData?.data || [];
+  }, [allProducts, brandsData]);
 
   // 查询商品列表
   const { data: productsData, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
@@ -612,18 +622,6 @@ const ProductSelection: React.FC = () => {
             </div>
           )
         }
-        actions={[
-          <Button
-            key="view"
-            type="link"
-            size="small"
-            icon={<ShoppingOutlined />}
-            onClick={() => window.open(product.ozon_link, '_blank')}
-            className={styles.viewButton}
-          >
-            查看
-          </Button>,
-        ]}
       >
         <div className={styles.productCardBody}>
           {/* 商品名称 - 始终显示 */}
@@ -745,7 +743,7 @@ const ProductSelection: React.FC = () => {
           {fieldConfig.listingDate && (
             <div className={styles.listingDate}>
               <Text type="secondary" style={{ fontSize: '11px' }}>
-                上架: {formatDate(product.created_at)}
+                上架: {formatDate(product.product_created_date || product.created_at)}
               </Text>
             </div>
           )}
@@ -784,9 +782,9 @@ const ProductSelection: React.FC = () => {
           <Card className={styles.searchFormCard}>
             <Form
               form={form}
-              layout="vertical"
+              layout="inline"
               onFinish={handleSearch}
-              initialValues={{ sort_by: 'created_desc' }}
+              initialValues={{ sort_by: 'created_asc' }}
             >
               <Row gutter={[16, 16]}>
                 {/* 第一行：商品名称、品牌、上架时间、排序 */}
@@ -811,7 +809,7 @@ const ProductSelection: React.FC = () => {
                         String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
                       }
                     >
-                      {brandsData?.data?.map((brand) => (
+                      {currentBrands.map((brand) => (
                         <Option key={brand} value={brand}>
                           {brand}
                         </Option>
@@ -831,9 +829,9 @@ const ProductSelection: React.FC = () => {
 
                 <Col xs={24} sm={12} md={8} lg={4} xl={3}>
                   <Form.Item label="排序" name="sort_by">
-                    <Select placeholder="最新导入" style={{ width: '10em' }}>
-                      <Option value="created_desc">最新导入</Option>
+                    <Select placeholder="最早导入" style={{ width: '10em' }}>
                       <Option value="created_asc">最早导入</Option>
+                      <Option value="created_desc">最新导入</Option>
                       <Option value="sales_desc">销量↓</Option>
                       <Option value="sales_asc">销量↑</Option>
                       <Option value="weight_asc">重量↑</Option>
@@ -993,11 +991,7 @@ const ProductSelection: React.FC = () => {
             <Row justify="space-between" align="middle" className={styles.searchStats}>
               <Col>
                 <Space>
-                  <Statistic
-                    title="已加载"
-                    value={allProducts.length}
-                    suffix={`/ ${productsData.data.total} 件商品`}
-                  />
+                  <Text>已加载 <Text strong>{allProducts.length}</Text> / {productsData.data.total} 件商品</Text>
                   {selectedProductIds.size > 0 && (
                     <Button
                       type="primary"
