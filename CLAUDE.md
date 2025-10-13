@@ -222,9 +222,9 @@
   - 如遇检查失败，修复后重新提交
   - 提交信息包含 Claude 标识：`🤖 Generated with Claude Code`
 - **推送策略**：
-  - **不会**自动推送到远程仓库（GitHub）
-  - 需要用户明确指示才会执行 `git push`
-  - 保留本地审查和测试的机会
+  - **每次提交后必须自动推送**到远程仓库
+  - 执行 `git push` 确保代码及时同步
+  - 命令格式：`git add . && git commit -m "message" && git push`
 
 ---
 
@@ -262,7 +262,64 @@
 
 ---
 
-## 13) 交付物格式
+## 13) 远程部署流程
+
+### 远程服务器信息
+- **SSH访问**：`ssh ozon`
+- **部署路径**：`/opt/euraflow`
+- **部署用户**：通过SSH配置文件指定
+
+### 部署步骤（标准流程）
+1. **本地提交并推送**：
+   ```bash
+   git add .
+   git commit -m "描述信息"
+   git push
+   ```
+
+2. **远程同步代码**：
+   ```bash
+   ssh ozon "cd /opt/euraflow && git pull"
+   ```
+
+3. **重新构建前端**：
+   ```bash
+   ssh ozon "cd /opt/euraflow/web && rm -rf dist && npm run build"
+   ```
+
+4. **重启服务**：
+   ```bash
+   ssh ozon "cd /opt/euraflow && ./restart.sh"
+   ```
+
+### 一键部署命令
+```bash
+# 本地提交并推送
+git add . && git commit -m "描述" && git push
+
+# 远程部署（拉取、构建、重启）
+ssh ozon "cd /opt/euraflow && git pull && cd web && rm -rf dist && npm run build && cd .. && ./restart.sh"
+```
+
+### 部署注意事项
+- ✅ **每次代码修改后必须推送到远程仓库**
+- ✅ **前端代码修改后必须重新构建** (`npm run build`)
+- ✅ **构建完成后必须重启服务** (`./restart.sh`)
+- ⚠️ **部署前确保本地测试通过**
+- ⚠️ **检查远程日志确认服务正常**：`tail -f /opt/euraflow/backend.log`
+
+### 快速检查远程日志
+```bash
+# 查看后端日志最后200行
+ssh ozon "tail -200 /opt/euraflow/logs/backend-stderr.log 2>/dev/null || supervisorctl -c /opt/euraflow/supervisord.conf tail -200 euraflow:backend stderr"
+
+# 查看实时日志
+ssh ozon "tail -f /opt/euraflow/backend.log"
+```
+
+---
+
+## 14) 交付物格式
 - **Patch 清单**：文件 → 变更点摘要（函数/类/接口）。
 - **代码片段**：仅贴关键片段（DTO/接口签名/核心算法）；其余以"TODO/占位符+伪代码"说明。
 - **测试**：列出测试文件/用例名称与断言；必要时示例代码片段。
@@ -270,7 +327,7 @@
 
 ---
 
-## 14) 参考速查（片段）
+## 15) 参考速查（片段）
 **Problem Details 包装（FastAPI）**
 ```py
 from fastapi import HTTPException
@@ -300,14 +357,14 @@ ef_ozon_shipments_push_fail_total (counter)
 
 ---
 
-## 15) 变更沟通（Prompt 约定）
+## 16) 变更沟通（Prompt 约定）
 - 不确定点**先提 3 个备选**并排序（理由：复杂度/兼容性/风险）。
 - 所有回答**先 Plan/Impact**，再 Patch/Tests；未获确认前，不给整页大段代码。
 - 若任务无法在白名单内完成，**明确依赖与阻塞**，提供最小拆分方案。
 
 ---
 
-## 16) OZON API 文档
+## 17) OZON API 文档
 - **原始文档**：`@docs/OzonSellerAPI.html` （2.4MB 完整HTML文档）
 - **简化文档目录**：`@docs/ozon-api/` （220个基础API文档）
   - 基础信息提取，包含API路径和基本结构
@@ -329,7 +386,7 @@ ef_ozon_shipments_push_fail_total (counter)
 
 ---
 
-## 17) 架构规则（避免重复实现）
+## 18) 架构规则（避免重复实现）
 
 ### 单一服务原则
 - **每个功能只能有一个服务类**：避免创建功能重复的服务
@@ -349,7 +406,7 @@ ef_ozon_shipments_push_fail_total (counter)
 
 ---
 
-## 18) 术语表（Glossary）
+## 19) 术语表（Glossary）
 - **TTD**：新单平台到达系统的延迟。
 - **金丝雀/灰度**：按店铺/渠道/地区逐步放量。
 - **悬挂账**：对账差异暂存池，需人工闭环。
