@@ -1182,7 +1182,7 @@
             const toggleBtn = document.getElementById('toggle-btn');
             toggleBtn.style.background = '#f56565';
             toggleBtn.innerHTML = '⏸️ 停止';
-            this.updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品，滚动延迟: ${scrollDelaySeconds}秒`);
+            this.updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品`);
 
             // 开始收集流程
             await this.runCollection(targetCount);
@@ -1289,7 +1289,6 @@
 
                 // 滚动延迟（防反爬虫）
                 if (CONFIG.scrollDelay > 0) {
-                    this.updateStatus(`⏱️ 等待 ${CONFIG.scrollDelay/1000} 秒后继续滚动...`);
                     await this.collector.sleep(CONFIG.scrollDelay);
                 }
             }
