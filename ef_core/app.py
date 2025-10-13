@@ -2,6 +2,7 @@
 EuraFlow FastAPI 主应用
 """
 import asyncio
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
@@ -150,9 +151,11 @@ async def _register_sync_service_handlers(scheduler):
                         # 同步商品
                         sync_products = config.get("sync_products", True)
                         if sync_products:
+                            product_task_id = f"ozon_sync_products_{shop.id}_{uuid.uuid4().hex[:8]}"
                             product_result = await OzonSyncService.sync_products(
                                 shop_id=shop.id,
                                 db=db,
+                                task_id=product_task_id,
                                 mode="incremental"
                             )
                             total_products += product_result.get("total_processed", 0)
@@ -160,9 +163,11 @@ async def _register_sync_service_handlers(scheduler):
                         # 同步订单
                         sync_orders = config.get("sync_orders", True)
                         if sync_orders:
+                            order_task_id = f"ozon_sync_orders_{shop.id}_{uuid.uuid4().hex[:8]}"
                             order_result = await OzonSyncService.sync_orders(
                                 shop_id=shop.id,
                                 db=db,
+                                task_id=order_task_id,
                                 mode="incremental"
                             )
                             total_orders += order_result.get("total_processed", 0)
