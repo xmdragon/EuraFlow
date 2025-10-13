@@ -409,23 +409,23 @@
                     }
                 }
 
-                // 解析佣金率 - 支持₽和￥
-                const rfbs1Match = bangText.match(/rFBS佣金\(1501~5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                // 解析佣金率 - 支持₽和￥，支持中文全角括号（）和半角括号()
+                const rfbs1Match = bangText.match(/rFBS佣金[（(]1501~5000[₽￥][）)][：:]\s*(\d+(?:\.\d+)?)\s*%/);
                 if (rfbs1Match) bangData['RFBS在 1501~5000佣金（%）'] = rfbs1Match[1];
 
-                const rfbs2Match = bangText.match(/rFBS佣金\(<=1500[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                const rfbs2Match = bangText.match(/rFBS佣金[（(]<=1500[₽￥][）)][：:]\s*(\d+(?:\.\d+)?)\s*%/);
                 if (rfbs2Match) bangData['RFBS <= 1500佣金（%）'] = rfbs2Match[1];
 
-                const rfbs3Match = bangText.match(/rFBS佣金\(>5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                const rfbs3Match = bangText.match(/rFBS佣金[（(]>5000[₽￥][）)][：:]\s*(\d+(?:\.\d+)?)\s*%/);
                 if (rfbs3Match) bangData['RFBS > 5000佣金（%）'] = rfbs3Match[1];
 
-                const fbp1Match = bangText.match(/FBP佣金\(1501~5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                const fbp1Match = bangText.match(/FBP佣金[（(]1501~5000[₽￥][）)][：:]\s*(\d+(?:\.\d+)?)\s*%/);
                 if (fbp1Match) bangData['FBP在 1501~5000佣金（%）'] = fbp1Match[1];
 
-                const fbp2Match = bangText.match(/FBP佣金\(<=1500[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                const fbp2Match = bangText.match(/FBP佣金[（(]<=1500[₽￥][）)][：:]\s*(\d+(?:\.\d+)?)\s*%/);
                 if (fbp2Match) bangData['FBP <= 1500佣金（%）'] = fbp2Match[1];
 
-                const fbp3Match = bangText.match(/FBP佣金\(>5000[₽￥]\)[：:]\s*(\d+(?:\.\d+)?)\s*%/);
+                const fbp3Match = bangText.match(/FBP佣金[（(]>5000[₽￥][）)][：:]\s*(\d+(?:\.\d+)?)\s*%/);
                 if (fbp3Match) bangData['FBP > 5000佣金（%）'] = fbp3Match[1];
 
                 // 解析销售数据
