@@ -141,6 +141,15 @@ class OzonOrder(Base):
             result['warehouse_name'] = first_posting.warehouse_name
             result['shipment_date'] = first_posting.shipment_date.isoformat() if first_posting.shipment_date else None
 
+            # 添加 posting 维度的业务字段（用于前端表单显示和编辑）
+            result['material_cost'] = str(first_posting.material_cost) if first_posting.material_cost else None
+            result['domestic_tracking_number'] = first_posting.domestic_tracking_number
+            result['domestic_tracking_updated_at'] = first_posting.domestic_tracking_updated_at.isoformat() if first_posting.domestic_tracking_updated_at else None
+            result['purchase_price'] = str(first_posting.purchase_price) if first_posting.purchase_price else None
+            result['purchase_price_updated_at'] = first_posting.purchase_price_updated_at.isoformat() if first_posting.purchase_price_updated_at else None
+            result['order_notes'] = first_posting.order_notes
+            result['source_platform'] = first_posting.source_platform
+
             # 添加完整的postings列表
             result['postings'] = [
                 {
@@ -152,6 +161,14 @@ class OzonOrder(Base):
                     'shipment_date': posting.shipment_date.isoformat() if posting.shipment_date else None,
                     'shipped_at': posting.shipped_at.isoformat() if posting.shipped_at else None,
                     'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
+                    # 添加业务字段到 posting 对象
+                    'material_cost': str(posting.material_cost) if posting.material_cost else None,
+                    'domestic_tracking_number': posting.domestic_tracking_number,
+                    'domestic_tracking_updated_at': posting.domestic_tracking_updated_at.isoformat() if posting.domestic_tracking_updated_at else None,
+                    'purchase_price': str(posting.purchase_price) if posting.purchase_price else None,
+                    'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
+                    'order_notes': posting.order_notes,
+                    'source_platform': posting.source_platform,
                     'packages': [
                         {
                             'id': pkg.id,
@@ -170,6 +187,14 @@ class OzonOrder(Base):
             result['in_process_at'] = None
             result['warehouse_name'] = None
             result['shipment_date'] = None
+            # 业务字段默认值
+            result['material_cost'] = None
+            result['domestic_tracking_number'] = None
+            result['domestic_tracking_updated_at'] = None
+            result['purchase_price'] = None
+            result['purchase_price_updated_at'] = None
+            result['order_notes'] = None
+            result['source_platform'] = None
             result['postings'] = []
 
         return result
