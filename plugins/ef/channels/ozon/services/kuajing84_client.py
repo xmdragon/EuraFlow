@@ -573,16 +573,9 @@ class Kuajing84Client:
                     "is_vague": "",
                 }
 
-                # 输出请求详情
-                request_url = f"{self.base_url}/index/Accountorder/order_list_search/order_type/6"
-                logger.info(f"=== 跨境巴士API请求详情 ===")
-                logger.info(f"请求URL: {request_url}")
-                logger.info(f"POST数据: {form_data}")
-                logger.info(f"Cookie数量: {len(cookies_dict)}")
-
                 # 发送搜索请求
                 response = await client.post(
-                    request_url,
+                    f"{self.base_url}/index/Accountorder/order_list_search/order_type/6",
                     data=form_data,
                     headers={
                         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
