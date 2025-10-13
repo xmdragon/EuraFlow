@@ -76,24 +76,6 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
   // 优先使用订单货币，否则使用用户设置
   const orderSymbol = getCurrencySymbol(selectedOrder?.currency_code) || userSymbol;
 
-  // 获取国际物流单号（从包裹信息中读取）
-  const internationalTrackingNumber = React.useMemo(() => {
-    if (!selectedOrder?.postings || selectedOrder.postings.length === 0) return '-';
-
-    const firstPosting = selectedOrder.postings[0];
-    if (!firstPosting.packages || firstPosting.packages.length === 0) return '-';
-
-    const firstPackage = firstPosting.packages[0];
-    if (!firstPackage.tracking_number) return '-';
-
-    // 如果有多个包裹，显示数量提示
-    if (firstPosting.packages.length > 1) {
-      return `${firstPackage.tracking_number} (+${firstPosting.packages.length - 1}个)`;
-    }
-
-    return firstPackage.tracking_number;
-  }, [selectedOrder]);
-
   // 当选中订单变化时，更新表单
   useEffect(() => {
     if (selectedOrder) {
@@ -197,14 +179,6 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
             tooltip="国内物流配送的跟踪单号"
           >
             <Input placeholder="国内物流单号" />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item label="国际物流单号" tooltip="国际物流的跟踪单号（只读）">
-            <Text>{internationalTrackingNumber}</Text>
           </Form.Item>
         </Col>
       </Row>
@@ -1084,7 +1058,17 @@ const OrderList: React.FC = () => {
                        (selectedOrder.created_at ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss') : '-')}
                     </Descriptions.Item>
                     <Descriptions.Item label="配送方式">
-                      {selectedOrder.delivery_method}
+                      {(() => {
+                        const fullText = selectedOrder.delivery_method || '-';
+                        if (fullText === '-') return fullText;
+                        // 提取括号前的内容（支持中英文括号）
+                        const shortText = fullText.split('（')[0].split('(')[0].trim();
+                        return (
+                          <Tooltip title={fullText}>
+                            <span>{shortText}</span>
+                          </Tooltip>
+                        );
+                      })()}
                     </Descriptions.Item>
                   </Descriptions>
                 ),
@@ -1256,6 +1240,20 @@ const OrderList: React.FC = () => {
                         {posting.delivered_at
                           ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm')
                           : '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="国际物流单号">
+                        {posting.packages && posting.packages.length > 0 ? (
+                          <div>
+                            {posting.packages.map((pkg, index) => (
+                              <div key={pkg.id || index} style={{ marginBottom: 4 }}>
+                                {pkg.tracking_number || '-'}
+                                {pkg.carrier_name && <Text type="secondary"> ({pkg.carrier_name})</Text>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
                       </Descriptions.Item>
                     </Descriptions>
                   </Card>
