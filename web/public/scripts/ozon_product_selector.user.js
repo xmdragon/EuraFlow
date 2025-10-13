@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Ozon选品助手
 // @namespace    http://euraflow.local/
-// @version      4.4
-// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制，支持多语言页面
+// @version      4.5
+// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制，支持多语言页面，确保佣金数据完整
 // @author       EuraFlow Team
 // @match        https://www.ozon.ru/*
 // @grant        GM_xmlhttpRequest
@@ -573,14 +573,14 @@
         // 提取商品标题
         extractProductTitle(element) {
             const selectors = [
-                // Ozon最新的标题选择器
+                // 优先：在商品链接内的span（最精确）
+                'a[href*="/product/"] span.tsBody500Medium',
+                'a[href*="/product/"] span[class*="tsBody"]:not([class*="Control"])',
+                // 次优：全局精确选择器
                 'span.tsBody500Medium',
                 'span.tsBodyM',
+                // 备用：更宽泛的选择器
                 'span[class*="tsBody"]:not(.ozon-bang-text):not([class*="Control"])',
-                // 在商品链接内的span
-                'a[href*="/product/"] span.tsBody500Medium',
-                'a[href*="/product/"] span[class*="tsBody"]',
-                // 其他可能的选择器
                 '.tile-hover-target span',
                 'div[class*="title"] span'
             ];
@@ -590,7 +590,7 @@
                 for (const titleElement of titleElements) {
                     const text = titleElement.textContent.trim();
                     // 验证是否为商品标题（语言无关：长度合理，不包含价格符号和百分比）
-                    if (text && text.length >= 10 && text.length < 500 &&
+                    if (text && text.length >= 3 && text.length < 500 &&
                         !text.includes('₽') && !text.includes('￥') && !text.includes('元') &&
                         !text.includes('%') && !text.includes('CNY') && !text.includes('RUB') &&
                         !text.match(/^\d+$/)) { // 排除纯数字
@@ -825,7 +825,7 @@
                         }
 
                         // 如果有未采集的商品，继续检查数据是否就绪
-                        // 快速检查：检查最后一个商品是否有完整数据（包括跟卖数据）
+                        // 快速检查：检查最后一个商品是否有完整数据（跟卖+佣金）
                         const lastElement = row[row.length - 1];
                         const bangElement = lastElement.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
 
@@ -833,14 +833,22 @@
                             const bangText = bangElement.textContent || '';
                             // 判断条件：
                             // 1. 内容充足（> 50字符）
-                            // 2. 包含"跟卖最低价"字段（可能是价格或"无跟卖"）
                             const hasContent = bangText.trim().length > 50;
+
+                            // 2. 包含"跟卖最低价"字段（可能是价格或"无跟卖"）
                             const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,]+/.test(bangText);  // 有价格
                             const hasNoCompetitor = /跟卖最低价[：:]\s*无跟卖/.test(bangText);  // 明确无跟卖
                             const hasCompetitorData = hasMinPrice || hasNoCompetitor;
 
-                            if (hasContent && hasCompetitorData) {
-                                console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪（含跟卖数据），立即采集`);
+                            // 3. 包含rFBS佣金数据（至少匹配一个档位）
+                            const hasRFBSCommission = /rFBS佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+
+                            // 4. 包含FBP佣金数据（至少匹配一个档位）
+                            const hasFBPCommission = /FBP佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+
+                            // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
+                            if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
+                                console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪（跟卖+佣金），立即采集`);
                                 // 这行准备好了，立即采集
                                 const rowStartCount = newProducts.length;
                                 await collectRow(row);
