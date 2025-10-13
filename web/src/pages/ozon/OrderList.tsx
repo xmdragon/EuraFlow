@@ -269,17 +269,29 @@ const OrderList: React.FC = () => {
   // 搜索参数状态
   const [searchParams, setSearchParams] = useState<any>({});
 
-  // 状态配置
+  // 状态配置 - 包含所有 OZON 原生状态
   const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
+    // 通用订单状态
     pending: { color: 'default', text: '待确认', icon: <ClockCircleOutlined /> },
     confirmed: { color: 'processing', text: '已确认', icon: <CheckCircleOutlined /> },
     processing: { color: 'processing', text: '处理中', icon: <SyncOutlined spin /> },
+    shipped: { color: 'cyan', text: '已发货', icon: <TruckOutlined /> },
+
+    // OZON Posting 原生状态
+    acceptance_in_progress: { color: 'processing', text: '验收中', icon: <SyncOutlined spin /> },
+    awaiting_approve: { color: 'default', text: '等待审核', icon: <ClockCircleOutlined /> },
     awaiting_packaging: { color: 'processing', text: '等待备货', icon: <ClockCircleOutlined /> },
     awaiting_deliver: { color: 'warning', text: '等待发运', icon: <TruckOutlined /> },
+    awaiting_registration: { color: 'processing', text: '等待登记', icon: <FileTextOutlined /> },
+    awaiting_debit: { color: 'processing', text: '等待扣款', icon: <ClockCircleOutlined /> },
+    arbitration: { color: 'warning', text: '仲裁中', icon: <ClockCircleOutlined /> },
+    client_arbitration: { color: 'warning', text: '客户仲裁', icon: <ClockCircleOutlined /> },
     delivering: { color: 'cyan', text: '运输中', icon: <TruckOutlined /> },
-    shipped: { color: 'cyan', text: '已发货', icon: <TruckOutlined /> },
+    driver_pickup: { color: 'processing', text: '司机取货', icon: <TruckOutlined /> },
     delivered: { color: 'success', text: '已签收', icon: <CheckCircleOutlined /> },
     cancelled: { color: 'error', text: '已取消', icon: <CloseCircleOutlined /> },
+    not_accepted: { color: 'error', text: '未接受', icon: <CloseCircleOutlined /> },
+    sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
   };
 
   // 查询订单列表
@@ -415,13 +427,34 @@ const OrderList: React.FC = () => {
     const mainPart = match[1].trim();
     const detailPart = match[2].trim();
 
+    // 解析限制信息为三行：重量、价格、体积
+    const parseRestrictions = (restriction: string): string[] => {
+      // 移除"限制:"前缀
+      const content = restriction.replace(/^限制[:：]\s*/, '');
+
+      // 使用正则提取三个部分
+      const weightMatch = content.match(/([\d\s]+[–-][\s\d]+\s*[克公斤kgг]+)/);
+      const priceMatch = content.match(/([\d\s]+[–-][\s\d]+\s*[₽рублей]+)/);
+      const sizeMatch = content.match(/([\d\s×xXх]+\s*[厘米смcm]+)/);
+
+      const lines: string[] = [];
+      if (restriction.includes('限制')) lines.push('限制:');
+      if (weightMatch) lines.push(weightMatch[1].trim());
+      if (priceMatch) lines.push(priceMatch[1].trim());
+      if (sizeMatch) lines.push(sizeMatch[1].trim());
+
+      return lines.length > 0 ? lines : [restriction];
+    };
+
+    const restrictionLines = parseRestrictions(detailPart);
+
     // 格式化显示
     return (
       <div className={styles.deliveryMethodText}>
         <div className={styles.deliveryMethodMain}>{mainPart}</div>
         <div className={styles.deliveryMethodDetail}>
-          {detailPart.split(/\s+/).map((item, index) => (
-            <div key={index}>{item}</div>
+          {restrictionLines.map((line, index) => (
+            <div key={index}>{line}</div>
           ))}
         </div>
       </div>
