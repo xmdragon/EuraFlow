@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Ozon选品助手
 // @namespace    http://euraflow.local/
-// @version      4.5
-// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制，支持多语言页面，确保佣金数据完整
+// @version      4.6
+// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制，支持多语言页面，确保佣金数据完整，可配置滚动延迟防反爬虫
 // @author       EuraFlow Team
 // @match        https://www.ozon.ru/*
 // @grant        GM_xmlhttpRequest
@@ -22,6 +22,7 @@
         visibleWindowMax: 12,            // 最大可见窗口
         scrollStepSize: 1.2,             // 每次滚动视口倍数
         scrollWaitTime: 1000,            // 滚动后等待时间（优化：1秒）
+        scrollDelay: 5000,               // 每两次滚动之间的延迟（默认5秒，防反爬虫）
         bangInjectionWait: 2000,         // 等待上品帮注入时间（优化：2秒，200ms×10次）
         bangCheckInterval: 200,          // 数据注入检查间隔（200ms）
         maxScrollAttempts: 200,          // 最大滚动次数
@@ -931,7 +932,7 @@
                 </div>
 
                 <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                         <label style="font-size: 12px; opacity: 0.9; white-space: nowrap;">
                             采集数量:
                         </label>
@@ -939,6 +940,17 @@
                                min="10" max="500"
                                style="width: 80px; padding: 6px 8px; border: none; border-radius: 4px;
                                       background: rgba(255,255,255,0.9); color: #333; font-size: 14px; text-align: center;">
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <label style="font-size: 12px; opacity: 0.9; white-space: nowrap;" title="每两次滚动之间的延迟，避免触发反爬虫">
+                            滚动延迟:
+                        </label>
+                        <input type="number" id="scroll-delay" value="${CONFIG.scrollDelay / 1000}"
+                               min="0" max="30" step="0.5"
+                               style="width: 60px; padding: 6px 8px; border: none; border-radius: 4px;
+                                      background: rgba(255,255,255,0.9); color: #333; font-size: 14px; text-align: center;">
+                        <span style="font-size: 12px; opacity: 0.8;">秒</span>
                     </div>
 
                     <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 12px;">
@@ -1163,12 +1175,14 @@
             this.collector.clear();
 
             const targetCount = parseInt(document.getElementById('target-count').value) || CONFIG.targetProductCount;
+            const scrollDelaySeconds = parseFloat(document.getElementById('scroll-delay').value) || 5;
+            CONFIG.scrollDelay = scrollDelaySeconds * 1000; // 转换为毫秒
 
             // 更新UI：切换按钮为红色"停止"
             const toggleBtn = document.getElementById('toggle-btn');
             toggleBtn.style.background = '#f56565';
             toggleBtn.innerHTML = '⏸️ 停止';
-            this.updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品`);
+            this.updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品，滚动延迟: ${scrollDelaySeconds}秒`);
 
             // 开始收集流程
             await this.runCollection(targetCount);
@@ -1271,6 +1285,12 @@
                     CONFIG.scrollStepSize = Math.min(CONFIG.scrollStepSize * 1.1, 2);
                 } else if (actualNewCount === 0) {
                     CONFIG.scrollStepSize = Math.max(CONFIG.scrollStepSize * 0.9, 0.8);
+                }
+
+                // 滚动延迟（防反爬虫）
+                if (CONFIG.scrollDelay > 0) {
+                    this.updateStatus(`⏱️ 等待 ${CONFIG.scrollDelay/1000} 秒后继续滚动...`);
+                    await this.collector.sleep(CONFIG.scrollDelay);
                 }
             }
 
