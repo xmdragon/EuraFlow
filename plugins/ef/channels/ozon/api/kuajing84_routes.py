@@ -113,7 +113,9 @@ async def save_config(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        logger.error(f"保存跨境巴士配置失败: {e}")
+        import traceback
+        error_detail = traceback.format_exc()
+        logger.error(f"保存跨境巴士配置失败: {e}\n{error_detail}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
