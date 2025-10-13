@@ -155,6 +155,35 @@ class Kuajing84MaterialCostSyncService:
                                 base_url=kuajing84_config.base_url
                             )
 
+                            # 如果返回Cookie过期，强制刷新Cookie并重试一次
+                            if not result["success"] and "Cookie已过期" in result.get("message", ""):
+                                logger.warning(f"Cookie expired, forcing refresh and retrying for {posting_number}")
+
+                                # 强制刷新Cookie（重新登录）
+                                sync_service = Kuajing84SyncService(db=session, encryption_key=encryption_key)
+                                # 清空数据库中的cookie，强制重新登录
+                                kuajing84_config.cookie = None
+                                kuajing84_config.cookie_expires_at = None
+                                await session.commit()
+
+                                # 重新获取有效Cookie
+                                valid_cookies = await sync_service._get_valid_cookies()
+
+                                if valid_cookies:
+                                    logger.info("Cookie refreshed successfully, retrying API request")
+                                    # 使用新Cookie重试
+                                    result = await self._fetch_kuajing84_order(
+                                        posting_number=posting_number,
+                                        cookies=valid_cookies,
+                                        base_url=kuajing84_config.base_url
+                                    )
+                                else:
+                                    logger.error("Failed to refresh cookie")
+                                    result = {
+                                        "success": False,
+                                        "message": "Cookie刷新失败，无法重新登录"
+                                    }
+
                             if result["success"]:
                                 # 检查订单状态是否为"已打包"
                                 if result["order_status_info"] == "已打包":
