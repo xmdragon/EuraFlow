@@ -136,6 +136,7 @@ async def setup(hooks) -> None:
             """OZON商品订单增量同步处理函数"""
             try:
                 # 获取所有活跃店铺
+                import uuid
                 from ef_core.database import get_db_manager
                 from .models import OzonShop
                 from sqlalchemy import select
@@ -154,22 +155,26 @@ async def setup(hooks) -> None:
                         # 同步商品
                         sync_products = config.get("sync_products", True)
                         if sync_products:
+                            product_task_id = f"ozon_sync_products_{shop.id}_{uuid.uuid4().hex[:8]}"
                             product_result = await OzonSyncService.sync_products(
                                 shop_id=shop.id,
                                 db=db,
+                                task_id=product_task_id,
                                 mode="incremental"
                             )
-                            total_products += product_result.get("total_processed", 0)
+                            total_products += product_result.get("result", {}).get("total_synced", 0)
 
                         # 同步订单
                         sync_orders = config.get("sync_orders", True)
                         if sync_orders:
+                            order_task_id = f"ozon_sync_orders_{shop.id}_{uuid.uuid4().hex[:8]}"
                             order_result = await OzonSyncService.sync_orders(
                                 shop_id=shop.id,
                                 db=db,
+                                task_id=order_task_id,
                                 mode="incremental"
                             )
-                            total_orders += order_result.get("total_processed", 0)
+                            total_orders += order_result.get("result", {}).get("total_synced", 0)
 
                 return {
                     "records_processed": total_products + total_orders,
