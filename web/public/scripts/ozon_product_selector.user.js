@@ -141,6 +141,7 @@
             this.isRunning = false;
             this.scrollCount = 0;
             this.noChangeCount = 0;
+            this.detectedCurrency = null;           // 检测到的货币单位（全局复用）
             this.stats = {
                 collected: 0,
                 validated: 0,
@@ -551,6 +552,29 @@
             return bangData;
         }
 
+        // 检测页面货币（只检测一次，全局复用）
+        detectCurrency(priceText) {
+            if (this.detectedCurrency) {
+                return this.detectedCurrency; // 已检测过，直接返回
+            }
+
+            // 只考虑卢布和人民币
+            if (priceText.includes('￥') || priceText.includes('¥')) {
+                this.detectedCurrency = '￥';
+            } else if (priceText.includes('CNY') || priceText.includes('元')) {
+                this.detectedCurrency = '￥';
+            } else if (priceText.includes('₽')) {
+                this.detectedCurrency = '₽';
+            } else if (priceText.includes('RUB') || priceText.includes('руб')) {
+                this.detectedCurrency = '₽';
+            } else {
+                // 默认：OZON.ru使用卢布
+                this.detectedCurrency = '₽';
+            }
+
+            return this.detectedCurrency;
+        }
+
         // 提取商品标题
         extractProductTitle(element) {
             const selectors = [
@@ -619,22 +643,8 @@
                     // 提取纯数字（支持空格分隔，如 "5 087"）
                     const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
                     if (cleanPrice) {
-                        // 从文本中检测并保留货币符号（用于信息保存，不影响提取逻辑）
-                        let currency = '₽'; // 默认：OZON.ru使用卢布
-
-                        // 尝试检测实际货币（优先级从特殊到通用）
-                        if (priceText.includes('￥')) currency = '￥';
-                        else if (priceText.includes('¥')) currency = '¥';
-                        else if (priceText.includes('CNY')) currency = 'CNY';
-                        else if (priceText.includes('元')) currency = '元';
-                        else if (priceText.includes('₽')) currency = '₽';
-                        else if (priceText.includes('RUB')) currency = 'RUB';
-                        else if (priceText.includes('руб')) currency = 'руб';
-                        else if (priceText.includes('$')) currency = '$';
-                        else if (priceText.includes('USD')) currency = 'USD';
-                        else if (priceText.includes('€')) currency = '€';
-                        else if (priceText.includes('EUR')) currency = 'EUR';
-
+                        // 检测货币（首次检测后全局复用）
+                        const currency = this.detectCurrency(priceText);
                         return cleanPrice + ' ' + currency;
                     }
                 }
@@ -666,22 +676,8 @@
                     // 提取纯数字（支持空格分隔，如 "5 087"）
                     const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
                     if (cleanPrice) {
-                        // 从文本中检测并保留货币符号（用于信息保存，不影响提取逻辑）
-                        let currency = '₽'; // 默认：OZON.ru使用卢布
-
-                        // 尝试检测实际货币（优先级从特殊到通用）
-                        if (priceText.includes('￥')) currency = '￥';
-                        else if (priceText.includes('¥')) currency = '¥';
-                        else if (priceText.includes('CNY')) currency = 'CNY';
-                        else if (priceText.includes('元')) currency = '元';
-                        else if (priceText.includes('₽')) currency = '₽';
-                        else if (priceText.includes('RUB')) currency = 'RUB';
-                        else if (priceText.includes('руб')) currency = 'руб';
-                        else if (priceText.includes('$')) currency = '$';
-                        else if (priceText.includes('USD')) currency = 'USD';
-                        else if (priceText.includes('€')) currency = '€';
-                        else if (priceText.includes('EUR')) currency = 'EUR';
-
+                        // 使用全局货币（首次提取价格时已检测）
+                        const currency = this.detectedCurrency || '₽';
                         return cleanPrice + ' ' + currency;
                     }
                 }
