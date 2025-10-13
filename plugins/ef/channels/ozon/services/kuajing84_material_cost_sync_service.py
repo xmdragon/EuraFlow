@@ -83,11 +83,12 @@ class Kuajing84MaterialCostSyncService:
 
             logger.info(f"Successfully obtained {len(valid_cookies)} cookies")
 
-            # 3. 查询需要同步的订单（批量查询10个）
+            # 3. 查询需要同步的订单（批量查询10个，使用 distinct 避免重复）
             from sqlalchemy.orm import selectinload
 
             orders_result = await session.execute(
                 select(OzonOrder)
+                .distinct()  # 确保每个订单只返回一次
                 .options(selectinload(OzonOrder.postings))  # 预加载postings关系
                 .where(OzonOrder.material_cost == None)
                 .join(OzonOrder.postings)
