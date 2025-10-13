@@ -304,10 +304,6 @@ const ProductSelection: React.FC = () => {
 
     if (values.product_name) params.product_name = values.product_name;
     if (values.brand) params.brand = values.brand;
-    if (values.rfbs_low_max) params.rfbs_low_max = values.rfbs_low_max;
-    if (values.rfbs_mid_max) params.rfbs_mid_max = values.rfbs_mid_max;
-    if (values.fbp_low_max) params.fbp_low_max = values.fbp_low_max;
-    if (values.fbp_mid_max) params.fbp_mid_max = values.fbp_mid_max;
     if (values.monthly_sales_min) params.monthly_sales_min = values.monthly_sales_min;
     if (values.monthly_sales_max) params.monthly_sales_max = values.monthly_sales_max;
     if (values.weight_max) params.weight_max = values.weight_max;
@@ -315,9 +311,9 @@ const ProductSelection: React.FC = () => {
     if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max;
     if (values.competitor_min_price_min) params.competitor_min_price_min = values.competitor_min_price_min;
     if (values.competitor_min_price_max) params.competitor_min_price_max = values.competitor_min_price_max;
-    if (values.listing_date && values.listing_date.length === 2) {
-      params.created_at_start = values.listing_date[0].format('YYYY-MM-DD');
-      params.created_at_end = values.listing_date[1].format('YYYY-MM-DD');
+    // 上架时间：搜索早于该日期的商品
+    if (values.listing_date) {
+      params.created_at_end = values.listing_date.format('YYYY-MM-DD');
     }
     if (values.sort_by) params.sort_by = values.sort_by;
 
@@ -799,25 +795,25 @@ const ProductSelection: React.FC = () => {
               onFinish={handleSearch}
               initialValues={{ sort_by: 'created_asc' }}
             >
-              <Row gutter={[16, 16]}>
-                {/* 第一行：商品名称、品牌、上架时间、排序 */}
-                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+              <Row gutter={[16, 16]} wrap>
+                {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
+                <Col flex="auto" style={{ minWidth: '180px' }}>
                   <Form.Item label="商品名称" name="product_name">
                     <Input
                       placeholder="商品名称"
                       allowClear
-                      style={{ width: '10em' }}
+                      style={{ width: '100%' }}
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={4} xl={3}>
+                <Col flex="auto" style={{ minWidth: '150px' }}>
                   <Form.Item label="品牌" name="brand">
                     <Select
                       placeholder="品牌"
                       allowClear
                       showSearch
-                      style={{ width: '10em' }}
+                      style={{ width: '100%' }}
                       filterOption={(input, option) =>
                         String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
                       }
@@ -831,18 +827,19 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6} xl={5}>
-                  <Form.Item label="上架时间" name="listing_date">
-                    <DatePicker.RangePicker
+                <Col flex="auto" style={{ minWidth: '180px' }}>
+                  <Form.Item label="上架早于" name="listing_date">
+                    <DatePicker
                       style={{ width: '100%' }}
                       format="YYYY-MM-DD"
+                      placeholder="选择日期"
                     />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={4} xl={3}>
+                <Col flex="auto" style={{ minWidth: '150px' }}>
                   <Form.Item label="排序" name="sort_by">
-                    <Select placeholder="最早导入" style={{ width: '10em' }}>
+                    <Select placeholder="最早导入" style={{ width: '100%' }}>
                       <Option value="created_asc">最早导入</Option>
                       <Option value="created_desc">最新导入</Option>
                       <Option value="sales_desc">销量↓</Option>
@@ -854,74 +851,20 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                {/* 第二行：佣金率字段 */}
-                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
-                  <Form.Item label="rFBS≤1500" name="rfbs_low_max">
-                    <InputNumber
-                      min={0}
-                      max={100}
-                      precision={1}
-                      style={{ width: '4em' }}
-                      placeholder="%"
-                      suffix="%"
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
-                  <Form.Item label="rFBS 1501-5000" name="rfbs_mid_max">
-                    <InputNumber
-                      min={0}
-                      max={100}
-                      precision={1}
-                      style={{ width: '4em' }}
-                      placeholder="%"
-                      suffix="%"
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
-                  <Form.Item label="FBP≤1500" name="fbp_low_max">
-                    <InputNumber
-                      min={0}
-                      max={100}
-                      precision={1}
-                      style={{ width: '4em' }}
-                      placeholder="%"
-                      suffix="%"
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} sm={12} md={6} lg={4} xl={3}>
-                  <Form.Item label="FBP 1501-5000" name="fbp_mid_max">
-                    <InputNumber
-                      min={0}
-                      max={100}
-                      precision={1}
-                      style={{ width: '4em' }}
-                      placeholder="%"
-                      suffix="%"
-                    />
-                  </Form.Item>
-                </Col>
-
-                {/* 第三行：月销量、重量 */}
-                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+                <Col flex="auto" style={{ minWidth: '180px' }}>
                   <Form.Item label="月销量">
-                    <Space.Compact>
+                    <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="monthly_sales_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '4em' }}
+                          style={{ width: '50%' }}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="monthly_sales_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '4em' }}
+                          style={{ width: '50%' }}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -929,32 +872,31 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={6} lg={4} xl={2}>
+                <Col flex="auto" style={{ minWidth: '120px' }}>
                   <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
-                      style={{ width: '4em' }}
+                      style={{ width: '100%' }}
                       placeholder="g"
                       suffix="g"
                     />
                   </Form.Item>
                 </Col>
 
-                {/* 第四行：跟卖者相关 */}
-                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+                <Col flex="auto" style={{ minWidth: '180px' }}>
                   <Form.Item label="跟卖者数量">
-                    <Space.Compact>
+                    <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_count_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '4em' }}
+                          style={{ width: '50%' }}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="competitor_count_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '4em' }}
+                          style={{ width: '50%' }}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -962,29 +904,27 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} sm={12} md={8} lg={6} xl={4}>
+                <Col flex="auto" style={{ minWidth: '180px' }}>
                   <Form.Item label="最低跟卖价">
-                    <Space.Compact>
+                    <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_min_price_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '4em' }}
-                          placeholder={`最小${userSymbol}`}
+                          style={{ width: '50%' }}
+                          placeholder={`最小`}
                         />
                       </Form.Item>
                       <Form.Item name="competitor_min_price_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '4em' }}
-                          placeholder={`最大${userSymbol}`}
+                          style={{ width: '50%' }}
+                          placeholder={`最大`}
                         />
                       </Form.Item>
                     </Space.Compact>
                   </Form.Item>
                 </Col>
-              </Row>
 
-              <Row>
                 <Col span={24}>
                   <Space>
                     <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
