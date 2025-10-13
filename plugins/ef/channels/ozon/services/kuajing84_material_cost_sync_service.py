@@ -100,72 +100,85 @@ class Kuajing84MaterialCostSyncService:
             logger.info(f"Processing order {order.id}")
 
             # 3. 处理这一个订单
-            try:
-                stats["records_processed"] += 1
+            # 获取第一个有效的posting_number（在session内访问）
+            posting_number = None
+            for posting in order.postings:
+                if posting.posting_number:
+                    posting_number = posting.posting_number
+                    break
 
-                # 获取第一个posting的posting_number（在session内访问）
-                posting_number = order.postings[0].posting_number
+            if not posting_number:
+                logger.warning(f"Order {order.id} has no valid posting_number, skipping")
+                stats["records_processed"] += 1
+                stats["records_skipped"] += 1
+                # 等待5秒后返回
+                await asyncio.sleep(delay_seconds)
+            else:
                 # 保存到外部变量，用于返回结果
                 processed_posting_number = posting_number
+                logger.info(f"Processing order {order.id} with posting_number: {posting_number}")
 
-                # 查询跨境巴士订单信息
-                result = await self._fetch_kuajing84_order(
-                    posting_number=posting_number,
-                    cookies=kuajing84_config.cookie,
-                    base_url=kuajing84_config.base_url
-                )
+                try:
+                        stats["records_processed"] += 1
 
-                if result["success"]:
-                    # 检查订单状态是否为"已打包"
-                    if result["order_status_info"] == "已打包":
-                        # 更新物料成本
-                        material_cost = Decimal(str(result["money"]))
-                        order.material_cost = material_cost
+                        # 查询跨境巴士订单信息
+                        result = await self._fetch_kuajing84_order(
+                            posting_number=posting_number,
+                            cookies=kuajing84_config.cookie,
+                            base_url=kuajing84_config.base_url
+                        )
 
-                        # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
-                        if not order.domestic_tracking_number and result.get("logistics_order"):
-                            order.domestic_tracking_number = result["logistics_order"]
-                            order.domestic_tracking_updated_at = datetime.now(timezone.utc)
-                            logger.info(
-                                f"Updated domestic tracking number for order {order.id}, "
-                                f"tracking_number={result['logistics_order']}"
+                        if result["success"]:
+                            # 检查订单状态是否为"已打包"
+                            if result["order_status_info"] == "已打包":
+                                # 更新物料成本
+                                material_cost = Decimal(str(result["money"]))
+                                order.material_cost = material_cost
+
+                                # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
+                                if not order.domestic_tracking_number and result.get("logistics_order"):
+                                    order.domestic_tracking_number = result["logistics_order"]
+                                    order.domestic_tracking_updated_at = datetime.now(timezone.utc)
+                                    logger.info(
+                                        f"Updated domestic tracking number for order {order.id}, "
+                                        f"tracking_number={result['logistics_order']}"
+                                    )
+
+                                logger.info(
+                                    f"Updated material cost for order {order.id}, "
+                                    f"posting_number={posting_number}, cost={material_cost}"
+                                )
+
+                                stats["records_updated"] += 1
+
+                                # 提交变更
+                                await session.commit()
+                            else:
+                                logger.info(
+                                    f"Order {order.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
+                                )
+                                stats["records_skipped"] += 1
+                        else:
+                            logger.warning(
+                                f"Failed to fetch order from Kuajing84, "
+                                f"posting_number={posting_number}, reason={result.get('message')}"
                             )
+                            stats["records_skipped"] += 1
+                            stats["errors"].append({
+                                "order_id": order.id,
+                                "posting_number": posting_number,
+                                "error": result.get("message", "Unknown error")
+                            })
 
-                        logger.info(
-                            f"Updated material cost for order {order.id}, "
-                            f"posting_number={posting_number}, cost={material_cost}"
-                        )
+                        # 频率控制：等待5秒
+                        await asyncio.sleep(delay_seconds)
 
-                        stats["records_updated"] += 1
-
-                        # 提交变更
-                        await session.commit()
-                    else:
-                        logger.info(
-                            f"Order {order.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
-                        )
-                        stats["records_skipped"] += 1
-                else:
-                    logger.warning(
-                        f"Failed to fetch order from Kuajing84, "
-                        f"posting_number={posting_number}, reason={result.get('message')}"
-                    )
-                    stats["records_skipped"] += 1
+                except Exception as e:
+                    logger.error(f"Error syncing order {order.id}: {e}", exc_info=True)
                     stats["errors"].append({
                         "order_id": order.id,
-                        "posting_number": posting_number,
-                        "error": result.get("message", "Unknown error")
+                        "error": str(e)
                     })
-
-                # 频率控制：等待5秒
-                await asyncio.sleep(delay_seconds)
-
-            except Exception as e:
-                logger.error(f"Error syncing order {order.id}: {e}", exc_info=True)
-                stats["errors"].append({
-                    "order_id": order.id,
-                    "error": str(e)
-                })
 
         logger.info(
             f"Material cost sync completed: "
