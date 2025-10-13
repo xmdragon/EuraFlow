@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Ozon选品助手
 // @namespace    http://euraflow.local/
-// @version      4.3
-// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制
+// @version      4.4
+// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制，支持多语言页面
 // @author       EuraFlow Team
 // @match        https://www.ozon.ru/*
 // @grant        GM_xmlhttpRequest
@@ -261,19 +261,21 @@
                     data['商品评分'] = '-';
                 }
 
-                // 评价次数 - 查找包含 color: var(--textSecondary) 样式的span
+                // 评价次数 - 查找包含 color: var(--textSecondary) 样式的span（语言无关）
                 const reviewSpans = element.querySelectorAll('span[style*="--textSecondary"]');
                 let foundReview = false;
                 for (const span of reviewSpans) {
                     const text = span.textContent.trim();
-                    // 匹配评价数格式 (如: 74 отзыва, 7 отзывов, 9 860 отзывов)
-                    // 支持空格分隔的数字（如 "9 860"）
-                    const reviewMatch = text.match(/([\d\s]+)\s*отзыв/);
-                    if (reviewMatch) {
-                        // 移除所有空格，只保留数字
-                        data['评价次数'] = reviewMatch[1].replace(/\s/g, '');
-                        foundReview = true;
-                        break;
+                    // 提取纯数字（支持空格/逗号分隔，如 "9 860" 或 "9,860"）
+                    const numbersOnly = text.replace(/[^\d]/g, '');
+                    if (numbersOnly && numbersOnly.length > 0) {
+                        const reviewCount = parseInt(numbersOnly);
+                        // 验证：合理范围（1 到 10,000,000）且不包含小数点（排除评分）
+                        if (reviewCount >= 1 && reviewCount <= 10000000 && !text.includes('.')) {
+                            data['评价次数'] = numbersOnly;
+                            foundReview = true;
+                            break;
+                        }
                     }
                 }
                 if (!foundReview) {
@@ -568,12 +570,11 @@
                 const titleElements = element.querySelectorAll(selector);
                 for (const titleElement of titleElements) {
                     const text = titleElement.textContent.trim();
-                    // 验证是否为商品标题（长度合理，不包含价格符号和百分比）
-                    if (text && text.length >= 3 && text.length < 500 &&
+                    // 验证是否为商品标题（语言无关：长度合理，不包含价格符号和百分比）
+                    if (text && text.length >= 10 && text.length < 500 &&
                         !text.includes('₽') && !text.includes('￥') && !text.includes('元') &&
                         !text.includes('%') && !text.includes('CNY') && !text.includes('RUB') &&
-                        !text.match(/^\d+$/) && // 排除纯数字
-                        !text.match(/^\d+\s*(шт|г|мл|см|мм)$/)) { // 排除数量单位
+                        !text.match(/^\d+$/)) { // 排除纯数字
                         return text;
                     }
                 }
@@ -594,7 +595,7 @@
             return '-';
         }
 
-        // 提取价格
+        // 提取价格（语言无关，保留货币单位）
         extractPrice(element) {
             const priceSelectors = [
                 // Ozon最新的价格选择器
@@ -612,20 +613,28 @@
                 const priceElement = element.querySelector(selector);
                 if (priceElement) {
                     const priceText = priceElement.textContent;
-                    // 过滤掉包含%的折扣文本
+                    // 跳过折扣百分比
                     if (priceText.includes('%')) continue;
 
-                    // 检测货币符号
-                    let currency = '₽'; // 默认卢布
-                    if (priceText.includes('￥') || priceText.includes('CNY') || priceText.includes('元')) {
-                        currency = '￥';
-                    } else if (priceText.includes('₽') || priceText.includes('RUB')) {
-                        currency = '₽';
-                    }
-
-                    // 提取数字和空格
+                    // 提取纯数字（支持空格分隔，如 "5 087"）
                     const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
                     if (cleanPrice) {
+                        // 从文本中检测并保留货币符号（用于信息保存，不影响提取逻辑）
+                        let currency = '₽'; // 默认：OZON.ru使用卢布
+
+                        // 尝试检测实际货币（优先级从特殊到通用）
+                        if (priceText.includes('￥')) currency = '￥';
+                        else if (priceText.includes('¥')) currency = '¥';
+                        else if (priceText.includes('CNY')) currency = 'CNY';
+                        else if (priceText.includes('元')) currency = '元';
+                        else if (priceText.includes('₽')) currency = '₽';
+                        else if (priceText.includes('RUB')) currency = 'RUB';
+                        else if (priceText.includes('руб')) currency = 'руб';
+                        else if (priceText.includes('$')) currency = '$';
+                        else if (priceText.includes('USD')) currency = 'USD';
+                        else if (priceText.includes('€')) currency = '€';
+                        else if (priceText.includes('EUR')) currency = 'EUR';
+
                         return cleanPrice + ' ' + currency;
                     }
                 }
@@ -634,7 +643,7 @@
             return '-';
         }
 
-        // 提取原价
+        // 提取原价（语言无关，保留货币单位）
         extractOriginalPrice(element) {
             const originalPriceSelectors = [
                 // Ozon新的原价选择器 - 通常是第二个价格span
@@ -651,20 +660,28 @@
                 const priceElement = element.querySelector(selector);
                 if (priceElement) {
                     const priceText = priceElement.textContent;
-                    // 过滤掉包含%的折扣文本
+                    // 跳过折扣百分比
                     if (priceText.includes('%')) continue;
 
-                    // 检测货币符号
-                    let currency = '₽'; // 默认卢布
-                    if (priceText.includes('￥') || priceText.includes('CNY') || priceText.includes('元')) {
-                        currency = '￥';
-                    } else if (priceText.includes('₽') || priceText.includes('RUB')) {
-                        currency = '₽';
-                    }
-
-                    // 提取数字和空格
+                    // 提取纯数字（支持空格分隔，如 "5 087"）
                     const cleanPrice = priceText.replace(/[^\d\s]/g, '').trim();
                     if (cleanPrice) {
+                        // 从文本中检测并保留货币符号（用于信息保存，不影响提取逻辑）
+                        let currency = '₽'; // 默认：OZON.ru使用卢布
+
+                        // 尝试检测实际货币（优先级从特殊到通用）
+                        if (priceText.includes('￥')) currency = '￥';
+                        else if (priceText.includes('¥')) currency = '¥';
+                        else if (priceText.includes('CNY')) currency = 'CNY';
+                        else if (priceText.includes('元')) currency = '元';
+                        else if (priceText.includes('₽')) currency = '₽';
+                        else if (priceText.includes('RUB')) currency = 'RUB';
+                        else if (priceText.includes('руб')) currency = 'руб';
+                        else if (priceText.includes('$')) currency = '$';
+                        else if (priceText.includes('USD')) currency = 'USD';
+                        else if (priceText.includes('€')) currency = '€';
+                        else if (priceText.includes('EUR')) currency = 'EUR';
+
                         return cleanPrice + ' ' + currency;
                     }
                 }
