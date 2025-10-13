@@ -75,10 +75,14 @@ class Kuajing84MaterialCostSyncService:
                 }
 
             # 2. 查询需要同步的订单（只取一个，单线程模式）
+            # 确保订单有posting且posting_number不为空
+            from ..models.orders import OzonPosting
             order_result = await session.execute(
                 select(OzonOrder)
                 .where(OzonOrder.material_cost == None)
                 .join(OzonOrder.postings)
+                .where(OzonPosting.posting_number != None)
+                .where(OzonPosting.posting_number != '')
                 .limit(1)
             )
             order = order_result.scalar_one_or_none()
@@ -97,14 +101,6 @@ class Kuajing84MaterialCostSyncService:
                 stats["records_processed"] += 1
 
                 # 获取第一个posting的posting_number（在session内访问）
-                if not order.postings or len(order.postings) == 0:
-                    logger.warning(f"Order {order.id} has no posting, skipping")
-                    stats["records_skipped"] += 1
-                    return {
-                        **stats,
-                        "message": "订单无posting_number，已跳过"
-                    }
-
                 posting_number = order.postings[0].posting_number
                 # 保存到外部变量，用于返回结果
                 processed_posting_number = posting_number
