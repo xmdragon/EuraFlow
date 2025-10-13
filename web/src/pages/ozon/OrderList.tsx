@@ -65,15 +65,34 @@ const { Text } = Typography;
 interface ExtraInfoFormProps {
   selectedOrder: ozonApi.Order | null;
   setIsUpdatingExtraInfo: (loading: boolean) => void;
+  syncToKuajing84Mutation: any;
 }
 
-const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdatingExtraInfo }) => {
+const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdatingExtraInfo, syncToKuajing84Mutation }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const { symbol: userSymbol } = useCurrency();
 
   // 优先使用订单货币，否则使用用户设置
   const orderSymbol = getCurrencySymbol(selectedOrder?.currency_code) || userSymbol;
+
+  // 获取国际物流单号（从包裹信息中读取）
+  const internationalTrackingNumber = React.useMemo(() => {
+    if (!selectedOrder?.postings || selectedOrder.postings.length === 0) return '-';
+
+    const firstPosting = selectedOrder.postings[0];
+    if (!firstPosting.packages || firstPosting.packages.length === 0) return '-';
+
+    const firstPackage = firstPosting.packages[0];
+    if (!firstPackage.tracking_number) return '-';
+
+    // 如果有多个包裹，显示数量提示
+    if (firstPosting.packages.length > 1) {
+      return `${firstPackage.tracking_number} (+${firstPosting.packages.length - 1}个)`;
+    }
+
+    return firstPackage.tracking_number;
+  }, [selectedOrder]);
 
   // 当选中订单变化时，更新表单
   useEffect(() => {
@@ -83,6 +102,7 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
         domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
         material_cost: selectedOrder.material_cost || '',
         order_notes: selectedOrder.order_notes || '',
+        source_platform: selectedOrder.source_platform || '',
       });
     } else {
       form.resetFields();
@@ -158,6 +178,20 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
       <Row gutter={16}>
         <Col span={12}>
           <Form.Item
+            name="source_platform"
+            label="采集平台"
+            tooltip="商品采集来源平台"
+          >
+            <Select placeholder="请选择采集平台" allowClear>
+              <Option value="1688">1688</Option>
+              <Option value="拼多多">拼多多</Option>
+              <Option value="咸鱼">咸鱼</Option>
+              <Option value="淘宝">淘宝</Option>
+            </Select>
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item
             name="domestic_tracking_number"
             label="国内物流单号"
             tooltip="国内物流配送的跟踪单号"
@@ -165,13 +199,12 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
             <Input placeholder="国内物流单号" />
           </Form.Item>
         </Col>
+      </Row>
+
+      <Row gutter={16}>
         <Col span={12}>
-          <Form.Item
-            name="tracking_number"
-            label="国际物流单号"
-            tooltip="国际物流的跟踪单号"
-          >
-            <Input placeholder="国际物流单号" />
+          <Form.Item label="国际物流单号" tooltip="国际物流的跟踪单号（只读）">
+            <Text>{internationalTrackingNumber}</Text>
           </Form.Item>
         </Col>
       </Row>
@@ -191,6 +224,37 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
         <Space>
           <Button type="primary" htmlType="submit">
             保存信息
+          </Button>
+          <Button
+            type="default"
+            icon={<SendOutlined />}
+            loading={syncToKuajing84Mutation.isPending}
+            onClick={async () => {
+              try {
+                // 先保存表单
+                const values = await form.validateFields();
+                await handleFinish(values);
+
+                // 再同步到跨境巴士
+                if (!selectedOrder?.id) {
+                  message.error('订单ID不存在');
+                  return;
+                }
+                if (!values.domestic_tracking_number) {
+                  message.error('请先填写国内物流单号');
+                  return;
+                }
+
+                syncToKuajing84Mutation.mutate({
+                  ozonOrderId: selectedOrder.id,
+                  logisticsOrder: values.domestic_tracking_number,
+                });
+              } catch (error) {
+                console.error('保存并同步失败:', error);
+              }
+            }}
+          >
+            保存并同步跨境巴士
           </Button>
           <Button onClick={() => form.resetFields()}>
             重置
@@ -586,9 +650,17 @@ const OrderList: React.FC = () => {
       title: '配送',
       key: 'order_type',
       width: 100,
-      render: (_: any, record: ozonApi.PostingWithOrder) => (
-        <span>{record.delivery_method_name || record.order.delivery_method || record.order.order_type || 'FBS'}</span>
-      ),
+      render: (_: any, record: ozonApi.PostingWithOrder) => {
+        const fullText = record.delivery_method_name || record.order.delivery_method || record.order.order_type || 'FBS';
+        // 提取括号前的内容（支持中英文括号）
+        const shortText = fullText.split('（')[0].split('(')[0].trim();
+
+        return (
+          <Tooltip title={fullText}>
+            <span>{shortText}</span>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '追踪号码',
@@ -1133,7 +1205,7 @@ const OrderList: React.FC = () => {
               {
                 label: '额外信息',
                 key: '4',
-                children: <ExtraInfoForm selectedOrder={selectedOrder} setIsUpdatingExtraInfo={setIsUpdatingExtraInfo} />
+                children: <ExtraInfoForm selectedOrder={selectedOrder} setIsUpdatingExtraInfo={setIsUpdatingExtraInfo} syncToKuajing84Mutation={syncToKuajing84Mutation} />
               },
               {
                 label: '物流信息',
@@ -1162,96 +1234,6 @@ const OrderList: React.FC = () => {
                     </Descriptions>
                   </Card>
                 )),
-              },
-              {
-                label: (
-                  <span>
-                    <SendOutlined /> 跨境巴士同步
-                  </span>
-                ),
-                key: '6',
-                children: (
-                  <>
-                    <Alert
-                      message="物流单号同步"
-                      description="将国内物流单号同步到跨境巴士平台，便于物流追踪。请确保已在店铺设置中配置跨境巴士账号。"
-                      type="info"
-                      showIcon
-                      className={styles.alertMargin}
-                    />
-
-                    {selectedOrder.domestic_tracking_number && (
-                      <Alert
-                        message="当前国内物流单号"
-                        description={selectedOrder.domestic_tracking_number}
-                        type="success"
-                        showIcon
-                        className={styles.alertMargin}
-                      />
-                    )}
-
-                    <Form
-                      layout="vertical"
-                      onFinish={(values) => {
-                        if (!selectedOrder.id) {
-                          message.error('订单ID不存在');
-                          return;
-                        }
-                        syncToKuajing84Mutation.mutate({
-                          ozonOrderId: selectedOrder.id,
-                          logisticsOrder: values.logistics_order,
-                        });
-                      }}
-                      initialValues={{
-                        logistics_order: selectedOrder.domestic_tracking_number || '',
-                      }}
-                    >
-                      <Form.Item
-                        name="logistics_order"
-                        label="国内物流单号"
-                        rules={[{ required: true, message: '请输入国内物流单号' }]}
-                      >
-                        <Input
-                          placeholder="请输入国内物流单号"
-                          prefix={<TruckOutlined />}
-                        />
-                      </Form.Item>
-
-                      <Form.Item>
-                        <Space>
-                          <Button
-                            type="primary"
-                            htmlType="submit"
-                            icon={<SendOutlined />}
-                            loading={syncToKuajing84Mutation.isPending}
-                          >
-                            同步到跨境巴士
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              // 刷新当前订单的kuajing84同步日志
-                              message.info('同步日志查询功能开发中');
-                            }}
-                          >
-                            查看同步日志
-                          </Button>
-                        </Space>
-                      </Form.Item>
-                    </Form>
-
-                    <Divider />
-
-                    <div>
-                      <Text strong>使用说明：</Text>
-                      <ol className={styles.instructionList}>
-                        <li>在"额外信息"标签页中填写国内物流单号</li>
-                        <li>确保已在店铺设置中配置跨境巴士账号</li>
-                        <li>点击"同步到跨境巴士"按钮进行同步</li>
-                        <li>系统将自动在跨境巴士平台中查找订单并更新物流单号</li>
-                      </ol>
-                    </div>
-                  </>
-                ),
               },
             ]}
           />

@@ -84,6 +84,7 @@ class OzonOrder(Base):
     domestic_tracking_number = Column(String(200), comment="国内物流单号")
     material_cost = Column(Numeric(18, 4), comment="材料费用（包装、标签等）")
     order_notes = Column(String(1000), comment="订单备注")
+    source_platform = Column(String(50), comment="采集平台")
 
     # 额外信息更新时间
     purchase_price_updated_at = Column(DateTime(timezone=True), comment="进货价格更新时间")

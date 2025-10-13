@@ -1865,6 +1865,8 @@ async def update_order_extra_info(
         order.material_cost = Decimal(str(extra_info["material_cost"])) if extra_info["material_cost"] else None
     if "order_notes" in extra_info:
         order.order_notes = extra_info["order_notes"]
+    if "source_platform" in extra_info:
+        order.source_platform = extra_info["source_platform"]
 
     # 更新时间戳
     order.updated_at = utcnow()
@@ -1883,6 +1885,7 @@ async def update_order_extra_info(
             "domestic_tracking_number": order.domestic_tracking_number,
             "material_cost": format_currency(order.material_cost),
             "order_notes": order.order_notes,
+            "source_platform": order.source_platform,
             "purchase_price_updated_at": order.purchase_price_updated_at.isoformat() if order.purchase_price_updated_at else None,
             "domestic_tracking_updated_at": order.domestic_tracking_updated_at.isoformat() if order.domestic_tracking_updated_at else None
         }
