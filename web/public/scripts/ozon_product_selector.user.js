@@ -773,15 +773,9 @@
 
             if (skipWait) {
                 // 首次扫描：直接采集所有行
-                console.log('[Ozon Selector] 🚀 首次扫描开始 - 总行数:', rows.length, '总元素:', elements.length);
-                const beforeFirstScan = newProducts.length;
                 for (const row of rows) {
                     if (row.length === 0) continue;
                     await collectRow(row);
-                }
-                console.log('[Ozon Selector] ✅ 首次扫描完成 - 新增商品:', newProducts.length - beforeFirstScan);
-                if (newProducts.length > 0) {
-                    console.log('[Ozon Selector] 📋 采集的商品fingerprints:', newProducts.map(p => p.fingerprint).slice(0, 5), '...(共' + newProducts.length + '个)');
                 }
             } else {
                 // 滚动后：并行轮询，每200ms检查所有行
@@ -790,13 +784,9 @@
                 const startTime = Date.now();
                 let checkCount = 0;
 
-                console.log('[Ozon Selector] 🔍 开始并行轮询检测 - 总行数:', rows.length, '最大等待:', maxWait + 'ms');
-
                 while (processedRows.size < rows.length && Date.now() - startTime < maxWait) {
                     checkCount++;
                     const beforeCollect = newProducts.length;
-
-                    console.log(`[Ozon Selector] ⏱️  第${checkCount}次检测 - 已处理:`, processedRows.size, '/', rows.length, `(${Math.round(Date.now() - startTime)}ms)`);
 
                     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
                         // 已处理的行跳过
@@ -819,7 +809,6 @@
                         }
 
                         if (allCollected) {
-                            console.log(`[Ozon Selector] ⏭️  行${rowIndex} 全部已采集(${row.length}个)，跳过`);
                             processedRows.add(rowIndex);
                             continue;  // 立即跳过到下一行
                         }
@@ -848,30 +837,22 @@
 
                             // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
                             if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
-                                console.log(`[Ozon Selector] ✅ 行${rowIndex} 数据就绪（跟卖+佣金），立即采集`);
                                 // 这行准备好了，立即采集
                                 const rowStartCount = newProducts.length;
                                 await collectRow(row);
                                 const rowNewCount = newProducts.length - rowStartCount;
-                                console.log(`[Ozon Selector] 📦 行${rowIndex} 采集完成 - 新增 ${rowNewCount} 个商品`);
                                 processedRows.add(rowIndex);
                             }
                         }
                     }
 
                     const cycleNewCount = newProducts.length - beforeCollect;
-                    if (cycleNewCount > 0) {
-                        console.log(`[Ozon Selector] 🎯 本轮采集到 ${cycleNewCount} 个新商品`);
-                    }
 
                     // 如果还有未处理的行，等待200ms后继续检查
                     if (processedRows.size < rows.length) {
                         await this.sleep(CONFIG.bangCheckInterval);
                     }
                 }
-
-                const elapsed = Date.now() - startTime;
-                console.log(`[Ozon Selector] ✨ 并行轮询完成 - 耗时: ${elapsed}ms, 检测次数: ${checkCount}, 采集商品: ${newProducts.length}, 处理行数: ${processedRows.size}/${rows.length}`);
             }
 
             return newProducts;
