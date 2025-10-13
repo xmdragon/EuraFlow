@@ -525,6 +525,7 @@ class Kuajing84Client:
         self,
         order_number: str,
         cookies: List[Dict],
+        auto_refresh_on_302: bool = True,
     ) -> Dict[str, any]:
         """
         搜索订单（用于物料成本同步）
@@ -532,6 +533,7 @@ class Kuajing84Client:
         Args:
             order_number: 货件编号（OZON posting number）
             cookies: Cookie 列表
+            auto_refresh_on_302: 遇到302时是否自动重新登录（默认True）
 
         Returns:
             API返回结果:
@@ -591,7 +593,33 @@ class Kuajing84Client:
                 )
 
                 if response.status_code != 200:
-                    if response.status_code == 302:
+                    if response.status_code == 302 and auto_refresh_on_302:
+                        logger.warning(f"订单搜索返回302重定向，Cookie已过期，尝试自动重新登录...")
+
+                        # 尝试自动重新登录并更新Cookie
+                        try:
+                            new_cookies = await self._auto_refresh_cookie()
+                            if new_cookies:
+                                logger.info("自动重新登录成功，使用新Cookie重试请求")
+                                # 递归调用，但禁用自动刷新避免无限循环
+                                return await self.search_order(
+                                    order_number=order_number,
+                                    cookies=new_cookies,
+                                    auto_refresh_on_302=False
+                                )
+                            else:
+                                logger.error("自动重新登录失败")
+                                return {
+                                    "code": -1,
+                                    "message": "Cookie已过期，自动重新登录失败，请手动测试连接"
+                                }
+                        except Exception as e:
+                            logger.error(f"自动刷新Cookie异常: {e}", exc_info=True)
+                            return {
+                                "code": -1,
+                                "message": f"Cookie已过期，自动刷新失败: {str(e)}"
+                            }
+                    elif response.status_code == 302:
                         logger.error(f"订单搜索返回302重定向，Cookie已过期")
                         return {
                             "code": -1,
@@ -637,3 +665,65 @@ class Kuajing84Client:
                     "code": -1,
                     "message": f"搜索异常: {str(e)}"
                 }
+
+    async def _auto_refresh_cookie(self) -> List[Dict]:
+        """
+        自动刷新Cookie（从数据库获取凭据并重新登录）
+
+        Returns:
+            新的Cookie列表，失败返回None
+        """
+        try:
+            # 导入数据库相关模块
+            from ef_core.database import get_db_manager
+            from sqlalchemy import select
+            from ...models.kuajing84_global_config import Kuajing84GlobalConfig
+
+            logger.info("开始自动刷新Cookie...")
+
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as session:
+                # 获取跨境巴士配置
+                result = await session.execute(
+                    select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
+                )
+                config = result.scalar_one_or_none()
+
+                if not config:
+                    logger.error("未找到跨境巴士配置")
+                    return None
+
+                if not config.username or not config.password:
+                    logger.error("跨境巴士用户名或密码未配置")
+                    return None
+
+                # 解密密码
+                from ef_core.security import decrypt_field
+                password = decrypt_field(config.password)
+
+                # 重新登录
+                logger.info(f"使用用户名 {config.username} 重新登录...")
+                login_result = await self.login(username=config.username, password=password)
+
+                if not login_result or not login_result.get("cookies"):
+                    logger.error("重新登录失败")
+                    return None
+
+                new_cookies = login_result["cookies"]
+                expires_at_str = login_result["expires_at"]
+
+                # 转换过期时间字符串为datetime对象
+                from datetime import datetime
+                expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+
+                # 更新数据库中的Cookie
+                config.cookie = new_cookies
+                config.cookie_expires_at = expires_at
+                await session.commit()
+
+                logger.info(f"Cookie已更新，共 {len(new_cookies)} 个Cookie")
+                return new_cookies
+
+        except Exception as e:
+            logger.error(f"自动刷新Cookie失败: {e}", exc_info=True)
+            return None
