@@ -430,10 +430,10 @@ const ProductSelection: React.FC = () => {
     }
   };
 
-  // 将分转换为卢布
-  const formatPrice = (priceInKopecks: number | null | undefined): string => {
-    if (priceInKopecks === null || priceInKopecks === undefined) return '0.00';
-    return (priceInKopecks / 100).toFixed(2);
+  // 格式化价格（数据库存储的已经是卢布，不需要除以100）
+  const formatPrice = (priceInRubles: number | null | undefined): string => {
+    if (priceInRubles === null || priceInRubles === undefined) return '0.00';
+    return Number(priceInRubles).toFixed(2);
   };
 
   // 格式化百分比显示（不显示%符号）
