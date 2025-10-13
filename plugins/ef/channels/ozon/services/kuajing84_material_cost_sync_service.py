@@ -49,6 +49,9 @@ class Kuajing84MaterialCostSyncService:
             "errors": []
         }
 
+        # 保存posting_number用于返回结果
+        processed_posting_number = None
+
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
             # 1. 检查跨境巴士配置是否启用
@@ -93,7 +96,7 @@ class Kuajing84MaterialCostSyncService:
             try:
                 stats["records_processed"] += 1
 
-                # 获取第一个posting的posting_number
+                # 获取第一个posting的posting_number（在session内访问）
                 if not order.postings or len(order.postings) == 0:
                     logger.warning(f"Order {order.id} has no posting, skipping")
                     stats["records_skipped"] += 1
@@ -103,6 +106,8 @@ class Kuajing84MaterialCostSyncService:
                     }
 
                 posting_number = order.postings[0].posting_number
+                # 保存到外部变量，用于返回结果
+                processed_posting_number = posting_number
 
                 # 查询跨境巴士订单信息
                 result = await self._fetch_kuajing84_order(
@@ -185,8 +190,8 @@ class Kuajing84MaterialCostSyncService:
         }
 
         # 如果成功处理了订单，在extra_data中添加posting_number
-        if order and order.postings and len(order.postings) > 0:
-            result["posting_number"] = order.postings[0].posting_number
+        if processed_posting_number:
+            result["posting_number"] = processed_posting_number
 
         return result
 
