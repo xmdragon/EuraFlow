@@ -121,57 +121,84 @@ class Kuajing84MaterialCostSyncService:
                 try:
                         stats["records_processed"] += 1
 
-                        # 查询跨境巴士订单信息
-                        result = await self._fetch_kuajing84_order(
-                            posting_number=posting_number,
-                            cookies=kuajing84_config.cookie,
-                            base_url=kuajing84_config.base_url
-                        )
+                        # 使用 Kuajing84SyncService 获取有效的Cookie（会自动刷新过期的Cookie）
+                        from .kuajing84_sync import Kuajing84SyncService
+                        from ef_core.config import get_settings
+                        import hashlib
+                        import base64
 
-                        if result["success"]:
-                            # 检查订单状态是否为"已打包"
-                            if result["order_status_info"] == "已打包":
-                                # 更新物料成本
-                                material_cost = Decimal(str(result["money"]))
-                                order.material_cost = material_cost
+                        settings = get_settings()
+                        encryption_key = getattr(settings, "encryption_key", None)
+                        if not encryption_key:
+                            secret_key = settings.secret_key
+                            derived_key = hashlib.sha256(secret_key.encode()).digest()
+                            encryption_key = base64.urlsafe_b64encode(derived_key)
 
-                                # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
-                                if not order.domestic_tracking_number and result.get("logistics_order"):
-                                    order.domestic_tracking_number = result["logistics_order"]
-                                    order.domestic_tracking_updated_at = datetime.now(timezone.utc)
-                                    logger.info(
-                                        f"Updated domestic tracking number for order {order.id}, "
-                                        f"tracking_number={result['logistics_order']}"
-                                    )
+                        sync_service = Kuajing84SyncService(db=session, encryption_key=encryption_key)
+                        valid_cookies = await sync_service._get_valid_cookies()
 
-                                logger.info(
-                                    f"Updated material cost for order {order.id}, "
-                                    f"posting_number={posting_number}, cost={material_cost}"
-                                )
-
-                                stats["records_updated"] += 1
-
-                                # 提交变更
-                                await session.commit()
-                            else:
-                                logger.info(
-                                    f"Order {order.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
-                                )
-                                stats["records_skipped"] += 1
-                        else:
-                            logger.warning(
-                                f"Failed to fetch order from Kuajing84, "
-                                f"posting_number={posting_number}, reason={result.get('message')}"
-                            )
+                        if not valid_cookies:
+                            logger.error("无法获取有效的Cookie")
                             stats["records_skipped"] += 1
                             stats["errors"].append({
                                 "order_id": order.id,
                                 "posting_number": posting_number,
-                                "error": result.get("message", "Unknown error")
+                                "error": "Cookie获取失败，请检查跨境巴士配置"
                             })
+                            # 等待5秒后返回
+                            await asyncio.sleep(delay_seconds)
+                        else:
+                            # 使用有效的Cookie查询跨境巴士订单信息
+                            result = await self._fetch_kuajing84_order(
+                                posting_number=posting_number,
+                                cookies=valid_cookies,
+                                base_url=kuajing84_config.base_url
+                            )
 
-                        # 频率控制：等待5秒
-                        await asyncio.sleep(delay_seconds)
+                            if result["success"]:
+                                # 检查订单状态是否为"已打包"
+                                if result["order_status_info"] == "已打包":
+                                    # 更新物料成本
+                                    material_cost = Decimal(str(result["money"]))
+                                    order.material_cost = material_cost
+
+                                    # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
+                                    if not order.domestic_tracking_number and result.get("logistics_order"):
+                                        order.domestic_tracking_number = result["logistics_order"]
+                                        order.domestic_tracking_updated_at = datetime.now(timezone.utc)
+                                        logger.info(
+                                            f"Updated domestic tracking number for order {order.id}, "
+                                            f"tracking_number={result['logistics_order']}"
+                                        )
+
+                                    logger.info(
+                                        f"Updated material cost for order {order.id}, "
+                                        f"posting_number={posting_number}, cost={material_cost}"
+                                    )
+
+                                    stats["records_updated"] += 1
+
+                                    # 提交变更
+                                    await session.commit()
+                                else:
+                                    logger.info(
+                                        f"Order {order.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
+                                    )
+                                    stats["records_skipped"] += 1
+                            else:
+                                logger.warning(
+                                    f"Failed to fetch order from Kuajing84, "
+                                    f"posting_number={posting_number}, reason={result.get('message')}"
+                                )
+                                stats["records_skipped"] += 1
+                                stats["errors"].append({
+                                    "order_id": order.id,
+                                    "posting_number": posting_number,
+                                    "error": result.get("message", "Unknown error")
+                                })
+
+                            # 频率控制：等待5秒
+                            await asyncio.sleep(delay_seconds)
 
                 except Exception as e:
                     logger.error(f"Error syncing order {order.id}: {e}", exc_info=True)
