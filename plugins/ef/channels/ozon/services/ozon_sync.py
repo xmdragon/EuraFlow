@@ -107,8 +107,8 @@ class OzonSyncService:
             # 增量同步：设置时间过滤
             filter_params = {}
             if mode == "incremental":
-                # 获取最后同步时间或默认7天前
-                last_sync_time = utcnow() - timedelta(days=7)
+                # 获取最后同步时间或默认48小时前（2天）
+                last_sync_time = utcnow() - timedelta(hours=48)
                 filter_params["last_changed_since"] = last_sync_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                 logger.info(f"Incremental sync: fetching products changed since {last_sync_time}")
 
@@ -769,7 +769,7 @@ class OzonSyncService:
 
     @staticmethod
     async def _sync_orders_incremental(shop_id: int, db: AsyncSession, task_id: str) -> Dict[str, Any]:
-        """增量同步订单 - 最近7天（按状态分页）"""
+        """增量同步订单 - 最近48小时（按状态分页）"""
         try:
             # 更新任务状态
             SYNC_TASKS[task_id] = {
@@ -795,8 +795,8 @@ class OzonSyncService:
             SYNC_TASKS[task_id]["progress"] = 5
             SYNC_TASKS[task_id]["message"] = "正在连接Ozon API..."
 
-            # 时间范围：最近7天
-            date_from = utcnow() - timedelta(days=7)
+            # 时间范围：最近48小时（2天）
+            date_from = utcnow() - timedelta(hours=48)
             date_to = utcnow()
 
             # 需要同步的订单状态（OZON FBS 订单状态）
