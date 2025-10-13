@@ -1446,6 +1446,8 @@
                     this.collector.clear();
                     this.updateStats();
                     this.updateStatus('⏳ 等待开始...');
+                    // 滚动到页面顶部
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 }, 2000); // 延迟2秒让用户看到上传成功的消息
 
             } catch (error) {
