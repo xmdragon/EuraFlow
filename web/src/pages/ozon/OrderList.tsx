@@ -687,7 +687,7 @@ const OrderList: React.FC = () => {
         const shortText = fullText.split('（')[0].split('(')[0].trim();
 
         return (
-          <Tooltip title={fullText}>
+          <Tooltip title={formatDeliveryMethodText(fullText)}>
             <span>{shortText}</span>
           </Tooltip>
         );
@@ -1097,7 +1097,7 @@ const OrderList: React.FC = () => {
                         // 提取括号前的内容（支持中英文括号）
                         const shortText = fullText.split('（')[0].split('(')[0].trim();
                         return (
-                          <Tooltip title={fullText}>
+                          <Tooltip title={formatDeliveryMethodText(fullText)}>
                             <span>{shortText}</span>
                           </Tooltip>
                         );
