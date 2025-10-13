@@ -244,11 +244,14 @@ class Kuajing84MaterialCostSyncService:
                 )
 
                 # 解析返回值
+                logger.info(f"Kuajing84 API response for {posting_number}: {response}")
+
                 if response.get("code") == 0:
                     data_list = response.get("data", [])
 
                     if data_list and len(data_list) > 0:
                         order_data = data_list[0]
+                        logger.info(f"Found order data: status={order_data.get('order_status_info')}, money={order_data.get('money')}")
 
                         # 从package列表中提取logistics_order
                         logistics_order = None
@@ -263,14 +266,17 @@ class Kuajing84MaterialCostSyncService:
                             "logistics_order": logistics_order
                         }
                     else:
+                        logger.warning(f"API returned empty data for {posting_number}")
                         return {
                             "success": False,
                             "message": f"订单不存在: {posting_number}"
                         }
                 else:
+                    error_msg = response.get("msg", response.get("message", "Unknown error"))
+                    logger.error(f"Kuajing84 API error for {posting_number}: code={response.get('code')}, msg={error_msg}")
                     return {
                         "success": False,
-                        "message": f"API返回错误: code={response.get('code')}"
+                        "message": f"API返回错误: code={response.get('code')}, msg={error_msg}"
                     }
 
         except Exception as e:
