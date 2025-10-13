@@ -750,26 +750,28 @@ const ProductSelection: React.FC = () => {
             </div>
           )}
 
-          {/* 上架时间 */}
-          {fieldConfig.listingDate && (
-            <div className={styles.listingDate}>
-              <Text type="secondary" style={{ fontSize: '11px' }}>
-                上架: {product.product_created_date ? formatDate(product.product_created_date) : '无数据'}
-              </Text>
-            </div>
-          )}
-
-          {/* 评分 - 保持空行以确保布局一致 */}
-          {fieldConfig.rating && (
-            <div className={styles.ratingSection}>
-              {product.rating ? (
-                <>
-                  <StarOutlined />
-                  <Text strong className={styles.ratingValue}>{product.rating}</Text>
-                  <Text type="secondary" className={styles.reviewCount}>({product.review_count})</Text>
-                </>
-              ) : (
-                <span>&nbsp;</span>
+          {/* 评分和上架时间 - 合并为一行 */}
+          {(fieldConfig.rating || fieldConfig.listingDate) && (
+            <div className={styles.ratingAndDateRow}>
+              {fieldConfig.rating && (
+                <div className={styles.ratingSection}>
+                  {product.rating ? (
+                    <>
+                      <StarOutlined />
+                      <Text strong className={styles.ratingValue}>{product.rating}</Text>
+                      <Text type="secondary" className={styles.reviewCount}>({product.review_count})</Text>
+                    </>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: '11px' }}>-</Text>
+                  )}
+                </div>
+              )}
+              {fieldConfig.listingDate && (
+                <div className={styles.listingDate}>
+                  <Text type="secondary" style={{ fontSize: '11px' }}>
+                    {product.product_created_date ? formatDate(product.product_created_date) : '-'}
+                  </Text>
+                </div>
               )}
             </div>
           )}

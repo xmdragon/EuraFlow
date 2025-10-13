@@ -201,12 +201,23 @@
   color: #999;
 }
 
+// ===== 评分和上架时间合并行 =====
+.ratingAndDateRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+  min-height: 22px;
+  gap: 8px;
+}
+
 // ===== 评分 =====
 .ratingSection {
   font-size: 11px;
-  margin-top: 2px;
-  min-height: 22px;
   line-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 
   :global(.anticon) {
     color: #faad14;
