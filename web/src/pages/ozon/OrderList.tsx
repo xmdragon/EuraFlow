@@ -64,11 +64,12 @@ const { Text } = Typography;
 // 额外信息表单组件
 interface ExtraInfoFormProps {
   selectedOrder: ozonApi.Order | null;
+  selectedPosting: ozonApi.Posting | null;
   setIsUpdatingExtraInfo: (loading: boolean) => void;
   syncToKuajing84Mutation: any;
 }
 
-const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdatingExtraInfo, syncToKuajing84Mutation }) => {
+const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPosting, setIsUpdatingExtraInfo, syncToKuajing84Mutation }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const { symbol: userSymbol } = useCurrency();
@@ -205,6 +206,10 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
                   message.error('订单ID不存在');
                   return;
                 }
+                if (!selectedPosting?.posting_number) {
+                  message.error('货件编号不存在');
+                  return;
+                }
                 if (!values.domestic_tracking_number) {
                   message.error('请先填写国内物流单号');
                   return;
@@ -212,6 +217,7 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, setIsUpdat
 
                 syncToKuajing84Mutation.mutate({
                   ozonOrderId: selectedOrder.id,
+                  postingNumber: selectedPosting.posting_number,
                   logisticsOrder: values.domestic_tracking_number,
                 });
               } catch (error) {
@@ -530,8 +536,8 @@ const OrderList: React.FC = () => {
 
   // 同步到跨境巴士
   const syncToKuajing84Mutation = useMutation({
-    mutationFn: ({ ozonOrderId, logisticsOrder }: { ozonOrderId: number; logisticsOrder: string }) =>
-      ozonApi.syncToKuajing84(ozonOrderId, logisticsOrder),
+    mutationFn: ({ ozonOrderId, postingNumber, logisticsOrder }: { ozonOrderId: number; postingNumber: string; logisticsOrder: string }) =>
+      ozonApi.syncToKuajing84(ozonOrderId, postingNumber, logisticsOrder),
     onSuccess: () => {
       message.success('同步到跨境巴士成功');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
@@ -550,7 +556,7 @@ const OrderList: React.FC = () => {
       width: 140,
       fixed: 'left',
       render: (text: string, record: ozonApi.PostingWithOrder) => (
-        <a onClick={() => showOrderDetail(record.order)} className={styles.link}>
+        <a onClick={() => showOrderDetail(record.order, record)} className={styles.link}>
           {text}
         </a>
       ),
@@ -771,8 +777,9 @@ const OrderList: React.FC = () => {
   ];
 
   // 处理函数
-  const showOrderDetail = (order: ozonApi.Order) => {
+  const showOrderDetail = (order: ozonApi.Order, posting?: ozonApi.Posting) => {
     setSelectedOrder(order);
+    setSelectedPosting(posting || null);
     setDetailModalVisible(true);
   };
 
@@ -1237,7 +1244,7 @@ const OrderList: React.FC = () => {
               {
                 label: '额外信息',
                 key: '4',
-                children: <ExtraInfoForm selectedOrder={selectedOrder} setIsUpdatingExtraInfo={setIsUpdatingExtraInfo} syncToKuajing84Mutation={syncToKuajing84Mutation} />
+                children: <ExtraInfoForm selectedOrder={selectedOrder} selectedPosting={selectedPosting} setIsUpdatingExtraInfo={setIsUpdatingExtraInfo} syncToKuajing84Mutation={syncToKuajing84Mutation} />
               },
               {
                 label: '物流信息',

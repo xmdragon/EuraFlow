@@ -825,9 +825,10 @@ export const testKuajing84Connection = async (): Promise<{ success: boolean; mes
 };
 
 // 同步物流单号到跨境巴士
-export const syncToKuajing84 = async (ozonOrderId: number, logisticsOrder: string) => {
+export const syncToKuajing84 = async (ozonOrderId: number, postingNumber: string, logisticsOrder: string) => {
   const response = await apiClient.post('/ozon/kuajing84/sync', {
     ozon_order_id: ozonOrderId,
+    posting_number: postingNumber,
     logistics_order: logisticsOrder,
   });
   return response.data;

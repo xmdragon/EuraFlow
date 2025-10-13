@@ -35,6 +35,7 @@ class Kuajing84ConfigResponse(BaseModel):
 class SyncLogisticsRequest(BaseModel):
     """同步物流单号请求"""
     ozon_order_id: int = Field(..., description="OZON订单ID")
+    posting_number: str = Field(..., description="货件编号（OZON posting number）")
     logistics_order: str = Field(..., min_length=1, max_length=100, description="国内物流单号")
 
 
@@ -177,11 +178,13 @@ async def sync_logistics_order(
     同步物流单号到跨境巴士
 
     - **ozon_order_id**: OZON订单ID
+    - **posting_number**: 货件编号
     - **logistics_order**: 国内物流单号
     """
     try:
         result = await service.sync_logistics_order(
             ozon_order_id=request.ozon_order_id,
+            posting_number=request.posting_number,
             logistics_order=request.logistics_order
         )
 

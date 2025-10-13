@@ -290,6 +290,7 @@ class Kuajing84SyncService:
     async def sync_logistics_order(
         self,
         ozon_order_id: int,
+        posting_number: str,
         logistics_order: str
     ) -> Dict[str, any]:
         """
@@ -297,6 +298,7 @@ class Kuajing84SyncService:
 
         Args:
             ozon_order_id: OZON订单ID
+            posting_number: 货件编号（OZON posting number）
             logistics_order: 国内物流单号
 
         Returns:
@@ -307,7 +309,7 @@ class Kuajing84SyncService:
                 "log_id": 同步日志ID
             }
         """
-        logger.info(f"开始同步物流单号，ozon_order_id: {ozon_order_id}, logistics_order: {logistics_order}")
+        logger.info(f"开始同步物流单号，ozon_order_id: {ozon_order_id}, posting_number: {posting_number}, logistics_order: {logistics_order}")
 
         # 1. 查询订单
         result = await self.db.execute(
@@ -333,11 +335,11 @@ class Kuajing84SyncService:
                 "message": f"店铺不存在: {order.shop_id}"
             }
 
-        # 3. 创建同步日志
+        # 3. 创建同步日志（使用前端传入的 posting_number）
         sync_log = Kuajing84SyncLog(
             ozon_order_id=ozon_order_id,
             shop_id=order.shop_id,
-            order_number=order.ozon_order_number or str(order.ozon_order_id),
+            order_number=posting_number,  # 直接使用前端传入的货件编号
             logistics_order=logistics_order,
             sync_status="pending",
             attempts=0
