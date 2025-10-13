@@ -1010,7 +1010,7 @@ const OrderList: React.FC = () => {
           pagination={{
             current: currentPage,
             pageSize: pageSize,
-            total: postingsData.length,
+            total: ordersData?.total || 0,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条货件`,
