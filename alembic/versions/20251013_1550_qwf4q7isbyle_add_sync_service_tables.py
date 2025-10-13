@@ -79,7 +79,7 @@ def upgrade() -> None:
         sa.Column('error_stack', sa.Text, comment='错误堆栈'),
 
         # 额外数据
-        sa.Column('metadata', JSONB, comment='附加元数据'),
+        sa.Column('extra_data', JSONB, comment='附加元数据'),
 
         comment='同步服务执行日志表'
     )

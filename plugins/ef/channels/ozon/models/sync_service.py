@@ -77,7 +77,7 @@ class SyncServiceLog(Base):
     error_stack = Column(Text, comment="错误堆栈")
 
     # 额外数据
-    metadata = Column(JSONB, comment="附加元数据")
+    extra_data = Column(JSONB, comment="附加元数据")
 
     __table_args__ = (
         Index("idx_sync_logs_service", "service_key", "started_at"),

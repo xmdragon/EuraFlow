@@ -310,7 +310,7 @@ class TaskScheduler:
                 records_updated=result.get("records_updated", 0) if result else 0,
                 execution_time_ms=execution_time_ms,
                 error_message=error,
-                metadata=result if result else None
+                extra_data=result if result else None
             )
             session.add(log)
 
