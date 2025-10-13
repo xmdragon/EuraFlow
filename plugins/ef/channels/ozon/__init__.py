@@ -114,7 +114,85 @@ async def setup(hooks) -> None:
         topic="ef.inventory.changed",
         handler=handle_inventory_change
     )
-    
+
+    # 注册同步服务处理函数到调度器
+    try:
+        from ef_core.tasks.scheduler import get_scheduler
+        from .services.kuajing84_material_cost_sync_service import get_kuajing84_material_cost_sync_service
+        from .services.ozon_sync import OzonSyncService
+
+        scheduler = get_scheduler()
+
+        # 1. 注册跨境巴士物料成本同步服务
+        kuajing84_service = get_kuajing84_material_cost_sync_service()
+        scheduler.register_handler(
+            service_key="kuajing84_material_cost",
+            handler=kuajing84_service.sync_material_costs
+        )
+        print("✓ Registered kuajing84_material_cost sync service handler")
+
+        # 2. 注册OZON商品订单增量同步服务（封装）
+        async def ozon_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
+            """OZON商品订单增量同步处理函数"""
+            try:
+                # 获取所有活跃店铺
+                from ef_core.database import get_db_manager
+                from .models import OzonShop
+                from sqlalchemy import select
+
+                total_products = 0
+                total_orders = 0
+
+                db_manager = get_db_manager()
+                async with db_manager.get_session() as db:
+                    result = await db.execute(
+                        select(OzonShop).where(OzonShop.status == "active")
+                    )
+                    shops = result.scalars().all()
+
+                    for shop in shops:
+                        # 同步商品
+                        sync_products = config.get("sync_products", True)
+                        if sync_products:
+                            product_result = await OzonSyncService.sync_products(
+                                shop_id=shop.id,
+                                db=db,
+                                mode="incremental"
+                            )
+                            total_products += product_result.get("total_processed", 0)
+
+                        # 同步订单
+                        sync_orders = config.get("sync_orders", True)
+                        if sync_orders:
+                            order_result = await OzonSyncService.sync_orders(
+                                shop_id=shop.id,
+                                db=db,
+                                mode="incremental"
+                            )
+                            total_orders += order_result.get("total_processed", 0)
+
+                return {
+                    "records_processed": total_products + total_orders,
+                    "records_updated": total_products + total_orders,
+                    "message": f"同步完成：商品{total_products}条，订单{total_orders}条"
+                }
+
+            except Exception as e:
+                import logging
+                logging.error(f"OZON sync failed: {e}", exc_info=True)
+                raise
+
+        scheduler.register_handler(
+            service_key="ozon_sync_incremental",
+            handler=ozon_sync_handler
+        )
+        print("✓ Registered ozon_sync_incremental service handler")
+
+    except Exception as e:
+        print(f"Warning: Failed to register sync service handlers: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 配置信息已在上面打印
 
 

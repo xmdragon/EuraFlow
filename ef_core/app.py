@@ -17,6 +17,7 @@ from ef_core.database import get_db_manager
 from ef_core.event_bus import get_event_bus
 from ef_core.plugin_host import get_plugin_host
 from ef_core.tasks.registry import get_task_registry
+from ef_core.tasks.scheduler import get_scheduler
 from ef_core.middleware.auth import AuthMiddleware
 from ef_core.middleware.logging import LoggingMiddleware
 from ef_core.middleware.metrics import MetricsMiddleware
@@ -56,9 +57,14 @@ async def lifespan(app: FastAPI):
         
         # 初始化插件系统
         await plugin_host.initialize()
-        
+
+        # 初始化任务调度器
+        scheduler = get_scheduler()
+        await scheduler.start()
+        logger.info("Task scheduler initialized")
+
         logger.info("EuraFlow application started successfully")
-        
+
         yield  # 应用运行期间
         
     except Exception as e:
@@ -67,19 +73,24 @@ async def lifespan(app: FastAPI):
     
     # 关闭时清理
     logger.info("Shutting down EuraFlow application")
-    
+
     try:
+        # 关闭任务调度器
+        scheduler = get_scheduler()
+        await scheduler.shutdown()
+        logger.info("Task scheduler shutdown")
+
         # 关闭插件系统
         await plugin_host.shutdown()
-        
+
         # 关闭事件总线
         await event_bus.shutdown()
-        
+
         # 关闭数据库连接
         await db_manager.close()
-        
+
         logger.info("EuraFlow application shutdown complete")
-        
+
     except Exception as e:
         logger.error("Error during application shutdown", exc_info=True)
 

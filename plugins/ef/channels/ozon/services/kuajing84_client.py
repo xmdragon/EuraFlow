@@ -520,3 +520,106 @@ class Kuajing84Client:
                     "success": False,
                     "message": f"提交异常: {str(e)}"
                 }
+
+    async def search_order(
+        self,
+        order_number: str,
+        cookies: List[Dict],
+    ) -> Dict[str, any]:
+        """
+        搜索订单（用于物料成本同步）
+
+        Args:
+            order_number: 货件编号（OZON posting number）
+            cookies: Cookie 列表
+
+        Returns:
+            API返回结果:
+            {
+                "code": 0,
+                "count": 1,
+                "data": [...]
+            }
+        """
+        logger.info(f"开始搜索订单，order_number: {order_number}")
+
+        # 将 cookies 列表转换为字典
+        cookies_dict = {c["name"]: c["value"] for c in cookies}
+
+        async with httpx.AsyncClient(
+            cookies=cookies_dict,
+            timeout=self.timeout
+        ) as client:
+            try:
+                # 构造搜索表单数据
+                form_data = {
+                    "page": "1",
+                    "limit": "15",
+                    "platform_id": "",
+                    "country": "",
+                    "order_number": order_number,  # 货件编号
+                    "order_sheet_sn": "",
+                    "logistics_order": "",
+                    "order_id": "",
+                    "shop_id": "",
+                    "sku_id": "",
+                    "sku": "",
+                    "sid": "",
+                    "remark_type": "",
+                    "from_platform": "",
+                    "from_order": "",
+                    "create_time": "",
+                    "confirm_time": "",
+                    "is_vague": "",
+                }
+
+                # 发送搜索请求
+                response = await client.post(
+                    f"{self.base_url}/index/Accountorder/order_list_search/order_type/6",
+                    data=form_data,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+
+                if response.status_code != 200:
+                    logger.error(f"订单搜索请求失败，状态码: {response.status_code}")
+                    return {
+                        "code": -1,
+                        "message": f"请求失败，状态码: {response.status_code}"
+                    }
+
+                # 解析响应
+                try:
+                    result = response.json()
+                    logger.debug(f"搜索响应: {result}")
+
+                    if result.get("code") == 0:
+                        data_list = result.get("data", [])
+                        logger.info(f"搜索成功，找到 {len(data_list)} 条记录")
+                        return result
+                    else:
+                        logger.warning(f"搜索返回错误: {result}")
+                        return result
+
+                except Exception as e:
+                    logger.error(f"解析搜索响应失败: {e}")
+                    logger.error(f"响应内容: {response.text[:500]}")
+                    return {
+                        "code": -1,
+                        "message": f"解析响应失败: {e}"
+                    }
+
+            except httpx.TimeoutException:
+                logger.error("搜索请求超时")
+                return {
+                    "code": -1,
+                    "message": "请求超时"
+                }
+            except Exception as e:
+                logger.error(f"搜索订单异常: {e}", exc_info=True)
+                return {
+                    "code": -1,
+                    "message": f"搜索异常: {str(e)}"
+                }

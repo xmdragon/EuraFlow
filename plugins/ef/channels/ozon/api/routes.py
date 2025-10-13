@@ -55,6 +55,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import kuajing84 routes: {e}")
 
+try:
+    from .sync_service_routes import router as sync_service_router
+    router.include_router(sync_service_router)
+except ImportError as e:
+    logger.warning(f"Could not import sync service routes: {e}")
+
 
 # DTO 模型
 class ShopCreateDTO(BaseModel):
