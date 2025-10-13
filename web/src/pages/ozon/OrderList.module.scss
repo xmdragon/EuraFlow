@@ -148,10 +148,11 @@
 .deliveryMethodMain {
   font-weight: $font-weight-medium;
   margin-bottom: 4px;
+  color: #fff; // 白色文字，在tooltip深色背景上清晰可见
 }
 
 .deliveryMethodDetail {
-  color: #666;
+  color: rgba(255, 255, 255, 0.85); // 浅色文字，在tooltip深色背景上清晰可见
   font-size: $font-size-sm;
   line-height: 1.5;
 
