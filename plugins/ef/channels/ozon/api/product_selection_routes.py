@@ -936,6 +936,9 @@ async def upload_products(
         )
 
     try:
+        import time
+        start_time = time.time()
+
         service = ProductSelectionService()
         success_count = 0
         failed_count = 0
@@ -1057,6 +1060,43 @@ async def upload_products(
             )
             success_count += result['success'] + result['updated']
             failed_count += result['skipped']
+
+            # 创建导入历史记录
+            process_duration = int(time.time() - start_time)
+            import_time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            import_history = ImportHistory(
+                file_name=f"浏览器插件导入 - {import_time_str}",
+                file_type="api",
+                file_size=0,
+                imported_by=api_key_user.id,
+                import_strategy="update",
+                total_rows=len(request.products),
+                success_rows=result['success'],
+                failed_rows=failed_count,
+                updated_rows=result['updated'],
+                skipped_rows=result['skipped'],
+                process_duration=process_duration,
+                import_log={"source": "browser_extension", "api_key_user_id": api_key_user.id},
+                error_details=errors[:100] if errors else []
+            )
+
+            db.add(import_history)
+            await db.flush()  # 获取 import_history.id
+
+            # 更新商品的 batch_id（关联到导入批次）
+            from sqlalchemy import update
+            if result['success'] > 0 or result['updated'] > 0:
+                # 获取刚刚插入/更新的商品ID列表
+                product_ids_to_update = [item['product_id'] for item in batch_items]
+                await db.execute(
+                    update(ProductSelectionItem)
+                    .where(
+                        ProductSelectionItem.user_id == api_key_user.id,
+                        ProductSelectionItem.product_id.in_(product_ids_to_update)
+                    )
+                    .values(batch_id=import_history.id)
+                )
 
             # 提交事务
             await db.commit()
