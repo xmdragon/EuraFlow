@@ -139,3 +139,23 @@
 .alertMargin {
   margin-bottom: $spacing-md;
 }
+
+// ===== 配送方式格式化显示 =====
+.deliveryMethodText {
+  line-height: 1.6;
+}
+
+.deliveryMethodMain {
+  font-weight: $font-weight-medium;
+  margin-bottom: 4px;
+}
+
+.deliveryMethodDetail {
+  color: #666;
+  font-size: $font-size-sm;
+  line-height: 1.5;
+
+  div {
+    margin-bottom: 2px;
+  }
+}

@@ -430,6 +430,30 @@ const OrderList: React.FC = () => {
     return '';
   };
 
+  // 格式化配送方式文本（用于详情显示）
+  const formatDeliveryMethodText = (text: string | undefined): React.ReactNode => {
+    if (!text) return '-';
+
+    // 如果包含括号，提取括号内的内容
+    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    if (!match) return text;
+
+    const mainPart = match[1].trim();
+    const detailPart = match[2].trim();
+
+    // 格式化显示
+    return (
+      <div className={styles.deliveryMethodText}>
+        <div className={styles.deliveryMethodMain}>{mainPart}</div>
+        <div className={styles.deliveryMethodDetail}>
+          {detailPart.split(/\s+/).map((item, index) => (
+            <div key={index}>{item}</div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // 同步订单
   const syncOrdersMutation = useMutation({
     mutationFn: (fullSync: boolean) => {
@@ -525,7 +549,7 @@ const OrderList: React.FC = () => {
       title: '货件编号',
       dataIndex: 'posting_number',
       key: 'posting_number',
-      width: 150,
+      width: 140,
       fixed: 'left',
       render: (text: string, record: ozonApi.PostingWithOrder) => (
         <a onClick={() => showOrderDetail(record.order)} className={styles.link}>
@@ -537,7 +561,7 @@ const OrderList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
+      width: 80,
       render: (status: string) => {
         const config = statusConfig[status] || statusConfig.pending;
         return (
@@ -551,13 +575,13 @@ const OrderList: React.FC = () => {
       title: '发货截止',
       dataIndex: 'shipment_date',
       key: 'shipment_date',
-      width: 140,
+      width: 110,
       render: (date: string) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
     },
     {
       title: '订单时间',
       key: 'ordered_at',
-      width: 140,
+      width: 110,
       render: (_: any, record: ozonApi.PostingWithOrder) => {
         const date = record.order.ordered_at;
         return date ? moment(date).format('MM-DD HH:mm') : '-';
@@ -631,7 +655,7 @@ const OrderList: React.FC = () => {
     {
       title: '价格',
       key: 'total_price',
-      width: 100,
+      width: 80,
       align: 'right',
       render: (_: any, record: ozonApi.PostingWithOrder) => {
         const order = record.order;
@@ -649,7 +673,7 @@ const OrderList: React.FC = () => {
     {
       title: '配送',
       key: 'order_type',
-      width: 100,
+      width: 80,
       render: (_: any, record: ozonApi.PostingWithOrder) => {
         const fullText = record.delivery_method_name || record.order.delivery_method || record.order.order_type || 'FBS';
         // 提取括号前的内容（支持中英文括号）
@@ -665,7 +689,7 @@ const OrderList: React.FC = () => {
     {
       title: '追踪号码',
       key: 'tracking_number',
-      width: 160,
+      width: 140,
       render: (_: any, record: ozonApi.PostingWithOrder) => {
         // 备货中的订单不显示追踪号码
         if (record.status === 'awaiting_packaging') {
@@ -701,7 +725,7 @@ const OrderList: React.FC = () => {
     {
       title: '预计送达',
       key: 'delivery_date',
-      width: 100,
+      width: 80,
       render: (_: any, record: ozonApi.PostingWithOrder) => {
         const date = record.order.delivery_date;
         return date ? moment(date).format('MM-DD') : '-';
@@ -1212,14 +1236,16 @@ const OrderList: React.FC = () => {
                 key: '5',
                 children: selectedOrder.postings?.map((posting) => (
                   <Card key={posting.id} className={styles.postingCard}>
-                    <Descriptions bordered size="small">
+                    <Descriptions bordered size="small" column={1}>
                       <Descriptions.Item label="Posting号">
                         {posting.posting_number}
                       </Descriptions.Item>
-                      <Descriptions.Item label="状态">{posting.status}</Descriptions.Item>
+                      <Descriptions.Item label="状态">
+                        {statusConfig[posting.status]?.text || posting.status}
+                      </Descriptions.Item>
                       <Descriptions.Item label="仓库">{posting.warehouse_name}</Descriptions.Item>
                       <Descriptions.Item label="配送方式">
-                        {posting.delivery_method_name}
+                        {formatDeliveryMethodText(posting.delivery_method_name)}
                       </Descriptions.Item>
                       <Descriptions.Item label="发货时间">
                         {posting.shipped_at
