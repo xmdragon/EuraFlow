@@ -321,6 +321,11 @@ const ProductSelection: React.FC = () => {
     }
     if (values.sort_by) params.sort_by = values.sort_by;
 
+    // 保留is_read过滤（默认只显示未读商品），除非有batch_id过滤
+    if (!searchParams.batch_id) {
+      params.is_read = false;
+    }
+
     setSearchParams(params);
     setCurrentPage(1);
     setAllProducts([]); // 清空已加载的商品
@@ -364,8 +369,14 @@ const ProductSelection: React.FC = () => {
       const result = await api.markProductsAsRead(Array.from(selectedProductIds));
       if (result.success) {
         message.success(`成功标记 ${result.marked_count} 个商品为已读`);
+
+        // 如果当前是"仅显示未读"模式，立即从列表中移除已标记的商品
+        if (searchParams.is_read === false) {
+          setAllProducts(prev => prev.filter(p => !selectedProductIds.has(p.id)));
+        }
+
         setSelectedProductIds(new Set()); // 清空选择
-        refetchProducts(); // 刷新商品列表
+        refetchProducts(); // 刷新商品列表以确保数据一致性
       } else {
         message.error('标记失败');
       }
