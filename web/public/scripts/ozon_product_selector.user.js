@@ -943,7 +943,7 @@
 
                     <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 12px;">
                         <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 10px;">
-                            <div>✅ 已收集: <span id="collected" style="font-weight: bold;">0</span></div>
+                            <div>✅ 已采集: <span id="collected" style="font-weight: bold;">0</span></div>
                             <div id="status" style="text-align: right; opacity: 0.9;">⏳ 等待开始...</div>
                         </div>
                         <div style="position: relative; background: rgba(255,255,255,0.2); height: 22px; border-radius: 11px; overflow: hidden;">
@@ -1168,7 +1168,7 @@
             const toggleBtn = document.getElementById('toggle-btn');
             toggleBtn.style.background = '#f56565';
             toggleBtn.innerHTML = '⏸️ 停止';
-            this.updateStatus(`🚀 开始收集，目标: ${targetCount} 个商品`);
+            this.updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品`);
 
             // 开始收集流程
             await this.runCollection(targetCount);
@@ -1189,7 +1189,7 @@
 
                 // 检查是否达到目标
                 if (this.collector.validatedProducts.size >= targetCount) {
-                    this.updateStatus(`✅ 成功收集 ${this.collector.validatedProducts.size} 个商品！`);
+                    this.updateStatus(`✅ 成功采集 ${this.collector.validatedProducts.size} 个商品！`);
                     this.stopCollection();
                     return;
                 }
@@ -1242,7 +1242,7 @@
                                 }
                             } else {
                                 if (afterCount > 0) {
-                                    this.updateStatus(`✅ 已收集 ${afterCount} 个商品`);
+                                    this.updateStatus(`✅ 已采集 ${afterCount} 个商品`);
                                     this.stopCollection();
                                     return;
                                 }
@@ -1253,7 +1253,7 @@
                     }
 
                     if (this.collector.noChangeCount >= CONFIG.noChangeThreshold * 2) {
-                        this.updateStatus(`✅ 已收集 ${afterCount} 个商品`);
+                        this.updateStatus(`✅ 已采集 ${afterCount} 个商品`);
                         this.stopCollection();
                         return;
                     }
@@ -1274,7 +1274,7 @@
                 }
             }
 
-            this.updateStatus(`✅ 已收集 ${this.collector.validatedProducts.size} 个商品`);
+            this.updateStatus(`✅ 已采集 ${this.collector.validatedProducts.size} 个商品`);
             this.stopCollection();
         }
 
@@ -1440,6 +1440,13 @@
                 if (result.failed_count > 0) {
                     console.warn('部分商品上传失败:', result.errors);
                 }
+
+                // 上传成功后清空数据并重置进度
+                setTimeout(() => {
+                    this.collector.clear();
+                    this.updateStats();
+                    this.updateStatus('⏳ 等待开始...');
+                }, 2000); // 延迟2秒让用户看到上传成功的消息
 
             } catch (error) {
                 console.error('上传失败:', error);
