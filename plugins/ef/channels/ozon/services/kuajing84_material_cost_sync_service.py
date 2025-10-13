@@ -173,30 +173,37 @@ class Kuajing84MaterialCostSyncService:
                     if result["success"]:
                         # 检查订单状态是否为"已打包"
                         if result["order_status_info"] == "已打包":
-                            # 更新物料成本
-                            material_cost = Decimal(str(result["money"]))
-                            order.material_cost = material_cost
+                            # 再次检查 material_cost 是否为 NULL（避免并发重复更新）
+                            await session.refresh(order)
+                            if order.material_cost is not None:
+                                logger.info(f"Order {order.id} material_cost already set by another process, skipping")
+                                stats["records_skipped"] += 1
+                                error_message = "物料成本已被其他进程设置"
+                            else:
+                                # 更新物料成本
+                                material_cost = Decimal(str(result["money"]))
+                                order.material_cost = material_cost
 
-                            # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
-                            if not order.domestic_tracking_number and result.get("logistics_order"):
-                                order.domestic_tracking_number = result["logistics_order"]
-                                order.domestic_tracking_updated_at = datetime.now(timezone.utc)
+                                # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
+                                if not order.domestic_tracking_number and result.get("logistics_order"):
+                                    order.domestic_tracking_number = result["logistics_order"]
+                                    order.domestic_tracking_updated_at = datetime.now(timezone.utc)
+                                    logger.info(
+                                        f"Updated domestic tracking number for order {order.id}, "
+                                        f"tracking_number={result['logistics_order']}"
+                                    )
+
                                 logger.info(
-                                    f"Updated domestic tracking number for order {order.id}, "
-                                    f"tracking_number={result['logistics_order']}"
+                                    f"Updated material cost for order {order.id}, "
+                                    f"posting_number={posting_number}, cost={material_cost}"
                                 )
 
-                            logger.info(
-                                f"Updated material cost for order {order.id}, "
-                                f"posting_number={posting_number}, cost={material_cost}"
-                            )
+                                stats["records_updated"] += 1
+                                order_updated = True
+                                log_status = "success"
 
-                            stats["records_updated"] += 1
-                            order_updated = True
-                            log_status = "success"
-
-                            # 提交变更
-                            await session.commit()
+                                # 提交变更
+                                await session.commit()
                         else:
                             logger.info(
                                 f"Order {order.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
