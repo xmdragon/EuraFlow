@@ -591,11 +591,18 @@ class Kuajing84Client:
                 )
 
                 if response.status_code != 200:
-                    logger.error(f"订单搜索请求失败，状态码: {response.status_code}")
-                    return {
-                        "code": -1,
-                        "message": f"请求失败，状态码: {response.status_code}"
-                    }
+                    if response.status_code == 302:
+                        logger.error(f"订单搜索返回302重定向，Cookie已过期")
+                        return {
+                            "code": -1,
+                            "message": "Cookie已过期，请重新测试连接以更新Cookie"
+                        }
+                    else:
+                        logger.error(f"订单搜索请求失败，状态码: {response.status_code}")
+                        return {
+                            "code": -1,
+                            "message": f"请求失败，状态码: {response.status_code}"
+                        }
 
                 # 解析响应
                 try:
