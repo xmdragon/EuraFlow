@@ -4,7 +4,7 @@
 """
 import logging
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 from decimal import Decimal
 
@@ -85,11 +85,23 @@ class Kuajing84MaterialCostSyncService:
 
             # 3. 查询需要同步的货件（posting维度）
             # 直接查询 posting 表，不再通过 order 关联
+            # 排除条件：
+            # - 等待备货状态 (awaiting_packaging)
+            # - 已取消状态 (cancelled 或 is_cancelled=True)
+            # - 只查询90天以内的货件
+            # - 按创建时间倒序（优先处理最新的）
+            ninety_days_ago = datetime.now(timezone.utc) - timedelta(days=90)
+
             postings_result = await session.execute(
                 select(OzonPosting)
                 .where(OzonPosting.material_cost == None)
                 .where(OzonPosting.posting_number != None)
                 .where(OzonPosting.posting_number != '')
+                .where(OzonPosting.status != 'awaiting_packaging')  # 排除等待备货
+                .where(OzonPosting.status != 'cancelled')  # 排除已取消
+                .where(OzonPosting.is_cancelled == False)  # 排除已取消标志
+                .where(OzonPosting.created_at >= ninety_days_ago)  # 只查询90天内
+                .order_by(OzonPosting.created_at.desc())  # 倒序：最新的优先
                 .limit(self.batch_size)
             )
             postings = postings_result.scalars().all()
@@ -101,7 +113,7 @@ class Kuajing84MaterialCostSyncService:
                     "message": "没有需要同步物料成本的货件"
                 }
 
-            logger.info(f"Found {len(postings)} postings to process")
+            logger.info(f"Found {len(postings)} postings to process (within 90 days, excluding awaiting_packaging and cancelled)")
 
             # 4. 循环处理每个货件
             for posting in postings:
