@@ -1838,11 +1838,12 @@ async def update_order_extra_info(
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    更新订单额外信息（进货价格、国内运单号、材料费用、备注）
+    更新货件额外信息（进货价格、国内运单号、材料费用、备注）
+    注意：这些字段是 posting 维度的数据，存储在 ozon_postings 表
     """
     from decimal import Decimal
 
-    # 通过 posting_number 查找订单（先查 posting，再找 order）
+    # 通过 posting_number 查找 posting
     posting_result = await db.execute(
         select(OzonPosting).where(OzonPosting.posting_number == posting_number)
     )
@@ -1851,21 +1852,12 @@ async def update_order_extra_info(
     if not posting:
         raise HTTPException(status_code=404, detail="Posting not found")
 
-    # 获取关联的订单
-    result = await db.execute(
-        select(OzonOrder).where(OzonOrder.id == posting.order_id)
-    )
-    order = result.scalar_one_or_none()
-
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
     # 更新字段（智能检测值变化，只在真正变化时更新时间戳）
     try:
         # purchase_price - 带时间戳，需要比较旧值
         if "purchase_price" in extra_info:
             new_value = extra_info["purchase_price"]
-            old_value = order.purchase_price
+            old_value = posting.purchase_price
 
             # 标准化新值：空字符串或None → None，有效字符串 → Decimal
             if new_value and str(new_value).strip():
@@ -1875,13 +1867,13 @@ async def update_order_extra_info(
 
             # 只有当值真正变化时才更新字段和时间戳
             if new_value_normalized != old_value:
-                order.purchase_price = new_value_normalized
-                order.purchase_price_updated_at = utcnow()
+                posting.purchase_price = new_value_normalized
+                posting.purchase_price_updated_at = utcnow()
 
         # domestic_tracking_number - 带时间戳，需要比较旧值
         if "domestic_tracking_number" in extra_info:
             new_value = extra_info["domestic_tracking_number"]
-            old_value = order.domestic_tracking_number
+            old_value = posting.domestic_tracking_number
 
             # 标准化新值：空字符串或None → None，有效字符串 → trim后的字符串
             if new_value and str(new_value).strip():
@@ -1891,50 +1883,50 @@ async def update_order_extra_info(
 
             # 只有当值真正变化时才更新字段和时间戳
             if new_value_normalized != old_value:
-                order.domestic_tracking_number = new_value_normalized
-                order.domestic_tracking_updated_at = utcnow()
+                posting.domestic_tracking_number = new_value_normalized
+                posting.domestic_tracking_updated_at = utcnow()
 
         # material_cost - 无时间戳，直接更新
         if "material_cost" in extra_info:
             value = extra_info["material_cost"]
             if value and str(value).strip():
-                order.material_cost = Decimal(str(value).strip())
+                posting.material_cost = Decimal(str(value).strip())
             else:
-                order.material_cost = None
+                posting.material_cost = None
 
         # order_notes - 无时间戳，直接更新
         if "order_notes" in extra_info:
             value = extra_info["order_notes"]
-            order.order_notes = str(value).strip() if value and str(value).strip() else None
+            posting.order_notes = str(value).strip() if value and str(value).strip() else None
 
         # source_platform - 无时间戳，直接更新
         if "source_platform" in extra_info:
             value = extra_info["source_platform"]
-            order.source_platform = str(value).strip() if value and str(value).strip() else None
+            posting.source_platform = str(value).strip() if value and str(value).strip() else None
 
         # 更新全局时间戳
-        order.updated_at = utcnow()
+        posting.updated_at = utcnow()
 
         await db.commit()
-        await db.refresh(order)
+        await db.refresh(posting)
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"更新订单信息失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"更新货件信息失败: {str(e)}")
 
     from ..utils.serialization import format_currency
 
     return {
         "success": True,
-        "message": "Order extra info updated successfully",
+        "message": "Posting extra info updated successfully",
         "data": {
             "posting_number": posting.posting_number,
-            "purchase_price": format_currency(order.purchase_price),
-            "domestic_tracking_number": order.domestic_tracking_number,
-            "material_cost": format_currency(order.material_cost),
-            "order_notes": order.order_notes,
-            "source_platform": order.source_platform,
-            "purchase_price_updated_at": order.purchase_price_updated_at.isoformat() if order.purchase_price_updated_at else None,
-            "domestic_tracking_updated_at": order.domestic_tracking_updated_at.isoformat() if order.domestic_tracking_updated_at else None
+            "purchase_price": format_currency(posting.purchase_price),
+            "domestic_tracking_number": posting.domestic_tracking_number,
+            "material_cost": format_currency(posting.material_cost),
+            "order_notes": posting.order_notes,
+            "source_platform": posting.source_platform,
+            "purchase_price_updated_at": posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
+            "domestic_tracking_updated_at": posting.domestic_tracking_updated_at.isoformat() if posting.domestic_tracking_updated_at else None
         }
     }
 
@@ -2506,7 +2498,8 @@ async def get_order_report(
         ).join(
             OzonShop, OzonOrder.shop_id == OzonShop.id
         ).where(and_(*conditions)).options(
-            selectinload(OzonOrder.items)
+            selectinload(OzonOrder.items),
+            selectinload(OzonOrder.postings)  # 预加载postings以读取posting维度的字段
         )
 
         result = await db.execute(orders_query)
@@ -2525,15 +2518,29 @@ async def get_order_report(
             # 获取商品信息
             items = order.items or []
 
+            # 获取第一个posting（这些字段现在是posting维度的）
+            first_posting = order.postings[0] if order.postings else None
+
             for item in items:
                 # 计算单个商品的价格
                 item_price = Decimal(str(item.get('price', 0)))
                 quantity = item.get('quantity', 1)
                 sale_price = item_price * quantity
 
-                # 获取进货价格和材料费用
-                purchase_price = order.purchase_price or Decimal('0')
-                material_cost = order.material_cost or Decimal('0')
+                # 从posting读取字段（posting维度），如果没有posting则使用默认值
+                if first_posting:
+                    purchase_price = first_posting.purchase_price or Decimal('0')
+                    material_cost = first_posting.material_cost or Decimal('0')
+                    domestic_tracking_number = first_posting.domestic_tracking_number
+                    order_notes = first_posting.order_notes
+                    posting_number = first_posting.posting_number
+                else:
+                    # 兼容没有posting的订单（不应该出现，但做容错处理）
+                    purchase_price = Decimal('0')
+                    material_cost = Decimal('0')
+                    domestic_tracking_number = None
+                    order_notes = None
+                    posting_number = None
 
                 # 计算利润
                 profit = sale_price - purchase_price - material_cost
@@ -2551,13 +2558,13 @@ async def get_order_report(
                     "date": order.created_at.strftime("%Y-%m-%d"),
                     "shop_name": shop_name,
                     "product_name": item.get('name', item.get('sku', '未知商品')),
-                    "posting_number": order.posting_number,
+                    "posting_number": posting_number,
                     "purchase_price": format_currency(purchase_price),
                     "sale_price": format_currency(sale_price),
                     "tracking_number": order.tracking_number,
-                    "domestic_tracking_number": order.domestic_tracking_number,
+                    "domestic_tracking_number": domestic_tracking_number,
                     "material_cost": format_currency(material_cost),
-                    "order_notes": order.order_notes,
+                    "order_notes": order_notes,
                     "profit": format_currency(profit),
                     "sku": item.get('sku'),
                     "quantity": quantity,

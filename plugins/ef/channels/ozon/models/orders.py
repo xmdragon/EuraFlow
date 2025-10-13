@@ -211,7 +211,16 @@ class OzonPosting(Base):
     
     # 原始数据
     raw_payload = Column(JSONB)
-    
+
+    # 业务字段（Posting维度）
+    material_cost = Column(Numeric(18, 2), comment="物料成本（包装、标签等）")
+    domestic_tracking_number = Column(String(200), comment="国内物流单号")
+    domestic_tracking_updated_at = Column(DateTime(timezone=True), comment="国内物流单号更新时间")
+    purchase_price = Column(Numeric(18, 2), comment="进货价格")
+    purchase_price_updated_at = Column(DateTime(timezone=True), comment="进货价格更新时间")
+    order_notes = Column(String(1000), comment="订单备注")
+    source_platform = Column(String(50), comment="采集平台")
+
     # 时间
     in_process_at = Column(DateTime(timezone=True))
     shipped_at = Column(DateTime(timezone=True))
