@@ -52,6 +52,7 @@ interface SyncServiceLog {
   records_updated: number;
   execution_time_ms: number | null;
   error_message: string | null;
+  extra_data?: Record<string, any>;
 }
 
 interface SyncServiceStats {
@@ -251,11 +252,15 @@ const SyncServices = () => {
 
   const logColumns: ColumnsType<SyncServiceLog> = [
     {
-      title: '运行ID',
-      dataIndex: 'run_id',
-      key: 'run_id',
+      title: '订单号',
+      key: 'posting_number',
       ellipsis: true,
       width: 250,
+      render: (_, record) => {
+        // 优先显示 extra_data 中的 posting_number
+        const extraData = record.extra_data as any;
+        return extraData?.posting_number || record.run_id;
+      },
     },
     {
       title: '开始时间',

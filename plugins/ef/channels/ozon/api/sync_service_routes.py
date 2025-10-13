@@ -72,6 +72,7 @@ class SyncServiceLogResponse(BaseModel):
     records_updated: int
     execution_time_ms: Optional[int]
     error_message: Optional[str]
+    extra_data: Optional[dict]
 
 
 class SyncServiceStatsResponse(BaseModel):
@@ -398,7 +399,8 @@ async def get_sync_service_logs(
             records_processed=log.records_processed,
             records_updated=log.records_updated,
             execution_time_ms=log.execution_time_ms,
-            error_message=log.error_message
+            error_message=log.error_message,
+            extra_data=log.extra_data
         )
         for log in logs
     ]
