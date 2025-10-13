@@ -29,6 +29,9 @@ def upgrade() -> None:
             service_type,
             schedule_config,
             is_enabled,
+            run_count,
+            success_count,
+            error_count,
             config_json,
             created_at,
             updated_at
@@ -40,6 +43,9 @@ def upgrade() -> None:
             'interval',
             '300',
             false,
+            0,
+            0,
+            0,
             '{"batch_size": 10, "delay_seconds": 3}',
             NOW(),
             NOW()
@@ -51,6 +57,9 @@ def upgrade() -> None:
             'interval',
             '1800',
             false,
+            0,
+            0,
+            0,
             '{"time_window_hours": 48, "sync_products": true, "sync_orders": true}',
             NOW(),
             NOW()
