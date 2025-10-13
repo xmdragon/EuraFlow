@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ef_core.database import get_db
+from ef_core.database import get_async_session
 from ef_core.tasks.scheduler import get_scheduler
 from ..models.sync_service import SyncService, SyncServiceLog
 
@@ -87,7 +87,7 @@ class SyncServiceStatsResponse(BaseModel):
 @router.get("", response_model=List[SyncServiceResponse])
 async def list_sync_services(
     is_enabled: Optional[bool] = Query(None, description="筛选启用状态"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """获取同步服务列表"""
     query = select(SyncService)
@@ -126,7 +126,7 @@ async def list_sync_services(
 @router.post("", response_model=SyncServiceResponse)
 async def create_sync_service(
     data: SyncServiceCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """创建同步服务"""
     # 检查service_key是否已存在
@@ -190,7 +190,7 @@ async def create_sync_service(
 async def update_sync_service(
     service_id: int,
     data: SyncServiceUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """更新同步服务配置"""
     # 查找服务
@@ -260,7 +260,7 @@ async def update_sync_service(
 @router.delete("/{service_id}")
 async def delete_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """删除同步服务"""
     # 查找服务
@@ -290,7 +290,7 @@ async def delete_sync_service(
 @router.post("/{service_id}/trigger")
 async def trigger_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """手动触发同步服务"""
     # 查找服务
@@ -320,7 +320,7 @@ async def trigger_sync_service(
 @router.post("/{service_id}/toggle")
 async def toggle_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """切换同步服务开关"""
     # 查找服务
@@ -366,7 +366,7 @@ async def toggle_sync_service(
 async def get_sync_service_logs(
     service_id: int,
     limit: int = Query(50, description="返回数量限制"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """获取同步服务运行日志"""
     # 查找服务
@@ -407,7 +407,7 @@ async def get_sync_service_logs(
 @router.get("/{service_id}/stats", response_model=SyncServiceStatsResponse)
 async def get_sync_service_stats(
     service_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_async_session)
 ):
     """获取同步服务统计数据"""
     # 查找服务

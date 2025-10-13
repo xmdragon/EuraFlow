@@ -24,6 +24,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/ef/v1/auth/refresh",
         "/api/ef/v1/ozon/webhook"  # Ozon webhook回调端点
     }
+
+    # 公开路径前缀（用于内部管理接口）
+    PUBLIC_PREFIXES = [
+        "/docs",
+        "/redoc",
+        "/api/ef/v1/ozon/webhook",
+        "/api/ef/v1/ozon/sync-services"  # 同步服务管理接口
+    ]
     
     def __init__(self, app, logger=None):
         super().__init__(app)
@@ -102,8 +110,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return True
 
         # 前缀匹配
-        public_prefixes = ["/docs", "/redoc", "/api/ef/v1/ozon/webhook"]
-        for prefix in public_prefixes:
+        for prefix in self.PUBLIC_PREFIXES:
             if path.startswith(prefix):
                 return True
 

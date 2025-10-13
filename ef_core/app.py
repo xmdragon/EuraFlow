@@ -63,6 +63,9 @@ async def lifespan(app: FastAPI):
         await scheduler.start()
         logger.info("Task scheduler initialized")
 
+        # 注册同步服务处理函数（必须在调度器启动后）
+        await _register_sync_service_handlers(scheduler)
+
         logger.info("EuraFlow application started successfully")
 
         yield  # 应用运行期间
@@ -109,6 +112,79 @@ async def _register_core_services(plugin_host):
     plugin_host.register_service("listings", ListingsService())
     
     logger.info("Registered core services to plugin host")
+
+
+async def _register_sync_service_handlers(scheduler):
+    """注册同步服务处理函数到调度器"""
+    try:
+        from plugins.ef.channels.ozon.services.kuajing84_material_cost_sync_service import get_kuajing84_material_cost_sync_service
+        from plugins.ef.channels.ozon.services.ozon_sync import OzonSyncService
+        from plugins.ef.channels.ozon.models import OzonShop
+        from sqlalchemy import select
+        from typing import Dict, Any
+
+        # 1. 注册跨境巴士物料成本同步服务
+        kuajing84_service = get_kuajing84_material_cost_sync_service()
+        scheduler.register_handler(
+            service_key="kuajing84_material_cost",
+            handler=kuajing84_service.sync_material_costs
+        )
+        logger.info("Registered kuajing84_material_cost sync service handler")
+
+        # 2. 注册OZON商品订单增量同步服务（封装）
+        async def ozon_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
+            """OZON商品订单增量同步处理函数"""
+            try:
+                # 获取所有活跃店铺
+                db_manager = get_db_manager()
+                total_products = 0
+                total_orders = 0
+
+                async with db_manager.get_session() as db:
+                    result = await db.execute(
+                        select(OzonShop).where(OzonShop.status == "active")
+                    )
+                    shops = result.scalars().all()
+
+                    for shop in shops:
+                        # 同步商品
+                        sync_products = config.get("sync_products", True)
+                        if sync_products:
+                            product_result = await OzonSyncService.sync_products(
+                                shop_id=shop.id,
+                                db=db,
+                                mode="incremental"
+                            )
+                            total_products += product_result.get("total_processed", 0)
+
+                        # 同步订单
+                        sync_orders = config.get("sync_orders", True)
+                        if sync_orders:
+                            order_result = await OzonSyncService.sync_orders(
+                                shop_id=shop.id,
+                                db=db,
+                                mode="incremental"
+                            )
+                            total_orders += order_result.get("total_processed", 0)
+
+                return {
+                    "records_processed": total_products + total_orders,
+                    "records_updated": total_products + total_orders,
+                    "message": f"同步完成：商品{total_products}条，订单{total_orders}条"
+                }
+
+            except Exception as e:
+                logger.error(f"OZON sync failed: {e}", exc_info=True)
+                raise
+
+        scheduler.register_handler(
+            service_key="ozon_sync_incremental",
+            handler=ozon_sync_handler
+        )
+        logger.info("Registered ozon_sync_incremental service handler")
+
+    except Exception as e:
+        logger.warning(f"Failed to register sync service handlers: {e}", exc_info=True)
 
 
 def create_app() -> FastAPI:
