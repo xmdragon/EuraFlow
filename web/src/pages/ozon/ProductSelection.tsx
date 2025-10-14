@@ -795,7 +795,7 @@ const ProductSelection: React.FC = () => {
               onFinish={handleSearch}
               initialValues={{ sort_by: 'created_asc' }}
             >
-              <Row gutter={[16, 16]} wrap>
+              <Row gutter={[16, 0]} wrap>
                 {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
                 <Col flex="auto" style={{ minWidth: '180px' }}>
                   <Form.Item label="商品名称" name="product_name">
