@@ -209,6 +209,10 @@ const Dashboard: React.FC = () => {
       <Sider
         theme="dark"
         width={240}
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        collapsedWidth={80}
         style={{
           overflow: 'auto',
           height: '100vh',
@@ -218,18 +222,20 @@ const Dashboard: React.FC = () => {
           bottom: 0,
         }}
       >
-        <div className={styles.logo}>
-          EuraFlow
+        <div className={collapsed ? styles.logoCollapsed : styles.logo}>
+          {collapsed ? 'EF' : 'EuraFlow'}
         </div>
 
-        <div className={styles.userProfile}>
+        <div className={collapsed ? styles.userProfileCollapsed : styles.userProfile}>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow trigger={['click']}>
             <div className={styles.userInfo}>
-              <Avatar className={styles.userAvatar} size={40} icon={<UserOutlined />} />
-              <div className={styles.userDetails}>
-                <p className={styles.username}>{user?.username || '未设置'}</p>
-                <p className={styles.userEmail}>{user?.email || '未设置邮箱'}</p>
-              </div>
+              <Avatar className={styles.userAvatar} size={collapsed ? 36 : 40} icon={<UserOutlined />} />
+              {!collapsed && (
+                <div className={styles.userDetails}>
+                  <p className={styles.username}>{user?.username || '未设置'}</p>
+                  <p className={styles.userEmail}>{user?.email || '未设置邮箱'}</p>
+                </div>
+              )}
             </div>
           </Dropdown>
         </div>
@@ -243,7 +249,7 @@ const Dashboard: React.FC = () => {
         />
       </Sider>
 
-      <Layout style={{ marginLeft: 240 }}>
+      <Layout style={{ marginLeft: collapsed ? 80 : 240 }}>
         <Content style={{ margin: 0, padding: 0, background: '#f5f5f5' }}>
           <Suspense fallback={<PageLoading />}>
             <Routes>
