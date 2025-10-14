@@ -771,7 +771,7 @@ const ProductSelection: React.FC = () => {
             <Row gutter={4} className={styles.statsRow}>
               <Col span={24}>
                 <div className={styles.statsItem}>
-                  <Text type="secondary">rFBS高(>5000₽): </Text>
+                  <Text type="secondary">rFBS高(&gt;5000₽): </Text>
                   <Text strong>{formatPercentage(product.rfbs_commission_high)}</Text>
                 </div>
               </Col>
@@ -797,7 +797,7 @@ const ProductSelection: React.FC = () => {
             <Row gutter={4} className={styles.statsRow}>
               <Col span={24}>
                 <div className={styles.statsItem}>
-                  <Text type="secondary">FBP高(>5000₽): </Text>
+                  <Text type="secondary">FBP高(&gt;5000₽): </Text>
                   <Text strong>{formatPercentage(product.fbp_commission_high)}</Text>
                 </div>
               </Col>
@@ -1797,7 +1797,7 @@ const ProductSelection: React.FC = () => {
                 onChange={(e) => setFieldConfig({ ...fieldConfig, rfbsCommissionHigh: e.target.checked })}
                 id="field-rfbsCommissionHigh"
               />
-              <label htmlFor="field-rfbsCommissionHigh">rFBS佣金率（高档>5000₽）</label>
+              <label htmlFor="field-rfbsCommissionHigh">rFBS佣金率（高档&gt;5000₽）</label>
             </Space>
           </div>
 
@@ -1821,7 +1821,7 @@ const ProductSelection: React.FC = () => {
                 onChange={(e) => setFieldConfig({ ...fieldConfig, fbpCommissionHigh: e.target.checked })}
                 id="field-fbpCommissionHigh"
               />
-              <label htmlFor="field-fbpCommissionHigh">FBP佣金率（高档>5000₽）</label>
+              <label htmlFor="field-fbpCommissionHigh">FBP佣金率（高档&gt;5000₽）</label>
             </Space>
           </div>
 
