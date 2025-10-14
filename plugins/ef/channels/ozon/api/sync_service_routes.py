@@ -96,7 +96,8 @@ async def list_sync_services(
     if is_enabled is not None:
         query = query.where(SyncService.is_enabled == is_enabled)
 
-    query = query.order_by(SyncService.created_at.desc())
+    # 按service_key字典序排序，保证顺序固定
+    query = query.order_by(SyncService.service_key.asc())
 
     result = await db.execute(query)
     services = result.scalars().all()
