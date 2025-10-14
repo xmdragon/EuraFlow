@@ -15,8 +15,10 @@ export interface ProductSelectionItem {
   original_price: number;
   rfbs_commission_low: number;
   rfbs_commission_mid: number;
+  rfbs_commission_high: number;
   fbp_commission_low: number;
   fbp_commission_mid: number;
+  fbp_commission_high: number;
   monthly_sales_volume: number;
   package_weight: number;
   rating: number;

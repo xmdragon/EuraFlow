@@ -75,7 +75,9 @@ interface FieldConfig {
   brand: boolean;
   originalPrice: boolean;
   rfbsCommission: boolean;
+  rfbsCommissionHigh: boolean;  // rFBS高档佣金率（>5000₽）
   fbpCommission: boolean;
+  fbpCommissionHigh: boolean;   // FBP高档佣金率（>5000₽）
   monthlySales: boolean;
   weight: boolean;
   competitors: boolean;
@@ -88,7 +90,9 @@ const defaultFieldConfig: FieldConfig = {
   brand: true,
   originalPrice: true,
   rfbsCommission: true,
+  rfbsCommissionHigh: true,
   fbpCommission: true,
+  fbpCommissionHigh: true,
   monthlySales: true,
   weight: true,
   competitors: true,
@@ -294,8 +298,22 @@ const ProductSelection: React.FC = () => {
       // 缺少必要数据的商品保留（避免误删）
       if (weight <= 0 || priceRMB <= 0) return true;
 
-      // 计算成本上限（RMB），传入汇率以正确匹配场景
-      const maxCost = calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee, exchangeRate || undefined);
+      // 构建商品佣金率数据
+      const commissionRates = {
+        rfbs_low: product.rfbs_commission_low || undefined,
+        rfbs_mid: product.rfbs_commission_mid || undefined,
+        rfbs_high: product.rfbs_commission_high || undefined,
+      };
+
+      // 计算成本上限（RMB），传入汇率和佣金率数据
+      const maxCost = calculateMaxCost(
+        priceRMB,
+        weight,
+        targetProfitRate / 100,
+        packingFee,
+        exchangeRate || undefined,
+        commissionRates
+      );
 
       // 过滤掉无法达到目标利润率的商品（maxCost < 0）
       return maxCost !== null && maxCost >= 0;
@@ -749,6 +767,16 @@ const ProductSelection: React.FC = () => {
               </Col>
             </Row>
           )}
+          {fieldConfig.rfbsCommissionHigh && (
+            <Row gutter={4} className={styles.statsRow}>
+              <Col span={24}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">rFBS高(>5000₽): </Text>
+                  <Text strong>{formatPercentage(product.rfbs_commission_high)}</Text>
+                </div>
+              </Col>
+            </Row>
+          )}
           {fieldConfig.fbpCommission && (
             <Row gutter={4} className={styles.statsRow}>
               <Col span={12}>
@@ -761,6 +789,16 @@ const ProductSelection: React.FC = () => {
                 <div className={styles.statsItem}>
                   <Text type="secondary">FBP中: </Text>
                   <Text strong>{formatPercentage(product.fbp_commission_mid)}</Text>
+                </div>
+              </Col>
+            </Row>
+          )}
+          {fieldConfig.fbpCommissionHigh && (
+            <Row gutter={4} className={styles.statsRow}>
+              <Col span={24}>
+                <div className={styles.statsItem}>
+                  <Text type="secondary">FBP高(>5000₽): </Text>
+                  <Text strong>{formatPercentage(product.fbp_commission_high)}</Text>
                 </div>
               </Col>
             </Row>
@@ -854,9 +892,23 @@ const ProductSelection: React.FC = () => {
 
             const weight = product.package_weight || 0;
 
-            // 计算成本上限（RMB），传入汇率以正确匹配场景
+            // 构建商品佣金率数据
+            const commissionRates = {
+              rfbs_low: product.rfbs_commission_low || undefined,
+              rfbs_mid: product.rfbs_commission_mid || undefined,
+              rfbs_high: product.rfbs_commission_high || undefined,
+            };
+
+            // 计算成本上限（RMB），传入汇率和佣金率数据
             const maxCost = weight > 0 && priceRMB > 0
-              ? calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee, exchangeRate || undefined)
+              ? calculateMaxCost(
+                  priceRMB,
+                  weight,
+                  targetProfitRate / 100,
+                  packingFee,
+                  exchangeRate || undefined,
+                  commissionRates
+                )
               : null;
 
             // 根据成本上限值确定样式
@@ -1733,7 +1785,19 @@ const ProductSelection: React.FC = () => {
                 onChange={(e) => setFieldConfig({ ...fieldConfig, rfbsCommission: e.target.checked })}
                 id="field-rfbsCommission"
               />
-              <label htmlFor="field-rfbsCommission">rFBS佣金率</label>
+              <label htmlFor="field-rfbsCommission">rFBS佣金率（低档和中档）</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.rfbsCommissionHigh}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, rfbsCommissionHigh: e.target.checked })}
+                id="field-rfbsCommissionHigh"
+              />
+              <label htmlFor="field-rfbsCommissionHigh">rFBS佣金率（高档>5000₽）</label>
             </Space>
           </div>
 
@@ -1745,7 +1809,19 @@ const ProductSelection: React.FC = () => {
                 onChange={(e) => setFieldConfig({ ...fieldConfig, fbpCommission: e.target.checked })}
                 id="field-fbpCommission"
               />
-              <label htmlFor="field-fbpCommission">FBP佣金率</label>
+              <label htmlFor="field-fbpCommission">FBP佣金率（低档和中档）</label>
+            </Space>
+          </div>
+
+          <div className={styles.fieldConfigItem}>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.fbpCommissionHigh}
+                onChange={(e) => setFieldConfig({ ...fieldConfig, fbpCommissionHigh: e.target.checked })}
+                id="field-fbpCommissionHigh"
+              />
+              <label htmlFor="field-fbpCommissionHigh">FBP佣金率（高档>5000₽）</label>
             </Space>
           </div>
 
