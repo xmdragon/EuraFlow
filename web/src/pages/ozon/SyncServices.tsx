@@ -296,7 +296,18 @@ const SyncServices = () => {
       dataIndex: 'error_message',
       key: 'error_message',
       ellipsis: true,
-      render: (text) => text || '-',
+      render: (text) => {
+        if (!text) return '-';
+        // 简化显示：如果包含冒号，只取冒号前的部分
+        const shortText = text.includes(':') ? text.split(':')[0] : text;
+        // 限制长度为30个字符
+        const displayText = shortText.length > 30 ? shortText.substring(0, 30) + '...' : shortText;
+        return (
+          <Tooltip title={text}>
+            <span style={{ color: '#f5222d' }}>{displayText}</span>
+          </Tooltip>
+        );
+      },
     },
   ];
 

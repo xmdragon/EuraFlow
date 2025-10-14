@@ -198,14 +198,24 @@ class Kuajing84MaterialCostSyncService:
                                 f"Posting {posting.id} status is not '已打包' (current: {result['order_status_info']}), skipping"
                             )
                             stats["records_skipped"] += 1
-                            error_message = f"订单状态不符: {result['order_status_info']}"
+                            error_message = f"状态: {result['order_status_info']}"
                     else:
                         logger.warning(
                             f"Failed to fetch posting from Kuajing84, "
                             f"posting_number={posting_number}, reason={result.get('message')}"
                         )
                         stats["records_skipped"] += 1
-                        error_message = result.get("message", "Unknown error")
+                        # 简化错误信息
+                        raw_error = result.get("message", "Unknown error")
+                        if "跨境巴士没有记录" in raw_error:
+                            error_message = "订单不存在"
+                        elif "Cookie" in raw_error and "过期" in raw_error:
+                            error_message = "Cookie过期"
+                        elif "API返回错误" in raw_error:
+                            # 提取 code 和简短描述
+                            error_message = "API错误"
+                        else:
+                            error_message = raw_error[:50]  # 限制长度
                         stats["errors"].append({
                             "posting_id": posting.id,
                             "posting_number": posting_number,
@@ -214,7 +224,14 @@ class Kuajing84MaterialCostSyncService:
 
                 except Exception as e:
                     logger.error(f"Error syncing posting {posting.id}: {e}", exc_info=True)
-                    error_message = str(e)
+                    # 简化异常信息
+                    error_str = str(e)
+                    if "timeout" in error_str.lower():
+                        error_message = "请求超时"
+                    elif "connection" in error_str.lower():
+                        error_message = "连接失败"
+                    else:
+                        error_message = error_str[:50]  # 限制长度
                     log_status = "failed"
                     order_updated = False
                     stats["errors"].append({
