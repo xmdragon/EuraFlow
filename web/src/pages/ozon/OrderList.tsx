@@ -626,7 +626,7 @@ const OrderList: React.FC = () => {
     },
   });
 
-  // 表格列定义（商品维度 - 5列布局）
+  // 表格列定义（商品维度 - 4列布局）
   const columns: any[] = [
     // 第一列：商品图片（160x160固定容器，可点击打开OZON商品页）
     {
@@ -828,62 +828,6 @@ const OrderList: React.FC = () => {
                 </span>
               </div>
             </div>
-          ),
-          props: {
-            rowSpan: row.itemCount,
-          },
-        };
-      },
-    },
-    // 第五列：操作（保持最小宽度，固定）
-    {
-      title: '操作',
-      key: 'action',
-      width: 60,
-      fixed: 'right',
-      render: (_: any, row: OrderItemRow) => {
-        // 非第一行返回 null（使用 rowSpan）
-        if (!row.isFirstItem) return null;
-
-        const posting = row.posting;
-        const order = row.order;
-        const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(posting.status);
-        const canCancel = posting.status !== 'cancelled' && posting.status !== 'delivered';
-
-        return {
-          children: (
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'detail',
-                    icon: <FileTextOutlined />,
-                    label: '详情',
-                    onClick: () => showOrderDetail(order, posting),
-                  },
-                  canShip && {
-                    key: 'ship',
-                    icon: <TruckOutlined />,
-                    label: '发货',
-                    onClick: () => handleShip(posting),
-                  },
-                  {
-                    key: 'print',
-                    icon: <PrinterOutlined />,
-                    label: '打印面单',
-                  },
-                  canCancel && {
-                    key: 'cancel',
-                    icon: <CloseCircleOutlined />,
-                    label: '取消订单',
-                    danger: true,
-                    onClick: () => handleCancel(posting),
-                  },
-                ].filter(Boolean),
-              }}
-            >
-              <Button type="link" size="small" icon={<MoreOutlined />} className={styles.linkButton} />
-            </Dropdown>
           ),
           props: {
             rowSpan: row.itemCount,
