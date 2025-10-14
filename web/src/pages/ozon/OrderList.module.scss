@@ -103,8 +103,31 @@
 }
 
 // ===== 详情弹窗 =====
+.productImageContainer {
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+}
+
 .productImage {
-  object-fit: cover;
+  max-height: 160px;
+  max-width: 160px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.infoColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .productPreviewImage {

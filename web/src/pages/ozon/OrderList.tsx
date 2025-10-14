@@ -17,6 +17,7 @@ import {
   FileTextOutlined,
   MoreOutlined,
   SendOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -236,6 +237,17 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
   );
 };
 
+// 订单商品行数据结构（用于表格展示）
+interface OrderItemRow {
+  key: string;                      // 唯一标识：posting_number + item_index
+  item: ozonApi.OrderItem;          // 商品明细
+  itemIndex: number;                // 商品索引（从0开始）
+  posting: ozonApi.PostingWithOrder;// 货件信息
+  order: ozonApi.Order;             // 订单信息
+  isFirstItem: boolean;             // 是否是第一个商品（用于rowSpan）
+  itemCount: number;                // 该posting的商品总数（用于rowSpan）
+}
+
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency, symbol: userSymbol } = useCurrency();
@@ -244,13 +256,13 @@ const OrderList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
-  // 初始化时从localStorage读取店铺选择，默认为null让ShopSelector自动选择第一个
+  // 初始化时从localStorage读取店铺选择，默认为null表示"全部"
   const [selectedShop, setSelectedShop] = useState<number | null>(() => {
     const saved = localStorage.getItem('ozon_selected_shop');
     if (saved && saved !== 'all' && saved !== '') {
       return parseInt(saved, 10);
     }
-    return null; // 默认null，让ShopSelector自动选择第一个店铺
+    return null; // 默认null表示"全部店铺"
   });
   const [filterForm] = Form.useForm();
   const [shipForm] = Form.useForm();
@@ -265,6 +277,19 @@ const OrderList: React.FC = () => {
 
   // 搜索参数状态
   const [searchParams, setSearchParams] = useState<any>({});
+
+  // 复制功能处理函数
+  const handleCopy = (text: string | undefined, label: string) => {
+    if (!text || text === '-') {
+      message.warning(`${label}为空，无法复制`);
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      message.success(`${label}已复制`);
+    }).catch(() => {
+      message.error('复制失败，请手动复制');
+    });
+  };
 
   // 状态配置 - 包含所有 OZON 原生状态
   const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
@@ -310,7 +335,7 @@ const OrderList: React.FC = () => {
         dateRange: undefined,
       });
     },
-    enabled: !!selectedShop, // 只在选择店铺后查询
+    enabled: true, // 支持查询全部店铺（selectedShop=null）
     refetchInterval: 60000, // 1分钟自动刷新
     retry: 1, // 减少重试次数
     retryDelay: 1000, // 重试延迟1秒
@@ -360,6 +385,44 @@ const OrderList: React.FC = () => {
 
     return flattened;
   }, [ordersData, searchParams.posting_number]);
+
+  // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
+  const orderItemRows = React.useMemo<OrderItemRow[]>(() => {
+    const rows: OrderItemRow[] = [];
+
+    postingsData.forEach((posting) => {
+      const items = posting.order.items || [];
+      const itemCount = items.length;
+
+      if (itemCount === 0) {
+        // 如果没有商品，创建一行空数据
+        rows.push({
+          key: `${posting.posting_number}_0`,
+          item: {} as ozonApi.OrderItem,
+          itemIndex: 0,
+          posting: posting,
+          order: posting.order,
+          isFirstItem: true,
+          itemCount: 1,
+        });
+      } else {
+        // 为每个商品创建一行
+        items.forEach((item, index) => {
+          rows.push({
+            key: `${posting.posting_number}_${index}`,
+            item: item,
+            itemIndex: index,
+            posting: posting,
+            order: posting.order,
+            isFirstItem: index === 0,
+            itemCount: itemCount,
+          });
+        });
+      }
+    });
+
+    return rows;
+  }, [postingsData]);
 
   // 使用统一的货币格式化函数（移除货币符号）
   const formatPrice = (price: any): string => {
@@ -547,234 +610,224 @@ const OrderList: React.FC = () => {
     },
   });
 
-  // 表格列定义（货件维度）
+  // 表格列定义（商品维度 - 5列布局）
   const columns: any[] = [
+    // 第一列：商品图片（160x160固定容器）
     {
-      title: '货件编号',
-      dataIndex: 'posting_number',
-      key: 'posting_number',
-      width: 140,
-      fixed: 'left',
-      render: (text: string, record: ozonApi.PostingWithOrder) => (
-        <a onClick={() => showOrderDetail(record.order, record)} className={styles.link}>
-          {text}
-        </a>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 80,
-      render: (status: string) => {
-        const config = statusConfig[status] || statusConfig.pending;
-        return (
-          <Tag color={config.color} className={styles.tag}>
-            {config.text}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: '发货截止',
-      dataIndex: 'shipment_date',
-      key: 'shipment_date',
-      width: 110,
-      render: (date: string) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
-    },
-    {
-      title: '订单时间',
-      key: 'ordered_at',
-      width: 110,
-      render: (_: any, record: ozonApi.PostingWithOrder) => {
-        const date = record.order.ordered_at;
-        return date ? moment(date).format('MM-DD HH:mm') : '-';
-      },
-    },
-    {
-      title: '商品',
-      key: 'items',
-      width: 350,
-      render: (_: any, record: ozonApi.PostingWithOrder) => {
-        const items = record.order.items || [];
-        if (items.length === 0) return '-';
+      title: '商品图片',
+      key: 'product_image',
+      width: 170,
+      render: (_: any, row: OrderItemRow) => {
+        const item = row.item;
+        const imageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {items.map((item, index) => {
-              const imageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
-
-              return (
-                <div key={index} className={styles.productCell}>
-                  {imageUrl ? (
-                    <Tooltip
-                      title={
-                        <img
-                          src={imageUrl}
-                          alt="商品预览"
-                          className={styles.productPreviewImage}
-                        />
-                      }
-                      mouseEnterDelay={0.3}
-                      overlayClassName="product-preview-tooltip"
-                    >
-                      <Avatar
-                        size={40}
-                        src={imageUrl}
-                        shape="square"
-                        className={styles.productAvatarHoverable}
-                      />
-                    </Tooltip>
-                  ) : (
-                    <Avatar
-                      size={40}
-                      icon={<ShoppingCartOutlined />}
-                      shape="square"
-                      className={styles.productAvatar}
-                    />
-                  )}
-                  <div className={styles.productInfo}>
-                    <div className={styles.productName}>
-                      {item.sku ? (
-                        <a
-                          href={`https://www.ozon.ru/product/${item.sku}/`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.link}
-                        >
-                          {item.name || item.sku}
-                        </a>
-                      ) : (
-                        item.name || item.sku
-                      )}
-                    </div>
-                    <div className={styles.productCount}>
-                      数量: {item.quantity}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      },
-    },
-    {
-      title: '价格',
-      key: 'total_price',
-      width: 80,
-      align: 'right',
-      render: (_: any, record: ozonApi.PostingWithOrder) => {
-        const order = record.order;
-        // 优先使用订单货币，否则使用用户设置，最后默认CNY
-        const currency = order.currency_code || userCurrency || 'CNY';
-        const symbol = getCurrencySymbol(currency);
-
-        return (
-          <span className={styles.price}>
-            {symbol} {formatPrice(order.total_price || order.total_amount)}
-          </span>
-        );
-      },
-    },
-    {
-      title: '配送',
-      key: 'order_type',
-      width: 80,
-      render: (_: any, record: ozonApi.PostingWithOrder) => {
-        const fullText = record.delivery_method_name || record.order.delivery_method || record.order.order_type || 'FBS';
-        // 提取括号前的内容（支持中英文括号）
-        const shortText = fullText.split('（')[0].split('(')[0].trim();
-
-        return (
-          <Tooltip title={formatDeliveryMethodText(fullText)}>
-            <span>{shortText}</span>
+          <Tooltip title={item.name || item.sku || '-'}>
+            <div className={styles.productImageContainer}>
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={item.name || item.sku || '商品图片'}
+                  className={styles.productImage}
+                />
+              ) : (
+                <Avatar
+                  size={160}
+                  icon={<ShoppingCartOutlined />}
+                  shape="square"
+                  className={styles.productImagePlaceholder}
+                />
+              )}
+            </div>
           </Tooltip>
         );
       },
     },
+    // 第二列：商品信息（店铺、SKU、数量、单价）
     {
-      title: '追踪号码',
-      key: 'tracking_number',
-      width: 140,
-      render: (_: any, record: ozonApi.PostingWithOrder) => {
-        // 备货中的订单不显示追踪号码
-        if (record.status === 'awaiting_packaging') {
-          return '-';
-        }
+      title: '商品信息',
+      key: 'product_info',
+      width: 220,
+      render: (_: any, row: OrderItemRow) => {
+        const item = row.item;
+        const order = row.order;
+        const currency = order.currency_code || userCurrency || 'CNY';
+        const symbol = getCurrencySymbol(currency);
 
-        // 获取第一个包裹的追踪号码
-        const packages = record.packages || [];
-        if (packages.length === 0) {
-          return '-';
-        }
+        // 获取店铺名称
+        const shopName = order.shop_name || `店铺 ${order.shop_id}`;
 
-        const firstPackage = packages[0];
-        if (!firstPackage.tracking_number) {
-          return '-';
-        }
-
-        // 如果有多个包裹，显示提示
-        if (packages.length > 1) {
-          return (
-            <Tooltip title={`共${packages.length}个包裹`}>
-              <span>
-                {firstPackage.tracking_number}
-                <Tag color="blue" style={{ marginLeft: 4 }}>+{packages.length - 1}</Tag>
-              </span>
-            </Tooltip>
-          );
-        }
-
-        return firstPackage.tracking_number;
+        return (
+          <div className={styles.infoColumn}>
+            <div><strong>{shopName}</strong></div>
+            <div>
+              {item.sku ? (
+                <a
+                  href={`https://www.ozon.ru/product/${item.sku}/`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.link}
+                >
+                  SKU: {item.sku}
+                </a>
+              ) : (
+                <span>SKU: -</span>
+              )}
+            </div>
+            <div>X {item.quantity || 1}</div>
+            <div className={styles.price}>
+              {symbol} {formatPrice(item.price || 0)}
+            </div>
+          </div>
+        );
       },
     },
+    // 第三列：物流信息（货件编号、追踪号码、国内单号，带复制图标）
     {
-      title: '预计送达',
-      key: 'delivery_date',
-      width: 80,
-      render: (_: any, record: ozonApi.PostingWithOrder) => {
-        const date = record.order.delivery_date;
-        return date ? moment(date).format('MM-DD') : '-';
+      title: '物流信息',
+      key: 'logistics_info',
+      width: 200,
+      render: (_: any, row: OrderItemRow) => {
+        // 非第一行返回 null（使用 rowSpan）
+        if (!row.isFirstItem) return null;
+
+        const posting = row.posting;
+        const packages = posting.packages || [];
+        const trackingNumber = packages.length > 0 ? packages[0].tracking_number : undefined;
+        const domesticTracking = posting.domestic_tracking_number;
+
+        return {
+          children: (
+            <div className={styles.infoColumn}>
+              <div>
+                <span>{posting.posting_number}</span>
+                <CopyOutlined
+                  style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                  onClick={() => handleCopy(posting.posting_number, '货件编号')}
+                />
+              </div>
+              <div>
+                <span>{trackingNumber || '-'}</span>
+                {trackingNumber && (
+                  <CopyOutlined
+                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    onClick={() => handleCopy(trackingNumber, '追踪号码')}
+                  />
+                )}
+              </div>
+              <div>
+                <span>{domesticTracking || '-'}</span>
+                {domesticTracking && (
+                  <CopyOutlined
+                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    onClick={() => handleCopy(domesticTracking, '国内单号')}
+                  />
+                )}
+              </div>
+            </div>
+          ),
+          props: {
+            rowSpan: row.itemCount,
+          },
+        };
       },
     },
+    // 第四列：订单信息（配送方式、订单状态、订单时间、发货截止）
+    {
+      title: '订单信息',
+      key: 'order_info',
+      width: 200,
+      render: (_: any, row: OrderItemRow) => {
+        // 非第一行返回 null（使用 rowSpan）
+        if (!row.isFirstItem) return null;
+
+        const posting = row.posting;
+        const order = row.order;
+        const fullText = posting.delivery_method_name || order.delivery_method || order.order_type || 'FBS';
+        const shortText = fullText.split('（')[0].split('(')[0].trim();
+        const status = statusConfig[posting.status] || statusConfig.pending;
+
+        return {
+          children: (
+            <div className={styles.infoColumn}>
+              <Tooltip title={formatDeliveryMethodText(fullText)}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {shortText}
+                </div>
+              </Tooltip>
+              <div>
+                <Tag color={status.color} className={styles.tag}>
+                  {status.text}
+                </Tag>
+              </div>
+              <div>
+                {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
+              </div>
+              <div>
+                {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
+              </div>
+            </div>
+          ),
+          props: {
+            rowSpan: row.itemCount,
+          },
+        };
+      },
+    },
+    // 第五列：操作（保持最小宽度，固定）
     {
       title: '操作',
       key: 'action',
-      width: 50,
+      width: 60,
       fixed: 'right',
-      render: (_: any, record: ozonApi.PostingWithOrder) => {
-        const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(record.status);
-        const canCancel = record.status !== 'cancelled' && record.status !== 'delivered';
+      render: (_: any, row: OrderItemRow) => {
+        // 非第一行返回 null（使用 rowSpan）
+        if (!row.isFirstItem) return null;
 
-        return (
-          <Dropdown
-            menu={{
-              items: [
-                canShip && {
-                  key: 'ship',
-                  icon: <TruckOutlined />,
-                  label: '发货',
-                  onClick: () => handleShip(record),
-                },
-                {
-                  key: 'print',
-                  icon: <PrinterOutlined />,
-                  label: '打印面单',
-                },
-                canCancel && {
-                  key: 'cancel',
-                  icon: <CloseCircleOutlined />,
-                  label: '取消订单',
-                  danger: true,
-                  onClick: () => handleCancel(record),
-                },
-              ].filter(Boolean),
-            }}
-          >
-            <Button type="link" size="small" icon={<MoreOutlined />} className={styles.linkButton} />
-          </Dropdown>
-        );
+        const posting = row.posting;
+        const order = row.order;
+        const canShip = ['awaiting_packaging', 'awaiting_deliver'].includes(posting.status);
+        const canCancel = posting.status !== 'cancelled' && posting.status !== 'delivered';
+
+        return {
+          children: (
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'detail',
+                    icon: <FileTextOutlined />,
+                    label: '详情',
+                    onClick: () => showOrderDetail(order, posting),
+                  },
+                  canShip && {
+                    key: 'ship',
+                    icon: <TruckOutlined />,
+                    label: '发货',
+                    onClick: () => handleShip(posting),
+                  },
+                  {
+                    key: 'print',
+                    icon: <PrinterOutlined />,
+                    label: '打印面单',
+                  },
+                  canCancel && {
+                    key: 'cancel',
+                    icon: <CloseCircleOutlined />,
+                    label: '取消订单',
+                    danger: true,
+                    onClick: () => handleCancel(posting),
+                  },
+                ].filter(Boolean),
+              }}
+            >
+              <Button type="link" size="small" icon={<MoreOutlined />} className={styles.linkButton} />
+            </Dropdown>
+          ),
+          props: {
+            rowSpan: row.itemCount,
+          },
+        };
       },
     },
   ];
@@ -882,10 +935,10 @@ const OrderList: React.FC = () => {
                   setSelectedShop(normalized);
                   // 切换店铺时重置页码
                   setCurrentPage(1);
-                  // 保存到localStorage
-                  localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
+                  // 保存到localStorage（null存为'all'）
+                  localStorage.setItem('ozon_selected_shop', normalized === null ? 'all' : normalized.toString());
                 }}
-                showAllOption={false}
+                showAllOption={true}
                 className={styles.shopSelector}
               />
             </Space>
@@ -997,12 +1050,12 @@ const OrderList: React.FC = () => {
           <Button icon={<DownloadOutlined />}>导出订单</Button>
         </Space>
 
-        {/* 货件列表（以货件为单位显示）*/}
+        {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
         <Table
           loading={isLoading}
           columns={columns}
-          dataSource={postingsData}
-          rowKey="posting_number"
+          dataSource={orderItemRows}
+          rowKey="key"
           pagination={{
             current: currentPage,
             pageSize: pageSize,
