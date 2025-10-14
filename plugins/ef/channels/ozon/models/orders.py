@@ -151,8 +151,33 @@ class OzonOrder(Base):
             result['source_platform'] = first_posting.source_platform
 
             # 添加完整的postings列表
-            result['postings'] = [
-                {
+            result['postings'] = []
+            for posting in self.postings:
+                # 构建 packages 列表
+                packages = []
+                if posting.packages:
+                    # 如果有 packages 表数据，使用它
+                    packages = [
+                        {
+                            'id': pkg.id,
+                            'tracking_number': pkg.tracking_number,
+                            'carrier_name': pkg.carrier_name,
+                            'carrier_code': pkg.carrier_code,
+                        }
+                        for pkg in posting.packages
+                    ]
+                elif posting.raw_payload:
+                    # 如果没有 packages 表数据，尝试从 raw_payload 中提取
+                    tracking_number = posting.raw_payload.get('tracking_number')
+                    if tracking_number:
+                        packages = [{
+                            'id': None,
+                            'tracking_number': tracking_number,
+                            'carrier_name': None,
+                            'carrier_code': None,
+                        }]
+
+                result['postings'].append({
                     'id': posting.id,
                     'posting_number': posting.posting_number,
                     'status': posting.status,
@@ -169,18 +194,8 @@ class OzonOrder(Base):
                     'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
                     'order_notes': posting.order_notes,
                     'source_platform': posting.source_platform,
-                    'packages': [
-                        {
-                            'id': pkg.id,
-                            'tracking_number': pkg.tracking_number,
-                            'carrier_name': pkg.carrier_name,
-                            'carrier_code': pkg.carrier_code,
-                        }
-                        for pkg in posting.packages
-                    ] if posting.packages else []
-                }
-                for posting in self.postings
-            ]
+                    'packages': packages
+                })
         else:
             result['posting_number'] = None
             result['posting_status'] = None
