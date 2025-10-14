@@ -594,64 +594,67 @@ const OrderList: React.FC = () => {
     {
       title: '商品',
       key: 'items',
-      width: 300,
+      width: 350,
       render: (_: any, record: ozonApi.PostingWithOrder) => {
         const items = record.order.items || [];
-        const firstItem = items[0];
-        const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-
-        if (!firstItem) return '-';
-
-        const imageUrl = firstItem.image || (firstItem.offer_id && offerIdImageMap[firstItem.offer_id]);
+        if (items.length === 0) return '-';
 
         return (
-          <div className={styles.productCell}>
-            {imageUrl ? (
-              <Tooltip
-                title={
-                  <img
-                    src={imageUrl}
-                    alt="商品预览"
-                    className={styles.productPreviewImage}
-                  />
-                }
-                mouseEnterDelay={0.3}
-                overlayClassName="product-preview-tooltip"
-              >
-                <Avatar
-                  size={40}
-                  src={imageUrl}
-                  shape="square"
-                  className={styles.productAvatarHoverable}
-                />
-              </Tooltip>
-            ) : (
-              <Avatar
-                size={40}
-                icon={<ShoppingCartOutlined />}
-                shape="square"
-                className={styles.productAvatar}
-              />
-            )}
-            <div className={styles.productInfo}>
-              <div className={styles.productName}>
-                {firstItem.sku ? (
-                  <a
-                    href={`https://www.ozon.ru/product/${firstItem.sku}/`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.link}
-                  >
-                    {firstItem.name || firstItem.sku}
-                  </a>
-                ) : (
-                  firstItem.name || firstItem.sku
-                )}
-              </div>
-              <div className={styles.productCount}>
-                {items.length} 种，共 {totalItems} 件
-              </div>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {items.map((item, index) => {
+              const imageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
+
+              return (
+                <div key={index} className={styles.productCell}>
+                  {imageUrl ? (
+                    <Tooltip
+                      title={
+                        <img
+                          src={imageUrl}
+                          alt="商品预览"
+                          className={styles.productPreviewImage}
+                        />
+                      }
+                      mouseEnterDelay={0.3}
+                      overlayClassName="product-preview-tooltip"
+                    >
+                      <Avatar
+                        size={40}
+                        src={imageUrl}
+                        shape="square"
+                        className={styles.productAvatarHoverable}
+                      />
+                    </Tooltip>
+                  ) : (
+                    <Avatar
+                      size={40}
+                      icon={<ShoppingCartOutlined />}
+                      shape="square"
+                      className={styles.productAvatar}
+                    />
+                  )}
+                  <div className={styles.productInfo}>
+                    <div className={styles.productName}>
+                      {item.sku ? (
+                        <a
+                          href={`https://www.ozon.ru/product/${item.sku}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.link}
+                        >
+                          {item.name || item.sku}
+                        </a>
+                      ) : (
+                        item.name || item.sku
+                      )}
+                    </div>
+                    <div className={styles.productCount}>
+                      数量: {item.quantity}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         );
       },
@@ -901,13 +904,6 @@ const OrderList: React.FC = () => {
           </Form.Item>
           <Form.Item name="posting_number">
             <Input placeholder="货件编号" prefix={<SearchOutlined />} />
-          </Form.Item>
-          <Form.Item name="order_type">
-            <Select placeholder="订单类型" className={styles.typeSelect} allowClear>
-              <Option value="FBS">FBS</Option>
-              <Option value="FBO">FBO</Option>
-              <Option value="CrossDock">CrossDock</Option>
-            </Select>
           </Form.Item>
           <Form.Item>
             <Space>
