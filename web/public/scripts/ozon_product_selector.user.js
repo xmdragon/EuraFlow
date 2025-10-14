@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Ozon选品助手
 // @namespace    http://euraflow.local/
-// @version      4.6
-// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制，支持多语言页面，确保佣金数据完整，可配置滚动延迟防反爬虫
+// @version      4.7
+// @description  智能采集Ozon商品数据，完全适配虚拟滚动机制，支持多语言页面，确保佣金数据完整，可配置滚动延迟防反爬虫，使用纯数字SKU作为唯一标识
 // @author       EuraFlow Team
 // @match        https://www.ozon.ru/*
 // @grant        GM_xmlhttpRequest
@@ -153,26 +153,45 @@
             };
         }
 
-        // 生成商品唯一指纹（不依赖data-index）
-        generateProductFingerprint(element) {
-            // 优先使用商品链接
+        // 提取商品SKU（纯数字，OZON全站唯一标识）
+        extractProductSKU(element) {
             const link = element.querySelector('a[href*="/product/"]');
-            if (link && link.href) {
-                const match = link.href.match(/product\/([^\/\?]+)/);
-                if (match && match[1]) {
-                    return `product_${match[1]}`;
-                }
+            if (!link || !link.href) {
+                return null;
             }
 
-            // 备用方案：组合多个特征
-            const title = this.extractProductTitle(element);
-            const price = this.extractPrice(element);
-            const image = element.querySelector('img:not(.ozon-bang-img)')?.src || '';
-            const imageId = image ? image.split('/').pop().split('.')[0] : '';
+            // 从URL末尾提取SKU（格式：/product/name-SKU/或/product/name-SKU?params）
+            const urlParts = link.href.split('/product/');
+            if (urlParts.length <= 1) {
+                return null;
+            }
 
-            // 生成组合指纹
-            const fingerprint = `${title.substring(0, 30)}_${price}_${imageId}`;
-            return fingerprint.replace(/[^\w\u4e00-\u9fa5]/g, '_');
+            // 提取路径部分，去除查询参数
+            const pathPart = urlParts[1].split('?')[0].replace(/\/$/, '');
+
+            // 提取最后的数字SKU（通常在最后一个连字符后）
+            const lastDashIndex = pathPart.lastIndexOf('-');
+            if (lastDashIndex === -1) {
+                return null;
+            }
+
+            const potentialSKU = pathPart.substring(lastDashIndex + 1);
+
+            // 验证是否为纯数字且长度合理（通常6位以上）
+            if (/^\d{6,}$/.test(potentialSKU)) {
+                return potentialSKU;
+            }
+
+            return null;
+        }
+
+        // 生成商品唯一指纹（使用SKU）
+        generateProductFingerprint(element) {
+            const sku = this.extractProductSKU(element);
+            if (sku) {
+                return `sku_${sku}`;  // 使用纯数字SKU作为指纹
+            }
+            return null;  // 无法提取SKU，返回null（该商品将被跳过）
         }
 
         // 获取元素内容哈希（用于检测内容变化）
@@ -207,31 +226,13 @@
                 // 1. 基础信息
                 data['类目链接'] = window.location.href;
 
-                // 商品链接和ID - 修复：确保从URL末尾提取正确的商品ID
+                // 商品链接和SKU（使用统一的 SKU 提取方法）
                 const link = element.querySelector('a[href*="/product/"]');
                 if (link) {
                     data['商品链接'] = link.href;
-                    // 从URL末尾提取商品ID（格式：/product/name-ID/或/product/name-ID?params）
-                    const urlParts = link.href.split('/product/');
-                    if (urlParts.length > 1) {
-                        // 提取路径部分，去除查询参数
-                        const pathPart = urlParts[1].split('?')[0].replace(/\/$/, '');
-                        // 提取最后的数字ID（通常在最后一个连字符后）
-                        const lastDashIndex = pathPart.lastIndexOf('-');
-                        if (lastDashIndex !== -1) {
-                            const potentialId = pathPart.substring(lastDashIndex + 1);
-                            // 验证是否为纯数字且长度合理（通常6位以上）
-                            if (/^\d{6,}$/.test(potentialId)) {
-                                data['商品ID'] = potentialId;
-                            } else {
-                                data['商品ID'] = '-';
-                            }
-                        } else {
-                            data['商品ID'] = '-';
-                        }
-                    } else {
-                        data['商品ID'] = '-';
-                    }
+                    // 使用统一的 SKU 提取方法
+                    const sku = this.extractProductSKU(element);
+                    data['商品ID'] = sku || '-';
                 } else {
                     data['商品链接'] = '-';
                     data['商品ID'] = '-';
@@ -709,6 +710,11 @@
             const contentChanged = this.detectContentChange(element);
             const fingerprint = this.generateProductFingerprint(element);
 
+            // 【SKU 校验】无法提取 SKU，跳过（非有效商品）
+            if (!fingerprint) {
+                return null;
+            }
+
             // 【全局去重】优先检查是否已上传过
             if (this.uploadedFingerprints.has(fingerprint)) {
                 return null;
@@ -764,6 +770,9 @@
                 for (const element of row) {
                     try {
                         const fingerprint = this.generateProductFingerprint(element);
+                        // 跳过无效商品（无法提取SKU）
+                        if (!fingerprint) continue;
+
                         if (!processedFingerprints.has(fingerprint)) {
                             processedFingerprints.add(fingerprint);
                             // 直接采集，不等待
@@ -809,6 +818,9 @@
                         let allCollected = true;
                         for (const element of row) {
                             const fingerprint = this.generateProductFingerprint(element);
+                            // 跳过无效商品（无法提取SKU）
+                            if (!fingerprint) continue;
+
                             if (!this.validatedProducts.has(fingerprint)) {
                                 allCollected = false;
                                 break;  // 发现未采集的商品，停止检查
