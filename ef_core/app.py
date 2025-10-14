@@ -119,6 +119,7 @@ async def _register_sync_service_handlers(scheduler):
     """注册同步服务处理函数到调度器"""
     try:
         from plugins.ef.channels.ozon.services.kuajing84_material_cost_sync_service import get_kuajing84_material_cost_sync_service
+        from plugins.ef.channels.ozon.services.ozon_product_sync_service import get_ozon_product_sync_service
         from plugins.ef.channels.ozon.services.ozon_sync import OzonSyncService
         from plugins.ef.channels.ozon.models import OzonShop
         from ef_core.services.exchange_rate_service import ExchangeRateService
@@ -196,6 +197,14 @@ async def _register_sync_service_handlers(scheduler):
             handler=ozon_sync_handler
         )
         logger.info("Registered ozon_sync_incremental service handler")
+
+        # 3. 注册OZON商品增量同步服务
+        ozon_product_service = get_ozon_product_sync_service()
+        scheduler.register_handler(
+            service_key="ozon_product_sync",
+            handler=ozon_product_service.sync_products
+        )
+        logger.info("Registered ozon_product_sync service handler")
 
     except Exception as e:
         logger.warning(f"Failed to register sync service handlers: {e}", exc_info=True)
