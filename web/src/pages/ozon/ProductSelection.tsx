@@ -143,7 +143,7 @@ const ProductSelection: React.FC = () => {
   });
   const [packingFee, setPackingFee] = useState<number>(() => {
     const saved = localStorage.getItem('productSelectionPackingFee');
-    return saved ? parseFloat(saved) : 2.0; // 默认2.0 RUB
+    return saved ? parseFloat(saved) : 2.0; // 默认2.0 RMB
   });
 
   // 保存利润率到localStorage
@@ -198,14 +198,8 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === 'search',
   });
 
-  // 查询汇率（CNY → RUB），使用缓存数据
-  const { data: exchangeRateData } = useQuery({
-    queryKey: ['exchangeRate', 'CNY', 'RUB'],
-    queryFn: () => getExchangeRate('CNY', 'RUB', false), // 使用缓存，不force_refresh
-    staleTime: 30 * 60 * 1000, // 30分钟，与后台同步周期一致
-    cacheTime: 60 * 60 * 1000, // 1小时
-  });
-  const exchangeRate = exchangeRateData ? parseFloat(exchangeRateData.rate) : null;
+  // 不再需要汇率查询，因为商品价格就是 RMB（CNY），运费和打包费也是 RMB
+  // 商品价格存储格式：CNY戈比（分），÷100 = CNY元 = RMB元
 
   // 查询导入历史
   const { data: historyData, refetch: refetchHistory} = useQuery({
@@ -280,30 +274,26 @@ const ProductSelection: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
 
-  // 过滤可盈利商品：将CNY价格转换为RUB后计算成本上限，过滤掉无法达到目标利润率的商品
+  // 过滤可盈利商品：计算成本上限，过滤掉无法达到目标利润率的商品
   const profitableProducts = useMemo(() => {
-    // 如果没有汇率数据，显示所有商品（保持现有行为）
-    if (!exchangeRate) return allProducts;
-
     return allProducts.filter(product => {
-      // 价格转换：CNY → RUB
-      const currentPriceCNY = product.current_price / 100; // 戈比 → CNY
-      const competitorPriceCNY = product.competitor_min_price ? product.competitor_min_price / 100 : null;
-      const priceCNY = competitorPriceCNY ? Math.min(currentPriceCNY, competitorPriceCNY) : currentPriceCNY;
-      const priceRUB = priceCNY * exchangeRate; // CNY → RUB
+      // 价格单位：CNY戈比（分），÷100 = CNY元 = RMB元
+      const currentPriceRMB = product.current_price / 100; // 戈比 → RMB
+      const competitorPriceRMB = product.competitor_min_price ? product.competitor_min_price / 100 : null;
+      const priceRMB = competitorPriceRMB ? Math.min(currentPriceRMB, competitorPriceRMB) : currentPriceRMB;
 
       const weight = product.package_weight || 0;
 
       // 缺少必要数据的商品保留（避免误删）
-      if (weight <= 0 || priceRUB <= 0) return true;
+      if (weight <= 0 || priceRMB <= 0) return true;
 
-      // 计算成本上限
-      const maxCost = calculateMaxCost(priceRUB, weight, targetProfitRate / 100, packingFee);
+      // 计算成本上限（RMB）
+      const maxCost = calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee);
 
       // 过滤掉无法达到目标利润率的商品（maxCost < 0）
       return maxCost !== null && maxCost >= 0;
     });
-  }, [allProducts, exchangeRate, targetProfitRate, packingFee]);
+  }, [allProducts, targetProfitRate, packingFee]);
 
   // 清空数据mutation
   const clearDataMutation = useMutation({
@@ -842,29 +832,23 @@ const ProductSelection: React.FC = () => {
 
           {/* 成本上限计算 */}
           {(() => {
-            // 价格转换：CNY → RUB
-            const currentPriceCNY = product.current_price / 100;  // 戈比 → CNY
-            const competitorPriceCNY = product.competitor_min_price !== null && product.competitor_min_price !== undefined
+            // 价格单位：CNY戈比（分），÷100 = CNY元 = RMB元
+            const currentPriceRMB = product.current_price / 100;  // 戈比 → RMB
+            const competitorPriceRMB = product.competitor_min_price !== null && product.competitor_min_price !== undefined
               ? product.competitor_min_price / 100
               : null;
 
             // 如果有跟卖价，取两者中较低的；否则取当前价
-            const priceCNY = competitorPriceCNY !== null
-              ? Math.min(currentPriceCNY, competitorPriceCNY)
-              : currentPriceCNY;
-
-            // 转换为卢布（如果有汇率）
-            const priceRUB = exchangeRate ? priceCNY * exchangeRate : priceCNY;
+            const priceRMB = competitorPriceRMB !== null
+              ? Math.min(currentPriceRMB, competitorPriceRMB)
+              : currentPriceRMB;
 
             const weight = product.package_weight || 0;
 
-            // 计算成本上限（使用RUB价格）
-            const maxCost = weight > 0 && priceRUB > 0 && exchangeRate
-              ? calculateMaxCost(priceRUB, weight, targetProfitRate / 100, packingFee)
+            // 计算成本上限（RMB）
+            const maxCost = weight > 0 && priceRMB > 0
+              ? calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee)
               : null;
-
-            // 将成本上限从 RUB 转换回 CNY 显示（与商品价格单位一致）
-            const maxCostCNY = maxCost !== null && exchangeRate ? maxCost / exchangeRate : maxCost;
 
             // 根据成本上限值确定样式
             let costClassName = styles.maxCostRow;
@@ -879,7 +863,7 @@ const ProductSelection: React.FC = () => {
             return (
               <div className={costClassName}>
                 <Text type="secondary">成本上限: </Text>
-                <Text strong>{formatMaxCost(maxCostCNY)}</Text>
+                <Text strong>{formatMaxCost(maxCost)}</Text>
               </div>
             );
           })()}
@@ -1061,7 +1045,7 @@ const ProductSelection: React.FC = () => {
                       min={0}
                       precision={1}
                       addonBefore="打包费"
-                      addonAfter="RUB"
+                      addonAfter="RMB"
                       style={{ width: '100%' }}
                     />
                   </Space.Compact>

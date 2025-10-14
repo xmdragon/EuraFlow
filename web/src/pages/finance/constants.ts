@@ -9,17 +9,17 @@ export interface ScenarioConfig {
   weightRange: string;
   priceRange: string;
   defaultPlatformRate: number; // 默认平台扣点率（小数形式）
-  packingFee: number; // 打包费（RUB）
+  packingFee: number; // 打包费（RMB）
   shipping: {
-    base: number; // 基础运费
-    rate: number; // 每克费率
+    base: number; // 基础运费（RMB）
+    rate: number; // 每克费率（RMB/克）
     formula: string; // 显示用的公式文本
   };
   conditions: {
     minWeight?: number; // 克
     maxWeight?: number; // 克
-    minPrice?: number; // RUB
-    maxPrice?: number; // RUB
+    minPrice?: number; // RMB
+    maxPrice?: number; // RMB
   };
   dimensionLimit: {
     sumLimit: number; // 三边之和限制（厘米）
