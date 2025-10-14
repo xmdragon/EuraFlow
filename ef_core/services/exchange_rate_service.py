@@ -284,20 +284,45 @@ class ExchangeRateService:
         Returns:
             Dict: 执行结果
         """
+        from plugins.ef.channels.ozon.models.sync_service import SyncServiceLog
+        import uuid
+
+        # 生成运行ID和记录开始时间
+        run_id = f"exchange_rate_refresh_{uuid.uuid4().hex[:12]}"
+        started_at = datetime.now(timezone.utc)
+
         db_manager = get_db_manager()
         async with db_manager.get_session() as db:
             try:
                 # 获取配置
-                config = await self.get_config(db)
-                if not config or not config.is_enabled:
+                rate_config = await self.get_config(db)
+                if not rate_config or not rate_config.is_enabled:
                     logger.warning("Exchange rate service not configured or disabled, skipping refresh")
+
+                    # 创建跳过日志
+                    log_entry = SyncServiceLog(
+                        service_key="exchange_rate_refresh",
+                        run_id=run_id,
+                        started_at=started_at,
+                        finished_at=datetime.now(timezone.utc),
+                        status="success",
+                        records_processed=0,
+                        records_updated=0,
+                        execution_time_ms=0,
+                        extra_data={"reason": "service_disabled"}
+                    )
+                    db.add(log_entry)
+                    await db.commit()
+
                     return {
                         "status": "skipped",
-                        "message": "汇率服务未配置或已禁用"
+                        "message": "汇率服务未配置或已禁用",
+                        "records_processed": 0,
+                        "records_updated": 0
                     }
 
                 # 刷新CNY->RUB汇率
-                rate = await self.fetch_rate_from_api(config.api_key, "CNY", "RUB")
+                rate = await self.fetch_rate_from_api(rate_config.api_key, "CNY", "RUB")
 
                 # 保存到数据库
                 now = datetime.now(timezone.utc)
@@ -307,27 +332,85 @@ class ExchangeRateService:
                     rate=rate,
                     fetched_at=now,
                     expires_at=now + timedelta(hours=24),
-                    source=config.api_provider
+                    source=rate_config.api_provider
                 )
                 db.add(exchange_rate)
-                await db.commit()
 
                 # 更新Redis缓存
                 await self.cache_rate("CNY", "RUB", rate)
+
+                # 计算执行时间
+                finished_at = datetime.now(timezone.utc)
+                execution_time_ms = int((finished_at - started_at).total_seconds() * 1000)
+
+                # 创建成功日志
+                log_entry = SyncServiceLog(
+                    service_key="exchange_rate_refresh",
+                    run_id=run_id,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    status="success",
+                    records_processed=1,
+                    records_updated=1,
+                    execution_time_ms=execution_time_ms,
+                    extra_data={
+                        "from_currency": "CNY",
+                        "to_currency": "RUB",
+                        "rate": str(rate),
+                        "source": rate_config.api_provider
+                    }
+                )
+                db.add(log_entry)
+                await db.commit()
 
                 logger.info(f"Exchange rate refreshed successfully: CNY->RUB={rate}")
                 return {
                     "status": "success",
                     "message": f"汇率刷新成功: CNY->RUB={rate}",
                     "rate": str(rate),
-                    "fetched_at": now.isoformat()
+                    "fetched_at": now.isoformat(),
+                    "records_processed": 1,
+                    "records_updated": 1
                 }
 
             except Exception as e:
                 logger.error(f"Failed to refresh exchange rate: {e}", exc_info=True)
+
+                # 计算执行时间
+                finished_at = datetime.now(timezone.utc)
+                execution_time_ms = int((finished_at - started_at).total_seconds() * 1000)
+
+                # 创建失败日志
+                error_message = str(e)
+                if "403" in error_message:
+                    error_message = "API密钥无效或已过期"
+                elif "timeout" in error_message.lower():
+                    error_message = "API请求超时"
+                elif "connection" in error_message.lower():
+                    error_message = "网络连接失败"
+                else:
+                    error_message = error_message[:200]  # 限制长度
+
+                log_entry = SyncServiceLog(
+                    service_key="exchange_rate_refresh",
+                    run_id=run_id,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    status="failed",
+                    records_processed=0,
+                    records_updated=0,
+                    execution_time_ms=execution_time_ms,
+                    error_message=error_message,
+                    error_stack=str(e)[:500] if str(e) != error_message else None
+                )
+                db.add(log_entry)
+                await db.commit()
+
                 return {
                     "status": "failed",
-                    "message": f"汇率刷新失败: {str(e)}"
+                    "message": f"汇率刷新失败: {error_message}",
+                    "records_processed": 0,
+                    "records_updated": 0
                 }
 
     async def get_rate_history(
