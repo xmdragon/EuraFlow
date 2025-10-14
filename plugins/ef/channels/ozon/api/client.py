@@ -495,7 +495,7 @@ class OzonAPIClient:
     async def get_posting_details(self, posting_number: str) -> Dict[str, Any]:
         """获取发货单详情"""
         return await self._request(
-            "POST", "/v2/posting/fbs/get", data={"posting_number": posting_number}, resource_type="postings"
+            "POST", "/v3/posting/fbs/get", data={"posting_number": posting_number}, resource_type="postings"
         )
 
     async def ship_posting(
