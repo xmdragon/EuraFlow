@@ -20,7 +20,7 @@
         virtualScrollIndexes: 12,        // 索引0-11循环使用
         visibleWindowMin: 8,             // 最小可见窗口
         visibleWindowMax: 12,            // 最大可见窗口
-        scrollStepSize: 1.2,             // 每次滚动视口倍数
+        scrollStepSize: 0.5,             // 每次滚动视口倍数（0.5 = 半个屏幕高度）
         scrollWaitTime: 1000,            // 滚动后等待时间（优化：1秒）
         scrollDelay: 5000,               // 每两次滚动之间的延迟（默认5秒，防反爬虫）
         bangInjectionWait: 2000,         // 等待上品帮注入时间（优化：2秒，200ms×10次）
