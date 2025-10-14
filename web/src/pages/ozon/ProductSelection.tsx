@@ -851,6 +851,9 @@ const ProductSelection: React.FC = () => {
               ? calculateMaxCost(priceRUB, weight, targetProfitRate / 100, packingFee)
               : null;
 
+            // 将成本上限从 RUB 转换回 CNY 显示（与商品价格单位一致）
+            const maxCostCNY = maxCost !== null && exchangeRate ? maxCost / exchangeRate : maxCost;
+
             // 根据成本上限值确定样式
             let costClassName = styles.maxCostRow;
             if (maxCost === null) {
@@ -864,7 +867,7 @@ const ProductSelection: React.FC = () => {
             return (
               <div className={costClassName}>
                 <Text type="secondary">成本上限: </Text>
-                <Text strong>{formatMaxCost(maxCost)}</Text>
+                <Text strong>{formatMaxCost(maxCostCNY)}</Text>
               </div>
             );
           })()}
