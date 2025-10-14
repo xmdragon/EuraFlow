@@ -9,7 +9,7 @@ export interface ScenarioConfig {
   weightRange: string;
   priceRange: string;
   defaultPlatformRate: number; // 默认平台扣点率（小数形式）
-  packingFee: number; // 打包费（RMB）
+  packingFee: number; // 打包费（RUB）
   shipping: {
     base: number; // 基础运费
     rate: number; // 每克费率
@@ -18,8 +18,8 @@ export interface ScenarioConfig {
   conditions: {
     minWeight?: number; // 克
     maxWeight?: number; // 克
-    minPrice?: number; // RMB
-    maxPrice?: number; // RMB
+    minPrice?: number; // RUB
+    maxPrice?: number; // RUB
   };
   dimensionLimit: {
     sumLimit: number; // 三边之和限制（厘米）
@@ -38,7 +38,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: '超级轻小件',
     icon: '📦',
     weightRange: '≤500g',
-    priceRange: '<1500 RMB',
+    priceRange: '<1500 RUB',
     defaultPlatformRate: 0.14,
     packingFee: 2,
     shipping: {
@@ -65,7 +65,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: '轻单标准件',
     icon: '📋',
     weightRange: '501g-25kg',
-    priceRange: '<1500 RMB',
+    priceRange: '<1500 RUB',
     defaultPlatformRate: 0.14,
     packingFee: 2,
     shipping: {
@@ -93,7 +93,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: '轻小件',
     icon: '🎁',
     weightRange: '1g-2kg',
-    priceRange: '1500-7000 RMB',
+    priceRange: '1500-7000 RUB',
     defaultPlatformRate: 0.2,
     packingFee: 2,
     shipping: {
@@ -122,7 +122,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: '大件',
     icon: '📪',
     weightRange: '2.1kg-25kg',
-    priceRange: '1501-7000 RMB',
+    priceRange: '1501-7000 RUB',
     defaultPlatformRate: 0.2,
     packingFee: 2,
     shipping: {
@@ -151,7 +151,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: '高客单轻小件',
     icon: '💎',
     weightRange: '1g-5kg',
-    priceRange: '>7000 RMB',
+    priceRange: '>7000 RUB',
     defaultPlatformRate: 0.2,
     packingFee: 5,
     shipping: {
@@ -179,7 +179,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: '高客单大件',
     icon: '🏆',
     weightRange: '5.1kg-25kg',
-    priceRange: '>7000 RMB',
+    priceRange: '>7000 RUB',
     defaultPlatformRate: 0.2,
     packingFee: 5,
     shipping: {

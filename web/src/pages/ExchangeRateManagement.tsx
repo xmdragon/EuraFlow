@@ -1,0 +1,512 @@
+/**
+ * 汇率管理页面
+ * 功能：配置汇率API、显示当前汇率、货币转换、汇率趋势图
+ */
+import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  Row,
+  Col,
+  Typography,
+  Form,
+  Input,
+  Button,
+  Space,
+  message,
+  Statistic,
+  InputNumber,
+  Segmented,
+  Switch,
+  Spin,
+  Alert,
+} from 'antd';
+import {
+  DollarOutlined,
+  ApiOutlined,
+  SyncOutlined,
+  LineChartOutlined,
+  SwapOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Line } from '@ant-design/plots';
+
+import * as exchangeRateApi from '../services/exchangeRateApi';
+import styles from './ExchangeRateManagement.module.scss';
+
+const { Title, Text, Paragraph } = Typography;
+
+const ExchangeRateManagement: React.FC = () => {
+  const [configForm] = Form.useForm();
+  const queryClient = useQueryClient();
+
+  // 货币转换状态
+  const [cnyAmount, setCnyAmount] = useState<string>('');
+  const [rubAmount, setRubAmount] = useState<string>('');
+  const [convertDirection, setConvertDirection] = useState<'cny_to_rub' | 'rub_to_cny'>('cny_to_rub');
+
+  // 趋势图时间范围
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
+
+  // 获取配置
+  const { data: config, isLoading: configLoading } = useQuery({
+    queryKey: ['exchange-rate', 'config'],
+    queryFn: exchangeRateApi.getExchangeRateConfig,
+  });
+
+  // 获取当前汇率
+  const { data: currentRate, isLoading: rateLoading, refetch: refetchRate } = useQuery({
+    queryKey: ['exchange-rate', 'current'],
+    queryFn: () => exchangeRateApi.getExchangeRate('CNY', 'RUB'),
+    enabled: config?.configured === true,
+    refetchInterval: 60000, // 每分钟刷新一次
+  });
+
+  // 获取汇率历史
+  const { data: history, isLoading: historyLoading } = useQuery({
+    queryKey: ['exchange-rate', 'history', timeRange],
+    queryFn: () => exchangeRateApi.getExchangeRateHistory('CNY', 'RUB', timeRange),
+    enabled: config?.configured === true,
+  });
+
+  // 配置API
+  const configMutation = useMutation({
+    mutationFn: exchangeRateApi.configureExchangeRateApi,
+    onSuccess: () => {
+      message.success('API配置成功');
+      queryClient.invalidateQueries({ queryKey: ['exchange-rate'] });
+      configForm.resetFields();
+    },
+    onError: (error: any) => {
+      message.error(`配置失败: ${error.response?.data?.error?.detail || error.message}`);
+    },
+  });
+
+  // 测试连接
+  const testMutation = useMutation({
+    mutationFn: (apiKey: string) => exchangeRateApi.testExchangeRateConnection(apiKey),
+    onSuccess: (data) => {
+      if (data.success) {
+        message.success(`连接成功！当前汇率: ${data.rate}`);
+      } else {
+        message.error(`连接失败: ${data.message}`);
+      }
+    },
+    onError: (error: any) => {
+      message.error(`测试失败: ${error.response?.data?.error?.detail || error.message}`);
+    },
+  });
+
+  // 手动刷新汇率
+  const refreshMutation = useMutation({
+    mutationFn: exchangeRateApi.refreshExchangeRate,
+    onSuccess: (data) => {
+      if (data.status === 'success') {
+        message.success(data.message);
+        queryClient.invalidateQueries({ queryKey: ['exchange-rate'] });
+      } else {
+        message.warning(data.message);
+      }
+    },
+    onError: (error: any) => {
+      message.error(`刷新失败: ${error.response?.data?.error?.detail || error.message}`);
+    },
+  });
+
+  // 货币转换
+  const convertMutation = useMutation({
+    mutationFn: exchangeRateApi.convertCurrency,
+  });
+
+  // 配置表单提交
+  const handleConfigSubmit = (values: any) => {
+    configMutation.mutate({
+      api_key: values.api_key,
+      api_provider: 'exchangerate-api',
+      base_currency: 'CNY',
+      is_enabled: values.is_enabled ?? true,
+    });
+  };
+
+  // 测试连接
+  const handleTestConnection = () => {
+    const apiKey = configForm.getFieldValue('api_key');
+    if (!apiKey) {
+      message.warning('请先输入API Key');
+      return;
+    }
+    testMutation.mutate(apiKey);
+  };
+
+  // 手动刷新
+  const handleManualRefresh = () => {
+    refreshMutation.mutate();
+  };
+
+  // 货币转换处理
+  const handleConvert = async (value: string, direction: 'cny_to_rub' | 'rub_to_cny') => {
+    if (!value || isNaN(parseFloat(value)) || parseFloat(value) <= 0) {
+      return;
+    }
+
+    try {
+      const request = direction === 'cny_to_rub'
+        ? { amount: value, from_currency: 'CNY', to_currency: 'RUB' }
+        : { amount: value, from_currency: 'RUB', to_currency: 'CNY' };
+
+      const result = await convertMutation.mutateAsync(request);
+
+      if (direction === 'cny_to_rub') {
+        setRubAmount(result.converted_amount);
+      } else {
+        setCnyAmount(result.converted_amount);
+      }
+    } catch (error: any) {
+      message.error(`转换失败: ${error.response?.data?.error?.detail || error.message}`);
+    }
+  };
+
+  // CNY输入变化
+  const handleCnyChange = (value: string | null) => {
+    const strValue = value?.toString() || '';
+    setCnyAmount(strValue);
+    if (strValue) {
+      handleConvert(strValue, 'cny_to_rub');
+    } else {
+      setRubAmount('');
+    }
+  };
+
+  // RUB输入变化
+  const handleRubChange = (value: string | null) => {
+    const strValue = value?.toString() || '';
+    setRubAmount(strValue);
+    if (strValue) {
+      handleConvert(strValue, 'rub_to_cny');
+    } else {
+      setCnyAmount('');
+    }
+  };
+
+  // 趋势图配置
+  const chartConfig = {
+    data: history?.data || [],
+    xField: 'time',
+    yField: 'rate',
+    smooth: true,
+    animation: {
+      appear: {
+        animation: 'path-in',
+        duration: 1000,
+      },
+    },
+    xAxis: {
+      type: 'time',
+      label: {
+        formatter: (text: string) => {
+          const date = new Date(text);
+          if (timeRange === 'today') {
+            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+          } else {
+            return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+          }
+        },
+      },
+    },
+    yAxis: {
+      label: {
+        formatter: (text: string) => parseFloat(text).toFixed(4),
+      },
+    },
+    tooltip: {
+      formatter: (datum: any) => {
+        return {
+          name: '汇率',
+          value: datum.rate.toFixed(6),
+        };
+      },
+    },
+  };
+
+  return (
+    <div className={styles.pageContainer}>
+      <Row className={styles.titleRow} align="middle" justify="space-between">
+        <Col>
+          <Title level={2} className={styles.pageTitle}>
+            汇率管理
+          </Title>
+        </Col>
+        <Col>
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
+            onClick={handleManualRefresh}
+            loading={refreshMutation.isPending}
+            disabled={!config?.configured}
+          >
+            手动刷新汇率
+          </Button>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]}>
+        {/* API 配置卡片 */}
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <ApiOutlined />
+                <span>API 配置</span>
+              </Space>
+            }
+            className={styles.card}
+          >
+            {configLoading ? (
+              <div className={styles.spinContainer}>
+                <Spin />
+              </div>
+            ) : (
+              <>
+                {config?.configured && (
+                  <Alert
+                    message="API已配置"
+                    description={`服务商: ${config.api_provider} | 状态: ${config.is_enabled ? '启用' : '禁用'}`}
+                    type="success"
+                    icon={<CheckCircleOutlined />}
+                    showIcon
+                    className={styles.configAlert}
+                  />
+                )}
+
+                <Form
+                  form={configForm}
+                  layout="vertical"
+                  onFinish={handleConfigSubmit}
+                  initialValues={{ is_enabled: true }}
+                >
+                  <Form.Item
+                    label="API Key"
+                    name="api_key"
+                    rules={[{ required: true, message: '请输入API Key' }]}
+                  >
+                    <Input.Password
+                      placeholder="请输入exchangerate-api.com的API Key"
+                      prefix={<ApiOutlined />}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label="启用服务"
+                    name="is_enabled"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+
+                  <Form.Item>
+                    <Space>
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={configMutation.isPending}
+                      >
+                        保存配置
+                      </Button>
+                      <Button
+                        onClick={handleTestConnection}
+                        loading={testMutation.isPending}
+                      >
+                        测试连接
+                      </Button>
+                    </Space>
+                  </Form.Item>
+                </Form>
+
+                <Paragraph type="secondary" className={styles.configHint}>
+                  <Text strong>提示：</Text>
+                  <br />
+                  1. 前往 <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer">exchangerate-api.com</a> 注册获取免费API Key
+                  <br />
+                  2. 免费账户每月1500次请求
+                  <br />
+                  3. 系统每30分钟自动刷新一次汇率
+                </Paragraph>
+              </>
+            )}
+          </Card>
+        </Col>
+
+        {/* 当前汇率显示 */}
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <DollarOutlined />
+                <span>当前汇率</span>
+              </Space>
+            }
+            extra={
+              currentRate?.cached && (
+                <Text type="secondary" className={styles.cacheHint}>
+                  (缓存)
+                </Text>
+              )
+            }
+            className={styles.card}
+          >
+            {!config?.configured ? (
+              <Alert
+                message="尚未配置"
+                description="请先配置API Key以获取汇率数据"
+                type="warning"
+                icon={<CloseCircleOutlined />}
+                showIcon
+              />
+            ) : rateLoading ? (
+              <div className={styles.spinContainer}>
+                <Spin />
+              </div>
+            ) : currentRate ? (
+              <div className={styles.rateDisplay}>
+                <Statistic
+                  title="人民币 (CNY) → 卢布 (RUB)"
+                  value={parseFloat(currentRate.rate)}
+                  precision={6}
+                  prefix={<SyncOutlined />}
+                  valueStyle={{ color: '#3f8600' }}
+                  className={styles.rateStat}
+                />
+                <div className={styles.rateExample}>
+                  <Text type="secondary">
+                    示例: 1 CNY = {parseFloat(currentRate.rate).toFixed(4)} RUB
+                  </Text>
+                </div>
+              </div>
+            ) : (
+              <Alert
+                message="无法获取汇率"
+                description="请检查API配置或网络连接"
+                type="error"
+                showIcon
+              />
+            )}
+          </Card>
+        </Col>
+
+        {/* 货币转换器 */}
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <SwapOutlined />
+                <span>货币转换</span>
+              </Space>
+            }
+            className={styles.card}
+          >
+            {!config?.configured ? (
+              <Alert
+                message="请先配置API"
+                type="warning"
+                showIcon
+              />
+            ) : (
+              <div className={styles.converterContainer}>
+                <Form layout="vertical">
+                  <Form.Item label="人民币 (CNY)">
+                    <InputNumber
+                      value={cnyAmount ? parseFloat(cnyAmount) : undefined}
+                      onChange={(value) => handleCnyChange(value?.toString() || null)}
+                      placeholder="请输入金额"
+                      prefix="¥"
+                      min={0}
+                      precision={2}
+                      className={styles.converterInput}
+                      disabled={convertMutation.isPending}
+                    />
+                  </Form.Item>
+
+                  <div className={styles.swapIcon}>
+                    <SwapOutlined rotate={90} />
+                  </div>
+
+                  <Form.Item label="卢布 (RUB)">
+                    <InputNumber
+                      value={rubAmount ? parseFloat(rubAmount) : undefined}
+                      onChange={(value) => handleRubChange(value?.toString() || null)}
+                      placeholder="请输入金额"
+                      prefix="₽"
+                      min={0}
+                      precision={2}
+                      className={styles.converterInput}
+                      disabled={convertMutation.isPending}
+                    />
+                  </Form.Item>
+                </Form>
+
+                {currentRate && (
+                  <div className={styles.converterHint}>
+                    <Text type="secondary">
+                      当前汇率: 1 CNY = {parseFloat(currentRate.rate).toFixed(4)} RUB
+                    </Text>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        </Col>
+
+        {/* 汇率趋势图 */}
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <LineChartOutlined />
+                <span>汇率趋势</span>
+              </Space>
+            }
+            extra={
+              <Segmented
+                options={[
+                  { label: '今日', value: 'today' },
+                  { label: '本周', value: 'week' },
+                  { label: '本月', value: 'month' },
+                ]}
+                value={timeRange}
+                onChange={(value) => setTimeRange(value as 'today' | 'week' | 'month')}
+              />
+            }
+            className={styles.card}
+          >
+            {!config?.configured ? (
+              <Alert
+                message="请先配置API"
+                type="warning"
+                showIcon
+              />
+            ) : historyLoading ? (
+              <div className={styles.spinContainer}>
+                <Spin />
+              </div>
+            ) : history?.data && history.data.length > 0 ? (
+              <div className={styles.chartContainer}>
+                <Line {...chartConfig} />
+              </div>
+            ) : (
+              <Alert
+                message="暂无历史数据"
+                description="系统会在后台自动获取汇率数据，请稍后查看"
+                type="info"
+                showIcon
+              />
+            )}
+          </Card>
+        </Col>
+      </Row>
+    </div>
+  );
+};
+
+export default ExchangeRateManagement;

@@ -13,6 +13,7 @@ import {
   KeyOutlined,
   MessageOutlined,
   SyncOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy } from 'react';
@@ -24,6 +25,7 @@ const OzonManagement = lazy(() => import('./ozon'));
 const Profile = lazy(() => import('./Profile'));
 const Settings = lazy(() => import('./Settings'));
 const UserManagement = lazy(() => import('./UserManagement'));
+const ExchangeRateManagement = lazy(() => import('./ExchangeRateManagement'));
 
 import { useAuth } from '@/hooks/useAuth';
 
@@ -143,6 +145,12 @@ const Dashboard: React.FC = () => {
       onClick: () => navigate('/dashboard/finance'),
     },
     {
+      key: 'exchange-rate',
+      icon: <DollarOutlined />,
+      label: '汇率管理',
+      onClick: () => navigate('/dashboard/exchange-rate'),
+    },
+    {
       key: 'settings',
       icon: <SettingOutlined />,
       label: '系统设置',
@@ -170,6 +178,7 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/settings')) return 'ozon-settings';
     if (path.includes('/ozon')) return 'ozon-dashboard';
     if (path.includes('/finance')) return 'finance';
+    if (path.includes('/exchange-rate')) return 'exchange-rate';
     if (path.includes('/users')) return 'users';
     if (path.includes('/profile')) return 'profile';
     if (path.includes('/settings')) return 'settings';
@@ -258,6 +267,7 @@ const Dashboard: React.FC = () => {
               />
               <Route path="/ozon/*" element={<OzonManagement />} />
               <Route path="/finance" element={<FinanceCalculator />} />
+              <Route path="/exchange-rate" element={<ExchangeRateManagement />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/settings" element={<Settings />} />
               {user?.role === 'admin' && <Route path="/users" element={<UserManagement />} />}
