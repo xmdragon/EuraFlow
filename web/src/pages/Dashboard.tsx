@@ -28,6 +28,7 @@ const UserManagement = lazy(() => import('./UserManagement'));
 const ExchangeRateManagement = lazy(() => import('./ExchangeRateManagement'));
 
 import { useAuth } from '@/hooks/useAuth';
+import styles from './Dashboard.module.scss';
 
 // 加载中组件
 const PageLoading = () => (
@@ -206,20 +207,22 @@ const Dashboard: React.FC = () => {
           bottom: 0,
         }}
       >
-        <div
-          style={{
-            height: 64,
-            margin: 16,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: 20,
-            fontWeight: 'bold',
-          }}
-        >
+        <div className={styles.logo}>
           EuraFlow
         </div>
+
+        <div className={styles.userProfile}>
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow trigger={['click']}>
+            <div className={styles.userInfo}>
+              <Avatar className={styles.userAvatar} size={40} icon={<UserOutlined />} />
+              <div className={styles.userDetails}>
+                <p className={styles.username}>{user?.username || '未设置'}</p>
+                <p className={styles.userEmail}>{user?.email || '未设置邮箱'}</p>
+              </div>
+            </div>
+          </Dropdown>
+        </div>
+
         <Menu
           theme="dark"
           mode="inline"
@@ -230,29 +233,7 @@ const Dashboard: React.FC = () => {
       </Sider>
 
       <Layout style={{ marginLeft: 240 }}>
-        <Header
-          style={{
-            padding: '0 24px',
-            background: '#fff',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            borderBottom: '1px solid #f0f0f0',
-          }}
-        >
-          <Title level={4} style={{ margin: 0 }}>
-            仪表板
-          </Title>
-
-          <Space size="middle">
-            <span>欢迎回来, {user?.username || user?.email}</span>
-            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
-              <Button type="text" icon={<Avatar size="small" icon={<UserOutlined />} />} />
-            </Dropdown>
-          </Space>
-        </Header>
-
-        <Content style={{ margin: 2, padding: 2, background: '#f5f5f5' }}>
+        <Content style={{ margin: 0, padding: 0, background: '#f5f5f5' }}>
           <Suspense fallback={<PageLoading />}>
             <Routes>
               <Route

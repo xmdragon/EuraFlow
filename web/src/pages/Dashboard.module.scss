@@ -1,0 +1,78 @@
+// Dashboard 样式文件
+// 遵守 CLAUDE.md §8 规范：禁止 inline style
+
+.userProfile {
+  padding: 16px;
+  margin: 0 16px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+  }
+}
+
+.userAvatar {
+  flex-shrink: 0;
+}
+
+.userDetails {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.username {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userEmail {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logo {
+  height: 64px;
+  margin: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+// 响应式适配
+@media (max-width: 768px) {
+  .userProfile {
+    margin: 0 8px 8px;
+    padding: 12px;
+  }
+
+  .username {
+    font-size: 13px;
+  }
+
+  .userEmail {
+    font-size: 11px;
+  }
+}
