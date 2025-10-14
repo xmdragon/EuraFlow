@@ -1,6 +1,6 @@
-import { CalculatorOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, ReloadOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { Card, InputNumber, Space, Typography, Tooltip, Button, Tag } from 'antd';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { ScenarioConfig } from './constants';
@@ -13,6 +13,7 @@ import {
   validateInput,
 } from './utils';
 import { getExchangeRate } from '@/services/exchangeRateApi';
+import { matchScenario } from '../ozon/profitCalculator';
 
 const { Text, Title } = Typography;
 
@@ -92,6 +93,17 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
   const profitColor =
     data.profit !== undefined ? (data.profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
 
+  // 判断当前场景是否匹配用户输入
+  const isMatched = useMemo(() => {
+    // 需要售价和重量都有值才能判断
+    if (!data.price || !data.weight || !exchangeRate) {
+      return false;
+    }
+
+    const matched = matchScenario(data.weight, data.price, exchangeRate);
+    return matched?.id === scenario.id;
+  }, [data.price, data.weight, exchangeRate, scenario.id]);
+
   // 生成带RMB换算的价格范围显示文本
   const getPriceRangeDisplay = (): string => {
     if (!exchangeRate) {
@@ -117,11 +129,18 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
   return (
     <Card
       size="small"
-      style={{ height: '100%', borderColor: scenario.color.primary }}
+      style={{
+        height: '100%',
+        borderColor: isMatched ? '#52c41a' : scenario.color.primary,
+        borderWidth: isMatched ? 3 : 1,
+        boxShadow: isMatched ? '0 4px 12px rgba(82, 196, 26, 0.3)' : undefined,
+      }}
       styles={{
         header: {
-          background: `linear-gradient(135deg, ${scenario.color.background} 0%, white 100%)`,
-          borderBottom: `2px solid ${scenario.color.primary}`,
+          background: isMatched
+            ? `linear-gradient(135deg, #f6ffed 0%, white 100%)`
+            : `linear-gradient(135deg, ${scenario.color.background} 0%, white 100%)`,
+          borderBottom: `2px solid ${isMatched ? '#52c41a' : scenario.color.primary}`,
         },
       }}
       title={
@@ -130,6 +149,11 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
           <Title level={5} style={{ margin: 0 }}>
             {scenario.title}
           </Title>
+          {isMatched && (
+            <Tag color="success" icon={<CheckCircleOutlined />}>
+              当前场景
+            </Tag>
+          )}
         </Space>
       }
       extra={
@@ -150,6 +174,13 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
               📏 {scenario.dimensionLimit.description}
             </Tag>
           </div>
+          {isMatched && (
+            <div style={{ width: '100%' }}>
+              <Tag color="success" style={{ width: '100%', textAlign: 'center' }}>
+                ✓ 当前输入符合此场景条件
+              </Tag>
+            </div>
+          )}
         </Space>
       </div>
 
