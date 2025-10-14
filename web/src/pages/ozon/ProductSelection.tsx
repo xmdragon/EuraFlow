@@ -692,6 +692,18 @@ const ProductSelection: React.FC = () => {
             {product.product_name_cn || product.product_name_ru}
           </Paragraph>
 
+          {/* SKU - 可复制 */}
+          <div className={styles.skuRow}>
+            <Text type="secondary" className={styles.skuLabel}>SKU: </Text>
+            <Text
+              copyable={{ text: product.product_id }}
+              className={styles.skuValue}
+              ellipsis
+            >
+              {product.product_id}
+            </Text>
+          </div>
+
           {/* 价格信息 - 始终显示当前价 */}
           <div className={styles.priceContainer}>
             <div className={styles.priceRow}>

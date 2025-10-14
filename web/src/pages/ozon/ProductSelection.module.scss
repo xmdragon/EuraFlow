@@ -127,6 +127,38 @@
   overflow: hidden;
 }
 
+// ===== SKU行 =====
+.skuRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.skuLabel {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.skuValue {
+  flex: 1;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: #595959;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  // Ant Design copyable icon样式
+  :global(.ant-typography-copy) {
+    font-size: 12px;
+    margin-left: 4px;
+    color: #1890ff;
+  }
+}
+
 .priceContainer {
   // 价格区域容器
 }
