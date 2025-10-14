@@ -256,14 +256,8 @@ const OrderList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
-  // 初始化时从localStorage读取店铺选择，默认为null表示"全部"
-  const [selectedShop, setSelectedShop] = useState<number | null>(() => {
-    const saved = localStorage.getItem('ozon_selected_shop');
-    if (saved && saved !== 'all' && saved !== '') {
-      return parseInt(saved, 10);
-    }
-    return null; // 默认null表示"全部店铺"
-  });
+  // 始终默认为null（全部店铺），不从localStorage读取
+  const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
   const [shipForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -965,8 +959,6 @@ const OrderList: React.FC = () => {
                   setSelectedShop(normalized);
                   // 切换店铺时重置页码
                   setCurrentPage(1);
-                  // 保存到localStorage（null存为'all'）
-                  localStorage.setItem('ozon_selected_shop', normalized === null ? 'all' : normalized.toString());
                 }}
                 showAllOption={true}
                 className={styles.shopSelector}
