@@ -291,6 +291,24 @@ const OrderList: React.FC = () => {
     });
   };
 
+  // 查询店铺列表（用于显示店铺名称）
+  const { data: shopsData } = useQuery({
+    queryKey: ['ozonShops'],
+    queryFn: ozonApi.getShops,
+    staleTime: 300000, // 5分钟缓存
+  });
+
+  // 建立 shop_id → shop_name 的映射
+  const shopNameMap = React.useMemo(() => {
+    const map: Record<number, string> = {};
+    if (shopsData?.data) {
+      shopsData.data.forEach((shop: any) => {
+        map[shop.id] = shop.name;
+      });
+    }
+    return map;
+  }, [shopsData]);
+
   // 状态配置 - 包含所有 OZON 原生状态
   const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
     // 通用订单状态
@@ -647,19 +665,19 @@ const OrderList: React.FC = () => {
     {
       title: '商品信息',
       key: 'product_info',
-      width: 220,
+      width: 240,
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
         const order = row.order;
         const currency = order.currency_code || userCurrency || 'CNY';
         const symbol = getCurrencySymbol(currency);
 
-        // 获取店铺名称
-        const shopName = order.shop_name || `店铺 ${order.shop_id}`;
+        // 获取店铺名称（从映射中获取真实名称）
+        const shopName = shopNameMap[order.shop_id] || `店铺${order.shop_id}`;
 
         return (
           <div className={styles.infoColumn}>
-            <div><strong>{shopName}</strong></div>
+            <div><Text type="secondary">店铺: </Text><strong>{shopName}</strong></div>
             <div>
               {item.sku ? (
                 <a
@@ -674,9 +692,12 @@ const OrderList: React.FC = () => {
                 <span>SKU: -</span>
               )}
             </div>
-            <div>X {item.quantity || 1}</div>
-            <div className={styles.price}>
-              {symbol} {formatPrice(item.price || 0)}
+            <div><Text type="secondary">数量: </Text>X {item.quantity || 1}</div>
+            <div>
+              <Text type="secondary">单价: </Text>
+              <span className={styles.price}>
+                {symbol} {formatPrice(item.price || 0)}
+              </span>
             </div>
           </div>
         );
@@ -700,6 +721,7 @@ const OrderList: React.FC = () => {
           children: (
             <div className={styles.infoColumn}>
               <div>
+                <Text type="secondary">货件: </Text>
                 <span>{posting.posting_number}</span>
                 <CopyOutlined
                   style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
@@ -707,6 +729,7 @@ const OrderList: React.FC = () => {
                 />
               </div>
               <div>
+                <Text type="secondary">追踪: </Text>
                 <span>{trackingNumber || '-'}</span>
                 {trackingNumber && (
                   <CopyOutlined
@@ -716,6 +739,7 @@ const OrderList: React.FC = () => {
                 )}
               </div>
               <div>
+                <Text type="secondary">国内: </Text>
                 <span>{domesticTracking || '-'}</span>
                 {domesticTracking && (
                   <CopyOutlined
@@ -750,20 +774,26 @@ const OrderList: React.FC = () => {
         return {
           children: (
             <div className={styles.infoColumn}>
-              <Tooltip title={formatDeliveryMethodText(fullText)}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {shortText}
-                </div>
-              </Tooltip>
               <div>
+                <Text type="secondary">配送: </Text>
+                <Tooltip title={formatDeliveryMethodText(fullText)}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '150px', verticalAlign: 'bottom' }}>
+                    {shortText}
+                  </span>
+                </Tooltip>
+              </div>
+              <div>
+                <Text type="secondary">状态: </Text>
                 <Tag color={status.color} className={styles.tag}>
                   {status.text}
                 </Tag>
               </div>
               <div>
+                <Text type="secondary">下单: </Text>
                 {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
               </div>
               <div>
+                <Text type="secondary">截止: </Text>
                 {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
               </div>
             </div>
