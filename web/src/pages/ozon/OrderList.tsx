@@ -659,7 +659,7 @@ const OrderList: React.FC = () => {
     {
       title: '商品信息',
       key: 'product_info',
-      width: 240,
+      width: 260,
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
         const order = row.order;
@@ -671,7 +671,21 @@ const OrderList: React.FC = () => {
 
         return (
           <div className={styles.infoColumn}>
-            <div><Text type="secondary">店铺: </Text><strong>{shopName}</strong></div>
+            <div>
+              <Text type="secondary">店铺: </Text>
+              <Tooltip title={shopName}>
+                <strong style={{
+                  display: 'inline-block',
+                  maxWidth: '180px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  verticalAlign: 'bottom'
+                }}>
+                  {shopName}
+                </strong>
+              </Tooltip>
+            </div>
             <div>
               {item.sku ? (
                 <a
