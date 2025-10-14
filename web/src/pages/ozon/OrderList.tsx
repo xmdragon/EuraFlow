@@ -403,7 +403,11 @@ const OrderList: React.FC = () => {
     const rows: OrderItemRow[] = [];
 
     postingsData.forEach((posting) => {
-      const items = posting.order.items || [];
+      // 优先使用 posting.products（从 raw_payload 提取的该 posting 的商品）
+      // 如果不存在，降级使用 posting.order.items（订单级别的商品汇总）
+      const items = (posting.products && posting.products.length > 0)
+        ? posting.products
+        : (posting.order.items || []);
       const itemCount = items.length;
 
       if (itemCount === 0) {
