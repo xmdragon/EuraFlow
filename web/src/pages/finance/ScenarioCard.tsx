@@ -66,12 +66,12 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
     return price - cost - shipping - platformFee - packingFee;
   }, [sharedInputData?.cost, sharedInputData?.price, shipping, packingFee, platformRate]);
 
-  // 计算利润率
+  // 计算利润率（小数形式，如0.22表示22%）
   const profitRate = useMemo(() => {
     if (profit === undefined || sharedInputData?.price === undefined || sharedInputData.price === 0) {
       return undefined;
     }
-    return (profit / sharedInputData.price) * 100;
+    return profit / sharedInputData.price;
   }, [profit, sharedInputData?.price]);
 
   const profitColor = profit !== undefined ? (profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
