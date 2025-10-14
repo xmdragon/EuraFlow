@@ -64,6 +64,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
 import { useCurrency } from '../../hooks/useCurrency';
 import styles from './ProductSelection.module.scss';
+import { calculateMaxCost, formatMaxCost } from './profitCalculator';
 
 const { Option } = Select;
 const { Title, Text, Link, Paragraph } = Typography;
@@ -133,6 +134,26 @@ const ProductSelection: React.FC = () => {
     return saved ? JSON.parse(saved) : defaultFieldConfig;
   });
   const [fieldConfigVisible, setFieldConfigVisible] = useState(false);
+
+  // 成本计算相关状态（从localStorage读取默认值）
+  const [targetProfitRate, setTargetProfitRate] = useState<number>(() => {
+    const saved = localStorage.getItem('productSelectionProfitRate');
+    return saved ? parseFloat(saved) : 20; // 默认20%
+  });
+  const [packingFee, setPackingFee] = useState<number>(() => {
+    const saved = localStorage.getItem('productSelectionPackingFee');
+    return saved ? parseFloat(saved) : 2.0; // 默认2.0 RUB
+  });
+
+  // 保存利润率到localStorage
+  useEffect(() => {
+    localStorage.setItem('productSelectionProfitRate', targetProfitRate.toString());
+  }, [targetProfitRate]);
+
+  // 保存打包费到localStorage
+  useEffect(() => {
+    localStorage.setItem('productSelectionPackingFee', packingFee.toString());
+  }, [packingFee]);
 
   // 处理URL参数（批次ID和已读状态）
   useEffect(() => {
@@ -771,6 +792,38 @@ const ProductSelection: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* 成本上限计算 */}
+          {(() => {
+            // 优先使用跟卖者最低价，否则使用商品当前价
+            const priceForCalc = product.competitor_min_price !== null && product.competitor_min_price !== undefined
+              ? product.competitor_min_price / 100  // 转换为卢布
+              : product.current_price / 100;  // 转换为卢布
+
+            const weight = product.package_weight || 0;
+
+            // 计算成本上限
+            const maxCost = weight > 0 && priceForCalc > 0
+              ? calculateMaxCost(priceForCalc, weight, targetProfitRate / 100, packingFee)
+              : null;
+
+            // 根据成本上限值确定样式
+            let costClassName = styles.maxCostRow;
+            if (maxCost === null) {
+              costClassName = `${styles.maxCostRow} ${styles.maxCostUnavailable}`;
+            } else if (maxCost < 0) {
+              costClassName = `${styles.maxCostRow} ${styles.maxCostNegative}`;
+            } else {
+              costClassName = `${styles.maxCostRow} ${styles.maxCostPositive}`;
+            }
+
+            return (
+              <div className={costClassName}>
+                <Text type="secondary">成本上限: </Text>
+                <Text strong>{formatMaxCost(maxCost)}</Text>
+              </div>
+            );
+          })()}
         </div>
       </Card>
     );
@@ -923,6 +976,36 @@ const ProductSelection: React.FC = () => {
                       </Form.Item>
                     </Space.Compact>
                   </Form.Item>
+                </Col>
+
+                {/* 成本计算参数（不参与搜索筛选） */}
+                <Col flex="auto" style={{ minWidth: '140px' }}>
+                  <Space.Compact>
+                    <InputNumber
+                      value={targetProfitRate}
+                      onChange={(val) => setTargetProfitRate(val || 20)}
+                      min={0}
+                      max={100}
+                      precision={2}
+                      addonBefore="利润率"
+                      addonAfter="%"
+                      style={{ width: '100%' }}
+                    />
+                  </Space.Compact>
+                </Col>
+
+                <Col flex="auto" style={{ minWidth: '140px' }}>
+                  <Space.Compact>
+                    <InputNumber
+                      value={packingFee}
+                      onChange={(val) => setPackingFee(val || 2)}
+                      min={0}
+                      precision={1}
+                      addonBefore="打包费"
+                      addonAfter="RUB"
+                      style={{ width: '100%' }}
+                    />
+                  </Space.Compact>
                 </Col>
 
                 <Col span={24}>
