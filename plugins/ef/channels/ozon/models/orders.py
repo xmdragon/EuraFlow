@@ -166,6 +166,18 @@ class OzonOrder(Base):
                             'carrier_code': None,
                         }]
 
+                # 从 raw_payload 中提取该 posting 的商品信息
+                posting_products = []
+                if posting.raw_payload and 'products' in posting.raw_payload:
+                    for product in posting.raw_payload['products']:
+                        posting_products.append({
+                            'sku': str(product.get('sku', '')),
+                            'offer_id': str(product.get('offer_id', '')) if product.get('offer_id') else None,
+                            'name': product.get('name', ''),
+                            'quantity': product.get('quantity', 0),
+                            'price': str(product.get('price', '0')),
+                        })
+
                 result['postings'].append({
                     'id': posting.id,
                     'posting_number': posting.posting_number,
@@ -183,7 +195,9 @@ class OzonOrder(Base):
                     'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
                     'order_notes': posting.order_notes,
                     'source_platform': posting.source_platform,
-                    'packages': packages
+                    'packages': packages,
+                    # 添加该 posting 的商品列表（从 raw_payload 提取）
+                    'products': posting_products
                 })
         else:
             result['posting_number'] = None
