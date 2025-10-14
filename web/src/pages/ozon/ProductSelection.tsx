@@ -198,8 +198,15 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === 'search',
   });
 
-  // 不再需要汇率查询，因为商品价格就是 RMB（CNY），运费和打包费也是 RMB
-  // 商品价格存储格式：CNY分，÷100 = CNY元 = RMB元
+  // 查询汇率（CNY → RUB），用于正确匹配场景
+  // 场景配置中的价格范围是RUB，需要汇率来转换为RMB后匹配
+  const { data: exchangeRateData } = useQuery({
+    queryKey: ['exchangeRate', 'CNY', 'RUB'],
+    queryFn: () => getExchangeRate('CNY', 'RUB', false),
+    staleTime: 30 * 60 * 1000, // 30分钟
+    cacheTime: 60 * 60 * 1000, // 1小时
+  });
+  const exchangeRate = exchangeRateData ? parseFloat(exchangeRateData.rate) : null;
 
   // 查询导入历史
   const { data: historyData, refetch: refetchHistory} = useQuery({
@@ -287,13 +294,13 @@ const ProductSelection: React.FC = () => {
       // 缺少必要数据的商品保留（避免误删）
       if (weight <= 0 || priceRMB <= 0) return true;
 
-      // 计算成本上限（RMB）
-      const maxCost = calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee);
+      // 计算成本上限（RMB），传入汇率以正确匹配场景
+      const maxCost = calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee, exchangeRate || undefined);
 
       // 过滤掉无法达到目标利润率的商品（maxCost < 0）
       return maxCost !== null && maxCost >= 0;
     });
-  }, [allProducts, targetProfitRate, packingFee]);
+  }, [allProducts, targetProfitRate, packingFee, exchangeRate]);
 
   // 清空数据mutation
   const clearDataMutation = useMutation({
@@ -845,9 +852,9 @@ const ProductSelection: React.FC = () => {
 
             const weight = product.package_weight || 0;
 
-            // 计算成本上限（RMB）
+            // 计算成本上限（RMB），传入汇率以正确匹配场景
             const maxCost = weight > 0 && priceRMB > 0
-              ? calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee)
+              ? calculateMaxCost(priceRMB, weight, targetProfitRate / 100, packingFee, exchangeRate || undefined)
               : null;
 
             // 根据成本上限值确定样式

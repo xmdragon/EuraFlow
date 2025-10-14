@@ -9,9 +9,14 @@ import { SCENARIOS, ScenarioConfig } from '../finance/constants';
  * 根据商品的重量和价格匹配对应的场景
  * @param weightG 商品重量（克）
  * @param priceRMB 商品价格（人民币）
+ * @param exchangeRate 汇率（CNY→RUB），用于将场景的RUB价格范围转换为RMB
  * @returns 匹配的场景配置，如果无法匹配则返回null
  */
-export function matchScenario(weightG: number, priceRMB: number): ScenarioConfig | null {
+export function matchScenario(
+  weightG: number,
+  priceRMB: number,
+  exchangeRate?: number
+): ScenarioConfig | null {
   // 遍历所有场景，找到第一个满足条件的
   for (const scenario of SCENARIOS) {
     const { conditions } = scenario;
@@ -22,9 +27,19 @@ export function matchScenario(weightG: number, priceRMB: number): ScenarioConfig
       (conditions.maxWeight === undefined || weightG <= conditions.maxWeight);
 
     // 检查价格是否满足
+    // 场景条件中的价格是 RUB，需要转换为 RMB 后再匹配
+    let minPriceRMB = conditions.minPrice;
+    let maxPriceRMB = conditions.maxPrice;
+
+    if (exchangeRate && exchangeRate > 0) {
+      // 将场景的 RUB 价格范围转换为 RMB：RUB ÷ 汇率 = RMB
+      minPriceRMB = conditions.minPrice !== undefined ? conditions.minPrice / exchangeRate : undefined;
+      maxPriceRMB = conditions.maxPrice !== undefined ? conditions.maxPrice / exchangeRate : undefined;
+    }
+
     const priceMatch =
-      (conditions.minPrice === undefined || priceRMB >= conditions.minPrice) &&
-      (conditions.maxPrice === undefined || priceRMB <= conditions.maxPrice);
+      (minPriceRMB === undefined || priceRMB >= minPriceRMB) &&
+      (maxPriceRMB === undefined || priceRMB <= maxPriceRMB);
 
     // 如果同时满足重量和价格条件，返回该场景
     if (weightMatch && priceMatch) {
@@ -50,21 +65,23 @@ export function matchScenario(weightG: number, priceRMB: number): ScenarioConfig
  * @param weightG 商品重量（克）
  * @param targetProfitRate 目标利润率（小数形式，如 0.20 表示 20%）
  * @param packingFee 打包费（人民币）
+ * @param exchangeRate 汇率（CNY→RUB），用于正确匹配场景
  * @returns 成本上限（人民币），如果无法计算则返回null
  */
 export function calculateMaxCost(
   priceRMB: number,
   weightG: number,
   targetProfitRate: number,
-  packingFee: number
+  packingFee: number,
+  exchangeRate?: number
 ): number | null {
   // 参数验证
   if (priceRMB <= 0 || weightG <= 0 || targetProfitRate < 0 || packingFee < 0) {
     return null;
   }
 
-  // 匹配场景
-  const scenario = matchScenario(weightG, priceRMB);
+  // 匹配场景（传入汇率以正确转换场景的RUB价格范围为RMB）
+  const scenario = matchScenario(weightG, priceRMB, exchangeRate);
   if (!scenario) {
     return null;
   }
