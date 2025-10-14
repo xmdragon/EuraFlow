@@ -132,7 +132,7 @@ async def check_service():
                 SELECT
                     run_id,
                     status,
-                    message,
+                    error_message,
                     records_processed,
                     records_updated,
                     execution_time_ms,
@@ -151,10 +151,12 @@ async def check_service():
                 for log in logs:
                     print(f"   - run_id: {log[0]}")
                     print(f"     status: {log[1]}")
-                    print(f"     message: {log[2]}")
+                    print(f"     error_message: {log[2]}")
                     print(f"     records_processed: {log[3]}")
+                    print(f"     records_updated: {log[4]}")
                     print(f"     execution_time_ms: {log[5]}")
                     print(f"     started_at: {log[6]}")
+                    print(f"     finished_at: {log[7]}")
                     print()
             else:
                 print("\n⚠️  未找到执行日志")
