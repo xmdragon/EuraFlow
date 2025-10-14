@@ -297,7 +297,7 @@ const OrderList: React.FC = () => {
     const map: Record<number, string> = {};
     if (shopsData?.data) {
       shopsData.data.forEach((shop: any) => {
-        map[shop.id] = shop.name;
+        map[shop.id] = shop.shop_name;
       });
     }
     return map;
