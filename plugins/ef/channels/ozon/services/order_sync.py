@@ -368,7 +368,10 @@ class OrderSyncService:
             posting.cancel_reason_id = posting_data["cancellation"].get("reason_id")
             posting.cancel_reason = posting_data["cancellation"].get("reason")
             posting.cancelled_at = self._parse_date(posting_data["cancellation"].get("cancelled_at"))
-        
+        else:
+            # 重要：如果API不再返回cancellation，说明订单已恢复，需要重置标志
+            posting.is_cancelled = False
+
         posting.raw_payload = posting_data
         
         # 处理订单商品

@@ -274,9 +274,12 @@ class ExchangeRateService:
         result = amount * rate
         return result.quantize(Decimal("0.01"))  # 保留2位小数
 
-    async def refresh_rates(self) -> Dict[str, Any]:
+    async def refresh_rates(self, config: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         刷新汇率（定时任务调用）
+
+        Args:
+            config: 调度器传递的配置参数（可选，暂未使用）
 
         Returns:
             Dict: 执行结果
