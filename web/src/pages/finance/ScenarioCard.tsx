@@ -15,7 +15,6 @@ interface SharedInputData {
   cost?: number;
   price?: number;
   weight?: number;
-  targetProfitRate?: number;
   packingFee?: number;
 }
 
@@ -290,24 +289,6 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
                 </Col>
               </Row>
             </Space>
-
-            {/* 达标提示 */}
-            {profit !== undefined && sharedInputData.targetProfitRate !== undefined && (
-              <Alert
-                message={
-                  profitRate !== undefined && profitRate >= sharedInputData.targetProfitRate
-                    ? `✓ 达到目标利润率 ${sharedInputData.targetProfitRate.toFixed(1)}%`
-                    : `✗ 未达到目标利润率 ${sharedInputData.targetProfitRate.toFixed(1)}%`
-                }
-                type={
-                  profitRate !== undefined && profitRate >= sharedInputData.targetProfitRate
-                    ? 'success'
-                    : 'error'
-                }
-                showIcon
-                style={{ marginTop: 8 }}
-              />
-            )}
           </Space>
         ) : (
           <Alert

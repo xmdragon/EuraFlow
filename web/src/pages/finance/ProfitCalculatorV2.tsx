@@ -14,7 +14,6 @@ interface CalculationInputData {
   cost?: number;       // 成本 (RMB)
   price?: number;      // 售价 (RMB)
   weight?: number;     // 重量 (克)
-  targetProfitRate?: number; // 目标利润率 (%)
   packingFee?: number; // 打包费 (RMB)
 }
 
@@ -24,7 +23,6 @@ const ProfitCalculatorV2: React.FC = () => {
     cost: undefined,
     price: undefined,
     weight: undefined,
-    targetProfitRate: 20, // 默认20%
     packingFee: 2, // 默认2 RMB
   });
   const [activeKey, setActiveKey] = useState<string>('super-light');
@@ -105,10 +103,6 @@ const ProfitCalculatorV2: React.FC = () => {
                   </Form.Item>
                 </Col>
               </Row>
-
-              <Form.Item label="目标利润率(%)" name="targetProfitRate">
-                <InputNumber style={{ width: '100%' }} min={0} max={100} precision={2} placeholder="默认20%" />
-              </Form.Item>
             </Col>
 
             <Col span={12}>
