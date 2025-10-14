@@ -135,6 +135,7 @@
     class SmartProductCollector {
         constructor() {
             this.validatedProducts = new Map();     // 已验证的完整商品数据
+            this.uploadedFingerprints = new Set();  // 已上传商品指纹（跨会话保持，刷新页面清空）
             this.pendingProducts = new Map();       // 待验证的商品
             this.elementContentMap = new Map();     // DOM元素内容哈希映射
             this.elementProductMap = new Map();     // DOM元素到商品的映射
@@ -708,6 +709,11 @@
             const contentChanged = this.detectContentChange(element);
             const fingerprint = this.generateProductFingerprint(element);
 
+            // 【全局去重】优先检查是否已上传过
+            if (this.uploadedFingerprints.has(fingerprint)) {
+                return null;
+            }
+
             // 如果已经收集过且内容未变化，跳过
             if (!contentChanged && this.validatedProducts.has(fingerprint)) {
                 return null;
@@ -880,6 +886,7 @@
             this.elementProductMap.clear();
             this.scrollCount = 0;
             this.noChangeCount = 0;
+            // 注意：不清空 uploadedFingerprints，保留全局上传历史
             this.stats = {
                 collected: 0,
                 validated: 0,
@@ -1176,9 +1183,14 @@
         }
 
         async runCollection(targetCount) {
-            // 首次收集（跳过等待，直接采集已有数据）
-            await this.collector.collectVisibleProducts(true);
-            this.updateStats();
+            // 【条件性初始扫描】仅在页面顶部时才进行初始扫描
+            // 从中间位置继续采集时跳过，避免重复采集已上传商品
+            if (window.scrollY === 0) {
+                await this.collector.collectVisibleProducts(true);
+                this.updateStats();
+            } else {
+                console.log(`[跳过初始扫描] 从位置 ${window.scrollY}px 继续采集`);
+            }
 
             let lastCollectedCount = this.collector.validatedProducts.size;
             let sameCountTimes = 0;
@@ -1446,6 +1458,12 @@
                 if (result.failed_count > 0) {
                     console.warn('部分商品上传失败:', result.errors);
                 }
+
+                // 【新增】记录已上传指纹到全局历史
+                this.collector.validatedProducts.forEach((product, fingerprint) => {
+                    this.collector.uploadedFingerprints.add(fingerprint);
+                });
+                console.log(`✅ 上传 ${result.success_count} 个 | 累计 ${this.collector.uploadedFingerprints.size} 个指纹`);
 
                 // 上传成功后清空数据并重置进度（保持当前滚动位置，便于继续采集）
                 setTimeout(() => {
