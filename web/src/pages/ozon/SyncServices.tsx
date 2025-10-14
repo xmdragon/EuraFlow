@@ -340,7 +340,11 @@ const SyncServices = () => {
         open={logsModalVisible}
         onCancel={() => setLogsModalVisible(false)}
         width={1000}
-        footer={null}
+        footer={
+          <Button icon={<ReloadOutlined />} onClick={() => selectedService && viewLogs(selectedService)}>
+            刷新日志
+          </Button>
+        }
       >
         <Spin spinning={logsLoading}>
           <Table
