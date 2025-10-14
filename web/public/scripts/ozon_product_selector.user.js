@@ -1447,13 +1447,11 @@
                     console.warn('部分商品上传失败:', result.errors);
                 }
 
-                // 上传成功后清空数据并重置进度
+                // 上传成功后清空数据并重置进度（保持当前滚动位置，便于继续采集）
                 setTimeout(() => {
                     this.collector.clear();
                     this.updateStats();
                     this.updateStatus('⏳ 等待开始...');
-                    // 滚动到页面顶部
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 }, 2000); // 延迟2秒让用户看到上传成功的消息
 
             } catch (error) {
