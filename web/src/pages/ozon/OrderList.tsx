@@ -1135,7 +1135,7 @@ const OrderList: React.FC = () => {
 
       {/* 订单详情弹窗 */}
       <Modal
-        title={`订单详情 - ${selectedOrder?.order_id}`}
+        title={`订单详情 - ${selectedPosting?.posting_number || selectedOrder?.order_id}`}
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={null}
