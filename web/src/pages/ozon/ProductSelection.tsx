@@ -636,7 +636,7 @@ const ProductSelection: React.FC = () => {
           product.image_url ? (
             <div
               className={styles.productCover}
-              onClick={() => window.open(product.ozon_link, '_blank')}
+              onClick={() => showProductImages(product)}
             >
               {/* 复选框 - 左上角 */}
               <Checkbox
@@ -653,15 +653,17 @@ const ProductSelection: React.FC = () => {
                 src={product.image_url}
                 className={styles.productImage}
               />
-              <div
-                className={styles.previewIconOverlay}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  showProductImages(product);
-                }}
-              >
-                <SearchOutlined />
-              </div>
+              <Tooltip title="打开OZON链接">
+                <div
+                  className={styles.linkIconOverlay}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(product.ozon_link, '_blank');
+                  }}
+                >
+                  <LinkOutlined />
+                </div>
+              </Tooltip>
             </div>
           ) : (
             <div
