@@ -1310,68 +1310,13 @@ class OzonSyncService:
     async def _sync_order_items(db: AsyncSession, order: OzonOrder, products_data: list) -> None:
         """同步订单商品明细
 
-        注意：对于有多个posting的订单（部分发货），需要汇总所有posting的商品数量
-
         Args:
             db: 数据库会话
             order: 订单对象
-            products_data: API返回的当前posting的商品数组（保留参数以兼容调用）
+            products_data: API返回的商品数组
         """
-        # 获取该订单的所有posting
-        postings_result = await db.execute(
-            select(OzonPosting).where(OzonPosting.order_id == order.id)
-        )
-        postings = postings_result.scalars().all()
-
-        if not postings:
-            logger.warning(f"No postings found for order {order.order_id}")
+        if not products_data:
             return
-
-        # 从所有posting的raw_payload中汇总商品数据
-        # 按SKU累加数量
-        products_by_sku: Dict[str, Dict[str, Any]] = {}
-
-        for posting in postings:
-            if not posting.raw_payload or 'products' not in posting.raw_payload:
-                logger.warning(f"Posting {posting.posting_number} has no products in raw_payload")
-                continue
-
-            products = posting.raw_payload.get('products', [])
-            logger.info(f"Processing posting {posting.posting_number} with {len(products)} products")
-
-            for product in products:
-                sku = str(product.get("sku", "")) if product.get("sku") else ""
-                if not sku:
-                    logger.warning(f"Product without SKU in posting {posting.posting_number}: {product}")
-                    continue
-
-                quantity = product.get("quantity", 1)
-                price = safe_decimal_conversion(product.get("price", 0)) or Decimal("0")
-                offer_id = str(product.get("offer_id", "")) if product.get("offer_id") else ""
-                name = product.get("name", "")
-
-                if sku not in products_by_sku:
-                    # 首次遇到这个SKU
-                    products_by_sku[sku] = {
-                        "sku": sku,
-                        "offer_id": offer_id,
-                        "name": name,
-                        "quantity": quantity,
-                        "price": price,
-                        "total_amount": price * quantity
-                    }
-                    logger.info(f"  [NEW] SKU {sku}: quantity={quantity}, price={price}")
-                else:
-                    # 累加数量
-                    products_by_sku[sku]["quantity"] += quantity
-                    products_by_sku[sku]["total_amount"] += price * quantity
-                    logger.info(f"  [ADD] SKU {sku}: +{quantity}, total={products_by_sku[sku]['quantity']}")
-
-        if not products_by_sku:
-            logger.warning(f"No products found in any posting for order {order.order_id}")
-            return
-
-        logger.info(f"Aggregated {len(products_by_sku)} unique SKUs for order {order.order_id}")
 
         # 获取现有明细（用于更新/删除）
         existing_items_result = await db.execute(
@@ -1381,45 +1326,61 @@ class OzonSyncService:
 
         synced_skus = set()
 
-        # 更新或创建明细
-        for sku, product_data in products_by_sku.items():
+        # 遍历API返回的商品
+        for product in products_data:
+            # SKU可能是整数，需要转换为字符串
+            sku = str(product.get("sku", "")) if product.get("sku") else ""
+            if not sku:
+                logger.warning(f"Product without SKU in order {order.order_id}: {product}")
+                continue
+
             synced_skus.add(sku)
 
+            # 解析商品数据
+            quantity = product.get("quantity", 1)
+            price = safe_decimal_conversion(product.get("price", 0)) or Decimal("0")
+
+            # offer_id也可能是整数，转换为字符串
+            offer_id = str(product.get("offer_id", "")) if product.get("offer_id") else ""
+            name = product.get("name", "")
+
+            # 计算总价
+            total_amount = price * quantity
+
+            # 检查是否已存在
             if sku in existing_items:
                 # 更新现有明细
                 item = existing_items[sku]
-                item.quantity = product_data["quantity"]
-                item.price = product_data["price"]
-                item.total_amount = product_data["total_amount"]
-                item.name = product_data["name"]
-                item.offer_id = product_data["offer_id"]
+                item.quantity = quantity
+                item.price = price
+                item.total_amount = total_amount
+                item.name = name
+                item.offer_id = offer_id
+                # 状态继承订单状态
                 item.status = order.status
-                logger.info(f"Updated order item: SKU={sku}, quantity={item.quantity}")
             else:
                 # 创建新明细
                 item = OzonOrderItem(
                     order_id=order.id,
                     sku=sku,
-                    offer_id=product_data["offer_id"],
-                    name=product_data["name"],
-                    quantity=product_data["quantity"],
-                    price=product_data["price"],
+                    offer_id=offer_id,
+                    name=name,
+                    quantity=quantity,
+                    price=price,
                     discount=Decimal("0"),  # OZON API暂不返回单品折扣
-                    total_amount=product_data["total_amount"],
+                    total_amount=total_amount,
                     status=order.status,
                 )
                 db.add(item)
-                logger.info(f"Created order item: SKU={sku}, quantity={item.quantity}")
 
-        # 删除不再存在的明细
+        # 删除不再存在的明细（订单更新时商品被移除）
         for sku, item in existing_items.items():
             if sku not in synced_skus:
                 await db.delete(item)
-                logger.info(f"Deleted orphaned order item: SKU={sku}")
 
         logger.info(
-            f"Synced {len(synced_skus)} items for order {order.order_id} (from {len(postings)} postings)",
-            extra={"order_id": order.order_id, "items_count": len(synced_skus), "postings_count": len(postings)}
+            f"Synced {len(synced_skus)} items for order {order.order_id}",
+            extra={"order_id": order.order_id, "items_count": len(synced_skus)}
         )
 
     @staticmethod
