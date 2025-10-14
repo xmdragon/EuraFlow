@@ -1,108 +1,81 @@
-import { CalculatorOutlined, ReloadOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import { Card, InputNumber, Space, Typography, Tooltip, Button, Tag } from 'antd';
+import { CalculatorOutlined } from '@ant-design/icons';
+import { Card, InputNumber, Space, Typography, Tooltip, Button, Tag, Alert, Row, Col, Divider } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 
 import { ScenarioConfig } from './constants';
 import {
-  CalculationData,
   calculateDefaultShipping,
-  calculateProfit,
   formatPercentage,
   formatMoney,
-  validateInput,
 } from './utils';
-import { getExchangeRate } from '@/services/exchangeRateApi';
-import { matchScenario } from '../ozon/profitCalculator';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
+
+interface SharedInputData {
+  cost?: number;
+  price?: number;
+  weight?: number;
+  targetProfitRate?: number;
+  packingFee?: number;
+}
 
 interface ScenarioCardProps {
   scenario: ScenarioConfig;
+  sharedInputData?: SharedInputData;
+  exchangeRate: number | null;
+  isMatched: boolean;
 }
 
-const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
-  const [data, setData] = useState<CalculationData>({
-    platformRate: scenario.defaultPlatformRate,
-    packingFee: scenario.packingFee,
-  });
+const ScenarioCard: React.FC<ScenarioCardProps> = ({
+  scenario,
+  sharedInputData,
+  exchangeRate,
+  isMatched
+}) => {
+  // 场景特定的费用（可以在当前场景调整）
+  const [platformRate, setPlatformRate] = useState(scenario.defaultPlatformRate);
+  const [packingFee, setPackingFee] = useState<number | undefined>(sharedInputData?.packingFee || scenario.packingFee);
+  const [shipping, setShipping] = useState<number | undefined>(undefined);
 
-  const [warnings, setWarnings] = useState<string[]>([]);
-
-  // 查询汇率（CNY → RUB），用于显示价格范围
-  const { data: exchangeRateData } = useQuery({
-    queryKey: ['exchangeRate', 'CNY', 'RUB'],
-    queryFn: () => getExchangeRate('CNY', 'RUB', false),
-    staleTime: 30 * 60 * 1000, // 30分钟
-    cacheTime: 60 * 60 * 1000, // 1小时
-  });
-  const exchangeRate = exchangeRateData ? parseFloat(exchangeRateData.rate) : null;
+  // 同步打包费到共享输入数据
+  useEffect(() => {
+    if (sharedInputData?.packingFee !== undefined) {
+      setPackingFee(sharedInputData.packingFee);
+    }
+  }, [sharedInputData?.packingFee]);
 
   // 当重量变化时，自动计算运费
   useEffect(() => {
-    if (data.weight) {
-      const defaultShipping = calculateDefaultShipping(data.weight, scenario);
+    if (sharedInputData?.weight) {
+      const defaultShipping = calculateDefaultShipping(sharedInputData.weight, scenario);
       if (defaultShipping !== undefined) {
-        setData((prev) => ({ ...prev, shipping: defaultShipping }));
+        setShipping(defaultShipping);
       }
+    } else {
+      setShipping(undefined);
     }
-  }, [data.weight, scenario]);
+  }, [sharedInputData?.weight, scenario]);
 
-  // 实时计算利润
-  useEffect(() => {
-    const calculated = calculateProfit(data);
-    if (calculated.profit !== data.profit || calculated.profitRate !== data.profitRate) {
-      setData(calculated);
-    }
-
-    // 验证输入
-    const validation = validateInput(data, scenario);
-    setWarnings(validation.warnings);
-  }, [
-    data.cost,
-    data.price,
-    data.weight,
-    data.platformRate,
-    data.shipping,
-    data.packingFee,
-    scenario,
-  ]);
-
-  const handleInputChange = (field: keyof CalculationData, value: number | null) => {
-    setData((prev) => ({
-      ...prev,
-      [field]: value ?? undefined,
-    }));
-  };
-
-  const handleCalculateShipping = () => {
-    const defaultShipping = calculateDefaultShipping(data.weight, scenario);
-    if (defaultShipping !== undefined) {
-      setData((prev) => ({ ...prev, shipping: defaultShipping }));
-    }
-  };
-
-  const handleReset = () => {
-    setData({
-      platformRate: scenario.defaultPlatformRate,
-      packingFee: scenario.packingFee,
-    });
-    setWarnings([]);
-  };
-
-  const profitColor =
-    data.profit !== undefined ? (data.profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
-
-  // 判断当前场景是否匹配用户输入
-  const isMatched = useMemo(() => {
-    // 需要售价和重量都有值才能判断
-    if (!data.price || !data.weight || !exchangeRate) {
-      return false;
+  // 计算利润
+  const profit = useMemo(() => {
+    const { cost, price } = sharedInputData || {};
+    if (cost === undefined || price === undefined || shipping === undefined || packingFee === undefined) {
+      return undefined;
     }
 
-    const matched = matchScenario(data.weight, data.price, exchangeRate);
-    return matched?.id === scenario.id;
-  }, [data.price, data.weight, exchangeRate, scenario.id]);
+    const platformFee = price * platformRate;
+    return price - cost - shipping - platformFee - packingFee;
+  }, [sharedInputData?.cost, sharedInputData?.price, shipping, packingFee, platformRate]);
+
+  // 计算利润率
+  const profitRate = useMemo(() => {
+    if (profit === undefined || sharedInputData?.price === undefined || sharedInputData.price === 0) {
+      return undefined;
+    }
+    return (profit / sharedInputData.price) * 100;
+  }, [profit, sharedInputData?.price]);
+
+  const profitColor = profit !== undefined ? (profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
 
   // 生成带RMB换算的价格范围显示文本
   const getPriceRangeDisplay = (): string => {
@@ -126,122 +99,103 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
     return scenario.priceRange;
   };
 
+  // 手动重算运费
+  const handleCalculateShipping = () => {
+    if (sharedInputData?.weight) {
+      const defaultShipping = calculateDefaultShipping(sharedInputData.weight, scenario);
+      if (defaultShipping !== undefined) {
+        setShipping(defaultShipping);
+      }
+    }
+  };
+
+  // 重置场景特定参数
+  const handleReset = () => {
+    setPlatformRate(scenario.defaultPlatformRate);
+    setPackingFee(sharedInputData?.packingFee || scenario.packingFee);
+    if (sharedInputData?.weight) {
+      const defaultShipping = calculateDefaultShipping(sharedInputData.weight, scenario);
+      if (defaultShipping !== undefined) {
+        setShipping(defaultShipping);
+      }
+    }
+  };
+
+  // 是否显示不匹配警告
+  const showMismatchWarning = !isMatched && sharedInputData?.price && sharedInputData?.weight;
+
   return (
-    <Card
-      size="small"
-      style={{
-        height: '100%',
-        borderColor: isMatched ? '#52c41a' : scenario.color.primary,
-        borderWidth: isMatched ? 3 : 1,
-        boxShadow: isMatched ? '0 4px 12px rgba(82, 196, 26, 0.3)' : undefined,
-      }}
-      styles={{
-        header: {
-          background: isMatched
-            ? `linear-gradient(135deg, #f6ffed 0%, white 100%)`
-            : `linear-gradient(135deg, ${scenario.color.background} 0%, white 100%)`,
-          borderBottom: `2px solid ${isMatched ? '#52c41a' : scenario.color.primary}`,
-        },
-      }}
-      title={
-        <Space>
-          <span style={{ fontSize: '20px' }}>{scenario.icon}</span>
-          <Title level={5} style={{ margin: 0 }}>
-            {scenario.title}
-          </Title>
-          {isMatched && (
-            <Tag color="success" icon={<CheckCircleOutlined />}>
-              当前场景
-            </Tag>
-          )}
-        </Space>
-      }
-      extra={
-        <Button size="small" icon={<ReloadOutlined />} onClick={handleReset}>
-          重置
-        </Button>
-      }
-    >
-      {/* 条件说明 */}
-      <div style={{ marginBottom: 12 }}>
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          <Space size="small" wrap>
-            <Tag color="blue">{scenario.weightRange}</Tag>
-            <Tag color="green">{getPriceRangeDisplay()}</Tag>
-          </Space>
-          <div style={{ width: '100%' }}>
-            <Tag color="orange" style={{ width: '100%', textAlign: 'center' }}>
-              📏 {scenario.dimensionLimit.description}
-            </Tag>
-          </div>
-          {isMatched && (
-            <div style={{ width: '100%' }}>
-              <Tag color="success" style={{ width: '100%', textAlign: 'center' }}>
-                ✓ 当前输入符合此场景条件
-              </Tag>
+    <div>
+      {/* 场景不匹配警告 */}
+      {showMismatchWarning && (
+        <Alert
+          message="当前输入不符合此场景条件"
+          description={
+            <div>
+              <p>您的输入条件更适合其他场景，但您仍可在此场景下查看计算结果作为参考。</p>
+              <Space>
+                <Text type="secondary">当前场景条件：</Text>
+                <Tag color="blue">{scenario.weightRange}</Tag>
+                <Tag color="green">{getPriceRangeDisplay()}</Tag>
+              </Space>
             </div>
-          )}
-        </Space>
-      </div>
+          }
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
-      {/* 输入区域 */}
-      <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginBottom: 8 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="small">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text>成本:</Text>
-            <InputNumber
-              size="small"
-              style={{ width: 120 }}
-              placeholder="请输入"
-              suffix="RMB"
-              value={data.cost}
-              onChange={(value) => handleInputChange('cost', value)}
-              min={0}
-            />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text>售价:</Text>
-            <InputNumber
-              size="small"
-              style={{ width: 120 }}
-              placeholder="请输入"
-              suffix="RMB"
-              value={data.price}
-              onChange={(value) => handleInputChange('price', value)}
-              min={0}
-            />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text>重量:</Text>
-            <InputNumber
-              size="small"
-              style={{ width: 120 }}
-              placeholder="请输入"
-              suffix="克"
-              value={data.weight}
-              onChange={(value) => handleInputChange('weight', value)}
-              min={0}
-            />
-          </div>
+      {/* 场景信息 */}
+      <Card
+        size="small"
+        title="场景条件"
+        style={{ marginBottom: 16 }}
+      >
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Row justify="space-between">
+            <Col><Text>重量范围：</Text></Col>
+            <Col><Tag color="blue">{scenario.weightRange}</Tag></Col>
+          </Row>
+          <Row justify="space-between">
+            <Col><Text>价格范围：</Text></Col>
+            <Col><Tag color="green">{getPriceRangeDisplay()}</Tag></Col>
+          </Row>
+          <Row justify="space-between">
+            <Col><Text>尺寸限制：</Text></Col>
+            <Col><Text type="secondary" style={{ fontSize: 12 }}>{scenario.dimensionLimit.description}</Text></Col>
+          </Row>
         </Space>
-      </div>
+      </Card>
 
-      {/* 费用区域 */}
-      <div style={{ background: '#f5f5f5', padding: 8, borderRadius: 4, marginBottom: 8 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="small">
+      {/* 费用调整区域 */}
+      <Card
+        size="small"
+        title={
+          <Space>
+            <Text>费用参数</Text>
+            <Button size="small" type="link" onClick={handleReset}>
+              恢复默认
+            </Button>
+          </Space>
+        }
+        style={{ marginBottom: 16 }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text>平台扣点:</Text>
             <InputNumber
               size="small"
               style={{ width: 120 }}
               suffix="%"
-              value={data.platformRate ? data.platformRate * 100 : undefined}
-              onChange={(value) => handleInputChange('platformRate', value ? value / 100 : null)}
+              value={platformRate ? platformRate * 100 : undefined}
+              onChange={(value) => setPlatformRate(value ? value / 100 : scenario.defaultPlatformRate)}
               min={0}
               max={100}
               precision={1}
             />
           </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Space size={4}>
               <Text>运费:</Text>
@@ -251,7 +205,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
                   type="text"
                   icon={<CalculatorOutlined />}
                   onClick={handleCalculateShipping}
-                  disabled={!data.weight}
+                  disabled={!sharedInputData?.weight}
                 />
               </Tooltip>
             </Space>
@@ -259,64 +213,112 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
               size="small"
               style={{ width: 120 }}
               suffix="RMB"
-              value={data.shipping}
-              onChange={(value) => handleInputChange('shipping', value)}
+              value={shipping}
+              onChange={(value) => setShipping(value ?? undefined)}
               min={0}
               precision={2}
             />
           </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text>打包费:</Text>
             <InputNumber
               size="small"
               style={{ width: 120 }}
               suffix="RMB"
-              value={data.packingFee}
-              onChange={(value) => handleInputChange('packingFee', value)}
+              value={packingFee}
+              onChange={(value) => setPackingFee(value ?? undefined)}
               min={0}
               precision={2}
             />
           </div>
         </Space>
-      </div>
+      </Card>
 
-      {/* 结果区域 */}
-      <div
+      {/* 计算结果 */}
+      <Card
+        size="small"
+        title="利润计算结果"
         style={{
-          background:
-            data.profit !== undefined ? (data.profit > 0 ? '#e8f5e9' : '#ffebee') : '#fafafa',
-          padding: 8,
-          borderRadius: 4,
-          border: '1px solid #e0e0e0',
+          background: profit !== undefined ? (profit > 0 ? '#f6ffed' : '#fff1f0') : '#fafafa',
+          borderColor: profit !== undefined ? (profit > 0 ? '#b7eb8f' : '#ffccc7') : '#d9d9d9',
         }}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="small">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text strong>💰 利润率:</Text>
-            <Text strong style={{ color: profitColor, fontSize: 16 }}>
-              {formatPercentage(data.profitRate)}
-            </Text>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text strong>💵 利润:</Text>
-            <Text strong style={{ color: profitColor, fontSize: 16 }}>
-              {formatMoney(data.profit)} RMB
-            </Text>
-          </div>
-        </Space>
-      </div>
+        {sharedInputData?.cost !== undefined && sharedInputData?.price !== undefined ? (
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            {/* 成本明细 */}
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>成本明细：</Text>
+              <Space direction="vertical" style={{ width: '100%', marginTop: 8 }} size="small">
+                <Row justify="space-between">
+                  <Col><Text style={{ fontSize: 12 }}>采购成本：</Text></Col>
+                  <Col><Text style={{ fontSize: 12 }}>¥{sharedInputData.cost.toFixed(2)}</Text></Col>
+                </Row>
+                <Row justify="space-between">
+                  <Col><Text style={{ fontSize: 12 }}>运费：</Text></Col>
+                  <Col><Text style={{ fontSize: 12 }}>¥{shipping !== undefined ? shipping.toFixed(2) : '--'}</Text></Col>
+                </Row>
+                <Row justify="space-between">
+                  <Col><Text style={{ fontSize: 12 }}>平台扣点：</Text></Col>
+                  <Col><Text style={{ fontSize: 12 }}>¥{((sharedInputData.price * platformRate)).toFixed(2)}</Text></Col>
+                </Row>
+                <Row justify="space-between">
+                  <Col><Text style={{ fontSize: 12 }}>打包费：</Text></Col>
+                  <Col><Text style={{ fontSize: 12 }}>¥{packingFee !== undefined ? packingFee.toFixed(2) : '--'}</Text></Col>
+                </Row>
+              </Space>
+            </div>
 
-      {/* 警告信息 */}
-      {warnings.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          {warnings.map((warning, index) => (
-            <Text key={index} type="warning" style={{ display: 'block', fontSize: 12 }}>
-              ⚠️ {warning}
-            </Text>
-          ))}
-        </div>
-      )}
-    </Card>
+            <Divider style={{ margin: 0 }} />
+
+            {/* 利润结果 */}
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <Row justify="space-between" align="middle">
+                <Col><Text strong style={{ fontSize: 14 }}>💰 利润率:</Text></Col>
+                <Col>
+                  <Text strong style={{ color: profitColor, fontSize: 18 }}>
+                    {formatPercentage(profitRate)}
+                  </Text>
+                </Col>
+              </Row>
+              <Row justify="space-between" align="middle">
+                <Col><Text strong style={{ fontSize: 14 }}>💵 利润:</Text></Col>
+                <Col>
+                  <Text strong style={{ color: profitColor, fontSize: 18 }}>
+                    {formatMoney(profit)} RMB
+                  </Text>
+                </Col>
+              </Row>
+            </Space>
+
+            {/* 达标提示 */}
+            {profit !== undefined && sharedInputData.targetProfitRate !== undefined && (
+              <Alert
+                message={
+                  profitRate !== undefined && profitRate >= sharedInputData.targetProfitRate
+                    ? `✓ 达到目标利润率 ${sharedInputData.targetProfitRate.toFixed(1)}%`
+                    : `✗ 未达到目标利润率 ${sharedInputData.targetProfitRate.toFixed(1)}%`
+                }
+                type={
+                  profitRate !== undefined && profitRate >= sharedInputData.targetProfitRate
+                    ? 'success'
+                    : 'error'
+                }
+                showIcon
+                style={{ marginTop: 8 }}
+              />
+            )}
+          </Space>
+        ) : (
+          <Alert
+            message="请在顶部输入商品信息"
+            description="输入成本、售价、重量等信息后，系统将自动计算利润"
+            type="info"
+            showIcon
+          />
+        )}
+      </Card>
+    </div>
   );
 };
 
