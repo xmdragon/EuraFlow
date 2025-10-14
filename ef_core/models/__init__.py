@@ -10,6 +10,7 @@ from .returns import Return, Refund
 from .users import User
 from .shops import Shop
 from .api_keys import APIKey
+from .exchange_rate import ExchangeRateConfig, ExchangeRate
 
 __all__ = [
     "Base",
@@ -23,5 +24,7 @@ __all__ = [
     "Refund",
     "User",
     "Shop",
-    "APIKey"
+    "APIKey",
+    "ExchangeRateConfig",
+    "ExchangeRate"
 ]

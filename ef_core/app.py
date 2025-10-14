@@ -121,8 +121,17 @@ async def _register_sync_service_handlers(scheduler):
         from plugins.ef.channels.ozon.services.kuajing84_material_cost_sync_service import get_kuajing84_material_cost_sync_service
         from plugins.ef.channels.ozon.services.ozon_sync import OzonSyncService
         from plugins.ef.channels.ozon.models import OzonShop
+        from ef_core.services.exchange_rate_service import ExchangeRateService
         from sqlalchemy import select
         from typing import Dict, Any
+
+        # 0. 注册汇率刷新服务
+        exchange_rate_service = ExchangeRateService()
+        scheduler.register_handler(
+            service_key="exchange_rate_refresh",
+            handler=exchange_rate_service.refresh_rates
+        )
+        logger.info("Registered exchange_rate_refresh sync service handler")
 
         # 1. 注册跨境巴士物料成本同步服务
         kuajing84_service = get_kuajing84_material_cost_sync_service()
