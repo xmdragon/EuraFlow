@@ -31,8 +31,8 @@ class ProductSelectionItem(Base):
     brand_normalized = Column(String(200), index=True, comment="标准化品牌名")
 
     # 价格信息（使用Numeric存储）
-    current_price = Column(Numeric(18, 2), comment="当前价格(卢布)")
-    original_price = Column(Numeric(18, 2), comment="原价(卢布)")
+    current_price = Column(Numeric(18, 2), comment="当前价格(RMB分)")
+    original_price = Column(Numeric(18, 2), comment="原价(RMB分)")
 
     # 佣金率信息（百分比）
     rfbs_commission_low = Column(Numeric(5, 2), comment="rFBS(<=1500₽)佣金率")
@@ -44,16 +44,16 @@ class ProductSelectionItem(Base):
 
     # 销售数据
     monthly_sales_volume = Column(Integer, index=True, comment="月销量(件)")
-    monthly_sales_revenue = Column(Numeric(18, 2), comment="月销售额(卢布)")
+    monthly_sales_revenue = Column(Numeric(18, 2), comment="月销售额(RUB)")
     daily_sales_volume = Column(Numeric(10, 2), comment="平均日销量(件)")
-    daily_sales_revenue = Column(Numeric(18, 2), comment="平均日销售额(卢布)")
+    daily_sales_revenue = Column(Numeric(18, 2), comment="平均日销售额(RUB)")
     sales_dynamic_percent = Column(Numeric(10, 2), comment="销售动态(%)")
     conversion_rate = Column(Numeric(5, 2), comment="成交率(%)")
 
     # 竞争对手数据
     competitor_count = Column(Integer, default=0, comment="跟卖者数量")
-    competitor_min_price = Column(Numeric(18, 2), comment="跟卖最低价(卢布)")
-    market_min_price = Column(Numeric(18, 2), comment="市场最低价(卢布)")
+    competitor_min_price = Column(Numeric(18, 2), comment="跟卖最低价(RMB分)")
+    market_min_price = Column(Numeric(18, 2), comment="市场最低价(RMB分)")
     price_index = Column(Numeric(10, 2), comment="价格指数")
 
     # 物流信息

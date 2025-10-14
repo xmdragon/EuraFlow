@@ -6,6 +6,54 @@
 import { SCENARIOS, ScenarioConfig } from '../finance/constants';
 
 /**
+ * 商品佣金率数据接口
+ */
+export interface ProductCommissionRates {
+  rfbs_low?: number;   // rFBS(<=1500₽)佣金率 (百分比，如12表示12%)
+  rfbs_mid?: number;   // rFBS(1501-5000₽)佣金率
+  rfbs_high?: number;  // rFBS(>5000₽)佣金率
+}
+
+/**
+ * 根据商品价格选择对应的rFBS佣金率档位
+ * OZON佣金分档（基于RUB）：
+ * - 售价 <= 1500₽: 使用 rfbs_low
+ * - 售价 1501~5000₽: 使用 rfbs_mid
+ * - 售价 > 5000₽: 使用 rfbs_high
+ *
+ * @param priceRMB 商品价格（RMB元）
+ * @param commissionRates 商品的三档佣金率数据
+ * @param exchangeRate 汇率（CNY→RUB），用于将RUB档位阈值转换为RMB
+ * @returns 选中的佣金率（小数形式，如0.12表示12%），如果没有数据则返回null
+ */
+export function selectCommissionRate(
+  priceRMB: number,
+  commissionRates: ProductCommissionRates | undefined,
+  exchangeRate: number | undefined
+): number | null {
+  // 如果没有提供佣金率数据或汇率，返回null
+  if (!commissionRates || !exchangeRate || exchangeRate <= 0) {
+    return null;
+  }
+
+  // 将OZON的RUB档位阈值转换为RMB阈值
+  const threshold1_RMB = 1500 / exchangeRate;  // 1500₽ → RMB
+  const threshold2_RMB = 5000 / exchangeRate;  // 5000₽ → RMB
+
+  // 根据商品的RMB价格选择对应的佣金率档位
+  if (priceRMB <= threshold1_RMB) {
+    // 低档：<= 1500₽
+    return commissionRates.rfbs_low !== undefined ? commissionRates.rfbs_low / 100 : null;
+  } else if (priceRMB <= threshold2_RMB) {
+    // 中档：1501~5000₽
+    return commissionRates.rfbs_mid !== undefined ? commissionRates.rfbs_mid / 100 : null;
+  } else {
+    // 高档：> 5000₽
+    return commissionRates.rfbs_high !== undefined ? commissionRates.rfbs_high / 100 : null;
+  }
+}
+
+/**
  * 根据商品的重量和价格匹配对应的场景
  * @param weightG 商品重量（克）
  * @param priceRMB 商品价格（人民币）
@@ -65,7 +113,8 @@ export function matchScenario(
  * @param weightG 商品重量（克）
  * @param targetProfitRate 目标利润率（小数形式，如 0.20 表示 20%）
  * @param packingFee 打包费（人民币）
- * @param exchangeRate 汇率（CNY→RUB），用于正确匹配场景
+ * @param exchangeRate 汇率（CNY→RUB），用于正确匹配场景和选择佣金率档位
+ * @param commissionRates 商品的rFBS佣金率数据（可选，优先使用商品实际佣金率）
  * @returns 成本上限（人民币），如果无法计算则返回null
  */
 export function calculateMaxCost(
@@ -73,7 +122,8 @@ export function calculateMaxCost(
   weightG: number,
   targetProfitRate: number,
   packingFee: number,
-  exchangeRate?: number
+  exchangeRate?: number,
+  commissionRates?: ProductCommissionRates
 ): number | null {
   // 参数验证
   if (priceRMB <= 0 || weightG <= 0 || targetProfitRate < 0 || packingFee < 0) {
@@ -86,8 +136,17 @@ export function calculateMaxCost(
     return null;
   }
 
-  // 获取平台扣点率
-  const platformRate = scenario.defaultPlatformRate;
+  // 选择平台扣点率：
+  // 1. 优先使用商品实际的rFBS佣金率（根据价格档位自动选择）
+  // 2. 如果商品没有佣金率数据，使用场景配置的默认平台扣点率
+  let platformRate = scenario.defaultPlatformRate;
+
+  if (exchangeRate && exchangeRate > 0) {
+    const selectedRate = selectCommissionRate(priceRMB, commissionRates, exchangeRate);
+    if (selectedRate !== null) {
+      platformRate = selectedRate;
+    }
+  }
 
   // 计算运费：运费(RMB) = 基础运费 + 费率 × 重量(克)
   const shipping = scenario.shipping.base + scenario.shipping.rate * weightG;
