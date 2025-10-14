@@ -332,7 +332,7 @@ class Kuajing84MaterialCostSyncService:
                         logger.warning(f"API returned empty data for {posting_number}")
                         return {
                             "success": False,
-                            "message": f"订单不存在: {posting_number}"
+                            "message": "跨境巴士没有记录"
                         }
                 else:
                     error_msg = response.get("msg", response.get("message", "Unknown error"))

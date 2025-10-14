@@ -291,7 +291,7 @@ class TaskScheduler:
         result: Optional[Dict] = None,
         error: Optional[str] = None
     ):
-        """记录任务执行日志并更新统计"""
+        """更新服务统计（不创建汇总日志，服务自己会创建详细日志）"""
         from plugins.ef.channels.ozon.models.sync_service import SyncServiceLog
 
         finished_at = datetime.now(timezone.utc)
@@ -299,20 +299,9 @@ class TaskScheduler:
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
-            # 创建日志记录
-            log = SyncServiceLog(
-                service_key=service_key,
-                run_id=run_id,
-                started_at=started_at,
-                finished_at=finished_at,
-                status=status,
-                records_processed=result.get("records_processed", 0) if result else 0,
-                records_updated=result.get("records_updated", 0) if result else 0,
-                execution_time_ms=execution_time_ms,
-                error_message=error,
-                extra_data=result if result else None
-            )
-            session.add(log)
+            # 注意：不再创建汇总日志记录，因为各个服务会自己创建详细的日志
+            # 这样可以避免汇总日志和详细日志混合显示的问题
+            # 例如 kuajing84_material_cost 服务会为每个 posting 创建独立的日志记录
 
             # 更新服务统计
             service_result = await session.execute(
