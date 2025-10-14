@@ -594,8 +594,8 @@ const ProductSelection: React.FC = () => {
 
   // 下载用户脚本
   const handleDownloadScript = () => {
-    // 创建一个虚拟链接触发下载
-    const scriptUrl = window.location.origin + '/scripts/ozon_product_selector.user.js';
+    // 创建一个虚拟链接触发下载，添加时间戳防止浏览器缓存
+    const scriptUrl = window.location.origin + `/scripts/ozon_product_selector.user.js?t=${Date.now()}`;
     const link = document.createElement('a');
     link.href = scriptUrl;
     link.download = 'ozon_product_selector.user.js';
