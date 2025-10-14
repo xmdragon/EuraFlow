@@ -819,7 +819,9 @@ const OrderList: React.FC = () => {
               </div>
               <div>
                 <Text type="secondary">截止: </Text>
-                {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
+                <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+                  {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
+                </span>
               </div>
             </div>
           ),
