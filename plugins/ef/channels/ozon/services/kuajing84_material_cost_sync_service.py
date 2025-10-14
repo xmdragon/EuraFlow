@@ -89,7 +89,7 @@ class Kuajing84MaterialCostSyncService:
             # - 等待备货状态 (awaiting_packaging)
             # - 已取消状态 (cancelled 或 is_cancelled=True)
             # - 只查询90天以内的货件
-            # - 按创建时间倒序（优先处理最新的）
+            # - 按创建时间升序（优先处理最旧的）
             ninety_days_ago = datetime.now(timezone.utc) - timedelta(days=90)
 
             postings_result = await session.execute(
@@ -101,7 +101,7 @@ class Kuajing84MaterialCostSyncService:
                 .where(OzonPosting.status != 'cancelled')  # 排除已取消
                 .where(OzonPosting.is_cancelled == False)  # 排除已取消标志
                 .where(OzonPosting.created_at >= ninety_days_ago)  # 只查询90天内
-                .order_by(OzonPosting.created_at.desc())  # 倒序：最新的优先
+                .order_by(OzonPosting.created_at.asc())  # 升序：最旧的优先
                 .limit(self.batch_size)
             )
             postings = postings_result.scalars().all()
