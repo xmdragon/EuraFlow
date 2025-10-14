@@ -63,6 +63,7 @@ import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
 import { useCurrency } from '../../hooks/useCurrency';
+import { getExchangeRate } from '@/services/exchangeRateApi';
 import styles from './ProductSelection.module.scss';
 import { calculateMaxCost, formatMaxCost } from './profitCalculator';
 
@@ -197,6 +198,15 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === 'search',
   });
 
+  // 查询汇率（CNY → RUB），使用缓存数据
+  const { data: exchangeRateData } = useQuery({
+    queryKey: ['exchangeRate', 'CNY', 'RUB'],
+    queryFn: () => getExchangeRate('CNY', 'RUB', false), // 使用缓存，不force_refresh
+    staleTime: 30 * 60 * 1000, // 30分钟，与后台同步周期一致
+    cacheTime: 60 * 60 * 1000, // 1小时
+  });
+  const exchangeRate = exchangeRateData ? parseFloat(exchangeRateData.rate) : null;
+
   // 查询导入历史
   const { data: historyData, refetch: refetchHistory} = useQuery({
     queryKey: ['productSelectionHistory', historyPage],
@@ -269,6 +279,31 @@ const ProductSelection: React.FC = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
+
+  // 过滤可盈利商品：将CNY价格转换为RUB后计算成本上限，过滤掉无法达到目标利润率的商品
+  const profitableProducts = useMemo(() => {
+    // 如果没有汇率数据，显示所有商品（保持现有行为）
+    if (!exchangeRate) return allProducts;
+
+    return allProducts.filter(product => {
+      // 价格转换：CNY → RUB
+      const currentPriceCNY = product.current_price / 100; // 戈比 → CNY
+      const competitorPriceCNY = product.competitor_min_price ? product.competitor_min_price / 100 : null;
+      const priceCNY = competitorPriceCNY ? Math.min(currentPriceCNY, competitorPriceCNY) : currentPriceCNY;
+      const priceRUB = priceCNY * exchangeRate; // CNY → RUB
+
+      const weight = product.package_weight || 0;
+
+      // 缺少必要数据的商品保留（避免误删）
+      if (weight <= 0 || priceRUB <= 0) return true;
+
+      // 计算成本上限
+      const maxCost = calculateMaxCost(priceRUB, weight, targetProfitRate / 100, packingFee);
+
+      // 过滤掉无法达到目标利润率的商品（maxCost < 0）
+      return maxCost !== null && maxCost >= 0;
+    });
+  }, [allProducts, exchangeRate, targetProfitRate, packingFee]);
 
   // 清空数据mutation
   const clearDataMutation = useMutation({
@@ -795,22 +830,25 @@ const ProductSelection: React.FC = () => {
 
           {/* 成本上限计算 */}
           {(() => {
-            // 取当前价格和最低跟卖价中较低的那个
-            const currentPriceRUB = product.current_price / 100;  // 当前价格（卢布）
-            const competitorPriceRUB = product.competitor_min_price !== null && product.competitor_min_price !== undefined
+            // 价格转换：CNY → RUB
+            const currentPriceCNY = product.current_price / 100;  // 戈比 → CNY
+            const competitorPriceCNY = product.competitor_min_price !== null && product.competitor_min_price !== undefined
               ? product.competitor_min_price / 100
               : null;
 
             // 如果有跟卖价，取两者中较低的；否则取当前价
-            const priceForCalc = competitorPriceRUB !== null
-              ? Math.min(currentPriceRUB, competitorPriceRUB)
-              : currentPriceRUB;
+            const priceCNY = competitorPriceCNY !== null
+              ? Math.min(currentPriceCNY, competitorPriceCNY)
+              : currentPriceCNY;
+
+            // 转换为卢布（如果有汇率）
+            const priceRUB = exchangeRate ? priceCNY * exchangeRate : priceCNY;
 
             const weight = product.package_weight || 0;
 
-            // 计算成本上限
-            const maxCost = weight > 0 && priceForCalc > 0
-              ? calculateMaxCost(priceForCalc, weight, targetProfitRate / 100, packingFee)
+            // 计算成本上限（使用RUB价格）
+            const maxCost = weight > 0 && priceRUB > 0 && exchangeRate
+              ? calculateMaxCost(priceRUB, weight, targetProfitRate / 100, packingFee)
               : null;
 
             // 根据成本上限值确定样式
@@ -1033,7 +1071,7 @@ const ProductSelection: React.FC = () => {
             <Row justify="space-between" align="middle" className={styles.searchStats}>
               <Col>
                 <Space>
-                  <Text>已加载 <Text strong>{allProducts.length}</Text> / {productsData.data.total} 件商品</Text>
+                  <Text>已加载 <Text strong>{profitableProducts.length}</Text> / {productsData.data.total} 件商品</Text>
                   {selectedProductIds.size > 0 && (
                     <Button
                       type="primary"
@@ -1059,10 +1097,10 @@ const ProductSelection: React.FC = () => {
 
           {/* 商品列表 - CSS Grid布局 */}
           <Spin spinning={productsLoading && currentPage === 1}>
-            {allProducts.length > 0 ? (
+            {profitableProducts.length > 0 ? (
               <>
                 <div className={styles.productGrid}>
-                  {allProducts.map((product) => (
+                  {profitableProducts.map((product) => (
                     <div key={product.id}>
                       {renderProductCard(product)}
                     </div>
@@ -1076,9 +1114,9 @@ const ProductSelection: React.FC = () => {
                   </div>
                 )}
                 {/* 已加载完所有数据 */}
-                {!hasMoreData && allProducts.length > 0 && (
+                {!hasMoreData && profitableProducts.length > 0 && (
                   <div className={styles.loadingMore}>
-                    <Text type="secondary">已显示全部 {allProducts.length} 件商品</Text>
+                    <Text type="secondary">已显示全部 {profitableProducts.length} 件商品</Text>
                   </div>
                 )}
               </>
