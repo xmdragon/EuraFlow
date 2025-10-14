@@ -795,10 +795,16 @@ const ProductSelection: React.FC = () => {
 
           {/* 成本上限计算 */}
           {(() => {
-            // 优先使用跟卖者最低价，否则使用商品当前价
-            const priceForCalc = product.competitor_min_price !== null && product.competitor_min_price !== undefined
-              ? product.competitor_min_price / 100  // 转换为卢布
-              : product.current_price / 100;  // 转换为卢布
+            // 取当前价格和最低跟卖价中较低的那个
+            const currentPriceRUB = product.current_price / 100;  // 当前价格（卢布）
+            const competitorPriceRUB = product.competitor_min_price !== null && product.competitor_min_price !== undefined
+              ? product.competitor_min_price / 100
+              : null;
+
+            // 如果有跟卖价，取两者中较低的；否则取当前价
+            const priceForCalc = competitorPriceRUB !== null
+              ? Math.min(currentPriceRUB, competitorPriceRUB)
+              : currentPriceRUB;
 
             const weight = product.package_weight || 0;
 
