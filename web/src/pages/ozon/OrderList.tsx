@@ -624,7 +624,7 @@ const OrderList: React.FC = () => {
 
   // 表格列定义（商品维度 - 5列布局）
   const columns: any[] = [
-    // 第一列：商品图片（160x160固定容器）
+    // 第一列：商品图片（160x160固定容器，可点击打开OZON商品页）
     {
       title: '商品图片',
       key: 'product_image',
@@ -632,10 +632,21 @@ const OrderList: React.FC = () => {
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
         const imageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
+        const ozonProductUrl = item.sku ? `https://www.ozon.ru/product/${item.sku}/` : null;
+
+        const handleImageClick = () => {
+          if (ozonProductUrl) {
+            window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
+          }
+        };
 
         return (
-          <Tooltip title={item.name || item.sku || '-'}>
-            <div className={styles.productImageContainer}>
+          <Tooltip title={item.name || item.sku || '点击打开OZON商品页'}>
+            <div
+              className={styles.productImageContainer}
+              onClick={handleImageClick}
+              style={{ cursor: ozonProductUrl ? 'pointer' : 'default' }}
+            >
               {imageUrl ? (
                 <img
                   src={imageUrl}
@@ -730,7 +741,13 @@ const OrderList: React.FC = () => {
             <div className={styles.infoColumn}>
               <div>
                 <Text type="secondary">货件: </Text>
-                <span>{posting.posting_number}</span>
+                <a
+                  onClick={() => showOrderDetail(row.order, posting)}
+                  className={styles.link}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {posting.posting_number}
+                </a>
                 <CopyOutlined
                   style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
                   onClick={() => handleCopy(posting.posting_number, '货件编号')}
