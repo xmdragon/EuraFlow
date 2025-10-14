@@ -199,7 +199,7 @@ const ProductSelection: React.FC = () => {
   });
 
   // 不再需要汇率查询，因为商品价格就是 RMB（CNY），运费和打包费也是 RMB
-  // 商品价格存储格式：CNY戈比（分），÷100 = CNY元 = RMB元
+  // 商品价格存储格式：CNY分，÷100 = CNY元 = RMB元
 
   // 查询导入历史
   const { data: historyData, refetch: refetchHistory} = useQuery({
@@ -277,8 +277,8 @@ const ProductSelection: React.FC = () => {
   // 过滤可盈利商品：计算成本上限，过滤掉无法达到目标利润率的商品
   const profitableProducts = useMemo(() => {
     return allProducts.filter(product => {
-      // 价格单位：CNY戈比（分），÷100 = CNY元 = RMB元
-      const currentPriceRMB = product.current_price / 100; // 戈比 → RMB
+      // 价格单位：CNY分，÷100 = CNY元 = RMB元
+      const currentPriceRMB = product.current_price / 100; // 分 → RMB
       const competitorPriceRMB = product.competitor_min_price ? product.competitor_min_price / 100 : null;
       const priceRMB = competitorPriceRMB ? Math.min(currentPriceRMB, competitorPriceRMB) : currentPriceRMB;
 
@@ -551,10 +551,10 @@ const ProductSelection: React.FC = () => {
     }
   };
 
-  // 格式化价格（OZON采集的是戈比/分，需要除以100转换为卢布）
-  const formatPrice = (priceInKopecks: number | null | undefined): string => {
-    if (priceInKopecks === null || priceInKopecks === undefined) return '0.00';
-    return (priceInKopecks / 100).toFixed(2);
+  // 格式化价格（OZON采集的是分，需要除以100转换为元）
+  const formatPrice = (priceInFen: number | null | undefined): string => {
+    if (priceInFen === null || priceInFen === undefined) return '0.00';
+    return (priceInFen / 100).toFixed(2);
   };
 
   // 格式化百分比显示（不显示%符号）
@@ -832,8 +832,8 @@ const ProductSelection: React.FC = () => {
 
           {/* 成本上限计算 */}
           {(() => {
-            // 价格单位：CNY戈比（分），÷100 = CNY元 = RMB元
-            const currentPriceRMB = product.current_price / 100;  // 戈比 → RMB
+            // 价格单位：CNY分，÷100 = CNY元 = RMB元
+            const currentPriceRMB = product.current_price / 100;  // 分 → RMB
             const competitorPriceRMB = product.competitor_min_price !== null && product.competitor_min_price !== undefined
               ? product.competitor_min_price / 100
               : null;

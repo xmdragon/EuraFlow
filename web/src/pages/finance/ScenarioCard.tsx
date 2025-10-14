@@ -1,6 +1,7 @@
 import { CalculatorOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Card, InputNumber, Space, Typography, Tooltip, Button, Tag } from 'antd';
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import { ScenarioConfig } from './constants';
 import {
@@ -11,6 +12,7 @@ import {
   formatMoney,
   validateInput,
 } from './utils';
+import { getExchangeRate } from '@/services/exchangeRateApi';
 
 const { Text, Title } = Typography;
 
@@ -25,6 +27,15 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
   });
 
   const [warnings, setWarnings] = useState<string[]>([]);
+
+  // 查询汇率（CNY → RUB），用于显示价格范围
+  const { data: exchangeRateData } = useQuery({
+    queryKey: ['exchangeRate', 'CNY', 'RUB'],
+    queryFn: () => getExchangeRate('CNY', 'RUB', false),
+    staleTime: 30 * 60 * 1000, // 30分钟
+    cacheTime: 60 * 60 * 1000, // 1小时
+  });
+  const exchangeRate = exchangeRateData ? parseFloat(exchangeRateData.rate) : null;
 
   // 当重量变化时，自动计算运费
   useEffect(() => {
@@ -81,6 +92,28 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
   const profitColor =
     data.profit !== undefined ? (data.profit > 0 ? '#52c41a' : '#ff4d4f') : undefined;
 
+  // 生成带RMB换算的价格范围显示文本
+  const getPriceRangeDisplay = (): string => {
+    if (!exchangeRate) {
+      return scenario.priceRange;
+    }
+
+    const { conditions } = scenario;
+    const minRMB = conditions.minPrice ? Math.round(conditions.minPrice / exchangeRate) : null;
+    const maxRMB = conditions.maxPrice ? Math.round(conditions.maxPrice / exchangeRate) : null;
+
+    // 根据原始priceRange格式生成对应的RMB范围
+    if (minRMB && maxRMB) {
+      return `${conditions.minPrice}-${conditions.maxPrice} RUB (${minRMB}-${maxRMB} RMB)`;
+    } else if (maxRMB) {
+      return `<${conditions.maxPrice} RUB (<${maxRMB} RMB)`;
+    } else if (minRMB) {
+      return `>${conditions.minPrice} RUB (>${minRMB} RMB)`;
+    }
+
+    return scenario.priceRange;
+  };
+
   return (
     <Card
       size="small"
@@ -108,9 +141,9 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({ scenario }) => {
       {/* 条件说明 */}
       <div style={{ marginBottom: 12 }}>
         <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          <Space size="small">
+          <Space size="small" wrap>
             <Tag color="blue">{scenario.weightRange}</Tag>
-            <Tag color="green">{scenario.priceRange}</Tag>
+            <Tag color="green">{getPriceRangeDisplay()}</Tag>
           </Space>
           <div style={{ width: '100%' }}>
             <Tag color="orange" style={{ width: '100%', textAlign: 'center' }}>
