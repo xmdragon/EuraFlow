@@ -331,7 +331,7 @@ const SyncServices = () => {
         rowKey="id"
         loading={loading}
         pagination={false}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1200, y: 600 }}
       />
 
       {/* 日志模态框 */}
