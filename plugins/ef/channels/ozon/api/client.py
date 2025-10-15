@@ -492,10 +492,66 @@ class OzonAPIClient:
 
         return await self._request("POST", "/v3/posting/fbs/list", data=data, resource_type="orders")
 
-    async def get_posting_details(self, posting_number: str) -> Dict[str, Any]:
-        """获取发货单详情"""
+    async def get_posting_details(
+        self,
+        posting_number: str,
+        with_analytics_data: bool = False,
+        with_barcodes: bool = False,
+        with_financial_data: bool = False,
+        with_legal_info: bool = False,
+        with_product_exemplars: bool = False,
+        with_related_postings: bool = False,
+        with_translit: bool = False
+    ) -> Dict[str, Any]:
+        """
+        获取发货单详情
+        使用 /v3/posting/fbs/get 接口
+
+        Args:
+            posting_number: 货件ID（必需）
+            with_analytics_data: 添加分析数据
+            with_barcodes: 添加条形码
+            with_financial_data: 添加财务数据（包含商品级别的佣金、配送费等明细）
+            with_legal_info: 添加法律信息
+            with_product_exemplars: 添加产品及份数数据
+            with_related_postings: 添加相关货件数量
+            with_translit: 完成返回值的拼写转换
+
+        Returns:
+            发货单详情，如果开启 with_financial_data，将包含：
+            - financial_data: 财务数据汇总
+            - products[].financial_data: 每个商品的财务明细
+                - item_services: 商品佣金
+                - posting_services: 配送服务费用
+                等详细费用信息
+        """
+        data = {
+            "posting_number": posting_number
+        }
+
+        # 构建 with 参数对象
+        with_params = {}
+        if with_analytics_data:
+            with_params["analytics_data"] = True
+        if with_barcodes:
+            with_params["barcodes"] = True
+        if with_financial_data:
+            with_params["financial_data"] = True
+        if with_legal_info:
+            with_params["legal_info"] = True
+        if with_product_exemplars:
+            with_params["product_exemplars"] = True
+        if with_related_postings:
+            with_params["related_postings"] = True
+        if with_translit:
+            with_params["translit"] = True
+
+        # 如果有任何 with 参数，添加到请求数据中
+        if with_params:
+            data["with"] = with_params
+
         return await self._request(
-            "POST", "/v3/posting/fbs/get", data={"posting_number": posting_number}, resource_type="postings"
+            "POST", "/v3/posting/fbs/get", data=data, resource_type="postings"
         )
 
     async def ship_posting(
@@ -1177,6 +1233,153 @@ class OzonAPIClient:
         return await self._request(
             "POST",
             "/v1/chat/updates",
+            data=data,
+            resource_type="default"
+        )
+
+    # ========== 财务相关 API ==========
+
+    async def get_finance_transaction_totals(
+        self,
+        posting_number: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        transaction_type: str = "all"
+    ) -> Dict[str, Any]:
+        """
+        获取财务清单数目（费用汇总）
+        使用 /v3/finance/transaction/totals 接口
+
+        Args:
+            posting_number: 发货号（可选，与date参数二选一）
+            date_from: 开始日期，格式YYYY-MM-DD或RFC3339（可选）
+            date_to: 结束日期，格式YYYY-MM-DD或RFC3339（可选）
+            transaction_type: 操作类型，默认"all"
+                - all: 所有
+                - orders: 订单
+                - returns: 退货和取消
+                - services: 服务费
+                - compensation: 补贴
+                - transferDelivery: 快递费用
+                - other: 其他
+
+        Returns:
+            财务清单汇总数据，包含：
+            - accruals_for_sale: 商品总成本和退货
+            - sale_commission: 销售佣金
+            - processing_and_delivery: 运输处理和配送费
+            - refunds_and_cancellations: 退货和取消费用
+            - compensation_amount: 补贴
+            - money_transfer: 交货和退货费用
+            - services_amount: 附加服务成本
+            - others_amount: 其他应计费用
+        """
+        data = {
+            "transaction_type": transaction_type
+        }
+
+        # 根据参数选择过滤方式（posting_number 或 date）
+        if posting_number:
+            # 按发货号查询
+            data["posting_number"] = posting_number
+        elif date_from and date_to:
+            # 按日期范围查询
+            # 如果是简单日期格式（YYYY-MM-DD），转换为RFC3339格式
+            from_date = date_from if 'T' in date_from else f"{date_from}T00:00:00Z"
+            to_date = date_to if 'T' in date_to else f"{date_to}T23:59:59Z"
+
+            data["date"] = {
+                "from": from_date,
+                "to": to_date
+            }
+        else:
+            raise ValueError("Either posting_number or both date_from and date_to must be provided")
+
+        return await self._request(
+            "POST",
+            "/v3/finance/transaction/totals",
+            data=data,
+            resource_type="default"
+        )
+
+    async def get_finance_transaction_list(
+        self,
+        posting_number: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        operation_type: Optional[List[str]] = None,
+        transaction_type: str = "all",
+        page: int = 1,
+        page_size: int = 1000
+    ) -> Dict[str, Any]:
+        """
+        获取财务交易明细列表
+        使用 /v3/finance/transaction/list 接口
+
+        Args:
+            posting_number: 发货号（可选，与date参数二选一）
+            date_from: 开始日期，格式YYYY-MM-DD（可选）
+            date_to: 结束日期，格式YYYY-MM-DD（可选）
+            operation_type: 交易类型列表（可选），如：
+                - ClientReturnAgentOperation: 收到买家退货、取消订单
+                - MarketplaceMarketingActionCostOperation: 商品促销服务
+                - OperationAgentDeliveredToCustomer: 交付给买家
+                - OperationClaim: 索赔应计
+                - OperationItemReturn: 处理退货费用
+                - OperationMarketplaceServiceStorage: 仓储费用
+                等（完整列表见API文档）
+            transaction_type: 收费类型，默认"all"
+                - all: 所有
+                - orders: 订单
+                - returns: 退货和取消
+                - services: 服务费
+                - compensation: 补贴
+                - transferDelivery: 运费
+                - other: 其他
+            page: 页码（必须大于0）
+            page_size: 每页数量（最大1000）
+
+        Returns:
+            财务交易明细列表，包含：
+            - operations: 交易操作列表
+            - page_count: 总页数
+            - row_count: 总交易数
+        """
+        data = {
+            "transaction_type": transaction_type,
+            "page": page,
+            "page_size": min(page_size, 1000)
+        }
+
+        # 构建filter参数
+        filter_data = {}
+
+        # 根据参数选择过滤方式（posting_number 或 date）
+        if posting_number:
+            # 按发货号查询
+            filter_data["posting_number"] = posting_number
+        elif date_from and date_to:
+            # 按日期范围查询
+            # 转换为RFC3339格式
+            from_date = f"{date_from}T00:00:00Z" if 'T' not in date_from else date_from
+            to_date = f"{date_to}T23:59:59Z" if 'T' not in date_to else date_to
+
+            filter_data["date"] = {
+                "from": from_date,
+                "to": to_date
+            }
+        else:
+            raise ValueError("Either posting_number or both date_from and date_to must be provided")
+
+        # 添加操作类型过滤（可选）
+        if operation_type:
+            filter_data["operation_type"] = operation_type
+
+        data["filter"] = filter_data
+
+        return await self._request(
+            "POST",
+            "/v3/finance/transaction/list",
             data=data,
             resource_type="default"
         )
