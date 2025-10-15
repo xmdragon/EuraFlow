@@ -46,6 +46,22 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       ),
     },
     {
+      title: '采购平台',
+      dataIndex: 'source_platform',
+      key: 'source_platform',
+      width: 100,
+      render: (platform: string | undefined) => {
+        if (!platform) return '-';
+        const colorMap: Record<string, string> = {
+          '1688': 'orange',
+          '拼多多': 'magenta',
+          '咸鱼': 'cyan',
+          '淘宝': 'red',
+        };
+        return <Tag color={colorMap[platform] || 'default'}>{platform}</Tag>;
+      },
+    },
+    {
       title: '进货价格',
       dataIndex: 'purchase_price',
       key: 'purchase_price',
@@ -64,22 +80,6 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       render: (time: string | null) => {
         if (!time) return '-';
         return moment(time).format('MM-DD');
-      },
-    },
-    {
-      title: '采购平台',
-      dataIndex: 'source_platform',
-      key: 'source_platform',
-      width: 100,
-      render: (platform: string | undefined) => {
-        if (!platform) return '-';
-        const colorMap: Record<string, string> = {
-          '1688': 'orange',
-          '拼多多': 'magenta',
-          '咸鱼': 'cyan',
-          '淘宝': 'red',
-        };
-        return <Tag color={colorMap[platform] || 'default'}>{platform}</Tag>;
       },
     },
     {
