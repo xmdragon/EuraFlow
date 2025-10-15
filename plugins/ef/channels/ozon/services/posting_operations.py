@@ -86,6 +86,9 @@ class PostingOperationsService:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
 
+        # 立即更新操作状态为"分配中"（在 API 调用前）
+        posting.operation_status = "allocating"
+
         # 4. 调用 OZON ship API（v4）告诉 OZON 订单已组装完成
         try:
             packages = self._build_packages_for_ship(posting)
@@ -109,13 +112,13 @@ class PostingOperationsService:
 
         except Exception as e:
             logger.error(f"调用 OZON ship API 失败，posting_number: {posting_number}, error: {str(e)}")
-            # OZON API 调用失败不回滚数据库事务，因为业务信息已保存
+            # OZON API 调用失败不回滚数据库事务，因为业务信息已保存且状态已更新
             # 返回部分成功的结果
             await self.db.commit()
             await self.db.refresh(posting)
             return {
                 "success": False,
-                "message": f"业务信息已保存，但 OZON API 调用失败：{str(e)}",
+                "message": f"业务信息已保存，状态已更新为分配中，但 OZON API 调用失败：{str(e)}",
                 "data": {
                     "posting_number": posting.posting_number,
                     "operation_status": posting.operation_status,
@@ -123,10 +126,7 @@ class PostingOperationsService:
                 }
             }
 
-        # 5. 更新操作状态为"分配中"
-        posting.operation_status = "allocating"
-
-        # 6. 提交数据库事务
+        # 5. 提交数据库事务
         await self.db.commit()
         await self.db.refresh(posting)
 
