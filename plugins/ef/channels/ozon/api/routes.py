@@ -1930,6 +1930,121 @@ async def update_order_extra_info(
         }
     }
 
+
+# ====== 打包发货操作状态管理 API ======
+
+class PrepareStockDTO(BaseModel):
+    """备货请求 DTO"""
+    purchase_price: Decimal = Field(..., description="进货价格（必填）")
+    source_platform: Optional[str] = Field(None, description="采购平台（可选：1688/拼多多/咸鱼/淘宝）")
+    order_notes: Optional[str] = Field(None, description="订单备注（可选）")
+
+
+class UpdateBusinessInfoDTO(BaseModel):
+    """更新业务信息请求 DTO"""
+    purchase_price: Optional[Decimal] = Field(None, description="进货价格（可选）")
+    source_platform: Optional[str] = Field(None, description="采购平台（可选）")
+    order_notes: Optional[str] = Field(None, description="订单备注（可选）")
+
+
+class SubmitDomesticTrackingDTO(BaseModel):
+    """填写国内单号请求 DTO"""
+    domestic_tracking_number: str = Field(..., description="国内物流单号（必填）")
+    order_notes: Optional[str] = Field(None, description="订单备注（可选）")
+
+
+@router.post("/postings/{posting_number}/prepare")
+async def prepare_stock(
+    posting_number: str,
+    request: PrepareStockDTO,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    备货操作：保存业务信息 + 调用 OZON exemplar set API
+
+    操作流程：
+    1. 保存进货价格、采购平台、备注
+    2. 调用 OZON exemplar set API（自动构造合规数据）
+    3. 更新操作状态为"分配中"
+    4. 更新操作时间
+
+    幂等性：如果状态已 >= allocating，返回错误
+    """
+    from ..services.posting_operations import PostingOperationsService
+
+    service = PostingOperationsService(db)
+    result = await service.prepare_stock(
+        posting_number=posting_number,
+        purchase_price=request.purchase_price,
+        source_platform=request.source_platform,
+        order_notes=request.order_notes
+    )
+
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@router.patch("/postings/{posting_number}")
+async def update_posting_business_info(
+    posting_number: str,
+    request: UpdateBusinessInfoDTO,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    更新业务信息（不改变操作状态）
+
+    用于"分配中"状态下修改进货价格、采购平台、备注等字段
+    """
+    from ..services.posting_operations import PostingOperationsService
+
+    service = PostingOperationsService(db)
+    result = await service.update_business_info(
+        posting_number=posting_number,
+        purchase_price=request.purchase_price,
+        source_platform=request.source_platform,
+        order_notes=request.order_notes
+    )
+
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@router.post("/postings/{posting_number}/domestic-tracking")
+async def submit_domestic_tracking(
+    posting_number: str,
+    request: SubmitDomesticTrackingDTO,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    填写国内物流单号 + 同步跨境巴士
+
+    操作流程：
+    1. 保存国内物流单号和备注
+    2. 同步到跨境巴士
+    3. 更新操作状态为"单号确认"
+    4. 更新操作时间
+
+    幂等性：如果状态已是 tracking_confirmed，返回错误
+    """
+    from ..services.posting_operations import PostingOperationsService
+
+    service = PostingOperationsService(db)
+    result = await service.submit_domestic_tracking(
+        posting_number=posting_number,
+        domestic_tracking_number=request.domestic_tracking_number,
+        order_notes=request.order_notes
+    )
+
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
 @router.get("/orders/{posting_number}")
 async def get_order_detail(
     posting_number: str,
@@ -2088,12 +2203,13 @@ async def get_packing_orders(
     limit: int = Query(50, le=100),
     shop_id: Optional[int] = None,
     posting_number: Optional[str] = None,
+    operation_status: Optional[str] = Query(None, description="操作状态筛选：awaiting_stock/allocating/allocated/tracking_confirmed"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     获取打包发货页面的订单列表
-    - 只显示 awaiting_packaging 状态的 Posting
-    - 不返回状态统计（前端无Tabs）
+    - 支持按 operation_status 筛选（等待备货/分配中/已分配/单号确认）
+    - 如果不指定 operation_status，默认显示所有状态
     """
     from datetime import datetime
 
@@ -2105,11 +2221,15 @@ async def get_packing_orders(
         selectinload(OzonOrder.refunds)
     )
 
-    # 关联 Posting 表（必须，因为要按 Posting 状态筛选）
+    # 关联 Posting 表（必须，因为要按 Posting 操作状态筛选）
     query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
 
-    # 核心过滤：只显示 awaiting_packaging 状态的 Posting
+    # 核心过滤：按 operation_status 筛选（如果提供）
+    # 默认只显示 awaiting_packaging 状态的 Posting（向后兼容）
     query = query.where(OzonPosting.status == 'awaiting_packaging')
+
+    if operation_status:
+        query = query.where(OzonPosting.operation_status == operation_status)
 
     # 应用其他过滤条件
     if shop_id:

@@ -269,6 +269,9 @@ const PackingShipment: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [isUpdatingExtraInfo, setIsUpdatingExtraInfo] = useState(false);
 
+  // 操作状态Tab（4个状态）
+  const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
+
   // 搜索参数状态（只支持 posting_number 搜索）
   const [searchParams, setSearchParams] = useState<any>({});
 
@@ -328,17 +331,18 @@ const PackingShipment: React.FC = () => {
     sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
   };
 
-  // 查询打包发货订单列表（只显示 awaiting_packaging）
+  // 查询打包发货订单列表（根据 operation_status 筛选）
   const {
     data: ordersData,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['packingOrders', currentPage, pageSize, selectedShop, searchParams],
+    queryKey: ['packingOrders', currentPage, pageSize, selectedShop, operationStatus, searchParams],
     queryFn: () => {
       return ozonApi.getPackingOrders(currentPage, pageSize, {
         shop_id: selectedShop,
         posting_number: searchParams.posting_number,
+        operation_status: operationStatus,  // 根据tab状态筛选
       });
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
@@ -874,6 +878,49 @@ const PackingShipment: React.FC = () => {
         };
       },
     },
+    // 第五列：操作（根据 operation_status 显示不同按钮）
+    {
+      title: '操作',
+      key: 'actions',
+      width: 120,
+      fixed: 'right' as const,
+      render: (_: any, row: OrderItemRow) => {
+        // 非第一行返回 null（使用 rowSpan）
+        if (!row.isFirstItem) return null;
+
+        const posting = row.posting;
+        // TODO: 从 posting 中读取 operation_status，暂时用全局 operationStatus
+        const currentStatus = operationStatus;
+
+        return {
+          children: (
+            <Space direction="vertical" size="small">
+              {currentStatus === 'awaiting_stock' && (
+                <Button type="primary" size="small" block>
+                  备货
+                </Button>
+              )}
+              {currentStatus === 'allocating' && (
+                <Button type="default" size="small" block>
+                  备注
+                </Button>
+              )}
+              {currentStatus === 'allocated' && (
+                <Button type="primary" size="small" block>
+                  国内单号
+                </Button>
+              )}
+              {currentStatus === 'tracking_confirmed' && (
+                <Tag color="success">已完成</Tag>
+              )}
+            </Space>
+          ),
+          props: {
+            rowSpan: row.itemCount,
+          },
+        };
+      },
+    },
   ];
 
   // 处理函数
@@ -1054,6 +1101,54 @@ const PackingShipment: React.FC = () => {
           <Button icon={<DownloadOutlined />}>导出订单</Button>
         </Space>
 
+        {/* 操作状态 Tabs */}
+        <Tabs
+          activeKey={operationStatus}
+          onChange={(key) => {
+            setOperationStatus(key);
+            setCurrentPage(1); // 切换tab时重置页码
+          }}
+          items={[
+            {
+              key: 'awaiting_stock',
+              label: (
+                <span>
+                  <ClockCircleOutlined />
+                  等待备货
+                </span>
+              ),
+            },
+            {
+              key: 'allocating',
+              label: (
+                <span>
+                  <SyncOutlined spin />
+                  分配中
+                </span>
+              ),
+            },
+            {
+              key: 'allocated',
+              label: (
+                <span>
+                  <CheckCircleOutlined />
+                  已分配
+                </span>
+              ),
+            },
+            {
+              key: 'tracking_confirmed',
+              label: (
+                <span>
+                  <CheckCircleOutlined />
+                  单号确认
+                </span>
+              ),
+            },
+          ]}
+          style={{ marginTop: 16 }}
+        />
+
         {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
         <Table
           loading={isLoading}
@@ -1073,7 +1168,7 @@ const PackingShipment: React.FC = () => {
             },
             className: styles.pagination,
           }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1300 }}
           size="small"
         />
       </Card>

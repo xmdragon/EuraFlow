@@ -869,11 +869,15 @@ export const prepareOrder = async (postingNumber: string) => {
   return response.data;
 };
 
-// 获取打包发货页面订单列表（只显示awaiting_packaging状态）
+// 获取打包发货页面订单列表（支持操作状态筛选）
 export const getPackingOrders = async (
   page: number = 1,
   pageSize: number = 50,
-  params?: { shop_id?: number | null; posting_number?: string }
+  params?: {
+    shop_id?: number | null;
+    posting_number?: string;
+    operation_status?: string;  // awaiting_stock/allocating/allocated/tracking_confirmed
+  }
 ) => {
   const requestParams: any = {
     offset: (page - 1) * pageSize,
@@ -885,5 +889,54 @@ export const getPackingOrders = async (
     delete requestParams.shop_id;
   }
   const response = await apiClient.get('/ozon/packing/orders', { params: requestParams });
+  return response.data;
+};
+
+// ==================== 打包发货操作 API ====================
+
+// 备货操作请求参数
+export interface PrepareStockRequest {
+  purchase_price: string;  // 进货价格（必填）
+  source_platform?: string;  // 采购平台（可选：1688/拼多多/咸鱼/淘宝）
+  order_notes?: string;  // 订单备注（可选）
+}
+
+// 更新业务信息请求参数
+export interface UpdateBusinessInfoRequest {
+  purchase_price?: string;  // 进货价格（可选）
+  source_platform?: string;  // 采购平台（可选）
+  order_notes?: string;  // 订单备注（可选）
+}
+
+// 提交国内物流单号请求参数
+export interface SubmitDomesticTrackingRequest {
+  domestic_tracking_number: string;  // 国内物流单号（必填）
+  order_notes?: string;  // 订单备注（可选）
+}
+
+// 备货操作：保存业务信息 + 调用 OZON exemplar set API
+export const prepareStock = async (
+  postingNumber: string,
+  data: PrepareStockRequest
+) => {
+  const response = await apiClient.post(`/ozon/postings/${postingNumber}/prepare`, data);
+  return response.data;
+};
+
+// 更新业务信息（不改变操作状态）
+export const updatePostingBusinessInfo = async (
+  postingNumber: string,
+  data: UpdateBusinessInfoRequest
+) => {
+  const response = await apiClient.patch(`/ozon/postings/${postingNumber}`, data);
+  return response.data;
+};
+
+// 填写国内物流单号 + 同步跨境巴士
+export const submitDomesticTracking = async (
+  postingNumber: string,
+  data: SubmitDomesticTrackingRequest
+) => {
+  const response = await apiClient.post(`/ozon/postings/${postingNumber}/domestic-tracking`, data);
   return response.data;
 };
