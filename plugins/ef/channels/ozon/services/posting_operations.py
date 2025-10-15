@@ -104,7 +104,7 @@ class PostingOperationsService:
         # 调用 OZON API
         async with OzonAPIClient(
             client_id=shop.client_id,
-            api_key=shop.api_key,
+            api_key=shop.api_key_enc,
             shop_id=shop.id
         ) as ozon_client:
             try:
