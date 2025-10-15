@@ -1693,14 +1693,14 @@ async def get_orders(
         # 基础过滤：等待备货（不限时间） OR 其他状态且今天操作过
         query = query.where(
             or_(
-                OzonOrder.status == 'awaiting_packaging',  # 等待备货：不限时间
+                OzonPosting.status == 'awaiting_packaging',  # 等待备货：不限时间
                 cast(OzonPosting.operation_time, Date) == today  # 其他状态：限制今天
             )
         )
 
         # 如果点击了状态标签，在上述范围内进一步筛选该状态
         if status:
-            query = query.where(OzonOrder.status == status)
+            query = query.where(OzonPosting.status == status)
 
         # 去重（因为一个订单可能有多个posting）
         query = query.distinct()
@@ -1770,14 +1770,14 @@ async def get_orders(
         # 基础过滤：等待备货（不限时间） OR 其他状态且今天操作过
         count_query = count_query.where(
             or_(
-                OzonOrder.status == 'awaiting_packaging',  # 等待备货：不限时间
+                OzonPosting.status == 'awaiting_packaging',  # 等待备货：不限时间
                 cast(OzonPosting.operation_time, Date) == today  # 其他状态：限制今天
             )
         )
 
         # 如果点击了状态标签，在上述范围内进一步筛选该状态
         if status:
-            count_query = count_query.where(OzonOrder.status == status)
+            count_query = count_query.where(OzonPosting.status == status)
     elif status:
         count_query = count_query.where(OzonOrder.status == status)
 
@@ -1815,31 +1815,31 @@ async def get_orders(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
-    # 计算统计（在打包发货页面时，只统计符合过滤条件的订单）
+    # 计算统计（在打包发货页面时，只统计符合过滤条件的Posting）
     if filter == "awaiting_packaging":
-        # 打包发货页面：只统计待备货订单和今天操作过的订单
+        # 打包发货页面：只统计待备货Posting和今天操作过的Posting
         from sqlalchemy import and_, or_, cast, Date, distinct
         from datetime import date
 
         today = date.today()
 
         stats_query = select(
-            OzonOrder.status,
-            func.count(distinct(OzonOrder.id)).label('count')
-        ).join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
+            OzonPosting.status,
+            func.count(distinct(OzonPosting.id)).label('count')
+        ).join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
 
         if shop_id:
-            stats_query = stats_query.where(OzonOrder.shop_id == shop_id)
+            stats_query = stats_query.where(OzonPosting.shop_id == shop_id)
 
         # 应用相同的过滤条件
         stats_query = stats_query.where(
             or_(
-                OzonOrder.status == 'awaiting_packaging',
+                OzonPosting.status == 'awaiting_packaging',
                 cast(OzonPosting.operation_time, Date) == today
             )
         )
 
-        stats_query = stats_query.group_by(OzonOrder.status)
+        stats_query = stats_query.group_by(OzonPosting.status)
     else:
         # 其他页面：全局统计（所有状态，不受当前status筛选影响）
         # 只按shop_id筛选，包含所有状态的统计
