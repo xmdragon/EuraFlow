@@ -30,6 +30,15 @@ def update_purchase_prices_from_csv(csv_file_path: str):
     with open(csv_file_path, 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
         for row_num, row in enumerate(reader, start=1):
+            # 跳过表头行（检测是否包含中文或英文表头关键字）
+            if row_num == 1 and (
+                '货件编号' in row[0] or
+                'posting_number' in row[0].lower() or
+                '进货价格' in row[1] if len(row) > 1 else False
+            ):
+                print(f"跳过表头: {row}")
+                continue
+
             if len(row) < 2:
                 print(f"⚠️  第 {row_num} 行格式错误，跳过: {row}")
                 continue
