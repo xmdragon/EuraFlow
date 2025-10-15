@@ -382,7 +382,7 @@ const SyncServices = () => {
                 </Descriptions.Item>
               </Descriptions>
 
-              {stats.recent_errors.length > 0 && (
+              {stats.recent_errors.length > 0 && selectedService?.service_key !== 'kuajing84_material_cost' && (
                 <div style={{ marginTop: 24 }}>
                   <h4>最近错误</h4>
                   {stats.recent_errors.map((error, index) => (
