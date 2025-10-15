@@ -227,7 +227,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               children: (
                 <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
                   <Descriptions.Item label="采购平台">
-                    {selectedOrder.source_platform || '-'}
+                    {selectedPosting?.source_platform || '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label="订单备注">
                     {selectedOrder.order_notes || '-'}
