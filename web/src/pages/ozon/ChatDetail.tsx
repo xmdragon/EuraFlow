@@ -298,7 +298,6 @@ const ChatDetail: React.FC = () => {
             <Card
               title="消息记录"
               className={styles.messageCard}
-              bodyStyle={{ height: 500, overflowY: 'auto' }}
             >
               <Spin spinning={messagesLoading}>
                 {messagesData?.items && messagesData.items.length > 0 ? (
