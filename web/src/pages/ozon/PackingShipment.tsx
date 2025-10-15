@@ -272,7 +272,7 @@ const PackingShipment: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [isUpdatingExtraInfo, setIsUpdatingExtraInfo] = useState(false);
 
-  // 操作状态Tab（4个状态）
+  // 操作状态Tab（4个状态：等待备货、分配中、已分配、单号确认）
   const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
 
   // 操作弹窗状态
@@ -404,6 +404,59 @@ const PackingShipment: React.FC = () => {
 
     return flattened;
   }, [ordersData, searchParams.posting_number]);
+
+  // 查询各操作状态的数量统计（并行查询）
+  const { data: awaitingStockData } = useQuery({
+    queryKey: ['packingOrdersCount', 'awaiting_stock', selectedShop, searchParams],
+    queryFn: () => ozonApi.getPackingOrders(1, 1, {
+      shop_id: selectedShop,
+      posting_number: searchParams.posting_number,
+      operation_status: 'awaiting_stock',
+    }),
+    enabled: true,
+    staleTime: 30000, // 30秒缓存
+  });
+
+  const { data: allocatingData } = useQuery({
+    queryKey: ['packingOrdersCount', 'allocating', selectedShop, searchParams],
+    queryFn: () => ozonApi.getPackingOrders(1, 1, {
+      shop_id: selectedShop,
+      posting_number: searchParams.posting_number,
+      operation_status: 'allocating',
+    }),
+    enabled: true,
+    staleTime: 30000,
+  });
+
+  const { data: allocatedData } = useQuery({
+    queryKey: ['packingOrdersCount', 'allocated', selectedShop, searchParams],
+    queryFn: () => ozonApi.getPackingOrders(1, 1, {
+      shop_id: selectedShop,
+      posting_number: searchParams.posting_number,
+      operation_status: 'allocated',
+    }),
+    enabled: true,
+    staleTime: 30000,
+  });
+
+  const { data: trackingConfirmedData } = useQuery({
+    queryKey: ['packingOrdersCount', 'tracking_confirmed', selectedShop, searchParams],
+    queryFn: () => ozonApi.getPackingOrders(1, 1, {
+      shop_id: selectedShop,
+      posting_number: searchParams.posting_number,
+      operation_status: 'tracking_confirmed',
+    }),
+    enabled: true,
+    staleTime: 30000,
+  });
+
+  // 各状态的数量
+  const statusCounts = {
+    awaiting_stock: awaitingStockData?.total || 0,
+    allocating: allocatingData?.total || 0,
+    allocated: allocatedData?.total || 0,
+    tracking_confirmed: trackingConfirmedData?.total || 0,
+  };
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
   const orderItemRows = React.useMemo<OrderItemRow[]>(() => {
@@ -937,9 +990,6 @@ const PackingShipment: React.FC = () => {
               {currentStatus === 'tracking_confirmed' && (
                 <Tag color="success">已完成</Tag>
               )}
-              {currentStatus === 'shipping' && (
-                <Tag color="cyan" icon={<TruckOutlined />}>运输中</Tag>
-              )}
             </Space>
           ),
           props: {
@@ -1141,7 +1191,7 @@ const PackingShipment: React.FC = () => {
               label: (
                 <span>
                   <ClockCircleOutlined />
-                  等待备货
+                  等待备货({statusCounts.awaiting_stock})
                 </span>
               ),
             },
@@ -1150,7 +1200,7 @@ const PackingShipment: React.FC = () => {
               label: (
                 <span>
                   <SyncOutlined spin />
-                  分配中
+                  分配中({statusCounts.allocating})
                 </span>
               ),
             },
@@ -1159,7 +1209,7 @@ const PackingShipment: React.FC = () => {
               label: (
                 <span>
                   <CheckCircleOutlined />
-                  已分配
+                  已分配({statusCounts.allocated})
                 </span>
               ),
             },
@@ -1168,16 +1218,7 @@ const PackingShipment: React.FC = () => {
               label: (
                 <span>
                   <CheckCircleOutlined />
-                  单号确认
-                </span>
-              ),
-            },
-            {
-              key: 'shipping',
-              label: (
-                <span>
-                  <TruckOutlined />
-                  运输中
+                  单号确认({statusCounts.tracking_confirmed})
                 </span>
               ),
             },
