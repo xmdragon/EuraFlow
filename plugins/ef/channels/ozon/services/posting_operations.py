@@ -37,7 +37,7 @@ class PostingOperationsService:
         order_notes: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        备货操作：保存业务信息 + 调用 OZON exemplar set API
+        备货操作：保存业务信息 + 调用 OZON ship API（v4）
 
         Args:
             posting_number: 货件编号
@@ -50,18 +50,22 @@ class PostingOperationsService:
         """
         logger.info(f"开始备货操作，posting_number: {posting_number}, purchase_price: {purchase_price}, source_platform: {source_platform}")
 
-        # 1. 查询 posting
+        # 1. 查询 posting 和关联的 shop
         result = await self.db.execute(
-            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+            select(OzonPosting, OzonShop)
+            .join(OzonShop, OzonPosting.shop_id == OzonShop.id)
+            .where(OzonPosting.posting_number == posting_number)
         )
-        posting = result.scalar_one_or_none()
+        row = result.first()
 
-        if not posting:
+        if not row:
             logger.error(f"货件不存在: {posting_number}")
             return {
                 "success": False,
                 "message": f"货件不存在: {posting_number}"
             }
+
+        posting, shop = row
 
         logger.info(f"找到货件，当前状态: {posting.operation_status}, shop_id: {posting.shop_id}")
 
@@ -82,13 +86,47 @@ class PostingOperationsService:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
 
-        # 4. 更新操作状态为"分配中"
-        # 注意：暂时跳过 OZON exemplar API 调用
-        # exemplar API 主要用于"诚信标志"系统合规，不是所有商品都需要
-        # 如果后续需要，可以根据商品类型或其他条件选择性调用
+        # 4. 调用 OZON ship API（v4）告诉 OZON 订单已组装完成
+        try:
+            packages = self._build_packages_for_ship(posting)
+
+            # 创建 API 客户端
+            api_client = OzonAPIClient(
+                client_id=shop.client_id,
+                api_key=shop.api_key_enc,
+                shop_id=shop.id
+            )
+
+            # 调用 v4 ship API
+            logger.info(f"调用 OZON ship API (v4)，posting_number: {posting_number}, packages: {packages}")
+            ship_result = await api_client.ship_posting_v4(
+                posting_number=posting_number,
+                packages=packages
+            )
+            await api_client.close()
+
+            logger.info(f"OZON ship API 调用成功，posting_number: {posting_number}, result: {ship_result}")
+
+        except Exception as e:
+            logger.error(f"调用 OZON ship API 失败，posting_number: {posting_number}, error: {str(e)}")
+            # OZON API 调用失败不回滚数据库事务，因为业务信息已保存
+            # 返回部分成功的结果
+            await self.db.commit()
+            await self.db.refresh(posting)
+            return {
+                "success": False,
+                "message": f"业务信息已保存，但 OZON API 调用失败：{str(e)}",
+                "data": {
+                    "posting_number": posting.posting_number,
+                    "operation_status": posting.operation_status,
+                    "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
+                }
+            }
+
+        # 5. 更新操作状态为"分配中"
         posting.operation_status = "allocating"
 
-        # 5. 提交数据库事务
+        # 6. 提交数据库事务
         await self.db.commit()
         await self.db.refresh(posting)
 
@@ -256,47 +294,38 @@ class PostingOperationsService:
             }
         }
 
-    async def _build_exemplar_products(self, posting: OzonPosting) -> list:
+    def _build_packages_for_ship(self, posting: OzonPosting) -> list:
         """
-        从 posting.raw_payload 提取商品信息并构造 OZON exemplar API 所需的 products 数据
+        从 posting.raw_payload 提取商品信息并构造 /v4/posting/fbs/ship API 所需的 packages 数据
 
         Args:
             posting: OzonPosting 实例
 
         Returns:
-            products 数据列表
+            packages 数据列表
         """
         if not posting.raw_payload or "products" not in posting.raw_payload:
             raise ValueError("无法从 posting 中提取商品信息（raw_payload.products 不存在）")
 
-        products_data = []
+        # 构建单个包裹的 products 列表
+        products = []
         for product in posting.raw_payload["products"]:
-            # 提取 product_id（OZON 的商品ID，不是 offer_id）
-            # 注意：raw_payload 中的 product 可能包含 sku 字段（即 OZON product_id）
+            # 提取 product_id（OZON 的商品ID，即 sku 字段）
             product_id = product.get("sku")
             if not product_id:
-                # 如果没有 sku，尝试从其他字段获取
                 logger.warning(f"商品缺少 product_id/sku: {product}")
                 continue
 
             # 提取数量
             quantity = product.get("quantity", 1)
 
-            # 为每个数量创建一个 exemplar（OZON API 要求）
-            exemplars = []
-            for _ in range(quantity):
-                exemplars.append({
-                    "is_gtd_absent": True,   # 无海关申报单号
-                    "is_rnpt_absent": True,  # 无 RNPT 编号
-                    "marks": []              # 无标记
-                })
-
-            products_data.append({
-                "product_id": int(product_id),  # 必须是整数
-                "exemplars": exemplars
+            products.append({
+                "product_id": int(product_id),
+                "quantity": quantity
             })
 
-        if not products_data:
-            raise ValueError("无法构造 exemplar products 数据（没有有效的商品）")
+        if not products:
+            raise ValueError("无法构造 packages 数据（没有有效的商品）")
 
-        return products_data
+        # 返回单个包裹（大多数订单是单包裹）
+        return [{"products": products}]

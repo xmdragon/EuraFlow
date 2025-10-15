@@ -519,6 +519,38 @@ class OzonAPIClient:
 
         return await self._request("POST", "/v2/posting/fbs/ship", data=data, resource_type="postings")
 
+    async def ship_posting_v4(
+        self, posting_number: str, packages: List[Dict], with_additional_data: bool = True
+    ) -> Dict[str, Any]:
+        """
+        搜集订单（备货操作）- 告诉 OZON 订单已经组装完成
+        使用 /v4/posting/fbs/ship 接口
+
+        此操作会将订单状态从 awaiting_packaging 改为 awaiting_deliver
+
+        Args:
+            posting_number: 发货单号
+            packages: 包裹列表
+                [{
+                    "products": [
+                        {"product_id": 商品ID, "quantity": 数量}
+                    ]
+                }]
+            with_additional_data: 是否返回额外数据（默认True）
+
+        Returns:
+            操作结果
+        """
+        data = {
+            "posting_number": posting_number,
+            "packages": packages,
+            "with": {
+                "additional_data": with_additional_data
+            }
+        }
+
+        return await self._request("POST", "/v4/posting/fbs/ship", data=data, resource_type="postings")
+
     async def cancel_posting(
         self, posting_number: str, cancel_reason_id: int, cancel_reason_message: str = ""
     ) -> Dict[str, Any]:
