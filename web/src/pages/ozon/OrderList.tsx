@@ -949,7 +949,7 @@ const OrderList: React.FC = () => {
                 label: '基本信息',
                 key: '1',
                 children: (
-                  <Descriptions bordered column={2}>
+                  <Descriptions bordered column={2} labelStyle={{ width: '120px' }}>
                     <Descriptions.Item label="Ozon订单号">
                       {selectedOrder.ozon_order_id || selectedOrder.order_id}
                     </Descriptions.Item>
@@ -1070,7 +1070,7 @@ const OrderList: React.FC = () => {
                 key: '3',
                 children: selectedOrder.postings?.map((posting) => (
                   <Card key={posting.id} className={styles.postingCard}>
-                    <Descriptions bordered size="small" column={1}>
+                    <Descriptions bordered size="small" column={1} labelStyle={{ width: '120px' }}>
                       <Descriptions.Item label="Posting号">
                         {posting.posting_number}
                       </Descriptions.Item>
@@ -1116,7 +1116,7 @@ const OrderList: React.FC = () => {
                 label: '额外信息',
                 key: '4',
                 children: (
-                  <Descriptions bordered column={1}>
+                  <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
                     <Descriptions.Item label="采购平台">
                       {selectedOrder.source_platform || '-'}
                     </Descriptions.Item>
