@@ -374,6 +374,7 @@ export interface OrderFilter {
   date_to?: string;
   customer_phone?: string;
   posting_number?: string;
+  filter?: string;  // 特殊过滤器（如：awaiting_packaging）
 }
 
 export interface ShipmentRequest {

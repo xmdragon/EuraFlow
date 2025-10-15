@@ -56,6 +56,7 @@ import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../u
 import { useCurrency } from '../../hooks/useCurrency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import styles from './OrderList.module.scss';
+import { useLocation } from 'react-router-dom';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -251,6 +252,11 @@ interface OrderItemRow {
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency, symbol: userSymbol } = useCurrency();
+  const location = useLocation();
+
+  // 从URL读取filter参数
+  const urlParams = new URLSearchParams(location.search);
+  const urlFilter = urlParams.get('filter');
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -334,7 +340,7 @@ const OrderList: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonOrders', currentPage, pageSize, activeTab, selectedShop, searchParams],
+    queryKey: ['ozonOrders', currentPage, pageSize, activeTab, selectedShop, searchParams, urlFilter],
     queryFn: () => {
       const dateRange = searchParams.dateRange;
 
@@ -345,6 +351,7 @@ const OrderList: React.FC = () => {
         date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
         date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
         dateRange: undefined,
+        filter: urlFilter || undefined,  // 添加filter参数
       });
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
