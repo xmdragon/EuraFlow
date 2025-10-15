@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
@@ -101,7 +101,7 @@ class Kuajing84MaterialCostSyncService:
                 .where(OzonPosting.status != 'awaiting_packaging')  # 排除等待备货
                 .where(OzonPosting.status != 'cancelled')  # 排除已取消
                 .where(OzonPosting.is_cancelled == False)  # 排除已取消标志
-                .where(OzonPosting.kuajing84_sync_error != '订单不存在')  # 排除已标记不存在的订单
+                .where(or_(OzonPosting.kuajing84_sync_error != '订单不存在', OzonPosting.kuajing84_sync_error == None))  # 排除已标记不存在的订单（但包含NULL）
                 .where(OzonPosting.created_at >= ninety_days_ago)  # 只查询90天内
                 .order_by(OzonPosting.created_at.asc())  # 升序：最旧的优先
                 .limit(self.batch_size)
