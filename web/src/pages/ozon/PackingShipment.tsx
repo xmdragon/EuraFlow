@@ -56,6 +56,9 @@ import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../u
 import { useCurrency } from '../../hooks/useCurrency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
+import PrepareStockModal from '@/components/ozon/PrepareStockModal';
+import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
+import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import styles from './OrderList.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -271,6 +274,12 @@ const PackingShipment: React.FC = () => {
 
   // 操作状态Tab（4个状态）
   const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
+
+  // 操作弹窗状态
+  const [prepareStockModalVisible, setPrepareStockModalVisible] = useState(false);
+  const [updateBusinessInfoModalVisible, setUpdateBusinessInfoModalVisible] = useState(false);
+  const [domesticTrackingModalVisible, setDomesticTrackingModalVisible] = useState(false);
+  const [currentPosting, setCurrentPosting] = useState<ozonApi.Posting | null>(null);
 
   // 搜索参数状态（只支持 posting_number 搜索）
   const [searchParams, setSearchParams] = useState<any>({});
@@ -892,21 +901,36 @@ const PackingShipment: React.FC = () => {
         // TODO: 从 posting 中读取 operation_status，暂时用全局 operationStatus
         const currentStatus = operationStatus;
 
+        const handlePrepareStock = () => {
+          setCurrentPosting(posting);
+          setPrepareStockModalVisible(true);
+        };
+
+        const handleUpdateBusinessInfo = () => {
+          setCurrentPosting(posting);
+          setUpdateBusinessInfoModalVisible(true);
+        };
+
+        const handleSubmitTracking = () => {
+          setCurrentPosting(posting);
+          setDomesticTrackingModalVisible(true);
+        };
+
         return {
           children: (
             <Space direction="vertical" size="small">
               {currentStatus === 'awaiting_stock' && (
-                <Button type="primary" size="small" block>
+                <Button type="primary" size="small" block onClick={handlePrepareStock}>
                   备货
                 </Button>
               )}
               {currentStatus === 'allocating' && (
-                <Button type="default" size="small" block>
+                <Button type="default" size="small" block onClick={handleUpdateBusinessInfo}>
                   备注
                 </Button>
               )}
               {currentStatus === 'allocated' && (
-                <Button type="primary" size="small" block>
+                <Button type="primary" size="small" block onClick={handleSubmitTracking}>
                   国内单号
                 </Button>
               )}
@@ -1184,6 +1208,7 @@ const PackingShipment: React.FC = () => {
         offerIdImageMap={offerIdImageMap}
         formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
       />
+
       {/* 发货弹窗 */}
       <Modal
         title={`发货 - ${selectedOrder?.order_id}`}
@@ -1246,6 +1271,38 @@ const PackingShipment: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 备货弹窗 */}
+      {currentPosting && (
+        <PrepareStockModal
+          visible={prepareStockModalVisible}
+          onCancel={() => setPrepareStockModalVisible(false)}
+          postingNumber={currentPosting.posting_number}
+        />
+      )}
+
+      {/* 更新业务信息弹窗 */}
+      {currentPosting && (
+        <UpdateBusinessInfoModal
+          visible={updateBusinessInfoModalVisible}
+          onCancel={() => setUpdateBusinessInfoModalVisible(false)}
+          postingNumber={currentPosting.posting_number}
+          currentData={{
+            purchase_price: currentPosting.order?.purchase_price,
+            source_platform: currentPosting.source_platform,
+            order_notes: currentPosting.order?.order_notes,
+          }}
+        />
+      )}
+
+      {/* 国内物流单号弹窗 */}
+      {currentPosting && (
+        <DomesticTrackingModal
+          visible={domesticTrackingModalVisible}
+          onCancel={() => setDomesticTrackingModalVisible(false)}
+          postingNumber={currentPosting.posting_number}
+        />
+      )}
     </div>
   );
 };
