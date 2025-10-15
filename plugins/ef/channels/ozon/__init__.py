@@ -131,7 +131,16 @@ async def setup(hooks) -> None:
         )
         print("✓ Registered kuajing84_material_cost sync service handler")
 
-        # 2. 注册OZON商品订单增量同步服务（封装）
+        # 2. 注册OZON财务费用同步服务
+        from .services.ozon_finance_sync_service import get_ozon_finance_sync_service
+        finance_service = get_ozon_finance_sync_service()
+        scheduler.register_handler(
+            service_key="ozon_finance_sync",
+            handler=finance_service.sync_finance_costs
+        )
+        print("✓ Registered ozon_finance_sync service handler")
+
+        # 3. 注册OZON商品订单增量同步服务（封装）
         async def ozon_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
             """OZON商品订单增量同步处理函数"""
             import uuid

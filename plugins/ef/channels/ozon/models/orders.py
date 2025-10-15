@@ -276,6 +276,12 @@ class OzonPosting(Base):
     kuajing84_sync_error = Column(String(200), comment="跨境巴士同步错误信息（如'订单不存在'则跳过后续同步）")
     kuajing84_last_sync_at = Column(DateTime(timezone=True), comment="最后尝试同步跨境巴士的时间")
 
+    # 财务费用字段（CNY）
+    last_mile_delivery_fee_cny = Column(Numeric(18, 2), comment="尾程派送费(CNY)")
+    international_logistics_fee_cny = Column(Numeric(18, 2), comment="国际物流费(CNY)")
+    ozon_commission_cny = Column(Numeric(18, 2), comment="Ozon佣金(CNY)")
+    finance_synced_at = Column(DateTime(timezone=True), comment="财务同步时间")
+
     # 时间
     in_process_at = Column(DateTime(timezone=True))
     shipped_at = Column(DateTime(timezone=True))
