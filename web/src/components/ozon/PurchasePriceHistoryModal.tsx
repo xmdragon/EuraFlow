@@ -57,6 +57,16 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       },
     },
     {
+      title: '日期',
+      dataIndex: 'updated_at',
+      key: 'date',
+      width: 100,
+      render: (time: string | null) => {
+        if (!time) return '-';
+        return moment(time).format('MM-DD');
+      },
+    },
+    {
       title: '采购平台',
       dataIndex: 'source_platform',
       key: 'source_platform',
