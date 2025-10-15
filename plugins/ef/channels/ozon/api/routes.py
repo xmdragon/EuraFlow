@@ -2340,7 +2340,7 @@ async def get_product_purchase_price_history(
 
     # 1. 查询商品名称（从products表）
     product_result = await db.execute(
-        select(OzonProduct.name, OzonProduct.offer_id)
+        select(OzonProduct.title, OzonProduct.offer_id)
         .where(OzonProduct.sku == str(sku))
         .limit(1)
     )
@@ -2350,6 +2350,8 @@ async def get_product_purchase_price_history(
 
     # 2. 查询该SKU的进货价格历史（从postings表的raw_payload中匹配）
     # 使用JSONB查询：raw_payload->'products'数组中任意元素的sku字段匹配
+    # 使用PostgreSQL的@>运算符检查JSONB数组是否包含指定元素
+    # 注意：raw_payload中的sku是整数类型，需要转换
     query = (
         select(
             OzonPosting.posting_number,
@@ -2361,7 +2363,9 @@ async def get_product_purchase_price_history(
         .where(
             and_(
                 OzonPosting.purchase_price.isnot(None),  # 必须有进货价格
-                OzonPosting.raw_payload['products'].contains([{'sku': str(sku)}])  # JSONB数组包含查询
+                OzonPosting.raw_payload['products'].op('@>')(
+                    cast([{'sku': int(sku)}], JSONB)
+                )  # JSONB数组包含查询：sku为整数
             )
         )
         .order_by(
