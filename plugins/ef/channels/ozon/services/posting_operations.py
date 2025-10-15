@@ -48,7 +48,7 @@ class PostingOperationsService:
         Returns:
             操作结果
         """
-        logger.info(f"开始备货操作，posting_number: {posting_number}")
+        logger.info(f"开始备货操作，posting_number: {posting_number}, purchase_price: {purchase_price}, source_platform: {source_platform}")
 
         # 1. 查询 posting
         result = await self.db.execute(
@@ -57,13 +57,17 @@ class PostingOperationsService:
         posting = result.scalar_one_or_none()
 
         if not posting:
+            logger.error(f"货件不存在: {posting_number}")
             return {
                 "success": False,
                 "message": f"货件不存在: {posting_number}"
             }
 
+        logger.info(f"找到货件，当前状态: {posting.operation_status}, shop_id: {posting.shop_id}")
+
         # 2. 幂等性检查：如果状态已 >= allocating，禁止重复操作
         if posting.operation_status in ["allocating", "allocated", "tracking_confirmed"]:
+            logger.warning(f"货件已完成备货操作，当前状态：{posting.operation_status}")
             return {
                 "success": False,
                 "message": f"该货件已完成备货操作，当前状态：{posting.operation_status}"
@@ -81,6 +85,7 @@ class PostingOperationsService:
         # 4. 构造 OZON exemplar API 请求数据
         try:
             products_data = await self._build_exemplar_products(posting)
+            logger.info(f"构造的 exemplar products 数据: {products_data}")
         except Exception as e:
             logger.error(f"构造 exemplar 数据失败: {e}")
             return {
@@ -108,6 +113,7 @@ class PostingOperationsService:
             shop_id=shop.id
         ) as ozon_client:
             try:
+                logger.info(f"准备调用 OZON set_exemplar API, posting_number: {posting_number}, multi_box_qty: 0, products: {products_data}")
                 ozon_response = await ozon_client.set_exemplar(
                     posting_number=posting_number,
                     products=products_data,
@@ -115,7 +121,7 @@ class PostingOperationsService:
                 )
                 logger.info(f"OZON exemplar set API 调用成功: {ozon_response}")
             except Exception as e:
-                logger.error(f"OZON exemplar set API 调用失败: {e}")
+                logger.error(f"OZON exemplar set API 调用失败: {e}", exc_info=True)
                 # 回滚数据库事务
                 await self.db.rollback()
                 return {
