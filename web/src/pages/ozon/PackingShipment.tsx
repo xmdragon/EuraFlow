@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any */
 /**
- * Ozon 订单列表页面
+ * Ozon 打包发货页面 - 只显示等待备货的订单
  */
 import {
   SyncOutlined,
@@ -248,7 +248,7 @@ interface OrderItemRow {
   itemCount: number;                // 该posting的商品总数（用于rowSpan）
 }
 
-const OrderList: React.FC = () => {
+const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency, symbol: userSymbol } = useCurrency();
 
@@ -264,12 +264,11 @@ const OrderList: React.FC = () => {
   const [shipModalVisible, setShipModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
-  const [activeTab, setActiveTab] = useState('all');
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [isUpdatingExtraInfo, setIsUpdatingExtraInfo] = useState(false);
 
-  // 搜索参数状态
+  // 搜索参数状态（只支持 posting_number 搜索）
   const [searchParams, setSearchParams] = useState<any>({});
 
   // 复制功能处理函数
@@ -328,23 +327,17 @@ const OrderList: React.FC = () => {
     sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
   };
 
-  // 查询订单列表
+  // 查询打包发货订单列表（只显示 awaiting_packaging）
   const {
     data: ordersData,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonOrders', currentPage, pageSize, activeTab, selectedShop, searchParams],
+    queryKey: ['packingOrders', currentPage, pageSize, selectedShop, searchParams],
     queryFn: () => {
-      const dateRange = searchParams.dateRange;
-
-      return ozonApi.getOrders(currentPage, pageSize, {
-        ...searchParams,
+      return ozonApi.getPackingOrders(currentPage, pageSize, {
         shop_id: selectedShop,
-        status: activeTab === 'all' ? undefined : activeTab,
-        date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
-        date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
-        dateRange: undefined,
+        posting_number: searchParams.posting_number,
       });
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
@@ -955,9 +948,6 @@ const OrderList: React.FC = () => {
             setCurrentPage(1); // 搜索时重置到第一页
           }}
         >
-          <Form.Item name="dateRange">
-            <RangePicker />
-          </Form.Item>
           <Form.Item name="posting_number">
             <Input placeholder="货件编号" prefix={<SearchOutlined />} />
           </Form.Item>
@@ -980,43 +970,8 @@ const OrderList: React.FC = () => {
         </Form>
       </Card>
 
-      {/* 订单列表 */}
+      {/* 打包发货列表 */}
       <Card className={styles.listCard}>
-        {/* 状态标签页 */}
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => {
-            setActiveTab(key);
-            setCurrentPage(1); // 切换Tab时重置到第一页
-          }}
-          items={[
-            {
-              label: `等待备货 ${stats.awaiting_packaging || 0}`,
-              key: 'awaiting_packaging',
-            },
-            {
-              label: `等待发运 ${stats.awaiting_deliver || 0}`,
-              key: 'awaiting_deliver',
-            },
-            {
-              label: `运输中 ${stats.delivering || 0}`,
-              key: 'delivering',
-            },
-            {
-              label: `已签收 ${stats.delivered || 0}`,
-              key: 'delivered',
-            },
-            {
-              label: `已取消 ${stats.cancelled || 0}`,
-              key: 'cancelled',
-            },
-            {
-              label: '所有',
-              key: 'all',
-            },
-          ]}
-        />
-
         {/* 操作按钮 */}
         <Space className={styles.actionSpace}>
           <Button
@@ -1413,4 +1368,4 @@ const OrderList: React.FC = () => {
   );
 };
 
-export default OrderList;
+export default PackingShipment;

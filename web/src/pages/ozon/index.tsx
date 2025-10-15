@@ -8,6 +8,7 @@ import { Routes, Route } from 'react-router-dom';
 // 路由懒加载
 const Dashboard = lazy(() => import('./Dashboard'));
 const OrderList = lazy(() => import('./OrderList'));
+const PackingShipment = lazy(() => import('./PackingShipment'));
 const OrderReport = lazy(() => import('./OrderReport'));
 const ProductList = lazy(() => import('./ProductList'));
 const ShopSettings = lazy(() => import('./ShopSettings'));
@@ -33,6 +34,7 @@ const OzonManagement: React.FC = () => {
         <Route path="selection" element={<ProductSelection />} />
         <Route path="products" element={<ProductList />} />
         <Route path="orders" element={<OrderList />} />
+        <Route path="packing" element={<PackingShipment />} />
         <Route path="reports" element={<OrderReport />} />
         <Route path="watermark" element={<WatermarkManagement />} />
         <Route path="api-keys" element={<ApiKeys />} />

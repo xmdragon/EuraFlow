@@ -1655,12 +1655,11 @@ async def get_orders(
     order_type: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    filter: Optional[str] = Query(None, description="特殊过滤器：awaiting_packaging - 显示待备货订单和今天操作过的订单"),
     db: AsyncSession = Depends(get_async_session)
     # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
 ):
     """获取 Ozon 订单列表，支持多种搜索条件"""
-    from datetime import datetime, date
+    from datetime import datetime
 
     # 构建查询（使用 selectinload 避免懒加载问题）
     from sqlalchemy.orm import selectinload
@@ -1675,48 +1674,13 @@ async def get_orders(
         query = query.where(OzonOrder.shop_id == shop_id)
     # 不再设置默认店铺
 
-    # 标记是否已经关联了 OzonPosting 表
-    posting_joined = False
-
-    # 打包发货页面特殊过滤逻辑
-    if filter == "awaiting_packaging":
-        # 需要关联 OzonPosting 表来访问 operation_time 字段
-        from sqlalchemy import and_, or_, cast, Date
-
-        # 获取今天的日期（UTC）
-        today = date.today()
-
-        # 关联 posting 表
-        query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
-        posting_joined = True
-
-        # 基础过滤：等待备货（不限时间） OR 其他状态且今天操作过
-        query = query.where(
-            or_(
-                OzonPosting.status == 'awaiting_packaging',  # 等待备货：不限时间
-                cast(OzonPosting.operation_time, Date) == today  # 其他状态：限制今天
-            )
-        )
-
-        # 如果点击了状态标签，在上述范围内进一步筛选该状态
-        if status:
-            query = query.where(OzonPosting.status == status)
-
-        # 去重（因为一个订单可能有多个posting，使用distinct on id）
-        # PostgreSQL要求DISTINCT ON的字段必须出现在ORDER BY的开头
-        query = query.distinct(OzonOrder.id).order_by(OzonOrder.id, OzonOrder.ordered_at.desc())
-    elif status:
-        # 普通页面：只按status筛选
+    if status:
         query = query.where(OzonOrder.status == status)
 
     # 搜索条件
     if posting_number:
         # 搜索订单号、Ozon订单号或通过posting关联
-        if not posting_joined:
-            query = query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id)
-            posting_joined = True
-
-        query = query.where(
+        query = query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
             (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
             (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
             (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
@@ -1750,44 +1714,15 @@ async def get_orders(
             logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
 
     # 执行查询获取总数（重新构建查询以避免 subquery 问题）
-    count_query = select(func.count(OzonOrder.id.distinct()))
+    count_query = select(func.count(OzonOrder.id))
 
     # 应用相同的过滤条件
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
-
-    # 标记 count_query 是否已经关联了 OzonPosting
-    count_posting_joined = False
-
-    # 打包发货页面特殊过滤逻辑（与主查询保持一致）
-    if filter == "awaiting_packaging":
-        from sqlalchemy import and_, or_, cast, Date
-        from datetime import date
-
-        today = date.today()
-        count_query = count_query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
-        count_posting_joined = True
-
-        # 基础过滤：等待备货（不限时间） OR 其他状态且今天操作过
-        count_query = count_query.where(
-            or_(
-                OzonPosting.status == 'awaiting_packaging',  # 等待备货：不限时间
-                cast(OzonPosting.operation_time, Date) == today  # 其他状态：限制今天
-            )
-        )
-
-        # 如果点击了状态标签，在上述范围内进一步筛选该状态
-        if status:
-            count_query = count_query.where(OzonPosting.status == status)
-    elif status:
+    if status:
         count_query = count_query.where(OzonOrder.status == status)
-
     if posting_number:
-        if not count_posting_joined:
-            count_query = count_query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id)
-            count_posting_joined = True
-
-        count_query = count_query.where(
+        count_query = count_query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
             (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
             (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
             (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
@@ -1816,41 +1751,15 @@ async def get_orders(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
-    # 计算统计（在打包发货页面时，只统计符合过滤条件的Posting）
-    if filter == "awaiting_packaging":
-        # 打包发货页面：只统计待备货Posting和今天操作过的Posting
-        from sqlalchemy import and_, or_, cast, Date, distinct
-        from datetime import date
-
-        today = date.today()
-
-        stats_query = select(
-            OzonPosting.status,
-            func.count(distinct(OzonPosting.id)).label('count')
-        ).join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
-
-        if shop_id:
-            stats_query = stats_query.where(OzonPosting.shop_id == shop_id)
-
-        # 应用相同的过滤条件
-        stats_query = stats_query.where(
-            or_(
-                OzonPosting.status == 'awaiting_packaging',
-                cast(OzonPosting.operation_time, Date) == today
-            )
-        )
-
-        stats_query = stats_query.group_by(OzonPosting.status)
-    else:
-        # 其他页面：全局统计（所有状态，不受当前status筛选影响）
-        # 只按shop_id筛选，包含所有状态的统计
-        stats_query = select(
-            OzonOrder.status,
-            func.count(OzonOrder.id).label('count')
-        )
-        if shop_id:
-            stats_query = stats_query.where(OzonOrder.shop_id == shop_id)
-        stats_query = stats_query.group_by(OzonOrder.status)
+    # 计算全局统计（所有状态，不受当前status筛选影响）
+    # 只按shop_id筛选，包含所有状态的统计
+    stats_query = select(
+        OzonOrder.status,
+        func.count(OzonOrder.id).label('count')
+    )
+    if shop_id:
+        stats_query = stats_query.where(OzonOrder.shop_id == shop_id)
+    stats_query = stats_query.group_by(OzonOrder.status)
 
     stats_result = await db.execute(stats_query)
     status_counts = {row.status: row.count for row in stats_result}
@@ -1869,10 +1778,8 @@ async def get_orders(
         "confirmed": status_counts.get('confirmed', 0),
     }
 
-    # 添加分页和排序（打包发货页面已经在前面设置了ORDER BY）
-    if filter != "awaiting_packaging":
-        query = query.order_by(OzonOrder.ordered_at.desc())
-    query = query.offset(offset).limit(limit)
+    # 添加分页
+    query = query.offset(offset).limit(limit).order_by(OzonOrder.ordered_at.desc())
 
     # 执行查询
     result = await db.execute(query)
@@ -2171,6 +2078,124 @@ async def sync_orders(
         "message": f"订单{'全量' if mode == 'full' else '增量'}同步已启动",
         "task_id": task_id,
         "sync_mode": mode
+    }
+
+
+# 打包发货页面专用API
+@router.get("/packing/orders")
+async def get_packing_orders(
+    offset: int = 0,
+    limit: int = Query(50, le=100),
+    shop_id: Optional[int] = None,
+    posting_number: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取打包发货页面的订单列表
+    - 只显示 awaiting_packaging 状态的 Posting
+    - 不返回状态统计（前端无Tabs）
+    """
+    from datetime import datetime
+
+    # 构建查询（使用 selectinload 避免懒加载问题）
+    from sqlalchemy.orm import selectinload
+    query = select(OzonOrder).options(
+        selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+        selectinload(OzonOrder.items),
+        selectinload(OzonOrder.refunds)
+    )
+
+    # 关联 Posting 表（必须，因为要按 Posting 状态筛选）
+    query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
+
+    # 核心过滤：只显示 awaiting_packaging 状态的 Posting
+    query = query.where(OzonPosting.status == 'awaiting_packaging')
+
+    # 应用其他过滤条件
+    if shop_id:
+        query = query.where(OzonOrder.shop_id == shop_id)
+
+    # 搜索条件
+    if posting_number:
+        query = query.where(
+            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
+            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
+            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
+        )
+
+    # 去重（因为一个订单可能有多个posting，使用distinct on id）
+    # PostgreSQL要求DISTINCT ON的字段必须出现在ORDER BY的开头
+    query = query.distinct(OzonOrder.id).order_by(OzonOrder.id, OzonOrder.ordered_at.desc())
+
+    # 执行查询获取总数
+    count_query = select(func.count(OzonOrder.id.distinct())).select_from(OzonOrder).join(
+        OzonPosting, OzonOrder.id == OzonPosting.order_id
+    ).where(OzonPosting.status == 'awaiting_packaging')
+
+    if shop_id:
+        count_query = count_query.where(OzonOrder.shop_id == shop_id)
+    if posting_number:
+        count_query = count_query.where(
+            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
+            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
+            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
+        )
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
+
+    # 添加分页
+    query = query.offset(offset).limit(limit)
+
+    # 执行查询
+    result = await db.execute(query)
+    orders = result.scalars().all()
+
+    # 提取所有订单中的offer_id
+    all_offer_ids = set()
+    for order in orders:
+        if order.items:
+            for item in order.items:
+                if item.offer_id:
+                    all_offer_ids.add(item.offer_id)
+
+    # 批量查询商品图片（使用offer_id匹配）
+    offer_id_images = {}
+    if all_offer_ids:
+        product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
+            OzonProduct.offer_id.in_(list(all_offer_ids))
+        )
+        if shop_id:
+            product_query = product_query.where(OzonProduct.shop_id == shop_id)
+        products_result = await db.execute(product_query)
+        for offer_id, images in products_result:
+            if offer_id and images:
+                # 优先使用primary图片，否则使用第一张
+                if isinstance(images, dict):
+                    if images.get("primary"):
+                        offer_id_images[offer_id] = images["primary"]
+                    elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                        offer_id_images[offer_id] = images["main"][0]
+                elif isinstance(images, list) and images:
+                    offer_id_images[offer_id] = images[0]
+
+    # 将图片信息添加到订单数据中
+    orders_data = []
+    for order in orders:
+        order_dict = order.to_dict()
+        # 为每个订单项添加图片
+        if order_dict.get("items"):
+            for item in order_dict["items"]:
+                if item.get("offer_id") and item["offer_id"] in offer_id_images:
+                    item["image"] = offer_id_images[item["offer_id"]]
+        orders_data.append(order_dict)
+
+    return {
+        "data": orders_data,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "offer_id_images": offer_id_images
     }
 
 

@@ -116,7 +116,7 @@ const Dashboard: React.FC = () => {
           key: 'ozon-packing',
           icon: <ShoppingCartOutlined />,
           label: '打包发货',
-          onClick: () => navigate('/dashboard/ozon/orders?filter=awaiting_packaging'),
+          onClick: () => navigate('/dashboard/ozon/packing'),
         },
         {
           key: 'ozon-reports',
@@ -185,10 +185,9 @@ const Dashboard: React.FC = () => {
   // 根据路径获取选中的菜单项
   const getSelectedKey = () => {
     const path = location.pathname;
-    const search = location.search;
     if (path.includes('/ozon/selection')) return 'ozon-selection';
     if (path.includes('/ozon/products')) return 'ozon-products';
-    if (path.includes('/ozon/orders') && search.includes('filter=awaiting_packaging')) return 'ozon-packing';
+    if (path.includes('/ozon/packing')) return 'ozon-packing';
     if (path.includes('/ozon/orders')) return 'ozon-orders';
     if (path.includes('/ozon/reports')) return 'ozon-reports';
     if (path.includes('/ozon/chat')) return 'ozon-chats';

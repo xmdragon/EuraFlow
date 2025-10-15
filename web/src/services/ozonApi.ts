@@ -374,7 +374,6 @@ export interface OrderFilter {
   date_to?: string;
   customer_phone?: string;
   posting_number?: string;
-  filter?: string;  // 特殊过滤器（如：awaiting_packaging）
 }
 
 export interface ShipmentRequest {
@@ -867,5 +866,24 @@ export const prepareOrder = async (postingNumber: string) => {
   const response = await apiClient.post('/ozon/orders/prepare', {
     posting_number: postingNumber,
   });
+  return response.data;
+};
+
+// 获取打包发货页面订单列表（只显示awaiting_packaging状态）
+export const getPackingOrders = async (
+  page: number = 1,
+  pageSize: number = 50,
+  params?: { shop_id?: number | null; posting_number?: string }
+) => {
+  const requestParams: any = {
+    offset: (page - 1) * pageSize,
+    limit: pageSize,
+    ...params,
+  };
+  // 如果shop_id为null（全部店铺），不传递该参数
+  if (requestParams.shop_id === null) {
+    delete requestParams.shop_id;
+  }
+  const response = await apiClient.get('/ozon/packing/orders', { params: requestParams });
   return response.data;
 };
