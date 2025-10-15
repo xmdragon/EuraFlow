@@ -74,116 +74,130 @@ class OzonFinanceSyncService:
 
             logger.info(f"Found {len(postings)} postings to process (status=delivered, finance_synced_at IS NULL)")
 
-            # 2. 获取店铺配置（假设所有posting来自同一个店铺）
-            shop_id = postings[0].shop_id
-            shop_result = await session.execute(
-                select(OzonShop).where(OzonShop.id == shop_id)
-            )
-            shop = shop_result.scalar_one_or_none()
+            # 2. 按店铺分组postings
+            from collections import defaultdict
+            postings_by_shop = defaultdict(list)
+            for posting in postings:
+                postings_by_shop[posting.shop_id].append(posting)
 
-            if not shop:
-                logger.error(f"Shop {shop_id} not found")
-                return {
-                    **stats,
-                    "message": f"店铺{shop_id}不存在"
-                }
+            logger.info(f"Postings grouped by {len(postings_by_shop)} shop(s)")
 
-            # 3. 创建API客户端
-            async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop.id) as client:
-                # 4. 循环处理每个货件
-                for posting in postings:
-                    posting_number = posting.posting_number
-                    logger.info(f"Processing posting {posting.id} with posting_number: {posting_number}")
-                    stats["records_processed"] += 1
-                    stats["posting_numbers"].append(posting_number)
+            # 3. 遍历每个店铺
+            for shop_id, shop_postings in postings_by_shop.items():
+                # 获取店铺配置
+                shop_result = await session.execute(
+                    select(OzonShop).where(OzonShop.id == shop_id)
+                )
+                shop = shop_result.scalar_one_or_none()
 
-                    # 记录开始时间
-                    started_at = datetime.now(timezone.utc)
-                    run_id = f"ozon_finance_sync_{uuid.uuid4().hex[:12]}"
-
-                    try:
-                        # 5. 调用财务交易API
-                        logger.info(f"Fetching finance transactions for {posting_number}")
-                        response = await client.get_finance_transaction_list(
-                            posting_number=posting_number,
-                            transaction_type="all",
-                            page=1,
-                            page_size=1000
-                        )
-
-                        result = response.get("result", {})
-                        operations = result.get("operations", [])
-
-                        if not operations:
-                            logger.warning(f"No finance transactions found for {posting_number}")
-                            stats["records_skipped"] += 1
-                            await self._create_log(
-                                session, run_id, posting_number, posting.id,
-                                started_at, "skipped", "无财务交易记录"
-                            )
-                            continue
-
-                        # 6. 计算历史汇率
-                        exchange_rate = await self._calculate_exchange_rate(posting, operations)
-
-                        if exchange_rate is None or exchange_rate <= 0:
-                            logger.warning(f"Invalid exchange rate for {posting_number}, skipping")
-                            stats["records_skipped"] += 1
-                            await self._create_log(
-                                session, run_id, posting_number, posting.id,
-                                started_at, "skipped", "无法计算汇率"
-                            )
-                            continue
-
-                        logger.info(f"Calculated exchange rate for {posting_number}: {exchange_rate:.6f}")
-
-                        # 7. 提取并转换费用
-                        fees = await self._extract_and_convert_fees(operations, exchange_rate)
-
-                        # 8. 更新posting记录
-                        posting.last_mile_delivery_fee_cny = fees["last_mile_delivery"]
-                        posting.international_logistics_fee_cny = fees["international_logistics"]
-                        posting.ozon_commission_cny = fees["ozon_commission"]
-                        posting.finance_synced_at = datetime.now(timezone.utc)
-
-                        await session.commit()
-
-                        logger.info(
-                            f"Updated finance costs for posting {posting.id}, "
-                            f"posting_number={posting_number}, "
-                            f"last_mile={fees['last_mile_delivery']}, "
-                            f"intl_logistics={fees['international_logistics']}, "
-                            f"commission={fees['ozon_commission']}"
-                        )
-
-                        stats["records_updated"] += 1
-                        await self._create_log(
-                            session, run_id, posting_number, posting.id,
-                            started_at, "success", None
-                        )
-
-                    except Exception as e:
-                        logger.error(f"Error syncing finance for posting {posting.id}: {e}", exc_info=True)
-
-                        # 简化异常信息
-                        error_str = str(e)
-                        if "timeout" in error_str.lower():
-                            error_message = "请求超时"
-                        elif "connection" in error_str.lower():
-                            error_message = "连接失败"
-                        else:
-                            error_message = error_str[:50]
-
+                if not shop:
+                    logger.error(f"Shop {shop_id} not found, skipping {len(shop_postings)} postings")
+                    for posting in shop_postings:
                         stats["errors"].append({
                             "posting_id": posting.id,
-                            "posting_number": posting_number,
-                            "error": error_message
+                            "posting_number": posting.posting_number,
+                            "error": f"店铺{shop_id}不存在"
                         })
+                    continue
 
-                        await self._create_log(
-                            session, run_id, posting_number, posting.id,
-                            started_at, "failed", error_message
-                        )
+                logger.info(f"Processing {len(shop_postings)} postings for shop: {shop.shop_name} (ID: {shop.id})")
+
+                # 4. 创建API客户端
+                async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop.id) as client:
+                    # 5. 循环处理该店铺的每个货件
+                    for posting in shop_postings:
+                        posting_number = posting.posting_number
+                        logger.info(f"Processing posting {posting.id} with posting_number: {posting_number}")
+                        stats["records_processed"] += 1
+                        stats["posting_numbers"].append(posting_number)
+
+                        # 记录开始时间
+                        started_at = datetime.now(timezone.utc)
+                        run_id = f"ozon_finance_sync_{uuid.uuid4().hex[:12]}"
+
+                        try:
+                            # 5. 调用财务交易API
+                            logger.info(f"Fetching finance transactions for {posting_number}")
+                            response = await client.get_finance_transaction_list(
+                                posting_number=posting_number,
+                                transaction_type="all",
+                                page=1,
+                                page_size=1000
+                            )
+
+                            result = response.get("result", {})
+                            operations = result.get("operations", [])
+
+                            if not operations:
+                                logger.warning(f"No finance transactions found for {posting_number}")
+                                stats["records_skipped"] += 1
+                                await self._create_log(
+                                    session, run_id, posting_number, posting.id,
+                                    started_at, "skipped", "无财务交易记录"
+                                )
+                                continue
+
+                            # 6. 计算历史汇率
+                            exchange_rate = await self._calculate_exchange_rate(posting, operations)
+
+                            if exchange_rate is None or exchange_rate <= 0:
+                                logger.warning(f"Invalid exchange rate for {posting_number}, skipping")
+                                stats["records_skipped"] += 1
+                                await self._create_log(
+                                    session, run_id, posting_number, posting.id,
+                                    started_at, "skipped", "无法计算汇率"
+                                )
+                                continue
+
+                            logger.info(f"Calculated exchange rate for {posting_number}: {exchange_rate:.6f}")
+
+                            # 7. 提取并转换费用
+                            fees = await self._extract_and_convert_fees(operations, exchange_rate)
+
+                            # 8. 更新posting记录
+                            posting.last_mile_delivery_fee_cny = fees["last_mile_delivery"]
+                            posting.international_logistics_fee_cny = fees["international_logistics"]
+                            posting.ozon_commission_cny = fees["ozon_commission"]
+                            posting.finance_synced_at = datetime.now(timezone.utc)
+
+                            await session.commit()
+
+                            logger.info(
+                                f"Updated finance costs for posting {posting.id}, "
+                                f"posting_number={posting_number}, "
+                                f"last_mile={fees['last_mile_delivery']}, "
+                                f"intl_logistics={fees['international_logistics']}, "
+                                f"commission={fees['ozon_commission']}"
+                            )
+
+                            stats["records_updated"] += 1
+                            await self._create_log(
+                                session, run_id, posting_number, posting.id,
+                                started_at, "success", None
+                            )
+
+                        except Exception as e:
+                            logger.error(f"Error syncing finance for posting {posting.id}: {e}", exc_info=True)
+
+                            # 简化异常信息
+                            error_str = str(e)
+                            if "timeout" in error_str.lower():
+                                error_message = "请求超时"
+                            elif "connection" in error_str.lower():
+                                error_message = "连接失败"
+                            else:
+                                error_message = error_str[:50]
+
+                            stats["errors"].append({
+                                "posting_id": posting.id,
+                                "posting_number": posting_number,
+                                "error": error_message
+                            })
+
+                            await self._create_log(
+                                session, run_id, posting_number, posting.id,
+                                started_at, "failed", error_message
+                            )
 
         logger.info(
             f"Finance cost sync completed: "
