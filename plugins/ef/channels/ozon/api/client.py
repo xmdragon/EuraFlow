@@ -531,6 +531,79 @@ class OzonAPIClient:
 
         return await self._request("POST", "/v2/posting/fbs/cancel", data=data, resource_type="postings")
 
+    # ========== FBS备货相关 API（Exemplar） ==========
+
+    async def set_exemplar(
+        self, posting_number: str, products: List[Dict[str, Any]], multi_box_qty: int = 0
+    ) -> Dict[str, Any]:
+        """
+        设置发货单的商品样件信息（用于俄罗斯"诚信标志"系统）
+        使用 /v6/fbs/posting/product/exemplar/set 接口
+
+        Args:
+            posting_number: 发货单号
+            products: 商品样件信息列表
+                [{
+                    "product_id": 商品ID,
+                    "exemplars": [{
+                        "gtd": "海关申报单号（可选）",
+                        "is_gtd_absent": True,  # 如果无GTD设为True
+                        "rnpt": "RNPT编号（可选）",
+                        "is_rnpt_absent": True,  # 如果无RNPT设为True
+                        "marks": [{"mark": "标记", "mark_type": "类型"}]
+                    }]
+                }]
+            multi_box_qty: 多箱数量（默认0）
+
+        Returns:
+            设置结果
+        """
+        data = {
+            "posting_number": posting_number,
+            "products": products,
+            "multi_box_qty": multi_box_qty
+        }
+
+        return await self._request("POST", "/v6/fbs/posting/product/exemplar/set", data=data, resource_type="postings")
+
+    async def validate_exemplar(self, posting_number: str, products: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        验证发货单的样件信息是否有效
+        使用 /v5/fbs/posting/product/exemplar/validate 接口
+
+        Args:
+            posting_number: 发货单号
+            products: 商品样件信息（与set_exemplar格式相同）
+
+        Returns:
+            验证结果
+        """
+        data = {
+            "posting_number": posting_number,
+            "products": products
+        }
+
+        return await self._request("POST", "/v5/fbs/posting/product/exemplar/validate", data=data, resource_type="postings")
+
+    async def get_exemplar_status(self, posting_number: str) -> Dict[str, Any]:
+        """
+        获取发货单的备货状态（样件验证状态）
+        使用 /v4/fbs/posting/product/exemplar/status 接口
+
+        Args:
+            posting_number: 发货单号
+
+        Returns:
+            备货状态信息，包含：
+            - status: ship_available（可以备货）| ship_not_available（无法备货）| validation_in_process（验证中）
+            - products: 商品列表及其样件信息
+        """
+        data = {
+            "posting_number": posting_number
+        }
+
+        return await self._request("POST", "/v4/fbs/posting/product/exemplar/status", data=data, resource_type="postings")
+
     # ========== 图片管理相关 ==========
 
     async def import_product_pictures(self, product_id: int, images: List[str]) -> Dict[str, Any]:

@@ -263,6 +263,7 @@ class OzonPosting(Base):
     purchase_price_updated_at = Column(DateTime(timezone=True), comment="进货价格更新时间")
     order_notes = Column(String(1000), comment="订单备注")
     source_platform = Column(String(50), comment="采集平台")
+    operation_time = Column(DateTime(timezone=True), comment="用户操作时间（备货/打包等操作的时间戳）")
 
     # 时间
     in_process_at = Column(DateTime(timezone=True))

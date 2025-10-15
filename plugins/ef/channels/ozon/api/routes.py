@@ -2081,6 +2081,141 @@ async def sync_orders(
     }
 
 
+@router.post("/orders/prepare")
+async def prepare_order(
+    posting_number: str = Body(..., description="发货单号"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    提交备货请求（FBS订单备货流程）
+
+    流程说明:
+    1. 更新posting的operation_time为当前时间
+    2. 设置exemplar信息（样件信息）
+    3. 验证exemplar
+    4. 获取备货状态
+
+    Args:
+        posting_number: 发货单号
+
+    Returns:
+        备货结果，包含状态信息
+    """
+    from datetime import datetime, timezone
+    from ..models import OzonPosting
+    from sqlalchemy import select, update
+
+    try:
+        # 1. 获取posting记录
+        result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = result.scalar_one_or_none()
+
+        if not posting:
+            return {
+                "success": False,
+                "error": "POSTING_NOT_FOUND",
+                "message": f"发货单 {posting_number} 不存在"
+            }
+
+        # 2. 检查状态是否为等待备货
+        if posting.status != "awaiting_packaging":
+            return {
+                "success": False,
+                "error": "INVALID_STATUS",
+                "message": f"当前状态为 {posting.status}，无法执行备货操作"
+            }
+
+        # 3. 更新operation_time
+        current_time = datetime.now(timezone.utc)
+        await db.execute(
+            update(OzonPosting)
+            .where(OzonPosting.id == posting.id)
+            .values(operation_time=current_time)
+        )
+        await db.commit()
+
+        # 4. 获取店铺API凭证
+        from ..models import OzonShop
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == posting.shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+
+        if not shop:
+            return {
+                "success": False,
+                "error": "SHOP_NOT_FOUND",
+                "message": "店铺信息不存在"
+            }
+
+        # 5. 调用OZON API进行备货
+        from ..api.client import OzonAPIClient
+
+        async with OzonAPIClient(shop.client_id, shop.api_key, shop.id) as client:
+            # 从raw_payload中提取商品信息
+            products_data = []
+            if posting.raw_payload and 'products' in posting.raw_payload:
+                for product in posting.raw_payload['products']:
+                    # 构建简化的exemplar数据（标记GTD和RNPT为缺失）
+                    products_data.append({
+                        "product_id": product.get('product_id', 0),
+                        "exemplars": [{
+                            "is_gtd_absent": True,  # 标记无GTD
+                            "is_rnpt_absent": True,  # 标记无RNPT
+                            "marks": []  # 空标记列表
+                        }]
+                    })
+
+            # 如果没有商品数据，返回错误
+            if not products_data:
+                return {
+                    "success": False,
+                    "error": "NO_PRODUCTS",
+                    "message": "发货单中没有找到商品信息"
+                }
+
+            # 设置exemplar
+            await client.set_exemplar(posting_number, products_data)
+
+            # 验证exemplar
+            await client.validate_exemplar(posting_number, products_data)
+
+            # 获取备货状态
+            status_result = await client.get_exemplar_status(posting_number)
+
+            # 检查状态
+            status = status_result.get('status')
+            if status == 'ship_available':
+                message = "备货成功，订单可以发货"
+            elif status == 'validation_in_process':
+                message = "样件验证中，请稍后查看状态"
+            else:
+                message = "备货失败，无法发货"
+
+            return {
+                "success": True,
+                "message": message,
+                "data": {
+                    "posting_number": posting_number,
+                    "operation_time": current_time.isoformat(),
+                    "status": status,
+                    "products": status_result.get('products', [])
+                }
+            }
+
+    except Exception as e:
+        logger.error(f"备货失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "error": "PREPARE_FAILED",
+            "message": f"备货失败: {str(e)}"
+        }
+
+
 @router.get("/sync-logs")
 async def get_sync_logs(
     shop_id: Optional[int] = Query(None, description="店铺ID"),

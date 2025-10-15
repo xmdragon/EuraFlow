@@ -860,3 +860,11 @@ export const updateOrderExtraInfo = async (postingNumber: string, extraInfo: Ord
   const response = await apiClient.put(`/ozon/orders/${postingNumber}/extra-info`, extraInfo);
   return response.data;
 };
+
+// 提交备货请求
+export const prepareOrder = async (postingNumber: string) => {
+  const response = await apiClient.post('/ozon/orders/prepare', {
+    posting_number: postingNumber,
+  });
+  return response.data;
+};
