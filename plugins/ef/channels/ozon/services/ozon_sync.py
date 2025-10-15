@@ -1301,8 +1301,9 @@ class OzonSyncService:
         # 同步包裹信息（如果有）
         await OzonSyncService._sync_packages(db, posting, posting_data)
 
-        # ========== 自动状态转换：分配中 → 已分配 ==========
-        # 如果操作状态为"分配中"且检测到 tracking_number，自动更新为"已分配"
+        # ========== 自动状态转换 ==========
+
+        # 1. 分配中 → 已分配：检测到 tracking_number
         if posting.operation_status == "allocating":
             # 检查是否有 tracking_number（从 packages 或 raw_payload 获取）
             tracking_number = None
@@ -1326,6 +1327,15 @@ class OzonSyncService:
                 logger.info(
                     f"Auto-updated posting {posting_number} operation_status: {old_status} → allocated (tracking_number detected: {tracking_number})"
                 )
+
+        # 2. 已分配/单号确认 → 运输中：OZON状态变为 delivering
+        if posting.operation_status in ["allocated", "tracking_confirmed"] and posting.status == "delivering":
+            old_status = posting.operation_status
+            posting.operation_status = "shipping"
+            posting.operation_time = utcnow()
+            logger.info(
+                f"Auto-updated posting {posting_number} operation_status: {old_status} → shipping (OZON status: {posting.status})"
+            )
 
         logger.info(
             f"Synced posting {posting_number} for order {order.order_id}",

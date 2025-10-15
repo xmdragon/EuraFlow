@@ -937,6 +937,9 @@ const PackingShipment: React.FC = () => {
               {currentStatus === 'tracking_confirmed' && (
                 <Tag color="success">已完成</Tag>
               )}
+              {currentStatus === 'shipping' && (
+                <Tag color="cyan" icon={<TruckOutlined />}>运输中</Tag>
+              )}
             </Space>
           ),
           props: {
@@ -1166,6 +1169,15 @@ const PackingShipment: React.FC = () => {
                 <span>
                   <CheckCircleOutlined />
                   单号确认
+                </span>
+              ),
+            },
+            {
+              key: 'shipping',
+              label: (
+                <span>
+                  <TruckOutlined />
+                  运输中
                 </span>
               ),
             },
