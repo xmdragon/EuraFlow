@@ -381,25 +381,6 @@ const SyncServices = () => {
                     : '-'}
                 </Descriptions.Item>
               </Descriptions>
-
-              {stats.recent_errors.length > 0 && selectedService?.service_key !== 'kuajing84_material_cost' && (
-                <div style={{ marginTop: 24 }}>
-                  <h4>最近错误</h4>
-                  {stats.recent_errors.map((error, index) => (
-                    <Card key={index} size="small" style={{ marginBottom: 8 }}>
-                      <div>
-                        <strong>运行ID:</strong> {error.run_id}
-                      </div>
-                      <div>
-                        <strong>时间:</strong> {new Date(error.started_at).toLocaleString('zh-CN')}
-                      </div>
-                      <div style={{ color: '#f5222d' }}>
-                        <strong>错误:</strong> {error.error_message}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
             </>
           )}
         </Spin>
