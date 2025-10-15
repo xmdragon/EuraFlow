@@ -55,6 +55,7 @@ import * as ozonApi from '@/services/ozonApi';
 import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import styles from './OrderList.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -526,6 +527,51 @@ const PackingShipment: React.FC = () => {
             <div key={index}>{line}</div>
           ))}
         </div>
+      </div>
+    );
+  };
+
+  // 格式化配送方式文本（用于白色背景显示）
+  const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
+    if (!text) return '-';
+
+    // 如果包含括号，提取括号内的内容
+    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    if (!match) return text;
+
+    const mainPart = match[1].trim();
+    const detailPart = match[2].trim();
+
+    // 解析限制信息为三行：重量、价格、体积
+    const parseRestrictions = (restriction: string): string[] => {
+      // 移除"限制:"前缀
+      const content = restriction.replace(/^限制[:：]\s*/, '');
+
+      // 使用正则提取三个部分
+      const weightMatch = content.match(/([\d\s]+[–-][\s\d]+\s*[克公斤kgг]+)/);
+      const priceMatch = content.match(/([\d\s]+[–-][\s\d]+\s*[₽рублей]+)/);
+      const sizeMatch = content.match(/([\d\s×xXх]+\s*[厘米смcm]+)/);
+
+      const lines: string[] = [];
+      if (restriction.includes('限制')) lines.push('限制:');
+      if (weightMatch) lines.push(weightMatch[1].trim());
+      if (priceMatch) lines.push(priceMatch[1].trim());
+      if (sizeMatch) lines.push(sizeMatch[1].trim());
+
+      return lines.length > 0 ? lines : [restriction];
+    };
+
+    const restrictionLines = parseRestrictions(detailPart);
+
+    // 格式化显示（白色背景）
+    return (
+      <div className={styles.deliveryMethodTextWhite}>
+        <div>{mainPart}</div>
+        {restrictionLines.map((line, index) => (
+          <div key={index} style={{ fontSize: '12px', color: 'rgba(0, 0, 0, 0.65)', marginTop: '2px' }}>
+            {line}
+          </div>
+        ))}
       </div>
     );
   };
@@ -1033,275 +1079,16 @@ const PackingShipment: React.FC = () => {
       </Card>
 
       {/* 订单详情弹窗 */}
-      <Modal
-        title={`订单详情 - ${selectedPosting?.posting_number || selectedOrder?.order_id}`}
-        open={detailModalVisible}
+      <OrderDetailModal
+        visible={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
-        footer={null}
-        width={900}
-      >
-        {selectedOrder && (
-          <Tabs
-            defaultActiveKey="1"
-            items={[
-              {
-                label: '基本信息',
-                key: '1',
-                children: (
-                  <Descriptions bordered column={2}>
-                    <Descriptions.Item label="订单号">{selectedOrder.order_id}</Descriptions.Item>
-                    <Descriptions.Item label="Ozon订单号">
-                      {selectedOrder.ozon_order_id || selectedOrder.order_id}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="状态">
-                      <Tag color={statusConfig[selectedOrder.status]?.color}>
-                        {statusConfig[selectedOrder.status]?.text}
-                      </Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="订单类型">
-                      {selectedOrder.order_type || 'FBS'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="总金额">
-                      {formatPriceWithFallback(
-                        selectedOrder.total_price || selectedOrder.total_amount,
-                        selectedOrder.currency_code,
-                        userCurrency
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="商品金额">
-                      {formatPriceWithFallback(
-                        selectedOrder.products_price || selectedOrder.products_amount,
-                        selectedOrder.currency_code,
-                        userCurrency
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="运费">
-                      {selectedOrder.delivery_price || selectedOrder.delivery_amount
-                        ? formatPriceWithFallback(
-                            selectedOrder.delivery_price || selectedOrder.delivery_amount,
-                            selectedOrder.currency_code,
-                            userCurrency
-                          )
-                        : '-'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="佣金">
-                      {formatPriceWithFallback(
-                        selectedOrder.commission_amount,
-                        selectedOrder.currency_code,
-                        userCurrency
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="下单时间">
-                      {selectedOrder.ordered_at ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss') :
-                       (selectedOrder.created_at ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss') : '-')}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="配送方式">
-                      {(() => {
-                        const fullText = selectedOrder.delivery_method || '-';
-                        if (fullText === '-') return fullText;
-                        // 提取括号前的内容（支持中英文括号）
-                        const shortText = fullText.split('（')[0].split('(')[0].trim();
-                        return (
-                          <Tooltip title={formatDeliveryMethodText(fullText)}>
-                            <span>{shortText}</span>
-                          </Tooltip>
-                        );
-                      })()}
-                    </Descriptions.Item>
-                  </Descriptions>
-                ),
-              },
-              {
-                label: '商品明细',
-                key: '2',
-                children: (
-                  <Table
-                    dataSource={selectedOrder.items}
-                    rowKey="sku"
-                    pagination={false}
-                    columns={[
-                      {
-                        title: '图片',
-                        dataIndex: 'sku',
-                        key: 'image',
-                        width: 80,
-                        render: (sku, record) => {
-                          const imageUrl = record.image || (record.offer_id && offerIdImageMap[record.offer_id] ? offerIdImageMap[record.offer_id] : undefined);
-                          return imageUrl ? (
-                            <Avatar
-                              src={imageUrl}
-                              size={60}
-                              shape="square"
-                              className={styles.productImage}
-                            />
-                          ) : (
-                            <Avatar
-                              icon={<ShoppingCartOutlined />}
-                              size={60}
-                              shape="square"
-                              className={styles.productImagePlaceholder}
-                            />
-                          );
-                        },
-                      },
-                      { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 120 },
-                      {
-                        title: '商品名称',
-                        dataIndex: 'name',
-                        key: 'name',
-                        render: (name, record) => {
-                          if (record.sku) {
-                            return (
-                              <a
-                                href={`https://www.ozon.ru/product/${record.sku}/`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={styles.link}
-                              >
-                                {name || record.sku}
-                              </a>
-                            );
-                          }
-                          return name || record.sku;
-                        }
-                      },
-                      { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 80 },
-                      {
-                        title: '单价',
-                        dataIndex: 'price',
-                        key: 'price',
-                        width: 100,
-                        render: (price) => formatPriceWithFallback(
-                          price,
-                          selectedOrder?.currency_code,
-                          userCurrency
-                        ),
-                      },
-                      {
-                        title: '小计',
-                        dataIndex: 'total_amount',
-                        key: 'total_amount',
-                        width: 100,
-                        render: (amount) => formatPriceWithFallback(
-                          amount,
-                          selectedOrder?.currency_code,
-                          userCurrency
-                        ),
-                      },
-                    ]}
-                  />
-                ),
-              },
-              {
-                label: '客户信息',
-                key: '3',
-                children: (
-                  <Descriptions bordered>
-                    <Descriptions.Item label="客户ID">
-                      {selectedOrder.customer_id || <Text type="secondary">隐私保护</Text>}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="电话">
-                      {selectedOrder.customer_phone || <Text type="secondary">隐私保护</Text>}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="邮箱">
-                      {selectedOrder.customer_email || <Text type="secondary">隐私保护</Text>}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="收货地址" span={3}>
-                      {selectedOrder.delivery_address ? (
-                        <div>
-                          {selectedOrder.delivery_address.region && (
-                            <>
-                              <Text strong>{selectedOrder.delivery_address.region}</Text>
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.city && (
-                            <>
-                              {selectedOrder.delivery_address.city}
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.delivery_type && (
-                            <>
-                              配送方式: {selectedOrder.delivery_address.delivery_type}
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.street && (
-                            <>
-                              {selectedOrder.delivery_address.street}
-                              {selectedOrder.delivery_address.building &&
-                                `, ${selectedOrder.delivery_address.building}`}
-                              {selectedOrder.delivery_address.apartment &&
-                                `, кв. ${selectedOrder.delivery_address.apartment}`}
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.postal_code && (
-                            <>邮编: {selectedOrder.delivery_address.postal_code}</>
-                          )}
-                        </div>
-                      ) : (
-                        <Text type="secondary">地址信息保护</Text>
-                      )}
-                    </Descriptions.Item>
-                  </Descriptions>
-                ),
-              },
-              {
-                label: '额外信息',
-                key: '4',
-                children: <ExtraInfoForm selectedOrder={selectedOrder} selectedPosting={selectedPosting} setIsUpdatingExtraInfo={setIsUpdatingExtraInfo} syncToKuajing84Mutation={syncToKuajing84Mutation} />
-              },
-              {
-                label: '物流信息',
-                key: '5',
-                children: selectedOrder.postings?.map((posting) => (
-                  <Card key={posting.id} className={styles.postingCard}>
-                    <Descriptions bordered size="small" column={1}>
-                      <Descriptions.Item label="Posting号">
-                        {posting.posting_number}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="状态">
-                        {statusConfig[posting.status]?.text || posting.status}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="仓库">{posting.warehouse_name}</Descriptions.Item>
-                      <Descriptions.Item label="配送方式">
-                        {formatDeliveryMethodText(posting.delivery_method_name)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="发货时间">
-                        {posting.shipped_at
-                          ? moment(posting.shipped_at).format('YYYY-MM-DD HH:mm')
-                          : '-'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="送达时间">
-                        {posting.delivered_at
-                          ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm')
-                          : '-'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="国际物流单号">
-                        {posting.packages && posting.packages.length > 0 ? (
-                          <div>
-                            {posting.packages.map((pkg, index) => (
-                              <div key={pkg.id || index} style={{ marginBottom: 4 }}>
-                                {pkg.tracking_number || '-'}
-                                {pkg.carrier_name && <Text type="secondary"> ({pkg.carrier_name})</Text>}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          '-'
-                        )}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </Card>
-                )),
-              },
-            ]}
-          />
-        )}
-      </Modal>
-
+        selectedOrder={selectedOrder}
+        selectedPosting={selectedPosting}
+        statusConfig={statusConfig}
+        userCurrency={userCurrency}
+        offerIdImageMap={offerIdImageMap}
+        formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
+      />
       {/* 发货弹窗 */}
       <Modal
         title={`发货 - ${selectedOrder?.order_id}`}
