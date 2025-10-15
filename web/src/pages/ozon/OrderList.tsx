@@ -62,181 +62,6 @@ const { Option } = Select;
 const { confirm } = Modal;
 const { Text } = Typography;
 
-// 额外信息表单组件
-interface ExtraInfoFormProps {
-  selectedOrder: ozonApi.Order | null;
-  selectedPosting: ozonApi.Posting | null;
-  setIsUpdatingExtraInfo: (loading: boolean) => void;
-  syncToKuajing84Mutation: any;
-}
-
-const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPosting, setIsUpdatingExtraInfo, syncToKuajing84Mutation }) => {
-  const [form] = Form.useForm();
-  const queryClient = useQueryClient();
-  const { symbol: userSymbol } = useCurrency();
-
-  // 优先使用订单货币，否则使用用户设置
-  const orderSymbol = getCurrencySymbol(selectedOrder?.currency_code) || userSymbol;
-
-  // 当选中订单变化时，更新表单
-  useEffect(() => {
-    if (selectedOrder) {
-      form.setFieldsValue({
-        purchase_price: selectedOrder.purchase_price || '',
-        domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
-        material_cost: selectedOrder.material_cost || '',
-        order_notes: selectedOrder.order_notes || '',
-        source_platform: selectedOrder.source_platform || '',
-      });
-    } else {
-      form.resetFields();
-    }
-  }, [selectedOrder, form]);
-
-  const handleFinish = async (values: any) => {
-    try {
-      setIsUpdatingExtraInfo(true);
-
-      if (!selectedOrder?.posting_number) {
-        throw new Error('订单号不存在');
-      }
-
-      // 调用API更新订单额外信息
-      await ozonApi.updateOrderExtraInfo(selectedOrder.posting_number, values);
-
-      message.success('订单额外信息更新成功');
-
-      // 刷新列表
-      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-    } catch (error) {
-      message.error('更新失败: ' + (error as Error).message);
-    } finally {
-      setIsUpdatingExtraInfo(false);
-    }
-  };
-
-  return (
-    <Form form={form} layout="vertical" onFinish={handleFinish}>
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item
-            name="purchase_price"
-            label="进货价格"
-            tooltip="商品的采购成本"
-            rules={[
-              {
-                pattern: /^\d+(\.\d{1,2})?$/,
-                message: '请输入有效的价格（最多2位小数）',
-              },
-            ]}
-          >
-            <Input placeholder="进货价格" prefix={orderSymbol} />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="material_cost"
-            label="物料成本"
-            tooltip="包装、标签等物料成本"
-            rules={[
-              {
-                pattern: /^\d+(\.\d{1,2})?$/,
-                message: '请输入有效的价格（最多2位小数）',
-              },
-            ]}
-          >
-            <Input placeholder="物料成本" prefix={orderSymbol} />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item
-            name="source_platform"
-            label="采购平台"
-            tooltip="商品采购来源平台"
-          >
-            <Select placeholder="请选择采购平台" allowClear>
-              <Option value="1688">1688</Option>
-              <Option value="拼多多">拼多多</Option>
-              <Option value="咸鱼">咸鱼</Option>
-              <Option value="淘宝">淘宝</Option>
-            </Select>
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="domestic_tracking_number"
-            label="国内物流单号"
-            tooltip="国内物流配送的跟踪单号"
-          >
-            <Input placeholder="国内物流单号" />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <Form.Item
-        name="order_notes"
-        label="订单备注"
-        tooltip="订单相关的备注信息"
-      >
-        <Input.TextArea
-          placeholder="订单备注"
-          autoSize={{ minRows: 3, maxRows: 6 }}
-        />
-      </Form.Item>
-
-      <Form.Item>
-        <Space>
-          <Button type="primary" htmlType="submit">
-            保存信息
-          </Button>
-          <Button
-            type="default"
-            icon={<SendOutlined />}
-            loading={syncToKuajing84Mutation.isPending}
-            onClick={async () => {
-              try {
-                // 先保存表单
-                const values = await form.validateFields();
-                await handleFinish(values);
-
-                // 再同步到跨境巴士
-                if (!selectedOrder?.id) {
-                  message.error('订单ID不存在');
-                  return;
-                }
-                if (!selectedPosting?.posting_number) {
-                  message.error('货件编号不存在');
-                  return;
-                }
-                if (!values.domestic_tracking_number) {
-                  message.error('请先填写国内物流单号');
-                  return;
-                }
-
-                syncToKuajing84Mutation.mutate({
-                  ozonOrderId: selectedOrder.id,
-                  postingNumber: selectedPosting.posting_number,
-                  logisticsOrder: values.domestic_tracking_number,
-                });
-              } catch (error) {
-                console.error('保存并同步失败:', error);
-              }
-            }}
-          >
-            保存并同步跨境巴士
-          </Button>
-          <Button onClick={() => form.resetFields()}>
-            重置
-          </Button>
-        </Space>
-      </Form.Item>
-    </Form>
-  );
-};
-
 // 订单商品行数据结构（用于表格展示）
 interface OrderItemRow {
   key: string;                      // 唯一标识：posting_number + item_index
@@ -267,7 +92,6 @@ const OrderList: React.FC = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
-  const [isUpdatingExtraInfo, setIsUpdatingExtraInfo] = useState(false);
 
   // 搜索参数状态
   const [searchParams, setSearchParams] = useState<any>({});
@@ -492,7 +316,7 @@ const OrderList: React.FC = () => {
     return '';
   };
 
-  // 格式化配送方式文本（用于详情显示）
+  // 格式化配送方式文本（用于tooltip显示 - 深色背景）
   const formatDeliveryMethodText = (text: string | undefined): React.ReactNode => {
     if (!text) return '-';
 
@@ -524,7 +348,7 @@ const OrderList: React.FC = () => {
 
     const restrictionLines = parseRestrictions(detailPart);
 
-    // 格式化显示
+    // 格式化显示（tooltip深色背景）
     return (
       <div className={styles.deliveryMethodText}>
         <div className={styles.deliveryMethodMain}>{mainPart}</div>
@@ -533,6 +357,51 @@ const OrderList: React.FC = () => {
             <div key={index}>{line}</div>
           ))}
         </div>
+      </div>
+    );
+  };
+
+  // 格式化配送方式文本（用于白色背景显示）
+  const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
+    if (!text) return '-';
+
+    // 如果包含括号，提取括号内的内容
+    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    if (!match) return text;
+
+    const mainPart = match[1].trim();
+    const detailPart = match[2].trim();
+
+    // 解析限制信息为三行：重量、价格、体积
+    const parseRestrictions = (restriction: string): string[] => {
+      // 移除"限制:"前缀
+      const content = restriction.replace(/^限制[:：]\s*/, '');
+
+      // 使用正则提取三个部分
+      const weightMatch = content.match(/([\d\s]+[–-][\s\d]+\s*[克公斤kgг]+)/);
+      const priceMatch = content.match(/([\d\s]+[–-][\s\d]+\s*[₽рублей]+)/);
+      const sizeMatch = content.match(/([\d\s×xXх]+\s*[厘米смcm]+)/);
+
+      const lines: string[] = [];
+      if (restriction.includes('限制')) lines.push('限制:');
+      if (weightMatch) lines.push(weightMatch[1].trim());
+      if (priceMatch) lines.push(priceMatch[1].trim());
+      if (sizeMatch) lines.push(sizeMatch[1].trim());
+
+      return lines.length > 0 ? lines : [restriction];
+    };
+
+    const restrictionLines = parseRestrictions(detailPart);
+
+    // 格式化显示（白色背景）
+    return (
+      <div className={styles.deliveryMethodTextWhite}>
+        <div>{mainPart}</div>
+        {restrictionLines.map((line, index) => (
+          <div key={index} style={{ fontSize: '12px', color: 'rgba(0, 0, 0, 0.65)', marginTop: '2px' }}>
+            {line}
+          </div>
+        ))}
       </div>
     );
   };
@@ -610,19 +479,6 @@ const OrderList: React.FC = () => {
     },
     onError: (error: any) => {
       message.error(`取消失败: ${error.message}`);
-    },
-  });
-
-  // 同步到跨境巴士
-  const syncToKuajing84Mutation = useMutation({
-    mutationFn: ({ ozonOrderId, postingNumber, logisticsOrder }: { ozonOrderId: number; postingNumber: string; logisticsOrder: string }) =>
-      ozonApi.syncToKuajing84(ozonOrderId, postingNumber, logisticsOrder),
-    onSuccess: () => {
-      message.success('同步到跨境巴士成功');
-      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-    },
-    onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
     },
   });
 
@@ -1094,14 +950,8 @@ const OrderList: React.FC = () => {
                 key: '1',
                 children: (
                   <Descriptions bordered column={2}>
-                    <Descriptions.Item label="订单号">{selectedOrder.order_id}</Descriptions.Item>
                     <Descriptions.Item label="Ozon订单号">
                       {selectedOrder.ozon_order_id || selectedOrder.order_id}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="状态">
-                      <Tag color={statusConfig[selectedOrder.status]?.color}>
-                        {statusConfig[selectedOrder.status]?.text}
-                      </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="订单类型">
                       {selectedOrder.order_type || 'FBS'}
@@ -1113,45 +963,23 @@ const OrderList: React.FC = () => {
                         userCurrency
                       )}
                     </Descriptions.Item>
-                    <Descriptions.Item label="商品金额">
-                      {formatPriceWithFallback(
-                        selectedOrder.products_price || selectedOrder.products_amount,
-                        selectedOrder.currency_code,
-                        userCurrency
-                      )}
+                    <Descriptions.Item label="状态">
+                      <Tag color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}>
+                        {statusConfig[selectedPosting?.status || selectedOrder.status]?.text}
+                      </Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item label="运费">
-                      {selectedOrder.delivery_price || selectedOrder.delivery_amount
-                        ? formatPriceWithFallback(
-                            selectedOrder.delivery_price || selectedOrder.delivery_amount,
-                            selectedOrder.currency_code,
-                            userCurrency
-                          )
-                        : '-'}
+                    <Descriptions.Item label="国内单号">
+                      {selectedOrder.domestic_tracking_number || '-'}
                     </Descriptions.Item>
-                    <Descriptions.Item label="佣金">
-                      {formatPriceWithFallback(
-                        selectedOrder.commission_amount,
-                        selectedOrder.currency_code,
-                        userCurrency
-                      )}
+                    <Descriptions.Item label="国际单号">
+                      {selectedPosting?.posting_number || selectedOrder.posting_number || '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="下单时间">
                       {selectedOrder.ordered_at ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss') :
                        (selectedOrder.created_at ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss') : '-')}
                     </Descriptions.Item>
-                    <Descriptions.Item label="配送方式">
-                      {(() => {
-                        const fullText = selectedOrder.delivery_method || '-';
-                        if (fullText === '-') return fullText;
-                        // 提取括号前的内容（支持中英文括号）
-                        const shortText = fullText.split('（')[0].split('(')[0].trim();
-                        return (
-                          <Tooltip title={formatDeliveryMethodText(fullText)}>
-                            <span>{shortText}</span>
-                          </Tooltip>
-                        );
-                      })()}
+                    <Descriptions.Item label="发货截止">
+                      {selectedPosting?.shipment_date ? moment(selectedPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss') : '-'}
                     </Descriptions.Item>
                   </Descriptions>
                 ),
@@ -1238,69 +1066,8 @@ const OrderList: React.FC = () => {
                 ),
               },
               {
-                label: '客户信息',
-                key: '3',
-                children: (
-                  <Descriptions bordered>
-                    <Descriptions.Item label="客户ID">
-                      {selectedOrder.customer_id || <Text type="secondary">隐私保护</Text>}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="电话">
-                      {selectedOrder.customer_phone || <Text type="secondary">隐私保护</Text>}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="邮箱">
-                      {selectedOrder.customer_email || <Text type="secondary">隐私保护</Text>}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="收货地址" span={3}>
-                      {selectedOrder.delivery_address ? (
-                        <div>
-                          {selectedOrder.delivery_address.region && (
-                            <>
-                              <Text strong>{selectedOrder.delivery_address.region}</Text>
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.city && (
-                            <>
-                              {selectedOrder.delivery_address.city}
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.delivery_type && (
-                            <>
-                              配送方式: {selectedOrder.delivery_address.delivery_type}
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.street && (
-                            <>
-                              {selectedOrder.delivery_address.street}
-                              {selectedOrder.delivery_address.building &&
-                                `, ${selectedOrder.delivery_address.building}`}
-                              {selectedOrder.delivery_address.apartment &&
-                                `, кв. ${selectedOrder.delivery_address.apartment}`}
-                              <br />
-                            </>
-                          )}
-                          {selectedOrder.delivery_address.postal_code && (
-                            <>邮编: {selectedOrder.delivery_address.postal_code}</>
-                          )}
-                        </div>
-                      ) : (
-                        <Text type="secondary">地址信息保护</Text>
-                      )}
-                    </Descriptions.Item>
-                  </Descriptions>
-                ),
-              },
-              {
-                label: '额外信息',
-                key: '4',
-                children: <ExtraInfoForm selectedOrder={selectedOrder} selectedPosting={selectedPosting} setIsUpdatingExtraInfo={setIsUpdatingExtraInfo} syncToKuajing84Mutation={syncToKuajing84Mutation} />
-              },
-              {
                 label: '物流信息',
-                key: '5',
+                key: '3',
                 children: selectedOrder.postings?.map((posting) => (
                   <Card key={posting.id} className={styles.postingCard}>
                     <Descriptions bordered size="small" column={1}>
@@ -1310,21 +1077,14 @@ const OrderList: React.FC = () => {
                       <Descriptions.Item label="状态">
                         {statusConfig[posting.status]?.text || posting.status}
                       </Descriptions.Item>
-                      <Descriptions.Item label="仓库">{posting.warehouse_name}</Descriptions.Item>
+                      <Descriptions.Item label="仓库">{posting.warehouse_name || '-'}</Descriptions.Item>
                       <Descriptions.Item label="配送方式">
-                        {formatDeliveryMethodText(posting.delivery_method_name)}
+                        {formatDeliveryMethodTextWhite(posting.delivery_method_name)}
                       </Descriptions.Item>
-                      <Descriptions.Item label="发货时间">
-                        {posting.shipped_at
-                          ? moment(posting.shipped_at).format('YYYY-MM-DD HH:mm')
-                          : '-'}
+                      <Descriptions.Item label="国内单号">
+                        {posting.domestic_tracking_number || selectedOrder.domestic_tracking_number || '-'}
                       </Descriptions.Item>
-                      <Descriptions.Item label="送达时间">
-                        {posting.delivered_at
-                          ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm')
-                          : '-'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="国际物流单号">
+                      <Descriptions.Item label="国际单号">
                         {posting.packages && posting.packages.length > 0 ? (
                           <div>
                             {posting.packages.map((pkg, index) => (
@@ -1338,9 +1098,33 @@ const OrderList: React.FC = () => {
                           '-'
                         )}
                       </Descriptions.Item>
+                      <Descriptions.Item label="发货时间">
+                        {posting.shipped_at
+                          ? moment(posting.shipped_at).format('YYYY-MM-DD HH:mm')
+                          : '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="送达时间">
+                        {posting.delivered_at
+                          ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm')
+                          : '-'}
+                      </Descriptions.Item>
                     </Descriptions>
                   </Card>
                 )),
+              },
+              {
+                label: '额外信息',
+                key: '4',
+                children: (
+                  <Descriptions bordered column={1}>
+                    <Descriptions.Item label="采购平台">
+                      {selectedOrder.source_platform || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="订单备注">
+                      {selectedOrder.order_notes || '-'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                ),
               },
             ]}
           />
