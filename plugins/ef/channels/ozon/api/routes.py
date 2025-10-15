@@ -1681,7 +1681,6 @@ async def get_orders(
     # 打包发货页面特殊过滤逻辑
     if filter == "awaiting_packaging":
         # 需要关联 OzonPosting 表来访问 operation_time 字段
-        # 显示：所有 status='awaiting_packaging' 的订单 OR operation_time为今天的订单
         from sqlalchemy import and_, or_, cast, Date
 
         # 获取今天的日期（UTC）
@@ -1691,17 +1690,30 @@ async def get_orders(
         query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
         posting_joined = True
 
-        # 过滤条件：待备货状态 OR 今天操作过
-        query = query.where(
-            or_(
-                OzonOrder.status == 'awaiting_packaging',
-                cast(OzonPosting.operation_time, Date) == today
+        if status == 'awaiting_packaging':
+            # 等待备货标签：显示所有待备货订单（不限今天）
+            query = query.where(OzonOrder.status == 'awaiting_packaging')
+        elif status:
+            # 其他状态标签：只显示今天操作过的该状态订单
+            query = query.where(
+                and_(
+                    OzonOrder.status == status,
+                    cast(OzonPosting.operation_time, Date) == today
+                )
             )
-        )
+        else:
+            # "所有"标签：显示待备货 + 今天操作过的其他状态
+            query = query.where(
+                or_(
+                    OzonOrder.status == 'awaiting_packaging',
+                    cast(OzonPosting.operation_time, Date) == today
+                )
+            )
 
         # 去重（因为一个订单可能有多个posting）
         query = query.distinct()
     elif status:
+        # 普通页面：只按status筛选
         query = query.where(OzonOrder.status == status)
 
     # 搜索条件
@@ -1762,12 +1774,26 @@ async def get_orders(
         today = date.today()
         count_query = count_query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
         count_posting_joined = True
-        count_query = count_query.where(
-            or_(
-                OzonOrder.status == 'awaiting_packaging',
-                cast(OzonPosting.operation_time, Date) == today
+
+        if status == 'awaiting_packaging':
+            # 等待备货标签：显示所有待备货订单（不限今天）
+            count_query = count_query.where(OzonOrder.status == 'awaiting_packaging')
+        elif status:
+            # 其他状态标签：只显示今天操作过的该状态订单
+            count_query = count_query.where(
+                and_(
+                    OzonOrder.status == status,
+                    cast(OzonPosting.operation_time, Date) == today
+                )
             )
-        )
+        else:
+            # "所有"标签：显示待备货 + 今天操作过的其他状态
+            count_query = count_query.where(
+                or_(
+                    OzonOrder.status == 'awaiting_packaging',
+                    cast(OzonPosting.operation_time, Date) == today
+                )
+            )
     elif status:
         count_query = count_query.where(OzonOrder.status == status)
 
