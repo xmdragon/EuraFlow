@@ -359,6 +359,12 @@ export interface Posting {
   products?: OrderItem[];  // 该 posting 的商品列表（从 raw_payload 提取）
   domestic_tracking_number?: string;  // 国内物流单号（常用字段，提升到 Posting）
   source_platform?: string;  // 采集平台（常用字段，提升到 Posting）
+  // 财务字段
+  purchase_price?: string;  // 进货价格
+  material_cost?: string;  // 打包费用（物料成本）
+  last_mile_delivery_fee_cny?: string;  // 尾程派送费(CNY)
+  international_logistics_fee_cny?: string;  // 国际物流费(CNY)
+  ozon_commission_cny?: string;  // Ozon佣金(CNY)
 }
 
 // 货件与订单的组合类型（用于列表展示）

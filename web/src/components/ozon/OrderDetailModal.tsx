@@ -235,6 +235,98 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </Descriptions>
               ),
             },
+            {
+              label: '财务信息',
+              key: '5',
+              children: (() => {
+                // 计算订单金额（商品总价）
+                const orderAmount = parseFloat(selectedOrder.total_price || selectedOrder.total_amount || '0');
+
+                // 获取各项费用
+                const purchasePrice = parseFloat(selectedPosting?.purchase_price || '0');
+                const ozonCommission = parseFloat(selectedPosting?.ozon_commission_cny || '0');
+                const internationalLogistics = parseFloat(selectedPosting?.international_logistics_fee_cny || '0');
+                const lastMileDelivery = parseFloat(selectedPosting?.last_mile_delivery_fee_cny || '0');
+                const packingFee = parseFloat(selectedPosting?.material_cost || '0');
+
+                // 计算利润金额 = 订单金额 - (进货金额 + Ozon佣金 + 国际物流 + 尾程派送 + 打包费用)
+                const profitAmount = orderAmount - (purchasePrice + ozonCommission + internationalLogistics + lastMileDelivery + packingFee);
+
+                // 计算利润比率 = (利润金额 / 订单金额) * 100，保留2位小数
+                const profitRate = orderAmount > 0 ? ((profitAmount / orderAmount) * 100).toFixed(2) : '0.00';
+
+                return (
+                  <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
+                    <Descriptions.Item label="订单金额">
+                      {formatPriceWithFallback(
+                        selectedOrder.total_price || selectedOrder.total_amount,
+                        selectedOrder.currency_code,
+                        userCurrency
+                      )}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="进货金额">
+                      {selectedPosting?.purchase_price
+                        ? formatPriceWithFallback(
+                            selectedPosting.purchase_price,
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )
+                        : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Ozon佣金">
+                      {selectedPosting?.ozon_commission_cny
+                        ? formatPriceWithFallback(
+                            selectedPosting.ozon_commission_cny,
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )
+                        : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="国际物流">
+                      {selectedPosting?.international_logistics_fee_cny
+                        ? formatPriceWithFallback(
+                            selectedPosting.international_logistics_fee_cny,
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )
+                        : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="尾程派送">
+                      {selectedPosting?.last_mile_delivery_fee_cny
+                        ? formatPriceWithFallback(
+                            selectedPosting.last_mile_delivery_fee_cny,
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )
+                        : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="打包费用">
+                      {selectedPosting?.material_cost
+                        ? formatPriceWithFallback(
+                            selectedPosting.material_cost,
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )
+                        : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="利润金额">
+                      <Text strong style={{ color: profitAmount >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                        {formatPriceWithFallback(
+                          profitAmount.toString(),
+                          selectedOrder.currency_code,
+                          userCurrency
+                        )}
+                      </Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="利润比率">
+                      <Text strong style={{ color: parseFloat(profitRate) >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                        {profitRate}%
+                      </Text>
+                    </Descriptions.Item>
+                  </Descriptions>
+                );
+              })(),
+            },
           ]}
         />
       )}

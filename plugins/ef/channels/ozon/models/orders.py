@@ -195,6 +195,10 @@ class OzonOrder(Base):
                     'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
                     'order_notes': posting.order_notes,
                     'source_platform': posting.source_platform,
+                    # 添加财务字段
+                    'last_mile_delivery_fee_cny': str(posting.last_mile_delivery_fee_cny) if posting.last_mile_delivery_fee_cny else None,
+                    'international_logistics_fee_cny': str(posting.international_logistics_fee_cny) if posting.international_logistics_fee_cny else None,
+                    'ozon_commission_cny': str(posting.ozon_commission_cny) if posting.ozon_commission_cny else None,
                     'packages': packages,
                     # 添加该 posting 的商品列表（从 raw_payload 提取）
                     'products': posting_products
