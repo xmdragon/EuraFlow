@@ -159,18 +159,17 @@ const OrderList: React.FC = () => {
     sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
   };
 
-  // 查询订单列表（获取更大批次用于客户端分页）
+  // 查询订单列表
   const {
     data: ordersData,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonOrders', activeTab, selectedShop, searchParams],
+    queryKey: ['ozonOrders', currentPage, pageSize, activeTab, selectedShop, searchParams],
     queryFn: () => {
       const dateRange = searchParams.dateRange;
 
-      // 获取更大批次的数据（最多1000条订单），用于客户端分页
-      return ozonApi.getOrders(1, 1000, {
+      return ozonApi.getOrders(currentPage, pageSize, {
         ...searchParams,
         shop_id: selectedShop,
         status: activeTab === 'all' ? undefined : activeTab,
@@ -231,7 +230,7 @@ const OrderList: React.FC = () => {
   }, [ordersData, searchParams.posting_number]);
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
-  const allOrderItemRows = React.useMemo<OrderItemRow[]>(() => {
+  const orderItemRows = React.useMemo<OrderItemRow[]>(() => {
     const rows: OrderItemRow[] = [];
 
     postingsData.forEach((posting) => {
@@ -271,13 +270,6 @@ const OrderList: React.FC = () => {
 
     return rows;
   }, [postingsData]);
-
-  // 客户端分页：根据当前页和页大小切片数据
-  const orderItemRows = React.useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return allOrderItemRows.slice(startIndex, endIndex);
-  }, [allOrderItemRows, currentPage, pageSize]);
 
   // 使用统一的货币格式化函数（移除货币符号）
   const formatPrice = (price: any): string => {
@@ -942,13 +934,14 @@ const OrderList: React.FC = () => {
           pagination={{
             current: currentPage,
             pageSize: pageSize,
-            total: allOrderItemRows.length,
+            total: ordersData?.total || 0,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条货件`,
+            pageSizeOptions: [20, 50, 100],
+            showTotal: (total) => `共 ${total} 个订单`,
             onChange: (page, size) => {
               setCurrentPage(page);
-              setPageSize(size || 50);
+              setPageSize(size || 20);
             },
             className: styles.pagination,
           }}
