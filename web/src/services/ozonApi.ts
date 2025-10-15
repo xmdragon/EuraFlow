@@ -940,3 +940,31 @@ export const submitDomesticTracking = async (
   const response = await apiClient.post(`/ozon/postings/${postingNumber}/domestic-tracking`, data);
   return response.data;
 };
+
+// ==================== 商品进货价格历史 API ====================
+
+export interface PurchasePriceHistory {
+  posting_number: string;
+  purchase_price: string | null;
+  updated_at: string | null;
+  source_platform?: string;
+}
+
+export interface PurchasePriceHistoryResponse {
+  sku: string;
+  product_name: string | null;
+  offer_id: string | null;
+  history: PurchasePriceHistory[];
+  total: number;
+}
+
+// 获取商品SKU的进货价格历史记录
+export const getProductPurchasePriceHistory = async (
+  sku: string,
+  limit: number = 10
+): Promise<PurchasePriceHistoryResponse> => {
+  const response = await apiClient.get(`/ozon/products/${sku}/purchase-price-history`, {
+    params: { limit }
+  });
+  return response.data;
+};

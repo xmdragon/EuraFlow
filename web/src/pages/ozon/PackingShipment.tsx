@@ -59,6 +59,7 @@ import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
+import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import styles from './OrderList.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -280,6 +281,11 @@ const PackingShipment: React.FC = () => {
   const [updateBusinessInfoModalVisible, setUpdateBusinessInfoModalVisible] = useState(false);
   const [domesticTrackingModalVisible, setDomesticTrackingModalVisible] = useState(false);
   const [currentPosting, setCurrentPosting] = useState<ozonApi.Posting | null>(null);
+
+  // 进货价格历史弹窗状态
+  const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
+  const [selectedSku, setSelectedSku] = useState<string>('');
+  const [selectedProductName, setSelectedProductName] = useState<string>('');
 
   // 搜索参数状态（只支持 posting_number 搜索）
   const [searchParams, setSearchParams] = useState<any>({});
@@ -807,17 +813,26 @@ const PackingShipment: React.FC = () => {
               </Tooltip>
             </div>
             <div>
+              <Text type="secondary">SKU: </Text>
               {item.sku ? (
-                <a
-                  href={`https://www.ozon.ru/product/${item.sku}/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.link}
-                >
-                  SKU: {item.sku}
-                </a>
+                <>
+                  <a
+                    onClick={() => {
+                      setSelectedSku(item.sku);
+                      setSelectedProductName(item.name || '');
+                      setPriceHistoryModalVisible(true);
+                    }}
+                    style={{ cursor: 'pointer', color: '#1890ff' }}
+                  >
+                    {item.sku}
+                  </a>
+                  <CopyOutlined
+                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    onClick={() => handleCopy(item.sku, 'SKU')}
+                  />
+                </>
               ) : (
-                <span>SKU: -</span>
+                <span>-</span>
               )}
             </div>
             <div><Text type="secondary">数量: </Text>X {item.quantity || 1}</div>
@@ -1356,6 +1371,14 @@ const PackingShipment: React.FC = () => {
           postingNumber={currentPosting.posting_number}
         />
       )}
+
+      {/* 进货价格历史弹窗 */}
+      <PurchasePriceHistoryModal
+        visible={priceHistoryModalVisible}
+        onCancel={() => setPriceHistoryModalVisible(false)}
+        sku={selectedSku}
+        productName={selectedProductName}
+      />
     </div>
   );
 };

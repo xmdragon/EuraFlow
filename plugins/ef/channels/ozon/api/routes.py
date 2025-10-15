@@ -2319,6 +2319,82 @@ async def get_packing_orders(
     }
 
 
+@router.get("/products/{sku}/purchase-price-history")
+async def get_product_purchase_price_history(
+    sku: str,
+    limit: int = Query(10, le=50, description="返回的历史记录数量"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取指定SKU商品的进货价格历史记录
+
+    Args:
+        sku: 商品SKU
+        limit: 返回的记录数量，默认10条，最多50条
+
+    Returns:
+        包含商品名称、SKU和历史价格记录列表
+    """
+    from sqlalchemy import and_, desc, cast, String
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    # 1. 查询商品名称（从products表）
+    product_result = await db.execute(
+        select(OzonProduct.name, OzonProduct.offer_id)
+        .where(OzonProduct.sku == str(sku))
+        .limit(1)
+    )
+    product = product_result.first()
+    product_name = product[0] if product else None
+    offer_id = product[1] if product else None
+
+    # 2. 查询该SKU的进货价格历史（从postings表的raw_payload中匹配）
+    # 使用JSONB查询：raw_payload->'products'数组中任意元素的sku字段匹配
+    query = (
+        select(
+            OzonPosting.posting_number,
+            OzonPosting.purchase_price,
+            OzonPosting.purchase_price_updated_at,
+            OzonPosting.operation_time,
+            OzonPosting.source_platform
+        )
+        .where(
+            and_(
+                OzonPosting.purchase_price.isnot(None),  # 必须有进货价格
+                OzonPosting.raw_payload['products'].contains([{'sku': str(sku)}])  # JSONB数组包含查询
+            )
+        )
+        .order_by(
+            desc(OzonPosting.purchase_price_updated_at),
+            desc(OzonPosting.operation_time)
+        )
+        .limit(limit)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # 3. 构造返回数据
+    history_records = []
+    for row in rows:
+        history_records.append({
+            "posting_number": row.posting_number,
+            "purchase_price": str(row.purchase_price) if row.purchase_price else None,
+            "updated_at": row.purchase_price_updated_at.isoformat() if row.purchase_price_updated_at else (
+                row.operation_time.isoformat() if row.operation_time else None
+            ),
+            "source_platform": row.source_platform
+        })
+
+    return {
+        "sku": sku,
+        "product_name": product_name,
+        "offer_id": offer_id,
+        "history": history_records,
+        "total": len(history_records)
+    }
+
+
 @router.post("/orders/prepare")
 async def prepare_order(
     posting_number: str = Body(..., description="发货单号"),

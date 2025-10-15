@@ -56,6 +56,7 @@ import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../u
 import { useCurrency } from '../../hooks/useCurrency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
+import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import styles from './OrderList.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -93,6 +94,11 @@ const OrderList: React.FC = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
+
+  // 进货价格历史弹窗状态
+  const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
+  const [selectedSku, setSelectedSku] = useState<string>('');
+  const [selectedProductName, setSelectedProductName] = useState<string>('');
 
   // 搜索参数状态
   const [searchParams, setSearchParams] = useState<any>({});
@@ -559,17 +565,26 @@ const OrderList: React.FC = () => {
               </Tooltip>
             </div>
             <div>
+              <Text type="secondary">SKU: </Text>
               {item.sku ? (
-                <a
-                  href={`https://www.ozon.ru/product/${item.sku}/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.link}
-                >
-                  SKU: {item.sku}
-                </a>
+                <>
+                  <a
+                    onClick={() => {
+                      setSelectedSku(item.sku);
+                      setSelectedProductName(item.name || '');
+                      setPriceHistoryModalVisible(true);
+                    }}
+                    style={{ cursor: 'pointer', color: '#1890ff' }}
+                  >
+                    {item.sku}
+                  </a>
+                  <CopyOutlined
+                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    onClick={() => handleCopy(item.sku, 'SKU')}
+                  />
+                </>
               ) : (
-                <span>SKU: -</span>
+                <span>-</span>
               )}
             </div>
             <div><Text type="secondary">数量: </Text>X {item.quantity || 1}</div>
@@ -1008,6 +1023,14 @@ const OrderList: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 进货价格历史弹窗 */}
+      <PurchasePriceHistoryModal
+        visible={priceHistoryModalVisible}
+        onCancel={() => setPriceHistoryModalVisible(false)}
+        sku={selectedSku}
+        productName={selectedProductName}
+      />
     </div>
   );
 };
