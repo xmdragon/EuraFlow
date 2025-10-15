@@ -213,13 +213,16 @@ class Kuajing84MaterialCostSyncService:
                         stats["records_skipped"] += 1
                         # 简化错误信息
                         raw_error = result.get("message", "Unknown error")
+                        logger.info(f"Processing error for posting {posting.id}, raw_error='{raw_error}'")
                         if "跨境巴士没有记录" in raw_error:
                             error_message = "订单不存在"
                             # 记录错误到数据库，下次同步时跳过
+                            logger.info(f"Setting kuajing84_sync_error for posting {posting.id} to '订单不存在'")
                             posting.kuajing84_sync_error = "订单不存在"
                             posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                            logger.info(f"Before commit: posting.kuajing84_sync_error={posting.kuajing84_sync_error}")
                             await session.commit()
-                            logger.info(f"Marked posting {posting.id} as '订单不存在', will skip in future syncs")
+                            logger.info(f"After commit: Marked posting {posting.id} as '订单不存在', will skip in future syncs")
                         elif "Cookie" in raw_error and "过期" in raw_error:
                             error_message = "Cookie过期"
                             posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
