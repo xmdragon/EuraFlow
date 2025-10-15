@@ -1647,7 +1647,7 @@ async def import_products(
 @router.get("/orders")
 async def get_orders(
     offset: int = 0,
-    limit: int = Query(50, le=100),
+    limit: int = Query(50, le=1000),
     shop_id: Optional[int] = None,
     status: Optional[str] = None,
     posting_number: Optional[str] = None,
@@ -1658,7 +1658,7 @@ async def get_orders(
     db: AsyncSession = Depends(get_async_session)
     # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
 ):
-    """获取 Ozon 订单列表，支持多种搜索条件"""
+    """获取 Ozon 订单列表，支持多种搜索条件（limit最大1000用于客户端分页）"""
     from datetime import datetime
 
     # 构建查询（使用 selectinload 避免懒加载问题）
