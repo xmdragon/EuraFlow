@@ -61,11 +61,13 @@ async def lifespan(app: FastAPI):
 
         # 初始化任务调度器
         scheduler = get_scheduler()
+
+        # 注册同步服务处理函数（必须在调度器启动前，以便加载服务时能找到处理函数）
+        await _register_sync_service_handlers(scheduler)
+
+        # 启动调度器（会从数据库加载已启用的服务）
         await scheduler.start()
         logger.info("Task scheduler initialized")
-
-        # 注册同步服务处理函数（必须在调度器启动后）
-        await _register_sync_service_handlers(scheduler)
 
         logger.info("EuraFlow application started successfully")
 
