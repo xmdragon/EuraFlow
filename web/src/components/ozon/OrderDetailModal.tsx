@@ -239,6 +239,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               label: '财务信息',
               key: '5',
               children: (() => {
+                // 检查订单状态是否为"已签收"
+                const isDelivered = selectedPosting?.status === 'delivered';
+
                 // 计算订单金额（商品总价）
                 const orderAmount = parseFloat(selectedOrder.total_price || selectedOrder.total_amount || '0');
 
@@ -249,11 +252,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 const lastMileDelivery = parseFloat(selectedPosting?.last_mile_delivery_fee_cny || '0');
                 const packingFee = parseFloat(selectedPosting?.material_cost || '0');
 
-                // 计算利润金额 = 订单金额 - (进货金额 + Ozon佣金 + 国际物流 + 尾程派送 + 打包费用)
-                const profitAmount = orderAmount - (purchasePrice + ozonCommission + internationalLogistics + lastMileDelivery + packingFee);
+                // 只有在已签收状态下才计算利润
+                const profitAmount = isDelivered
+                  ? orderAmount - (purchasePrice + ozonCommission + internationalLogistics + lastMileDelivery + packingFee)
+                  : null;
 
                 // 计算利润比率 = (利润金额 / 订单金额) * 100，保留2位小数
-                const profitRate = orderAmount > 0 ? ((profitAmount / orderAmount) * 100).toFixed(2) : '0.00';
+                const profitRate = (isDelivered && orderAmount > 0 && profitAmount !== null)
+                  ? ((profitAmount / orderAmount) * 100).toFixed(2)
+                  : null;
 
                 return (
                   <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
@@ -310,18 +317,26 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="利润金额">
-                      <Text strong style={{ color: profitAmount >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                        {formatPriceWithFallback(
-                          profitAmount.toString(),
-                          selectedOrder.currency_code,
-                          userCurrency
-                        )}
-                      </Text>
+                      {profitAmount !== null ? (
+                        <Text strong style={{ color: profitAmount >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                          {formatPriceWithFallback(
+                            profitAmount.toString(),
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )}
+                        </Text>
+                      ) : (
+                        '-'
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="利润比率">
-                      <Text strong style={{ color: parseFloat(profitRate) >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                        {profitRate}%
-                      </Text>
+                      {profitRate !== null ? (
+                        <Text strong style={{ color: parseFloat(profitRate) >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                          {profitRate}%
+                        </Text>
+                      ) : (
+                        '-'
+                      )}
                     </Descriptions.Item>
                   </Descriptions>
                 );
