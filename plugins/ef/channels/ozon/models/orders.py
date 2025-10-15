@@ -272,6 +272,10 @@ class OzonPosting(Base):
         comment="操作状态：awaiting_stock(等待备货)/allocating(分配中)/allocated(已分配)/tracking_confirmed(单号确认)"
     )
 
+    # 跨境巴士同步状态
+    kuajing84_sync_error = Column(String(200), comment="跨境巴士同步错误信息（如'订单不存在'则跳过后续同步）")
+    kuajing84_last_sync_at = Column(DateTime(timezone=True), comment="最后尝试同步跨境巴士的时间")
+
     # 时间
     in_process_at = Column(DateTime(timezone=True))
     shipped_at = Column(DateTime(timezone=True))

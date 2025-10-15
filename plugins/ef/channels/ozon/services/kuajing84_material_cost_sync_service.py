@@ -88,6 +88,7 @@ class Kuajing84MaterialCostSyncService:
             # 排除条件：
             # - 等待备货状态 (awaiting_packaging)
             # - 已取消状态 (cancelled 或 is_cancelled=True)
+            # - 已标记"订单不存在"错误（kuajing84_sync_error = '订单不存在'）
             # - 只查询90天以内的货件
             # - 按创建时间升序（优先处理最旧的）
             ninety_days_ago = datetime.now(timezone.utc) - timedelta(days=90)
@@ -100,6 +101,7 @@ class Kuajing84MaterialCostSyncService:
                 .where(OzonPosting.status != 'awaiting_packaging')  # 排除等待备货
                 .where(OzonPosting.status != 'cancelled')  # 排除已取消
                 .where(OzonPosting.is_cancelled == False)  # 排除已取消标志
+                .where(OzonPosting.kuajing84_sync_error != '订单不存在')  # 排除已标记不存在的订单
                 .where(OzonPosting.created_at >= ninety_days_ago)  # 只查询90天内
                 .order_by(OzonPosting.created_at.asc())  # 升序：最旧的优先
                 .limit(self.batch_size)
@@ -113,7 +115,7 @@ class Kuajing84MaterialCostSyncService:
                     "message": "没有需要同步物料成本的货件"
                 }
 
-            logger.info(f"Found {len(postings)} postings to process (within 90 days, excluding awaiting_packaging and cancelled)")
+            logger.info(f"Found {len(postings)} postings to process (within 90 days, excluding awaiting_packaging, cancelled, and '订单不存在' errors)")
 
             # 4. 循环处理每个货件
             for posting in postings:
@@ -182,6 +184,10 @@ class Kuajing84MaterialCostSyncService:
                                     f"tracking_number={result['logistics_order']}"
                                 )
 
+                            # 清除错误状态并更新同步时间
+                            posting.kuajing84_sync_error = None
+                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+
                             logger.info(
                                 f"Updated material cost for posting {posting.id}, "
                                 f"posting_number={posting_number}, cost={material_cost}"
@@ -209,13 +215,24 @@ class Kuajing84MaterialCostSyncService:
                         raw_error = result.get("message", "Unknown error")
                         if "跨境巴士没有记录" in raw_error:
                             error_message = "订单不存在"
+                            # 记录错误到数据库，下次同步时跳过
+                            posting.kuajing84_sync_error = "订单不存在"
+                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                            await session.commit()
+                            logger.info(f"Marked posting {posting.id} as '订单不存在', will skip in future syncs")
                         elif "Cookie" in raw_error and "过期" in raw_error:
                             error_message = "Cookie过期"
+                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                            await session.commit()
                         elif "API返回错误" in raw_error:
                             # 提取 code 和简短描述
                             error_message = "API错误"
+                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                            await session.commit()
                         else:
                             error_message = raw_error[:50]  # 限制长度
+                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                            await session.commit()
                         stats["errors"].append({
                             "posting_id": posting.id,
                             "posting_number": posting_number,
@@ -234,6 +251,11 @@ class Kuajing84MaterialCostSyncService:
                         error_message = error_str[:50]  # 限制长度
                     log_status = "failed"
                     order_updated = False
+
+                    # 记录同步时间（但不标记为永久失败）
+                    posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                    await session.commit()
+
                     stats["errors"].append({
                         "posting_id": posting.id,
                         "posting_number": posting_number,
