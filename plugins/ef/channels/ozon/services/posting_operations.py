@@ -82,57 +82,13 @@ class PostingOperationsService:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
 
-        # 4. 构造 OZON exemplar API 请求数据
-        try:
-            products_data = await self._build_exemplar_products(posting)
-            logger.info(f"构造的 exemplar products 数据: {products_data}")
-        except Exception as e:
-            logger.error(f"构造 exemplar 数据失败: {e}")
-            return {
-                "success": False,
-                "message": f"构造备货数据失败: {str(e)}"
-            }
-
-        # 5. 调用 OZON exemplar set API
-        # 查询店铺配置
-        shop_result = await self.db.execute(
-            select(OzonShop).where(OzonShop.id == posting.shop_id)
-        )
-        shop = shop_result.scalar_one_or_none()
-
-        if not shop:
-            return {
-                "success": False,
-                "message": f"店铺不存在: {posting.shop_id}"
-            }
-
-        # 调用 OZON API
-        async with OzonAPIClient(
-            client_id=shop.client_id,
-            api_key=shop.api_key_enc,
-            shop_id=shop.id
-        ) as ozon_client:
-            try:
-                logger.info(f"准备调用 OZON set_exemplar API, posting_number: {posting_number}, multi_box_qty: 0, products: {products_data}")
-                ozon_response = await ozon_client.set_exemplar(
-                    posting_number=posting_number,
-                    products=products_data,
-                    multi_box_qty=0
-                )
-                logger.info(f"OZON exemplar set API 调用成功: {ozon_response}")
-            except Exception as e:
-                logger.error(f"OZON exemplar set API 调用失败: {e}", exc_info=True)
-                # 回滚数据库事务
-                await self.db.rollback()
-                return {
-                    "success": False,
-                    "message": f"OZON API 调用失败: {str(e)}"
-                }
-
-        # 6. 更新操作状态为"分配中"
+        # 4. 更新操作状态为"分配中"
+        # 注意：暂时跳过 OZON exemplar API 调用
+        # exemplar API 主要用于"诚信标志"系统合规，不是所有商品都需要
+        # 如果后续需要，可以根据商品类型或其他条件选择性调用
         posting.operation_status = "allocating"
 
-        # 7. 提交数据库事务
+        # 5. 提交数据库事务
         await self.db.commit()
         await self.db.refresh(posting)
 
