@@ -145,137 +145,68 @@ async def setup(hooks) -> None:
             """OZON商品订单增量同步处理函数"""
             import uuid
             import logging
-            from datetime import timezone
             from ef_core.database import get_db_manager
             from .models import OzonShop
-            from .models.sync_service import SyncServiceLog
             from sqlalchemy import select
 
-            # 记录开始时间
-            started_at = datetime.now(timezone.utc)
-            run_id = f"ozon_sync_incremental_{uuid.uuid4().hex[:12]}"
+            # 获取所有活跃店铺
+            total_products = 0
+            total_orders = 0
+            shops_synced = []
 
-            try:
-                # 获取所有活跃店铺
-                total_products = 0
-                total_orders = 0
-                shops_synced = []
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as db:
+                result = await db.execute(
+                    select(OzonShop).where(OzonShop.status == "active")
+                )
+                shops = result.scalars().all()
 
-                db_manager = get_db_manager()
-                async with db_manager.get_session() as db:
-                    result = await db.execute(
-                        select(OzonShop).where(OzonShop.status == "active")
-                    )
-                    shops = result.scalars().all()
+                for shop in shops:
+                    shop_products = 0
+                    shop_orders = 0
 
-                    for shop in shops:
-                        shop_products = 0
-                        shop_orders = 0
-
-                        # 同步商品
-                        sync_products = config.get("sync_products", True)
-                        if sync_products:
-                            product_task_id = f"ozon_sync_products_{shop.id}_{uuid.uuid4().hex[:8]}"
-                            product_result = await OzonSyncService.sync_products(
-                                shop_id=shop.id,
-                                db=db,
-                                task_id=product_task_id,
-                                mode="incremental"
-                            )
-                            shop_products = product_result.get("result", {}).get("total_synced", 0)
-                            total_products += shop_products
-
-                        # 同步订单
-                        sync_orders = config.get("sync_orders", True)
-                        if sync_orders:
-                            order_task_id = f"ozon_sync_orders_{shop.id}_{uuid.uuid4().hex[:8]}"
-                            order_result = await OzonSyncService.sync_orders(
-                                shop_id=shop.id,
-                                db=db,
-                                task_id=order_task_id,
-                                mode="incremental"
-                            )
-                            shop_orders = order_result.get("result", {}).get("total_synced", 0)
-                            total_orders += shop_orders
-
-                        shops_synced.append({
-                            "shop_id": shop.id,
-                            "shop_name": shop.shop_name,
-                            "products": shop_products,
-                            "orders": shop_orders
-                        })
-
-                    # 创建成功日志
-                    finished_at = datetime.now(timezone.utc)
-                    execution_time_ms = int((finished_at - started_at).total_seconds() * 1000)
-
-                    sync_log = SyncServiceLog(
-                        service_key="ozon_sync_incremental",
-                        run_id=run_id,
-                        started_at=started_at,
-                        finished_at=finished_at,
-                        status="success",
-                        records_processed=total_products + total_orders,
-                        records_updated=total_products + total_orders,
-                        execution_time_ms=execution_time_ms,
-                        error_message=None,
-                        extra_data={
-                            "shops_count": len(shops_synced),
-                            "total_products": total_products,
-                            "total_orders": total_orders,
-                            "shops": shops_synced,
-                            "sync_mode": "incremental"
-                        }
-                    )
-                    db.add(sync_log)
-                    await db.commit()
-
-                return {
-                    "records_processed": total_products + total_orders,
-                    "records_updated": total_products + total_orders,
-                    "message": f"同步完成：商品{total_products}条，订单{total_orders}条"
-                }
-
-            except Exception as e:
-                logging.error(f"OZON sync failed: {e}", exc_info=True)
-
-                # 创建失败日志
-                try:
-                    db_manager = get_db_manager()
-                    async with db_manager.get_session() as db:
-                        finished_at = datetime.now(timezone.utc)
-                        execution_time_ms = int((finished_at - started_at).total_seconds() * 1000)
-
-                        # 简化异常信息
-                        error_str = str(e)
-                        if "timeout" in error_str.lower():
-                            error_message = "请求超时"
-                        elif "connection" in error_str.lower():
-                            error_message = "连接失败"
-                        else:
-                            error_message = error_str[:200]
-
-                        sync_log = SyncServiceLog(
-                            service_key="ozon_sync_incremental",
-                            run_id=run_id,
-                            started_at=started_at,
-                            finished_at=finished_at,
-                            status="failed",
-                            records_processed=0,
-                            records_updated=0,
-                            execution_time_ms=execution_time_ms,
-                            error_message=error_message,
-                            extra_data={
-                                "sync_mode": "incremental",
-                                "config": config
-                            }
+                    # 同步商品
+                    sync_products = config.get("sync_products", True)
+                    if sync_products:
+                        product_task_id = f"ozon_sync_products_{shop.id}_{uuid.uuid4().hex[:8]}"
+                        product_result = await OzonSyncService.sync_products(
+                            shop_id=shop.id,
+                            db=db,
+                            task_id=product_task_id,
+                            mode="incremental"
                         )
-                        db.add(sync_log)
-                        await db.commit()
-                except Exception as log_error:
-                    logging.error(f"Failed to create error log: {log_error}")
+                        shop_products = product_result.get("result", {}).get("total_synced", 0)
+                        total_products += shop_products
 
-                raise
+                    # 同步订单
+                    sync_orders = config.get("sync_orders", True)
+                    if sync_orders:
+                        order_task_id = f"ozon_sync_orders_{shop.id}_{uuid.uuid4().hex[:8]}"
+                        order_result = await OzonSyncService.sync_orders(
+                            shop_id=shop.id,
+                            db=db,
+                            task_id=order_task_id,
+                            mode="incremental"
+                        )
+                        shop_orders = order_result.get("result", {}).get("total_synced", 0)
+                        total_orders += shop_orders
+
+                    shops_synced.append({
+                        "shop_id": shop.id,
+                        "shop_name": shop.shop_name,
+                        "products": shop_products,
+                        "orders": shop_orders
+                    })
+
+            return {
+                "records_processed": total_products + total_orders,
+                "records_updated": total_products + total_orders,
+                "message": f"同步完成：商品{total_products}条，订单{total_orders}条",
+                "shops_count": len(shops_synced),
+                "total_products": total_products,
+                "total_orders": total_orders,
+                "shops": shops_synced
+            }
 
         scheduler.register_handler(
             service_key="ozon_sync_incremental",
