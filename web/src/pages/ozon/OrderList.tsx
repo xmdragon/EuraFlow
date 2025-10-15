@@ -154,10 +154,10 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
         <Col span={12}>
           <Form.Item
             name="source_platform"
-            label="采集平台"
-            tooltip="商品采集来源平台"
+            label="采购平台"
+            tooltip="商品采购来源平台"
           >
-            <Select placeholder="请选择采集平台" allowClear>
+            <Select placeholder="请选择采购平台" allowClear>
               <Option value="1688">1688</Option>
               <Option value="拼多多">拼多多</Option>
               <Option value="咸鱼">咸鱼</Option>
