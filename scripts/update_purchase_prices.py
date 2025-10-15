@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from sqlalchemy import select, update
-from ef_core.database import get_db_session
+from ef_core.database import get_sync_session
 from plugins.ef.channels.ozon.models.orders import OzonPosting
 
 
@@ -67,7 +67,7 @@ def update_purchase_prices_from_csv(csv_file_path: str):
         return
 
     # 连接数据库并更新
-    with get_db_session() as db:
+    with get_sync_session() as db:
         success_count = 0
         not_found_count = 0
         error_count = 0
