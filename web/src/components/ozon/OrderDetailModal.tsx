@@ -53,8 +53,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   <Descriptions.Item label="Ozon订单号">
                     {selectedOrder.ozon_order_id || selectedOrder.order_id}
                   </Descriptions.Item>
-                  <Descriptions.Item label="订单类型">
-                    {selectedOrder.order_type || 'FBS'}
+                  <Descriptions.Item label="状态">
+                    <Tag color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}>
+                      {statusConfig[selectedPosting?.status || selectedOrder.status]?.text}
+                    </Tag>
                   </Descriptions.Item>
                   <Descriptions.Item label="总金额">
                     {formatPriceWithFallback(
@@ -63,10 +65,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       userCurrency
                     )}
                   </Descriptions.Item>
-                  <Descriptions.Item label="状态">
-                    <Tag color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}>
-                      {statusConfig[selectedPosting?.status || selectedOrder.status]?.text}
-                    </Tag>
+                  <Descriptions.Item label="进货价格">
+                    {selectedOrder.purchase_price
+                      ? formatPriceWithFallback(
+                          selectedOrder.purchase_price,
+                          selectedOrder.currency_code,
+                          userCurrency
+                        )
+                      : '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label="国内单号">
                     {selectedOrder.domestic_tracking_number || '-'}
@@ -178,6 +184,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       {statusConfig[posting.status]?.text || posting.status}
                     </Descriptions.Item>
                     <Descriptions.Item label="仓库">{posting.warehouse_name || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="订单类型">
+                      {selectedOrder.order_type || 'FBS'}
+                    </Descriptions.Item>
                     <Descriptions.Item label="配送方式">
                       {formatDeliveryMethodTextWhite(posting.delivery_method_name)}
                     </Descriptions.Item>
