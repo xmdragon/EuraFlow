@@ -1702,8 +1702,8 @@ async def get_orders(
         if status:
             query = query.where(OzonPosting.status == status)
 
-        # 去重（因为一个订单可能有多个posting）
-        query = query.distinct()
+        # 去重（因为一个订单可能有多个posting，使用distinct on id）
+        query = query.distinct(OzonOrder.id)
     elif status:
         # 普通页面：只按status筛选
         query = query.where(OzonOrder.status == status)
