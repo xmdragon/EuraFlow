@@ -76,20 +76,10 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       title: '日期',
       dataIndex: 'updated_at',
       key: 'date',
-      width: 100,
+      width: 120,
       render: (time: string | null) => {
         if (!time) return '-';
-        return moment(time).format('MM-DD');
-      },
-    },
-    {
-      title: '更新时间',
-      dataIndex: 'updated_at',
-      key: 'updated_at',
-      width: 160,
-      render: (time: string | null) => {
-        if (!time) return '-';
-        return moment(time).format('YYYY-MM-DD HH:mm:ss');
+        return moment(time).format('YYYY-MM-DD');
       },
     },
   ];
@@ -100,7 +90,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       open={visible}
       onCancel={onCancel}
       footer={null}
-      width={700}
+      width={800}
       destroyOnClose
     >
       <div style={{ marginBottom: 16 }}>
@@ -127,7 +117,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
           rowKey="posting_number"
           pagination={false}
           size="small"
-          scroll={{ y: 400 }}
+          scroll={{ y: 600 }}
         />
       )}
     </Modal>
