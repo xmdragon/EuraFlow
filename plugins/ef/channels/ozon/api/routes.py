@@ -1703,7 +1703,8 @@ async def get_orders(
             query = query.where(OzonPosting.status == status)
 
         # 去重（因为一个订单可能有多个posting，使用distinct on id）
-        query = query.distinct(OzonOrder.id)
+        # PostgreSQL要求DISTINCT ON的字段必须出现在ORDER BY的开头
+        query = query.distinct(OzonOrder.id).order_by(OzonOrder.id, OzonOrder.ordered_at.desc())
     elif status:
         # 普通页面：只按status筛选
         query = query.where(OzonOrder.status == status)
@@ -1868,8 +1869,10 @@ async def get_orders(
         "confirmed": status_counts.get('confirmed', 0),
     }
 
-    # 添加分页
-    query = query.offset(offset).limit(limit).order_by(OzonOrder.ordered_at.desc())
+    # 添加分页和排序（打包发货页面已经在前面设置了ORDER BY）
+    if filter != "awaiting_packaging":
+        query = query.order_by(OzonOrder.ordered_at.desc())
+    query = query.offset(offset).limit(limit)
 
     # 执行查询
     result = await db.execute(query)
