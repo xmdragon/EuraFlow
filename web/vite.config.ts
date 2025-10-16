@@ -46,8 +46,8 @@ export default defineConfig({
             if (id.includes('antd') || id.includes('@ant-design/icons')) {
               return 'antd';
             }
-            // 图表库 (~400KB) - 仅在特定页面使用
-            if (id.includes('recharts') || id.includes('@ant-design/plots')) {
+            // 图表库 (~150KB) - recharts，用于订单报表和汇率趋势图
+            if (id.includes('recharts')) {
               return 'charts';
             }
             // React 核心 (~180KB) - 最稳定，缓存命中率高

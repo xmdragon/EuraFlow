@@ -31,7 +31,15 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Line } from '@ant-design/plots';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 import * as exchangeRateApi from '../services/exchangeRateApi';
 import styles from './ExchangeRateManagement.module.scss';
@@ -190,44 +198,14 @@ const ExchangeRateManagement: React.FC = () => {
     }
   };
 
-  // 趋势图配置
-  const chartConfig = {
-    data: history?.data || [],
-    xField: 'time',
-    yField: 'rate',
-    smooth: true,
-    animation: {
-      appear: {
-        animation: 'path-in',
-        duration: 1000,
-      },
-    },
-    xAxis: {
-      type: 'time',
-      label: {
-        formatter: (text: string) => {
-          const date = new Date(text);
-          if (timeRange === 'today') {
-            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-          } else {
-            return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
-          }
-        },
-      },
-    },
-    yAxis: {
-      label: {
-        formatter: (text: string) => parseFloat(text).toFixed(4),
-      },
-    },
-    tooltip: {
-      formatter: (datum: any) => {
-        return {
-          name: '汇率',
-          value: datum.rate.toFixed(6),
-        };
-      },
-    },
+  // X轴格式化函数
+  const formatXAxis = (text: string) => {
+    const date = new Date(text);
+    if (timeRange === 'today') {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+    }
   };
 
   return (
@@ -492,7 +470,28 @@ const ExchangeRateManagement: React.FC = () => {
               </div>
             ) : history?.data && history.data.length > 0 ? (
               <div className={styles.chartContainer}>
-                <Line {...chartConfig} />
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={history.data}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="time"
+                      tickFormatter={formatXAxis}
+                    />
+                    <YAxis
+                      tickFormatter={(value) => value.toFixed(4)}
+                    />
+                    <Tooltip
+                      formatter={(value: any) => [`${value.toFixed(6)}`, '汇率']}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="rate"
+                      stroke="#1890ff"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             ) : (
               <Alert
