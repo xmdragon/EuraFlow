@@ -1168,33 +1168,6 @@ const PackingShipment: React.FC = () => {
 
       {/* 打包发货列表 */}
       <Card className={styles.listCard}>
-        {/* 操作按钮 */}
-        <Space className={styles.actionSpace}>
-          <Button
-            icon={<SyncOutlined />}
-            onClick={() => handleSync(true)}
-            loading={syncOrdersMutation.isPending}
-            disabled={!selectedShop}
-          >
-            全量同步
-          </Button>
-          <Button
-            icon={<TruckOutlined />}
-            onClick={handleBatchShip}
-            disabled={selectedOrders.length === 0}
-          >
-            批量发货
-          </Button>
-          <Button
-            icon={<PrinterOutlined />}
-            onClick={handleBatchPrint}
-            disabled={selectedOrders.length === 0}
-          >
-            批量打印
-          </Button>
-          <Button icon={<DownloadOutlined />}>导出订单</Button>
-        </Space>
-
         {/* 操作状态 Tabs */}
         <Tabs
           activeKey={operationStatus}
