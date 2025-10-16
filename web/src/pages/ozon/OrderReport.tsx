@@ -28,6 +28,8 @@ import {
   PercentageOutlined,
   RiseOutlined,
   CopyOutlined,
+  UpOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -429,30 +431,28 @@ const OrderReport: React.FC = () => {
     // 11. 利润比率（rowSpan，带排序）
     {
       title: () => (
-        <div>
-          <span>利润比率 </span>
-          <Select
-            value={sortBy === 'profit_rate' ? sortOrder : undefined}
-            onChange={(value) => {
-              if (value) {
+        <div className={styles.profitRateHeader}>
+          <span>利润比率</span>
+          <span className={styles.sortIcons}>
+            <UpOutlined
+              className={`${styles.sortIcon} ${sortBy === 'profit_rate' && sortOrder === 'asc' ? styles.active : ''}`}
+              onClick={() => {
                 setSortBy('profit_rate');
-                setSortOrder(value as 'asc' | 'desc');
+                setSortOrder('asc');
                 setPage(1);
                 setAllLoadedData([]);
-              } else {
-                setSortBy(undefined);
+              }}
+            />
+            <DownOutlined
+              className={`${styles.sortIcon} ${sortBy === 'profit_rate' && sortOrder === 'desc' ? styles.active : ''}`}
+              onClick={() => {
+                setSortBy('profit_rate');
+                setSortOrder('desc');
                 setPage(1);
                 setAllLoadedData([]);
-              }
-            }}
-            allowClear
-            size="small"
-            style={{ width: 80 }}
-            placeholder="排序"
-          >
-            <Option value="desc">↓高到低</Option>
-            <Option value="asc">↑低到高</Option>
-          </Select>
+              }}
+            />
+          </span>
         </div>
       ),
       width: '10%',

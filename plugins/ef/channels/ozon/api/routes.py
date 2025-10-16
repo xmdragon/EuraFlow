@@ -3247,35 +3247,28 @@ async def get_posting_report(
         offset = (page - 1) * page_size
         total_pages = (total + page_size - 1) // page_size  # 向上取整
 
-        # 如果按利润率排序，需要查询所有数据再排序（因为利润率是计算字段）
+        # 确定排序字段和顺序
         if sort_by == 'profit_rate':
-            # 查询所有posting数据（不分页）
-            postings_query = select(
-                OzonPosting,
-                OzonOrder,
-                OzonShop.shop_name
-            ).join(
-                OzonOrder, OzonPosting.order_id == OzonOrder.id
-            ).join(
-                OzonShop, OzonOrder.shop_id == OzonShop.id
-            ).where(
-                and_(*conditions)
-            )
+            # 使用数据库中的 profit_rate 字段排序
+            order_clause = OzonPosting.profit_rate.desc() if sort_order == 'desc' else OzonPosting.profit_rate.asc()
         else:
-            # 查询posting数据（带分页，按下单时间排序）
-            postings_query = select(
-                OzonPosting,
-                OzonOrder,
-                OzonShop.shop_name
-            ).join(
-                OzonOrder, OzonPosting.order_id == OzonOrder.id
-            ).join(
-                OzonShop, OzonOrder.shop_id == OzonShop.id
-            ).where(
-                and_(*conditions)
-            ).order_by(
-                OzonOrder.ordered_at.desc()
-            ).offset(offset).limit(page_size)
+            # 默认按下单时间降序排序
+            order_clause = OzonOrder.ordered_at.desc()
+
+        # 查询posting数据（带分页和排序）
+        postings_query = select(
+            OzonPosting,
+            OzonOrder,
+            OzonShop.shop_name
+        ).join(
+            OzonOrder, OzonPosting.order_id == OzonOrder.id
+        ).join(
+            OzonShop, OzonOrder.shop_id == OzonShop.id
+        ).where(
+            and_(*conditions)
+        ).order_by(
+            order_clause
+        ).offset(offset).limit(page_size)
 
         result = await db.execute(postings_query)
         postings_with_order_shop = result.all()
@@ -3363,14 +3356,6 @@ async def get_posting_report(
                 'profit': format_currency(profit),
                 'profit_rate': round(profit_rate, 2)
             })
-
-        # 如果按利润率排序，在Python中排序并分页
-        if sort_by == 'profit_rate':
-            # 按利润率排序
-            reverse = (sort_order == 'desc')
-            report_data.sort(key=lambda x: x['profit_rate'], reverse=reverse)
-            # 应用分页
-            report_data = report_data[offset:offset + page_size]
 
         # 返回分页数据
         return {

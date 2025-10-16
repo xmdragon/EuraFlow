@@ -160,6 +160,10 @@ class OzonFinanceSyncService:
                             posting.ozon_commission_cny = fees["ozon_commission"]
                             posting.finance_synced_at = datetime.now(timezone.utc)
 
+                            # 9. 计算并更新利润
+                            from .profit_calculator import calculate_and_update_profit
+                            await calculate_and_update_profit(session, posting)
+
                             await session.commit()
 
                             logger.info(

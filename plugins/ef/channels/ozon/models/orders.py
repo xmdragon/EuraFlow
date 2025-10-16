@@ -286,6 +286,10 @@ class OzonPosting(Base):
     ozon_commission_cny = Column(Numeric(18, 2), comment="Ozon佣金(CNY)")
     finance_synced_at = Column(DateTime(timezone=True), comment="财务同步时间")
 
+    # 利润字段（CNY）
+    profit = Column(Numeric(18, 2), comment="利润金额(CNY)")
+    profit_rate = Column(Numeric(10, 4), comment="利润比率(%)")
+
     # 时间
     in_process_at = Column(DateTime(timezone=True))
     shipped_at = Column(DateTime(timezone=True))
