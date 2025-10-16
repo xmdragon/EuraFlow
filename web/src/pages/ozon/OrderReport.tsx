@@ -159,6 +159,27 @@ const OrderReport: React.FC = () => {
     staleTime: 2 * 60 * 1000, // 2分钟缓存
   });
 
+  // 监听页面滚动以实现无限滚动
+  useEffect(() => {
+    if (activeTab !== 'details') return;
+
+    const handleScroll = () => {
+      // 检测滚动到底部（留300px缓冲区）
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+
+      if (scrollHeight - scrollTop - clientHeight < 300) {
+        if (!isFetching && hasMore) {
+          setPage((prev) => prev + 1);
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [activeTab, isFetching, hasMore]);
+
   // 当数据返回时，累积到allLoadedData
   useEffect(() => {
     if (postingReportData?.data) {
@@ -540,38 +561,25 @@ const OrderReport: React.FC = () => {
             {/* 订单明细Tab */}
             <Tabs.TabPane tab={`订单明细 (${postingReportData?.total || 0})`} key="details">
               <Spin spinning={isLoadingPostings}>
-                <div
-                  style={{ maxHeight: '70vh', overflow: 'auto' }}
-                  onScroll={(e) => {
-                    const target = e.currentTarget;
-                    // 检测滚动到底部（留100px缓冲区）
-                    if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
-                      if (!isFetching && hasMore) {
-                        setPage((prev) => prev + 1);
-                      }
-                    }
-                  }}
-                >
-                  <Table
-                    dataSource={postingItemRows}
-                    columns={detailColumns}
-                    rowKey="key"
-                    pagination={false}
-                    scroll={{ x: 'max-content' }}
-                    loading={false}
-                  />
-                  {/* 加载更多提示 */}
-                  {isFetching && (
-                    <div style={{ textAlign: 'center', padding: '12px', color: '#666' }}>
-                      加载中...
-                    </div>
-                  )}
-                  {!hasMore && allLoadedData.length > 0 && (
-                    <div style={{ textAlign: 'center', padding: '12px', color: '#999' }}>
-                      已加载全部数据
-                    </div>
-                  )}
-                </div>
+                <Table
+                  dataSource={postingItemRows}
+                  columns={detailColumns}
+                  rowKey="key"
+                  pagination={false}
+                  scroll={{ x: 'max-content' }}
+                  loading={false}
+                />
+                {/* 加载更多提示 */}
+                {isFetching && (
+                  <div style={{ textAlign: 'center', padding: '12px', color: '#666' }}>
+                    加载中...
+                  </div>
+                )}
+                {!hasMore && allLoadedData.length > 0 && (
+                  <div style={{ textAlign: 'center', padding: '12px', color: '#999' }}>
+                    已加载全部数据
+                  </div>
+                )}
               </Spin>
             </Tabs.TabPane>
 
