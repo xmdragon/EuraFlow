@@ -35,14 +35,31 @@ export default defineConfig({
     },
   },
   build: {
-    // 设置chunk大小警告限制（单一 vendor 约 1.5 MB，gzip 后 480 KB）
-    chunkSizeWarningLimit: 2000,
+    // 设置chunk大小警告限制（优化后每个chunk应≤600KB）
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        // 不做代码分割，所有第三方库打包在一起，避免依赖顺序问题
+        // 按依赖类型智能分割，优化缓存和并行加载
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            return 'vendor';  // 所有第三方库统一打包
+            // Ant Design 生态 (~600KB)
+            if (id.includes('antd') || id.includes('@ant-design/icons')) {
+              return 'antd';
+            }
+            // 图表库 (~400KB) - 仅在特定页面使用
+            if (id.includes('recharts') || id.includes('@ant-design/plots')) {
+              return 'charts';
+            }
+            // React 核心 (~180KB) - 最稳定，缓存命中率高
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react';
+            }
+            // TanStack Query (~80KB)
+            if (id.includes('@tanstack/react-query')) {
+              return 'query';
+            }
+            // 其他工具库 (~240KB)
+            return 'vendor';
           }
         },
         // 用于命名代码拆分的块（保留 manualChunks 的命名）
