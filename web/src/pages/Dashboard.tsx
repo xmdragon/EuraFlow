@@ -14,6 +14,7 @@ import {
   MessageOutlined,
   SyncOutlined,
   DollarOutlined,
+  CloudUploadOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy, useState, useEffect } from 'react';
@@ -108,6 +109,12 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate('/dashboard/ozon/products'),
         },
         {
+          key: 'ozon-listing',
+          icon: <CloudUploadOutlined />,
+          label: '商品上架',
+          onClick: () => navigate('/dashboard/ozon/listing'),
+        },
+        {
           key: 'ozon-orders',
           icon: <ShoppingCartOutlined />,
           label: '订单管理',
@@ -188,6 +195,7 @@ const Dashboard: React.FC = () => {
     const path = location.pathname;
     if (path.includes('/ozon/selection')) return 'ozon-selection';
     if (path.includes('/ozon/products')) return 'ozon-products';
+    if (path.includes('/ozon/listing')) return 'ozon-listing';
     if (path.includes('/ozon/packing')) return 'ozon-packing';
     if (path.includes('/ozon/orders')) return 'ozon-orders';
     if (path.includes('/ozon/reports')) return 'ozon-reports';

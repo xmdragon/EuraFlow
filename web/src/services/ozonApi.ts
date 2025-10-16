@@ -1014,3 +1014,235 @@ export const getProductPurchasePriceHistory = async (
   });
   return response.data;
 };
+
+// ==================== 商品上架相关 API ====================
+
+export interface Category {
+  category_id: number;
+  name: string;
+  parent_id?: number;
+  is_leaf: boolean;
+  level: number;
+}
+
+export interface CategoryAttribute {
+  attribute_id: number;
+  name: string;
+  description?: string;
+  attribute_type: string;
+  is_required: boolean;
+  is_collection: boolean;
+  dictionary_id?: number;
+  min_value?: number;
+  max_value?: number;
+}
+
+export interface DictionaryValue {
+  value_id: number;
+  value: string;
+  info?: string;
+  picture?: string;
+}
+
+export interface ListingStatus {
+  status: string;
+  mode?: string;
+  product_id?: number;
+  sku?: number;
+  timestamps: {
+    media_ready_at?: string;
+    import_submitted_at?: string;
+    created_at_ozon?: string;
+    priced_at?: string;
+    stock_set_at?: string;
+    live_at?: string;
+  };
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
+export interface MediaImportLog {
+  id: number;
+  source_url: string;
+  file_name?: string;
+  position: number;
+  state: string;
+  ozon_file_id?: string;
+  ozon_url?: string;
+  error_code?: string;
+  error_message?: string;
+  retry_count: number;
+  created_at?: string;
+}
+
+export interface ProductImportLog {
+  id: number;
+  offer_id: string;
+  import_mode: string;
+  state: string;
+  task_id?: string;
+  ozon_product_id?: number;
+  ozon_sku?: number;
+  error_code?: string;
+  error_message?: string;
+  errors?: any;
+  retry_count: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// 搜索类目
+export const searchCategories = async (
+  shopId: number,
+  query: string,
+  onlyLeaf: boolean = true,
+  limit: number = 20
+) => {
+  const response = await apiClient.get('/ozon/listings/categories/search', {
+    params: { shop_id: shopId, query, only_leaf: onlyLeaf, limit }
+  });
+  return response.data;
+};
+
+// 获取类目属性
+export const getCategoryAttributes = async (
+  shopId: number,
+  categoryId: number,
+  requiredOnly: boolean = false
+) => {
+  const response = await apiClient.get(`/ozon/listings/categories/${categoryId}/attributes`, {
+    params: { shop_id: shopId, required_only: requiredOnly }
+  });
+  return response.data;
+};
+
+// 搜索字典值
+export const searchDictionaryValues = async (
+  shopId: number,
+  dictionaryId: number,
+  query?: string,
+  limit: number = 100
+) => {
+  const response = await apiClient.get(`/ozon/listings/attributes/${dictionaryId}/values`, {
+    params: { shop_id: shopId, query, limit }
+  });
+  return response.data;
+};
+
+// 同步类目树
+export const syncCategoryTree = async (
+  shopId: number,
+  forceRefresh: boolean = false,
+  rootCategoryId?: number
+) => {
+  const response = await apiClient.post('/ozon/listings/categories/sync', {
+    shop_id: shopId,
+    force_refresh: forceRefresh,
+    root_category_id: rootCategoryId
+  });
+  return response.data;
+};
+
+// 导入商品（完整上架流程）
+export const importProduct = async (
+  shopId: number,
+  offerId: string,
+  mode: 'NEW_CARD' | 'FOLLOW_PDP' = 'NEW_CARD',
+  autoAdvance: boolean = true
+) => {
+  const response = await apiClient.post('/ozon/listings/products/import', {
+    shop_id: shopId,
+    offer_id: offerId,
+    mode,
+    auto_advance: autoAdvance
+  });
+  return response.data;
+};
+
+// 获取商品上架状态
+export const getListingStatus = async (shopId: number, offerId: string) => {
+  const response = await apiClient.get(`/ozon/listings/products/${offerId}/status`, {
+    params: { shop_id: shopId }
+  });
+  return response.data;
+};
+
+// 更新商品价格
+export const updateListingPrice = async (
+  offerId: string,
+  shopId: number,
+  price: string,
+  oldPrice?: string,
+  minPrice?: string,
+  currencyCode: string = 'RUB',
+  autoActionEnabled: boolean = false
+) => {
+  const response = await apiClient.post(`/ozon/listings/products/${offerId}/price`, {
+    shop_id: shopId,
+    price,
+    old_price: oldPrice,
+    min_price: minPrice,
+    currency_code: currencyCode,
+    auto_action_enabled: autoActionEnabled
+  });
+  return response.data;
+};
+
+// 更新商品库存
+export const updateListingStock = async (
+  offerId: string,
+  shopId: number,
+  stock: number,
+  warehouseId: number = 1,
+  productId?: number
+) => {
+  const response = await apiClient.post(`/ozon/listings/products/${offerId}/stock`, {
+    shop_id: shopId,
+    stock,
+    warehouse_id: warehouseId,
+    product_id: productId
+  });
+  return response.data;
+};
+
+// 导入商品图片
+export const importProductImages = async (
+  offerId: string,
+  shopId: number,
+  imageUrls: string[],
+  validateProperties: boolean = false
+) => {
+  const response = await apiClient.post(`/ozon/listings/products/${offerId}/images`, {
+    shop_id: shopId,
+    image_urls: imageUrls,
+    validate_properties: validateProperties
+  });
+  return response.data;
+};
+
+// 获取图片导入状态
+export const getImagesStatus = async (
+  offerId: string,
+  shopId: number,
+  state?: string
+) => {
+  const response = await apiClient.get(`/ozon/listings/products/${offerId}/images/status`, {
+    params: { shop_id: shopId, state }
+  });
+  return response.data;
+};
+
+// 获取商品导入日志
+export const getProductImportLogs = async (
+  shopId: number,
+  offerId?: string,
+  state?: string,
+  limit: number = 50
+) => {
+  const response = await apiClient.get('/ozon/listings/logs/products', {
+    params: { shop_id: shopId, offer_id: offerId, state, limit }
+  });
+  return response.data;
+};
