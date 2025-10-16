@@ -531,3 +531,142 @@ async def trigger_sync(
         "orders_mode": orders_mode if sync_type in ["all", "orders"] else None,
         "message": f"Sync {sync_type} started for shop {shop_id}"
     }
+
+
+@router.post("/shops/{shop_id}/sync-warehouses")
+async def sync_warehouses(
+    shop_id: int,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    同步店铺仓库信息
+
+    从OZON API获取FBS/rFBS仓库列表并同步到数据库。
+    """
+    from ..api.client import OzonAPIClient
+    from ..models import OzonWarehouse
+
+    # 获取店铺信息
+    result = await db.execute(
+        select(OzonShop).where(OzonShop.id == shop_id)
+    )
+    shop = result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    # 验证API凭证
+    if not shop.client_id or not shop.api_key_enc:
+        raise HTTPException(
+            status_code=400,
+            detail="API credentials not configured"
+        )
+
+    try:
+        # 创建OZON API客户端
+        client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc,
+            shop_id=shop_id
+        )
+
+        # 调用仓库列表API
+        response = await client.get_warehouses()
+        warehouses_data = response.get("result", [])
+
+        if not warehouses_data:
+            return {
+                "success": True,
+                "message": "未找到仓库",
+                "data": {
+                    "total": 0,
+                    "created": 0,
+                    "updated": 0,
+                    "warehouses": []
+                }
+            }
+
+        # 统计
+        created_count = 0
+        updated_count = 0
+        warehouses_list = []
+
+        for wh_data in warehouses_data:
+            # 查找已存在的仓库
+            stmt = select(OzonWarehouse).where(
+                OzonWarehouse.shop_id == shop_id,
+                OzonWarehouse.warehouse_id == wh_data.get("warehouse_id")
+            )
+            existing = await db.execute(stmt)
+            warehouse = existing.scalar_one_or_none()
+
+            if warehouse:
+                # 更新已存在的仓库
+                warehouse.name = wh_data.get("name", "")
+                warehouse.is_rfbs = wh_data.get("is_rfbs", False)
+                warehouse.status = wh_data.get("status", "")
+                warehouse.has_entrusted_acceptance = wh_data.get("has_entrusted_acceptance", False)
+                warehouse.postings_limit = wh_data.get("postings_limit", -1)
+                warehouse.min_postings_limit = wh_data.get("min_postings_limit")
+                warehouse.has_postings_limit = wh_data.get("has_postings_limit", False)
+                warehouse.min_working_days = wh_data.get("min_working_days")
+                warehouse.working_days = wh_data.get("working_days")
+                warehouse.can_print_act_in_advance = wh_data.get("can_print_act_in_advance", False)
+                warehouse.is_karantin = wh_data.get("is_karantin", False)
+                warehouse.is_kgt = wh_data.get("is_kgt", False)
+                warehouse.is_timetable_editable = wh_data.get("is_timetable_editable", False)
+                warehouse.first_mile_type = wh_data.get("first_mile_type")
+                warehouse.raw_data = wh_data
+                warehouse.updated_at = datetime.now()
+                updated_count += 1
+            else:
+                # 创建新仓库
+                warehouse = OzonWarehouse(
+                    shop_id=shop_id,
+                    warehouse_id=wh_data.get("warehouse_id"),
+                    name=wh_data.get("name", ""),
+                    is_rfbs=wh_data.get("is_rfbs", False),
+                    status=wh_data.get("status", ""),
+                    has_entrusted_acceptance=wh_data.get("has_entrusted_acceptance", False),
+                    postings_limit=wh_data.get("postings_limit", -1),
+                    min_postings_limit=wh_data.get("min_postings_limit"),
+                    has_postings_limit=wh_data.get("has_postings_limit", False),
+                    min_working_days=wh_data.get("min_working_days"),
+                    working_days=wh_data.get("working_days"),
+                    can_print_act_in_advance=wh_data.get("can_print_act_in_advance", False),
+                    is_karantin=wh_data.get("is_karantin", False),
+                    is_kgt=wh_data.get("is_kgt", False),
+                    is_timetable_editable=wh_data.get("is_timetable_editable", False),
+                    first_mile_type=wh_data.get("first_mile_type"),
+                    raw_data=wh_data
+                )
+                db.add(warehouse)
+                created_count += 1
+
+            warehouses_list.append(warehouse.to_dict())
+
+        # 提交数据库事务
+        await db.commit()
+
+        logger.info(
+            f"Warehouse sync completed for shop {shop_id}: "
+            f"total={len(warehouses_data)}, created={created_count}, updated={updated_count}"
+        )
+
+        return {
+            "success": True,
+            "message": "仓库同步成功",
+            "data": {
+                "total": len(warehouses_data),
+                "created": created_count,
+                "updated": updated_count,
+                "warehouses": warehouses_list
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Warehouse sync failed for shop {shop_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"同步失败: {str(e)}"
+        )

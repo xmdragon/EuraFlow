@@ -1647,3 +1647,38 @@ class OzonAPIClient:
             data=data,
             resource_type="products"
         )
+
+    # ========== 仓库相关 API ==========
+
+    async def get_warehouses(self) -> Dict[str, Any]:
+        """
+        获取仓库列表（FBS/rFBS）
+        使用 /v1/warehouse/list 接口
+
+        Returns:
+            仓库列表数据，包含：
+            - result: 仓库列表
+                [{
+                    "warehouse_id": 仓库ID,
+                    "name": 仓库名称,
+                    "is_rfbs": 是否rFBS,
+                    "status": 状态（new/created/disabled等）,
+                    "has_entrusted_acceptance": 是否启用受信任接受,
+                    "postings_limit": 订单限额（-1=无限制）,
+                    "min_postings_limit": 单次供货最小订单数,
+                    "has_postings_limit": 是否有订单数限制,
+                    "min_working_days": 最少工作天数,
+                    "working_days": 工作日列表,
+                    "can_print_act_in_advance": 是否可提前打印收发证书,
+                    "is_karantin": 是否隔离停运,
+                    "is_kgt": 是否接受大宗商品,
+                    "is_timetable_editable": 是否可修改时间表,
+                    "first_mile_type": 第一英里类型
+                }]
+        """
+        return await self._request(
+            "POST",
+            "/v1/warehouse/list",
+            data={},  # 空body
+            resource_type="default"
+        )

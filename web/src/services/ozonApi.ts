@@ -109,6 +109,12 @@ export const testApiConnection = async (credentials: { client_id: string; api_ke
   return response.data;
 };
 
+// 同步仓库
+export const syncWarehouses = async (shopId: number) => {
+  const response = await apiClient.post(`/ozon/shops/${shopId}/sync-warehouses`);
+  return response.data;
+};
+
 // ==================== 商品 API ====================
 
 export interface ProductAttributes {

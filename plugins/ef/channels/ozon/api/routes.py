@@ -109,5 +109,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import listing routes: {e}")
 
+try:
+    from .quick_publish_routes import router as quick_publish_router
+    router.include_router(quick_publish_router)
+    logger.info("✓ Loaded quick_publish_routes")
+except ImportError as e:
+    logger.warning(f"Could not import quick publish routes: {e}")
+
 
 logger.info("Ozon API routes initialized successfully")

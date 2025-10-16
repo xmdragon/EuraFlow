@@ -1540,16 +1540,564 @@
         }
     }
 
+    // ===== 一键上架UI类 =====
+    class QuickPublishUI {
+        constructor() {
+            this.button = null;
+            this.modal = null;
+            this.shops = [];
+            this.warehouses = [];
+            this.taskId = null;
+            this.pollingInterval = null;
+            this.createUI();
+            this.loadShops();
+        }
+
+        createUI() {
+            // 创建浮动按钮
+            this.button = document.createElement('div');
+            this.button.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 50px;
+                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+                cursor: pointer;
+                z-index: 2147483647;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 16px;
+                font-weight: bold;
+                transition: all 0.3s;
+                user-select: none;
+            `;
+            this.button.innerHTML = '🚀 一键上架到EuraFlow';
+            this.button.onclick = () => this.showModal();
+            this.button.onmouseover = () => {
+                this.button.style.transform = 'scale(1.05) translateY(-2px)';
+                this.button.style.boxShadow = '0 15px 40px rgba(102, 126, 234, 0.5)';
+            };
+            this.button.onmouseout = () => {
+                this.button.style.transform = 'scale(1)';
+                this.button.style.boxShadow = '0 10px 30px rgba(102, 126, 234, 0.4)';
+            };
+            document.body.appendChild(this.button);
+
+            // 创建模态框
+            this.modal = document.createElement('div');
+            this.modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.6);
+                z-index: 2147483648;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                backdrop-filter: blur(5px);
+            `;
+            this.modal.innerHTML = `
+                <div style="background: white; padding: 30px; border-radius: 16px;
+                            box-shadow: 0 20px 60px rgba(0,0,0,0.3); min-width: 500px; max-width: 600px;
+                            max-height: 80vh; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; font-size: 24px; color: #333;">🚀 一键上架</h2>
+                        <button id="qp-close-btn" style="background: #f0f0f0; border: none; color: #666;
+                                font-size: 24px; cursor: pointer; padding: 5px 12px; border-radius: 8px;
+                                transition: all 0.3s;">×</button>
+                    </div>
+
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; font-size: 13px;">
+                            <div style="color: #666;">商品标题:</div>
+                            <div id="qp-title-preview" style="color: #333; font-weight: 500;">加载中...</div>
+                            <div style="color: #666;">OZON商品ID:</div>
+                            <div id="qp-id-preview" style="color: #333; font-weight: 500;">加载中...</div>
+                        </div>
+                    </div>
+
+                    <form id="qp-form" style="display: grid; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                店铺 <span style="color: #f56565;">*</span>
+                            </label>
+                            <select id="qp-shop" required style="width: 100%; padding: 10px; border: 1px solid #ddd;
+                                    border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+                                <option value="">加载中...</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                仓库 (可选)
+                            </label>
+                            <div id="qp-warehouses" style="border: 1px solid #ddd; border-radius: 6px; padding: 10px;
+                                    max-height: 120px; overflow-y: auto; background: #fafafa;">
+                                <div style="color: #999; font-size: 13px;">请先选择店铺</div>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                    商家SKU <span style="color: #f56565;">*</span>
+                                </label>
+                                <input type="text" id="qp-offer-id" required placeholder="例: MY-SKU-001"
+                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                              font-size: 14px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                    类目ID <span style="color: #f56565;">*</span>
+                                </label>
+                                <input type="number" id="qp-category-id" required placeholder="例: 17029016"
+                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                              font-size: 14px; box-sizing: border-box;">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                    销售价格(₽) <span style="color: #f56565;">*</span>
+                                </label>
+                                <input type="number" id="qp-price" required step="0.01" min="0" placeholder="1000"
+                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                              font-size: 14px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                    原价(₽)
+                                </label>
+                                <input type="number" id="qp-old-price" step="0.01" min="0" placeholder="1500"
+                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                              font-size: 14px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                    库存 <span style="color: #f56565;">*</span>
+                                </label>
+                                <input type="number" id="qp-stock" required min="0" placeholder="10"
+                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                              font-size: 14px; box-sizing: border-box;">
+                            </div>
+                        </div>
+
+                        <div style="border-top: 1px solid #e0e0e0; padding-top: 15px; margin-top: 10px;">
+                            <label style="display: block; margin-bottom: 10px; font-size: 13px; font-weight: 600; color: #555;">
+                                商品尺寸和重量 <span style="color: #f56565;">*</span>
+                            </label>
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">重量(克)</label>
+                                    <input type="number" id="qp-weight" required min="1" placeholder="500"
+                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
+                                                  font-size: 13px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">长度(mm)</label>
+                                    <input type="number" id="qp-length" required min="1" placeholder="200"
+                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
+                                                  font-size: 13px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">宽度(mm)</label>
+                                    <input type="number" id="qp-width" required min="1" placeholder="150"
+                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
+                                                  font-size: 13px; box-sizing: border-box;">
+                                </div>
+                                <div>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">高度(mm)</label>
+                                    <input type="number" id="qp-height" required min="1" placeholder="100"
+                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
+                                                  font-size: 13px; box-sizing: border-box;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="qp-status" style="background: #e8f4fd; color: #1a73e8; padding: 12px; border-radius: 6px;
+                                font-size: 13px; display: none; margin-top: 10px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="qp-status-icon">ℹ️</span>
+                                <span id="qp-status-text">准备就绪</span>
+                            </div>
+                            <div id="qp-progress" style="width: 100%; height: 4px; background: rgba(26, 115, 232, 0.2);
+                                    border-radius: 2px; margin-top: 8px; overflow: hidden; display: none;">
+                                <div id="qp-progress-bar" style="width: 0%; height: 100%; background: #1a73e8;
+                                        transition: width 0.3s;"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button type="button" id="qp-cancel-btn" style="flex: 1; padding: 12px; border: 1px solid #ddd;
+                                    border-radius: 8px; background: white; color: #666; font-size: 15px; font-weight: 600;
+                                    cursor: pointer; transition: all 0.3s;">
+                                取消
+                            </button>
+                            <button type="submit" id="qp-submit-btn" style="flex: 2; padding: 12px; border: none;
+                                    border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                                🚀 开始上架
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(this.modal);
+            this.bindEvents();
+        }
+
+        bindEvents() {
+            // 关闭按钮
+            document.getElementById('qp-close-btn').onclick = () => this.hideModal();
+            document.getElementById('qp-cancel-btn').onclick = () => this.hideModal();
+
+            // 点击模态框外部关闭
+            this.modal.onclick = (e) => {
+                if (e.target === this.modal) this.hideModal();
+            };
+
+            // 店铺选择变化
+            document.getElementById('qp-shop').onchange = (e) => {
+                const shopId = parseInt(e.target.value);
+                if (shopId) this.loadWarehouses(shopId);
+            };
+
+            // 表单提交
+            document.getElementById('qp-form').onsubmit = (e) => {
+                e.preventDefault();
+                this.submitQuickPublish();
+            };
+        }
+
+        showModal() {
+            this.modal.style.display = 'flex';
+            this.extractPageData();
+        }
+
+        hideModal() {
+            this.modal.style.display = 'none';
+            if (this.pollingInterval) {
+                clearInterval(this.pollingInterval);
+                this.pollingInterval = null;
+            }
+        }
+
+        // 加载店铺列表
+        async loadShops() {
+            try {
+                if (!CONFIG.apiUrl || !CONFIG.apiKey) {
+                    return;
+                }
+
+                const url = `${CONFIG.apiUrl}/api/ef/v1/ozon/shops`;
+                const response = await gmFetch(url, {
+                    headers: { 'X-API-Key': CONFIG.apiKey }
+                });
+
+                if (!response.ok) throw new Error('加载店铺失败');
+
+                const data = await response.json();
+                this.shops = data.data || [];
+
+                const select = document.getElementById('qp-shop');
+                select.innerHTML = '<option value="">请选择店铺</option>';
+                this.shops.forEach(shop => {
+                    const option = document.createElement('option');
+                    option.value = shop.id;
+                    option.textContent = shop.shop_name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载店铺失败:', error);
+            }
+        }
+
+        // 加载仓库列表
+        async loadWarehouses(shopId) {
+            try {
+                const url = `${CONFIG.apiUrl}/api/ef/v1/ozon/quick-publish/shops/${shopId}/warehouses`;
+                const response = await gmFetch(url, {
+                    headers: { 'X-API-Key': CONFIG.apiKey }
+                });
+
+                if (!response.ok) throw new Error('加载仓库失败');
+
+                const data = await response.json();
+                this.warehouses = data.data || [];
+
+                const container = document.getElementById('qp-warehouses');
+                if (this.warehouses.length === 0) {
+                    container.innerHTML = '<div style="color: #999; font-size: 13px;">该店铺没有可用仓库</div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                this.warehouses.forEach(wh => {
+                    const label = document.createElement('label');
+                    label.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer;';
+                    label.innerHTML = `
+                        <input type="checkbox" name="warehouse" value="${wh.warehouse_id}"
+                               style="cursor: pointer;">
+                        <span style="font-size: 13px; color: #333;">
+                            ${wh.name} ${wh.is_rfbs ? '<span style="color: #48bb78; font-weight: 600;">(rFBS)</span>' : ''}
+                        </span>
+                    `;
+                    container.appendChild(label);
+                });
+            } catch (error) {
+                console.error('加载仓库失败:', error);
+                const container = document.getElementById('qp-warehouses');
+                container.innerHTML = '<div style="color: #f56565; font-size: 13px;">加载失败，请重试</div>';
+            }
+        }
+
+        // 提取页面数据
+        extractPageData() {
+            try {
+                // 提取OZON商品ID
+                const match = window.location.pathname.match(/\/product\/[^/]+-(\d+)/);
+                const ozonProductId = match ? match[1] : '';
+                document.getElementById('qp-id-preview').textContent = ozonProductId || '未识别';
+
+                // 提取标题
+                const titleElement = document.querySelector('h1[class*="tsHeadline"]') ||
+                                   document.querySelector('h1') ||
+                                   document.querySelector('[data-widget="webProductHeading"]');
+                const title = titleElement ? titleElement.textContent.trim() : '未识别';
+                document.getElementById('qp-title-preview').textContent = title;
+
+                // 存储提取的数据供后续使用
+                this.pageData = {
+                    ozon_product_id: ozonProductId,
+                    title: title,
+                    description: this.extractDescription(),
+                    images: this.extractImages(),
+                    brand: this.extractBrand(),
+                    barcode: this.extractBarcode()
+                };
+            } catch (error) {
+                console.error('提取页面数据失败:', error);
+            }
+        }
+
+        extractDescription() {
+            const descElement = document.querySelector('[data-widget="webDescription"]') ||
+                              document.querySelector('[class*="description"]');
+            return descElement ? descElement.textContent.trim() : '';
+        }
+
+        extractImages() {
+            const images = [];
+            const imgElements = document.querySelectorAll('img[src*="cdn1.ozone.ru"], img[src*="ozon.ru"]');
+            imgElements.forEach(img => {
+                let src = img.src;
+                // 转换为高清URL
+                if (src.includes('wc')) {
+                    src = src.replace(/wc\d+/, 'wc1000');
+                }
+                if (src && !images.includes(src) && images.length < 15) {
+                    images.push(src);
+                }
+            });
+            return images;
+        }
+
+        extractBrand() {
+            const brandElement = document.querySelector('[data-widget="webCharacteristics"] a[href*="brand"]') ||
+                               document.querySelector('a[href*="/brand/"]');
+            return brandElement ? brandElement.textContent.trim() : '';
+        }
+
+        extractBarcode() {
+            // 尝试从页面特征中提取条码
+            const chars = document.querySelectorAll('[data-widget="webCharacteristics"] dd');
+            for (const dd of chars) {
+                const text = dd.textContent.trim();
+                if (/^\d{8,14}$/.test(text)) {
+                    return text;
+                }
+            }
+            return '';
+        }
+
+        // 提交上架请求
+        async submitQuickPublish() {
+            try {
+                const submitBtn = document.getElementById('qp-submit-btn');
+                submitBtn.disabled = true;
+                submitBtn.textContent = '提交中...';
+
+                this.showStatus('⏳', '正在提交商品...', 'info');
+
+                // 收集表单数据
+                const shopId = parseInt(document.getElementById('qp-shop').value);
+                const warehouseCheckboxes = document.querySelectorAll('input[name="warehouse"]:checked');
+                const warehouseIds = Array.from(warehouseCheckboxes).map(cb => parseInt(cb.value));
+
+                const data = {
+                    shop_id: shopId,
+                    warehouse_ids: warehouseIds,
+                    offer_id: document.getElementById('qp-offer-id').value.trim(),
+                    price: parseFloat(document.getElementById('qp-price').value),
+                    old_price: document.getElementById('qp-old-price').value ?
+                              parseFloat(document.getElementById('qp-old-price').value) : null,
+                    stock: parseInt(document.getElementById('qp-stock').value),
+                    category_id: parseInt(document.getElementById('qp-category-id').value),
+                    ozon_product_id: this.pageData.ozon_product_id,
+                    title: this.pageData.title,
+                    description: this.pageData.description,
+                    images: this.pageData.images,
+                    brand: this.pageData.brand,
+                    barcode: this.pageData.barcode || document.getElementById('qp-offer-id').value,
+                    dimensions: {
+                        weight: parseInt(document.getElementById('qp-weight').value),
+                        height: parseInt(document.getElementById('qp-height').value),
+                        width: parseInt(document.getElementById('qp-width').value),
+                        length: parseInt(document.getElementById('qp-length').value)
+                    },
+                    attributes: []
+                };
+
+                const url = `${CONFIG.apiUrl}/api/ef/v1/ozon/quick-publish/publish`;
+                const response = await gmFetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': CONFIG.apiKey
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || '提交失败');
+                }
+
+                this.taskId = result.task_id;
+                this.showStatus('✅', `提交成功！任务ID: ${this.taskId}`, 'success');
+                this.startPolling(shopId);
+
+            } catch (error) {
+                console.error('提交失败:', error);
+                this.showStatus('❌', `提交失败: ${error.message}`, 'error');
+                const submitBtn = document.getElementById('qp-submit-btn');
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🚀 开始上架';
+            }
+        }
+
+        // 开始轮询任务状态
+        startPolling(shopId) {
+            document.getElementById('qp-progress').style.display = 'block';
+            let progress = 0;
+
+            this.pollingInterval = setInterval(async () => {
+                try {
+                    const url = `${CONFIG.apiUrl}/api/ef/v1/ozon/quick-publish/task/${this.taskId}/status?shop_id=${shopId}`;
+                    const response = await gmFetch(url, {
+                        headers: { 'X-API-Key': CONFIG.apiKey }
+                    });
+
+                    const result = await response.json();
+
+                    // 更新进度条（模拟进度）
+                    if (result.status === 'processing') {
+                        progress = Math.min(progress + 10, 90);
+                        document.getElementById('qp-progress-bar').style.width = `${progress}%`;
+                        this.showStatus('⏳', '正在处理中，请稍候...', 'info');
+                    } else if (result.status === 'imported') {
+                        clearInterval(this.pollingInterval);
+                        document.getElementById('qp-progress-bar').style.width = '100%';
+                        this.showStatus('✅', '上架成功！商品已提交到OZON', 'success');
+
+                        const submitBtn = document.getElementById('qp-submit-btn');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '✅ 上架成功';
+                        submitBtn.style.background = '#48bb78';
+
+                        setTimeout(() => {
+                            this.hideModal();
+                            this.resetForm();
+                        }, 3000);
+                    } else if (result.status === 'failed') {
+                        clearInterval(this.pollingInterval);
+                        const errorMsg = result.items && result.items[0] ?
+                                       (result.items[0].errors || []).map(e => e.message).join('; ') :
+                                       result.error || '上架失败';
+                        this.showStatus('❌', `上架失败: ${errorMsg}`, 'error');
+
+                        const submitBtn = document.getElementById('qp-submit-btn');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '🚀 重试上架';
+                    }
+                } catch (error) {
+                    console.error('轮询状态失败:', error);
+                }
+            }, 5000);
+        }
+
+        showStatus(icon, text, type) {
+            const statusDiv = document.getElementById('qp-status');
+            const iconSpan = document.getElementById('qp-status-icon');
+            const textSpan = document.getElementById('qp-status-text');
+
+            statusDiv.style.display = 'block';
+            iconSpan.textContent = icon;
+            textSpan.textContent = text;
+
+            const colors = {
+                info: { bg: '#e8f4fd', color: '#1a73e8' },
+                success: { bg: '#d4edda', color: '#28a745' },
+                error: { bg: '#f8d7da', color: '#dc3545' }
+            };
+
+            const colorScheme = colors[type] || colors.info;
+            statusDiv.style.background = colorScheme.bg;
+            statusDiv.style.color = colorScheme.color;
+        }
+
+        resetForm() {
+            document.getElementById('qp-form').reset();
+            document.getElementById('qp-status').style.display = 'none';
+            document.getElementById('qp-progress').style.display = 'none';
+            document.getElementById('qp-progress-bar').style.width = '0%';
+            const submitBtn = document.getElementById('qp-submit-btn');
+            submitBtn.textContent = '🚀 开始上架';
+            submitBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            submitBtn.disabled = false;
+        }
+
+        destroy() {
+            this.button?.remove();
+            this.modal?.remove();
+            if (this.pollingInterval) {
+                clearInterval(this.pollingInterval);
+            }
+        }
+    }
+
     // ===== 初始化 =====
     let collector = null;
     let panel = null;
+    let quickPublishUI = null;
 
     function init() {
         // 检测是否为商品详情页
         if (window.location.pathname.includes('/product/')) {
+            // 商品详情页：显示一键上架UI
+            setTimeout(() => {
+                quickPublishUI = new QuickPublishUI();
+            }, 2000);
             return;
         }
 
+        // 列表页：显示原有采集界面
         setTimeout(() => {
             collector = new SmartProductCollector();
             panel = new ControlPanel(collector);

@@ -217,6 +217,25 @@ const ShopSettings: React.FC = () => {
     },
   });
 
+  // 同步仓库
+  const syncWarehousesMutation = useMutation({
+    mutationFn: async (shopId: number) => {
+      return ozonApi.syncWarehouses(shopId);
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        message.success(
+          `仓库同步成功！共${data.data.total}个，新建${data.data.created}个，更新${data.data.updated}个`
+        );
+      } else {
+        message.warning(data.message || '同步失败');
+      }
+    },
+    onError: (error: any) => {
+      message.error(`同步失败: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
   // 选择店铺
   useEffect(() => {
     if (shopsData?.data?.[0] && !selectedShop) {
@@ -397,6 +416,17 @@ const ShopSettings: React.FC = () => {
                 key: 'action',
                 render: (_: unknown, record: Shop) => (
                   <Space>
+                    <Tooltip title="同步仓库信息">
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<TruckOutlined />}
+                        loading={syncWarehousesMutation.isPending}
+                        onClick={() => syncWarehousesMutation.mutate(record.id)}
+                      >
+                        同步仓库
+                      </Button>
+                    </Tooltip>
                     <Button
                       type="link"
                       size="small"
