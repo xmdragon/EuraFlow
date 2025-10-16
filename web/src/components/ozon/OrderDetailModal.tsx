@@ -2,9 +2,9 @@
 /**
  * 订单详情弹窗组件 - 供 OrderList 和 PackingShipment 共用
  */
-import React from 'react';
-import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography } from 'antd';
-import { ShoppingCartOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography, Button, InputNumber, message, Space } from 'antd';
+import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithFallback } from '@/utils/currency';
@@ -22,6 +22,7 @@ interface OrderDetailModalProps {
   userCurrency: string;
   offerIdImageMap: Record<string, string>;
   formatDeliveryMethodTextWhite: (text: string | undefined) => React.ReactNode;
+  onUpdate?: () => void; // 添加更新回调
 }
 
 const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
@@ -33,7 +34,52 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   userCurrency,
   offerIdImageMap,
   formatDeliveryMethodTextWhite,
+  onUpdate,
 }) => {
+  // 编辑状态管理
+  const [isEditingPurchasePrice, setIsEditingPurchasePrice] = useState(false);
+  const [isEditingMaterialCost, setIsEditingMaterialCost] = useState(false);
+  const [editPurchasePrice, setEditPurchasePrice] = useState<string>('');
+  const [editMaterialCost, setEditMaterialCost] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+
+  // 保存进货金额
+  const handleSavePurchasePrice = async () => {
+    if (!selectedPosting?.posting_number) return;
+
+    try {
+      setSaving(true);
+      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+        purchase_price: editPurchasePrice,
+      });
+      message.success('进货金额已更新');
+      setIsEditingPurchasePrice(false);
+      onUpdate?.(); // 触发父组件刷新
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || '更新失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 保存打包费用
+  const handleSaveMaterialCost = async () => {
+    if (!selectedPosting?.posting_number) return;
+
+    try {
+      setSaving(true);
+      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+        material_cost: editMaterialCost,
+      });
+      message.success('打包费用已更新');
+      setIsEditingMaterialCost(false);
+      onUpdate?.(); // 触发父组件刷新
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || '更新失败');
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <Modal
       title={`订单详情 - ${selectedPosting?.posting_number || selectedOrder?.order_id}`}
@@ -276,13 +322,59 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="进货金额">
-                      {selectedPosting?.purchase_price
-                        ? formatPriceWithFallback(
-                            selectedPosting.purchase_price,
-                            selectedOrder.currency_code,
-                            userCurrency
-                          )
-                        : '-'}
+                      {isDelivered && isEditingPurchasePrice ? (
+                        <Space>
+                          <InputNumber
+                            value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
+                            onChange={(value) => setEditPurchasePrice(value?.toString() || '')}
+                            placeholder="请输入进货金额"
+                            min={0}
+                            precision={2}
+                            style={{ width: 150 }}
+                          />
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<SaveOutlined />}
+                            loading={saving}
+                            onClick={handleSavePurchasePrice}
+                          >
+                            保存
+                          </Button>
+                          <Button
+                            size="small"
+                            icon={<CloseOutlined />}
+                            onClick={() => setIsEditingPurchasePrice(false)}
+                          >
+                            取消
+                          </Button>
+                        </Space>
+                      ) : (
+                        <Space>
+                          <Text>
+                            {selectedPosting?.purchase_price
+                              ? formatPriceWithFallback(
+                                  selectedPosting.purchase_price,
+                                  selectedOrder.currency_code,
+                                  userCurrency
+                                )
+                              : '-'}
+                          </Text>
+                          {isDelivered && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EditOutlined />}
+                              onClick={() => {
+                                setEditPurchasePrice(selectedPosting?.purchase_price || '');
+                                setIsEditingPurchasePrice(true);
+                              }}
+                            >
+                              编辑
+                            </Button>
+                          )}
+                        </Space>
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="Ozon佣金">
                       {selectedPosting?.ozon_commission_cny
@@ -312,13 +404,59 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="打包费用">
-                      {selectedPosting?.material_cost
-                        ? formatPriceWithFallback(
-                            selectedPosting.material_cost,
-                            selectedOrder.currency_code,
-                            userCurrency
-                          )
-                        : '-'}
+                      {isDelivered && isEditingMaterialCost ? (
+                        <Space>
+                          <InputNumber
+                            value={editMaterialCost ? parseFloat(editMaterialCost) : undefined}
+                            onChange={(value) => setEditMaterialCost(value?.toString() || '')}
+                            placeholder="请输入打包费用"
+                            min={0}
+                            precision={2}
+                            style={{ width: 150 }}
+                          />
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<SaveOutlined />}
+                            loading={saving}
+                            onClick={handleSaveMaterialCost}
+                          >
+                            保存
+                          </Button>
+                          <Button
+                            size="small"
+                            icon={<CloseOutlined />}
+                            onClick={() => setIsEditingMaterialCost(false)}
+                          >
+                            取消
+                          </Button>
+                        </Space>
+                      ) : (
+                        <Space>
+                          <Text>
+                            {selectedPosting?.material_cost
+                              ? formatPriceWithFallback(
+                                  selectedPosting.material_cost,
+                                  selectedOrder.currency_code,
+                                  userCurrency
+                                )
+                              : '-'}
+                          </Text>
+                          {isDelivered && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EditOutlined />}
+                              onClick={() => {
+                                setEditMaterialCost(selectedPosting?.material_cost || '');
+                                setIsEditingMaterialCost(true);
+                              }}
+                            >
+                              编辑
+                            </Button>
+                          )}
+                        </Space>
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="利润金额">
                       {profitAmount !== null ? (

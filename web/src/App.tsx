@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Dashboard from '@/pages/Dashboard';
 import LoginPage from '@/pages/LoginPage';
+import NotificationProvider from '@/components/NotificationProvider';
 
 function App() {
   const { user, isLoading } = useAuth();
@@ -18,7 +19,7 @@ function App() {
     );
   }
 
-  return (
+  const appContent = (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route
@@ -28,6 +29,9 @@ function App() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
+
+  // 只有在用户登录后才启用通知系统
+  return user ? <NotificationProvider>{appContent}</NotificationProvider> : appContent;
 }
 
 export default App;

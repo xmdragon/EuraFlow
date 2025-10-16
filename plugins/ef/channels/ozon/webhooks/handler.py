@@ -968,6 +968,31 @@ class OzonWebhookHandler:
             webhook_event.entity_type = "chat_message"
             webhook_event.entity_id = str(message.id)
 
+            # 发送WebSocket实时通知
+            if sender_type == "user":  # 只有买家消息才推送通知
+                try:
+                    from ef_core.websocket.manager import notification_manager
+
+                    notification_data = {
+                        "type": "chat.new_message",
+                        "shop_id": self.shop_id,
+                        "chat_id": chat_id,
+                        "data": {
+                            "message_id": message_id,
+                            "customer_name": payload.get("customer_name") or chat.customer_name or "未知客户",
+                            "message": content[:100] if content else "",
+                            "order_number": payload.get("order_number") or chat.order_number,
+                            "timestamp": utcnow().isoformat()
+                        }
+                    }
+
+                    # 推送给订阅了此店铺的所有用户
+                    sent_count = await notification_manager.send_to_shop_users(self.shop_id, notification_data)
+                    logger.info(f"Sent chat notification to {sent_count} connections for shop {self.shop_id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+
             return {
                 "chat_id": chat_id,
                 "message_id": message_id,

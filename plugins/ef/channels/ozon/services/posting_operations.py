@@ -146,6 +146,7 @@ class PostingOperationsService:
         self,
         posting_number: str,
         purchase_price: Optional[Decimal] = None,
+        material_cost: Optional[Decimal] = None,
         source_platform: Optional[str] = None,
         order_notes: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -155,6 +156,7 @@ class PostingOperationsService:
         Args:
             posting_number: 货件编号
             purchase_price: 进货价格（可选）
+            material_cost: 打包费用（可选）
             source_platform: 采购平台（可选）
             order_notes: 订单备注（可选）
 
@@ -179,6 +181,8 @@ class PostingOperationsService:
         if purchase_price is not None:
             posting.purchase_price = purchase_price
             posting.purchase_price_updated_at = utcnow()
+        if material_cost is not None:
+            posting.material_cost = material_cost
         if source_platform is not None:
             posting.source_platform = source_platform
         if order_notes is not None:
@@ -198,6 +202,7 @@ class PostingOperationsService:
             "data": {
                 "posting_number": posting.posting_number,
                 "purchase_price": str(posting.purchase_price) if posting.purchase_price else None,
+                "material_cost": str(posting.material_cost) if posting.material_cost else None,
                 "source_platform": posting.source_platform,
                 "order_notes": posting.order_notes,
                 "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
