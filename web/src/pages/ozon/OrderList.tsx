@@ -189,22 +189,35 @@ const OrderList: React.FC = () => {
   const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
     if (!ordersData?.data) return [];
 
+    console.log('🔍 [DEBUG] postingsData useMemo 开始');
+    console.log('🔍 [DEBUG] activeTab:', activeTab);
+    console.log('🔍 [DEBUG] ordersData.data 长度:', ordersData.data.length);
+    console.log('🔍 [DEBUG] ordersData.data[0]:', ordersData.data[0]);
+
     const flattened: ozonApi.PostingWithOrder[] = [];
-    ordersData.data.forEach((order: ozonApi.Order) => {
+    ordersData.data.forEach((order: ozonApi.Order, orderIndex: number) => {
       // 如果订单有 postings，展开每个 posting
       if (order.postings && order.postings.length > 0) {
-        order.postings.forEach((posting) => {
+        console.log(`🔍 [DEBUG] 订单 ${orderIndex} 有 ${order.postings.length} 个 postings`);
+        order.postings.forEach((posting, postingIndex) => {
+          console.log(`🔍 [DEBUG] 订单 ${orderIndex} posting ${postingIndex} status:`, posting.status);
+          console.log(`🔍 [DEBUG] 过滤条件: activeTab=${activeTab}, posting.status=${posting.status}, 匹配=${activeTab === 'all' || posting.status === activeTab}`);
+
           // 只展开当前标签对应状态的 posting（如果不是"所有"标签）
           if (activeTab === 'all' || posting.status === activeTab) {
             flattened.push({
               ...posting,
               order: order  // 关联完整的订单信息
             });
+            console.log(`✅ [DEBUG] posting ${posting.posting_number} 已添加到 flattened`);
+          } else {
+            console.log(`❌ [DEBUG] posting ${posting.posting_number} 被过滤掉`);
           }
         });
       } else {
         // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
         // 这是为了兼容可能存在的没有 postings 数组的订单
+        console.log(`🔍 [DEBUG] 订单 ${orderIndex} 没有 postings 数组，使用订单级别数据`);
         if (order.posting_number && (activeTab === 'all' || order.status === activeTab)) {
           flattened.push({
             id: order.id,
@@ -221,28 +234,38 @@ const OrderList: React.FC = () => {
       }
     });
 
+    console.log('🔍 [DEBUG] 过滤后 flattened 长度:', flattened.length);
+
     // 如果用户搜索了 posting_number，进行二次过滤，只保留匹配的货件
     const searchPostingNumber = searchParams.posting_number?.trim();
     if (searchPostingNumber) {
-      return flattened.filter(posting =>
+      const filtered = flattened.filter(posting =>
         posting.posting_number.toLowerCase().includes(searchPostingNumber.toLowerCase())
       );
+      console.log('🔍 [DEBUG] posting_number 搜索后长度:', filtered.length);
+      return filtered;
     }
 
+    console.log('🔍 [DEBUG] 最终返回 postingsData 长度:', flattened.length);
     return flattened;
   }, [ordersData, searchParams.posting_number, activeTab]);
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
   const orderItemRows = React.useMemo<OrderItemRow[]>(() => {
+    console.log('🔍 [DEBUG] orderItemRows useMemo 开始');
+    console.log('🔍 [DEBUG] postingsData 长度:', postingsData.length);
+
     const rows: OrderItemRow[] = [];
 
-    postingsData.forEach((posting) => {
+    postingsData.forEach((posting, postingIndex) => {
       // 优先使用 posting.products（从 raw_payload 提取的该 posting 的商品）
       // 如果不存在，降级使用 posting.order.items（订单级别的商品汇总）
       const items = (posting.products && posting.products.length > 0)
         ? posting.products
         : (posting.order.items || []);
       const itemCount = items.length;
+
+      console.log(`🔍 [DEBUG] posting ${postingIndex} (${posting.posting_number}) 有 ${itemCount} 个商品`);
 
       if (itemCount === 0) {
         // 如果没有商品，创建一行空数据
@@ -255,6 +278,7 @@ const OrderList: React.FC = () => {
           isFirstItem: true,
           itemCount: 1,
         });
+        console.log(`🔍 [DEBUG] posting ${posting.posting_number} 没有商品，创建空行`);
       } else {
         // 为每个商品创建一行
         items.forEach((item, index) => {
@@ -268,9 +292,11 @@ const OrderList: React.FC = () => {
             itemCount: itemCount,
           });
         });
+        console.log(`🔍 [DEBUG] posting ${posting.posting_number} 创建了 ${itemCount} 行`);
       }
     });
 
+    console.log('🔍 [DEBUG] 最终 orderItemRows 长度:', rows.length);
     return rows;
   }, [postingsData]);
 

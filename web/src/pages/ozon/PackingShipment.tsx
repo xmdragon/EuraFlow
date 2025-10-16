@@ -1271,7 +1271,6 @@ const PackingShipment: React.FC = () => {
             },
             className: styles.pagination,
           }}
-          scroll={{ x: 'max-content' }}
           size="small"
         />
       </Card>
