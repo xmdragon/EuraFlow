@@ -144,7 +144,7 @@ interface ReportSummary {
 
 const OrderReport: React.FC = () => {
   // ===== 状态管理 =====
-  const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
+  const [selectedMonth, setSelectedMonth] = useState(dayjs().subtract(1, 'month').format('YYYY-MM'));
   const [selectedShop, setSelectedShop] = useState<number | null>(null); // null表示"全部"
   const [statusFilter, setStatusFilter] = useState<'delivered' | 'placed'>('delivered');
   const [activeTab, setActiveTab] = useState<string>('details');
