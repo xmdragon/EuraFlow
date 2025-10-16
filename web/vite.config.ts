@@ -35,34 +35,30 @@ export default defineConfig({
     },
   },
   build: {
-    // 设置chunk大小警告限制（优化后每个chunk应≤600KB）
-    chunkSizeWarningLimit: 600,
+    // 设置chunk大小警告限制
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // 按依赖类型智能分割，优化缓存和并行加载
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Ant Design 生态 (~600KB)
-            if (id.includes('antd') || id.includes('@ant-design/icons')) {
-              return 'antd';
-            }
-            // 图表库 (~150KB) - recharts，用于订单报表和汇率趋势图
-            if (id.includes('recharts')) {
-              return 'charts';
-            }
-            // React 核心 (~180KB) - 最稳定，缓存命中率高
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'react';
-            }
-            // TanStack Query (~80KB)
-            if (id.includes('@tanstack/react-query')) {
-              return 'query';
-            }
-            // 其他工具库 (~240KB)
-            return 'vendor';
-          }
-        },
-        // 用于命名代码拆分的块（保留 manualChunks 的命名）
+        // 让 Vite 自动处理代码分割，确保依赖加载顺序正确
+        // 注释掉自定义 manualChunks 以避免 React/Antd 加载顺序问题
+        // manualChunks(id) {
+        //   if (id.includes('node_modules')) {
+        //     if (id.includes('antd') || id.includes('@ant-design/icons')) {
+        //       return 'antd';
+        //     }
+        //     if (id.includes('recharts')) {
+        //       return 'charts';
+        //     }
+        //     if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+        //       return 'react';
+        //     }
+        //     if (id.includes('@tanstack/react-query')) {
+        //       return 'query';
+        //     }
+        //     return 'vendor';
+        //   }
+        // },
+        // 用于命名代码拆分的块
         chunkFileNames: 'assets/js/[name]-[hash].js',
         // 用于命名入口文件
         entryFileNames: 'assets/js/[name]-[hash].js',
