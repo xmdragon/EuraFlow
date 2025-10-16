@@ -217,15 +217,16 @@ const ShopSettings: React.FC = () => {
     },
   });
 
-  // 同步仓库
-  const syncWarehousesMutation = useMutation({
-    mutationFn: async (shopId: number) => {
-      return ozonApi.syncWarehouses(shopId);
+  // 批量同步所有店铺仓库
+  const syncAllWarehousesMutation = useMutation({
+    mutationFn: async () => {
+      return ozonApi.syncAllWarehouses();
     },
     onSuccess: (data) => {
       if (data.success) {
+        const { total_shops, success_count, failed_count, total_warehouses } = data.data;
         message.success(
-          `仓库同步成功！共${data.data.total}个，新建${data.data.created}个，更新${data.data.updated}个`
+          `批量同步完成！共${total_shops}个店铺，成功${success_count}个，失败${failed_count}个，同步了${total_warehouses}个仓库`
         );
       } else {
         message.warning(data.message || '同步失败');
@@ -338,6 +339,13 @@ const ShopSettings: React.FC = () => {
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
               添加店铺
             </Button>
+            <Button
+              icon={<TruckOutlined />}
+              loading={syncAllWarehousesMutation.isPending}
+              onClick={() => syncAllWarehousesMutation.mutate()}
+            >
+              同步所有店铺仓库
+            </Button>
           </div>
 
           {shops.length === 0 ? (
@@ -416,17 +424,6 @@ const ShopSettings: React.FC = () => {
                 key: 'action',
                 render: (_: unknown, record: Shop) => (
                   <Space>
-                    <Tooltip title="同步仓库信息">
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<TruckOutlined />}
-                        loading={syncWarehousesMutation.isPending}
-                        onClick={() => syncWarehousesMutation.mutate(record.id)}
-                      >
-                        同步仓库
-                      </Button>
-                    </Tooltip>
                     <Button
                       type="link"
                       size="small"

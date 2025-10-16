@@ -109,9 +109,15 @@ export const testApiConnection = async (credentials: { client_id: string; api_ke
   return response.data;
 };
 
-// 同步仓库
+// 同步仓库（单个店铺）
 export const syncWarehouses = async (shopId: number) => {
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync-warehouses`);
+  return response.data;
+};
+
+// 批量同步所有店铺仓库
+export const syncAllWarehouses = async () => {
+  const response = await apiClient.post(`/ozon/shops/sync-all-warehouses`);
   return response.data;
 };
 
