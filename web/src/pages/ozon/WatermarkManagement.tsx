@@ -77,7 +77,7 @@ const WatermarkManagement: React.FC = () => {
   // ============ 任务列表查询 ============
   const { data: tasks, isLoading: tasksLoading, refetch: refetchTasks } = useQuery({
     queryKey: ['watermarkTasks'],
-    queryFn: () => watermarkApi.getTasks({ limit: 50 }),
+    queryFn: () => watermarkApi.getTasks({ limit: 20 }),
     enabled: activeTab === 'tasks',
     refetchInterval: activeTab === 'tasks' ? 5000 : false,
   });
