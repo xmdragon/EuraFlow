@@ -26,7 +26,7 @@ export const useNotifications = (shopId: number | null) => {
         placement: 'bottomRight',
         duration: 6,
         onClick: () => {
-          notification.close(key);
+          notification.destroy(key);
           if (shopId && chatId) {
             navigate(`/ozon/chat/${chatId}?shopId=${shopId}`);
           }

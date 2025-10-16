@@ -1257,6 +1257,10 @@ const PackingShipment: React.FC = () => {
         userCurrency={userCurrency}
         offerIdImageMap={offerIdImageMap}
         formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
+        onUpdate={() => {
+          // Refresh packing orders data
+          refetch();
+        }}
       />
 
       {/* 发货弹窗 */}

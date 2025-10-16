@@ -279,6 +279,7 @@ export interface Order {
   is_express: boolean;
   is_premium: boolean;
   total_amount: string;
+  currency_code?: string;
   products_amount?: string;
   products_price?: string; // Added for compatibility
   delivery_amount?: string;
@@ -943,6 +944,7 @@ export interface PrepareStockRequest {
 // 更新业务信息请求参数
 export interface UpdateBusinessInfoRequest {
   purchase_price?: string;  // 进货价格（可选）
+  material_cost?: string;  // 打包费用（可选）
   source_platform?: string;  // 采购平台（可选）
   order_notes?: string;  // 订单备注（可选）
 }

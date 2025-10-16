@@ -28,6 +28,7 @@ const UserManagement = lazy(() => import('./UserManagement'));
 const ExchangeRateManagement = lazy(() => import('./ExchangeRateManagement'));
 
 import { useAuth } from '@/hooks/useAuth';
+import type { User } from '@/types/auth';
 import styles from './Dashboard.module.scss';
 
 // 加载中组件
@@ -265,7 +266,16 @@ const Dashboard: React.FC = () => {
                 element={
                   <DashboardHome
                     user={
-                      user || { id: 0, username: 'Guest', email: '', role: 'guest', is_active: false }
+                      user || {
+                        id: 0,
+                        username: 'Guest',
+                        email: '',
+                        role: 'guest',
+                        permissions: [],
+                        is_active: false,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                      }
                     }
                   />
                 }
@@ -285,15 +295,6 @@ const Dashboard: React.FC = () => {
 };
 
 // 仪表板首页组件
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  role: string;
-  is_active: boolean;
-  last_login_at?: string;
-}
-
 const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
   return (
     <Row>

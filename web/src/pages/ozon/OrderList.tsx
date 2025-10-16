@@ -970,6 +970,10 @@ const OrderList: React.FC = () => {
         userCurrency={userCurrency}
         offerIdImageMap={offerIdImageMap}
         formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
+        onUpdate={() => {
+          // 刷新订单列表数据
+          refetch();
+        }}
       />
 
       {/* 发货弹窗 */}
