@@ -237,23 +237,23 @@ const OrderReport: React.FC = () => {
         );
       },
     },
-    // 2. 商品信息列（2行垂直布局）
+    // 2. 商品信息列（3行垂直布局）
     {
       title: '商品信息',
       render: (_, row) => (
         <div className={styles.productInfo}>
           <div className={styles.shopName}>{row.posting.shop_name}</div>
-          <div className={styles.productLine}>
-            <Text ellipsis={{ tooltip: row.product.name }} style={{ flex: 1 }}>
-              {row.product.name?.substring(0, 20) || '-'}
+          <div className={styles.productName}>
+            <Text ellipsis={{ tooltip: row.product.name }}>
+              {row.product.name || '-'}
             </Text>
-            <span
-              className={styles.sku}
-              onClick={() => handleCopy(row.product.sku)}
-            >
-              {row.product.sku} <CopyOutlined />
-            </span>
           </div>
+          <span
+            className={styles.sku}
+            onClick={() => handleCopy(row.product.sku)}
+          >
+            {row.product.sku} <CopyOutlined />
+          </span>
         </div>
       ),
     },

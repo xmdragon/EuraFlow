@@ -89,6 +89,7 @@
 .productInfo {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 
   .date {
     font-size: 12px;
@@ -100,10 +101,9 @@
     color: #262626;
   }
 
-  .productLine {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .productName {
+    color: #595959;
+    font-size: 13px;
   }
 
   .sku {
