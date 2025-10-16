@@ -120,7 +120,16 @@ interface ReportSummary {
     total_profit: string;
     profit_rate: number;
   };
-  top_products: Array<{
+  top_products_by_sales: Array<{
+    offer_id: string;
+    name: string;
+    sku: string;
+    sales: number;
+    quantity: number;
+    profit: number;
+    image_url?: string;
+  }>;
+  top_products_by_quantity: Array<{
     offer_id: string;
     name: string;
     sku: string;
@@ -867,10 +876,10 @@ const OrderReport: React.FC = () => {
                       </Row>
                     )}
 
-                    {/* TOP10商品 */}
-                    <Card title="TOP10 商品" style={{ marginBottom: 24 }}>
+                    {/* 销售额TOP10 */}
+                    <Card title="销售额TOP10" style={{ marginBottom: 24 }}>
                       <Table
-                        dataSource={summaryData.top_products}
+                        dataSource={summaryData.top_products_by_sales}
                         pagination={false}
                         rowKey="offer_id"
                         columns={[
@@ -886,14 +895,99 @@ const OrderReport: React.FC = () => {
                             ),
                           },
                           {
-                            title: '商品名称',
-                            dataIndex: 'name',
-                            ellipsis: true,
+                            title: '商品信息',
+                            render: (_, record) => (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div style={{ fontWeight: 500 }}>{record.name}</div>
+                                <div className={styles.skuContainer}>
+                                  <span
+                                    className={styles.skuLink}
+                                    onClick={() => openProductLink(record.sku)}
+                                  >
+                                    {record.sku} <LinkOutlined />
+                                  </span>
+                                  <CopyOutlined
+                                    className={styles.copyIcon}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopy(record.sku);
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            ),
                           },
                           {
-                            title: 'SKU',
-                            dataIndex: 'sku',
+                            title: '销售额',
+                            dataIndex: 'sales',
                             width: 120,
+                            align: 'right',
+                            render: (value) => `¥${parseFloat(value).toFixed(2)}`,
+                          },
+                          {
+                            title: '销量',
+                            dataIndex: 'quantity',
+                            width: 80,
+                            align: 'right',
+                          },
+                          {
+                            title: '利润',
+                            dataIndex: 'profit',
+                            width: 120,
+                            align: 'right',
+                            render: (value) => {
+                              const profit = parseFloat(value);
+                              return (
+                                <span style={{ color: profit >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ¥{profit.toFixed(2)}
+                                </span>
+                              );
+                            },
+                          },
+                        ]}
+                      />
+                    </Card>
+
+                    {/* 销售量TOP10 */}
+                    <Card title="销售量TOP10" style={{ marginBottom: 24 }}>
+                      <Table
+                        dataSource={summaryData.top_products_by_quantity}
+                        pagination={false}
+                        rowKey="offer_id"
+                        columns={[
+                          {
+                            title: '图片',
+                            width: 80,
+                            render: (_, record) => (
+                              <Avatar
+                                src={optimizeOzonImageUrl(record.image_url, 200)}
+                                size={60}
+                                shape="square"
+                              />
+                            ),
+                          },
+                          {
+                            title: '商品信息',
+                            render: (_, record) => (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div style={{ fontWeight: 500 }}>{record.name}</div>
+                                <div className={styles.skuContainer}>
+                                  <span
+                                    className={styles.skuLink}
+                                    onClick={() => openProductLink(record.sku)}
+                                  >
+                                    {record.sku} <LinkOutlined />
+                                  </span>
+                                  <CopyOutlined
+                                    className={styles.copyIcon}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopy(record.sku);
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            ),
                           },
                           {
                             title: '销售额',
