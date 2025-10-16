@@ -887,11 +887,16 @@ const OrderReport: React.FC = () => {
                             title: '图片',
                             width: 80,
                             render: (_, record) => (
-                              <Avatar
-                                src={optimizeOzonImageUrl(record.image_url, 200)}
-                                size={60}
-                                shape="square"
-                              />
+                              <Popover
+                                content={<img src={optimizeOzonImageUrl(record.image_url, 160)} width={160} alt="商品预览" />}
+                                trigger="hover"
+                              >
+                                <Avatar
+                                  src={optimizeOzonImageUrl(record.image_url, 60)}
+                                  size={60}
+                                  shape="square"
+                                />
+                              </Popover>
                             ),
                           },
                           {
@@ -959,11 +964,16 @@ const OrderReport: React.FC = () => {
                             title: '图片',
                             width: 80,
                             render: (_, record) => (
-                              <Avatar
-                                src={optimizeOzonImageUrl(record.image_url, 200)}
-                                size={60}
-                                shape="square"
-                              />
+                              <Popover
+                                content={<img src={optimizeOzonImageUrl(record.image_url, 160)} width={160} alt="商品预览" />}
+                                trigger="hover"
+                              >
+                                <Avatar
+                                  src={optimizeOzonImageUrl(record.image_url, 60)}
+                                  size={60}
+                                  shape="square"
+                                />
+                              </Popover>
                             ),
                           },
                           {

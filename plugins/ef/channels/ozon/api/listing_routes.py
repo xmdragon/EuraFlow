@@ -20,12 +20,9 @@ router = APIRouter(tags=["ozon-listing"])
 logger = logging.getLogger(__name__)
 
 
-def get_ozon_client(shop_id: int, db: AsyncSession) -> OzonAPIClient:
+async def get_ozon_client(shop_id: int, db: AsyncSession) -> OzonAPIClient:
     """获取OZON API客户端"""
-    # 这是一个辅助函数，实际使用时应从数据库获取店铺信息
-    # 这里为了简化，暂时使用同步查询（实际应该改为异步）
-    import asyncio
-    shop = asyncio.run(db.scalar(select(OzonShop).where(OzonShop.id == shop_id)))
+    shop = await db.scalar(select(OzonShop).where(OzonShop.id == shop_id))
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
     return OzonAPIClient(client_id=shop.client_id, api_key=shop.api_key_enc)
@@ -47,7 +44,7 @@ async def search_categories(
     只有叶子类目才能用于创建商品
     """
     try:
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         catalog_service = CatalogService(client, db)
 
         categories = await catalog_service.search_categories(
@@ -92,7 +89,7 @@ async def get_category_attributes(
     返回指定类目的所有属性，包括必填和选填
     """
     try:
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         catalog_service = CatalogService(client, db)
 
         attributes = await catalog_service.get_category_attributes(
@@ -141,7 +138,7 @@ async def search_dictionary_values(
     用于属性值选择，如颜色、尺码等
     """
     try:
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         catalog_service = CatalogService(client, db)
 
         values = await catalog_service.search_dictionary_values(
@@ -231,7 +228,7 @@ async def import_product(
         if not shop_id or not offer_id:
             raise HTTPException(status_code=400, detail="shop_id and offer_id are required")
 
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         listing_service = ProductListingService(client, db)
 
         result = await listing_service.list_product(
@@ -263,7 +260,7 @@ async def get_listing_status(
     返回商品在上架流程中的当前状态和时间戳
     """
     try:
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         listing_service = ProductListingService(client, db)
 
         result = await listing_service.get_listing_status(
@@ -306,7 +303,7 @@ async def update_product_price(
         if price is None:
             raise HTTPException(status_code=400, detail="price is required")
 
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         listing_service = ProductListingService(client, db)
 
         result = await listing_service.update_price(
@@ -352,7 +349,7 @@ async def update_product_stock(
         if stock is None:
             raise HTTPException(status_code=400, detail="stock is required")
 
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         listing_service = ProductListingService(client, db)
 
         result = await listing_service.update_stock(
@@ -397,7 +394,7 @@ async def import_product_images(
         if not image_urls:
             raise HTTPException(status_code=400, detail="image_urls is required")
 
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         media_service = MediaImportService(client, db)
 
         result = await media_service.import_images_for_product(
@@ -428,7 +425,7 @@ async def get_images_status(
     获取商品图片导入状态
     """
     try:
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         media_service = MediaImportService(client, db)
 
         logs = await media_service.get_import_logs(
@@ -480,7 +477,7 @@ async def get_product_import_logs(
     获取商品导入日志
     """
     try:
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         product_service = ProductImportService(client, db)
 
         logs = await product_service.get_import_logs(
