@@ -34,15 +34,31 @@ async def query_transactions(posting_number: str):
     db_manager = get_db_manager()
 
     async with db_manager.get_session() as db:
-        # 获取第一个店铺的凭证
-        result = await db.execute(select(OzonShop).limit(1))
-        shop = result.scalar_one_or_none()
+        # 根据posting_number找到对应的店铺
+        from plugins.ef.channels.ozon.models.orders import OzonPosting
+
+        posting_result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting_obj = posting_result.scalar_one_or_none()
+
+        if posting_obj:
+            # 使用posting对应的店铺
+            result = await db.execute(
+                select(OzonShop).where(OzonShop.id == posting_obj.shop_id)
+            )
+            shop = result.scalar_one_or_none()
+        else:
+            # 如果posting不存在，使用第一个店铺
+            print(f"⚠️  订单 {posting_number} 不存在于数据库，使用默认店铺查询")
+            result = await db.execute(select(OzonShop).limit(1))
+            shop = result.scalar_one_or_none()
 
         if not shop:
             print("❌ 没有找到店铺配置")
             return
 
-        print(f"🏪 使用店铺: {shop.shop_name}")
+        print(f"🏪 使用店铺: {shop.shop_name} (ID: {shop.id})")
         print(f"📦 查询订单: {posting_number}\n")
 
         # 创建API客户端

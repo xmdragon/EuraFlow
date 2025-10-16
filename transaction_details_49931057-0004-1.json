@@ -1,0 +1,73 @@
+{
+  "result": {
+    "operations": [
+      {
+        "operation_id": 38953348306,
+        "operation_type": "OperationMarketplaceAgencyFeeAggregator3PLGlobal",
+        "operation_date": "2025-10-12 00:00:00",
+        "operation_type_name": "Агентское вознаграждение за заключение и сопровождение договора транспортно-экспедиционных услуг по организации международной перевозки",
+        "delivery_charge": 0,
+        "return_delivery_charge": 0,
+        "accruals_for_sale": 0,
+        "sale_commission": 0,
+        "amount": -25.42,
+        "type": "services",
+        "posting": {
+          "delivery_schema": "",
+          "order_date": "2025-09-26 18:57:20",
+          "posting_number": "49931057-0004-1",
+          "warehouse_id": 1020002714275000
+        },
+        "items": [],
+        "services": []
+      },
+      {
+        "operation_id": 38953348307,
+        "operation_type": "MarketplaceRedistributionOfDeliveryServicesOperation",
+        "operation_date": "2025-10-12 00:00:00",
+        "operation_type_name": "Перевыставление услуг доставки",
+        "delivery_charge": 0,
+        "return_delivery_charge": 0,
+        "accruals_for_sale": 0,
+        "sale_commission": 0,
+        "amount": -239.98,
+        "type": "orders",
+        "posting": {
+          "delivery_schema": "",
+          "order_date": "2025-09-26 18:57:20",
+          "posting_number": "49931057-0004-1",
+          "warehouse_id": 1020002714275000
+        },
+        "items": [],
+        "services": []
+      },
+      {
+        "operation_id": 38953455776,
+        "operation_type": "OperationAgentDeliveredToCustomer",
+        "operation_date": "2025-10-12 00:00:00",
+        "operation_type_name": "Доставка покупателю",
+        "delivery_charge": 0,
+        "return_delivery_charge": 0,
+        "accruals_for_sale": 1271,
+        "sale_commission": -152.52,
+        "amount": 1118.48,
+        "type": "orders",
+        "posting": {
+          "delivery_schema": "RFBS",
+          "order_date": "2025-09-26 18:57:20",
+          "posting_number": "49931057-0004-1",
+          "warehouse_id": 1020002714275000
+        },
+        "items": [
+          {
+            "name": "Mobo Star Слепой Бокс - Куклы 12 Знаков Зодиака (Серия Warm Heart, Подарочная)",
+            "sku": 2841256689
+          }
+        ],
+        "services": []
+      }
+    ],
+    "page_count": 1,
+    "row_count": 3
+  }
+}

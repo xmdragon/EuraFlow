@@ -1,0 +1,98 @@
+{
+  "result": {
+    "operations": [
+      {
+        "operation_id": 38925490024,
+        "operation_type": "OperationAgentDeliveredToCustomer",
+        "operation_date": "2025-10-12 00:00:00",
+        "operation_type_name": "Доставка покупателю",
+        "delivery_charge": 0,
+        "return_delivery_charge": 0,
+        "accruals_for_sale": 1118,
+        "sale_commission": -134.16,
+        "amount": 983.84,
+        "type": "orders",
+        "posting": {
+          "delivery_schema": "RFBS",
+          "order_date": "2025-09-26 03:55:50",
+          "posting_number": "97129356-0045-1",
+          "warehouse_id": 1020002714275000
+        },
+        "items": [
+          {
+            "name": "Прикроватный поручень",
+            "sku": 2396578643
+          }
+        ],
+        "services": []
+      },
+      {
+        "operation_id": 38926096526,
+        "operation_type": "OperationMarketplaceAgencyFeeAggregator3PLGlobal",
+        "operation_date": "2025-10-12 00:00:00",
+        "operation_type_name": "Агентское вознаграждение за заключение и сопровождение договора транспортно-экспедиционных услуг по организации международной перевозки",
+        "delivery_charge": 0,
+        "return_delivery_charge": 0,
+        "accruals_for_sale": 0,
+        "sale_commission": 0,
+        "amount": -22.36,
+        "type": "services",
+        "posting": {
+          "delivery_schema": "",
+          "order_date": "2025-09-26 03:55:50",
+          "posting_number": "97129356-0045-1",
+          "warehouse_id": 1020002714275000
+        },
+        "items": [],
+        "services": []
+      },
+      {
+        "operation_id": 38926096527,
+        "operation_type": "MarketplaceRedistributionOfDeliveryServicesOperation",
+        "operation_date": "2025-10-12 00:00:00",
+        "operation_type_name": "Перевыставление услуг доставки",
+        "delivery_charge": 0,
+        "return_delivery_charge": 0,
+        "accruals_for_sale": 0,
+        "sale_commission": 0,
+        "amount": -464.63,
+        "type": "orders",
+        "posting": {
+          "delivery_schema": "",
+          "order_date": "2025-09-26 03:55:50",
+          "posting_number": "97129356-0045-1",
+          "warehouse_id": 1020002714275000
+        },
+        "items": [],
+        "services": []
+      },
+      {
+        "operation_id": 38956388864,
+        "operation_type": "ClientReturnAgentOperation",
+        "operation_date": "2025-10-13 00:00:00",
+        "operation_type_name": "Получение возврата, отмены, невыкупа от покупателя",
+        "delivery_charge": 0,
+        "return_delivery_charge": 0,
+        "accruals_for_sale": -1118,
+        "sale_commission": 134.16,
+        "amount": -983.84,
+        "type": "returns",
+        "posting": {
+          "delivery_schema": "RFBS",
+          "order_date": "2025-09-26 03:55:50",
+          "posting_number": "97129356-0045-1",
+          "warehouse_id": 1020002714275000
+        },
+        "items": [
+          {
+            "name": "Прикроватный поручень",
+            "sku": 2396578643
+          }
+        ],
+        "services": []
+      }
+    ],
+    "page_count": 1,
+    "row_count": 4
+  }
+}
