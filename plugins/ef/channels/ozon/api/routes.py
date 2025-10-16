@@ -3436,10 +3436,10 @@ async def get_report_summary(
         prev_last_day = calendar.monthrange(prev_year, prev_month)[1]
         prev_end_date = datetime(prev_year, prev_month, prev_last_day, 23, 59, 59, tzinfo=timezone.utc)
 
-        # 构建查询条件（当月）
+        # 构建查询条件（当月，使用下单时间）
         conditions = [
-            OzonOrder.created_at >= start_date,
-            OzonOrder.created_at <= end_date,
+            OzonOrder.ordered_at >= start_date,
+            OzonOrder.ordered_at <= end_date,
         ]
 
         # 状态过滤
@@ -3556,10 +3556,10 @@ async def get_report_summary(
         total_profit = total_sales - (total_purchase + total_commission + total_intl_logistics + total_last_mile + total_material)
         profit_rate = float((total_profit / total_sales * 100)) if total_sales > 0 else 0.0
 
-        # 查询上月数据（用于对比）
+        # 查询上月数据（用于对比，使用下单时间）
         prev_conditions = [
-            OzonOrder.created_at >= prev_start_date,
-            OzonOrder.created_at <= prev_end_date,
+            OzonOrder.ordered_at >= prev_start_date,
+            OzonOrder.ordered_at <= prev_end_date,
         ]
         if status_filter == 'delivered':
             prev_conditions.append(OzonPosting.status == 'delivered')
