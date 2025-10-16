@@ -766,7 +766,7 @@ export const getChatStats = async (shopId: number): Promise<ChatStats> => {
 
 // ========== 报表相关 API ==========
 
-// 获取订单报表
+// 获取订单报表（旧版，保留兼容）
 export const getOrderReport = async (month: string, shopIds?: string): Promise<any> => {
   const params = new URLSearchParams({ month });
   if (shopIds) {
@@ -776,15 +776,41 @@ export const getOrderReport = async (month: string, shopIds?: string): Promise<a
   return response.data;
 };
 
-// 导出订单报表
-export const exportOrderReport = async (month: string, shopIds?: string): Promise<Blob> => {
-  const params = new URLSearchParams({ month });
+// 获取Posting级别报表（新版）
+export const getPostingReport = async (
+  month: string,
+  shopIds?: string,
+  statusFilter: 'delivered' | 'placed' = 'delivered',
+  page: number = 1,
+  pageSize: number = 50
+): Promise<any> => {
+  const params = new URLSearchParams({
+    month,
+    status_filter: statusFilter,
+    page: page.toString(),
+    page_size: pageSize.toString()
+  });
   if (shopIds) {
     params.append('shop_ids', shopIds);
   }
-  const response = await apiClient.get(`/ozon/reports/orders/export?${params.toString()}`, {
-    responseType: 'blob'
+  const response = await apiClient.get(`/ozon/reports/postings?${params.toString()}`);
+  return response.data;
+};
+
+// 获取报表汇总数据（用于图表）
+export const getReportSummary = async (
+  month: string,
+  shopIds?: string,
+  statusFilter: 'delivered' | 'placed' = 'delivered'
+): Promise<any> => {
+  const params = new URLSearchParams({
+    month,
+    status_filter: statusFilter
   });
+  if (shopIds) {
+    params.append('shop_ids', shopIds);
+  }
+  const response = await apiClient.get(`/ozon/reports/summary?${params.toString()}`);
   return response.data;
 };
 

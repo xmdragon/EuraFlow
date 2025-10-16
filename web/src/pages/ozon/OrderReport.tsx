@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Ozon 订单报表页面
+ * Ozon 订单报表页面 - 重构版
+ * 支持Posting级别展示、双Tab（订单明细+订单汇总）、图表分析
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Row,
@@ -10,216 +11,147 @@ import {
   Statistic,
   Table,
   Button,
-  Space,
   Select,
-  DatePicker,
   message,
   Spin,
   Typography,
   Divider,
+  Tabs,
+  Avatar,
+  Popover,
+  Pagination,
 } from 'antd';
 import {
-  DownloadOutlined,
-  FileExcelOutlined,
   DollarOutlined,
   ShoppingCartOutlined,
   PercentageOutlined,
   RiseOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
-import { formatRMB, formatPercent } from '../../utils/currency';
+import { formatRMB } from '../../utils/currency';
+import { optimizeOzonImageUrl } from '../../utils/ozonImageOptimizer';
 import * as ozonApi from '@/services/ozonApi';
 import styles from './OrderReport.module.scss';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { Option } = Select;
 
-interface OrderReportData {
-  date: string;
-  shop_name: string;
-  product_name: string;
-  posting_number: string;
-  purchase_price: string | null;
-  sale_price: string;
-  tracking_number: string | null;
-  domestic_tracking_number: string | null;
-  material_cost: string | null;
-  order_notes: string | null;
-  profit: string;
-  sku?: string;
-  quantity?: number;
+// ===== 类型定义 =====
+
+interface ProductInPosting {
+  sku: string;
   offer_id?: string;
+  name: string;
+  quantity: number;
+  price: string;
+  image_url?: string;
+}
+
+interface PostingReportItem {
+  posting_number: string;
+  shop_name: string;
+  status: string;
+  created_at: string;
+  products: ProductInPosting[];
+  order_amount: string;
+  purchase_price: string;
+  ozon_commission_cny: string;
+  international_logistics_fee_cny: string;
+  last_mile_delivery_fee_cny: string;
+  material_cost: string;
+  profit: string;
+  profit_rate: number;
+}
+
+interface PostingItemRow {
+  key: string;
+  product: ProductInPosting;
+  productIndex: number;
+  posting: PostingReportItem;
+  isFirstItem: boolean;
+  itemCount: number;
 }
 
 interface ReportSummary {
-  total_sales: string;
-  total_purchase: string;
-  total_cost: string;
-  total_profit: string;
-  profit_rate: number;
-  order_count: number;
-  month: string;
+  statistics: {
+    total_sales: string;
+    total_purchase: string;
+    total_commission: string;
+    total_logistics: string;
+    total_cost: string;
+    total_profit: string;
+    profit_rate: number;
+    order_count: number;
+  };
+  cost_breakdown: Array<{ name: string; value: number }>;
+  shop_breakdown: Array<{ shop_name: string; sales: number; profit: number }>;
+  daily_trend: Array<{ date: string; sales: number; profit: number }>;
+  previous_month: {
+    total_sales: string;
+    total_profit: string;
+    profit_rate: number;
+  };
+  top_products: Array<{
+    offer_id: string;
+    name: string;
+    sku: string;
+    sales: number;
+    quantity: number;
+    profit: number;
+    image_url?: string;
+  }>;
 }
 
-interface ReportResponse {
-  summary: ReportSummary;
-  data: OrderReportData[];
-}
+// ===== 主组件 =====
 
 const OrderReport: React.FC = () => {
+  // ===== 状态管理 =====
   const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
   const [selectedShops, setSelectedShops] = useState<number[]>([]);
-  const [isExporting, setIsExporting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'delivered' | 'placed'>('delivered');
+  const [activeTab, setActiveTab] = useState<string>('details');
 
-  // 获取报表数据
-  const { data: reportData, isLoading, refetch } = useQuery<ReportResponse>({
-    queryKey: ['ozonOrderReport', selectedMonth, selectedShops],
+  // 分页状态（仅用于订单明细Tab）
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  // ===== 数据查询 =====
+
+  // 查询posting级别报表数据（仅在订单明细Tab激活时查询）
+  const { data: postingReportData, isLoading: isLoadingPostings, refetch: refetchPostings } = useQuery({
+    queryKey: ['ozonPostingReport', selectedMonth, selectedShops, statusFilter, page, pageSize],
     queryFn: async () => {
       const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : undefined;
-      return await ozonApi.getOrderReport(selectedMonth, shopIds);
+      return await ozonApi.getPostingReport(selectedMonth, shopIds, statusFilter, page, pageSize);
     },
-    enabled: !!selectedMonth && selectedShops.length > 0,
-    retry: 1, // 减少重试次数
-    retryDelay: 1000, // 设置重试延迟
-    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    enabled: selectedShops.length > 0 && activeTab === 'details',
+    retry: 1,
+    staleTime: 2 * 60 * 1000, // 2分钟缓存
   });
 
-  // 使用统一的货币格式化函数
-  const formatMoney = formatRMB;
-
-  // 使用统一的百分比格式化函数
-  // formatPercent 已经从 currency.ts 导入
-
-  // 表格列配置
-  const columns: ColumnsType<OrderReportData> = [
-    {
-      title: '日期',
-      dataIndex: 'date',
-      key: 'date',
-      width: 100,
-      fixed: 'left',
-    },
-    {
-      title: '店铺名称',
-      dataIndex: 'shop_name',
-      key: 'shop_name',
-      width: 120,
-    },
-    {
-      title: '商品名称',
-      dataIndex: 'product_name',
-      key: 'product_name',
-      width: 200,
-      ellipsis: true,
-    },
-    {
-      title: '货件编号',
-      dataIndex: 'posting_number',
-      key: 'posting_number',
-      width: 150,
-    },
-    {
-      title: '进货价格',
-      dataIndex: 'purchase_price',
-      key: 'purchase_price',
-      width: 100,
-      render: (value) => formatMoney(value),
-      align: 'right',
-    },
-    {
-      title: '出售价格',
-      dataIndex: 'sale_price',
-      key: 'sale_price',
-      width: 100,
-      render: (value) => formatMoney(value),
-      align: 'right',
-    },
-    {
-      title: '国际运单号',
-      dataIndex: 'tracking_number',
-      key: 'tracking_number',
-      width: 150,
-      render: (value) => value || '-',
-    },
-    {
-      title: '国内运单号',
-      dataIndex: 'domestic_tracking_number',
-      key: 'domestic_tracking_number',
-      width: 150,
-      render: (value) => value || '-',
-    },
-    {
-      title: '材料费用',
-      dataIndex: 'material_cost',
-      key: 'material_cost',
-      width: 100,
-      render: (value) => formatMoney(value),
-      align: 'right',
-    },
-    {
-      title: '备注',
-      dataIndex: 'order_notes',
-      key: 'order_notes',
-      width: 200,
-      ellipsis: true,
-      render: (value) => value || '-',
-    },
-    {
-      title: '利润',
-      dataIndex: 'profit',
-      key: 'profit',
-      width: 100,
-      fixed: 'right',
-      render: (value) => {
-        const profit = parseFloat(value || '0');
-        return (
-          <span className={`${styles.profitCell} ${profit >= 0 ? styles.positive : styles.negative}`}>
-            {formatMoney(value)}
-          </span>
-        );
-      },
-      align: 'right',
-    },
-  ];
-
-  // 导出Excel
-  const handleExport = async () => {
-    try {
-      setIsExporting(true);
+  // 查询报表汇总数据（仅在订单汇总Tab激活时查询）
+  const { data: summaryData, isLoading: isLoadingSummary, refetch: refetchSummary } = useQuery<ReportSummary>({
+    queryKey: ['ozonReportSummary', selectedMonth, selectedShops, statusFilter],
+    queryFn: async () => {
       const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : undefined;
+      return await ozonApi.getReportSummary(selectedMonth, shopIds, statusFilter);
+    },
+    enabled: selectedShops.length > 0 && activeTab === 'summary',
+    retry: 1,
+    staleTime: 2 * 60 * 1000,
+  });
 
-      // 调用API获取blob
-      const blob = await ozonApi.exportOrderReport(selectedMonth, shopIds);
-
-      // 下载文件
-      const filename = `ozon_order_report_${selectedMonth}.xlsx`;
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-
-      message.success('报表导出成功');
-    } catch (error) {
-      message.error('报表导出失败');
-      console.error(error);
-    } finally {
-      setIsExporting(false);
-    }
-  };
+  // ===== 工具函数 =====
 
   // 生成月份选项（最近12个月）
   const generateMonthOptions = () => {
     const options = [];
     const now = dayjs();
-
     for (let i = 0; i < 12; i++) {
       const month = now.subtract(i, 'month');
       options.push({
@@ -227,11 +159,228 @@ const OrderReport: React.FC = () => {
         value: month.format('YYYY-MM'),
       });
     }
-
     return options;
   };
 
-  const summary = reportData?.summary;
+  // 复制文本到剪贴板
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      message.success('已复制到剪贴板');
+    }).catch(() => {
+      message.error('复制失败');
+    });
+  };
+
+  // ===== 订单明细Tab数据处理 =====
+
+  // 将posting数据转换为item行数据（类似PackingShipment的模式）
+  const postingItemRows = useMemo<PostingItemRow[]>(() => {
+    if (!postingReportData?.data) return [];
+
+    const rows: PostingItemRow[] = [];
+    postingReportData.data.forEach((posting: PostingReportItem) => {
+      const products = posting.products || [];
+      const itemCount = products.length;
+
+      products.forEach((product, index) => {
+        rows.push({
+          key: `${posting.posting_number}_${index}`,
+          product: product,
+          productIndex: index,
+          posting: posting,
+          isFirstItem: index === 0,
+          itemCount: itemCount,
+        });
+      });
+    });
+
+    return rows;
+  }, [postingReportData]);
+
+  // ===== 订单明细Tab - 表格列定义 =====
+
+  const detailColumns: ColumnsType<PostingItemRow> = [
+    // 1. 图片列
+    {
+      title: '图片',
+      width: 80,
+      fixed: 'left',
+      render: (_, row) => {
+        const imageUrl80 = optimizeOzonImageUrl(row.product.image_url, 80);
+        const imageUrl160 = optimizeOzonImageUrl(row.product.image_url, 160);
+
+        return (
+          <Popover
+            content={<img src={imageUrl160} width={160} alt="商品预览" />}
+            trigger="hover"
+          >
+            <Avatar src={imageUrl80} size={80} shape="square" />
+          </Popover>
+        );
+      },
+    },
+    // 2. 商品信息列（3行垂直布局）
+    {
+      title: '商品信息',
+      width: 220,
+      render: (_, row) => (
+        <div className={styles.productInfo}>
+          <div className={styles.date}>
+            {dayjs(row.posting.created_at).format('MM-DD')}
+          </div>
+          <div className={styles.shopName}>{row.posting.shop_name}</div>
+          <div className={styles.productLine}>
+            <Text ellipsis={{ tooltip: row.product.name }} style={{ flex: 1 }}>
+              {row.product.name?.substring(0, 20) || '-'}
+            </Text>
+            <span
+              className={styles.sku}
+              onClick={() => handleCopy(row.product.sku)}
+            >
+              {row.product.sku} <CopyOutlined />
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    // 3. 货件编号（rowSpan）
+    {
+      title: '货件编号',
+      width: 150,
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        return {
+          children: (
+            <span
+              className={styles.copyableText}
+              onClick={() => handleCopy(row.posting.posting_number)}
+            >
+              {row.posting.posting_number} <CopyOutlined />
+            </span>
+          ),
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 4. 订单金额（rowSpan）
+    {
+      title: '订单金额',
+      width: 100,
+      align: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        return {
+          children: row.posting.order_amount,
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 5. 进货金额（rowSpan）
+    {
+      title: '进货金额',
+      width: 100,
+      align: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        return {
+          children: row.posting.purchase_price || '-',
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 6. Ozon佣金（rowSpan）
+    {
+      title: 'Ozon佣金',
+      width: 100,
+      align: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        return {
+          children: row.posting.ozon_commission_cny || '-',
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 7. 国际物流（rowSpan）
+    {
+      title: '国际物流',
+      width: 100,
+      align: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        return {
+          children: row.posting.international_logistics_fee_cny || '-',
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 8. 尾程派送（rowSpan）
+    {
+      title: '尾程派送',
+      width: 100,
+      align: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        return {
+          children: row.posting.last_mile_delivery_fee_cny || '-',
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 9. 打包费用（rowSpan）
+    {
+      title: '打包费用',
+      width: 100,
+      align: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        return {
+          children: row.posting.material_cost || '-',
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 10. 利润金额（rowSpan）
+    {
+      title: '利润金额',
+      width: 100,
+      align: 'right',
+      fixed: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        const profit = parseFloat(row.posting.profit || '0');
+        return {
+          children: (
+            <span className={`${styles.profitCell} ${profit >= 0 ? styles.positive : styles.negative}`}>
+              {row.posting.profit}
+            </span>
+          ),
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+    // 11. 利润比率（rowSpan）
+    {
+      title: '利润比率',
+      width: 100,
+      align: 'right',
+      fixed: 'right',
+      render: (_, row) => {
+        if (!row.isFirstItem) return null;
+        const profitRate = row.posting.profit_rate;
+        return {
+          children: (
+            <span className={`${styles.profitCell} ${profitRate >= 0 ? styles.positive : styles.negative}`}>
+              {profitRate.toFixed(2)}%
+            </span>
+          ),
+          props: { rowSpan: row.itemCount },
+        };
+      },
+    },
+  ];
+
+  // ===== 渲染 =====
 
   return (
     <div>
@@ -249,7 +398,7 @@ const OrderReport: React.FC = () => {
               options={generateMonthOptions()}
             />
           </Col>
-          <Col span={10}>
+          <Col span={8}>
             <label className={styles.filterLabel}>选择店铺：</label>
             <ShopSelector
               value={selectedShops}
@@ -263,26 +412,39 @@ const OrderReport: React.FC = () => {
                 }
               }}
               mode="multiple"
-              placeholder="全部店铺"
+              placeholder="请选择店铺"
               className={styles.filterSelect}
               showAllOption={false}
             />
           </Col>
-          <Col span={8}>
+          <Col span={6}>
+            <label className={styles.filterLabel}>订单状态：</label>
+            <Select
+              value={statusFilter}
+              onChange={(value) => {
+                setStatusFilter(value);
+                setPage(1); // 重置页码
+              }}
+              className={styles.filterSelect}
+            >
+              <Option value="delivered">已签收</Option>
+              <Option value="placed">已下订</Option>
+            </Select>
+          </Col>
+          <Col span={4}>
             <label className={styles.filterLabel}>&nbsp;</label>
-            <Space>
-              <Button type="primary" onClick={() => refetch()}>
-                查询
-              </Button>
-              <Button
-                type="default"
-                icon={<FileExcelOutlined />}
-                onClick={handleExport}
-                loading={isExporting}
-              >
-                导出Excel
-              </Button>
-            </Space>
+            <Button
+              type="primary"
+              onClick={() => {
+                if (activeTab === 'details') {
+                  refetchPostings();
+                } else {
+                  refetchSummary();
+                }
+              }}
+            >
+              查询
+            </Button>
           </Col>
         </Row>
 
@@ -293,138 +455,57 @@ const OrderReport: React.FC = () => {
           </div>
         )}
 
-        {/* 统计汇总卡片 */}
-        {summary && (
-          <>
-            <Divider orientation="left">统计汇总</Divider>
-            <Row gutter={16} className={styles.summaryRow}>
-              <Col span={4}>
-                <Card className={styles.statSales}>
-                  <Statistic
-                    title="销售总额"
-                    value={summary.total_sales}
-                    prefix="¥"
-                    precision={2}
+        {/* Tab切换 */}
+        {selectedShops.length > 0 && (
+          <Tabs
+            activeKey={activeTab}
+            onChange={(key) => {
+              setActiveTab(key);
+              // 切换Tab时重置分页
+              if (key === 'details') {
+                setPage(1);
+              }
+            }}
+            className={styles.reportTabs}
+          >
+            {/* 订单明细Tab */}
+            <Tabs.TabPane tab="订单明细" key="details">
+              <Spin spinning={isLoadingPostings}>
+                <Table
+                  dataSource={postingItemRows}
+                  columns={detailColumns}
+                  rowKey="key"
+                  pagination={false}
+                  scroll={{ x: 1600, y: 600 }}
+                  loading={isLoadingPostings}
+                />
+
+                {/* 独立分页组件 */}
+                <div style={{ marginTop: 16, textAlign: 'right' }}>
+                  <Pagination
+                    current={page}
+                    pageSize={pageSize}
+                    total={postingReportData?.total || 0}
+                    pageSizeOptions={[50, 100]}
+                    onChange={(newPage, newPageSize) => {
+                      setPage(newPage);
+                      setPageSize(newPageSize || 50);
+                    }}
+                    showTotal={(total) => `共 ${total} 条货件`}
+                    showSizeChanger
                   />
-                </Card>
-              </Col>
-              <Col span={4}>
-                <Card className={styles.statPurchase}>
-                  <Statistic
-                    title="进货总额"
-                    value={summary.total_purchase}
-                    prefix="¥"
-                    precision={2}
-                  />
-                </Card>
-              </Col>
-              <Col span={4}>
-                <Card className={styles.statCost}>
-                  <Statistic
-                    title="费用总额"
-                    value={summary.total_cost}
-                    prefix="¥"
-                    precision={2}
-                  />
-                </Card>
-              </Col>
-              <Col span={4}>
-                <Card className={`${styles.statProfit} ${parseFloat(summary.total_profit) >= 0 ? styles.positive : styles.negative}`}>
-                  <Statistic
-                    title="利润总额"
-                    value={summary.total_profit}
-                    prefix="¥"
-                    precision={2}
-                  />
-                </Card>
-              </Col>
-              <Col span={4}>
-                <Card className={`${styles.statProfitRate} ${summary.profit_rate >= 0 ? styles.positive : styles.negative}`}>
-                  <Statistic
-                    title="利润率"
-                    value={summary.profit_rate}
-                    suffix="%"
-                    precision={2}
-                    prefix={summary.profit_rate >= 0 ? <RiseOutlined /> : null}
-                  />
-                </Card>
-              </Col>
-              <Col span={4}>
-                <Card>
-                  <Statistic
-                    title="订单总数"
-                    value={summary.order_count}
-                    prefix={<ShoppingCartOutlined />}
-                  />
-                </Card>
-              </Col>
-            </Row>
-          </>
+                </div>
+              </Spin>
+            </Tabs.TabPane>
+
+            {/* 订单汇总Tab - 占位符，后续实现 */}
+            <Tabs.TabPane tab="订单汇总" key="summary">
+              <Spin spinning={isLoadingSummary}>
+                <div>订单汇总功能开发中...</div>
+              </Spin>
+            </Tabs.TabPane>
+          </Tabs>
         )}
-
-        {/* 报表表格 */}
-        <Divider orientation="left">订单明细</Divider>
-        <Table
-          columns={columns}
-          dataSource={reportData?.data || []}
-          loading={isLoading}
-          rowKey={(record) => `${record.posting_number}_${record.sku}_${record.date}`}
-          scroll={{ x: 1500, y: 500 }}
-          pagination={{
-            pageSize: 50,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条记录`,
-          }}
-          summary={() => {
-            if (!reportData?.data?.length) return null;
-
-            // 计算当前页的汇总
-            const pageData = reportData.data;
-            const pageSales = pageData.reduce(
-              (sum, item) => sum + parseFloat(item.sale_price || '0'),
-              0
-            );
-            const pagePurchase = pageData.reduce(
-              (sum, item) => sum + parseFloat(item.purchase_price || '0'),
-              0
-            );
-            const pageCost = pageData.reduce(
-              (sum, item) => sum + parseFloat(item.material_cost || '0'),
-              0
-            );
-            const pageProfit = pageData.reduce(
-              (sum, item) => sum + parseFloat(item.profit || '0'),
-              0
-            );
-
-            return (
-              <Table.Summary fixed>
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={4}>
-                    <strong>本页合计</strong>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={4} align="right">
-                    <strong>{formatMoney(pagePurchase)}</strong>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={5} align="right">
-                    <strong>{formatMoney(pageSales)}</strong>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={6}>-</Table.Summary.Cell>
-                  <Table.Summary.Cell index={7}>-</Table.Summary.Cell>
-                  <Table.Summary.Cell index={8} align="right">
-                    <strong>{formatMoney(pageCost)}</strong>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={9}>-</Table.Summary.Cell>
-                  <Table.Summary.Cell index={10} align="right">
-                    <strong className={`${styles.summaryProfit} ${pageProfit >= 0 ? styles.positive : styles.negative}`}>
-                      {formatMoney(pageProfit)}
-                    </strong>
-                  </Table.Summary.Cell>
-                </Table.Summary.Row>
-              </Table.Summary>
-            );
-          }}
-        />
       </Card>
     </div>
   );
