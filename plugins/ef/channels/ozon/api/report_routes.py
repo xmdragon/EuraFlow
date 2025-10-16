@@ -733,19 +733,32 @@ async def get_report_summary(
             for date_str, stats in sorted(daily_stats.items())
         ]
 
-        # 构建TOP10商品数据
-        top_products_list = sorted(
+        # 构建销售额TOP10商品数据
+        top_products_by_sales_list = sorted(
             product_stats.items(),
             key=lambda x: x[1]['sales'],
             reverse=True
         )[:10]
 
+        # 构建销售量TOP10商品数据
+        top_products_by_quantity_list = sorted(
+            product_stats.items(),
+            key=lambda x: x[1]['quantity'],
+            reverse=True
+        )[:10]
+
+        # 合并两个列表的offer_id用于批量查询图片
+        top_offer_ids = set()
+        for offer_id, _ in top_products_by_sales_list:
+            top_offer_ids.add(offer_id)
+        for offer_id, _ in top_products_by_quantity_list:
+            top_offer_ids.add(offer_id)
+
         # 批量查询TOP10商品的图片
-        top_offer_ids = [offer_id for offer_id, _ in top_products_list]
         offer_id_images = {}
         if top_offer_ids:
             product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
-                OzonProduct.offer_id.in_(top_offer_ids)
+                OzonProduct.offer_id.in_(list(top_offer_ids))
             )
             products_result = await db.execute(product_query)
             for offer_id, images in products_result:
@@ -761,7 +774,8 @@ async def get_report_summary(
                     if image_url:
                         offer_id_images[offer_id] = image_url
 
-        top_products = [
+        # 构建销售额TOP10返回数据
+        top_products_by_sales = [
             {
                 "offer_id": offer_id,
                 "name": stats['name'],
@@ -771,7 +785,21 @@ async def get_report_summary(
                 "profit": float(stats['profit']),
                 "image_url": offer_id_images.get(offer_id)  # 原始URL
             }
-            for offer_id, stats in top_products_list
+            for offer_id, stats in top_products_by_sales_list
+        ]
+
+        # 构建销售量TOP10返回数据
+        top_products_by_quantity = [
+            {
+                "offer_id": offer_id,
+                "name": stats['name'],
+                "sku": stats['sku'],
+                "sales": float(stats['sales']),
+                "quantity": stats['quantity'],
+                "profit": float(stats['profit']),
+                "image_url": offer_id_images.get(offer_id)  # 原始URL
+            }
+            for offer_id, stats in top_products_by_quantity_list
         ]
 
         # 返回汇总数据
@@ -794,7 +822,8 @@ async def get_report_summary(
                 "total_profit": format_currency(prev_total_profit),
                 "profit_rate": round(prev_profit_rate, 2)
             },
-            "top_products": top_products
+            "top_products_by_sales": top_products_by_sales,
+            "top_products_by_quantity": top_products_by_quantity
         }
 
     except ValueError as e:
