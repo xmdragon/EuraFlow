@@ -1603,146 +1603,203 @@
                 backdrop-filter: blur(5px);
             `;
             this.modal.innerHTML = `
-                <div style="background: white; padding: 30px; border-radius: 16px;
-                            box-shadow: 0 20px 60px rgba(0,0,0,0.3); min-width: 500px; max-width: 600px;
-                            max-height: 80vh; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                <div style="background: white; padding: 25px; border-radius: 16px;
+                            box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 650px; max-width: 90vw;
+                            max-height: 85vh; overflow-y: auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+
+                    <!-- 标题栏 -->
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="margin: 0; font-size: 24px; color: #333;">🚀 一键上架</h2>
+                        <h2 style="margin: 0; font-size: 22px; color: #333; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 24px;">🚀</span>
+                            <span>一键上架</span>
+                        </h2>
                         <button id="qp-close-btn" style="background: #f0f0f0; border: none; color: #666;
                                 font-size: 24px; cursor: pointer; padding: 5px 12px; border-radius: 8px;
-                                transition: all 0.3s;">×</button>
+                                transition: all 0.3s; line-height: 1;">×</button>
                     </div>
 
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; font-size: 13px;">
-                            <div style="color: #666;">商品标题:</div>
-                            <div id="qp-title-preview" style="color: #333; font-weight: 500;">加载中...</div>
-                            <div style="color: #666;">OZON商品ID:</div>
-                            <div id="qp-id-preview" style="color: #333; font-weight: 500;">加载中...</div>
+                    <!-- 商品预览卡片 -->
+                    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                                padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+                        <div style="display: flex; gap: 15px; align-items: start;">
+                            <img id="qp-image-preview" src="" alt="商品图片"
+                                 style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;
+                                        background: #fff; border: 1px solid #ddd; display: none;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-size: 14px; font-weight: 600; color: #333; margin-bottom: 8px;
+                                            line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2;
+                                            -webkit-box-orient: vertical; overflow: hidden;">
+                                    <span id="qp-title-preview">加载中...</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; font-size: 12px;">
+                                    <span style="color: #868e96;">商品ID:</span>
+                                    <span id="qp-id-preview" style="color: #495057; font-weight: 500;">加载中...</span>
+                                    <span style="color: #868e96;">品牌:</span>
+                                    <span id="qp-brand-preview" style="color: #495057;">-</span>
+                                    <span style="color: #868e96;">条码:</span>
+                                    <span id="qp-barcode-preview" style="color: #495057;">-</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <form id="qp-form" style="display: grid; gap: 15px;">
-                        <div>
-                            <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
-                                店铺 <span style="color: #f56565;">*</span>
-                            </label>
-                            <select id="qp-shop" required style="width: 100%; padding: 10px; border: 1px solid #ddd;
-                                    border-radius: 6px; font-size: 14px; box-sizing: border-box;">
-                                <option value="">加载中...</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
-                                仓库 (可选)
-                            </label>
-                            <div id="qp-warehouses" style="border: 1px solid #ddd; border-radius: 6px; padding: 10px;
-                                    max-height: 120px; overflow-y: auto; background: #fafafa;">
-                                <div style="color: #999; font-size: 13px;">请先选择店铺</div>
+                    <form id="qp-form" style="display: grid; gap: 18px;">
+                        <!-- 店铺和仓库 -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
+                                    店铺 <span style="color: #f56565;">*</span>
+                                </label>
+                                <select id="qp-shop" required style="width: 100%; padding: 10px; border: 1px solid #ced4da;
+                                        border-radius: 6px; font-size: 14px; box-sizing: border-box; background: white;">
+                                    <option value="">选择店铺...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
+                                    仓库 <span style="color: #868e96; font-weight: 400;">(可选)</span>
+                                </label>
+                                <div id="qp-warehouses" style="border: 1px solid #ced4da; border-radius: 6px; padding: 8px;
+                                        max-height: 90px; overflow-y: auto; background: #f8f9fa; font-size: 13px;">
+                                    <div style="color: #adb5bd;">请先选择店铺</div>
+                                </div>
                             </div>
                         </div>
 
+                        <!-- 商品信息行 -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
-                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
                                     商家SKU <span style="color: #f56565;">*</span>
                                 </label>
                                 <input type="text" id="qp-offer-id" required placeholder="例: MY-SKU-001"
-                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;
                                               font-size: 14px; box-sizing: border-box;">
                             </div>
                             <div>
-                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
                                     类目ID <span style="color: #f56565;">*</span>
                                 </label>
                                 <input type="number" id="qp-category-id" required placeholder="例: 17029016"
-                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;
                                               font-size: 14px; box-sizing: border-box;">
                             </div>
                         </div>
 
+                        <!-- 品牌和条码 -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
+                                    品牌 <span style="color: #868e96; font-weight: 400;">(可选)</span>
+                                </label>
+                                <input type="text" id="qp-brand" placeholder="自动提取或手动输入"
+                                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;
+                                              font-size: 14px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
+                                    条码 <span style="color: #868e96; font-weight: 400;">(可选)</span>
+                                </label>
+                                <input type="text" id="qp-barcode" placeholder="自动提取或手动输入"
+                                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;
+                                              font-size: 14px; box-sizing: border-box;">
+                            </div>
+                        </div>
+
+                        <!-- 价格和库存 -->
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
                             <div>
-                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
                                     销售价格(₽) <span style="color: #f56565;">*</span>
                                 </label>
                                 <input type="number" id="qp-price" required step="0.01" min="0" placeholder="1000"
-                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;
                                               font-size: 14px; box-sizing: border-box;">
                             </div>
                             <div>
-                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
-                                    原价(₽)
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
+                                    原价(₽) <span style="color: #868e96; font-weight: 400;">(可选)</span>
                                 </label>
                                 <input type="number" id="qp-old-price" step="0.01" min="0" placeholder="1500"
-                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;
                                               font-size: 14px; box-sizing: border-box;">
                             </div>
                             <div>
-                                <label style="display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #555;">
+                                <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #495057;">
                                     库存 <span style="color: #f56565;">*</span>
                                 </label>
                                 <input type="number" id="qp-stock" required min="0" placeholder="10"
-                                       style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+                                       style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px;
                                               font-size: 14px; box-sizing: border-box;">
                             </div>
                         </div>
 
-                        <div style="border-top: 1px solid #e0e0e0; padding-top: 15px; margin-top: 10px;">
-                            <label style="display: block; margin-bottom: 10px; font-size: 13px; font-weight: 600; color: #555;">
+                        <!-- 尺寸和重量 -->
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
+                            <label style="display: block; margin-bottom: 10px; font-size: 13px; font-weight: 600; color: #495057;">
                                 商品尺寸和重量 <span style="color: #f56565;">*</span>
                             </label>
-                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
                                 <div>
-                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">重量(克)</label>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6c757d; font-weight: 500;">
+                                        重量(克)
+                                    </label>
                                     <input type="number" id="qp-weight" required min="1" placeholder="500"
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
-                                                  font-size: 13px; box-sizing: border-box;">
+                                           style="width: 100%; padding: 9px; border: 1px solid #ced4da; border-radius: 5px;
+                                                  font-size: 13px; box-sizing: border-box; background: white;">
                                 </div>
                                 <div>
-                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">长度(mm)</label>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6c757d; font-weight: 500;">
+                                        长度(mm)
+                                    </label>
                                     <input type="number" id="qp-length" required min="1" placeholder="200"
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
-                                                  font-size: 13px; box-sizing: border-box;">
+                                           style="width: 100%; padding: 9px; border: 1px solid #ced4da; border-radius: 5px;
+                                                  font-size: 13px; box-sizing: border-box; background: white;">
                                 </div>
                                 <div>
-                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">宽度(mm)</label>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6c757d; font-weight: 500;">
+                                        宽度(mm)
+                                    </label>
                                     <input type="number" id="qp-width" required min="1" placeholder="150"
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
-                                                  font-size: 13px; box-sizing: border-box;">
+                                           style="width: 100%; padding: 9px; border: 1px solid #ced4da; border-radius: 5px;
+                                                  font-size: 13px; box-sizing: border-box; background: white;">
                                 </div>
                                 <div>
-                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">高度(mm)</label>
+                                    <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #6c757d; font-weight: 500;">
+                                        高度(mm)
+                                    </label>
                                     <input type="number" id="qp-height" required min="1" placeholder="100"
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
-                                                  font-size: 13px; box-sizing: border-box;">
+                                           style="width: 100%; padding: 9px; border: 1px solid #ced4da; border-radius: 5px;
+                                                  font-size: 13px; box-sizing: border-box; background: white;">
                                 </div>
                             </div>
                         </div>
 
-                        <div id="qp-status" style="background: #e8f4fd; color: #1a73e8; padding: 12px; border-radius: 6px;
-                                font-size: 13px; display: none; margin-top: 10px;">
+                        <!-- 状态提示 -->
+                        <div id="qp-status" style="background: #e7f5ff; color: #1971c2; padding: 12px; border-radius: 8px;
+                                font-size: 13px; display: none; border: 1px solid #a5d8ff;">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <span id="qp-status-icon">ℹ️</span>
-                                <span id="qp-status-text">准备就绪</span>
+                                <span id="qp-status-icon" style="font-size: 16px;">ℹ️</span>
+                                <span id="qp-status-text" style="font-weight: 500;">准备就绪</span>
                             </div>
-                            <div id="qp-progress" style="width: 100%; height: 4px; background: rgba(26, 115, 232, 0.2);
-                                    border-radius: 2px; margin-top: 8px; overflow: hidden; display: none;">
-                                <div id="qp-progress-bar" style="width: 0%; height: 100%; background: #1a73e8;
-                                        transition: width 0.3s;"></div>
+                            <div id="qp-progress" style="width: 100%; height: 5px; background: rgba(25, 113, 194, 0.15);
+                                    border-radius: 3px; margin-top: 10px; overflow: hidden; display: none;">
+                                <div id="qp-progress-bar" style="width: 0%; height: 100%; background: #1971c2;
+                                        transition: width 0.4s ease;"></div>
                             </div>
                         </div>
 
-                        <div style="display: flex; gap: 10px; margin-top: 10px;">
-                            <button type="button" id="qp-cancel-btn" style="flex: 1; padding: 12px; border: 1px solid #ddd;
-                                    border-radius: 8px; background: white; color: #666; font-size: 15px; font-weight: 600;
-                                    cursor: pointer; transition: all 0.3s;">
+                        <!-- 操作按钮 -->
+                        <div style="display: flex; gap: 12px; margin-top: 8px;">
+                            <button type="button" id="qp-cancel-btn" style="flex: 1; padding: 12px; border: 1px solid #ced4da;
+                                    border-radius: 8px; background: white; color: #495057; font-size: 15px; font-weight: 600;
+                                    cursor: pointer; transition: all 0.2s;">
                                 取消
                             </button>
                             <button type="submit" id="qp-submit-btn" style="flex: 2; padding: 12px; border: none;
                                     border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                    color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                                    color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+                                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
                                 🚀 开始上架
                             </button>
                         </div>
@@ -1873,14 +1930,32 @@
                 const title = titleElement ? titleElement.textContent.trim() : '未识别';
                 document.getElementById('qp-title-preview').textContent = title;
 
+                // 提取图片
+                const images = this.extractImages();
+                if (images.length > 0) {
+                    const imgPreview = document.getElementById('qp-image-preview');
+                    imgPreview.src = images[0];
+                    imgPreview.style.display = 'block';
+                }
+
+                // 提取品牌
+                const brand = this.extractBrand();
+                document.getElementById('qp-brand-preview').textContent = brand || '-';
+                document.getElementById('qp-brand').value = brand || '';
+
+                // 提取条码
+                const barcode = this.extractBarcode();
+                document.getElementById('qp-barcode-preview').textContent = barcode || '-';
+                document.getElementById('qp-barcode').value = barcode || '';
+
                 // 存储提取的数据供后续使用
                 this.pageData = {
                     ozon_product_id: ozonProductId,
                     title: title,
                     description: this.extractDescription(),
-                    images: this.extractImages(),
-                    brand: this.extractBrand(),
-                    barcode: this.extractBarcode()
+                    images: images,
+                    brand: brand,
+                    barcode: barcode
                 };
             } catch (error) {
                 console.error('提取页面数据失败:', error);
@@ -1941,6 +2016,10 @@
                 const warehouseCheckboxes = document.querySelectorAll('input[name="warehouse"]:checked');
                 const warehouseIds = Array.from(warehouseCheckboxes).map(cb => parseInt(cb.value));
 
+                // 读取品牌和条码（优先使用输入框的值，因为用户可能修改了）
+                const brand = document.getElementById('qp-brand').value.trim();
+                const barcode = document.getElementById('qp-barcode').value.trim();
+
                 const data = {
                     shop_id: shopId,
                     warehouse_ids: warehouseIds,
@@ -1954,8 +2033,8 @@
                     title: this.pageData.title,
                     description: this.pageData.description,
                     images: this.pageData.images,
-                    brand: this.pageData.brand,
-                    barcode: this.pageData.barcode || document.getElementById('qp-offer-id').value,
+                    brand: brand || null,
+                    barcode: barcode || document.getElementById('qp-offer-id').value,
                     dimensions: {
                         weight: parseInt(document.getElementById('qp-weight').value),
                         height: parseInt(document.getElementById('qp-height').value),
