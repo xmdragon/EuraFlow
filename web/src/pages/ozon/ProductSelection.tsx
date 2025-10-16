@@ -209,9 +209,9 @@ const ProductSelection: React.FC = () => {
     queryKey: ['exchangeRate', 'CNY', 'RUB'],
     queryFn: () => getExchangeRate('CNY', 'RUB', false),
     staleTime: 30 * 60 * 1000, // 30分钟
-    cacheTime: 60 * 60 * 1000, // 1小时
+    gcTime: 60 * 60 * 1000, // 1小时
   });
-  const exchangeRate = exchangeRateData ? parseFloat(exchangeRateData.rate) : null;
+  const exchangeRate = exchangeRateData ? parseFloat((exchangeRateData as any).rate) : null;
 
   // 查询导入历史
   const { data: historyData, refetch: refetchHistory} = useQuery({

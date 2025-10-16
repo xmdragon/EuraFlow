@@ -38,12 +38,12 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshed = await authService.refreshToken();
-      if (refreshed) {
+      try {
+        await authService.refresh();
         const authHeaders = authService.getAuthHeader();
         originalRequest.headers.Authorization = authHeaders.Authorization;
         return apiClient(originalRequest);
-      } else {
+      } catch {
         authService.logout();
       }
     }

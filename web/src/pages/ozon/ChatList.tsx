@@ -153,7 +153,8 @@ const ChatList: React.FC = () => {
         <ShopSelector
           value={selectedShopId}
           onChange={(shopId) => {
-            setSelectedShopId(shopId);
+            const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : shopId;
+            setSelectedShopId(normalized);
             setCurrentPage(1);
           }}
         />

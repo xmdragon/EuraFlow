@@ -11,6 +11,7 @@ interface ShopSelectorProps {
   onChange?: (shopId: number | number[] | null) => void;
   showAllOption?: boolean;
   style?: React.CSSProperties;
+  className?: string;
   placeholder?: string;
   mode?: 'multiple';
 }
@@ -20,6 +21,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   onChange,
   showAllOption = true,
   style,
+  className,
   placeholder = '选择店铺',
   mode,
 }) => {
@@ -126,6 +128,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
       })()}
       onChange={handleChange}
       style={{ minWidth: 200, ...style }}
+      className={className}
       placeholder={placeholder}
       loading={isLoading}
       mode={mode}

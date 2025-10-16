@@ -2065,7 +2065,7 @@ const ProductList: React.FC = () => {
                                   {img.image_type === 'primary' ? '主图' : `附加图 ${img.image_index + 1}`}
                                 </Tag>
                                 {img.suggested_position && (
-                                  <Tag color="blue" size="small">
+                                  <Tag color="blue">
                                     位置: {img.suggested_position}
                                   </Tag>
                                 )}

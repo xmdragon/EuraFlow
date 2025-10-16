@@ -33,6 +33,20 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 使用 ref 保存回调函数，避免它们的变化导致重连
+  const onMessageRef = useRef(onMessage);
+  const onConnectedRef = useRef(onConnected);
+  const onDisconnectedRef = useRef(onDisconnected);
+
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onConnectedRef.current = onConnected;
+    onDisconnectedRef.current = onDisconnected;
+  });
+
+  // 将 shopIds 转换为字符串，避免数组引用变化导致重连
+  const shopIdsStr = shopIds.join(',');
+
   const connect = useCallback(() => {
     if (!token) {
       setConnectionError('No authentication token');
@@ -40,7 +54,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     }
 
     try {
-      const shopIdsParam = shopIds.length > 0 ? `&shop_ids=${shopIds.join(',')}` : '';
+      const shopIdsParam = shopIdsStr ? `&shop_ids=${shopIdsStr}` : '';
       const wsUrl = `${url}?token=${token}${shopIdsParam}`;
 
       const ws = new WebSocket(wsUrl);
@@ -50,7 +64,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         console.log('WebSocket connected');
         setIsConnected(true);
         setConnectionError(null);
-        onConnected?.();
+        onConnectedRef.current?.();
 
         // 启动心跳
         heartbeatTimerRef.current = setInterval(() => {
@@ -63,7 +77,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       ws.onmessage = (event) => {
         try {
           const message: WebSocketNotification = JSON.parse(event.data);
-          onMessage?.(message);
+          onMessageRef.current?.(message);
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
         }
@@ -77,7 +91,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       ws.onclose = () => {
         console.log('WebSocket disconnected');
         setIsConnected(false);
-        onDisconnected?.();
+        onDisconnectedRef.current?.();
 
         // 清理心跳
         if (heartbeatTimerRef.current) {
@@ -97,7 +111,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       console.error('Failed to create WebSocket:', error);
       setConnectionError('Failed to connect');
     }
-  }, [url, token, shopIds, onMessage, onConnected, onDisconnected, autoReconnect, reconnectDelay]);
+  }, [url, token, shopIdsStr, autoReconnect, reconnectDelay]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -130,7 +144,8 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     return () => {
       disconnect();
     };
-  }, [token, connect, disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   return {
     isConnected,

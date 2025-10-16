@@ -110,12 +110,10 @@ const ShopSettings: React.FC = () => {
   const addShopMutation = useMutation({
     mutationFn: async (values: any) => {
       return ozonApi.createShop({
-        shop_name: values.shop_name,
+        name: values.shop_name,
+        client_id: values.client_id,
+        api_key: values.api_key,
         platform: 'ozon',
-        api_credentials: {
-          client_id: values.client_id,
-          api_key: values.api_key,
-        },
         config: {},
       });
     },
@@ -1214,7 +1212,7 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
           <Card size="small" title="支持的事件">
             <div className={styles.webhookEventsContainer}>
               {webhookData?.supported_events?.map((event: string) => (
-                <Tag key={event} size="small" className={styles.webhookEventTag}>
+                <Tag key={event} className={styles.webhookEventTag}>
                   {event}
                 </Tag>
               )) || (

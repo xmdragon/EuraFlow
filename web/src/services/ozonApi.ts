@@ -41,13 +41,13 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       // 尝试刷新token
-      const refreshed = await authService.refreshToken();
-      if (refreshed) {
+      try {
+        await authService.refresh();
         // 重新设置认证头并重试请求
         const authHeaders = authService.getAuthHeader();
         originalRequest.headers.Authorization = authHeaders.Authorization;
         return apiClient(originalRequest);
-      } else {
+      } catch {
         // 刷新失败，跳转登录
         authService.logout();
       }
@@ -139,6 +139,7 @@ export interface Product {
   visibility: boolean;
   is_archived: boolean;
   price?: string;
+  currency_code?: string;
   old_price?: string;
   premium_price?: string;
   cost?: string;
@@ -301,6 +302,8 @@ export interface Order {
   delivery_method?: string;
   delivery_date?: string;
   delivery_time_slot?: string;
+  shipment_date?: string;
+  warehouse_name?: string;
   ordered_at: string;
   in_process_at?: string; // Added for compatibility
   confirmed_at?: string;
@@ -310,6 +313,7 @@ export interface Order {
   purchase_price?: string;
   domestic_tracking_number?: string;
   material_cost?: string;
+  source_platform?: string;
   order_notes?: string;
   delivery_price?: string;
   total_price?: string;
@@ -346,6 +350,7 @@ export interface Posting {
   ozon_posting_number?: string;
   status: string;
   substatus?: string;
+  operation_status?: string;
   shipment_date?: string;
   delivery_method_name?: string;
   warehouse_name?: string;

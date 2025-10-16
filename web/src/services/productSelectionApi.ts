@@ -84,6 +84,7 @@ export interface ImportResponse {
   duration?: number;
   error?: string;
   errors?: Array<{ row: number; error: string }>;
+  missing_columns?: string[];
 }
 
 export interface PreviewResponse {

@@ -282,7 +282,7 @@ const PackingShipment: React.FC = () => {
   const [prepareStockModalVisible, setPrepareStockModalVisible] = useState(false);
   const [updateBusinessInfoModalVisible, setUpdateBusinessInfoModalVisible] = useState(false);
   const [domesticTrackingModalVisible, setDomesticTrackingModalVisible] = useState(false);
-  const [currentPosting, setCurrentPosting] = useState<ozonApi.Posting | null>(null);
+  const [currentPosting, setCurrentPosting] = useState<ozonApi.PostingWithOrder | null>(null);
 
   // 进货价格历史弹窗状态
   const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
