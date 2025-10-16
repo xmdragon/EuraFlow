@@ -21,6 +21,8 @@ import {
   Popover,
   Pagination,
   Space,
+  Modal,
+  Descriptions,
 } from 'antd';
 import {
   DollarOutlined,
@@ -30,6 +32,7 @@ import {
   CopyOutlined,
   UpOutlined,
   DownOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -147,6 +150,10 @@ const OrderReport: React.FC = () => {
   const [sortBy, setSortBy] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // 详情Modal状态
+  const [postingDetailVisible, setPostingDetailVisible] = useState(false);
+  const [selectedPosting, setSelectedPosting] = useState<PostingReportItem | null>(null);
+
   // ===== 数据查询 =====
 
   // 查询posting级别报表数据（仅在订单明细Tab激活时查询）
@@ -234,6 +241,18 @@ const OrderReport: React.FC = () => {
     });
   };
 
+  // 打开OZON商品链接
+  const openProductLink = (sku: string) => {
+    const url = `https://www.ozon.ru/product/${sku}/`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // 打开货件详情Modal
+  const showPostingDetail = (posting: PostingReportItem) => {
+    setSelectedPosting(posting);
+    setPostingDetailVisible(true);
+  };
+
   // ===== 订单明细Tab数据处理 =====
 
   // 将posting数据转换为item行数据（类似PackingShipment的模式）
@@ -299,12 +318,21 @@ const OrderReport: React.FC = () => {
               }
             </Text>
           </div>
-          <span
-            className={styles.sku}
-            onClick={() => handleCopy(row.product.sku)}
-          >
-            {row.product.sku} <CopyOutlined />
-          </span>
+          <div className={styles.skuContainer}>
+            <span
+              className={styles.skuLink}
+              onClick={() => openProductLink(row.product.sku)}
+            >
+              {row.product.sku} <LinkOutlined />
+            </span>
+            <CopyOutlined
+              className={styles.copyIcon}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopy(row.product.sku);
+              }}
+            />
+          </div>
         </div>
       ),
     },
@@ -320,12 +348,21 @@ const OrderReport: React.FC = () => {
               <div className={styles.date}>
                 {dayjs(row.posting.created_at).format('MM-DD')}
               </div>
-              <span
-                className={styles.copyableText}
-                onClick={() => handleCopy(row.posting.posting_number)}
-              >
-                {row.posting.posting_number} <CopyOutlined />
-              </span>
+              <div className={styles.postingNumberContainer}>
+                <span
+                  className={styles.postingNumberLink}
+                  onClick={() => showPostingDetail(row.posting)}
+                >
+                  {row.posting.posting_number}
+                </span>
+                <CopyOutlined
+                  className={styles.copyIcon}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopy(row.posting.posting_number);
+                  }}
+                />
+              </div>
             </div>
           ),
           props: { rowSpan: row.itemCount },
@@ -894,6 +931,70 @@ const OrderReport: React.FC = () => {
             </Tabs.TabPane>
           </Tabs>
       </Card>
+
+      {/* 货件详情Modal */}
+      <Modal
+        title="货件详情"
+        open={postingDetailVisible}
+        onCancel={() => setPostingDetailVisible(false)}
+        footer={null}
+        width={800}
+      >
+        {selectedPosting && (
+          <Descriptions bordered column={2} size="small">
+            <Descriptions.Item label="货件编号" span={2}>
+              {selectedPosting.posting_number}
+            </Descriptions.Item>
+            <Descriptions.Item label="店铺名称" span={2}>
+              {selectedPosting.shop_name}
+            </Descriptions.Item>
+            <Descriptions.Item label="订单状态">
+              {selectedPosting.status}
+            </Descriptions.Item>
+            <Descriptions.Item label="创建时间">
+              {dayjs(selectedPosting.created_at).format('YYYY-MM-DD HH:mm:ss')}
+            </Descriptions.Item>
+            <Descriptions.Item label="订单金额">
+              {selectedPosting.order_amount}
+            </Descriptions.Item>
+            <Descriptions.Item label="进货价格">
+              {selectedPosting.purchase_price || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Ozon佣金">
+              {selectedPosting.ozon_commission_cny || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="国际物流费">
+              {selectedPosting.international_logistics_fee_cny || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="尾程派送费">
+              {selectedPosting.last_mile_delivery_fee_cny || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="打包费用">
+              {selectedPosting.material_cost || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="利润金额">
+              <span className={`${styles.profitCell} ${parseFloat(selectedPosting.profit || '0') >= 0 ? styles.positive : styles.negative}`}>
+                {selectedPosting.profit}
+              </span>
+            </Descriptions.Item>
+            <Descriptions.Item label="利润率">
+              <span className={`${styles.profitCell} ${selectedPosting.profit_rate >= 0 ? styles.positive : styles.negative}`}>
+                {selectedPosting.profit_rate.toFixed(2)}%
+              </span>
+            </Descriptions.Item>
+            <Descriptions.Item label="商品列表" span={2}>
+              {selectedPosting.products.map((product, index) => (
+                <div key={index} style={{ marginBottom: 8 }}>
+                  <div><strong>{product.name}</strong></div>
+                  <div>SKU: {product.sku}</div>
+                  <div>数量: {product.quantity} | 价格: {product.price}</div>
+                  {index < selectedPosting.products.length - 1 && <Divider style={{ margin: '8px 0' }} />}
+                </div>
+              ))}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
     </div>
   );
 };
