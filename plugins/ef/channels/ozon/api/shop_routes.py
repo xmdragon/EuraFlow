@@ -19,10 +19,12 @@ logger = logging.getLogger(__name__)
 
 # DTO 模型
 class ShopCreateDTO(BaseModel):
-    shop_name: str
+    """创建店铺DTO - 匹配前端扁平结构"""
+    name: str  # 店铺名称（前端使用name）
+    client_id: str  # OZON Client ID
+    api_key: str  # OZON API Key
     platform: str = "ozon"
-    api_credentials: Dict[str, str]
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: Optional[Dict[str, Any]] = None
 
 
 class ShopUpdateDTO(BaseModel):
@@ -90,12 +92,12 @@ async def create_shop(
 ):
     """创建新的 Ozon 店铺"""
     new_shop = OzonShop(
-        shop_name=shop_data.shop_name,
+        shop_name=shop_data.name,  # 使用前端的name字段
         platform=shop_data.platform,
         status="active",
         owner_user_id=1,  # 临时硬编码
-        client_id=shop_data.api_credentials.get("client_id", ""),
-        api_key_enc=shop_data.api_credentials.get("api_key", ""),  # 实际应该加密
+        client_id=shop_data.client_id,
+        api_key_enc=shop_data.api_key,  # 实际应该加密
         config=shop_data.config or {}
     )
 
