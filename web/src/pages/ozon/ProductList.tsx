@@ -52,6 +52,7 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import * as watermarkApi from '@/services/watermarkApi';
 import { formatRuble, calculateMargin, formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import './ProductList.css';
@@ -596,7 +597,7 @@ const ProductList: React.FC = () => {
             <div style={{ flexShrink: 0 }}>
               {record.images?.primary ? (
                 <img
-                  src={record.images.primary}
+                  src={optimizeOzonImageUrl(record.images.primary, 60)}
                   alt={text}
                   style={{
                     width: '60px',
@@ -2002,7 +2003,7 @@ const ProductList: React.FC = () => {
                 <Option key={config.id} value={config.id}>
                   <Space>
                     <img
-                      src={config.image_url}
+                      src={optimizeOzonImageUrl(config.image_url, 20)}
                       alt={config.name}
                       style={{ width: 20, height: 20, objectFit: 'contain' }}
                     />
@@ -2093,7 +2094,7 @@ const ProductList: React.FC = () => {
                                     <Option key={config.id} value={config.id}>
                                       <Space size="small">
                                         <img
-                                          src={config.image_url}
+                                          src={optimizeOzonImageUrl(config.image_url, 16)}
                                           alt={config.name}
                                           style={{ width: 16, height: 16, objectFit: 'contain' }}
                                         />
@@ -2124,7 +2125,7 @@ const ProductList: React.FC = () => {
                                   }}>
                                     {/* 原图显示 */}
                                     <img
-                                      src={img.original_url}
+                                      src={optimizeOzonImageUrl(img.original_url, 300)}
                                       alt="原图预览"
                                       style={{
                                         display: 'block',
@@ -2150,7 +2151,7 @@ const ProductList: React.FC = () => {
                                         if (watermarkConfig) {
                                           return (
                                             <img
-                                              src={watermarkConfig.image_url}
+                                              src={optimizeOzonImageUrl(watermarkConfig.image_url, 100)}
                                               alt="水印预览"
                                               style={{
                                                 position: 'absolute',

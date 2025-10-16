@@ -58,6 +58,7 @@ import { useCurrency } from '../../hooks/useCurrency';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import styles from './OrderList.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -503,7 +504,8 @@ const OrderList: React.FC = () => {
       fixed: 'left' as const,
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
-        const imageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
+        const rawImageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
+        const imageUrl = optimizeOzonImageUrl(rawImageUrl, 160);
         const ozonProductUrl = item.sku ? `https://www.ozon.ru/product/${item.sku}/` : null;
 
         const handleImageClick = () => {

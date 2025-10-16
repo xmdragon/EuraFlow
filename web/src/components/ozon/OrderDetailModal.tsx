@@ -8,6 +8,7 @@ import { ShoppingCartOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithFallback } from '@/utils/currency';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import styles from '@/pages/ozon/OrderList.module.scss';
 
 const { Text } = Typography;
@@ -105,7 +106,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       key: 'image',
                       width: 80,
                       render: (sku, record) => {
-                        const imageUrl = record.image || (record.offer_id && offerIdImageMap[record.offer_id] ? offerIdImageMap[record.offer_id] : undefined);
+                        const rawImageUrl = record.image || (record.offer_id && offerIdImageMap[record.offer_id] ? offerIdImageMap[record.offer_id] : undefined);
+                        const imageUrl = optimizeOzonImageUrl(rawImageUrl, 60);
                         return imageUrl ? (
                           <Avatar
                             src={imageUrl}

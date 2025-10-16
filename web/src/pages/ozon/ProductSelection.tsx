@@ -64,6 +64,7 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
 import { useCurrency } from '../../hooks/useCurrency';
 import { getExchangeRate } from '@/services/exchangeRateApi';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import styles from './ProductSelection.module.scss';
 import { calculateMaxCost, formatMaxCost } from './profitCalculator';
 
@@ -668,7 +669,7 @@ const ProductSelection: React.FC = () => {
               />
               <img
                 alt={product.product_name_cn}
-                src={product.image_url}
+                src={optimizeOzonImageUrl(product.image_url, 160)}
                 className={styles.productImage}
               />
               <Tooltip title="打开OZON链接">
