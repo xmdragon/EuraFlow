@@ -20,6 +20,7 @@ import {
   Avatar,
   Popover,
   Pagination,
+  Space,
 } from 'antd';
 import {
   DollarOutlined,
