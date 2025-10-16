@@ -782,16 +782,22 @@ export const getPostingReport = async (
   shopIds?: string,
   statusFilter: 'delivered' | 'placed' = 'delivered',
   page: number = 1,
-  pageSize: number = 50
+  pageSize: number = 50,
+  sortBy?: string,
+  sortOrder: 'asc' | 'desc' = 'desc'
 ): Promise<any> => {
   const params = new URLSearchParams({
     month,
     status_filter: statusFilter,
     page: page.toString(),
-    page_size: pageSize.toString()
+    page_size: pageSize.toString(),
+    sort_order: sortOrder
   });
   if (shopIds) {
     params.append('shop_ids', shopIds);
+  }
+  if (sortBy) {
+    params.append('sort_by', sortBy);
   }
   const response = await apiClient.get(`/ozon/reports/postings?${params.toString()}`);
   return response.data;

@@ -135,23 +135,44 @@ const OrderReport: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'delivered' | 'placed'>('delivered');
   const [activeTab, setActiveTab] = useState<string>('details');
 
-  // 分页状态（仅用于订单明细Tab）
+  // 分页状态（用于无限滚动）
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize] = useState(50);
+  const [hasMore, setHasMore] = useState(true);
+  const [allLoadedData, setAllLoadedData] = useState<any[]>([]); // 累积所有已加载数据
+
+  // 排序状态
+  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // ===== 数据查询 =====
 
   // 查询posting级别报表数据（仅在订单明细Tab激活时查询）
-  const { data: postingReportData, isLoading: isLoadingPostings, refetch: refetchPostings } = useQuery({
-    queryKey: ['ozonPostingReport', selectedMonth, selectedShop, statusFilter, page, pageSize],
+  const { data: postingReportData, isLoading: isLoadingPostings, refetch: refetchPostings, isFetching } = useQuery({
+    queryKey: ['ozonPostingReport', selectedMonth, selectedShop, statusFilter, page, pageSize, sortBy, sortOrder],
     queryFn: async () => {
       const shopIds = selectedShop !== null ? selectedShop.toString() : undefined;
-      return await ozonApi.getPostingReport(selectedMonth, shopIds, statusFilter, page, pageSize);
+      return await ozonApi.getPostingReport(selectedMonth, shopIds, statusFilter, page, pageSize, sortBy, sortOrder);
     },
     enabled: activeTab === 'details',
     retry: 1,
     staleTime: 2 * 60 * 1000, // 2分钟缓存
   });
+
+  // 当数据返回时，累积到allLoadedData
+  useEffect(() => {
+    if (postingReportData?.data) {
+      if (page === 1) {
+        // 第一页：重置数据
+        setAllLoadedData(postingReportData.data);
+      } else {
+        // 后续页：追加数据
+        setAllLoadedData((prev) => [...prev, ...postingReportData.data]);
+      }
+      // 检查是否还有更多数据
+      setHasMore(page < (postingReportData.total_pages || 1));
+    }
+  }, [postingReportData, page]);
 
   // 查询报表汇总数据（仅在订单汇总Tab激活时查询）
   const { data: summaryData, isLoading: isLoadingSummary, refetch: refetchSummary } = useQuery<ReportSummary>({
@@ -194,10 +215,10 @@ const OrderReport: React.FC = () => {
 
   // 将posting数据转换为item行数据（类似PackingShipment的模式）
   const postingItemRows = useMemo<PostingItemRow[]>(() => {
-    if (!postingReportData?.data) return [];
+    if (!allLoadedData || allLoadedData.length === 0) return [];
 
     const rows: PostingItemRow[] = [];
-    postingReportData.data.forEach((posting: PostingReportItem) => {
+    allLoadedData.forEach((posting: PostingReportItem) => {
       const products = posting.products || [];
       const itemCount = products.length;
 
@@ -214,7 +235,7 @@ const OrderReport: React.FC = () => {
     });
 
     return rows;
-  }, [postingReportData]);
+  }, [allLoadedData]);
 
   // ===== 订单明细Tab - 表格列定义 =====
 
@@ -377,10 +398,36 @@ const OrderReport: React.FC = () => {
         };
       },
     },
-    // 11. 利润比率（rowSpan）
+    // 11. 利润比率（rowSpan，带排序）
     {
-      title: '利润比率',
-      width: '8%',
+      title: () => (
+        <div>
+          <span>利润比率 </span>
+          <Select
+            value={sortBy === 'profit_rate' ? sortOrder : undefined}
+            onChange={(value) => {
+              if (value) {
+                setSortBy('profit_rate');
+                setSortOrder(value as 'asc' | 'desc');
+                setPage(1);
+                setAllLoadedData([]);
+              } else {
+                setSortBy(undefined);
+                setPage(1);
+                setAllLoadedData([]);
+              }
+            }}
+            allowClear
+            size="small"
+            style={{ width: 80 }}
+            placeholder="排序"
+          >
+            <Option value="desc">↓高到低</Option>
+            <Option value="asc">↑低到高</Option>
+          </Select>
+        </div>
+      ),
+      width: '10%',
       align: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
@@ -411,7 +458,11 @@ const OrderReport: React.FC = () => {
               <span>选择月份：</span>
               <Select
                 value={selectedMonth}
-                onChange={setSelectedMonth}
+                onChange={(value) => {
+                  setSelectedMonth(value);
+                  setPage(1);
+                  setAllLoadedData([]);
+                }}
                 style={{ minWidth: 140 }}
                 options={generateMonthOptions()}
               />
@@ -424,6 +475,8 @@ const OrderReport: React.FC = () => {
                 value={selectedShop}
                 onChange={(value) => {
                   setSelectedShop(value as number | null);
+                  setPage(1);
+                  setAllLoadedData([]);
                 }}
                 placeholder="请选择店铺"
                 style={{ minWidth: 180 }}
@@ -438,7 +491,8 @@ const OrderReport: React.FC = () => {
                 value={statusFilter}
                 onChange={(value) => {
                   setStatusFilter(value);
-                  setPage(1); // 重置页码
+                  setPage(1);
+                  setAllLoadedData([]);
                 }}
                 style={{ minWidth: 120 }}
               >
@@ -451,6 +505,8 @@ const OrderReport: React.FC = () => {
             <Button
               type="primary"
               onClick={() => {
+                setPage(1);
+                setAllLoadedData([]);
                 if (activeTab === 'details') {
                   refetchPostings();
                 } else {
@@ -468,39 +524,46 @@ const OrderReport: React.FC = () => {
             activeKey={activeTab}
             onChange={(key) => {
               setActiveTab(key);
-              // 切换Tab时重置分页
-              if (key === 'details') {
-                setPage(1);
-              }
+              // 切换Tab时重置数据
+              setPage(1);
+              setAllLoadedData([]);
             }}
             className={styles.reportTabs}
           >
             {/* 订单明细Tab */}
-            <Tabs.TabPane tab="订单明细" key="details">
+            <Tabs.TabPane tab={`订单明细 (${postingReportData?.total || 0})`} key="details">
               <Spin spinning={isLoadingPostings}>
-                <Table
-                  dataSource={postingItemRows}
-                  columns={detailColumns}
-                  rowKey="key"
-                  pagination={false}
-                  scroll={{ x: 'max-content' }}
-                  loading={isLoadingPostings}
-                />
-
-                {/* 独立分页组件 */}
-                <div style={{ marginTop: 16, textAlign: 'right' }}>
-                  <Pagination
-                    current={page}
-                    pageSize={pageSize}
-                    total={postingReportData?.total || 0}
-                    pageSizeOptions={[50, 100]}
-                    onChange={(newPage, newPageSize) => {
-                      setPage(newPage);
-                      setPageSize(newPageSize || 50);
-                    }}
-                    showTotal={(total) => `共 ${total} 条货件`}
-                    showSizeChanger
+                <div
+                  style={{ maxHeight: '70vh', overflow: 'auto' }}
+                  onScroll={(e) => {
+                    const target = e.currentTarget;
+                    // 检测滚动到底部（留100px缓冲区）
+                    if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
+                      if (!isFetching && hasMore) {
+                        setPage((prev) => prev + 1);
+                      }
+                    }
+                  }}
+                >
+                  <Table
+                    dataSource={postingItemRows}
+                    columns={detailColumns}
+                    rowKey="key"
+                    pagination={false}
+                    scroll={{ x: 'max-content' }}
+                    loading={false}
                   />
+                  {/* 加载更多提示 */}
+                  {isFetching && (
+                    <div style={{ textAlign: 'center', padding: '12px', color: '#666' }}>
+                      加载中...
+                    </div>
+                  )}
+                  {!hasMore && allLoadedData.length > 0 && (
+                    <div style={{ textAlign: 'center', padding: '12px', color: '#999' }}>
+                      已加载全部数据
+                    </div>
+                  )}
                 </div>
               </Spin>
             </Tabs.TabPane>

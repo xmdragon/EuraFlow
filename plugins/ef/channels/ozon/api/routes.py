@@ -3176,10 +3176,12 @@ async def get_posting_report(
     status_filter: str = Query("delivered", description="状态过滤：delivered(已签收) 或 placed(已下订)"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=100, description="每页条数，最大100"),
+    sort_by: Optional[str] = Query(None, description="排序字段：profit_rate"),
+    sort_order: str = Query("desc", description="排序方向：asc或desc"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    获取Posting级别的订单报表数据（支持分页）
+    获取Posting级别的订单报表数据（支持分页和排序）
 
     Args:
         month: 月份，格式：YYYY-MM
@@ -3243,20 +3245,35 @@ async def get_posting_report(
         offset = (page - 1) * page_size
         total_pages = (total + page_size - 1) // page_size  # 向上取整
 
-        # 查询posting数据（带分页）
-        postings_query = select(
-            OzonPosting,
-            OzonOrder,
-            OzonShop.shop_name
-        ).join(
-            OzonOrder, OzonPosting.order_id == OzonOrder.id
-        ).join(
-            OzonShop, OzonOrder.shop_id == OzonShop.id
-        ).where(
-            and_(*conditions)
-        ).order_by(
-            OzonOrder.created_at.desc()
-        ).offset(offset).limit(page_size)
+        # 如果按利润率排序，需要查询所有数据再排序（因为利润率是计算字段）
+        if sort_by == 'profit_rate':
+            # 查询所有posting数据（不分页）
+            postings_query = select(
+                OzonPosting,
+                OzonOrder,
+                OzonShop.shop_name
+            ).join(
+                OzonOrder, OzonPosting.order_id == OzonOrder.id
+            ).join(
+                OzonShop, OzonOrder.shop_id == OzonShop.id
+            ).where(
+                and_(*conditions)
+            )
+        else:
+            # 查询posting数据（带分页，按创建时间排序）
+            postings_query = select(
+                OzonPosting,
+                OzonOrder,
+                OzonShop.shop_name
+            ).join(
+                OzonOrder, OzonPosting.order_id == OzonOrder.id
+            ).join(
+                OzonShop, OzonOrder.shop_id == OzonShop.id
+            ).where(
+                and_(*conditions)
+            ).order_by(
+                OzonOrder.created_at.desc()
+            ).offset(offset).limit(page_size)
 
         result = await db.execute(postings_query)
         postings_with_order_shop = result.all()
@@ -3344,6 +3361,14 @@ async def get_posting_report(
                 'profit': format_currency(profit),
                 'profit_rate': round(profit_rate, 2)
             })
+
+        # 如果按利润率排序，在Python中排序并分页
+        if sort_by == 'profit_rate':
+            # 按利润率排序
+            reverse = (sort_order == 'desc')
+            report_data.sort(key=lambda x: x['profit_rate'], reverse=reverse)
+            # 应用分页
+            report_data = report_data[offset:offset + page_size]
 
         # 返回分页数据
         return {
