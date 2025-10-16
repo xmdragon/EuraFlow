@@ -45,6 +45,7 @@ import {
   Avatar,
   Flex,
   Table,
+  Pagination,
   InputNumber,
   Divider,
 } from 'antd';
@@ -1222,21 +1223,26 @@ const PackingShipment: React.FC = () => {
           columns={columns}
           dataSource={orderItemRows}
           rowKey="key"
-          pagination={{
-            current: currentPage,
-            pageSize: pageSize,
-            total: ordersData?.total || 0,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条货件`,
-            onChange: (page, size) => {
-              setCurrentPage(page);
-              setPageSize(size || 50);
-            },
-            className: styles.pagination,
-          }}
+          pagination={false}
           size="small"
         />
+
+        {/* 独立分页控制（后端分页）*/}
+        <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <Pagination
+            current={currentPage}
+            pageSize={pageSize}
+            total={ordersData?.total || 0}
+            showSizeChanger
+            showQuickJumper
+            pageSizeOptions={[20, 50, 100]}
+            showTotal={(total) => `共 ${total} 条货件`}
+            onChange={(page, size) => {
+              setCurrentPage(page);
+              setPageSize(size || 20);
+            }}
+          />
+        </div>
       </Card>
 
       {/* 订单详情弹窗 */}

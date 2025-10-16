@@ -252,13 +252,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 const lastMileDelivery = parseFloat(selectedPosting?.last_mile_delivery_fee_cny || '0');
                 const packingFee = parseFloat(selectedPosting?.material_cost || '0');
 
-                // 只有在已签收状态下才计算利润
-                const profitAmount = isDelivered
+                // 只有在已签收状态下且有进货金额和Ozon佣金时才计算利润
+                const shouldCalculateProfit = isDelivered && purchasePrice > 0 && ozonCommission > 0;
+
+                const profitAmount = shouldCalculateProfit
                   ? orderAmount - (purchasePrice + ozonCommission + internationalLogistics + lastMileDelivery + packingFee)
                   : null;
 
                 // 计算利润比率 = (利润金额 / 订单金额) * 100，保留2位小数
-                const profitRate = (isDelivered && orderAmount > 0 && profitAmount !== null)
+                const profitRate = (shouldCalculateProfit && orderAmount > 0 && profitAmount !== null)
                   ? ((profitAmount / orderAmount) * 100).toFixed(2)
                   : null;
 
