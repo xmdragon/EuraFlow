@@ -3229,9 +3229,11 @@ async def get_posting_report(
             shop_id_list = [int(sid) for sid in shop_ids.split(",")]
             conditions.append(OzonOrder.shop_id.in_(shop_id_list))
 
-        # 查询总数（用于分页）
+        # 查询总数（用于分页）- 保持和数据查询一致的JOIN
         count_query = select(func.count(OzonPosting.id)).join(
             OzonOrder, OzonPosting.order_id == OzonOrder.id
+        ).join(
+            OzonShop, OzonOrder.shop_id == OzonShop.id
         ).where(and_(*conditions))
 
         count_result = await db.execute(count_query)
