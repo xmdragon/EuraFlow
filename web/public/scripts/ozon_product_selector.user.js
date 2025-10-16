@@ -1554,29 +1554,31 @@
         }
 
         createUI() {
-            // 创建浮动按钮
+            // 创建浮动按钮（圆形图标）
             this.button = document.createElement('div');
             this.button.style.cssText = `
                 position: fixed;
                 bottom: 20px;
                 right: 20px;
+                width: 60px;
+                height: 60px;
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 15px 25px;
-                border-radius: 50px;
-                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 cursor: pointer;
                 z-index: 2147483647;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 16px;
-                font-weight: bold;
+                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+                font-size: 28px;
                 transition: all 0.3s;
                 user-select: none;
             `;
-            this.button.innerHTML = '🚀 一键上架到EuraFlow';
+            this.button.innerHTML = '🚀';
+            this.button.title = '一键上架到EuraFlow';
             this.button.onclick = () => this.showModal();
             this.button.onmouseover = () => {
-                this.button.style.transform = 'scale(1.05) translateY(-2px)';
+                this.button.style.transform = 'scale(1.1)';
                 this.button.style.boxShadow = '0 15px 40px rgba(102, 126, 234, 0.5)';
             };
             this.button.onmouseout = () => {
