@@ -130,7 +130,7 @@ interface ReportSummary {
 const OrderReport: React.FC = () => {
   // ===== 状态管理 =====
   const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
-  const [selectedShops, setSelectedShops] = useState<number[]>([]);
+  const [selectedShop, setSelectedShop] = useState<number | null>(null); // null表示"全部"
   const [statusFilter, setStatusFilter] = useState<'delivered' | 'placed'>('delivered');
   const [activeTab, setActiveTab] = useState<string>('details');
 
@@ -142,24 +142,24 @@ const OrderReport: React.FC = () => {
 
   // 查询posting级别报表数据（仅在订单明细Tab激活时查询）
   const { data: postingReportData, isLoading: isLoadingPostings, refetch: refetchPostings } = useQuery({
-    queryKey: ['ozonPostingReport', selectedMonth, selectedShops, statusFilter, page, pageSize],
+    queryKey: ['ozonPostingReport', selectedMonth, selectedShop, statusFilter, page, pageSize],
     queryFn: async () => {
-      const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : undefined;
+      const shopIds = selectedShop !== null ? selectedShop.toString() : undefined;
       return await ozonApi.getPostingReport(selectedMonth, shopIds, statusFilter, page, pageSize);
     },
-    enabled: selectedShops.length > 0 && activeTab === 'details',
+    enabled: activeTab === 'details',
     retry: 1,
     staleTime: 2 * 60 * 1000, // 2分钟缓存
   });
 
   // 查询报表汇总数据（仅在订单汇总Tab激活时查询）
   const { data: summaryData, isLoading: isLoadingSummary, refetch: refetchSummary } = useQuery<ReportSummary>({
-    queryKey: ['ozonReportSummary', selectedMonth, selectedShops, statusFilter],
+    queryKey: ['ozonReportSummary', selectedMonth, selectedShop, statusFilter],
     queryFn: async () => {
-      const shopIds = selectedShops.length > 0 ? selectedShops.join(',') : undefined;
+      const shopIds = selectedShop !== null ? selectedShop.toString() : undefined;
       return await ozonApi.getReportSummary(selectedMonth, shopIds, statusFilter);
     },
-    enabled: selectedShops.length > 0 && activeTab === 'summary',
+    enabled: activeTab === 'summary',
     retry: 1,
     staleTime: 2 * 60 * 1000,
   });
@@ -404,51 +404,49 @@ const OrderReport: React.FC = () => {
         <Title level={4}>订单报表</Title>
 
         {/* 筛选区域 */}
-        <Row gutter={16} className={styles.filterRow}>
-          <Col span={6}>
-            <label className={styles.filterLabel}>选择月份：</label>
-            <Select
-              value={selectedMonth}
-              onChange={setSelectedMonth}
-              className={styles.filterSelect}
-              options={generateMonthOptions()}
-            />
+        <Row gutter={16} className={styles.filterRow} align="middle">
+          <Col>
+            <Space>
+              <span>选择月份：</span>
+              <Select
+                value={selectedMonth}
+                onChange={setSelectedMonth}
+                style={{ minWidth: 140 }}
+                options={generateMonthOptions()}
+              />
+            </Space>
           </Col>
-          <Col span={8}>
-            <label className={styles.filterLabel}>选择店铺：</label>
-            <ShopSelector
-              value={selectedShops}
-              onChange={(value) => {
-                if (Array.isArray(value)) {
-                  setSelectedShops(value as number[]);
-                } else if (value === null) {
-                  setSelectedShops([]);
-                } else {
-                  setSelectedShops([value as number]);
-                }
-              }}
-              mode="multiple"
-              placeholder="请选择店铺"
-              className={styles.filterSelect}
-              showAllOption={false}
-            />
+          <Col>
+            <Space>
+              <span>选择店铺：</span>
+              <ShopSelector
+                value={selectedShop}
+                onChange={(value) => {
+                  setSelectedShop(value as number | null);
+                }}
+                placeholder="请选择店铺"
+                style={{ minWidth: 180 }}
+                showAllOption={true}
+              />
+            </Space>
           </Col>
-          <Col span={6}>
-            <label className={styles.filterLabel}>订单状态：</label>
-            <Select
-              value={statusFilter}
-              onChange={(value) => {
-                setStatusFilter(value);
-                setPage(1); // 重置页码
-              }}
-              className={styles.filterSelect}
-            >
-              <Option value="delivered">已签收</Option>
-              <Option value="placed">已下订</Option>
-            </Select>
+          <Col>
+            <Space>
+              <span>订单状态：</span>
+              <Select
+                value={statusFilter}
+                onChange={(value) => {
+                  setStatusFilter(value);
+                  setPage(1); // 重置页码
+                }}
+                style={{ minWidth: 120 }}
+              >
+                <Option value="delivered">已签收</Option>
+                <Option value="placed">已下订</Option>
+              </Select>
+            </Space>
           </Col>
-          <Col span={4}>
-            <label className={styles.filterLabel}>&nbsp;</label>
+          <Col>
             <Button
               type="primary"
               onClick={() => {
@@ -464,16 +462,8 @@ const OrderReport: React.FC = () => {
           </Col>
         </Row>
 
-        {/* 提示信息 */}
-        {selectedShops.length === 0 && (
-          <div className={styles.emptyHint}>
-            请选择店铺后查看报表数据
-          </div>
-        )}
-
         {/* Tab切换 */}
-        {selectedShops.length > 0 && (
-          <Tabs
+        <Tabs
             activeKey={activeTab}
             onChange={(key) => {
               setActiveTab(key);
@@ -594,9 +584,9 @@ const OrderReport: React.FC = () => {
                     <Row gutter={16} style={{ marginBottom: 24 }}>
                       {/* 饼图：成本分解（单店铺）或店铺销售（多店铺） */}
                       <Col span={12}>
-                        <Card title={selectedShops.length === 1 ? "成本构成" : "店铺销售占比"} className={styles.chartCard}>
+                        <Card title={selectedShop !== null ? "成本构成" : "店铺销售占比"} className={styles.chartCard}>
                           <div className={styles.chartContainer}>
-                            {selectedShops.length === 1 ? (
+                            {selectedShop !== null ? (
                               <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                   <Pie
@@ -641,8 +631,8 @@ const OrderReport: React.FC = () => {
                         </Card>
                       </Col>
 
-                      {/* 饼图：店铺利润占比（仅多店铺） */}
-                      {selectedShops.length > 1 && (
+                      {/* 饼图：店铺利润占比（仅多店铺/全部） */}
+                      {selectedShop === null && (
                         <Col span={12}>
                           <Card title="店铺利润占比" className={styles.chartCard}>
                             <div className={styles.chartContainer}>
@@ -671,7 +661,7 @@ const OrderReport: React.FC = () => {
                       )}
 
                       {/* 单店铺时，第二个位置显示月度对比 */}
-                      {selectedShops.length === 1 && (
+                      {selectedShop !== null && (
                         <Col span={12}>
                           <Card title="月度对比" className={styles.chartCard}>
                             <div className={styles.chartContainer}>
@@ -726,8 +716,8 @@ const OrderReport: React.FC = () => {
                       </Col>
                     </Row>
 
-                    {/* 多店铺时，额外显示月度对比 */}
-                    {selectedShops.length > 1 && (
+                    {/* 多店铺/全部时，额外显示月度对比 */}
+                    {selectedShop === null && (
                       <Row gutter={16} style={{ marginBottom: 24 }}>
                         <Col span={24}>
                           <Card title="月度对比" className={styles.chartCard}>
@@ -825,7 +815,6 @@ const OrderReport: React.FC = () => {
               </Spin>
             </Tabs.TabPane>
           </Tabs>
-        )}
       </Card>
     </div>
   );
