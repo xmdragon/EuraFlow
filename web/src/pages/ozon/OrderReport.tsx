@@ -31,6 +31,21 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
 import { formatRMB } from '../../utils/currency';
@@ -40,6 +55,9 @@ import styles from './OrderReport.module.scss';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+// 图表颜色配置
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B6B', '#4ECDC4', '#45B7D1'];
 
 // ===== 类型定义 =====
 
@@ -498,10 +516,314 @@ const OrderReport: React.FC = () => {
               </Spin>
             </Tabs.TabPane>
 
-            {/* 订单汇总Tab - 占位符，后续实现 */}
+            {/* 订单汇总Tab */}
             <Tabs.TabPane tab="订单汇总" key="summary">
               <Spin spinning={isLoadingSummary}>
-                <div>订单汇总功能开发中...</div>
+                {summaryData && (
+                  <>
+                    {/* 统计卡片行 */}
+                    <Row gutter={16} className={styles.summaryCards}>
+                      <Col span={4}>
+                        <Card className={styles.statSales}>
+                          <Statistic
+                            title="销售总额"
+                            value={summaryData.statistics.total_sales}
+                            prefix="¥"
+                            precision={2}
+                            valueStyle={{ color: '#1890ff' }}
+                          />
+                        </Card>
+                      </Col>
+                      <Col span={4}>
+                        <Card className={styles.statPurchase}>
+                          <Statistic
+                            title="进货总额"
+                            value={summaryData.statistics.total_purchase}
+                            prefix="¥"
+                            precision={2}
+                            valueStyle={{ color: '#faad14' }}
+                          />
+                        </Card>
+                      </Col>
+                      <Col span={4}>
+                        <Card className={styles.statCost}>
+                          <Statistic
+                            title="费用总额"
+                            value={summaryData.statistics.total_cost}
+                            prefix="¥"
+                            precision={2}
+                            valueStyle={{ color: '#ff7875' }}
+                          />
+                        </Card>
+                      </Col>
+                      <Col span={4}>
+                        <Card className={`${styles.statProfit} ${parseFloat(summaryData.statistics.total_profit) >= 0 ? styles.positive : styles.negative}`}>
+                          <Statistic
+                            title="利润总额"
+                            value={summaryData.statistics.total_profit}
+                            prefix="¥"
+                            precision={2}
+                            valueStyle={{ color: parseFloat(summaryData.statistics.total_profit) >= 0 ? '#52c41a' : '#ff4d4f' }}
+                          />
+                        </Card>
+                      </Col>
+                      <Col span={4}>
+                        <Card className={`${styles.statProfitRate} ${summaryData.statistics.profit_rate >= 0 ? styles.positive : styles.negative}`}>
+                          <Statistic
+                            title="利润率"
+                            value={summaryData.statistics.profit_rate}
+                            suffix="%"
+                            precision={2}
+                            prefix={summaryData.statistics.profit_rate >= 0 ? <RiseOutlined /> : null}
+                            valueStyle={{ color: summaryData.statistics.profit_rate >= 0 ? '#52c41a' : '#ff4d4f' }}
+                          />
+                        </Card>
+                      </Col>
+                      <Col span={4}>
+                        <Card>
+                          <Statistic
+                            title="订单总数"
+                            value={summaryData.statistics.order_count}
+                            prefix={<ShoppingCartOutlined />}
+                          />
+                        </Card>
+                      </Col>
+                    </Row>
+
+                    <Divider />
+
+                    {/* 图表行 */}
+                    <Row gutter={16} style={{ marginBottom: 24 }}>
+                      {/* 饼图：成本分解（单店铺）或店铺销售（多店铺） */}
+                      <Col span={12}>
+                        <Card title={selectedShops.length === 1 ? "成本构成" : "店铺销售占比"} className={styles.chartCard}>
+                          <div className={styles.chartContainer}>
+                            {selectedShops.length === 1 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={summaryData.cost_breakdown}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius={80}
+                                    label
+                                  >
+                                    {summaryData.cost_breakdown.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`} />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            ) : (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={summaryData.shop_breakdown}
+                                    dataKey="sales"
+                                    nameKey="shop_name"
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius={80}
+                                    label
+                                  >
+                                    {summaryData.shop_breakdown.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`} />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            )}
+                          </div>
+                        </Card>
+                      </Col>
+
+                      {/* 饼图：店铺利润占比（仅多店铺） */}
+                      {selectedShops.length > 1 && (
+                        <Col span={12}>
+                          <Card title="店铺利润占比" className={styles.chartCard}>
+                            <div className={styles.chartContainer}>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={summaryData.shop_breakdown}
+                                    dataKey="profit"
+                                    nameKey="shop_name"
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius={80}
+                                    label
+                                  >
+                                    {summaryData.shop_breakdown.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`} />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </Card>
+                        </Col>
+                      )}
+
+                      {/* 单店铺时，第二个位置显示月度对比 */}
+                      {selectedShops.length === 1 && (
+                        <Col span={12}>
+                          <Card title="月度对比" className={styles.chartCard}>
+                            <div className={styles.chartContainer}>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={[
+                                    {
+                                      month: '上月',
+                                      sales: parseFloat(summaryData.previous_month.total_sales),
+                                      profit: parseFloat(summaryData.previous_month.total_profit),
+                                    },
+                                    {
+                                      month: '本月',
+                                      sales: parseFloat(summaryData.statistics.total_sales),
+                                      profit: parseFloat(summaryData.statistics.total_profit),
+                                    },
+                                  ]}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" />
+                                  <XAxis dataKey="month" />
+                                  <YAxis />
+                                  <RechartsTooltip formatter={(value: any) => `¥${value.toFixed(2)}`} />
+                                  <Legend />
+                                  <Bar dataKey="sales" fill="#1890ff" name="销售额" />
+                                  <Bar dataKey="profit" fill="#52c41a" name="利润" />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </Card>
+                        </Col>
+                      )}
+                    </Row>
+
+                    <Row gutter={16} style={{ marginBottom: 24 }}>
+                      {/* 每日销售趋势 */}
+                      <Col span={24}>
+                        <Card title="每日销售趋势" className={styles.chartCard}>
+                          <div className={styles.chartContainer}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={summaryData.daily_trend}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis />
+                                <RechartsTooltip formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`} />
+                                <Legend />
+                                <Line type="monotone" dataKey="sales" stroke="#1890ff" name="销售额" />
+                                <Line type="monotone" dataKey="profit" stroke="#52c41a" name="利润" />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </Card>
+                      </Col>
+                    </Row>
+
+                    {/* 多店铺时，额外显示月度对比 */}
+                    {selectedShops.length > 1 && (
+                      <Row gutter={16} style={{ marginBottom: 24 }}>
+                        <Col span={24}>
+                          <Card title="月度对比" className={styles.chartCard}>
+                            <div className={styles.chartContainer}>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={[
+                                    {
+                                      month: '上月',
+                                      sales: parseFloat(summaryData.previous_month.total_sales),
+                                      profit: parseFloat(summaryData.previous_month.total_profit),
+                                    },
+                                    {
+                                      month: '本月',
+                                      sales: parseFloat(summaryData.statistics.total_sales),
+                                      profit: parseFloat(summaryData.statistics.total_profit),
+                                    },
+                                  ]}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" />
+                                  <XAxis dataKey="month" />
+                                  <YAxis />
+                                  <RechartsTooltip formatter={(value: any) => `¥${value.toFixed(2)}`} />
+                                  <Legend />
+                                  <Bar dataKey="sales" fill="#1890ff" name="销售额" />
+                                  <Bar dataKey="profit" fill="#52c41a" name="利润" />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </Card>
+                        </Col>
+                      </Row>
+                    )}
+
+                    {/* TOP10商品 */}
+                    <Card title="TOP10 商品" style={{ marginBottom: 24 }}>
+                      <Table
+                        dataSource={summaryData.top_products}
+                        pagination={false}
+                        rowKey="offer_id"
+                        columns={[
+                          {
+                            title: '图片',
+                            width: 80,
+                            render: (_, record) => (
+                              <Avatar
+                                src={optimizeOzonImageUrl(record.image_url, 200)}
+                                size={60}
+                                shape="square"
+                              />
+                            ),
+                          },
+                          {
+                            title: '商品名称',
+                            dataIndex: 'name',
+                            ellipsis: true,
+                          },
+                          {
+                            title: 'SKU',
+                            dataIndex: 'sku',
+                            width: 120,
+                          },
+                          {
+                            title: '销售额',
+                            dataIndex: 'sales',
+                            width: 120,
+                            align: 'right',
+                            render: (value) => `¥${parseFloat(value).toFixed(2)}`,
+                          },
+                          {
+                            title: '销量',
+                            dataIndex: 'quantity',
+                            width: 80,
+                            align: 'right',
+                          },
+                          {
+                            title: '利润',
+                            dataIndex: 'profit',
+                            width: 120,
+                            align: 'right',
+                            render: (value) => {
+                              const profit = parseFloat(value);
+                              return (
+                                <span style={{ color: profit >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ¥{profit.toFixed(2)}
+                                </span>
+                              );
+                            },
+                          },
+                        ]}
+                      />
+                    </Card>
+                  </>
+                )}
               </Spin>
             </Tabs.TabPane>
           </Tabs>
