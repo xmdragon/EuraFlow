@@ -139,6 +139,11 @@
   :global(.ant-table-thead) > tr > th {
     padding: 1px 1px;
   }
+
+  // 禁用hover效果，避免rowSpan单元格出现灰色块
+  :global(.ant-table-tbody) > tr:hover > td {
+    background: transparent !important;
+  }
 }
 
 // ===== 可复制文本样式 =====
