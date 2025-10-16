@@ -552,9 +552,8 @@ const OrderReport: React.FC = () => {
             activeKey={activeTab}
             onChange={(key) => {
               setActiveTab(key);
-              // 切换Tab时重置数据
+              // 切换Tab时重置页码（保留已加载数据，避免闪烁）
               setPage(1);
-              setAllLoadedData([]);
             }}
             className={styles.reportTabs}
           >

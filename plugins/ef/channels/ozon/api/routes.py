@@ -3211,10 +3211,10 @@ async def get_posting_report(
         last_day = calendar.monthrange(year, month_num)[1]
         end_date = datetime(year, month_num, last_day, 23, 59, 59, tzinfo=timezone.utc)
 
-        # 构建查询条件
+        # 构建查询条件（使用客户下单时间，与汇总报表保持一致）
         conditions = [
-            OzonOrder.created_at >= start_date,
-            OzonOrder.created_at <= end_date,
+            OzonOrder.ordered_at >= start_date,
+            OzonOrder.ordered_at <= end_date,
         ]
 
         # 状态过滤逻辑
