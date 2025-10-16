@@ -20,7 +20,6 @@ import {
 } from 'antd';
 import {
   PlusOutlined,
-  SearchOutlined,
   ArrowRightOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -39,38 +38,8 @@ const ProductCreate: React.FC = () => {
   const [newForm] = Form.useForm();
   const [followForm] = Form.useForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
-  const [ozonProductData, setOzonProductData] = useState<any>(null);
-
-  // 搜索OZON商品（跟卖）
-  const searchOzonProductMutation = useMutation({
-    mutationFn: async (values: { sku: string }) => {
-      if (!selectedShop) throw new Error('请先选择店铺');
-      return await ozonApi.getOzonProductInfo(selectedShop, undefined, undefined, parseInt(values.sku));
-    },
-    onSuccess: (data) => {
-      if (data.success && data.data) {
-        setOzonProductData(data.data);
-        // 自动填充表单
-        followForm.setFieldsValue({
-          title: data.data.name,
-          barcode: data.data.barcode,
-          price: data.data.price,
-          old_price: data.data.old_price,
-          description: data.data.description,
-          weight: data.data.weight,
-          height: data.data.height,
-          width: data.data.width,
-          depth: data.data.depth,
-        });
-        message.success('成功获取OZON商品信息');
-      } else {
-        message.error(data.error || '未找到商品');
-      }
-    },
-    onError: (error: any) => {
-      message.error(`搜索失败: ${error.message}`);
-    },
-  });
+  // 跟卖模式不再使用搜索功能
+  // OZON API不支持搜索公开市场商品,用户需手动从OZON.ru复制条码信息
 
   // 创建商品
   const createProductMutation = useMutation({
@@ -174,34 +143,24 @@ const ProductCreate: React.FC = () => {
       return;
     }
 
-    if (!ozonProductData) {
-      message.error('请先搜索OZON商品');
-      return;
-    }
-
     try {
-      // 使用OZON商品图片
-      const imageUrls = ozonProductData.images || [];
-
       await createProductMutation.mutateAsync({
         shop_id: selectedShop,
         sku: values.sku,
         offer_id: values.offer_id,
         title: values.title,
-        description: values.description || ozonProductData.description,
+        description: values.description,
         price: values.price?.toString(),
         old_price: values.old_price?.toString(),
         stock: values.stock || 0,
-        barcode: values.barcode || ozonProductData.barcode,
-        category_id: ozonProductData.category_id,
-        images: imageUrls,
-        attributes: ozonProductData.attributes,
-        height: values.height || ozonProductData.height,
-        width: values.width || ozonProductData.width,
-        depth: values.depth || ozonProductData.depth,
-        weight: values.weight || ozonProductData.weight,
-        dimension_unit: ozonProductData.dimension_unit || 'mm',
-        weight_unit: ozonProductData.weight_unit || 'g',
+        barcode: values.barcode,  // 跟卖核心：使用相同条码
+        // 跟卖商品可选填尺寸重量
+        height: values.height,
+        width: values.width,
+        depth: values.depth,
+        weight: values.weight,
+        dimension_unit: 'mm',
+        weight_unit: 'g',
       });
     } catch (error: any) {
       message.error(`操作失败: ${error.message}`);
@@ -400,133 +359,140 @@ const ProductCreate: React.FC = () => {
                   disabled={!selectedShop}
                 >
                   <Alert
-                    message="跟卖模式"
-                    description="通过OZON SKU搜索现有商品，自动获取商品信息（图片、类目、属性等），只需填写自己的价格和库存。"
-                    type="success"
+                    message="跟卖模式 - 使用条码关联现有商品"
+                    description={
+                      <>
+                        <p>1. 在 OZON.ru 找到您想跟卖的商品页面</p>
+                        <p>2. 复制商品的条码(Barcode)信息（通常在商品详情页面）</p>
+                        <p>3. 填写条码和您的价格、库存信息</p>
+                        <p>4. OZON会自动将您的商品关联到现有商品卡</p>
+                      </>
+                    }
+                    type="info"
                     showIcon
                     style={{ marginBottom: 24 }}
                   />
 
-                  <Divider>第一步：搜索OZON商品</Divider>
+                  <Divider>基础信息</Divider>
 
                   <Row gutter={16}>
-                    <Col span={18}>
+                    <Col span={12}>
                       <Form.Item
-                        label="OZON SKU"
-                        name="ozon_sku"
-                        rules={[{ required: true, message: '请输入OZON SKU' }]}
+                        label="商品条码（Barcode）"
+                        name="barcode"
+                        rules={[{ required: true, message: '请输入商品条码' }]}
+                        tooltip="从OZON.ru商品页面复制条码，可以是UPC、EAN、ISBN等"
                       >
-                        <Input placeholder="输入OZON平台的SKU编号" />
+                        <Input placeholder="例如: 4606400105466" />
                       </Form.Item>
                     </Col>
-                    <Col span={6}>
-                      <Form.Item label=" ">
-                        <Button
-                          type="primary"
-                          icon={<SearchOutlined />}
-                          onClick={() => followForm.validateFields(['ozon_sku']).then((values) => {
-                            searchOzonProductMutation.mutate({ sku: values.ozon_sku });
-                          })}
-                          loading={searchOzonProductMutation.isPending}
-                          block
-                        >
-                          搜索商品
-                        </Button>
+                    <Col span={12}>
+                      <Form.Item
+                        label="商品名称"
+                        name="title"
+                        rules={[{ required: true, message: '请输入商品名称' }]}
+                        tooltip="从OZON.ru复制商品名称"
+                      >
+                        <Input placeholder="商品标题" maxLength={200} />
                       </Form.Item>
                     </Col>
                   </Row>
 
-                  {ozonProductData && (
-                    <>
-                      <Alert
-                        message="找到商品"
-                        description={`商品名称: ${ozonProductData.name} | 条形码: ${ozonProductData.barcode || '无'}`}
-                        type="success"
-                        showIcon
-                        style={{ marginBottom: 24 }}
-                      />
-
-                      <Divider>第二步：填写您的信息</Divider>
-
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item
-                            label="您的SKU"
-                            name="sku"
-                            rules={[{ required: true, message: '请输入SKU' }]}
-                          >
-                            <Input placeholder="您的内部SKU" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            label="Offer ID"
-                            name="offer_id"
-                            rules={[{ required: true, message: '请输入Offer ID' }]}
-                          >
-                            <Input placeholder="OZON商品标识符" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Form.Item label="商品名称" name="title">
-                        <Input disabled />
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item
+                        label="您的SKU"
+                        name="sku"
+                        rules={[{ required: true, message: '请输入SKU' }]}
+                      >
+                        <Input placeholder="您的内部SKU" />
                       </Form.Item>
-
-                      <Form.Item label="条形码" name="barcode">
-                        <Input disabled />
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="Offer ID"
+                        name="offer_id"
+                        rules={[{ required: true, message: '请输入Offer ID' }]}
+                      >
+                        <Input placeholder="OZON商品标识符" />
                       </Form.Item>
-
-                      <Row gutter={16}>
-                        <Col span={8}>
-                          <Form.Item
-                            label="您的售价（RUB）"
-                            name="price"
-                            rules={[{ required: true, message: '请输入售价' }]}
-                          >
-                            <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                          <Form.Item label="原价（RUB）" name="old_price">
-                            <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                          <Form.Item
-                            label="库存"
-                            name="stock"
-                            rules={[{ required: true, message: '请输入库存' }]}
-                          >
-                            <InputNumber min={0} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Form.Item label="商品描述" name="description">
-                        <TextArea rows={3} placeholder="可选：自定义描述" />
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="库存"
+                        name="stock"
+                        rules={[{ required: true, message: '请输入库存' }]}
+                      >
+                        <InputNumber min={0} style={{ width: '100%' }} />
                       </Form.Item>
+                    </Col>
+                  </Row>
 
-                      <Form.Item>
-                        <Space>
-                          <Button
-                            type="primary"
-                            htmlType="submit"
-                            loading={createProductMutation.isPending}
-                            icon={<ArrowRightOutlined />}
-                          >
-                            创建并跟卖
-                          </Button>
-                          <Button onClick={() => {
-                            followForm.resetFields();
-                            setOzonProductData(null);
-                          }}>
-                            重置
-                          </Button>
-                        </Space>
+                  <Divider>价格信息</Divider>
+
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        label="售价（RUB）"
+                        name="price"
+                        rules={[{ required: true, message: '请输入售价' }]}
+                      >
+                        <InputNumber min={0} precision={2} style={{ width: '100%' }} />
                       </Form.Item>
-                    </>
-                  )}
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item label="原价（RUB）" name="old_price">
+                        <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Divider>商品描述（可选）</Divider>
+
+                  <Form.Item label="商品描述" name="description">
+                    <TextArea rows={4} placeholder="可选：自定义商品描述" maxLength={5000} showCount />
+                  </Form.Item>
+
+                  <Divider>尺寸重量（可选）</Divider>
+
+                  <Row gutter={16}>
+                    <Col span={6}>
+                      <Form.Item label="长度（mm）" name="depth">
+                        <InputNumber min={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="宽度（mm）" name="width">
+                        <InputNumber min={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="高度（mm）" name="height">
+                        <InputNumber min={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={6}>
+                      <Form.Item label="重量（g）" name="weight">
+                        <InputNumber min={0} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Form.Item>
+                    <Space>
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={createProductMutation.isPending}
+                        icon={<ArrowRightOutlined />}
+                      >
+                        创建跟卖商品
+                      </Button>
+                      <Button onClick={() => followForm.resetFields()}>
+                        重置
+                      </Button>
+                    </Space>
+                  </Form.Item>
                 </Form>
               ),
             },
