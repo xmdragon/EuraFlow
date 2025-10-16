@@ -8,6 +8,15 @@ from .product_selection import ProductSelectionItem, ImportHistory
 from .chat import OzonChat, OzonChatMessage
 from .kuajing84 import Kuajing84SyncLog
 from .kuajing84_global_config import Kuajing84GlobalConfig
+from .listing import (
+    OzonCategory,
+    OzonCategoryAttribute,
+    OzonAttributeDictionaryValue,
+    OzonMediaImportLog,
+    OzonProductImportLog,
+    OzonPriceUpdateLog,
+    OzonStockUpdateLog,
+)
 
 __all__ = [
     "OzonShop",
@@ -26,4 +35,12 @@ __all__ = [
     "OzonChatMessage",
     "Kuajing84SyncLog",
     "Kuajing84GlobalConfig",
+    # Listing models
+    "OzonCategory",
+    "OzonCategoryAttribute",
+    "OzonAttributeDictionaryValue",
+    "OzonMediaImportLog",
+    "OzonProductImportLog",
+    "OzonPriceUpdateLog",
+    "OzonStockUpdateLog",
 ]

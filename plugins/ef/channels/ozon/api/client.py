@@ -1401,3 +1401,249 @@ class OzonAPIClient:
         expected_signature = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
         return hmac.compare_digest(signature, expected_signature)
+
+    # ========== 商品上架相关 API ==========
+
+    async def get_category_tree(
+        self,
+        category_id: Optional[int] = None,
+        language: str = "DEFAULT"
+    ) -> Dict[str, Any]:
+        """
+        获取类目树
+        使用 /v2/category/tree 接口
+
+        Args:
+            category_id: 父类目ID（可选，不填则获取根类目）
+            language: 语言（DEFAULT/RU/EN等）
+
+        Returns:
+            类目树数据
+        """
+        data = {
+            "language": language
+        }
+
+        if category_id:
+            data["category_id"] = category_id
+
+        return await self._request(
+            "POST",
+            "/v2/category/tree",
+            data=data,
+            resource_type="products"
+        )
+
+    async def get_category_attributes(
+        self,
+        category_id: int,
+        attribute_type: str = "ALL",
+        language: str = "DEFAULT"
+    ) -> Dict[str, Any]:
+        """
+        获取类目属性列表
+        使用 /v1/description-category/attribute 接口
+
+        Args:
+            category_id: 类目ID
+            attribute_type: 属性类型（ALL/REQUIRED/OPTIONAL）
+            language: 语言（DEFAULT/RU/EN等）
+
+        Returns:
+            类目属性列表
+        """
+        data = {
+            "category_id": category_id,
+            "attribute_type": attribute_type,
+            "language": language
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/description-category/attribute",
+            data=data,
+            resource_type="products"
+        )
+
+    async def get_attribute_values(
+        self,
+        attribute_id: int,
+        category_id: int,
+        last_value_id: int = 0,
+        limit: int = 5000,
+        language: str = "DEFAULT"
+    ) -> Dict[str, Any]:
+        """
+        获取属性字典值列表
+        使用 /v2/category/attribute/values 接口
+
+        Args:
+            attribute_id: 属性ID
+            category_id: 类目ID
+            last_value_id: 上次请求的最后一个value_id（用于分页）
+            limit: 每页数量（最大5000）
+            language: 语言
+
+        Returns:
+            属性字典值列表
+        """
+        data = {
+            "attribute_id": attribute_id,
+            "category_id": category_id,
+            "last_value_id": last_value_id,
+            "limit": min(limit, 5000),
+            "language": language
+        }
+
+        return await self._request(
+            "POST",
+            "/v2/category/attribute/values",
+            data=data,
+            resource_type="products"
+        )
+
+    async def import_pictures_by_url(
+        self,
+        picture_urls: List[str]
+    ) -> Dict[str, Any]:
+        """
+        批量导入图片（通过公网URL）
+        使用 /v1/product/pictures/import 接口
+        OZON会抓取URL并生成file_id
+
+        Args:
+            picture_urls: 图片URL列表（公网可访问的HTTPS链接）
+
+        Returns:
+            导入结果，包含：
+            - result: 导入结果列表
+            - pictures: 图片信息列表（包含url和状态）
+        """
+        if not picture_urls:
+            raise ValueError("Picture URLs list cannot be empty")
+
+        # 根据OZON API文档，pictures字段是一个对象数组
+        pictures = [{"url": url} for url in picture_urls]
+
+        data = {
+            "pictures": pictures
+        }
+
+        logger.info(f"[OZON API] Importing {len(pictures)} pictures by URL")
+
+        return await self._request(
+            "POST",
+            "/v1/product/pictures/import",
+            data=data,
+            resource_type="products"
+        )
+
+    async def get_pictures_import_status(
+        self,
+        picture_urls: Optional[List[str]] = None,
+        page: int = 1,
+        page_size: int = 100
+    ) -> Dict[str, Any]:
+        """
+        查询图片导入状态
+        使用 /v2/product/pictures/info 接口
+
+        Args:
+            picture_urls: 图片URL列表（用于过滤）
+            page: 页码
+            page_size: 每页数量（最大100）
+
+        Returns:
+            图片导入状态信息
+        """
+        data = {
+            "page": page,
+            "page_size": min(page_size, 100)
+        }
+
+        if picture_urls:
+            data["filter"] = {
+                "url": picture_urls
+            }
+
+        return await self._request(
+            "POST",
+            "/v2/product/pictures/info",
+            data=data,
+            resource_type="products"
+        )
+
+    async def import_products(
+        self,
+        products: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        批量导入商品（新建卡或跟随卡）
+        使用 /v2/product/import 接口
+
+        Args:
+            products: 商品信息列表（最多100个），每个包含：
+                - offer_id: 商家SKU（必需，幂等键）
+                - barcode: 条码（可选，跟随卡必需）
+                - category_id: 类目ID（必需，必须是叶子类目）
+                - name: 商品名称（必需）
+                - description: 描述（可选）
+                - dimensions: 尺寸重量（必需）
+                    {"weight": 克, "height": 毫米, "width": 毫米, "length": 毫米}
+                - images: 图片文件名列表（可选，如果已导入图片）
+                - attributes: 属性列表（必需）
+                    [{"attribute_id": id, "value": "值"} or {"attribute_id": id, "dictionary_value_id": id}]
+
+        Returns:
+            导入结果，包含：
+            - result: {"task_id": 任务ID}
+        """
+        if not products:
+            raise ValueError("Products list cannot be empty")
+
+        if len(products) > 100:
+            raise ValueError("Maximum 100 products per batch")
+
+        data = {
+            "items": products
+        }
+
+        logger.info(f"[OZON API] Importing {len(products)} products")
+
+        return await self._request(
+            "POST",
+            "/v2/product/import",
+            data=data,
+            resource_type="products"
+        )
+
+    async def get_import_product_info(
+        self,
+        task_id: str
+    ) -> Dict[str, Any]:
+        """
+        查询商品导入进度和结果
+        使用 /v1/product/import/info 接口
+
+        Args:
+            task_id: 导入任务ID
+
+        Returns:
+            导入状态信息，包含：
+            - result: {"items": [商品导入详情列表]}
+            每个商品包含：
+            - offer_id: 商家SKU
+            - product_id: OZON商品ID（导入成功后）
+            - status: 状态（imported/failed等）
+            - errors: 错误列表（如果失败）
+        """
+        data = {
+            "task_id": task_id
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/product/import/info",
+            data=data,
+            resource_type="products"
+        )
