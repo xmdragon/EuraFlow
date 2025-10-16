@@ -265,8 +265,15 @@ const OrderReport: React.FC = () => {
         <div className={styles.productInfo}>
           <div className={styles.shopName}>{row.posting.shop_name}</div>
           <div className={styles.productName}>
-            <Text ellipsis={{ tooltip: row.product.name }}>
-              {row.product.name || '-'}
+            <Text
+              ellipsis={{
+                tooltip: row.product.name && row.product.name.length > 50 ? row.product.name : undefined
+              }}
+            >
+              {row.product.name && row.product.name.length > 50
+                ? row.product.name.substring(0, 50) + '...'
+                : (row.product.name || '-')
+              }
             </Text>
           </div>
           <span
