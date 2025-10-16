@@ -102,5 +102,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import report routes: {e}")
 
+try:
+    from .listing_routes import router as listing_router
+    router.include_router(listing_router)
+    logger.info("✓ Loaded listing_routes")
+except ImportError as e:
+    logger.warning(f"Could not import listing routes: {e}")
+
 
 logger.info("Ozon API routes initialized successfully")
