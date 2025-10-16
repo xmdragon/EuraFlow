@@ -1575,7 +1575,7 @@
                 user-select: none;
             `;
             this.button.innerHTML = '🚀';
-            this.button.title = '一键上架到EuraFlow';
+            this.button.title = '一键上架';
             this.button.onclick = () => this.showModal();
             this.button.onmouseover = () => {
                 this.button.style.transform = 'scale(1.1)';
