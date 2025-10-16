@@ -2204,13 +2204,15 @@ async def get_packing_orders(
     shop_id: Optional[int] = None,
     posting_number: Optional[str] = None,
     operation_status: Optional[str] = Query(None, description="操作状态筛选：awaiting_stock/allocating/allocated/tracking_confirmed/shipping"),
+    ozon_status: Optional[str] = Query(None, description="OZON原生状态筛选，支持逗号分隔的多个状态，如：awaiting_packaging,awaiting_deliver"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     获取打包发货页面的订单列表
     - 支持按 operation_status 筛选（等待备货/分配中/已分配/单号确认/运输中）
-    - 如果不指定 operation_status，返回所有操作状态的订单
-    - 不再按OZON原生status过滤，完全基于operation_status
+    - 支持按 ozon_status 筛选（OZON原生状态，如 awaiting_packaging, awaiting_deliver）
+    - ozon_status 优先级高于 operation_status
+    - 如果都不指定，返回所有订单
     """
     from datetime import datetime
 
@@ -2225,8 +2227,12 @@ async def get_packing_orders(
     # 关联 Posting 表（必须，因为要按 Posting 操作状态筛选）
     query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
 
-    # 核心过滤：按 operation_status 筛选（如果提供）
-    if operation_status:
+    # 核心过滤：优先按 ozon_status 筛选，否则按 operation_status 筛选
+    if ozon_status:
+        # 支持逗号分隔的多个状态（如：awaiting_packaging,awaiting_deliver）
+        status_list = [s.strip() for s in ozon_status.split(',')]
+        query = query.where(OzonPosting.status.in_(status_list))
+    elif operation_status:
         query = query.where(OzonPosting.operation_status == operation_status)
 
     # 应用其他过滤条件
@@ -2250,7 +2256,11 @@ async def get_packing_orders(
         OzonPosting, OzonOrder.id == OzonPosting.order_id
     )
 
-    if operation_status:
+    # 应用相同的状态筛选逻辑
+    if ozon_status:
+        status_list = [s.strip() for s in ozon_status.split(',')]
+        count_query = count_query.where(OzonPosting.status.in_(status_list))
+    elif operation_status:
         count_query = count_query.where(OzonPosting.operation_status == operation_status)
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)

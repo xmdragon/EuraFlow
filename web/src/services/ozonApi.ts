@@ -883,6 +883,7 @@ export const getPackingOrders = async (
     shop_id?: number | null;
     posting_number?: string;
     operation_status?: string;  // awaiting_stock/allocating/allocated/tracking_confirmed
+    ozon_status?: string;  // OZON原生状态，支持逗号分隔（如：awaiting_packaging,awaiting_deliver）
   }
 ) => {
   const requestParams: any = {

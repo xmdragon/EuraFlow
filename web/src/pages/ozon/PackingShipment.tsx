@@ -346,7 +346,8 @@ const PackingShipment: React.FC = () => {
     sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
   };
 
-  // 查询打包发货订单列表（根据 operation_status 筛选）
+  // 查询打包发货订单列表
+  // 第一个标签"等待备货"使用OZON原生状态，其他标签使用operation_status
   const {
     data: ordersData,
     isLoading,
@@ -354,11 +355,19 @@ const PackingShipment: React.FC = () => {
   } = useQuery({
     queryKey: ['packingOrders', currentPage, pageSize, selectedShop, operationStatus, searchParams],
     queryFn: () => {
-      return ozonApi.getPackingOrders(currentPage, pageSize, {
+      // 第一个标签使用OZON原生状态，其他标签使用operation_status
+      const queryParams: any = {
         shop_id: selectedShop,
         posting_number: searchParams.posting_number,
-        operation_status: operationStatus,  // 根据tab状态筛选
-      });
+      };
+
+      if (operationStatus === 'awaiting_stock') {
+        queryParams.ozon_status = 'awaiting_packaging,awaiting_deliver';
+      } else {
+        queryParams.operation_status = operationStatus;
+      }
+
+      return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
     refetchInterval: 60000, // 1分钟自动刷新
@@ -412,12 +421,13 @@ const PackingShipment: React.FC = () => {
   }, [ordersData, searchParams.posting_number]);
 
   // 查询各操作状态的数量统计（并行查询）
+  // 第一个标签"等待备货"：使用OZON原生状态（awaiting_packaging, awaiting_deliver）
   const { data: awaitingStockData } = useQuery({
     queryKey: ['packingOrdersCount', 'awaiting_stock', selectedShop, searchParams],
     queryFn: () => ozonApi.getPackingOrders(1, 1, {
       shop_id: selectedShop,
       posting_number: searchParams.posting_number,
-      operation_status: 'awaiting_stock',
+      ozon_status: 'awaiting_packaging,awaiting_deliver',  // 使用OZON原生状态
     }),
     enabled: true,
     staleTime: 30000, // 30秒缓存
