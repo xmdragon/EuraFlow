@@ -1554,14 +1554,14 @@
         }
 
         createUI() {
-            // 创建浮动按钮（圆形图标）
+            // 创建浮动按钮（圆形图标，与列表页位置一致）
             this.button = document.createElement('div');
             this.button.style.cssText = `
                 position: fixed;
-                bottom: 20px;
-                right: 20px;
-                width: 60px;
-                height: 60px;
+                bottom: 260px;
+                right: 45px;
+                width: 50px;
+                height: 50px;
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 border-radius: 50%;
                 display: flex;
@@ -1569,9 +1569,9 @@
                 justify-content: center;
                 cursor: pointer;
                 z-index: 2147483647;
-                box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
-                font-size: 28px;
-                transition: all 0.3s;
+                box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+                font-size: 24px;
+                transition: transform 0.3s;
                 user-select: none;
             `;
             this.button.innerHTML = '🚀';
@@ -1579,11 +1579,9 @@
             this.button.onclick = () => this.showModal();
             this.button.onmouseover = () => {
                 this.button.style.transform = 'scale(1.1)';
-                this.button.style.boxShadow = '0 15px 40px rgba(102, 126, 234, 0.5)';
             };
             this.button.onmouseout = () => {
                 this.button.style.transform = 'scale(1)';
-                this.button.style.boxShadow = '0 10px 30px rgba(102, 126, 234, 0.4)';
             };
             document.body.appendChild(this.button);
 
