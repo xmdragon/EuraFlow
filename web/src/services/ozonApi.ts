@@ -1246,3 +1246,62 @@ export const getProductImportLogs = async (
   });
   return response.data;
 };
+
+// ==================== 新建商品相关 API ====================
+
+// 从OZON获取商品信息（用于跟卖）
+export const getOzonProductInfo = async (
+  shopId: number,
+  offerId?: string,
+  productId?: number,
+  sku?: number
+) => {
+  const response = await apiClient.get('/ozon/listings/products/ozon-info', {
+    params: { shop_id: shopId, offer_id: offerId, product_id: productId, sku }
+  });
+  return response.data;
+};
+
+// 创建商品记录到数据库
+export interface CreateProductRequest {
+  shop_id: number;
+  sku: string;
+  offer_id: string;
+  title: string;
+  description?: string;
+  price?: string;
+  old_price?: string;
+  currency_code?: string;
+  stock?: number;
+  barcode?: string;
+  category_id?: number;
+  images?: string[];
+  attributes?: any[];
+  height?: number;
+  width?: number;
+  depth?: number;
+  dimension_unit?: string;
+  weight?: number;
+  weight_unit?: string;
+  vat?: string;
+}
+
+export const createProduct = async (data: CreateProductRequest) => {
+  const response = await apiClient.post('/ozon/listings/products/create', data);
+  return response.data;
+};
+
+// 上传图片到Cloudinary
+export interface UploadMediaRequest {
+  shop_id: number;
+  type: 'base64' | 'url';
+  data?: string;  // For base64
+  url?: string;   // For URL
+  public_id?: string;
+  folder?: string;
+}
+
+export const uploadMedia = async (data: UploadMediaRequest) => {
+  const response = await apiClient.post('/ozon/listings/media/upload', data);
+  return response.data;
+};

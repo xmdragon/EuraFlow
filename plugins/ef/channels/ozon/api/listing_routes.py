@@ -518,4 +518,262 @@ async def get_product_import_logs(
         }
 
 
+# ============ 新建商品接口 ============
+
+@router.get("/listings/products/ozon-info")
+async def get_ozon_product_info(
+    shop_id: int = Query(..., description="店铺ID"),
+    offer_id: Optional[str] = Query(None, description="Offer ID"),
+    product_id: Optional[int] = Query(None, description="Product ID"),
+    sku: Optional[int] = Query(None, description="SKU"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    从OZON获取商品详细信息（用于跟卖）
+
+    支持通过offer_id、product_id或sku查询
+    """
+    try:
+        if not offer_id and not product_id and not sku:
+            raise HTTPException(status_code=400, detail="At least one of offer_id, product_id, or sku is required")
+
+        client = await get_ozon_client(shop_id, db)
+
+        # 根据参数选择API
+        if offer_id or product_id:
+            # 使用单个商品查询API
+            response = await client.get_product_info(offer_id=offer_id, product_id=product_id)
+        else:
+            # 使用批量查询API
+            response = await client.get_product_info_list(skus=[sku])
+
+        if not response.get("result"):
+            return {
+                "success": False,
+                "error": "Product not found or API error"
+            }
+
+        # 提取商品信息
+        if offer_id or product_id:
+            product_data = response["result"]
+        else:
+            items = response["result"].get("items", [])
+            if not items:
+                return {
+                    "success": False,
+                    "error": "Product not found"
+                }
+            product_data = items[0]
+
+        return {
+            "success": True,
+            "data": {
+                "id": product_data.get("id"),
+                "name": product_data.get("name"),
+                "offer_id": product_data.get("offer_id"),
+                "barcode": product_data.get("barcode"),
+                "sku": product_data.get("sku"),
+                "category_id": product_data.get("category_id"),
+                "description": product_data.get("description"),
+                "images": product_data.get("images", []),
+                "image_group_id": product_data.get("image_group_id"),
+                "price": product_data.get("price"),
+                "old_price": product_data.get("old_price"),
+                "currency_code": product_data.get("currency_code"),
+                "vat": product_data.get("vat"),
+                "height": product_data.get("height"),
+                "depth": product_data.get("depth"),
+                "width": product_data.get("width"),
+                "dimension_unit": product_data.get("dimension_unit"),
+                "weight": product_data.get("weight"),
+                "weight_unit": product_data.get("weight_unit"),
+                "attributes": product_data.get("attributes", []),
+                "status": product_data.get("status", {})
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Get OZON product info failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.post("/listings/products/create")
+async def create_product(
+    request: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    创建商品记录到数据库
+
+    将商品基础信息保存到ozon_products表，后续可进行上架操作
+    """
+    try:
+        from ..models.products import OzonProduct
+        from datetime import datetime
+
+        shop_id = request.get("shop_id")
+        if not shop_id:
+            raise HTTPException(status_code=400, detail="shop_id is required")
+
+        # 必填字段
+        sku = request.get("sku")
+        offer_id = request.get("offer_id")
+        title = request.get("title")
+
+        if not sku or not offer_id or not title:
+            raise HTTPException(status_code=400, detail="sku, offer_id, and title are required")
+
+        # 检查offer_id是否已存在
+        existing = await db.scalar(
+            select(OzonProduct).where(
+                OzonProduct.shop_id == shop_id,
+                OzonProduct.offer_id == offer_id
+            )
+        )
+
+        if existing:
+            return {
+                "success": False,
+                "error": f"Product with offer_id '{offer_id}' already exists"
+            }
+
+        # 创建商品记录
+        product = OzonProduct(
+            shop_id=shop_id,
+            sku=sku,
+            offer_id=offer_id,
+            title=title,
+            description=request.get("description"),
+            price=Decimal(str(request["price"])) if request.get("price") else None,
+            old_price=Decimal(str(request["old_price"])) if request.get("old_price") else None,
+            currency_code=request.get("currency_code", "RUB"),
+            stock=request.get("stock", 0),
+            barcode=request.get("barcode"),
+            category_id=request.get("category_id"),
+            images=request.get("images", []),  # JSONB field
+            attributes=request.get("attributes", []),  # JSONB field
+            height=request.get("height"),
+            width=request.get("width"),
+            depth=request.get("depth"),
+            dimension_unit=request.get("dimension_unit", "mm"),
+            weight=request.get("weight"),
+            weight_unit=request.get("weight_unit", "g"),
+            vat=request.get("vat", "0.0"),
+            listing_status="draft",  # 初始状态为draft
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+        db.add(product)
+        await db.commit()
+        await db.refresh(product)
+
+        logger.info(f"Product created successfully: offer_id={offer_id}, id={product.id}")
+
+        return {
+            "success": True,
+            "data": {
+                "id": product.id,
+                "offer_id": product.offer_id,
+                "sku": product.sku,
+                "title": product.title,
+                "listing_status": product.listing_status
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Create product failed: {e}", exc_info=True)
+        await db.rollback()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.post("/listings/media/upload")
+async def upload_media(
+    request: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    上传图片到Cloudinary
+
+    支持Base64和URL两种方式上传
+    """
+    try:
+        from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
+        import uuid
+
+        shop_id = request.get("shop_id")
+        if not shop_id:
+            raise HTTPException(status_code=400, detail="shop_id is required")
+
+        # 获取Cloudinary配置
+        config = await CloudinaryConfigManager.get_config(db)
+        if not config:
+            return {
+                "success": False,
+                "error": "Cloudinary not configured"
+            }
+
+        # 创建Cloudinary服务实例
+        cloudinary_service = await CloudinaryConfigManager.create_service_from_config(config)
+        if not cloudinary_service:
+            return {
+                "success": False,
+                "error": "Failed to initialize Cloudinary service"
+            }
+
+        # 获取上传参数
+        upload_type = request.get("type", "base64")  # base64 or url
+        folder = request.get("folder", "products")
+
+        if upload_type == "base64":
+            # Base64上传
+            base64_data = request.get("data")
+            if not base64_data:
+                raise HTTPException(status_code=400, detail="data is required for base64 upload")
+
+            public_id = request.get("public_id", str(uuid.uuid4()))
+            result = await cloudinary_service.upload_base64_image(
+                base64_data=base64_data,
+                public_id=public_id,
+                folder=folder
+            )
+
+        elif upload_type == "url":
+            # URL上传
+            image_url = request.get("url")
+            if not image_url:
+                raise HTTPException(status_code=400, detail="url is required for url upload")
+
+            public_id = request.get("public_id", str(uuid.uuid4()))
+            result = await cloudinary_service.upload_image_from_url(
+                image_url=image_url,
+                public_id=public_id,
+                folder=folder
+            )
+
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported upload type: {upload_type}"
+            }
+
+        if result["success"]:
+            logger.info(f"Image uploaded to Cloudinary: {result['url']}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Upload media failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 logger.info("Listing routes initialized successfully")
