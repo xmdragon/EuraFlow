@@ -1943,6 +1943,7 @@ class PrepareStockDTO(BaseModel):
 class UpdateBusinessInfoDTO(BaseModel):
     """更新业务信息请求 DTO"""
     purchase_price: Optional[Decimal] = Field(None, description="进货价格（可选）")
+    material_cost: Optional[Decimal] = Field(None, description="打包费用（可选）")
     source_platform: Optional[str] = Field(None, description="采购平台（可选）")
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
 
@@ -2003,6 +2004,7 @@ async def update_posting_business_info(
     result = await service.update_business_info(
         posting_number=posting_number,
         purchase_price=request.purchase_price,
+        material_cost=request.material_cost,
         source_platform=request.source_platform,
         order_notes=request.order_notes
     )
@@ -3260,7 +3262,7 @@ async def get_posting_report(
                 and_(*conditions)
             )
         else:
-            # 查询posting数据（带分页，按创建时间排序）
+            # 查询posting数据（带分页，按下单时间排序）
             postings_query = select(
                 OzonPosting,
                 OzonOrder,
@@ -3272,7 +3274,7 @@ async def get_posting_report(
             ).where(
                 and_(*conditions)
             ).order_by(
-                OzonOrder.created_at.desc()
+                OzonOrder.ordered_at.desc()
             ).offset(offset).limit(page_size)
 
         result = await db.execute(postings_query)
@@ -3350,7 +3352,7 @@ async def get_posting_report(
                 'posting_number': posting.posting_number,
                 'shop_name': shop_name,
                 'status': posting.status,
-                'created_at': order.created_at.isoformat(),
+                'created_at': order.ordered_at.isoformat(),
                 'products': products_list,
                 'order_amount': format_currency(order_amount),
                 'purchase_price': format_currency(purchase_price),
