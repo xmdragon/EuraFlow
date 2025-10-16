@@ -3518,8 +3518,8 @@ async def get_report_summary(
             shop_stats[shop_name]['sales'] += order_amount
             shop_stats[shop_name]['profit'] += profit
 
-            # 每日趋势统计
-            date_str = order.created_at.strftime("%Y-%m-%d")
+            # 每日趋势统计（使用下单时间）
+            date_str = order.ordered_at.strftime("%Y-%m-%d")
             if date_str not in daily_stats:
                 daily_stats[date_str] = {'sales': Decimal('0'), 'profit': Decimal('0')}
             daily_stats[date_str]['sales'] += order_amount
