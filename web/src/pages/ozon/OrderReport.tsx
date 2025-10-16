@@ -222,7 +222,6 @@ const OrderReport: React.FC = () => {
     {
       title: '图片',
       width: 80,
-      fixed: 'left',
       render: (_, row) => {
         const imageUrl80 = optimizeOzonImageUrl(row.product.image_url, 80);
         const imageUrl160 = optimizeOzonImageUrl(row.product.image_url, 160);
@@ -237,15 +236,11 @@ const OrderReport: React.FC = () => {
         );
       },
     },
-    // 2. 商品信息列（3行垂直布局）
+    // 2. 商品信息列（2行垂直布局）
     {
       title: '商品信息',
-      width: 220,
       render: (_, row) => (
         <div className={styles.productInfo}>
-          <div className={styles.date}>
-            {dayjs(row.posting.created_at).format('MM-DD')}
-          </div>
           <div className={styles.shopName}>{row.posting.shop_name}</div>
           <div className={styles.productLine}>
             <Text ellipsis={{ tooltip: row.product.name }} style={{ flex: 1 }}>
@@ -261,20 +256,25 @@ const OrderReport: React.FC = () => {
         </div>
       ),
     },
-    // 3. 货件编号（rowSpan）
+    // 3. 货件编号（rowSpan，包含日期）
     {
       title: '货件编号',
-      width: 150,
+      width: '12%',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
           children: (
-            <span
-              className={styles.copyableText}
-              onClick={() => handleCopy(row.posting.posting_number)}
-            >
-              {row.posting.posting_number} <CopyOutlined />
-            </span>
+            <div className={styles.postingInfo}>
+              <div className={styles.date}>
+                {dayjs(row.posting.created_at).format('MM-DD')}
+              </div>
+              <span
+                className={styles.copyableText}
+                onClick={() => handleCopy(row.posting.posting_number)}
+              >
+                {row.posting.posting_number} <CopyOutlined />
+              </span>
+            </div>
           ),
           props: { rowSpan: row.itemCount },
         };
@@ -283,7 +283,7 @@ const OrderReport: React.FC = () => {
     // 4. 订单金额（rowSpan）
     {
       title: '订单金额',
-      width: 100,
+      width: '8%',
       align: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
@@ -296,7 +296,7 @@ const OrderReport: React.FC = () => {
     // 5. 进货金额（rowSpan）
     {
       title: '进货金额',
-      width: 100,
+      width: '8%',
       align: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
@@ -309,7 +309,7 @@ const OrderReport: React.FC = () => {
     // 6. Ozon佣金（rowSpan）
     {
       title: 'Ozon佣金',
-      width: 100,
+      width: '8%',
       align: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
@@ -322,7 +322,7 @@ const OrderReport: React.FC = () => {
     // 7. 国际物流（rowSpan）
     {
       title: '国际物流',
-      width: 100,
+      width: '8%',
       align: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
@@ -335,7 +335,7 @@ const OrderReport: React.FC = () => {
     // 8. 尾程派送（rowSpan）
     {
       title: '尾程派送',
-      width: 100,
+      width: '8%',
       align: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
@@ -348,7 +348,7 @@ const OrderReport: React.FC = () => {
     // 9. 打包费用（rowSpan）
     {
       title: '打包费用',
-      width: 100,
+      width: '8%',
       align: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
@@ -361,9 +361,8 @@ const OrderReport: React.FC = () => {
     // 10. 利润金额（rowSpan）
     {
       title: '利润金额',
-      width: 100,
+      width: '8%',
       align: 'right',
-      fixed: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         const profit = parseFloat(row.posting.profit || '0');
@@ -380,9 +379,8 @@ const OrderReport: React.FC = () => {
     // 11. 利润比率（rowSpan）
     {
       title: '利润比率',
-      width: 100,
+      width: '8%',
       align: 'right',
-      fixed: 'right',
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         const profitRate = row.posting.profit_rate;
@@ -494,7 +492,7 @@ const OrderReport: React.FC = () => {
                   columns={detailColumns}
                   rowKey="key"
                   pagination={false}
-                  scroll={{ x: 1600, y: 600 }}
+                  scroll={{ x: 'max-content' }}
                   loading={isLoadingPostings}
                 />
 

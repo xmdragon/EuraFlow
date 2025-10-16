@@ -89,7 +89,6 @@
 .productInfo {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 
   .date {
     font-size: 12px;
@@ -116,6 +115,29 @@
     &:hover {
       text-decoration: underline;
     }
+  }
+}
+
+// ===== 货件编号列样式 =====
+.postingInfo {
+  display: flex;
+  flex-direction: column;
+
+  .date {
+    font-size: 12px;
+    color: #8c8c8c;
+    margin-bottom: 4px;
+  }
+}
+
+// ===== 表格样式 =====
+.reportTabs {
+  :global(.ant-table-tbody) > tr > td {
+    padding: 1px 1px;
+  }
+
+  :global(.ant-table-thead) > tr > th {
+    padding: 1px 1px;
   }
 }
 
