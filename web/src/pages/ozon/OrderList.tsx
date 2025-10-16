@@ -194,15 +194,18 @@ const OrderList: React.FC = () => {
       // 如果订单有 postings，展开每个 posting
       if (order.postings && order.postings.length > 0) {
         order.postings.forEach((posting) => {
-          flattened.push({
-            ...posting,
-            order: order  // 关联完整的订单信息
-          });
+          // 只展开当前标签对应状态的 posting（如果不是"所有"标签）
+          if (activeTab === 'all' || posting.status === activeTab) {
+            flattened.push({
+              ...posting,
+              order: order  // 关联完整的订单信息
+            });
+          }
         });
       } else {
         // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
         // 这是为了兼容可能存在的没有 postings 数组的订单
-        if (order.posting_number) {
+        if (order.posting_number && (activeTab === 'all' || order.status === activeTab)) {
           flattened.push({
             id: order.id,
             posting_number: order.posting_number,
@@ -227,7 +230,7 @@ const OrderList: React.FC = () => {
     }
 
     return flattened;
-  }, [ordersData, searchParams.posting_number]);
+  }, [ordersData, searchParams.posting_number, activeTab]);
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
   const orderItemRows = React.useMemo<OrderItemRow[]>(() => {
