@@ -15,6 +15,7 @@ import {
   SyncOutlined,
   DollarOutlined,
   CloudUploadOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy, useState, useEffect } from 'react';
@@ -106,7 +107,20 @@ const Dashboard: React.FC = () => {
           key: 'ozon-products',
           icon: <ShoppingOutlined />,
           label: '商品管理',
-          onClick: () => navigate('/dashboard/ozon/products'),
+          children: [
+            {
+              key: 'ozon-products-list',
+              icon: <ShoppingOutlined />,
+              label: '商品列表',
+              onClick: () => navigate('/dashboard/ozon/products'),
+            },
+            {
+              key: 'ozon-products-create',
+              icon: <PlusOutlined />,
+              label: '新建商品',
+              onClick: () => navigate('/dashboard/ozon/products/create'),
+            },
+          ],
         },
         {
           key: 'ozon-listing',
@@ -194,7 +208,8 @@ const Dashboard: React.FC = () => {
   const getSelectedKey = () => {
     const path = location.pathname;
     if (path.includes('/ozon/selection')) return 'ozon-selection';
-    if (path.includes('/ozon/products')) return 'ozon-products';
+    if (path.includes('/ozon/products/create')) return 'ozon-products-create';
+    if (path.includes('/ozon/products')) return 'ozon-products-list';
     if (path.includes('/ozon/listing')) return 'ozon-listing';
     if (path.includes('/ozon/packing')) return 'ozon-packing';
     if (path.includes('/ozon/orders')) return 'ozon-orders';
