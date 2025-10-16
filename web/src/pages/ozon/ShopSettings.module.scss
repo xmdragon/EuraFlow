@@ -38,6 +38,8 @@
 
 .addButtonRow {
   margin-bottom: $spacing-md;
+  display: flex;
+  gap: $spacing-md;
 }
 
 // ===== 空状态 =====
