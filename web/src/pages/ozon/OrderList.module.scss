@@ -127,7 +127,20 @@
 .infoColumn {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  line-height: 1.6;
+
+  > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    // 确保 label 和 value 之间有清晰的视觉分隔
+    :global(.ant-typography) {
+      flex-shrink: 0;
+      margin: 0;
+    }
+  }
 }
 
 .productPreviewImage {
