@@ -27,13 +27,14 @@ OZON_MESSAGE_TYPE_MAPPING = {
     "TYPE_PING": "ping",  # 连接检查
     "TYPE_NEW_POSTING": "posting.created",  # 新订单
     "TYPE_POSTING_CANCELLED": "posting.cancelled",  # 订单取消
-    "TYPE_STATE_CHANGED": "posting.status_changed",  # 订单状态变更
+    "TYPE_STATE_CHANGED": "posting.status_changed",  # 订单状态变更（包括发货状态）
     "TYPE_CUTOFF_DATE_CHANGED": "posting.cutoff_date_changed",  # 截止日期变更
     "TYPE_DELIVERY_DATE_CHANGED": "posting.delivery_date_changed",  # 配送日期变更
     "TYPE_CREATE_OR_UPDATE_ITEM": "product.create_or_update",  # 商品创建/更新
     "TYPE_CREATE_ITEM": "product.created",  # 商品创建
     "TYPE_UPDATE_ITEM": "product.updated",  # 商品更新
     "TYPE_STOCKS_CHANGED": "product.stock_changed",  # 库存变更
+    "TYPE_PRICE_INDEX_CHANGED": "product.price_index_changed",  # 价格指数变更
     "TYPE_NEW_MESSAGE": "chat.message_created",  # 新消息
     "TYPE_UPDATE_MESSAGE": "chat.message_updated",  # 消息更新
     "TYPE_MESSAGE_READ": "chat.message_read",  # 消息已读
@@ -58,6 +59,7 @@ class OzonWebhookHandler:
         "product.create_or_update",
         "product.price_changed",
         "product.stock_changed",
+        "product.price_index_changed",
         "chat.message_created",
         "chat.message_updated",
         "chat.message_read",
@@ -246,6 +248,7 @@ class OzonWebhookHandler:
             "product.create_or_update": self._handle_product_create_or_update,
             "product.price_changed": self._handle_product_price_changed,
             "product.stock_changed": self._handle_product_stock_changed,
+            "product.price_index_changed": self._handle_product_price_index_changed,
             # 聊天相关
             "chat.message_created": self._handle_chat_message_created,
             "chat.message_updated": self._handle_chat_message_updated,
@@ -269,10 +272,19 @@ class OzonWebhookHandler:
         payload: Dict[str, Any],
         webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
-        """处理发货单状态变更"""
+        """处理发货单状态变更（包括发货状态）
+
+        OZON 状态流转：
+        - awaiting_packaging（等待打包）
+        - awaiting_deliver（等待发货）
+        - sent_by_seller（卖家已发货）← 发货状态
+        - delivering（配送中）
+        - delivered（已送达）
+        - cancelled（已取消）
+        """
         posting_number = payload.get("posting_number")
         new_status = payload.get("status")
-        
+
         logger.info(f"Posting {posting_number} status changed to {new_status}")
 
         # 更新本地状态
@@ -287,25 +299,32 @@ class OzonWebhookHandler:
                 )
             )
             posting = await session.scalar(stmt)
-            
+
             if posting:
                 posting.status = new_status
                 posting.updated_at = utcnow()
-                
+
                 # 根据状态更新时间
                 if new_status == "delivered":
                     posting.delivered_at = utcnow()
+                    logger.info(f"Posting {posting_number} delivered at {posting.delivered_at}")
                 elif new_status == "cancelled":
                     posting.cancelled_at = utcnow()
-                
+                    logger.info(f"Posting {posting_number} cancelled at {posting.cancelled_at}")
+                elif new_status in ("sent_by_seller", "delivering"):
+                    # 发货相关状态：卖家已发货 或 配送中
+                    if not posting.shipped_at:
+                        posting.shipped_at = utcnow()
+                        logger.info(f"Posting {posting_number} shipped at {posting.shipped_at} (status: {new_status})")
+
                 session.add(posting)
                 await session.commit()
-                
+
                 # 更新Webhook事件关联
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
-                
-                return {"posting_id": posting.id, "status": new_status}
+
+                return {"posting_id": posting.id, "status": new_status, "shipped_at": posting.shipped_at.isoformat() if posting.shipped_at else None}
             else:
                 # Posting不存在，触发同步
                 logger.warning(f"Posting {posting_number} not found, triggering sync")
@@ -553,7 +572,7 @@ class OzonWebhookHandler:
         warehouse_id = payload.get("warehouse_id")
         old_stock = payload.get("old_stock")
         new_stock = payload.get("new_stock")
-        
+
         logger.info(f"Product {product_id} stock changed: {old_stock} -> {new_stock}")
 
         from ..models import OzonProduct
@@ -567,20 +586,50 @@ class OzonWebhookHandler:
                 )
             )
             product = await session.scalar(stmt)
-            
+
             if product:
                 product.stock = new_stock
                 product.available = new_stock - product.reserved
                 session.add(product)
                 await session.commit()
-                
+
                 webhook_event.entity_type = "product"
                 webhook_event.entity_id = str(product.id)
-                
+
                 return {"product_id": product.id, "stock_updated": True}
-            
+
             return {"message": "Product not found"}
-    
+
+    async def _handle_product_price_index_changed(
+        self,
+        payload: Dict[str, Any],
+        webhook_event: OzonWebhookEvent
+    ) -> Dict[str, Any]:
+        """处理商品价格指数变更 (TYPE_PRICE_INDEX_CHANGED)
+
+        价格指数是OZON平台的定价建议机制，影响商品的竞争力。
+        这个事件通常用于记录日志，不直接更新价格。
+        """
+        product_id = payload.get("product_id")
+        offer_id = payload.get("offer_id")
+        old_index = payload.get("old_price_index")
+        new_index = payload.get("new_price_index")
+
+        logger.info(f"Product {product_id or offer_id} price index changed: {old_index} -> {new_index}")
+        logger.info(f"Price index change payload: {payload}")
+
+        # 记录价格指数变化事件
+        webhook_event.entity_type = "product"
+        webhook_event.entity_id = str(product_id) if product_id else offer_id
+
+        return {
+            "product_id": product_id,
+            "offer_id": offer_id,
+            "old_index": old_index,
+            "new_index": new_index,
+            "price_index_changed": True
+        }
+
     async def _handle_return_created(
         self,
         payload: Dict[str, Any],
