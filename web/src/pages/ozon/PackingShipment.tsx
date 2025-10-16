@@ -1171,15 +1171,6 @@ const PackingShipment: React.FC = () => {
         {/* 操作按钮 */}
         <Space className={styles.actionSpace}>
           <Button
-            type="primary"
-            icon={<SyncOutlined />}
-            onClick={() => handleSync(false)}
-            loading={syncOrdersMutation.isPending}
-            disabled={!selectedShop}
-          >
-            增量同步
-          </Button>
-          <Button
             icon={<SyncOutlined />}
             onClick={() => handleSync(true)}
             loading={syncOrdersMutation.isPending}
