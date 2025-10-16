@@ -404,6 +404,84 @@ ef_ozon_shipments_push_fail_total (counter)
 - **禁止**：`cd web && npm run dev` 方式启动（会在新端口启动）
 - **日志查看**：backend.log 和 frontend.log
 
+### 路由组织规范
+
+#### ❌ 禁止行为
+- **禁止在主路由文件添加业务路由**：`plugins/ef/channels/ozon/api/routes.py` 只用于注册子路由，禁止直接添加业务端点
+- **禁止创建单体路由文件**：避免单个文件超过1000行
+- **禁止路由分散**：同一业务领域的路由必须在同一个文件中
+
+#### ✅ 正确做法
+- **按业务领域拆分**：每个业务领域创建独立的 `{domain}_routes.py` 文件
+- **职责单一**：每个路由文件只负责一个业务领域（店铺/商品/订单/报表等）
+- **独立路由器**：每个文件创建独立的 `APIRouter(tags=["ozon-{domain}"])`
+- **主文件注册**：在 `routes.py` 中通过 `router.include_router()` 注册
+
+#### 文件命名规范
+- 店铺管理: `shop_routes.py`
+- 商品管理: `product_routes.py`
+- 订单管理: `order_routes.py`
+- 打包发货: `packing_routes.py`
+- 报表统计: `report_routes.py`
+- 聊天消息: `chat_routes.py`
+- Webhook: `webhook_routes.py`
+- 同步任务: `sync_task_routes.py`
+- 统计工具: `stats_routes.py`
+
+#### 标准路由文件模板
+```python
+"""
+{业务领域} API路由
+"""
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, Field
+import logging
+
+from ef_core.database import get_async_session
+from ..models import OzonXxx
+from ..services import XxxService
+
+router = APIRouter(tags=["ozon-{domain}"])
+logger = logging.getName(__name__)
+
+# DTO类定义（本模块专用）
+class CreateXxxDTO(BaseModel):
+    ...
+
+# 路由端点
+@router.get("/{resource}")
+async def get_xxx(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """获取资源列表"""
+    ...
+```
+
+#### 拆分时机
+- 单个路由文件超过 **800行** 时必须拆分
+- 新增业务领域时创建新的路由文件
+- 发现职责混乱时主动重构
+
+#### 主路由文件职责
+`routes.py` 只负责：
+1. 导入子路由模块
+2. 注册子路由到主路由器
+3. 异常处理和日志记录
+4. **禁止直接定义业务端点**
+
+**示例**:
+```python
+# ❌ 错误：在主文件添加业务路由
+@router.get("/products")
+async def get_products(...):
+    ...
+
+# ✅ 正确：在专用文件添加，主文件只注册
+from .product_routes import router as product_router
+router.include_router(product_router)
+```
+
 ---
 
 ## 19) 术语表（Glossary）
