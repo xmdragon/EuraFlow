@@ -753,7 +753,7 @@ const PackingShipment: React.FC = () => {
     {
       title: '商品图片',
       key: 'product_image',
-      width: 170,
+      width: 180,
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
         const imageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
@@ -795,7 +795,7 @@ const PackingShipment: React.FC = () => {
     {
       title: '商品信息',
       key: 'product_info',
-      width: 260,
+      width: 300,
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
         const order = row.order;
@@ -860,7 +860,7 @@ const PackingShipment: React.FC = () => {
     {
       title: '物流信息',
       key: 'logistics_info',
-      width: 200,
+      width: 280,
       render: (_: any, row: OrderItemRow) => {
         // 非第一行返回 null（使用 rowSpan）
         if (!row.isFirstItem) return null;
@@ -919,7 +919,7 @@ const PackingShipment: React.FC = () => {
     {
       title: '订单信息',
       key: 'order_info',
-      width: 200,
+      width: 260,
       render: (_: any, row: OrderItemRow) => {
         // 非第一行返回 null（使用 rowSpan）
         if (!row.isFirstItem) return null;
@@ -969,7 +969,7 @@ const PackingShipment: React.FC = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 120,
+      width: 100,
       fixed: 'right' as const,
       render: (_: any, row: OrderItemRow) => {
         // 非第一行返回 null（使用 rowSpan）
@@ -1270,7 +1270,7 @@ const PackingShipment: React.FC = () => {
             },
             className: styles.pagination,
           }}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1120 }}
           size="small"
         />
       </Card>

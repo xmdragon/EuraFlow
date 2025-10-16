@@ -127,20 +127,7 @@
 .infoColumn {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  line-height: 1.6;
-
-  > div {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    // 确保 label 和 value 之间有清晰的视觉分隔
-    :global(.ant-typography) {
-      flex-shrink: 0;
-      margin: 0;
-    }
-  }
+  gap: 8px;
 }
 
 .productPreviewImage {
@@ -201,4 +188,22 @@
 .deliveryMethodTextWhite {
   line-height: 1.6;
   color: #333; // 深色文字，在白色背景上清晰可见
+}
+
+// ===== 修复rowSpan合并单元格的hover连带问题 =====
+:global {
+  .ant-table-tbody > tr.ant-table-row:hover > td {
+    // 当行hover时，只高亮当前行，不高亮被rowSpan合并的其他行
+    background-color: #fafafa !important;
+  }
+
+  // 确保被rowSpan合并的单元格不会因为其他行的hover而高亮
+  .ant-table-tbody > tr.ant-table-row > td[rowspan] {
+    pointer-events: none;
+  }
+
+  // 恢复被合并单元格内部元素的pointer-events
+  .ant-table-tbody > tr.ant-table-row > td[rowspan] > * {
+    pointer-events: auto;
+  }
 }
