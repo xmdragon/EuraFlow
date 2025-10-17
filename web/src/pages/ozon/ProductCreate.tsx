@@ -15,10 +15,12 @@ import {
   Divider,
   Upload,
   Cascader,
+  Modal,
 } from 'antd';
 import {
   PlusOutlined,
   SyncOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -123,6 +125,38 @@ const ProductCreate: React.FC = () => {
       message.error(`同步失败: ${error.message}`);
     },
   });
+
+  // 确认同步类目
+  const handleSyncCategory = () => {
+    if (!selectedShop) {
+      message.warning('请先选择店铺');
+      return;
+    }
+
+    Modal.confirm({
+      title: '确认同步类目',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>此操作将：</p>
+          <ul style={{ paddingLeft: 20, marginBottom: 0 }}>
+            <li>清空数据库中的所有类目数据</li>
+            <li>从OZON重新获取完整类目树</li>
+            <li>预计耗时 10-30 秒</li>
+          </ul>
+          <p style={{ marginTop: 12, marginBottom: 0, color: '#ff4d4f' }}>
+            <strong>提示：</strong>同步期间请勿重复操作，同步完成后会自动刷新类目列表
+          </p>
+        </div>
+      ),
+      okText: '确认同步',
+      okType: 'primary',
+      cancelText: '取消',
+      onOk() {
+        syncCategoryMutation.mutate();
+      },
+    });
+  };
 
   // 处理图片上传
   const handleImageUpload = async (file: File): Promise<string> => {
@@ -254,9 +288,9 @@ const ProductCreate: React.FC = () => {
               />
               <Button
                 icon={<SyncOutlined />}
-                onClick={() => syncCategoryMutation.mutate()}
+                onClick={handleSyncCategory}
                 loading={syncCategoryMutation.isPending || categoryLoading}
-                disabled={!selectedShop}
+                disabled={!selectedShop || syncCategoryMutation.isPending}
               >
                 同步类目
               </Button>
