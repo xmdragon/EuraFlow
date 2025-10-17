@@ -317,6 +317,22 @@ class OzonWebhookHandler:
                         posting.shipped_at = utcnow()
                         logger.info(f"Posting {posting_number} shipped at {posting.shipped_at} (status: {new_status})")
 
+                # 操作状态自动更新：分配中 → 已分配
+                # 当 operation_status = "allocating" 且有追踪号码时，自动更新为 "allocated"
+                if posting.operation_status == "allocating":
+                    from ..models.orders import OzonShipmentPackage
+
+                    # 查询是否有追踪号码
+                    pkg_stmt = select(OzonShipmentPackage).where(
+                        OzonShipmentPackage.posting_id == posting.id
+                    )
+                    packages = await session.scalars(pkg_stmt)
+                    has_tracking = any(pkg.tracking_number for pkg in packages)
+
+                    if has_tracking:
+                        posting.operation_status = "allocated"
+                        logger.info(f"Auto-updated operation_status: allocating → allocated for posting {posting_number} (via webhook)")
+
                 session.add(posting)
                 await session.commit()
 
