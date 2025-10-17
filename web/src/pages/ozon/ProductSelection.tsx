@@ -152,6 +152,12 @@ const ProductSelection: React.FC = () => {
     return saved ? parseFloat(saved) : 2.0; // 默认2.0 RMB
   });
 
+  // 记住我的选择状态
+  const [rememberFilters, setRememberFilters] = useState<boolean>(() => {
+    const saved = localStorage.getItem('productSelectionRememberFilters');
+    return saved ? JSON.parse(saved) : false; // 默认不记住
+  });
+
   // 保存利润率到localStorage
   useEffect(() => {
     localStorage.setItem('productSelectionProfitRate', targetProfitRate.toString());
@@ -162,17 +168,23 @@ const ProductSelection: React.FC = () => {
     localStorage.setItem('productSelectionPackingFee', packingFee.toString());
   }, [packingFee]);
 
+  // 保存"记住选择"设置到localStorage
+  useEffect(() => {
+    localStorage.setItem('productSelectionRememberFilters', JSON.stringify(rememberFilters));
+  }, [rememberFilters]);
+
   // 处理URL参数（批次ID和已读状态）+ 恢复保存的筛选条件
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const batchId = params.get('batch_id');
     const isReadParam = params.get('is_read');
 
-    // 从localStorage恢复保存的筛选条件（但不包括batch_id和is_read）
+    // 从localStorage恢复保存的筛选条件（仅在rememberFilters为true时）
     const savedFilters = localStorage.getItem('productSelectionFilters');
+    const shouldRemember = localStorage.getItem('productSelectionRememberFilters');
     let restoredParams: api.ProductSearchParams = {};
 
-    if (savedFilters) {
+    if (savedFilters && shouldRemember === 'true') {
       try {
         const parsed = JSON.parse(savedFilters);
         // 排除batch_id和is_read，这两个由URL参数或默认值控制
@@ -425,13 +437,14 @@ const ProductSelection: React.FC = () => {
       params.is_read = false;
     }
 
-    // 保存筛选条件到localStorage（用于记住用户选择）
-    // 保存表单值（包括listing_date的字符串形式）
-    const filtersToSave = {
-      ...values,
-      listing_date: values.listing_date ? values.listing_date.format('YYYY-MM-DD') : undefined,
-    };
-    localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
+    // 保存筛选条件到localStorage（仅在勾选"记住我的选择"时）
+    if (rememberFilters) {
+      const filtersToSave = {
+        ...values,
+        listing_date: values.listing_date ? values.listing_date.format('YYYY-MM-DD') : undefined,
+      };
+      localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
+    }
 
     setSearchParams(params);
     setCurrentPage(1);
@@ -1039,7 +1052,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '120px' }}>
+                <Col flex="auto" style={{ minWidth: '90px' }}>
                   <Form.Item label="月销量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="monthly_sales_min" noStyle>
@@ -1060,7 +1073,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '80px' }}>
+                <Col flex="auto" style={{ minWidth: '70px' }}>
                   <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
@@ -1071,7 +1084,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '120px' }}>
+                <Col flex="auto" style={{ minWidth: '90px' }}>
                   <Form.Item label="跟卖者数量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_count_min" noStyle>
@@ -1092,7 +1105,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '120px' }}>
+                <Col flex="auto" style={{ minWidth: '90px' }}>
                   <Form.Item label="最低跟卖价">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_min_price_min" noStyle>
@@ -1114,7 +1127,7 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 {/* 成本计算参数（不参与搜索筛选） */}
-                <Col flex="auto" style={{ minWidth: '100px' }}>
+                <Col flex="auto" style={{ minWidth: '80px' }}>
                   <Space.Compact>
                     <InputNumber
                       value={targetProfitRate}
@@ -1129,7 +1142,7 @@ const ProductSelection: React.FC = () => {
                   </Space.Compact>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '100px' }}>
+                <Col flex="auto" style={{ minWidth: '80px' }}>
                   <Space.Compact>
                     <InputNumber
                       value={packingFee}
@@ -1151,6 +1164,12 @@ const ProductSelection: React.FC = () => {
                     <Button onClick={handleReset} icon={<ReloadOutlined />}>
                       重置
                     </Button>
+                    <Checkbox
+                      checked={rememberFilters}
+                      onChange={(e) => setRememberFilters(e.target.checked)}
+                    >
+                      记住我的选择
+                    </Checkbox>
                   </Space>
                 </Col>
               </Row>
