@@ -238,8 +238,11 @@ async def receive_webhook(
 
         # 从载荷中提取店铺信息
         # Ozon webhook通常在载荷中包含店铺标识信息
+        # 注意：OZON的seller_id和client_id是同一个值，优先使用seller_id（webhook主要字段）
         shop_identifier = None
-        if payload.get("company_id"):
+        if payload.get("seller_id"):
+            shop_identifier = payload["seller_id"]
+        elif payload.get("company_id"):
             shop_identifier = payload["company_id"]
         elif payload.get("client_id"):
             shop_identifier = payload["client_id"]
@@ -255,7 +258,7 @@ async def receive_webhook(
                 status_code=400,
                 error_code="ERROR_PARAMETER_VALUE_MISSED",
                 message="Cannot identify shop from payload",
-                details="Missing company_id or client_id in payload"
+                details="Missing seller_id, company_id or client_id in payload"
             )
 
         # 查找对应的店铺和Webhook配置
