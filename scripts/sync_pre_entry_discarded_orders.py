@@ -21,6 +21,8 @@ import httpx
 from sqlalchemy import select
 from ef_core.database import get_db_manager
 from plugins.ef.channels.ozon.models.orders import OzonPosting
+from plugins.ef.channels.ozon.models.kuajing84_global_config import Kuajing84GlobalConfig
+from plugins.ef.channels.ozon.services.kuajing84_client import Kuajing84Client
 import logging
 
 logging.basicConfig(
@@ -34,14 +36,58 @@ KUAJING84_API = "https://www.kuajing84.com/index/Accountorder/order_list_purchas
 REQUEST_TIMEOUT = 30  # 30秒超时
 
 
-async def fetch_discarded_orders():
+async def get_kuajing84_cookies():
+    """从数据库获取跨境84配置并登录获取cookies"""
+    db_manager = get_db_manager()
+
+    async with db_manager.get_session() as db:
+        # 查询跨境84配置
+        result = await db.execute(
+            select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
+        )
+        config = result.scalar_one_or_none()
+
+        if not config or not config.enabled:
+            logger.error("❌ 跨境84配置未启用或不存在")
+            return None, None
+
+        if not config.username or not config.password:
+            logger.error("❌ 跨境84用户名或密码未配置")
+            return None, None
+
+        logger.info(f"使用用户名 {config.username} 登录跨境84...")
+
+        # 使用 Kuajing84Client 登录
+        try:
+            async with Kuajing84Client(base_url=config.base_url) as client:
+                login_result = await client.login(config.username, config.password)
+
+                cookies_list = login_result.get("cookies", [])
+                if not cookies_list:
+                    logger.error("❌ 登录失败，未获取到cookies")
+                    return None, None
+
+                # 将cookies列表转换为字典格式
+                cookies_dict = {c["name"]: c["value"] for c in cookies_list}
+                logger.info(f"✅ 登录成功，获取到 {len(cookies_dict)} 个cookies")
+
+                return cookies_dict, config.base_url
+        except Exception as e:
+            logger.error(f"❌ 登录失败: {e}")
+            return None, None
+
+
+async def fetch_discarded_orders(cookies_dict: dict, base_url: str):
     """分页获取所有录单前废弃订单"""
     all_orders = []
     page = 1
 
     logger.info("开始从跨境84拉取录单前废弃订单...")
 
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+    async with httpx.AsyncClient(
+        timeout=REQUEST_TIMEOUT,
+        cookies=cookies_dict
+    ) as client:
         while True:
             try:
                 logger.info(f"正在拉取第 {page} 页...")
@@ -53,6 +99,10 @@ async def fetch_discarded_orders():
                         "limit": 50,
                         "is_discard": 0,
                         "is_save_search": 11
+                    },
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                        "X-Requested-With": "XMLHttpRequest",
                     }
                 )
 
@@ -138,8 +188,15 @@ async def main():
     logger.info("临时脚本：同步录单前废弃订单")
     logger.info("=" * 60)
 
-    # 1. 从跨境84拉取废弃订单
-    orders = await fetch_discarded_orders()
+    # 1. 登录跨境84获取cookies
+    cookies_dict, base_url = await get_kuajing84_cookies()
+
+    if not cookies_dict:
+        logger.error("❌ 无法获取跨境84登录凭证，脚本终止")
+        return
+
+    # 2. 从跨境84拉取废弃订单
+    orders = await fetch_discarded_orders(cookies_dict, base_url)
 
     if not orders:
         logger.info("✅ 没有找到录单前废弃订单")
