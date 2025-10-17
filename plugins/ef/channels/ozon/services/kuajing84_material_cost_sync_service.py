@@ -1,6 +1,6 @@
 """
 跨境巴士物料成本自动同步服务
-每5分钟运行一次，每次处理10个订单，订单间延迟10秒
+单线程模式：每15秒运行一次，每次处理1个订单，处理间隔5秒
 """
 import logging
 import asyncio
@@ -27,24 +27,26 @@ class Kuajing84MaterialCostSyncService:
 
     def __init__(self):
         """初始化服务"""
-        self.delay_seconds = 10  # 每条记录之间的延迟（秒）
-        self.batch_size = 10  # 每次处理的订单数量
+        self.delay_seconds = 5  # 每条记录之间的延迟（秒）
+        self.batch_size = 1  # 每次处理的订单数量（单线程模式）
 
     async def sync_material_costs(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         同步物料成本主流程
-        预先登录，批量处理10个订单，每个订单间隔10秒
+        单线程模式：每次处理1个订单，处理间隔5秒
 
         Args:
             config: 服务配置
-                - delay_seconds: 延迟时间（默认10秒）
+                - delay_seconds: 延迟时间（默认5秒）
+                - batch_size: 每次处理订单数（默认1）
 
         Returns:
             同步结果统计
         """
         delay_seconds = config.get("delay_seconds", self.delay_seconds)
+        batch_size = config.get("batch_size", self.batch_size)
 
-        logger.info(f"Starting material cost sync (batch mode), delay={delay_seconds}s, batch_size={self.batch_size}")
+        logger.info(f"Starting material cost sync (single-thread mode), delay={delay_seconds}s, batch_size={batch_size}")
 
         stats = {
             "records_processed": 0,
@@ -104,7 +106,7 @@ class Kuajing84MaterialCostSyncService:
                 .where(or_(OzonPosting.kuajing84_sync_error != '订单不存在', OzonPosting.kuajing84_sync_error == None))  # 排除已标记不存在的订单（但包含NULL）
                 .where(OzonPosting.created_at >= ninety_days_ago)  # 只查询90天内
                 .order_by(OzonPosting.created_at.asc())  # 升序：最旧的优先
-                .limit(self.batch_size)
+                .limit(batch_size)
             )
             postings = postings_result.scalars().all()
 
