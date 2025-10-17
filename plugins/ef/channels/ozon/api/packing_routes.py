@@ -171,6 +171,9 @@ async def get_packing_orders(
         query = query.where(OzonPosting.status.in_(status_list))
     elif operation_status:
         query = query.where(OzonPosting.operation_status == operation_status)
+        # 特殊规则：单号确认状态只显示OZON状态为"等待发运"的订单
+        if operation_status == "tracking_confirmed":
+            query = query.where(OzonPosting.status == "awaiting_deliver")
 
     # 应用其他过滤条件
     if shop_id:
@@ -199,6 +202,9 @@ async def get_packing_orders(
         count_query = count_query.where(OzonPosting.status.in_(status_list))
     elif operation_status:
         count_query = count_query.where(OzonPosting.operation_status == operation_status)
+        # 特殊规则：单号确认状态只显示OZON状态为"等待发运"的订单
+        if operation_status == "tracking_confirmed":
+            count_query = count_query.where(OzonPosting.status == "awaiting_deliver")
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if posting_number:
