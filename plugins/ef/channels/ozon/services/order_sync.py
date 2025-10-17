@@ -413,17 +413,17 @@ class OrderSyncService:
 
         # 添加商品明细
         for product_data in products:
+            quantity = product_data.get("quantity", 0)
+            price = Decimal(str(product_data.get("price", "0")))
             item = OzonOrderItem(
                 order_id=order.id,
                 sku=product_data.get("offer_id", ""),
                 offer_id=product_data.get("offer_id"),
                 ozon_sku=product_data.get("sku"),
                 name=product_data.get("name"),
-                quantity=product_data.get("quantity", 0),
-                price=Decimal(str(product_data.get("price", "0"))),
-                total_price=Decimal(str(
-                    product_data.get("quantity", 0) * float(product_data.get("price", "0"))
-                ))
+                quantity=quantity,
+                price=price,
+                total_amount=price * quantity  # 使用 total_amount 而不是 total_price
             )
             session.add(item)
     
