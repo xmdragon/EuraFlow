@@ -1058,6 +1058,7 @@ const ProductSelection: React.FC = () => {
                       <Form.Item name="monthly_sales_min" noStyle>
                         <InputNumber
                           min={0}
+                          controls={false}
                           style={{ width: '70px' }}
                           placeholder="最小"
                         />
@@ -1065,6 +1066,7 @@ const ProductSelection: React.FC = () => {
                       <Form.Item name="monthly_sales_max" noStyle>
                         <InputNumber
                           min={0}
+                          controls={false}
                           style={{ width: '70px' }}
                           placeholder="最大"
                         />
@@ -1077,6 +1079,7 @@ const ProductSelection: React.FC = () => {
                   <Form.Item label="重量≤" name="weight_max" style={{ marginBottom: 0 }}>
                     <InputNumber
                       min={0}
+                      controls={false}
                       style={{ width: '70px' }}
                       placeholder="g"
                       suffix="g"
@@ -1090,6 +1093,7 @@ const ProductSelection: React.FC = () => {
                       <Form.Item name="competitor_count_min" noStyle>
                         <InputNumber
                           min={0}
+                          controls={false}
                           style={{ width: '70px' }}
                           placeholder="最小"
                         />
@@ -1097,6 +1101,7 @@ const ProductSelection: React.FC = () => {
                       <Form.Item name="competitor_count_max" noStyle>
                         <InputNumber
                           min={0}
+                          controls={false}
                           style={{ width: '70px' }}
                           placeholder="最大"
                         />
@@ -1111,6 +1116,7 @@ const ProductSelection: React.FC = () => {
                       <Form.Item name="competitor_min_price_min" noStyle>
                         <InputNumber
                           min={0}
+                          controls={false}
                           style={{ width: '70px' }}
                           placeholder={`最小`}
                         />
@@ -1118,6 +1124,7 @@ const ProductSelection: React.FC = () => {
                       <Form.Item name="competitor_min_price_max" noStyle>
                         <InputNumber
                           min={0}
+                          controls={false}
                           style={{ width: '70px' }}
                           placeholder={`最大`}
                         />
@@ -1135,6 +1142,7 @@ const ProductSelection: React.FC = () => {
                       min={0}
                       max={100}
                       precision={2}
+                      controls={false}
                       addonBefore="利润率"
                       addonAfter="%"
                       style={{ width: '150px' }}
@@ -1149,6 +1157,7 @@ const ProductSelection: React.FC = () => {
                       onChange={(val) => setPackingFee(val || 2)}
                       min={0}
                       precision={1}
+                      controls={false}
                       addonBefore="打包费"
                       addonAfter="RMB"
                       style={{ width: '150px' }}
