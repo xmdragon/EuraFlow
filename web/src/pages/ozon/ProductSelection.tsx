@@ -34,6 +34,7 @@ import {
   Tooltip,
   Checkbox,
 } from 'antd';
+import dayjs from 'dayjs';
 import {
   UploadOutlined,
   SearchOutlined,
@@ -161,18 +162,49 @@ const ProductSelection: React.FC = () => {
     localStorage.setItem('productSelectionPackingFee', packingFee.toString());
   }, [packingFee]);
 
-  // 处理URL参数（批次ID和已读状态）
+  // 处理URL参数（批次ID和已读状态）+ 恢复保存的筛选条件
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const batchId = params.get('batch_id');
     const isReadParam = params.get('is_read');
 
+    // 从localStorage恢复保存的筛选条件（但不包括batch_id和is_read）
+    const savedFilters = localStorage.getItem('productSelectionFilters');
+    let restoredParams: api.ProductSearchParams = {};
+
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        // 排除batch_id和is_read，这两个由URL参数或默认值控制
+        const { batch_id: _, is_read: __, ...filters } = parsed;
+        restoredParams = filters;
+
+        // 恢复表单字段
+        if (parsed.listing_date) {
+          // DatePicker需要dayjs对象
+          form.setFieldsValue({
+            ...parsed,
+            listing_date: parsed.listing_date ? dayjs(parsed.listing_date) : undefined,
+          });
+        } else {
+          form.setFieldsValue(parsed);
+        }
+      } catch (e) {
+        console.error('恢复筛选条件失败:', e);
+      }
+    }
+
     if (batchId) {
       // 从批次链接进来，显示该批次所有商品
-      setSearchParams(prev => ({ ...prev, batch_id: parseInt(batchId) }));
+      setSearchParams(prev => ({ ...restoredParams, batch_id: parseInt(batchId) }));
     } else if (isReadParam === null || isReadParam === 'false') {
       // 默认或明确指定只显示未读商品
-      setSearchParams(prev => ({ ...prev, is_read: false }));
+      setSearchParams(prev => ({ ...restoredParams, is_read: false }));
+    } else {
+      // 仅应用恢复的筛选条件（如果有）
+      if (Object.keys(restoredParams).length > 0) {
+        setSearchParams(prev => ({ ...prev, ...restoredParams }));
+      }
     }
   }, []);
 
@@ -374,7 +406,6 @@ const ProductSelection: React.FC = () => {
   const handleSearch = (values: any) => {
     const params: api.ProductSearchParams = {};
 
-    if (values.product_name) params.product_name = values.product_name;
     if (values.brand) params.brand = values.brand;
     if (values.monthly_sales_min) params.monthly_sales_min = values.monthly_sales_min;
     if (values.monthly_sales_max) params.monthly_sales_max = values.monthly_sales_max;
@@ -383,9 +414,9 @@ const ProductSelection: React.FC = () => {
     if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max;
     if (values.competitor_min_price_min) params.competitor_min_price_min = values.competitor_min_price_min;
     if (values.competitor_min_price_max) params.competitor_min_price_max = values.competitor_min_price_max;
-    // 上架时间：搜索早于该日期的商品
+    // 上架时间：搜索晚于该日期的商品
     if (values.listing_date) {
-      params.created_at_end = values.listing_date.format('YYYY-MM-DD');
+      params.created_at_start = values.listing_date.format('YYYY-MM-DD');
     }
     if (values.sort_by) params.sort_by = values.sort_by;
 
@@ -393,6 +424,14 @@ const ProductSelection: React.FC = () => {
     if (!searchParams.batch_id) {
       params.is_read = false;
     }
+
+    // 保存筛选条件到localStorage（用于记住用户选择）
+    // 保存表单值（包括listing_date的字符串形式）
+    const filtersToSave = {
+      ...values,
+      listing_date: values.listing_date ? values.listing_date.format('YYYY-MM-DD') : undefined,
+    };
+    localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
 
     setSearchParams(params);
     setCurrentPage(1);
@@ -404,6 +443,7 @@ const ProductSelection: React.FC = () => {
   // 处理重置
   const handleReset = () => {
     form.resetFields();
+    localStorage.removeItem('productSelectionFilters'); // 清除保存的筛选条件
     setSearchParams({ is_read: false }); // 重置时默认显示未读商品
     setCurrentPage(1);
     setAllProducts([]); // 清空已加载的商品
@@ -955,16 +995,6 @@ const ProductSelection: React.FC = () => {
             >
               <Row gutter={[16, 0]} wrap>
                 {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
-                <Col flex="auto" style={{ minWidth: '180px' }}>
-                  <Form.Item label="商品名称" name="product_name">
-                    <Input
-                      placeholder="商品名称"
-                      allowClear
-                      style={{ width: '100%' }}
-                    />
-                  </Form.Item>
-                </Col>
-
                 <Col flex="auto" style={{ minWidth: '150px' }}>
                   <Form.Item label="品牌" name="brand">
                     <Select
@@ -986,7 +1016,7 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 <Col flex="auto" style={{ minWidth: '180px' }}>
-                  <Form.Item label="上架早于" name="listing_date">
+                  <Form.Item label="上架晚于" name="listing_date">
                     <DatePicker
                       style={{ width: '100%' }}
                       format="YYYY-MM-DD"
@@ -1009,7 +1039,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '180px' }}>
+                <Col flex="auto" style={{ minWidth: '120px' }}>
                   <Form.Item label="月销量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="monthly_sales_min" noStyle>
@@ -1030,7 +1060,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '120px' }}>
+                <Col flex="auto" style={{ minWidth: '80px' }}>
                   <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
@@ -1041,7 +1071,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '180px' }}>
+                <Col flex="auto" style={{ minWidth: '120px' }}>
                   <Form.Item label="跟卖者数量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_count_min" noStyle>
@@ -1062,7 +1092,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '180px' }}>
+                <Col flex="auto" style={{ minWidth: '120px' }}>
                   <Form.Item label="最低跟卖价">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_min_price_min" noStyle>
@@ -1084,7 +1114,7 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 {/* 成本计算参数（不参与搜索筛选） */}
-                <Col flex="auto" style={{ minWidth: '140px' }}>
+                <Col flex="auto" style={{ minWidth: '100px' }}>
                   <Space.Compact>
                     <InputNumber
                       value={targetProfitRate}
@@ -1099,7 +1129,7 @@ const ProductSelection: React.FC = () => {
                   </Space.Compact>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '140px' }}>
+                <Col flex="auto" style={{ minWidth: '100px' }}>
                   <Space.Compact>
                     <InputNumber
                       value={packingFee}
