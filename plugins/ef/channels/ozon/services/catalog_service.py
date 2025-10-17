@@ -506,7 +506,7 @@ class CatalogService:
                     "value": category.category_id,
                     "label": category.name,
                     "isLeaf": category.is_leaf,
-                    "disabled": not category.is_leaf,  # 非叶子类目不可选
+                    "disabled": category.is_disabled,  # 使用OZON原始的禁用状态
                 }
 
                 # 使用映射查找子类目，O(1) 复杂度
