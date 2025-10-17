@@ -454,3 +454,82 @@ async def sync_orders(
         "task_id": task_id,
         "sync_mode": mode
     }
+
+
+@router.post("/orders/{posting_number}/sync")
+async def sync_single_order(
+    posting_number: str,
+    shop_id: int = Query(..., description="店铺ID"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    同步单个订单
+    通过posting_number从OZON API拉取最新的订单数据并更新到数据库
+    """
+    from ..api.client import OzonAPIClient
+    from ..models import OzonShop
+    from ..services.order_sync import OrderSyncService
+
+    try:
+        # 1. 获取店铺信息
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+
+        if not shop:
+            raise HTTPException(status_code=404, detail=f"店铺 {shop_id} 不存在")
+
+        # 2. 创建API客户端
+        api_client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc,
+            shop_id=shop_id
+        )
+
+        # 3. 从OZON获取posting详情
+        logger.info(f"同步单个订单: posting_number={posting_number}, shop_id={shop_id}")
+        detail_response = await api_client.get_posting_details(
+            posting_number=posting_number,
+            with_analytics_data=True,
+            with_financial_data=True
+        )
+
+        if not detail_response.get("result"):
+            raise HTTPException(
+                status_code=404,
+                detail=f"在OZON中未找到货件 {posting_number}"
+            )
+
+        posting_data = detail_response["result"]
+
+        # 4. 使用订单同步服务处理数据
+        sync_service = OrderSyncService(shop_id=shop_id, api_client=api_client)
+        await sync_service._process_single_posting(db, posting_data)
+        await db.commit()
+
+        # 5. 关闭API客户端
+        await api_client.close()
+
+        logger.info(f"订单同步成功: posting_number={posting_number}")
+
+        return {
+            "success": True,
+            "message": "订单同步成功",
+            "data": {
+                "posting_number": posting_number,
+                "status": posting_data.get("status"),
+                "synced_at": utcnow().isoformat()
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"同步订单失败: posting_number={posting_number}, error={e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"同步失败: {str(e)}"
+        )

@@ -494,6 +494,20 @@ const OrderList: React.FC = () => {
     },
   });
 
+  // 同步单个订单
+  const syncSingleOrderMutation = useMutation({
+    mutationFn: ({ postingNumber, shopId }: { postingNumber: string; shopId: number }) =>
+      ozonApi.syncSingleOrder(postingNumber, shopId),
+    onSuccess: () => {
+      message.success('订单同步成功');
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      refetch();
+    },
+    onError: (error: any) => {
+      message.error(`同步失败: ${error.message}`);
+    },
+  });
+
   // 表格列定义（商品维度 - 4列布局）
   const columns: any[] = [
     // 第一列：商品图片（160x160固定容器，可点击打开OZON商品页）
@@ -655,6 +669,24 @@ const OrderList: React.FC = () => {
                     onClick={() => handleCopy(domesticTracking, '国内单号')}
                   />
                 )}
+              </div>
+              <div>
+                <Text type="secondary">同步: </Text>
+                <a
+                  onClick={() => {
+                    syncSingleOrderMutation.mutate({
+                      postingNumber: posting.posting_number,
+                      shopId: row.order.shop_id
+                    });
+                  }}
+                  style={{
+                    cursor: syncSingleOrderMutation.isPending ? 'not-allowed' : 'pointer',
+                    color: syncSingleOrderMutation.isPending ? '#d9d9d9' : '#1890ff',
+                    pointerEvents: syncSingleOrderMutation.isPending ? 'none' : 'auto'
+                  }}
+                >
+                  {syncSingleOrderMutation.isPending ? '同步中...' : '从OZON同步'}
+                </a>
               </div>
             </div>
           ),

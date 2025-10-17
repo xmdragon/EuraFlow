@@ -471,6 +471,19 @@ export const syncOrdersDirect = async (
   return response.data;
 };
 
+// 同步单个订单
+export const syncSingleOrder = async (
+  postingNumber: string,
+  shopId: number
+) => {
+  const response = await apiClient.post(`/ozon/orders/${postingNumber}/sync`, null, {
+    params: {
+      shop_id: shopId
+    }
+  });
+  return response.data;
+};
+
 // 获取同步任务状态
 export const getSyncStatus = async (taskId: string) => {
   const response = await apiClient.get(`/ozon/sync/status/${taskId}`);
