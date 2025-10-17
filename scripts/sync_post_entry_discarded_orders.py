@@ -21,8 +21,7 @@ import httpx
 from sqlalchemy import select
 from ef_core.database import get_db_manager
 from plugins.ef.channels.ozon.models.orders import OzonPosting
-from plugins.ef.channels.ozon.models.kuajing84_global_config import Kuajing84GlobalConfig
-from plugins.ef.channels.ozon.services.kuajing84_client import Kuajing84Client
+from plugins.ef.channels.ozon.services.kuajing84_sync import create_kuajing84_sync_service
 import logging
 
 logging.basicConfig(
@@ -41,37 +40,24 @@ async def get_kuajing84_cookies():
     db_manager = get_db_manager()
 
     async with db_manager.get_session() as db:
-        # 查询跨境84配置
-        result = await db.execute(
-            select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
-        )
-        config = result.scalar_one_or_none()
-
-        if not config or not config.enabled:
-            logger.error("❌ 跨境84配置未启用或不存在")
-            return None, None
-
-        if not config.username or not config.password:
-            logger.error("❌ 跨境84用户名或密码未配置")
-            return None, None
-
-        logger.info(f"使用用户名 {config.username} 登录跨境84...")
-
-        # 使用 Kuajing84Client 登录
+        # 使用 Kuajing84SyncService 获取有效的 cookies（会自动处理解密和登录）
         try:
-            async with Kuajing84Client(base_url=config.base_url) as client:
-                login_result = await client.login(config.username, config.password)
+            sync_service = create_kuajing84_sync_service(db)
+            cookies_list = await sync_service._get_valid_cookies()
 
-                cookies_list = login_result.get("cookies", [])
-                if not cookies_list:
-                    logger.error("❌ 登录失败，未获取到cookies")
-                    return None, None
+            if not cookies_list:
+                logger.error("❌ 无法获取跨境84登录凭证")
+                return None, None
 
-                # 将cookies列表转换为字典格式
-                cookies_dict = {c["name"]: c["value"] for c in cookies_list}
-                logger.info(f"✅ 登录成功，获取到 {len(cookies_dict)} 个cookies")
+            # 将cookies列表转换为字典格式
+            cookies_dict = {c["name"]: c["value"] for c in cookies_list}
+            logger.info(f"✅ 登录成功，获取到 {len(cookies_dict)} 个cookies")
 
-                return cookies_dict, config.base_url
+            # 获取 base_url
+            config_info = await sync_service.get_kuajing84_config()
+            base_url = config_info.get("base_url", "https://www.kuajing84.com")
+
+            return cookies_dict, base_url
         except Exception as e:
             logger.error(f"❌ 登录失败: {e}")
             return None, None
