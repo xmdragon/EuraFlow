@@ -27,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import * as ozonApi from '@/services/ozonApi';
 import type { UploadFile } from 'antd/es/upload/interface';
+import { categoryTree } from '@/data/categoryTree';
 
 // 类目选项接口
 interface CategoryOption {
@@ -77,35 +78,17 @@ const ProductCreate: React.FC = () => {
     },
   });
 
-  // 加载类目树
-  const loadCategoryTree = useCallback(async () => {
-    if (!selectedShop) return;
-
-    setCategoryLoading(true);
-    try {
-      const result = await ozonApi.getCategoryTree(selectedShop);
-      if (result.success) {
-        setCategoryTree(result.data || []);
-        setHasCategoryData(result.data && result.data.length > 0);
-      } else {
-        message.error('加载类目失败');
-      }
-    } catch (error: any) {
-      message.error(`加载类目失败: ${error.message}`);
-    } finally {
-      setCategoryLoading(false);
-    }
-  }, [selectedShop]);
-
-  // 店铺变化时加载类目
+  // 店铺变化时加载类目（从静态文件）
   useEffect(() => {
     if (selectedShop) {
-      loadCategoryTree();
+      // 直接使用导入的类目树数据
+      setCategoryTree(categoryTree);
+      setHasCategoryData(categoryTree.length > 0);
     } else {
       setCategoryTree([]);
       setHasCategoryData(false);
     }
-  }, [selectedShop, loadCategoryTree]);
+  }, [selectedShop]);
 
   // 同步类目
   const syncCategoryMutation = useMutation({
@@ -115,8 +98,18 @@ const ProductCreate: React.FC = () => {
     },
     onSuccess: (data) => {
       if (data.success) {
-        message.success(`同步成功！已同步 ${data.synced_count || 0} 个类目`);
-        loadCategoryTree(); // 重新加载类目树
+        message.success({
+          content: `同步成功！已同步 ${data.synced_count || 0} 个类目。页面即将刷新...`,
+          duration: 2,
+          onClose: () => {
+            // 同步完成后刷新页面，以加载新生成的 categoryTree.ts 文件
+            window.location.reload();
+          }
+        });
+        // 2秒后自动刷新
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       } else {
         message.error(`同步失败: ${data.error || '未知错误'}`);
       }
