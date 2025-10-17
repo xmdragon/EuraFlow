@@ -478,7 +478,7 @@ const WatermarkManagement: React.FC = () => {
                   label="自动清理天数"
                   initialValue={30}
                 >
-                  <InputNumber min={1} max={365} className={styles.fullWidthInput} />
+                  <InputNumber min={1} max={365} className={styles.fullWidthInput} controls={false} />
                 </Form.Item>
               </Col>
             </Row>
@@ -541,6 +541,7 @@ const WatermarkManagement: React.FC = () => {
                                     min={1}
                                     max={365}
                                     className={styles.smallInput}
+                                    controls={false}
                                   />
                                 </div>
                               ),
@@ -620,6 +621,7 @@ const WatermarkManagement: React.FC = () => {
                         parser={(value) => Number(value?.replace('%', '')) / 100}
                         placeholder="缩放比例"
                         className={styles.smallInput}
+                        controls={false}
                       />
                     </Form.Item>
                     <Form.Item name="opacity" label="透明度" initialValue={0.8}>
@@ -631,6 +633,7 @@ const WatermarkManagement: React.FC = () => {
                         parser={(value) => Number(value?.replace('%', '')) / 100}
                         placeholder="透明度"
                         className={styles.smallInput}
+                        controls={false}
                       />
                     </Form.Item>
                     <Form.Item>
@@ -726,6 +729,7 @@ const WatermarkManagement: React.FC = () => {
                     formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
                     parser={(value) => Number(value?.replace('%', '')) / 100}
                     className={styles.fullWidthInput}
+                    controls={false}
                   />
                 </Form.Item>
               </Col>
@@ -742,6 +746,7 @@ const WatermarkManagement: React.FC = () => {
                     formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
                     parser={(value) => Number(value?.replace('%', '')) / 100}
                     className={styles.fullWidthInput}
+                    controls={false}
                   />
                 </Form.Item>
               </Col>
@@ -755,6 +760,7 @@ const WatermarkManagement: React.FC = () => {
                     min={0}
                     max={100}
                     className={styles.fullWidthInput}
+                    controls={false}
                   />
                 </Form.Item>
               </Col>

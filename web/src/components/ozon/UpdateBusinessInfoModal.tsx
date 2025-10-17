@@ -109,6 +109,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
             min={0}
             style={{ width: '100%' }}
             addonBefore="¥"
+            controls={false}
           />
         </Form.Item>
 

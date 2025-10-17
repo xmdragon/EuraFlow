@@ -403,6 +403,7 @@ const ExchangeRateManagement: React.FC = () => {
                       precision={2}
                       className={styles.converterInput}
                       disabled={convertMutation.isPending}
+                      controls={false}
                     />
                   </Form.Item>
 
@@ -420,6 +421,7 @@ const ExchangeRateManagement: React.FC = () => {
                       precision={2}
                       className={styles.converterInput}
                       disabled={convertMutation.isPending}
+                      controls={false}
                     />
                   </Form.Item>
                 </Form>

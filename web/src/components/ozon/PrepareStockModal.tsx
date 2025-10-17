@@ -93,6 +93,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
             min={0}
             style={{ width: '100%' }}
             addonBefore="¥"
+            controls={false}
           />
         </Form.Item>
 

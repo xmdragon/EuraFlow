@@ -192,6 +192,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
               min={0}
               max={100}
               precision={1}
+              controls={false}
             />
           </div>
 
@@ -216,6 +217,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
               onChange={(value) => setShipping(value ?? undefined)}
               min={0}
               precision={2}
+              controls={false}
             />
           </div>
 
@@ -229,6 +231,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
               onChange={(value) => setPackingFee(value ?? undefined)}
               min={0}
               precision={2}
+              controls={false}
             />
           </div>
         </Space>

@@ -430,22 +430,22 @@ const ProductCreate: React.FC = () => {
             <div className={styles.dimensionGroup}>
               <div className={styles.dimensionItem}>
                 <Form.Item label="包装长度（mm）" name="depth">
-                  <InputNumber min={0} placeholder="长" />
+                  <InputNumber min={0} placeholder="长" controls={false} />
                 </Form.Item>
               </div>
               <div className={styles.dimensionItem}>
                 <Form.Item label="包装宽度（mm）" name="width">
-                  <InputNumber min={0} placeholder="宽" />
+                  <InputNumber min={0} placeholder="宽" controls={false} />
                 </Form.Item>
               </div>
               <div className={styles.dimensionItem}>
                 <Form.Item label="包装高度（mm）" name="height">
-                  <InputNumber min={0} placeholder="高" />
+                  <InputNumber min={0} placeholder="高" controls={false} />
                 </Form.Item>
               </div>
               <div className={styles.dimensionItem}>
                 <Form.Item label="重量（g）" name="weight">
-                  <InputNumber min={0} placeholder="重量" />
+                  <InputNumber min={0} placeholder="重量" controls={false} />
                 </Form.Item>
               </div>
             </div>
@@ -462,7 +462,7 @@ const ProductCreate: React.FC = () => {
                   name="price"
                   rules={[{ required: true, message: '请输入售价' }]}
                 >
-                  <InputNumber min={0} precision={2} placeholder="0.00" />
+                  <InputNumber min={0} precision={2} placeholder="0.00" controls={false} />
                 </Form.Item>
               </div>
               <div className={styles.formCol}>
@@ -470,7 +470,7 @@ const ProductCreate: React.FC = () => {
                   label="原价（RUB）"
                   name="old_price"
                 >
-                  <InputNumber min={0} precision={2} placeholder="0.00" />
+                  <InputNumber min={0} precision={2} placeholder="0.00" controls={false} />
                 </Form.Item>
               </div>
             </div>
@@ -480,7 +480,7 @@ const ProductCreate: React.FC = () => {
               name="stock"
               initialValue={0}
             >
-              <InputNumber min={0} placeholder="0" />
+              <InputNumber min={0} placeholder="0" controls={false} />
             </Form.Item>
           </div>
 

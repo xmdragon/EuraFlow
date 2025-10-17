@@ -348,12 +348,12 @@ const ShippingDetailCalculator: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="重量(克)" name="weight">
-                    <InputNumber style={{ width: '100%' }} min={0} max={25000} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={25000} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item label="货值(RMB)" name="value">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -361,17 +361,17 @@ const ShippingDetailCalculator: React.FC = () => {
               <Row gutter={16}>
                 <Col span={8}>
                   <Form.Item label="长(cm)" name="length">
-                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="宽(cm)" name="width">
-                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="高(cm)" name="height">
-                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} />
+                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
               </Row>

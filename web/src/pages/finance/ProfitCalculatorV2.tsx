@@ -81,12 +81,12 @@ const ProfitCalculatorV2: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="成本(RMB)" name="cost">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="请输入" />
+                    <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="请输入" controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item label="售价(RMB)" name="price">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="请输入" />
+                    <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="请输入" controls={false} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -94,12 +94,12 @@ const ProfitCalculatorV2: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="重量(克)" name="weight">
-                    <InputNumber style={{ width: '100%' }} min={0} max={25000} precision={0} placeholder="请输入" />
+                    <InputNumber style={{ width: '100%' }} min={0} max={25000} precision={0} placeholder="请输入" controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item label="打包费(RMB)" name="packingFee">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={1} placeholder="默认2.0" />
+                    <InputNumber style={{ width: '100%' }} min={0} precision={1} placeholder="默认2.0" controls={false} />
                   </Form.Item>
                 </Col>
               </Row>

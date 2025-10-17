@@ -331,6 +331,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                             min={0}
                             precision={2}
                             style={{ width: 150 }}
+                            controls={false}
                           />
                           <Button
                             type="primary"
@@ -413,6 +414,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                             min={0}
                             precision={2}
                             style={{ width: 150 }}
+                            controls={false}
                           />
                           <Button
                             type="primary"

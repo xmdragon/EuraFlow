@@ -607,7 +607,7 @@ const ShopSettings: React.FC = () => {
                           </Col>
                           <Col span={12}>
                             <Form.Item name="sync_interval_minutes" label="同步间隔（分钟）">
-                              <InputNumber min={5} max={1440} className={styles.fullWidthInput} />
+                              <InputNumber min={5} max={1440} className={styles.fullWidthInput} controls={false} />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -665,17 +665,17 @@ const ShopSettings: React.FC = () => {
                         <Row gutter={16}>
                           <Col span={8}>
                             <Form.Item name="rate_limit_products" label="商品接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.fullWidthInput} />
+                              <InputNumber min={1} max={100} className={styles.fullWidthInput} controls={false} />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_orders" label="订单接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.fullWidthInput} />
+                              <InputNumber min={1} max={100} className={styles.fullWidthInput} controls={false} />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_postings" label="发货接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.fullWidthInput} />
+                              <InputNumber min={1} max={100} className={styles.fullWidthInput} controls={false} />
                             </Form.Item>
                           </Col>
                         </Row>
