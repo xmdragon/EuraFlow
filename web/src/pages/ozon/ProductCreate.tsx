@@ -240,7 +240,7 @@ const ProductCreate: React.FC = () => {
                   form.setFieldValue('category_id', catId);
                 }}
                 placeholder="请选择产品类目"
-                expandTrigger="hover"
+                expandTrigger="click"
                 changeOnSelect={false}
                 showSearch={{
                   filter: (inputValue, path) =>

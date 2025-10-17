@@ -30,6 +30,62 @@ async def get_ozon_client(shop_id: int, db: AsyncSession) -> OzonAPIClient:
 
 # ============ 类目与属性查询接口 ============
 
+@router.get("/listings/categories/stats")
+async def get_category_stats(
+    shop_id: int = Query(..., description="店铺ID"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取类目统计信息（调试用）
+    """
+    try:
+        from ..models.listing import OzonCategory
+        from sqlalchemy import func
+
+        # 查询所有类目
+        result = await db.execute(select(OzonCategory))
+        all_categories = list(result.scalars().all())
+
+        # 统计信息
+        total = len(all_categories)
+        root_count = len([c for c in all_categories if c.parent_id is None])
+        leaf_count = len([c for c in all_categories if c.is_leaf])
+        max_level = max([c.level for c in all_categories]) if all_categories else 0
+
+        # 获取前10个根类目
+        root_categories = [c for c in all_categories if c.parent_id is None][:10]
+        root_list = []
+        for cat in root_categories:
+            # 统计子类目数量
+            child_count = len([c for c in all_categories if c.parent_id == cat.category_id])
+            root_list.append({
+                "category_id": cat.category_id,
+                "name": cat.name,
+                "is_leaf": cat.is_leaf,
+                "is_disabled": cat.is_disabled,
+                "level": cat.level,
+                "child_count": child_count
+            })
+
+        return {
+            "success": True,
+            "stats": {
+                "total": total,
+                "root_count": root_count,
+                "leaf_count": leaf_count,
+                "max_level": max_level
+            },
+            "root_categories_sample": root_list
+        }
+
+    except Exception as e:
+        logger.error(f"Get category stats failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @router.get("/listings/categories/tree")
 async def get_category_tree(
     shop_id: int = Query(..., description="店铺ID"),
