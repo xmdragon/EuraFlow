@@ -112,23 +112,28 @@ class CatalogService:
         Returns:
             保存的类目数量
         """
-        # 适配新的API字段名 description_category_id
-        category_id = category_data.get("description_category_id")
+        # 兼容两种字段名：
+        # 1-2级使用 description_category_id 和 category_name
+        # 3级（叶子）使用 type_id 和 type_name
+        category_id = category_data.get("description_category_id") or category_data.get("type_id")
         if not category_id:
             return 0
 
         # 检查类目是否已存在
         existing = await self.db.get(OzonCategory, category_id)
 
-        # 适配新的API字段名 category_name
-        category_name = category_data.get("category_name", "")
+        # 兼容两种字段名
+        category_name = category_data.get("category_name") or category_data.get("type_name", "")
         children = category_data.get("children", [])
         is_disabled = category_data.get("disabled", False)
+
+        # 判断是否叶子类目：初步判断，后续可能更新
+        is_leaf = len(children) == 0
 
         if existing:
             # 更新现有类目
             existing.name = category_name
-            existing.is_leaf = len(children) == 0
+            existing.is_leaf = is_leaf
             existing.is_disabled = is_disabled
             existing.level = level
             existing.last_updated_at = datetime.utcnow()
@@ -138,7 +143,7 @@ class CatalogService:
                 category_id=category_id,
                 parent_id=parent_id,
                 name=category_name,
-                is_leaf=len(children) == 0,
+                is_leaf=is_leaf,
                 is_disabled=is_disabled,
                 level=level
             )
@@ -146,13 +151,38 @@ class CatalogService:
 
         count = 1
 
-        # 递归处理子类目
-        for child_data in children:
-            count += await self._save_category_recursive(
-                child_data,
-                parent_id=category_id,
-                level=level + 1
-            )
+        # 如果当前类目有子类目，递归处理
+        if children:
+            for child_data in children:
+                count += await self._save_category_recursive(
+                    child_data,
+                    parent_id=category_id,
+                    level=level + 1
+                )
+        # 如果当前类目没有子类目，但也不是禁用的，可能需要单独获取子类目
+        elif not is_disabled and level < 3:  # 限制最大深度为3级
+            try:
+                # 调用 API 获取此类目的子类目
+                logger.info(f"Fetching children for category {category_id} ({category_name})")
+                child_response = await self.client.get_category_tree(category_id=category_id)
+
+                if child_response.get("result"):
+                    child_categories = child_response["result"]
+                    if child_categories:
+                        logger.info(f"Found {len(child_categories)} children for category {category_id}")
+                        for child_data in child_categories:
+                            count += await self._save_category_recursive(
+                                child_data,
+                                parent_id=category_id,
+                                level=level + 1
+                            )
+                        # 更新父类目为非叶子
+                        if existing:
+                            existing.is_leaf = False
+                        else:
+                            category.is_leaf = False
+            except Exception as e:
+                logger.warning(f"Failed to fetch children for category {category_id}: {e}")
 
         return count
 

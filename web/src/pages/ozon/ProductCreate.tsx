@@ -109,7 +109,7 @@ const ProductCreate: React.FC = () => {
   const syncCategoryMutation = useMutation({
     mutationFn: async () => {
       if (!selectedShop) throw new Error('请先选择店铺');
-      return await ozonApi.syncCategoryTree(selectedShop, false);
+      return await ozonApi.syncCategoryTree(selectedShop, true);  // 强制刷新
     },
     onSuccess: (data) => {
       if (data.success) {

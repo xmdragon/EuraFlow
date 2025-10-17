@@ -310,12 +310,21 @@ async def sync_category_tree(
     从OZON拉取类目数据到本地数据库
     """
     try:
+        from ..models.listing import OzonCategory
+        from sqlalchemy import delete
+
         shop_id = request.get("shop_id")
         if not shop_id:
             raise HTTPException(status_code=400, detail="shop_id is required")
 
         force_refresh = request.get("force_refresh", False)
         root_category_id = request.get("root_category_id")
+
+        # 如果 force_refresh=True，清空所有现有类目
+        if force_refresh:
+            logger.info("Force refresh: deleting all existing categories")
+            await db.execute(delete(OzonCategory))
+            await db.commit()
 
         client = await get_ozon_client(shop_id, db)
         catalog_service = CatalogService(client, db)
