@@ -405,10 +405,12 @@ class OrderSyncService:
         products: List[Dict]
     ):
         """处理订单商品明细"""
-        # 删除旧商品（用于更新场景）
-        for item in order.items:
+        # 删除旧商品（用于更新场景）- 使用异步查询而不是懒加载
+        stmt = select(OzonOrderItem).where(OzonOrderItem.order_id == order.id)
+        existing_items = await session.scalars(stmt)
+        for item in existing_items:
             await session.delete(item)
-        
+
         # 添加商品明细
         for product_data in products:
             item = OzonOrderItem(
