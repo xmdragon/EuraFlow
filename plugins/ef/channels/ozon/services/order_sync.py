@@ -417,34 +417,10 @@ class OrderSyncService:
 
         # 操作状态自动更新：分配中 → 已分配
         # 当 operation_status = "allocating" 且有追踪号码时，自动更新为 "allocated"
-        if posting.operation_status == "allocating":
-            # 检查是否有追踪号码
-            has_tracking = False
-
-            # 方式1：从 posting_data 的顶层 tracking_number 检查
-            if posting_data.get("tracking_number"):
-                has_tracking = True
-
-            # 方式2：从 posting_data 的 packages 中检查
-            if not has_tracking and posting_data.get("packages"):
-                has_tracking = any(
-                    pkg.get("tracking_number")
-                    for pkg in posting_data["packages"]
-                    if isinstance(pkg, dict)
-                )
-
-            # 方式3：从数据库中已保存的 packages 检查
-            if not has_tracking:
-                stmt = select(OzonShipmentPackage).where(
-                    OzonShipmentPackage.posting_id == posting.id
-                )
-                packages = await session.scalars(stmt)
-                has_tracking = any(pkg.tracking_number for pkg in packages)
-
-            # 如果有追踪号码，更新操作状态为"已分配"
-            if has_tracking:
-                posting.operation_status = "allocated"
-                logger.info(f"Auto-updated operation_status: allocating → allocated for posting {posting_number}")
+        # 使用 Model 的 Helper 方法统一检查（屏蔽多层级字段复杂性）
+        if posting.operation_status == "allocating" and posting.has_tracking_number():
+            posting.operation_status = "allocated"
+            logger.info(f"Auto-updated operation_status: allocating → allocated for posting {posting_number}")
 
         return posting
     

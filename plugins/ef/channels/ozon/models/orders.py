@@ -302,7 +302,82 @@ class OzonPosting(Base):
     # 关系
     order = relationship("OzonOrder", back_populates="postings")
     packages = relationship("OzonShipmentPackage", back_populates="posting", cascade="all, delete-orphan")
-    
+
+    # Helper 方法：统一访问多层级字段，屏蔽OZON API数据结构复杂性
+    def get_tracking_numbers(self) -> list[str]:
+        """
+        获取所有追踪号码列表（从raw_payload）
+
+        优先级：
+        1. raw_payload的顶层tracking_number字段
+        2. raw_payload的packages数组
+
+        注意：此方法只读取raw_payload，不触发packages关系的lazy loading
+        如需访问数据库packages表，请使用显式查询或预加载
+
+        Returns:
+            追踪号码列表（去重）
+        """
+        tracking_numbers = []
+
+        if not self.raw_payload:
+            return []
+
+        # 方式1：从raw_payload的顶层tracking_number获取
+        if top_tracking := self.raw_payload.get("tracking_number"):
+            tracking_numbers.append(top_tracking)
+
+        # 方式2：从raw_payload的packages数组获取
+        if packages := self.raw_payload.get("packages"):
+            if isinstance(packages, list):
+                tracking_numbers.extend([
+                    pkg.get("tracking_number")
+                    for pkg in packages
+                    if isinstance(pkg, dict) and pkg.get("tracking_number")
+                ])
+
+        # 去重并过滤空值
+        return list(set(filter(None, tracking_numbers)))
+
+    def has_tracking_number(self) -> bool:
+        """
+        判断是否有追踪号码
+
+        Returns:
+            True如果有任何追踪号码，否则False
+        """
+        return len(self.get_tracking_numbers()) > 0
+
+    def get_package_count(self) -> int:
+        """
+        获取包裹数量（从raw_payload）
+
+        优先级：
+        1. raw_payload的packages数组长度
+        2. 如果有顶层tracking_number则返回1
+        3. 默认返回0
+
+        注意：此方法只读取raw_payload，不触发packages关系的lazy loading
+        如需访问数据库packages表，请使用显式查询或预加载
+
+        Returns:
+            包裹数量
+        """
+        if not self.raw_payload:
+            return 0
+
+        # 方式1：raw_payload的packages数组
+        if packages := self.raw_payload.get("packages"):
+            if isinstance(packages, list):
+                return len(packages)
+
+        # 方式2：顶层tracking_number（单包裹）
+        if self.raw_payload.get("tracking_number"):
+            return 1
+
+        # 默认返回0
+        return 0
+
     __table_args__ = (
         Index("idx_ozon_postings_status", "shop_id", "status"),
         Index("idx_ozon_postings_date", "shop_id", "shipment_date"),
