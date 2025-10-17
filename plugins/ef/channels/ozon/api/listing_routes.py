@@ -261,7 +261,7 @@ async def sync_category_tree(
         force_refresh = request.get("force_refresh", False)
         root_category_id = request.get("root_category_id")
 
-        client = get_ozon_client(shop_id, db)
+        client = await get_ozon_client(shop_id, db)
         catalog_service = CatalogService(client, db)
 
         result = await catalog_service.sync_category_tree(
