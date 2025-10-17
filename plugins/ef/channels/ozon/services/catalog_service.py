@@ -148,6 +148,8 @@ class CatalogService:
                 level=level
             )
             self.db.add(category)
+            # 立即flush确保后续查询能找到此记录，避免重复插入
+            await self.db.flush()
 
         count = 1
 

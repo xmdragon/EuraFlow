@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from decimal import Decimal
 import logging
+import asyncio
 
 from ef_core.database import get_async_session
 from ..models import OzonShop
@@ -18,6 +19,9 @@ from ..services.product_listing_service import ProductListingService
 
 router = APIRouter(tags=["ozon-listing"])
 logger = logging.getLogger(__name__)
+
+# 类目同步全局锁，防止并发同步
+_category_sync_lock = asyncio.Lock()
 
 
 async def get_ozon_client(shop_id: int, db: AsyncSession) -> OzonAPIClient:
@@ -309,39 +313,47 @@ async def sync_category_tree(
 
     从OZON拉取类目数据到本地数据库
     """
-    try:
-        from ..models.listing import OzonCategory
-        from sqlalchemy import delete
-
-        shop_id = request.get("shop_id")
-        if not shop_id:
-            raise HTTPException(status_code=400, detail="shop_id is required")
-
-        force_refresh = request.get("force_refresh", False)
-        root_category_id = request.get("root_category_id")
-
-        # 如果 force_refresh=True，清空所有现有类目
-        if force_refresh:
-            logger.info("Force refresh: deleting all existing categories")
-            await db.execute(delete(OzonCategory))
-            await db.commit()
-
-        client = await get_ozon_client(shop_id, db)
-        catalog_service = CatalogService(client, db)
-
-        result = await catalog_service.sync_category_tree(
-            root_category_id=root_category_id,
-            force_refresh=force_refresh
-        )
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Sync category tree failed: {e}", exc_info=True)
+    # 使用锁防止并发同步
+    if _category_sync_lock.locked():
         return {
             "success": False,
-            "error": str(e)
+            "error": "类目同步正在进行中，请稍后再试"
         }
+
+    async with _category_sync_lock:
+        try:
+            from ..models.listing import OzonCategory
+            from sqlalchemy import delete
+
+            shop_id = request.get("shop_id")
+            if not shop_id:
+                raise HTTPException(status_code=400, detail="shop_id is required")
+
+            force_refresh = request.get("force_refresh", False)
+            root_category_id = request.get("root_category_id")
+
+            # 如果 force_refresh=True，清空所有现有类目
+            if force_refresh:
+                logger.info("Force refresh: deleting all existing categories")
+                await db.execute(delete(OzonCategory))
+                await db.commit()
+
+            client = await get_ozon_client(shop_id, db)
+            catalog_service = CatalogService(client, db)
+
+            result = await catalog_service.sync_category_tree(
+                root_category_id=root_category_id,
+                force_refresh=force_refresh
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Sync category tree failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 # ============ 商品上架接口 ============
