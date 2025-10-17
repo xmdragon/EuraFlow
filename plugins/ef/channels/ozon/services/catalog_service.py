@@ -112,18 +112,24 @@ class CatalogService:
         Returns:
             保存的类目数量
         """
-        category_id = category_data.get("category_id")
+        # 适配新的API字段名 description_category_id
+        category_id = category_data.get("description_category_id")
         if not category_id:
             return 0
 
         # 检查类目是否已存在
         existing = await self.db.get(OzonCategory, category_id)
 
+        # 适配新的API字段名 category_name
+        category_name = category_data.get("category_name", "")
+        children = category_data.get("children", [])
+        is_disabled = category_data.get("disabled", False)
+
         if existing:
             # 更新现有类目
-            existing.name = category_data.get("title", "")
-            existing.is_leaf = not category_data.get("children")
-            existing.is_disabled = category_data.get("disabled", False)
+            existing.name = category_name
+            existing.is_leaf = len(children) == 0
+            existing.is_disabled = is_disabled
             existing.level = level
             existing.last_updated_at = datetime.utcnow()
         else:
@@ -131,9 +137,9 @@ class CatalogService:
             category = OzonCategory(
                 category_id=category_id,
                 parent_id=parent_id,
-                name=category_data.get("title", ""),
-                is_leaf=not category_data.get("children"),
-                is_disabled=category_data.get("disabled", False),
+                name=category_name,
+                is_leaf=len(children) == 0,
+                is_disabled=is_disabled,
                 level=level
             )
             self.db.add(category)
@@ -141,7 +147,6 @@ class CatalogService:
         count = 1
 
         # 递归处理子类目
-        children = category_data.get("children", [])
         for child_data in children:
             count += await self._save_category_recursive(
                 child_data,

@@ -1407,15 +1407,15 @@ class OzonAPIClient:
     async def get_category_tree(
         self,
         category_id: Optional[int] = None,
-        language: str = "DEFAULT"
+        language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
         获取类目树
-        使用 /v2/category/tree 接口
+        使用 /v1/description-category/tree 接口
 
         Args:
             category_id: 父类目ID（可选，不填则获取根类目）
-            language: 语言（DEFAULT/RU/EN等）
+            language: 语言（ZH_HANS/DEFAULT/RU/EN/TR）
 
         Returns:
             类目树数据
@@ -1425,11 +1425,11 @@ class OzonAPIClient:
         }
 
         if category_id:
-            data["category_id"] = category_id
+            data["description_category_id"] = category_id
 
         return await self._request(
             "POST",
-            "/v2/category/tree",
+            "/v1/description-category/tree",
             data=data,
             resource_type="products"
         )
