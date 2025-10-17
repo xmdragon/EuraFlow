@@ -265,21 +265,21 @@ class OrderSyncService:
         order_number = posting_data.get("order_number")
         posting_number = posting_data.get("posting_number")
         
-        # 查找或创建订单
+        # 查找或创建订单（ozon_order_id是VARCHAR，需要转换为字符串）
         stmt = select(OzonOrder).where(
             and_(
                 OzonOrder.shop_id == self.shop_id,
-                OzonOrder.ozon_order_id == order_id
+                OzonOrder.ozon_order_id == str(order_id)
             )
         )
         order = await session.scalar(stmt)
-        
+
         if not order:
             # 创建新订单
             order = OzonOrder(
                 shop_id=self.shop_id,
                 order_id=f"OZ-{order_id}",  # 生成本地订单号
-                ozon_order_id=order_id,
+                ozon_order_id=str(order_id),  # 转换为字符串
                 ozon_order_number=order_number,
                 status=self._map_order_status(posting_data.get("status")),
                 ozon_status=posting_data.get("status"),

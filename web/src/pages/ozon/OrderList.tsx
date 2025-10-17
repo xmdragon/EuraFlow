@@ -671,22 +671,21 @@ const OrderList: React.FC = () => {
                 )}
               </div>
               <div>
-                <Text type="secondary">同步: </Text>
-                <a
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<SyncOutlined spin={syncSingleOrderMutation.isPending} />}
+                  loading={syncSingleOrderMutation.isPending}
                   onClick={() => {
                     syncSingleOrderMutation.mutate({
                       postingNumber: posting.posting_number,
                       shopId: row.order.shop_id
                     });
                   }}
-                  style={{
-                    cursor: syncSingleOrderMutation.isPending ? 'not-allowed' : 'pointer',
-                    color: syncSingleOrderMutation.isPending ? '#d9d9d9' : '#1890ff',
-                    pointerEvents: syncSingleOrderMutation.isPending ? 'none' : 'auto'
-                  }}
+                  style={{ padding: 0, height: 'auto' }}
                 >
-                  {syncSingleOrderMutation.isPending ? '同步中...' : '从OZON同步'}
-                </a>
+                  同步
+                </Button>
               </div>
             </div>
           ),
