@@ -171,14 +171,24 @@ const OrderList: React.FC = () => {
     queryFn: () => {
       const dateRange = searchParams.dateRange;
 
-      return ozonApi.getOrders(currentPage, pageSize, {
+      // "discarded" 标签使用 operation_status='cancelled' 过滤
+      const queryParams: any = {
         ...searchParams,
         shop_id: selectedShop,
-        status: activeTab === 'all' ? undefined : activeTab,
         date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
         date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
         dateRange: undefined,
-      });
+      };
+
+      if (activeTab === 'discarded') {
+        // 已废弃：使用 operation_status='cancelled' 过滤
+        queryParams.operation_status = 'cancelled';
+      } else if (activeTab !== 'all') {
+        // 其他标签：使用 status 过滤
+        queryParams.status = activeTab;
+      }
+
+      return ozonApi.getOrders(currentPage, pageSize, queryParams);
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
     refetchInterval: 60000, // 1分钟自动刷新
@@ -196,8 +206,9 @@ const OrderList: React.FC = () => {
       // 如果订单有 postings，展开每个 posting
       if (order.postings && order.postings.length > 0) {
         order.postings.forEach((posting) => {
-          // 只展开当前标签对应状态的 posting（如果不是"所有"标签）
-          if (activeTab === 'all' || posting.status === activeTab) {
+          // "已废弃"和"所有"标签：显示所有 posting
+          // 其他标签：按 posting.status 过滤
+          if (activeTab === 'discarded' || activeTab === 'all' || posting.status === activeTab) {
             flattened.push({
               ...posting,
               order: order  // 关联完整的订单信息
@@ -207,7 +218,7 @@ const OrderList: React.FC = () => {
       } else {
         // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
         // 这是为了兼容可能存在的没有 postings 数组的订单
-        if (order.posting_number && (activeTab === 'all' || order.status === activeTab)) {
+        if (order.posting_number && (activeTab === 'discarded' || activeTab === 'all' || order.status === activeTab)) {
           flattened.push({
             id: order.id,
             posting_number: order.posting_number,
@@ -806,6 +817,7 @@ const OrderList: React.FC = () => {
   // 统计数据 - 使用API返回的全局统计数据
   const stats = ordersData?.stats || {
     total: 0,
+    discarded: 0,
     awaiting_packaging: 0,
     awaiting_deliver: 0,
     delivering: 0,
@@ -899,6 +911,10 @@ const OrderList: React.FC = () => {
             setCurrentPage(1); // 切换Tab时重置到第一页
           }}
           items={[
+            {
+              label: `已废弃 ${stats.discarded || 0}`,
+              key: 'discarded',
+            },
             {
               label: `等待备货 ${stats.awaiting_packaging || 0}`,
               key: 'awaiting_packaging',

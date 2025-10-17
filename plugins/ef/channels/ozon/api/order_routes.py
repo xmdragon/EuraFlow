@@ -22,6 +22,7 @@ async def get_orders(
     limit: int = Query(50, le=1000),
     shop_id: Optional[int] = None,
     status: Optional[str] = None,
+    operation_status: Optional[str] = None,
     posting_number: Optional[str] = None,
     customer_phone: Optional[str] = None,
     order_type: Optional[str] = None,
@@ -48,6 +49,12 @@ async def get_orders(
 
     if status:
         query = query.where(OzonOrder.status == status)
+
+    # 按 operation_status 过滤（需要 join postings 表）
+    if operation_status:
+        query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
+            OzonPosting.operation_status == operation_status
+        )
 
     # 搜索条件
     if posting_number:
@@ -93,6 +100,10 @@ async def get_orders(
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if status:
         count_query = count_query.where(OzonOrder.status == status)
+    if operation_status:
+        count_query = count_query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
+            OzonPosting.operation_status == operation_status
+        )
     if posting_number:
         count_query = count_query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
             (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
@@ -136,9 +147,20 @@ async def get_orders(
     stats_result = await db.execute(stats_query)
     status_counts = {row.status: row.count for row in stats_result}
 
+    # 查询"已废弃"订单数量（operation_status='cancelled'）
+    discarded_query = select(func.count(func.distinct(OzonOrder.id)))
+    discarded_query = discarded_query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
+    discarded_query = discarded_query.where(OzonPosting.operation_status == 'cancelled')
+    if shop_id:
+        discarded_query = discarded_query.where(OzonOrder.shop_id == shop_id)
+
+    discarded_result = await db.execute(discarded_query)
+    discarded_count = discarded_result.scalar() or 0
+
     # 构建统计数据字典
     global_stats = {
         "total": sum(status_counts.values()),
+        "discarded": discarded_count,  # 已废弃订单（operation_status='cancelled'）
         "awaiting_packaging": status_counts.get('awaiting_packaging', 0),
         "awaiting_deliver": status_counts.get('awaiting_deliver', 0),
         "delivering": status_counts.get('delivering', 0),
