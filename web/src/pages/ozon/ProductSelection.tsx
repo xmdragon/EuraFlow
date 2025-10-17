@@ -1028,10 +1028,10 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '180px' }}>
-                  <Form.Item label="上架晚于" name="listing_date">
+                <Col>
+                  <Form.Item label="上架晚于" name="listing_date" style={{ marginBottom: 0 }}>
                     <DatePicker
-                      style={{ width: '100%' }}
+                      style={{ width: '110px' }}
                       format="YYYY-MM-DD"
                       placeholder="选择日期"
                     />
@@ -1052,20 +1052,20 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col style={{ width: '140px' }}>
-                  <Form.Item label="月销量">
-                    <Space.Compact style={{ width: '100%' }}>
+                <Col>
+                  <Form.Item label="月销量" style={{ marginBottom: 0 }}>
+                    <Space.Compact>
                       <Form.Item name="monthly_sales_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          style={{ width: '70px' }}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="monthly_sales_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          style={{ width: '70px' }}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -1073,31 +1073,31 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col style={{ width: '70px' }}>
-                  <Form.Item label="重量≤" name="weight_max">
+                <Col>
+                  <Form.Item label="重量≤" name="weight_max" style={{ marginBottom: 0 }}>
                     <InputNumber
                       min={0}
-                      style={{ width: '100%' }}
+                      style={{ width: '70px' }}
                       placeholder="g"
                       suffix="g"
                     />
                   </Form.Item>
                 </Col>
 
-                <Col style={{ width: '140px' }}>
-                  <Form.Item label="跟卖者数量">
-                    <Space.Compact style={{ width: '100%' }}>
+                <Col>
+                  <Form.Item label="跟卖者数量" style={{ marginBottom: 0 }}>
+                    <Space.Compact>
                       <Form.Item name="competitor_count_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          style={{ width: '70px' }}
                           placeholder="最小"
                         />
                       </Form.Item>
                       <Form.Item name="competitor_count_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          style={{ width: '70px' }}
                           placeholder="最大"
                         />
                       </Form.Item>
@@ -1105,20 +1105,20 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col style={{ width: '140px' }}>
-                  <Form.Item label="最低跟卖价">
-                    <Space.Compact style={{ width: '100%' }}>
+                <Col>
+                  <Form.Item label="最低跟卖价" style={{ marginBottom: 0 }}>
+                    <Space.Compact>
                       <Form.Item name="competitor_min_price_min" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          style={{ width: '70px' }}
                           placeholder={`最小`}
                         />
                       </Form.Item>
                       <Form.Item name="competitor_min_price_max" noStyle>
                         <InputNumber
                           min={0}
-                          style={{ width: '50%' }}
+                          style={{ width: '70px' }}
                           placeholder={`最大`}
                         />
                       </Form.Item>
@@ -1127,7 +1127,7 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 {/* 成本计算参数（不参与搜索筛选） */}
-                <Col style={{ width: '120px' }}>
+                <Col>
                   <Space.Compact>
                     <InputNumber
                       value={targetProfitRate}
@@ -1137,12 +1137,12 @@ const ProductSelection: React.FC = () => {
                       precision={2}
                       addonBefore="利润率"
                       addonAfter="%"
-                      style={{ width: '100%' }}
+                      style={{ width: '150px' }}
                     />
                   </Space.Compact>
                 </Col>
 
-                <Col style={{ width: '120px' }}>
+                <Col>
                   <Space.Compact>
                     <InputNumber
                       value={packingFee}
@@ -1151,7 +1151,7 @@ const ProductSelection: React.FC = () => {
                       precision={1}
                       addonBefore="打包费"
                       addonAfter="RMB"
-                      style={{ width: '100%' }}
+                      style={{ width: '150px' }}
                     />
                   </Space.Compact>
                 </Col>
