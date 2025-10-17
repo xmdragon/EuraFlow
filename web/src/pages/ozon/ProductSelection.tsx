@@ -1052,7 +1052,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '90px' }}>
+                <Col style={{ width: '140px' }}>
                   <Form.Item label="月销量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="monthly_sales_min" noStyle>
@@ -1073,7 +1073,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '70px' }}>
+                <Col style={{ width: '70px' }}>
                   <Form.Item label="重量≤" name="weight_max">
                     <InputNumber
                       min={0}
@@ -1084,7 +1084,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '90px' }}>
+                <Col style={{ width: '140px' }}>
                   <Form.Item label="跟卖者数量">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_count_min" noStyle>
@@ -1105,7 +1105,7 @@ const ProductSelection: React.FC = () => {
                   </Form.Item>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '90px' }}>
+                <Col style={{ width: '140px' }}>
                   <Form.Item label="最低跟卖价">
                     <Space.Compact style={{ width: '100%' }}>
                       <Form.Item name="competitor_min_price_min" noStyle>
@@ -1127,7 +1127,7 @@ const ProductSelection: React.FC = () => {
                 </Col>
 
                 {/* 成本计算参数（不参与搜索筛选） */}
-                <Col flex="auto" style={{ minWidth: '80px' }}>
+                <Col style={{ width: '120px' }}>
                   <Space.Compact>
                     <InputNumber
                       value={targetProfitRate}
@@ -1142,7 +1142,7 @@ const ProductSelection: React.FC = () => {
                   </Space.Compact>
                 </Col>
 
-                <Col flex="auto" style={{ minWidth: '80px' }}>
+                <Col style={{ width: '120px' }}>
                   <Space.Compact>
                     <InputNumber
                       value={packingFee}
