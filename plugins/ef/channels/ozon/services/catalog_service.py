@@ -151,7 +151,7 @@ class CatalogService:
 
         count = 1
 
-        # 如果当前类目有子类目，递归处理
+        # 递归处理子类目（OZON API已在第一次调用时返回完整树结构）
         if children:
             for child_data in children:
                 count += await self._save_category_recursive(
@@ -159,30 +159,6 @@ class CatalogService:
                     parent_id=category_id,
                     level=level + 1
                 )
-        # 如果当前类目没有子类目，但也不是禁用的，可能需要单独获取子类目
-        elif not is_disabled and level < 3:  # 限制最大深度为3级
-            try:
-                # 调用 API 获取此类目的子类目
-                logger.info(f"Fetching children for category {category_id} ({category_name})")
-                child_response = await self.client.get_category_tree(category_id=category_id)
-
-                if child_response.get("result"):
-                    child_categories = child_response["result"]
-                    if child_categories:
-                        logger.info(f"Found {len(child_categories)} children for category {category_id}")
-                        for child_data in child_categories:
-                            count += await self._save_category_recursive(
-                                child_data,
-                                parent_id=category_id,
-                                level=level + 1
-                            )
-                        # 更新父类目为非叶子
-                        if existing:
-                            existing.is_leaf = False
-                        else:
-                            category.is_leaf = False
-            except Exception as e:
-                logger.warning(f"Failed to fetch children for category {category_id}: {e}")
 
         return count
 
