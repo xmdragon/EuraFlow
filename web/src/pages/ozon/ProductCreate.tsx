@@ -27,7 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import * as ozonApi from '@/services/ozonApi';
 import type { UploadFile } from 'antd/es/upload/interface';
-import { categoryTree } from '@/data/categoryTree';
+import { categoryTree as categoryTreeData } from '@/data/categoryTree';
 
 // 类目选项接口
 interface CategoryOption {
@@ -82,8 +82,8 @@ const ProductCreate: React.FC = () => {
   useEffect(() => {
     if (selectedShop) {
       // 直接使用导入的类目树数据
-      setCategoryTree(categoryTree);
-      setHasCategoryData(categoryTree.length > 0);
+      setCategoryTree(categoryTreeData);
+      setHasCategoryData(categoryTreeData.length > 0);
     } else {
       setCategoryTree([]);
       setHasCategoryData(false);
