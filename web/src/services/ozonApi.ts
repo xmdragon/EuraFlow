@@ -1118,6 +1118,14 @@ export interface ProductImportLog {
   updated_at?: string;
 }
 
+// 获取类目树（三级联动）
+export const getCategoryTree = async (shopId: number) => {
+  const response = await apiClient.get('/ozon/listings/categories/tree', {
+    params: { shop_id: shopId }
+  });
+  return response.data;
+};
+
 // 搜索类目
 export const searchCategories = async (
   shopId: number,

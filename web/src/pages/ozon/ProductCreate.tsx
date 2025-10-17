@@ -1,7 +1,7 @@
 /**
  * OZON新建商品页面
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Card,
   Form,
@@ -12,12 +12,13 @@ import {
   message,
   Row,
   Col,
-  Alert,
   Divider,
   Upload,
+  Cascader,
 } from 'antd';
 import {
   PlusOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -25,12 +26,25 @@ import ShopSelector from '@/components/ozon/ShopSelector';
 import * as ozonApi from '@/services/ozonApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 
+// 类目选项接口
+interface CategoryOption {
+  value: number;
+  label: string;
+  children?: CategoryOption[];
+  isLeaf?: boolean;
+  disabled?: boolean;
+}
+
 const { TextArea } = Input;
 
 const ProductCreate: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [categoryTree, setCategoryTree] = useState<CategoryOption[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [hasCategoryData, setHasCategoryData] = useState(false);
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
 
@@ -58,6 +72,55 @@ const ProductCreate: React.FC = () => {
   const uploadImageMutation = useMutation({
     mutationFn: async (data: ozonApi.UploadMediaRequest) => {
       return await ozonApi.uploadMedia(data);
+    },
+  });
+
+  // 加载类目树
+  const loadCategoryTree = useCallback(async () => {
+    if (!selectedShop) return;
+
+    setCategoryLoading(true);
+    try {
+      const result = await ozonApi.getCategoryTree(selectedShop);
+      if (result.success) {
+        setCategoryTree(result.data || []);
+        setHasCategoryData(result.data && result.data.length > 0);
+      } else {
+        message.error('加载类目失败');
+      }
+    } catch (error: any) {
+      message.error(`加载类目失败: ${error.message}`);
+    } finally {
+      setCategoryLoading(false);
+    }
+  }, [selectedShop]);
+
+  // 店铺变化时加载类目
+  useEffect(() => {
+    if (selectedShop) {
+      loadCategoryTree();
+    } else {
+      setCategoryTree([]);
+      setHasCategoryData(false);
+    }
+  }, [selectedShop, loadCategoryTree]);
+
+  // 同步类目
+  const syncCategoryMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedShop) throw new Error('请先选择店铺');
+      return await ozonApi.syncCategoryTree(selectedShop, false);
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        message.success(`同步成功！已同步 ${data.synced_count || 0} 个类目`);
+        loadCategoryTree(); // 重新加载类目树
+      } else {
+        message.error(`同步失败: ${data.error || '未知错误'}`);
+      }
+    },
+    onError: (error: any) => {
+      message.error(`同步失败: ${error.message}`);
     },
   });
 
@@ -116,6 +179,7 @@ const ProductCreate: React.FC = () => {
         price: values.price?.toString(),
         old_price: values.old_price?.toString(),
         stock: values.stock || 0,
+        category_id: selectedCategory || undefined,
         images: imageUrls,
         height: values.height,
         width: values.width,
@@ -131,47 +195,73 @@ const ProductCreate: React.FC = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col span={12}>
-          <h2 style={{ margin: 0 }}>
-            <PlusOutlined /> 新建商品
-          </h2>
-        </Col>
-        <Col span={12} style={{ textAlign: 'right' }}>
-          <ShopSelector
-            value={selectedShop}
-            onChange={setSelectedShop}
-            style={{ width: 200 }}
-          />
-        </Col>
-      </Row>
-
-      {!selectedShop && (
-        <Alert
-          message="请先选择店铺"
-          description="在右上角选择一个店铺以创建商品"
-          type="info"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
-      )}
+      <h2 style={{ marginBottom: 24 }}>
+        <PlusOutlined /> 新建商品
+      </h2>
 
       <Card>
         <Form
           form={form}
           layout="vertical"
           onFinish={handleProductSubmit}
-          disabled={!selectedShop}
         >
-          <Alert
-            message="创建商品"
-            description="从零开始创建商品，需要填写完整信息。创建后需要在商品上架页面选择类目和填写属性。"
-            type="info"
-            showIcon
-            style={{ marginBottom: 24 }}
-          />
-
           <Divider>基础信息</Divider>
+
+          <Form.Item
+            label="选择店铺"
+            name="shop_id"
+            rules={[{ required: true, message: '请选择店铺' }]}
+          >
+            <ShopSelector
+              value={selectedShop}
+              onChange={setSelectedShop}
+              showAllOption={false}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="产品类目"
+            name="category_id"
+            rules={[{ required: true, message: '请选择产品类目' }]}
+            extra={!hasCategoryData && selectedShop && (
+              <span style={{ color: '#ff4d4f' }}>
+                数据库无类目数据，请点击右侧"同步类目"按钮
+              </span>
+            )}
+          >
+            <Space.Compact style={{ width: '100%' }}>
+              <Cascader
+                options={categoryTree}
+                onChange={(value) => {
+                  const catId = value && value.length > 0
+                    ? value[value.length - 1] as number
+                    : null;
+                  setSelectedCategory(catId);
+                  form.setFieldValue('category_id', catId);
+                }}
+                placeholder="请选择产品类目"
+                expandTrigger="hover"
+                changeOnSelect={false}
+                showSearch={{
+                  filter: (inputValue, path) =>
+                    path.some(option =>
+                      (option.label as string).toLowerCase().includes(inputValue.toLowerCase())
+                    )
+                }}
+                disabled={!selectedShop || categoryLoading}
+                loading={categoryLoading}
+                style={{ width: 'calc(100% - 100px)' }}
+              />
+              <Button
+                icon={<SyncOutlined />}
+                onClick={() => syncCategoryMutation.mutate()}
+                loading={syncCategoryMutation.isPending || categoryLoading}
+                disabled={!selectedShop}
+              >
+                同步类目
+              </Button>
+            </Space.Compact>
+          </Form.Item>
 
           <Row gutter={16}>
             <Col span={8}>

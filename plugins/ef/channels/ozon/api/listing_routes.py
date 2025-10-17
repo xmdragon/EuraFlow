@@ -30,6 +30,80 @@ async def get_ozon_client(shop_id: int, db: AsyncSession) -> OzonAPIClient:
 
 # ============ 类目与属性查询接口 ============
 
+@router.get("/listings/categories/tree")
+async def get_category_tree(
+    shop_id: int = Query(..., description="店铺ID"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取类目树（用于Cascader三级联动组件）
+
+    返回格式：
+    [
+      {
+        "value": 123,
+        "label": "电子产品",
+        "children": [...],
+        "isLeaf": false,
+        "disabled": true  // 非叶子类目不可选
+      }
+    ]
+    """
+    try:
+        from ..models.listing import OzonCategory
+
+        # 查询所有类目
+        result = await db.execute(
+            select(OzonCategory).order_by(OzonCategory.level, OzonCategory.category_id)
+        )
+        all_categories = list(result.scalars().all())
+
+        if not all_categories:
+            return {
+                "success": True,
+                "data": [],
+                "total": 0
+            }
+
+        # 构建category_id到对象的映射
+        category_map = {cat.category_id: cat for cat in all_categories}
+
+        # 递归构建树形结构
+        def build_tree_node(category: OzonCategory) -> Dict[str, Any]:
+            children_cats = [cat for cat in all_categories if cat.parent_id == category.category_id]
+
+            node = {
+                "value": category.category_id,
+                "label": category.name,
+                "isLeaf": category.is_leaf,
+                "disabled": not category.is_leaf,  # 非叶子类目不可选
+            }
+
+            if children_cats:
+                node["children"] = [build_tree_node(child) for child in children_cats]
+
+            return node
+
+        # 找到所有根类目（parent_id为NULL）
+        root_categories = [cat for cat in all_categories if cat.parent_id is None]
+
+        # 构建树
+        tree_data = [build_tree_node(root) for root in root_categories]
+
+        return {
+            "success": True,
+            "data": tree_data,
+            "total": len(all_categories)
+        }
+
+    except Exception as e:
+        logger.error(f"Get category tree failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @router.get("/listings/categories/search")
 async def search_categories(
     query: str = Query(..., description="搜索关键词"),
