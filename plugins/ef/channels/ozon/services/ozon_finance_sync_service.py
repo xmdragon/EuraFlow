@@ -1,10 +1,11 @@
 """
 OZON财务费用自动同步服务
-每10分钟运行一次，每次处理10个已签收订单
+每小时15分运行一次，同步已签收订单（7天前-3个月内）
+每5秒处理一个订单，避免API限流
 """
 import logging
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 from decimal import Decimal, InvalidOperation
 
@@ -12,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
-from ..models.orders import OzonPosting
+from ..models.orders import OzonPosting, OzonOrder
 from ..models.ozon_shops import OzonShop
 from ..models.sync_service import SyncServiceLog
 from ..api.client import OzonAPIClient
@@ -53,26 +54,36 @@ class OzonFinanceSyncService:
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
-            # 1. 查询需要同步的货件（已签收且未同步财务）
+            # 1. 计算时间范围（7天前 - 3个月前）
+            now = datetime.now(timezone.utc)
+            three_months_ago = now - timedelta(days=90)
+            seven_days_ago = now - timedelta(days=7)
+
+            logger.info(f"Time range filter: {three_months_ago.isoformat()} ~ {seven_days_ago.isoformat()}")
+
+            # 2. 查询需要同步的货件（已签收且未同步财务，时间范围：7天前-3个月内）
             postings_result = await session.execute(
                 select(OzonPosting)
+                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
                 .where(OzonPosting.status == 'delivered')
                 .where(OzonPosting.finance_synced_at == None)
                 .where(OzonPosting.posting_number != None)
                 .where(OzonPosting.posting_number != '')
+                .where(OzonOrder.ordered_at > three_months_ago)  # 3个月内
+                .where(OzonOrder.ordered_at <= seven_days_ago)   # 7天前
                 .order_by(OzonPosting.delivered_at.desc())
-                .limit(batch_size)
+                # 移除 limit(batch_size) - 一次性获取所有符合条件的订单
             )
             postings = postings_result.scalars().all()
 
             if not postings:
-                logger.info("No postings need finance sync")
+                logger.info("No postings need finance sync in time range (7 days ago ~ 3 months ago)")
                 return {
                     **stats,
-                    "message": "没有需要同步财务费用的货件"
+                    "message": "没有需要同步财务费用的货件（时间范围：7天前-3个月内）"
                 }
 
-            logger.info(f"Found {len(postings)} postings to process (status=delivered, finance_synced_at IS NULL)")
+            logger.info(f"Found {len(postings)} postings to process (status=delivered, finance_synced_at IS NULL, time range OK)")
 
             # 2. 按店铺分组postings
             from collections import defaultdict
@@ -104,10 +115,10 @@ class OzonFinanceSyncService:
 
                 # 4. 创建API客户端
                 async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop.id) as client:
-                    # 5. 循环处理该店铺的每个货件
-                    for posting in shop_postings:
+                    # 5. 循环处理该店铺的每个货件（每5秒处理一个）
+                    for idx, posting in enumerate(shop_postings):
                         posting_number = posting.posting_number
-                        logger.info(f"Processing posting {posting.id} with posting_number: {posting_number}")
+                        logger.info(f"Processing posting {posting.id} ({idx+1}/{len(shop_postings)}) with posting_number: {posting_number}")
                         stats["records_processed"] += 1
                         stats["posting_numbers"].append(posting_number)
 
@@ -202,6 +213,12 @@ class OzonFinanceSyncService:
                                 session, run_id, posting_number, posting.id,
                                 started_at, "failed", error_message
                             )
+
+                        # 每5秒处理一个（避免API限流）
+                        # 如果不是最后一个，则等待5秒
+                        if idx < len(shop_postings) - 1:
+                            logger.info(f"Waiting 5 seconds before processing next posting...")
+                            await asyncio.sleep(5)
 
         logger.info(
             f"Finance cost sync completed: "

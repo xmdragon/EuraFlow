@@ -273,7 +273,7 @@ class OzonPosting(Base):
         nullable=False,
         default="awaiting_stock",
         server_default="awaiting_stock",
-        comment="操作状态：awaiting_stock(等待备货)/allocating(分配中)/allocated(已分配)/tracking_confirmed(单号确认)/shipping(运输中)"
+        comment="操作状态：awaiting_stock(等待备货)/allocating(分配中)/allocated(已分配)/tracking_confirmed(单号确认)/shipping(运输中)/cancelled(已取消)"
     )
 
     # 跨境巴士同步状态
