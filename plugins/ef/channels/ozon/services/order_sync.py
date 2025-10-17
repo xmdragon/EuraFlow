@@ -396,21 +396,44 @@ class OrderSyncService:
             except Exception as e:
                 logger.warning(f"Failed to fetch package details for posting {posting_number}: {e}")
 
+        # 处理顶层 tracking_number（如果没有 packages 数组但有 tracking_number 字段）
+        if posting_data.get("tracking_number"):
+            # 检查是否已有包裹记录
+            stmt = select(OzonShipmentPackage).where(
+                OzonShipmentPackage.posting_id == posting.id
+            )
+            existing_packages = await session.scalars(stmt)
+            package_count = len(list(existing_packages))
+
+            if package_count == 0:
+                # 没有包裹记录，创建一个默认包裹
+                default_package = OzonShipmentPackage(
+                    posting_id=posting.id,
+                    package_number=f"PKG-{posting.id}-1",
+                    tracking_number=posting_data["tracking_number"]
+                )
+                session.add(default_package)
+                logger.info(f"Created default package for posting {posting_number} with tracking_number: {posting_data['tracking_number']}")
+
         # 操作状态自动更新：分配中 → 已分配
         # 当 operation_status = "allocating" 且有追踪号码时，自动更新为 "allocated"
         if posting.operation_status == "allocating":
             # 检查是否有追踪号码
             has_tracking = False
 
-            # 方式1：从 posting_data 的 packages 中检查
-            if posting_data.get("packages"):
+            # 方式1：从 posting_data 的顶层 tracking_number 检查
+            if posting_data.get("tracking_number"):
+                has_tracking = True
+
+            # 方式2：从 posting_data 的 packages 中检查
+            if not has_tracking and posting_data.get("packages"):
                 has_tracking = any(
                     pkg.get("tracking_number")
                     for pkg in posting_data["packages"]
                     if isinstance(pkg, dict)
                 )
 
-            # 方式2：从数据库中已保存的 packages 检查
+            # 方式3：从数据库中已保存的 packages 检查
             if not has_tracking:
                 stmt = select(OzonShipmentPackage).where(
                     OzonShipmentPackage.posting_id == posting.id
