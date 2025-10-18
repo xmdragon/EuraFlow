@@ -22,14 +22,14 @@ async def fix_operation_status():
         print("📊 统计需要修复的数据...")
         print("=" * 60)
 
-        # 查询 operation_status 为 NULL 的记录
+        # 1.1 查询 operation_status 为 NULL 的记录
         result = await session.execute(
             select(func.count(OzonPosting.id))
             .where(OzonPosting.operation_status.is_(None))
         )
         null_count = result.scalar()
 
-        print(f"\n需要修复的记录总数: {null_count}")
+        print(f"\n【类型1】operation_status 为 NULL 的记录: {null_count}")
 
         if null_count > 0:
             print("\n按OZON状态分布:")
@@ -43,13 +43,27 @@ async def fix_operation_status():
                 if count > 0:
                     print(f"  - {status}: {count}")
 
-        if null_count == 0:
+        # 1.2 查询 status=delivering 且 operation_status=allocated 的记录
+        result = await session.execute(
+            select(func.count(OzonPosting.id))
+            .where(OzonPosting.status == "delivering")
+            .where(OzonPosting.operation_status == "allocated")
+        )
+        allocated_delivering_count = result.scalar()
+
+        print(f"\n【类型2】OZON状态为运输中但operation_status为已分配的记录: {allocated_delivering_count}")
+
+        total_need_fix = null_count + allocated_delivering_count
+
+        if total_need_fix == 0:
             print("\n✅ 没有需要修复的数据")
             return
 
         # 2. 确认是否继续
-        print(f"\n将为这 {null_count} 条记录设置 operation_status 字段")
-        confirm = input("是否继续？(y/n): ")
+        print(f"\n将修复共 {total_need_fix} 条记录:")
+        print(f"  - NULL → 对应状态: {null_count} 条")
+        print(f"  - allocated → shipping (运输中): {allocated_delivering_count} 条")
+        confirm = input("\n是否继续？(y/n): ")
         if confirm.lower() != 'y':
             print("❌ 已取消")
             return
@@ -111,7 +125,17 @@ async def fix_operation_status():
         if other_count > 0:
             print(f"✓ 设置其他状态为 awaiting_stock (默认): {other_count} 条")
 
-        total_fixed = awaiting_stock_count + shipping_count + delivered_count + cancelled_count + other_count
+        # 【新增】修复: status=delivering 且 operation_status=allocated → shipping
+        result = await session.execute(
+            update(OzonPosting)
+            .where(OzonPosting.status == "delivering")
+            .where(OzonPosting.operation_status == "allocated")
+            .values(operation_status="shipping")
+        )
+        allocated_to_shipping_count = result.rowcount
+        print(f"✓ 修复 allocated → shipping (运输中): {allocated_to_shipping_count} 条")
+
+        total_fixed = awaiting_stock_count + shipping_count + delivered_count + cancelled_count + other_count + allocated_to_shipping_count
         print(f"\n✅ 共修复 {total_fixed} 条记录")
 
         # 4. 提交事务
