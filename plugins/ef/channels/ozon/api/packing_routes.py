@@ -544,8 +544,8 @@ async def discard_posting(
                 "message": "无法获取跨境84登录凭证，请检查配置"
             }
 
-        # 调用跨境84 API 废弃订单
-        client = Kuajing84Client()
+        # 调用跨境84 API 废弃订单（增加超时时间到60秒）
+        client = Kuajing84Client(timeout=60.0)
         discard_result = await client.discard_order(posting_number, cookies)
 
         if not discard_result.get("success"):
