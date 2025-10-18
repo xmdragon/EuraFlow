@@ -165,10 +165,12 @@ async def get_statistics(
         # 构建查询条件
         product_filter = []
         order_filter = []
+        posting_filter = []
 
         if shop_id:
             product_filter.append(OzonProduct.shop_id == shop_id)
             order_filter.append(OzonOrder.shop_id == shop_id)
+            posting_filter.append(OzonPosting.shop_id == shop_id)
 
         # 商品统计 - 使用新的5种状态
         product_total_result = await db.execute(
@@ -227,9 +229,10 @@ async def get_statistics(
         )
         order_total = order_total_result.scalar() or 0
 
+        # 待处理订单改为统计"等待备货"状态的Posting数量
         order_pending_result = await db.execute(
-            select(func.count(OzonOrder.id))
-            .where(OzonOrder.status == 'pending', *order_filter)
+            select(func.count(OzonPosting.id))
+            .where(OzonPosting.status == 'awaiting_packaging', *posting_filter)
         )
         order_pending = order_pending_result.scalar() or 0
 
@@ -258,10 +261,6 @@ async def get_statistics(
         order_cancelled = order_cancelled_result.scalar() or 0
 
         # 按 OZON 状态统计订单数（Posting 级别）
-        posting_filter = []
-        if shop_id:
-            posting_filter.append(OzonPosting.shop_id == shop_id)
-
         posting_stats_result = await db.execute(
             select(
                 OzonPosting.status,
