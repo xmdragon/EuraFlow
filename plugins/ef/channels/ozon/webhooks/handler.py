@@ -317,9 +317,27 @@ class OzonWebhookHandler:
                         posting.shipped_at = utcnow()
                         logger.info(f"Posting {posting_number} shipped at {posting.shipped_at} (status: {new_status})")
 
-                # 操作状态自动更新：分配中 → 已分配
-                # 当 operation_status = "allocating" 且有追踪号码时，自动更新为 "allocated"
-                # 使用 Model 的 Helper 方法统一检查（屏蔽多层级字段复杂性）
+                # ========== operation_status 自动管理 ==========
+
+                # 【新增】0. 初始状态设置：如果 operation_status 为空，根据 OZON 状态自动设置
+                if not posting.operation_status:
+                    if new_status in ["awaiting_packaging", "awaiting_deliver"]:
+                        posting.operation_status = "awaiting_stock"
+                        logger.info(f"Set initial operation_status for posting {posting_number}: awaiting_stock (OZON status: {new_status})")
+                    elif new_status == "delivering":
+                        posting.operation_status = "shipping"
+                        logger.info(f"Set initial operation_status for posting {posting_number}: shipping (OZON status: {new_status})")
+                    elif new_status == "delivered":
+                        posting.operation_status = "delivered"
+                        logger.info(f"Set initial operation_status for posting {posting_number}: delivered (OZON status: {new_status})")
+                    elif new_status == "cancelled":
+                        posting.operation_status = "cancelled"
+                        logger.info(f"Set initial operation_status for posting {posting_number}: cancelled (OZON status: {new_status})")
+                    else:
+                        posting.operation_status = "awaiting_stock"
+                        logger.warning(f"Unknown OZON status '{new_status}' for posting {posting_number}, defaulting to awaiting_stock")
+
+                # 1. 分配中 → 已分配：检测到追踪号码
                 if posting.operation_status == "allocating" and posting.has_tracking_number():
                     posting.operation_status = "allocated"
                     logger.info(f"Auto-updated operation_status: allocating → allocated for posting {posting_number} (via webhook)")
