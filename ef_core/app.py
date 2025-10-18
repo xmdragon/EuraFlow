@@ -120,13 +120,13 @@ async def _register_core_services(plugin_host):
 async def _register_sync_service_handlers(scheduler):
     """注册同步服务处理函数到调度器
 
-    通过导入插件模块触发Handler注册（插件__init__.py中会自动注册到全局注册表）
+    通过导入插件的register_handlers模块触发Handler注册（模块级别代码会自动执行）
     """
     try:
-        # 导入OZON插件（会触发__init__.py中的Handler注册代码）
-        import plugins.ef.channels.ozon
+        # 导入OZON插件的Handler注册模块（模块级别代码会自动执行注册）
+        import plugins.ef.channels.ozon.register_handlers
 
-        # 导入系统服务插件（如果有其他插件也可以在这里导入）
+        # 导入系统服务插件
         import plugins.ef.system.sync_service
 
         logger.info("Sync service handlers registered via plugin imports")
