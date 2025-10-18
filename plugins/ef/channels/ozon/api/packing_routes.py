@@ -532,21 +532,57 @@ async def discard_posting(
         # 3. 获取跨境84服务并调用废弃接口
         from ..services.kuajing84_sync import create_kuajing84_sync_service
         from ..services.kuajing84_client import Kuajing84Client
+        from ..models.kuajing84_global_config import Kuajing84GlobalConfig
 
         kuajing84_service = create_kuajing84_sync_service(db)
 
-        # 获取有效Cookie（会自动处理登录）
-        cookies = await kuajing84_service._get_valid_cookies()
-        if not cookies:
+        # 每次操作前都重新登录获取新Cookie（强制刷新）
+        logger.info("废弃订单前先重新登录跨境84")
+
+        # 获取配置
+        config_result = await db.execute(
+            select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
+        )
+        config = config_result.scalar_one_or_none()
+
+        if not config or not config.enabled:
             return {
                 "success": False,
-                "error": "NO_COOKIES",
-                "message": "无法获取跨境84登录凭证，请检查配置"
+                "error": "NO_CONFIG",
+                "message": "跨境84未配置或未启用"
             }
 
-        # 调用跨境84 API 废弃订单（增加超时时间到60秒）
-        client = Kuajing84Client(timeout=60.0)
-        discard_result = await client.discard_order(posting_number, cookies)
+        # 解密密码
+        password = kuajing84_service._decrypt(config.password)
+
+        # 重新登录获取最新Cookie
+        client = Kuajing84Client(base_url=config.base_url, timeout=60.0)
+        try:
+            login_result = await client.login(config.username, password)
+            cookies = login_result["cookies"]
+
+            # 更新数据库中的Cookie
+            from datetime import datetime, timezone
+            config.cookie = cookies
+            config.cookie_expires_at = datetime.fromisoformat(login_result["expires_at"].replace("Z", "+00:00"))
+            await db.commit()
+
+            logger.info("跨境84登录成功，Cookie已更新")
+
+        except Exception as e:
+            logger.error(f"跨境84登录失败: {e}")
+            return {
+                "success": False,
+                "error": "LOGIN_FAILED",
+                "message": f"跨境84登录失败: {str(e)}"
+            }
+
+        # 调用跨境84 API 废弃订单
+        try:
+            discard_result = await client.discard_order(posting_number, cookies)
+        finally:
+            # 确保关闭client释放资源
+            await client.close()
 
         if not discard_result.get("success"):
             logger.error(f"跨境84废弃订单失败: {discard_result.get('message')}")

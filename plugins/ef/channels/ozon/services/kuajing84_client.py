@@ -698,6 +698,13 @@ class Kuajing84Client:
                 )
 
                 if response.status_code != 200:
+                    if response.status_code == 302:
+                        logger.error(f"查询订单返回302重定向，Cookie已过期")
+                        return {
+                            "success": False,
+                            "error": "COOKIE_EXPIRED",
+                            "message": "Cookie已过期，请重新登录"
+                        }
                     logger.error(f"查询订单失败，状态码: {response.status_code}")
                     return {
                         "success": False,
@@ -767,6 +774,13 @@ class Kuajing84Client:
                 )
 
                 if response.status_code != 200:
+                    if response.status_code == 302:
+                        logger.error(f"提交废弃请求返回302重定向，Cookie已过期")
+                        return {
+                            "success": False,
+                            "error": "COOKIE_EXPIRED",
+                            "message": "Cookie已过期，请重新登录"
+                        }
                     logger.error(f"提交废弃请求失败，状态码: {response.status_code}")
                     return {
                         "success": False,
