@@ -1317,7 +1317,10 @@ class OzonSyncService:
 
             # 方法2：从 raw_payload 获取（fallback）
             if not tracking_number and posting.raw_payload:
-                tracking_number = posting.raw_payload.get("tracking_number")
+                raw_tn = posting.raw_payload.get("tracking_number")
+                # 验证tracking_number:如果等于posting_number,说明是错误数据,忽略
+                if raw_tn and raw_tn != posting_number:
+                    tracking_number = raw_tn
 
             # 如果找到 tracking_number，更新状态
             if tracking_number:
@@ -1504,7 +1507,14 @@ class OzonSyncService:
                 db.add(package)
 
             # 更新包裹信息
-            package.tracking_number = package_data.get("tracking_number")
+            raw_tracking_number = package_data.get("tracking_number")
+            # 验证tracking_number:如果等于posting_number,说明是错误数据,设为None
+            if raw_tracking_number and raw_tracking_number == posting.posting_number:
+                logger.warning(f"Ignoring invalid tracking_number (same as posting_number) for package {package_number} in posting {posting.posting_number}")
+                package.tracking_number = None
+            else:
+                package.tracking_number = raw_tracking_number
+
             package.carrier_name = package_data.get("carrier_name")
             package.carrier_code = package_data.get("carrier_code")
             package.status = package_data.get("status")

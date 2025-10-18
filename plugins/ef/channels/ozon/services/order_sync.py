@@ -399,22 +399,28 @@ class OrderSyncService:
 
         # 处理顶层 tracking_number（如果没有 packages 数组但有 tracking_number 字段）
         if posting_data.get("tracking_number"):
-            # 检查是否已有包裹记录
-            stmt = select(OzonShipmentPackage).where(
-                OzonShipmentPackage.posting_id == posting.id
-            )
-            existing_packages = await session.scalars(stmt)
-            package_count = len(list(existing_packages))
+            raw_tracking_number = posting_data["tracking_number"]
 
-            if package_count == 0:
-                # 没有包裹记录，创建一个默认包裹
-                default_package = OzonShipmentPackage(
-                    posting_id=posting.id,
-                    package_number=f"PKG-{posting.id}-1",
-                    tracking_number=posting_data["tracking_number"]
+            # 验证tracking_number:如果等于posting_number,说明是OZON API返回的错误数据,应该忽略
+            if raw_tracking_number == posting_number:
+                logger.warning(f"Ignoring invalid tracking_number (same as posting_number) for posting {posting_number}")
+            else:
+                # 检查是否已有包裹记录
+                stmt = select(OzonShipmentPackage).where(
+                    OzonShipmentPackage.posting_id == posting.id
                 )
-                session.add(default_package)
-                logger.info(f"Created default package for posting {posting_number} with tracking_number: {posting_data['tracking_number']}")
+                existing_packages = await session.scalars(stmt)
+                package_count = len(list(existing_packages))
+
+                if package_count == 0:
+                    # 没有包裹记录，创建一个默认包裹
+                    default_package = OzonShipmentPackage(
+                        posting_id=posting.id,
+                        package_number=f"PKG-{posting.id}-1",
+                        tracking_number=raw_tracking_number
+                    )
+                    session.add(default_package)
+                    logger.info(f"Created default package for posting {posting_number} with tracking_number: {raw_tracking_number}")
 
         # 操作状态自动更新：分配中 → 已分配
         # 当 operation_status = "allocating" 且有追踪号码时，自动更新为 "allocated"
@@ -481,7 +487,14 @@ class OrderSyncService:
                 session.add(package)
 
             # 更新包裹信息
-            package.tracking_number = package_data.get("tracking_number")
+            raw_tracking_number = package_data.get("tracking_number")
+            # 验证tracking_number:如果等于posting_number,说明是错误数据,设为None
+            if raw_tracking_number and raw_tracking_number == posting.posting_number:
+                logger.warning(f"Ignoring invalid tracking_number (same as posting_number) for package {package_number}")
+                package.tracking_number = None
+            else:
+                package.tracking_number = raw_tracking_number
+
             package.carrier_name = package_data.get("carrier_name")
             package.carrier_code = package_data.get("carrier_code")
             package.status = package_data.get("status")
