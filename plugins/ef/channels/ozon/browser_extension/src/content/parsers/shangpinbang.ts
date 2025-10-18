@@ -1,5 +1,5 @@
 import type { PageDataParser, ProductData } from './base';
-import { isNullish, cleanNumber, cleanPercent, normalizeBrand } from './base';
+import { cleanNumber, cleanPercent, normalizeBrand } from './base';
 
 /**
  * 上品帮数据解析器

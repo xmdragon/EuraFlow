@@ -8,7 +8,7 @@
  */
 
 // 监听扩展安装
-chrome.runtime.onInstalled.addListener((details) => {
+chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {
   console.log('[EuraFlow] Extension installed:', details.reason);
 
   if (details.reason === 'install') {
@@ -30,7 +30,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // 监听来自内容脚本的消息
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   console.log('[EuraFlow] Message received:', message);
 
   if (message.type === 'UPLOAD_PRODUCTS') {

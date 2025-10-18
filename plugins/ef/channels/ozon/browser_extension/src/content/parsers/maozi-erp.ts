@@ -1,5 +1,5 @@
 import type { PageDataParser, ProductData } from './base';
-import { isNullish, cleanNumber, cleanPercent, normalizeBrand } from './base';
+import { normalizeBrand } from './base';
 
 /**
  * 毛子ERP数据解析器

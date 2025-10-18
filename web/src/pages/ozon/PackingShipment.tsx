@@ -993,8 +993,8 @@ const PackingShipment: React.FC = () => {
         if (!row.isFirstItem) return null;
 
         const posting = row.posting;
-        // TODO: 从 posting 中读取 operation_status，暂时用全局 operationStatus
-        const currentStatus = operationStatus;
+        // 使用 posting 的实际 operation_status，如果不存在则降级使用全局 operationStatus
+        const currentStatus = posting.operation_status || operationStatus;
 
         const handlePrepareStock = () => {
           setCurrentPosting(posting);

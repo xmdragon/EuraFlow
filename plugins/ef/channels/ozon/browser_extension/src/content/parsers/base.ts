@@ -1,5 +1,8 @@
 import type { ProductData } from '../../shared/types';
 
+// 重新导出 ProductData，供解析器实现使用
+export type { ProductData };
+
 /**
  * 页面数据解析器接口
  *

@@ -23,7 +23,7 @@ const DEFAULT_COLLECTOR_CONFIG: CollectorConfig = {
  */
 export async function getApiConfig(): Promise<ApiConfig> {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(['apiUrl', 'apiKey', 'autoUpload'], (result) => {
+    chrome.storage.sync.get(['apiUrl', 'apiKey', 'autoUpload'], (result: { [key: string]: any }) => {
       resolve({
         apiUrl: result.apiUrl || DEFAULT_API_CONFIG.apiUrl,
         apiKey: result.apiKey || DEFAULT_API_CONFIG.apiKey,
@@ -49,7 +49,7 @@ export async function setApiConfig(config: Partial<ApiConfig>): Promise<void> {
  */
 export async function getCollectorConfig(): Promise<CollectorConfig> {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(['targetCount', 'scrollDelay', 'scrollWaitTime'], (result) => {
+    chrome.storage.sync.get(['targetCount', 'scrollDelay', 'scrollWaitTime'], (result: { [key: string]: any }) => {
       resolve({
         targetCount: result.targetCount || DEFAULT_COLLECTOR_CONFIG.targetCount,
         scrollDelay: result.scrollDelay || DEFAULT_COLLECTOR_CONFIG.scrollDelay,

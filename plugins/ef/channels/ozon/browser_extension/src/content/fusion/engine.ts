@@ -101,9 +101,12 @@ export class DataFusionEngine {
     // 3.1 数值型：取最大值
     const firstValue = values[0].value;
     if (typeof firstValue === 'number') {
-      const maxValue = values.reduce((max, { value }) => {
-        return (value as number) > (max as number) ? value : max;
-      }, firstValue);
+      let maxValue = firstValue;
+      for (const { value } of values) {
+        if (typeof value === 'number' && value > maxValue) {
+          maxValue = value;
+        }
+      }
       return maxValue as ProductData[K];
     }
 
@@ -114,9 +117,12 @@ export class DataFusionEngine {
 
     // 3.3 日期型：取最新的
     if (firstValue instanceof Date) {
-      const latestDate = values.reduce((latest, { value }) => {
-        return (value as Date) > (latest as Date) ? value : latest;
-      }, firstValue);
+      let latestDate = firstValue;
+      for (const { value } of values) {
+        if (value instanceof Date && value > latestDate) {
+          latestDate = value;
+        }
+      }
       return latestDate as ProductData[K];
     }
 
