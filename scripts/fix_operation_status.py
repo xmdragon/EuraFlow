@@ -5,7 +5,7 @@
 - 已取消/已废弃 → cancelled
 """
 import asyncio
-from sqlalchemy import select, update, and_, or_
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
