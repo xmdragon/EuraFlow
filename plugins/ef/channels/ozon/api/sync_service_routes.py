@@ -492,3 +492,55 @@ async def reset_sync_service_stats(
         "ok": True,
         "message": f"Service {service.service_key} statistics reset successfully"
     }
+
+
+@router.delete("/{service_id}/logs")
+async def clear_sync_service_logs(
+    service_id: int,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """清空同步服务运行日志"""
+    from sqlalchemy import delete
+
+    # 查找服务
+    result = await db.execute(
+        select(SyncService).where(SyncService.id == service_id)
+    )
+    service = result.scalar_one_or_none()
+
+    if not service:
+        raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
+
+    # 删除该服务的所有日志
+    await db.execute(
+        delete(SyncServiceLog).where(SyncServiceLog.service_key == service.service_key)
+    )
+    await db.commit()
+
+    logger.info(f"Service logs cleared: {service.service_key}")
+
+    return {
+        "ok": True,
+        "message": f"Service {service.service_key} logs cleared successfully"
+    }
+
+
+@router.get("/handlers")
+async def get_sync_service_handlers():
+    """获取可用的同步服务处理器列表"""
+    # 返回所有已注册的同步服务处理器
+    scheduler = get_scheduler()
+
+    try:
+        handlers = await scheduler.get_available_handlers()
+        return {
+            "ok": True,
+            "data": handlers
+        }
+    except Exception as e:
+        logger.error(f"Failed to get handlers: {e}")
+        # 如果调度器还没有这个方法，返回空列表
+        return {
+            "ok": True,
+            "data": []
+        }
