@@ -146,7 +146,7 @@ async def update_shop(
         current_config.update(new_config)
         shop.config = current_config
 
-    shop.updated_at = utcnow()
+    shop.updated_at = datetime.now()
 
     await db.commit()
     await db.refresh(shop)
@@ -216,10 +216,10 @@ async def test_connection(
 
         # 如果连接成功，更新店铺状态
         if result["success"]:
-            shop.last_sync_at = utcnow()
+            shop.last_sync_at = datetime.now()
             if shop.stats is None:
                 shop.stats = {}
-            shop.stats["last_connection_test"] = utcnow().isoformat()
+            shop.stats["last_connection_test"] = datetime.now().isoformat()
             shop.stats["connection_status"] = "success"
             await db.commit()
 
@@ -308,13 +308,13 @@ async def configure_webhook(
     # 更新店铺配置（重新赋值整个字典以确保SQLAlchemy检测到变化）
     current_config = shop.config.copy() if shop.config else {}
     current_config["webhook_url"] = webhook_url
-    current_config["webhook_configured_at"] = utcnow().isoformat()
+    current_config["webhook_configured_at"] = datetime.now().isoformat()
 
     # Ozon不需要webhook_secret，设置为占位值以表示已配置
     current_config["webhook_secret"] = "ozon_no_secret_required"
 
     shop.config = current_config  # 重新赋值触发SQLAlchemy的变更检测
-    shop.updated_at = utcnow()
+    shop.updated_at = datetime.now()
 
     await db.commit()
     await db.refresh(shop)  # 刷新以获取最新数据
@@ -366,7 +366,7 @@ async def test_webhook(
     test_payload = {
         "company_id": shop.client_id,
         "event_type": "test",
-        "timestamp": utcnow().replace(tzinfo=None).isoformat() + "Z",
+        "timestamp": datetime.now().replace(tzinfo=None).isoformat() + "Z",
         "data": {
             "message": "This is a test webhook event",
             "shop_id": shop.id
@@ -387,7 +387,7 @@ async def test_webhook(
     headers = {
         "Content-Type": "application/json",
         "X-Ozon-Signature": signature,
-        "X-Event-Id": f"test-{utcnow().timestamp()}",
+        "X-Event-Id": f"test-{datetime.now().timestamp()}",
         "X-Event-Type": "test",
         "User-Agent": "Ozon-Webhook-Test/1.0"
     }
@@ -449,7 +449,7 @@ async def delete_webhook_config(
         shop.config.pop("webhook_secret", None)
         shop.config.pop("webhook_configured_at", None)
 
-    shop.updated_at = utcnow()
+    shop.updated_at = datetime.now()
     await db.commit()
 
     return {
@@ -481,7 +481,7 @@ async def trigger_sync(
         "status": "pending",
         "progress": 0,
         "message": "任务已创建，正在启动...",
-        "started_at": utcnow().isoformat(),
+        "started_at": datetime.now().isoformat(),
         "type": sync_type,
         "shop_id": shop_id
     }
@@ -514,7 +514,7 @@ async def trigger_sync(
                     "progress": 0,
                     "message": f"同步失败: {str(e)}",
                     "error": str(e),
-                    "completed_at": utcnow().isoformat(),
+                    "completed_at": datetime.now().isoformat(),
                     "type": sync_type
                 }
 
@@ -617,7 +617,7 @@ async def sync_warehouses(
                 warehouse.is_timetable_editable = wh_data.get("is_timetable_editable", False)
                 warehouse.first_mile_type = wh_data.get("first_mile_type")
                 warehouse.raw_data = wh_data
-                warehouse.updated_at = utcnow()
+                warehouse.updated_at = datetime.now()
                 updated_count += 1
             else:
                 # 创建新仓库
@@ -764,7 +764,7 @@ async def sync_all_warehouses(
                     warehouse.is_timetable_editable = wh_data.get("is_timetable_editable", False)
                     warehouse.first_mile_type = wh_data.get("first_mile_type")
                     warehouse.raw_data = wh_data
-                    warehouse.updated_at = utcnow()
+                    warehouse.updated_at = datetime.now()
                     updated_count += 1
                 else:
                     # 创建新仓库

@@ -108,8 +108,8 @@ class ProductSelectionItem(Base):
             'ozon_link': self.ozon_link,
             'image_url': self.image_url,
             'brand': self.brand,
-            'current_price': str(self.current_price) if self.current_price else None,
-            'original_price': str(self.original_price) if self.original_price else None,
+            'current_price': float(self.current_price) if self.current_price else None,
+            'original_price': float(self.original_price) if self.original_price else None,
             'rfbs_commission_low': float(self.rfbs_commission_low) if self.rfbs_commission_low else None,
             'rfbs_commission_mid': float(self.rfbs_commission_mid) if self.rfbs_commission_mid else None,
             'fbp_commission_low': float(self.fbp_commission_low) if self.fbp_commission_low else None,
@@ -121,9 +121,9 @@ class ProductSelectionItem(Base):
             'seller_type': self.seller_type,
             # 竞争对手数据
             'competitor_count': self.competitor_count,
-            'competitor_min_price': str(self.competitor_min_price) if self.competitor_min_price else None,
-            'market_min_price': str(self.market_min_price) if self.market_min_price else None,
-            'price_index': str(self.price_index) if self.price_index else None,
+            'competitor_min_price': float(self.competitor_min_price) if self.competitor_min_price else None,
+            'market_min_price': float(self.market_min_price) if self.market_min_price else None,
+            'price_index': float(self.price_index) if self.price_index else None,
             # 图片数据
             'images_data': self.images_data,
             'images_updated_at': self.images_updated_at.isoformat() if self.images_updated_at else None,
