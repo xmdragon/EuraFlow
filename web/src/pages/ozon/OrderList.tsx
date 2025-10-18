@@ -912,10 +912,6 @@ const OrderList: React.FC = () => {
           }}
           items={[
             {
-              label: `已废弃 ${stats.discarded || 0}`,
-              key: 'discarded',
-            },
-            {
               label: `等待备货 ${stats.awaiting_packaging || 0}`,
               key: 'awaiting_packaging',
             },
@@ -934,6 +930,10 @@ const OrderList: React.FC = () => {
             {
               label: `已取消 ${stats.cancelled || 0}`,
               key: 'cancelled',
+            },
+            {
+              label: `已废弃 ${stats.discarded || 0}`,
+              key: 'discarded',
             },
             {
               label: '所有',
