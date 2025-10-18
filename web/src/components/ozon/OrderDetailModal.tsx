@@ -3,6 +3,7 @@
  * 订单详情弹窗组件 - 供 OrderList 和 PackingShipment 共用
  */
 import React, { useState } from 'react';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography, Button, InputNumber, message, Space } from 'antd';
 import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import moment from 'moment';
@@ -329,7 +330,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                             onChange={(value) => setEditPurchasePrice(value?.toString() || '')}
                             placeholder="请输入进货金额"
                             min={0}
-                            precision={2}
+                            formatter={getNumberFormatter(2)}
+                            parser={getNumberParser()}
                             style={{ width: 150 }}
                             controls={false}
                           />
@@ -412,7 +414,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                             onChange={(value) => setEditMaterialCost(value?.toString() || '')}
                             placeholder="请输入打包费用"
                             min={0}
-                            precision={2}
+                            formatter={getNumberFormatter(2)}
+                            parser={getNumberParser()}
                             style={{ width: 150 }}
                             controls={false}
                           />

@@ -48,6 +48,7 @@ import {
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 
 import * as ozonApi from '@/services/ozonApi';
 import * as watermarkApi from '@/services/watermarkApi';
@@ -1558,7 +1559,8 @@ const ProductList: React.FC = () => {
             <InputNumber
               style={{ width: '100%' }}
               min={0}
-              precision={2}
+              formatter={getNumberFormatter(2)}
+              parser={getNumberParser()}
               prefix={selectedProduct ? getCurrencySymbol(selectedProduct.currency_code) : (selectedRows.length > 0 ? getCurrencySymbol(selectedRows[0].currency_code) : '¥')}
               placeholder="请输入售价"
             />
@@ -1567,7 +1569,8 @@ const ProductList: React.FC = () => {
             <InputNumber
               style={{ width: '100%' }}
               min={0}
-              precision={2}
+              formatter={getNumberFormatter(2)}
+              parser={getNumberParser()}
               prefix={selectedProduct ? getCurrencySymbol(selectedProduct.currency_code) : (selectedRows.length > 0 ? getCurrencySymbol(selectedRows[0].currency_code) : '¥')}
               placeholder="可选，用于显示折扣"
             />
@@ -1715,7 +1718,8 @@ const ProductList: React.FC = () => {
                   <InputNumber
                     style={{ width: '100%' }}
                     min={0}
-                    precision={2}
+                    formatter={getNumberFormatter(2)}
+              parser={getNumberParser()}
                     prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="请输入售价"
                   />
@@ -1726,7 +1730,8 @@ const ProductList: React.FC = () => {
                   <InputNumber
                     style={{ width: '100%' }}
                     min={0}
-                    precision={2}
+                    formatter={getNumberFormatter(2)}
+              parser={getNumberParser()}
                     prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="请输入原价"
                   />
@@ -1740,7 +1745,8 @@ const ProductList: React.FC = () => {
                   <InputNumber
                     style={{ width: '100%' }}
                     min={0}
-                    precision={2}
+                    formatter={getNumberFormatter(2)}
+              parser={getNumberParser()}
                     prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="成本价"
                   />

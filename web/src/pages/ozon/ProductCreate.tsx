@@ -3,6 +3,7 @@
  * 参照OZON官方界面设计
  */
 import React, { useState, useEffect } from 'react';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import {
   Form,
   Input,
@@ -462,7 +463,13 @@ const ProductCreate: React.FC = () => {
                   name="price"
                   rules={[{ required: true, message: '请输入售价' }]}
                 >
-                  <InputNumber min={0} precision={2} placeholder="0.00" controls={false} />
+                  <InputNumber 
+                    min={0} 
+                    placeholder="0" 
+                    controls={false}
+                    formatter={getNumberFormatter(2)}
+                    parser={getNumberParser()}
+                  />
                 </Form.Item>
               </div>
               <div className={styles.formCol}>
@@ -470,7 +477,13 @@ const ProductCreate: React.FC = () => {
                   label="原价（RUB）"
                   name="old_price"
                 >
-                  <InputNumber min={0} precision={2} placeholder="0.00" controls={false} />
+                  <InputNumber 
+                    min={0} 
+                    placeholder="0" 
+                    controls={false}
+                    formatter={getNumberFormatter(2)}
+                    parser={getNumberParser()}
+                  />
                 </Form.Item>
               </div>
             </div>
