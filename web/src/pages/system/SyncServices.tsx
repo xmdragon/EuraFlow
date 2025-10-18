@@ -461,7 +461,7 @@ const SyncServices = () => {
         rowKey="id"
         loading={loading}
         pagination={false}
-        scroll={{ x: 1400, y: 600 }}
+        scroll={{ x: 1400 }}
       />
 
       {/* 编辑服务对话框 */}
