@@ -4,8 +4,6 @@
  * 此脚本会被注入到OZON商品列表页面
  */
 
-import React from 'react';
-import ReactDOM from 'react-dom/client';
 import { ShangpinbangParser } from './parsers/shangpinbang';
 import { MaoziErpParser } from './parsers/maozi-erp';
 import { DataFusionEngine } from './fusion/engine';
@@ -16,11 +14,9 @@ import { ControlPanel } from './components/ControlPanel';
 
 console.log('[EuraFlow] Content script loaded');
 
-// 检测当前页面是否为OZON商品列表页面
+// 检测当前页面是否为OZON页面
 function isProductListPage(): boolean {
-  const url = window.location.href;
-  return url.includes('ozon.ru') &&
-         (url.includes('/category/') || url.includes('/search/'));
+  return window.location.href.includes('ozon.ru');
 }
 
 // 等待DOM加载完成
@@ -60,18 +56,11 @@ async function init() {
   const collector = new ProductCollector(fusionEngine, apiClient, collectorConfig);
 
   // 6. 创建并挂载控制面板
-  const panelContainer = document.createElement('div');
-  panelContainer.id = 'ef-control-panel-root';
-  document.body.appendChild(panelContainer);
-
-  const root = ReactDOM.createRoot(panelContainer);
-  root.render(
-    React.createElement(ControlPanel, {
-      fusionEngine,
-      collector,
-      config: collectorConfig
-    })
-  );
+  ControlPanel({
+    fusionEngine,
+    collector,
+    config: collectorConfig
+  });
 
   console.log('[EuraFlow] Initialization complete');
 }
