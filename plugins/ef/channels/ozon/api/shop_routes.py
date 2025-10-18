@@ -146,7 +146,7 @@ async def update_shop(
         current_config.update(new_config)
         shop.config = current_config
 
-    shop.updated_at = datetime.now()
+    shop.updated_at = utcnow()
 
     await db.commit()
     await db.refresh(shop)
@@ -216,10 +216,10 @@ async def test_connection(
 
         # 如果连接成功，更新店铺状态
         if result["success"]:
-            shop.last_sync_at = datetime.now()
+            shop.last_sync_at = utcnow()
             if shop.stats is None:
                 shop.stats = {}
-            shop.stats["last_connection_test"] = datetime.now().isoformat()
+            shop.stats["last_connection_test"] = utcnow().isoformat()
             shop.stats["connection_status"] = "success"
             await db.commit()
 
@@ -308,13 +308,13 @@ async def configure_webhook(
     # 更新店铺配置（重新赋值整个字典以确保SQLAlchemy检测到变化）
     current_config = shop.config.copy() if shop.config else {}
     current_config["webhook_url"] = webhook_url
-    current_config["webhook_configured_at"] = datetime.now().isoformat()
+    current_config["webhook_configured_at"] = utcnow().isoformat()
 
     # Ozon不需要webhook_secret，设置为占位值以表示已配置
     current_config["webhook_secret"] = "ozon_no_secret_required"
 
     shop.config = current_config  # 重新赋值触发SQLAlchemy的变更检测
-    shop.updated_at = datetime.now()
+    shop.updated_at = utcnow()
 
     await db.commit()
     await db.refresh(shop)  # 刷新以获取最新数据
@@ -449,7 +449,7 @@ async def delete_webhook_config(
         shop.config.pop("webhook_secret", None)
         shop.config.pop("webhook_configured_at", None)
 
-    shop.updated_at = datetime.now()
+    shop.updated_at = utcnow()
     await db.commit()
 
     return {
@@ -617,7 +617,7 @@ async def sync_warehouses(
                 warehouse.is_timetable_editable = wh_data.get("is_timetable_editable", False)
                 warehouse.first_mile_type = wh_data.get("first_mile_type")
                 warehouse.raw_data = wh_data
-                warehouse.updated_at = datetime.now()
+                warehouse.updated_at = utcnow()
                 updated_count += 1
             else:
                 # 创建新仓库
@@ -764,7 +764,7 @@ async def sync_all_warehouses(
                     warehouse.is_timetable_editable = wh_data.get("is_timetable_editable", False)
                     warehouse.first_mile_type = wh_data.get("first_mile_type")
                     warehouse.raw_data = wh_data
-                    warehouse.updated_at = datetime.now()
+                    warehouse.updated_at = utcnow()
                     updated_count += 1
                 else:
                     # 创建新仓库

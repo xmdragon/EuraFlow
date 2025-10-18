@@ -18,6 +18,7 @@ import {
   PictureOutlined,
   RollbackOutlined,
 } from '@ant-design/icons';
+import styles from './ImagePreview.module.scss';
 
 interface ImagePreviewProps {
   images: string[];

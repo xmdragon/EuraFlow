@@ -6,6 +6,7 @@ import logging
 import pandas as pd
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
+from ..utils.datetime_utils import utcnow
 from decimal import Decimal
 from pathlib import Path
 import time
@@ -705,7 +706,7 @@ class ProductSelectionService:
                     # 存在则更新（默认策略）
                     for key, value in item.items():
                         setattr(existing_item, key, value)
-                    existing_item.updated_at = datetime.now()
+                    existing_item.updated_at = utcnow()
                     updated += 1
                 else:
                     # 不存在则追加

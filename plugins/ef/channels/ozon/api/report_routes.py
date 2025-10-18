@@ -452,7 +452,7 @@ async def get_posting_report(
             profit = order_amount - (purchase_price + ozon_commission + intl_logistics + last_mile + material_cost)
 
             # 计算利润率
-            profit_rate = float((profit / order_amount * 100)) if order_amount > 0 else 0.0
+            profit_rate = (profit / order_amount * 100) if order_amount > 0 else Decimal('0.0')
 
             report_data.append({
                 'posting_number': posting.posting_number,

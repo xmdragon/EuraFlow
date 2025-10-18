@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, cast, Numeric, Text
 from datetime import datetime
+from ..utils.datetime_utils import utcnow
 from decimal import Decimal
 import logging
 
@@ -378,7 +379,7 @@ async def sync_products(
                     reserved=item.get("stocks", {}).get("reserved", 0),
                     images=images_data,
                     sync_status="success",
-                    last_sync_at=datetime.now()
+                    last_sync_at=utcnow()
                 )
                 db.add(product)
             else:
@@ -407,7 +408,7 @@ async def sync_products(
                 if images_data:
                     product.images = images_data
                 product.sync_status = "success"
-                product.last_sync_at = datetime.now()
+                product.last_sync_at = utcnow()
 
             synced_count += 1
 
@@ -509,7 +510,7 @@ async def update_prices(
                     product.price = Decimal(str(new_price))
                     if old_price:
                         product.old_price = Decimal(str(old_price))
-                    product.updated_at = datetime.now()
+                    product.updated_at = utcnow()
 
                     updated_count += 1
                 else:
@@ -621,7 +622,7 @@ async def update_stocks(
                     # 更新本地数据库
                     product.stock = int(stock)
                     product.available = int(stock)  # 简化：认为所有库存都可用
-                    product.updated_at = datetime.now()
+                    product.updated_at = utcnow()
 
                     updated_count += 1
                 else:
@@ -703,7 +704,7 @@ async def sync_single_product(
             if item.get("old_price"):
                 product.old_price = Decimal(str(item.get("old_price")))
             product.sync_status = "success"
-            product.last_sync_at = datetime.now()
+            product.last_sync_at = utcnow()
 
             await db.commit()
 
@@ -774,7 +775,7 @@ async def update_product(
             product.visibility = bool(product_data["visibility"])
             product.status = "active" if product.visibility else "inactive"
 
-        product.updated_at = datetime.now()
+        product.updated_at = utcnow()
         await db.commit()
 
         return {
@@ -809,7 +810,7 @@ async def archive_product(
         product.is_archived = True
         product.status = "archived"
         product.visibility = False
-        product.updated_at = datetime.now()
+        product.updated_at = utcnow()
 
         await db.commit()
 
@@ -985,7 +986,7 @@ async def import_products(
                         visibility=row.get('可见性', '').strip() in ['是', 'true', '1', 'yes'],
                         is_archived=row.get('归档状态', '').strip() in ['是', 'true', '1', 'yes'],
                         sync_status="imported",
-                        last_sync_at=datetime.now()
+                        last_sync_at=utcnow()
                     )
                     db.add(product)
                 else:
@@ -1011,7 +1012,7 @@ async def import_products(
                     if row.get('归档状态'):
                         product.is_archived = row.get('归档状态').strip() in ['是', 'true', '1', 'yes']
                     product.sync_status = "imported"
-                    product.last_sync_at = datetime.now()
+                    product.last_sync_at = utcnow()
 
                 imported_count += 1
 
