@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { SCENARIOS } from './constants';
 import ScenarioCard from './ScenarioCard';
-import { matchScenario } from '../ozon/profitCalculator';
+import { matchScenario, matchAllScenarios } from '../ozon/profitCalculator';
 import { getExchangeRate } from '@/services/exchangeRateApi';
 
 const { Title, Text } = Typography;
@@ -36,20 +36,23 @@ const ProfitCalculatorV2: React.FC = () => {
   });
   const exchangeRate = exchangeRateData ? parseFloat((exchangeRateData as any).rate) : null;
 
-  // 自动匹配场景
-  const matchedScenario = useMemo(() => {
+  // 自动匹配所有符合条件的场景
+  const matchedScenarios = useMemo(() => {
     if (!inputData.price || !inputData.weight || !exchangeRate) {
-      return null;
+      return [];
     }
-    return matchScenario(inputData.weight, inputData.price, exchangeRate);
+    return matchAllScenarios(inputData.weight, inputData.price, exchangeRate);
   }, [inputData.price, inputData.weight, exchangeRate]);
+
+  // 主要匹配场景（运费最低的那个）
+  const primaryScenario = matchedScenarios.length > 0 ? matchedScenarios[0] : null;
 
   // 当匹配的场景发生变化时，自动切换标签页
   useEffect(() => {
-    if (matchedScenario) {
-      setActiveKey(matchedScenario.id);
+    if (primaryScenario) {
+      setActiveKey(primaryScenario.id);
     }
-  }, [matchedScenario]);
+  }, [primaryScenario]);
 
   // 处理表单值变化
   const handleFormChange = (changedValues: any) => {
@@ -108,7 +111,7 @@ const ProfitCalculatorV2: React.FC = () => {
             <Col span={12}>
               <Card size="small" title="场景匹配信息" type="inner">
                 <Space direction="vertical" style={{ width: '100%' }}>
-                  {matchedScenario ? (
+                  {primaryScenario ? (
                     <>
                       <Row justify="space-between">
                         <Col>
@@ -116,16 +119,26 @@ const ProfitCalculatorV2: React.FC = () => {
                         </Col>
                         <Col>
                           <Text strong style={{ color: '#52c41a' }}>
-                            {matchedScenario.icon} {matchedScenario.title}
+                            {primaryScenario.icon} {primaryScenario.title}
                           </Text>
                         </Col>
                       </Row>
+                      {matchedScenarios.length > 1 && (
+                        <Row justify="space-between">
+                          <Col>
+                            <Text>其他方案：</Text>
+                          </Col>
+                          <Col>
+                            <Tag color="orange">{matchedScenarios.length}个方案可选</Tag>
+                          </Col>
+                        </Row>
+                      )}
                       <Row justify="space-between">
                         <Col>
                           <Text>重量范围：</Text>
                         </Col>
                         <Col>
-                          <Tag color="blue">{matchedScenario.weightRange}</Tag>
+                          <Tag color="blue">{primaryScenario.weightRange}</Tag>
                         </Col>
                       </Row>
                       <Row justify="space-between">
@@ -133,7 +146,7 @@ const ProfitCalculatorV2: React.FC = () => {
                           <Text>价格范围：</Text>
                         </Col>
                         <Col>
-                          <Tag color="green">{matchedScenario.priceRange}</Tag>
+                          <Tag color="green">{primaryScenario.priceRange}</Tag>
                         </Col>
                       </Row>
                       <Divider style={{ margin: '8px 0' }} />
@@ -142,7 +155,7 @@ const ProfitCalculatorV2: React.FC = () => {
                           <Text>平台扣点：</Text>
                         </Col>
                         <Col>
-                          <Text strong>{(matchedScenario.defaultPlatformRate * 100).toFixed(1)}%</Text>
+                          <Text strong>{(primaryScenario.defaultPlatformRate * 100).toFixed(1)}%</Text>
                         </Col>
                       </Row>
                       <Row justify="space-between">
@@ -150,7 +163,7 @@ const ProfitCalculatorV2: React.FC = () => {
                           <Text>运费公式：</Text>
                         </Col>
                         <Col>
-                          <Text code style={{ fontSize: 11 }}>{matchedScenario.shipping.formula}</Text>
+                          <Text code style={{ fontSize: 11 }}>{primaryScenario.shipping.formula}</Text>
                         </Col>
                       </Row>
                     </>
@@ -174,27 +187,71 @@ const ProfitCalculatorV2: React.FC = () => {
         <Tabs
           activeKey={activeKey}
           onChange={setActiveKey}
-          items={SCENARIOS.map((scenario) => ({
-            key: scenario.id,
-            label: (
-              <Space>
-                <span style={{ fontSize: '18px' }}>{scenario.icon}</span>
-                <Text strong>{scenario.title}</Text>
-                <Tag color="blue">{scenario.weightRange}</Tag>
-                {matchedScenario?.id === scenario.id && (
-                  <Tag color="success">当前匹配</Tag>
-                )}
-              </Space>
-            ),
-            children: (
-              <ScenarioCard
-                scenario={scenario}
-                sharedInputData={inputData}
-                exchangeRate={exchangeRate}
-                isMatched={matchedScenario?.id === scenario.id}
-              />
-            ),
-          }))}
+          items={SCENARIOS.map((scenario) => {
+            // 检查是否有同组的多个场景匹配
+            const sameGroupMatched = matchedScenarios.filter(
+              s => s.matchGroup === scenario.matchGroup && s.matchGroup !== undefined
+            );
+            const isMatched = matchedScenarios.some(m => m.id === scenario.id);
+            const hasMultipleMatches = sameGroupMatched.length > 1;
+
+            return {
+              key: scenario.id,
+              label: (
+                <Space>
+                  <span style={{ fontSize: '18px' }}>{scenario.icon}</span>
+                  <Text strong>{scenario.title}</Text>
+                  <Tag color="blue">{scenario.weightRange}</Tag>
+                  {isMatched && (
+                    <Tag color="success">当前匹配</Tag>
+                  )}
+                  {hasMultipleMatches && scenario.id === sameGroupMatched[0].id && (
+                    <Tag color="orange">多方案</Tag>
+                  )}
+                </Space>
+              ),
+              children: (() => {
+                // 如果有同组的多个场景匹配，且当前是该组第一个场景，则并排显示
+                if (hasMultipleMatches && scenario.id === sameGroupMatched[0].id) {
+                  return (
+                    <Row gutter={16}>
+                      {sameGroupMatched.map(s => (
+                        <Col span={12} key={s.id}>
+                          <Card
+                            size="small"
+                            title={
+                              <Space>
+                                <span>{s.icon}</span>
+                                <Text strong>{s.title}</Text>
+                              </Space>
+                            }
+                            style={{ marginBottom: 16 }}
+                          >
+                            <ScenarioCard
+                              scenario={s}
+                              sharedInputData={inputData}
+                              exchangeRate={exchangeRate}
+                              isMatched={matchedScenarios.some(m => m.id === s.id)}
+                            />
+                          </Card>
+                        </Col>
+                      ))}
+                    </Row>
+                  );
+                }
+
+                // 单独显示
+                return (
+                  <ScenarioCard
+                    scenario={scenario}
+                    sharedInputData={inputData}
+                    exchangeRate={exchangeRate}
+                    isMatched={isMatched}
+                  />
+                );
+              })(),
+            };
+          })}
         />
       </Card>
     </div>

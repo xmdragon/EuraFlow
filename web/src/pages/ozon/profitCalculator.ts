@@ -174,3 +174,55 @@ export function formatMaxCost(maxCost: number | null): string {
 
   return maxCost.toFixed(2);
 }
+
+/**
+ * 匹配所有符合条件的场景
+ * @param weightG 商品重量（克）
+ * @param priceRMB 商品价格（人民币）
+ * @param exchangeRate 汇率（CNY→RUB），用于将场景的RUB价格范围转换为RMB
+ * @returns 所有匹配的场景数组（按运费从低到高排序）
+ */
+export function matchAllScenarios(
+  weightG: number,
+  priceRMB: number,
+  exchangeRate?: number
+): ScenarioConfig[] {
+  const matched: ScenarioConfig[] = [];
+
+  // 遍历所有场景，找到所有满足条件的
+  for (const scenario of SCENARIOS) {
+    const { conditions } = scenario;
+
+    // 检查重量是否满足
+    const weightMatch =
+      (conditions.minWeight === undefined || weightG >= conditions.minWeight) &&
+      (conditions.maxWeight === undefined || weightG <= conditions.maxWeight);
+
+    // 检查价格是否满足
+    // 场景条件中的价格是 RUB，需要转换为 RMB 后再匹配
+    let minPriceRMB = conditions.minPrice;
+    let maxPriceRMB = conditions.maxPrice;
+
+    if (exchangeRate && exchangeRate > 0) {
+      // 将场景的 RUB 价格范围转换为 RMB：RUB ÷ 汇率 = RMB
+      minPriceRMB = conditions.minPrice !== undefined ? conditions.minPrice / exchangeRate : undefined;
+      maxPriceRMB = conditions.maxPrice !== undefined ? conditions.maxPrice / exchangeRate : undefined;
+    }
+
+    const priceMatch =
+      (minPriceRMB === undefined || priceRMB >= minPriceRMB) &&
+      (maxPriceRMB === undefined || priceRMB <= maxPriceRMB);
+
+    // 如果同时满足重量和价格条件，加入匹配列表
+    if (weightMatch && priceMatch) {
+      matched.push(scenario);
+    }
+  }
+
+  // 按运费从低到高排序
+  return matched.sort((a, b) => {
+    const shippingA = a.shipping.base + a.shipping.rate * weightG;
+    const shippingB = b.shipping.base + b.shipping.rate * weightG;
+    return shippingA - shippingB;
+  });
+}

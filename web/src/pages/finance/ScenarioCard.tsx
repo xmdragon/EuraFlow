@@ -152,6 +152,16 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
         style={{ marginBottom: 16 }}
       >
         <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          {scenario.transportMode && (
+            <Row justify="space-between">
+              <Col><Text>运输方式：</Text></Col>
+              <Col>
+                <Tag color={scenario.transportMode === 'land' ? 'green' : 'blue'}>
+                  {scenario.transportMode === 'land' ? '陆运/纯陆' : '陆空'}
+                </Tag>
+              </Col>
+            </Row>
+          )}
           <Row justify="space-between">
             <Col><Text>重量范围：</Text></Col>
             <Col><Tag color="blue">{scenario.weightRange}</Tag></Col>
