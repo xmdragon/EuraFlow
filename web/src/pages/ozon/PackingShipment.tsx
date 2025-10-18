@@ -749,6 +749,19 @@ const PackingShipment: React.FC = () => {
     },
   });
 
+  // 废弃订单
+  const discardOrderMutation = useMutation({
+    mutationFn: (postingNumber: string) => ozonApi.discardOrder(postingNumber),
+    onSuccess: () => {
+      message.success('订单已废弃');
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      refetch();
+    },
+    onError: (error: any) => {
+      message.error(`废弃失败: ${error.response?.data?.message || error.message}`);
+    },
+  });
+
   // 表格列定义（商品维度 - 4列布局）
   const columns: any[] = [
     // 第一列：商品图片（160x160固定容器，可点击打开OZON商品页）
@@ -998,26 +1011,59 @@ const PackingShipment: React.FC = () => {
           setDomesticTrackingModalVisible(true);
         };
 
+        const handleDiscardOrder = () => {
+          confirm({
+            title: '确认废弃订单？',
+            content: `货件号: ${posting.posting_number}。废弃后订单将同步到跨境84并更新为取消状态。`,
+            okText: '确认废弃',
+            okType: 'danger',
+            cancelText: '取消',
+            onOk: () => {
+              discardOrderMutation.mutate(posting.posting_number);
+            },
+          });
+        };
+
         return {
           children: (
             <Space direction="vertical" size="small">
               {currentStatus === 'awaiting_stock' && (
-                <Button type="primary" size="small" block onClick={handlePrepareStock}>
-                  备货
-                </Button>
+                <>
+                  <Button type="primary" size="small" block onClick={handlePrepareStock}>
+                    备货
+                  </Button>
+                  <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                    废弃
+                  </Button>
+                </>
               )}
               {currentStatus === 'allocating' && (
-                <Button type="default" size="small" block onClick={handleUpdateBusinessInfo}>
-                  备注
-                </Button>
+                <>
+                  <Button type="default" size="small" block onClick={handleUpdateBusinessInfo}>
+                    备注
+                  </Button>
+                  <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                    废弃
+                  </Button>
+                </>
               )}
               {currentStatus === 'allocated' && (
-                <Button type="primary" size="small" block onClick={handleSubmitTracking}>
-                  国内单号
-                </Button>
+                <>
+                  <Button type="primary" size="small" block onClick={handleSubmitTracking}>
+                    国内单号
+                  </Button>
+                  <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                    废弃
+                  </Button>
+                </>
               )}
               {currentStatus === 'tracking_confirmed' && (
-                <Tag color="success">已完成</Tag>
+                <>
+                  <Tag color="success">已完成</Tag>
+                  <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                    废弃
+                  </Button>
+                </>
               )}
             </Space>
           ),

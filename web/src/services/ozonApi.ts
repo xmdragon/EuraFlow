@@ -505,6 +505,12 @@ export const cancelOrder = async (postingNumber: string, reason: string) => {
   return response.data;
 };
 
+// 废弃订单（同步到跨境84并更新本地状态）
+export const discardOrder = async (postingNumber: string) => {
+  const response = await apiClient.post(`/ozon/packing/postings/${postingNumber}/discard`);
+  return response.data;
+};
+
 // ==================== 统计相关 API ====================
 
 export interface Statistics {

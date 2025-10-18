@@ -485,3 +485,106 @@ async def prepare_order(
             "error": "PREPARE_FAILED",
             "message": f"备货失败: {str(e)}"
         }
+
+
+@router.post("/postings/{posting_number}/discard")
+async def discard_posting(
+    posting_number: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    废弃订单（同步到跨境84并更新本地状态）
+
+    流程说明:
+    1. 获取跨境84有效Cookie
+    2. 通过 posting_number 查询跨境84订单获取 oid
+    3. 提交废弃请求到跨境84
+    4. 更新本地 OzonPosting 的 operation_status 为 'cancelled'
+
+    Args:
+        posting_number: 发货单号
+
+    Returns:
+        废弃结果，包含成功/失败信息
+    """
+    try:
+        # 1. 验证 posting 是否存在
+        result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = result.scalar_one_or_none()
+
+        if not posting:
+            return {
+                "success": False,
+                "error": "POSTING_NOT_FOUND",
+                "message": f"发货单 {posting_number} 不存在"
+            }
+
+        # 2. 检查是否已经是取消状态
+        if posting.operation_status == "cancelled":
+            return {
+                "success": False,
+                "error": "ALREADY_CANCELLED",
+                "message": "订单已经是取消状态"
+            }
+
+        # 3. 获取跨境84服务并调用废弃接口
+        from ..services.kuajing84_sync import create_kuajing84_sync_service
+        from ..services.kuajing84_client import Kuajing84Client
+
+        kuajing84_service = create_kuajing84_sync_service(db)
+
+        # 获取有效Cookie（会自动处理登录）
+        cookies = await kuajing84_service._get_valid_cookies()
+        if not cookies:
+            return {
+                "success": False,
+                "error": "NO_COOKIES",
+                "message": "无法获取跨境84登录凭证，请检查配置"
+            }
+
+        # 调用跨境84 API 废弃订单
+        client = Kuajing84Client()
+        discard_result = await client.discard_order(posting_number, cookies)
+
+        if not discard_result.get("success"):
+            logger.error(f"跨境84废弃订单失败: {discard_result.get('message')}")
+            return {
+                "success": False,
+                "error": "KUAJING84_DISCARD_FAILED",
+                "message": discard_result.get("message", "废弃订单失败")
+            }
+
+        # 4. 更新本地数据库状态为 'cancelled'
+        await db.execute(
+            update(OzonPosting)
+            .where(OzonPosting.id == posting.id)
+            .values(
+                operation_status="cancelled",
+                updated_at=utcnow()
+            )
+        )
+        await db.commit()
+
+        logger.info(f"订单 {posting_number} 已成功废弃")
+
+        return {
+            "success": True,
+            "message": "订单废弃成功",
+            "data": {
+                "posting_number": posting_number,
+                "operation_status": "cancelled"
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"废弃订单失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        await db.rollback()
+        return {
+            "success": False,
+            "error": "DISCARD_FAILED",
+            "message": f"废弃订单失败: {str(e)}"
+        }

@@ -630,3 +630,185 @@ class Kuajing84Client:
                     "code": -1,
                     "message": f"搜索异常: {str(e)}"
                 }
+
+    async def discard_order(
+        self,
+        posting_number: str,
+        cookies: List[Dict],
+    ) -> Dict[str, any]:
+        """
+        废弃订单（两步操作）
+
+        步骤1：通过 posting_number 查询订单获取 oid
+        步骤2：提交废弃请求
+
+        Args:
+            posting_number: 货件编号（OZON posting number）
+            cookies: Cookie 列表
+
+        Returns:
+            废弃结果:
+            {
+                "success": True/False,
+                "message": "结果消息"
+            }
+        """
+        logger.info(f"开始废弃订单，posting_number: {posting_number}")
+
+        # 将 cookies 列表转换为字典
+        cookies_dict = {c["name"]: c["value"] for c in cookies}
+
+        async with httpx.AsyncClient(
+            cookies=cookies_dict,
+            timeout=self.timeout
+        ) as client:
+            try:
+                # 步骤1：查询订单获取 oid
+                logger.debug(f"步骤1: 查询订单 {posting_number} 获取 oid")
+
+                search_form_data = {
+                    "page": "1",
+                    "limit": "15",
+                    "platform_id": "0",
+                    "shipping_carrier": "0",
+                    "is_discard": "1",
+                    "country": "",
+                    "account": "",
+                    "group_id": "",
+                    "shop_id": "",
+                    "sku": "",
+                    "goods_num": "",
+                    "order_number": posting_number,
+                    "order_status": "",
+                    "tracking_no": "",
+                    "warehouse": "",
+                    "place_time": "",
+                    "is_save_search": "1",
+                    "order_type": "status DESC,place_time DESC",
+                    "order_type_id": "1"
+                }
+
+                response = await client.post(
+                    f"{self.base_url}/index/Accountorder/order_list_purchase",
+                    data=search_form_data,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+
+                if response.status_code != 200:
+                    logger.error(f"查询订单失败，状态码: {response.status_code}")
+                    return {
+                        "success": False,
+                        "message": f"查询订单失败，状态码: {response.status_code}"
+                    }
+
+                # 解析查询响应
+                try:
+                    result = response.json()
+                    logger.debug(f"查询响应: {result}")
+
+                    if result.get("code") != 0:
+                        logger.error(f"查询订单返回错误: {result}")
+                        return {
+                            "success": False,
+                            "message": f"查询订单失败: {result.get('msg', '未知错误')}"
+                        }
+
+                    count = result.get("count", 0)
+                    if count != 1:
+                        logger.warning(f"订单查询结果数量异常: {count}")
+                        return {
+                            "success": False,
+                            "message": f"订单不存在或查询结果异常（count={count}）"
+                        }
+
+                    # 提取 oid
+                    data_list = result.get("data", [])
+                    if not data_list or not isinstance(data_list, list):
+                        logger.error("查询响应数据格式异常")
+                        return {
+                            "success": False,
+                            "message": "查询响应数据格式异常"
+                        }
+
+                    oid = data_list[0].get("id")
+                    if not oid:
+                        logger.error("无法获取订单 oid")
+                        return {
+                            "success": False,
+                            "message": "无法获取订单 oid"
+                        }
+
+                    logger.info(f"成功获取订单 oid: {oid}")
+
+                except Exception as e:
+                    logger.error(f"解析查询响应失败: {e}")
+                    return {
+                        "success": False,
+                        "message": f"解析查询响应失败: {e}"
+                    }
+
+                # 步骤2：提交废弃请求
+                logger.debug(f"步骤2: 提交废弃请求，oid={oid}")
+
+                discard_form_data = {
+                    "oid": str(oid)
+                }
+
+                response = await client.post(
+                    f"{self.base_url}/index/Orderinfo/auto_order_info_submit",
+                    data=discard_form_data,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                )
+
+                if response.status_code != 200:
+                    logger.error(f"提交废弃请求失败，状态码: {response.status_code}")
+                    return {
+                        "success": False,
+                        "message": f"提交废弃请求失败，状态码: {response.status_code}"
+                    }
+
+                # 解析废弃响应
+                try:
+                    result = response.json()
+                    logger.debug(f"废弃响应: {result}")
+
+                    msg = result.get("msg", "")
+                    if msg == "获取成功":
+                        logger.info(f"订单 {posting_number} 废弃成功")
+                        return {
+                            "success": True,
+                            "message": "订单废弃成功"
+                        }
+                    else:
+                        logger.error(f"订单废弃失败，返回消息: {msg}")
+                        return {
+                            "success": False,
+                            "message": f"订单废弃失败: {msg}"
+                        }
+
+                except Exception as e:
+                    logger.error(f"解析废弃响应失败: {e}")
+                    logger.error(f"响应内容: {response.text[:500]}")
+                    return {
+                        "success": False,
+                        "message": f"解析废弃响应失败: {e}"
+                    }
+
+            except httpx.TimeoutException:
+                logger.error("废弃订单请求超时")
+                return {
+                    "success": False,
+                    "message": "请求超时，请稍后重试"
+                }
+            except Exception as e:
+                logger.error(f"废弃订单异常: {e}", exc_info=True)
+                return {
+                    "success": False,
+                    "message": f"废弃订单异常: {str(e)}"
+                }
