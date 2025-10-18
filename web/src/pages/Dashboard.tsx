@@ -16,6 +16,7 @@ import {
   DollarOutlined,
   CloudUploadOutlined,
   PlusOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
 import React, { Suspense, lazy, useState, useEffect } from 'react';
@@ -24,6 +25,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 // 路由懒加载
 const FinanceCalculator = lazy(() => import('./finance'));
 const OzonManagement = lazy(() => import('./ozon'));
+const SystemManagement = lazy(() => import('./system'));
 const Profile = lazy(() => import('./Profile'));
 const Settings = lazy(() => import('./Settings'));
 const UserManagement = lazy(() => import('./UserManagement'));
@@ -165,12 +167,6 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate('/dashboard/ozon/api-keys'),
         },
         {
-          key: 'ozon-sync-services',
-          icon: <SyncOutlined />,
-          label: '后台服务',
-          onClick: () => navigate('/dashboard/ozon/sync-services'),
-        },
-        {
           key: 'ozon-settings',
           icon: <SettingOutlined />,
           label: '店铺设置',
@@ -189,6 +185,19 @@ const Dashboard: React.FC = () => {
       icon: <DollarOutlined />,
       label: '汇率管理',
       onClick: () => navigate('/dashboard/exchange-rate'),
+    },
+    {
+      key: 'system',
+      icon: <AppstoreOutlined />,
+      label: '系统管理',
+      children: [
+        {
+          key: 'system-sync-services',
+          icon: <SyncOutlined />,
+          label: '后台服务',
+          onClick: () => navigate('/dashboard/system/sync-services'),
+        },
+      ],
     },
     {
       key: 'settings',
@@ -217,9 +226,9 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/chat')) return 'ozon-chats';
     if (path.includes('/ozon/watermark')) return 'ozon-watermark';
     if (path.includes('/ozon/api-keys')) return 'ozon-api-keys';
-    if (path.includes('/ozon/sync-services')) return 'ozon-sync-services';
     if (path.includes('/ozon/settings')) return 'ozon-settings';
     if (path.includes('/ozon')) return 'ozon-dashboard';
+    if (path.includes('/system/sync-services')) return 'system-sync-services';
     if (path.includes('/finance')) return 'finance';
     if (path.includes('/exchange-rate')) return 'exchange-rate';
     if (path.includes('/users')) return 'users';
@@ -232,6 +241,7 @@ const Dashboard: React.FC = () => {
   const getOpenKeys = () => {
     const path = location.pathname;
     if (path.includes('/ozon')) return ['ozon'];
+    if (path.includes('/system')) return ['system'];
     return [];
   };
 
@@ -304,6 +314,7 @@ const Dashboard: React.FC = () => {
                 }
               />
               <Route path="/ozon/*" element={<OzonManagement />} />
+              <Route path="/system/*" element={<SystemManagement />} />
               <Route path="/finance" element={<FinanceCalculator />} />
               <Route path="/exchange-rate" element={<ExchangeRateManagement />} />
               <Route path="/profile" element={<Profile />} />
