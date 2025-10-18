@@ -511,16 +511,25 @@ async def clear_sync_service_logs(
     if not service:
         raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
 
+    # 先查询要删除的日志数量
+    count_result = await db.execute(
+        select(SyncServiceLog).where(SyncServiceLog.service_key == service.service_key)
+    )
+    deleted_count = len(count_result.scalars().all())
+
     # 删除该服务的所有日志
     await db.execute(
         delete(SyncServiceLog).where(SyncServiceLog.service_key == service.service_key)
     )
     await db.commit()
 
-    logger.info(f"Service logs cleared: {service.service_key}")
+    logger.info(f"Service logs cleared: {service.service_key}, deleted {deleted_count} logs")
 
     return {
         "ok": True,
+        "data": {
+            "deleted_count": deleted_count
+        },
         "message": f"Service {service.service_key} logs cleared successfully"
     }
 
