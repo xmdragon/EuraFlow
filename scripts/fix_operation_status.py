@@ -43,15 +43,17 @@ async def fix_operation_status():
                 if count > 0:
                     print(f"  - {status}: {count}")
 
-        # 1.2 查询 status=delivering 且 operation_status=allocated 的记录
+        # 1.2 查询 status=delivering 且 operation_status=allocated 且有国内单号的记录
         result = await session.execute(
             select(func.count(OzonPosting.id))
             .where(OzonPosting.status == "delivering")
             .where(OzonPosting.operation_status == "allocated")
+            .where(OzonPosting.domestic_tracking_number.isnot(None))
+            .where(OzonPosting.domestic_tracking_number != "")
         )
         allocated_delivering_count = result.scalar()
 
-        print(f"\n【类型2】OZON状态为运输中但operation_status为已分配的记录: {allocated_delivering_count}")
+        print(f"\n【类型2】OZON状态为运输中、有国内单号、但operation_status为已分配的记录: {allocated_delivering_count}")
 
         total_need_fix = null_count + allocated_delivering_count
 
@@ -62,7 +64,8 @@ async def fix_operation_status():
         # 2. 确认是否继续
         print(f"\n将修复共 {total_need_fix} 条记录:")
         print(f"  - NULL → 对应状态: {null_count} 条")
-        print(f"  - allocated → shipping (运输中): {allocated_delivering_count} 条")
+        print(f"  - allocated → shipping (运输中且有国内单号): {allocated_delivering_count} 条")
+        print(f"\n注意：运输中但没有国内单号的订单将保持 allocated 状态")
         confirm = input("\n是否继续？(y/n): ")
         if confirm.lower() != 'y':
             print("❌ 已取消")
@@ -125,15 +128,18 @@ async def fix_operation_status():
         if other_count > 0:
             print(f"✓ 设置其他状态为 awaiting_stock (默认): {other_count} 条")
 
-        # 【新增】修复: status=delivering 且 operation_status=allocated → shipping
+        # 【新增】修复: status=delivering 且 operation_status=allocated 且有国内单号 → shipping
+        # 注意：没有国内单号的运输中订单保持 allocated 状态
         result = await session.execute(
             update(OzonPosting)
             .where(OzonPosting.status == "delivering")
             .where(OzonPosting.operation_status == "allocated")
+            .where(OzonPosting.domestic_tracking_number.isnot(None))
+            .where(OzonPosting.domestic_tracking_number != "")
             .values(operation_status="shipping")
         )
         allocated_to_shipping_count = result.rowcount
-        print(f"✓ 修复 allocated → shipping (运输中): {allocated_to_shipping_count} 条")
+        print(f"✓ 修复 allocated → shipping (运输中且有国内单号): {allocated_to_shipping_count} 条")
 
         total_fixed = awaiting_stock_count + shipping_count + delivered_count + cancelled_count + other_count + allocated_to_shipping_count
         print(f"\n✅ 共修复 {total_fixed} 条记录")
