@@ -21,6 +21,7 @@ const { Title, Text } = Typography;
 
 // OZON 状态中文映射
 const OZON_STATUS_NAME_MAP: Record<string, string> = {
+  'awaiting_registration': '待登记',
   'awaiting_packaging': '待打包',
   'awaiting_deliver': '待发货',
   'delivering': '运输中',
