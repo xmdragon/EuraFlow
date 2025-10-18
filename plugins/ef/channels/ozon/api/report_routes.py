@@ -439,7 +439,7 @@ async def get_posting_report(
                     })
 
             # 计算订单金额
-            order_amount = Decimal(str(order.total_price or order.total_amount or '0'))
+            order_amount = Decimal(str(order.total_price or '0'))
 
             # 获取posting维度的费用字段
             purchase_price = posting.purchase_price or Decimal('0')
@@ -590,7 +590,7 @@ async def get_report_summary(
 
         for posting, order, shop_name in postings_data:
             # 订单金额
-            order_amount = Decimal(str(order.total_price or order.total_amount or '0'))
+            order_amount = Decimal(str(order.total_price or '0'))
 
             # 费用字段
             purchase = posting.purchase_price or Decimal('0')
@@ -687,7 +687,7 @@ async def get_report_summary(
         prev_total_material = Decimal('0')
 
         for posting, order in prev_postings_data:
-            order_amount = Decimal(str(order.total_price or order.total_amount or '0'))
+            order_amount = Decimal(str(order.total_price or '0'))
             purchase = posting.purchase_price or Decimal('0')
             commission = posting.ozon_commission_cny or Decimal('0')
             intl_log = posting.international_logistics_fee_cny or Decimal('0')
