@@ -568,8 +568,6 @@ plugins/ef/channels/ozon/browser_extension/
 
 ### 必须包含的文件
 ```
-✅ manifest.json              - 扩展清单配置
-✅ README.md                   - 安装和使用说明
 ✅ dist/manifest.json          - 构建后的清单
 ✅ dist/service-worker-loader.js - 后台服务加载器
 ✅ dist/assets/*.js            - 所有 JS 构建产物
@@ -579,6 +577,7 @@ plugins/ef/channels/ozon/browser_extension/
 
 ### 必须排除的文件/目录
 ```
+❌ README.md                  - 内部文档（用户不需要）
 ❌ dist/.vite/                - Vite 构建缓存（会被自动生成）
 ❌ dist/icons/                - 空目录（manifest 未配置图标）
 ❌ node_modules/              - 依赖包（不应打包到扩展中）
@@ -605,20 +604,14 @@ rm -f euraflow-ozon-selector-v*.zip
 
 #### 3. 创建 ZIP 包（排除不必要文件）
 ```bash
-# 方法1：从 dist 目录打包核心文件
+# 标准打包命令（推荐）
 cd dist && \
 zip -r ../euraflow-ozon-selector-v1.0.0.zip \
   manifest.json \
   service-worker-loader.js \
   assets/ \
   src/ \
-  -x "*.map" && \
-cd .. && \
-zip -g euraflow-ozon-selector-v1.0.0.zip README.md
-
-# 方法2：使用排除模式（推荐）
-zip -r euraflow-ozon-selector-v1.0.0.zip dist/ README.md \
-  -x "dist/.vite/*" "dist/.vite" "dist/icons/*" "dist/icons" "*.map"
+  -x "*.map"
 ```
 
 #### 4. 验证打包内容
@@ -640,9 +633,9 @@ cp euraflow-ozon-selector-v1.0.0.zip /home/grom/EuraFlow/web/public/downloads/
 ```
 
 ### 预期结果
-- **文件数量**：约 14-16 个文件
-- **包大小**：60-65 KB
-- **结构清晰**：只包含运行必需的文件
+- **文件数量**：12 个文件
+- **包大小**：约 59 KB
+- **结构清晰**：只包含运行必需的文件（不含 README.md）
 
 ### 版本命名规范
 ```
@@ -658,7 +651,9 @@ euraflow-ozon-selector-v{major}.{minor}.{patch}.zip
 - [ ] 已运行 `npm run build`
 - [ ] ZIP 包不包含 `.vite/` 目录
 - [ ] ZIP 包不包含空的 `icons/` 目录
-- [ ] 包大小在合理范围（60-65KB）
+- [ ] ZIP 包不包含 `README.md`
+- [ ] 包大小在合理范围（约 59KB）
+- [ ] 文件数量正确（12个文件）
 - [ ] 已复制到 `web/public/downloads/`
 - [ ] 已提交到 Git 仓库
 - [ ] 已推送到远程仓库
@@ -669,21 +664,27 @@ euraflow-ozon-selector-v{major}.{minor}.{patch}.zip
 **错误1：包含 .vite 构建缓存**
 ```bash
 # 问题：ZIP 包过大，包含 dist/.vite/ 目录
-# 解决：使用 -x 参数排除
-zip -r euraflow-ozon-selector-v1.0.0.zip dist/ README.md -x "dist/.vite/*"
+# 解决：在 dist/ 目录内打包，不会包含 .vite
+cd dist && zip -r ../euraflow-ozon-selector-v1.0.0.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map"
 ```
 
 **错误2：包含空的 icons 目录**
 ```bash
 # 问题：manifest.json 未配置图标，但 dist/icons/ 被打包
-# 解决：排除空目录
-zip -r euraflow-ozon-selector-v1.0.0.zip dist/ README.md -x "dist/icons/*"
+# 解决：在 dist/ 目录内打包，只指定需要的目录
 ```
 
-**错误3：误打包了源代码**
+**错误3：包含了 README.md**
+```bash
+# 问题：打包了 README.md 内部文档
+# 解决：不要使用 zip -g 添加 README.md
+# 只打包 dist/ 目录内的文件
+```
+
+**错误4：误打包了源代码**
 ```bash
 # 问题：打包了 src/ 源代码目录
-# 解决：只打包 dist/ 和 README.md
+# 解决：只打包 dist/ 内容
 # 注意：dist/src/ 是必需的（包含 popup.html）
 ```
 

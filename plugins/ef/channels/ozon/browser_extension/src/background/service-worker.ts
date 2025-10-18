@@ -22,10 +22,8 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
       scrollWaitTime: 1000
     });
 
-    // 打开欢迎页面
-    chrome.tabs.create({
-      url: 'https://github.com/anthropics/euraflow'
-    });
+    // 不再自动打开欢迎页面，用户可以从扩展图标访问配置
+    console.log('[EuraFlow] Extension installed successfully. Please configure API settings.');
   }
 });
 
