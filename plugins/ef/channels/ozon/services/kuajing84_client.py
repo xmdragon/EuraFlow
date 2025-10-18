@@ -764,13 +764,13 @@ class Kuajing84Client:
                     }
 
                 # 步骤2：提交废弃请求
-                logger.info(f"步骤2: 提交废弃请求，oid={oid}")
+                logger.info(f"步骤2: 提交废弃请求，id={oid}")
 
                 discard_form_data = {
-                    "oid": str(oid)
+                    "id": str(oid)
                 }
 
-                discard_url = f"{self.base_url}/index/Orderinfo/auto_order_info_submit"
+                discard_url = f"{self.base_url}/index/accountorder/order_del.html"
                 logger.info(f"🚮 请求2 - 提交废弃")
                 logger.info(f"URL: {discard_url}")
                 logger.info(f"POST数据: {discard_form_data}")
@@ -804,15 +804,16 @@ class Kuajing84Client:
                     logger.info(f"✅ 废弃响应状态码: {response.status_code}")
                     logger.info(f"✅ 废弃响应内容: {result}")
 
+                    code = result.get("code")
                     msg = result.get("msg", "")
-                    if msg == "获取成功":
+                    if code == 200 and msg == "废弃成功":
                         logger.info(f"订单 {posting_number} 废弃成功")
                         return {
                             "success": True,
                             "message": "订单废弃成功"
                         }
                     else:
-                        logger.error(f"订单废弃失败，返回消息: {msg}")
+                        logger.error(f"订单废弃失败，返回码: {code}, 消息: {msg}")
                         return {
                             "success": False,
                             "message": f"订单废弃失败: {msg}"
