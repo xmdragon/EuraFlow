@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "EuraFlow OZON选品助手",
+  "version": "1.0.0",
+  "description": "智能采集OZON商品数据，支持上品帮和毛子ERP数据融合",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://www.ozon.ru/*",
+    "https://ozon.gxfc.life/*",
+    "http://localhost:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.ozon.ru/*"],
+      "js": ["src/content/main.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "public/icons/icon-16.png",
+      "48": "public/icons/icon-48.png",
+      "128": "public/icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "public/icons/icon-16.png",
+    "48": "public/icons/icon-48.png",
+    "128": "public/icons/icon-128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/ui/*"],
+      "matches": ["https://www.ozon.ru/*"]
+    }
+  ]
+}

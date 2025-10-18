@@ -1,0 +1,332 @@
+.ef-control-panel {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  width: 360px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 999999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+
+  &.minimized {
+    width: 280px;
+
+    .panel-body {
+      display: none;
+    }
+  }
+
+  /* 标题栏 */
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px 12px 0 0;
+    color: #ffffff;
+    cursor: move;
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 15px;
+
+      .title-icon {
+        font-size: 18px;
+      }
+    }
+
+    .panel-controls {
+      display: flex;
+      gap: 8px;
+
+      button {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: #ffffff;
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+      }
+    }
+  }
+
+  /* 主体内容 */
+  .panel-body {
+    padding: 16px;
+    max-height: 600px;
+    overflow-y: auto;
+
+    .section {
+      margin-bottom: 16px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333333;
+      margin: 0 0 10px 0;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+  }
+
+  /* 数据源状态 */
+  .source-status {
+    .source-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .source-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #f9fafb;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+
+      &.active {
+        background: #ecfdf5;
+        border-color: #6ee7b7;
+
+        .status-dot {
+          background: #10b981;
+        }
+      }
+
+      &.inactive {
+        .status-dot {
+          background: #9ca3af;
+        }
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+
+      .source-name {
+        font-weight: 500;
+        color: #374151;
+        flex: 1;
+      }
+
+      .field-count {
+        font-size: 12px;
+        color: #6b7280;
+      }
+    }
+
+    .fusion-stats {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #fef3c7;
+      border-radius: 6px;
+      border: 1px solid #fbbf24;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      .stat-item {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+
+        .stat-label {
+          color: #78350f;
+        }
+
+        .stat-value {
+          font-weight: 600;
+          color: #78350f;
+
+          &.highlight {
+            color: #d97706;
+          }
+        }
+      }
+    }
+
+    .warning-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      margin-top: 8px;
+
+      .warning-icon {
+        font-size: 16px;
+      }
+
+      .warning-text {
+        font-size: 13px;
+        color: #991b1b;
+        flex: 1;
+      }
+    }
+  }
+
+  /* 采集配置 */
+  .collection-config {
+    .config-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .config-label {
+        font-weight: 500;
+        color: #374151;
+        white-space: nowrap;
+      }
+
+      .config-input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+
+        &:focus {
+          outline: none;
+          border-color: #667eea;
+        }
+
+        &:disabled {
+          background: #f9fafb;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+
+  /* 按钮 */
+  .collection-control {
+    button {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #ffffff;
+
+      &:not(:disabled):hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #ffffff;
+
+      &:hover {
+        background: #dc2626;
+      }
+    }
+  }
+
+  /* 进度显示 */
+  .progress-section {
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        transition: width 0.3s ease;
+      }
+    }
+
+    .progress-text {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+
+      .spinner {
+        animation: spin 1s linear infinite;
+      }
+    }
+  }
+
+  /* 错误列表 */
+  .errors-section {
+    .section-title {
+      color: #dc2626;
+    }
+
+    .error-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      .error-item {
+        padding: 8px 10px;
+        background: #fef2f2;
+        border: 1px solid #fca5a5;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #991b1b;
+        word-break: break-word;
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

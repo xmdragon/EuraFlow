@@ -1,0 +1,26 @@
+{
+  "name": "euraflow-ozon-selector",
+  "version": "1.0.0",
+  "description": "EuraFlow OZON选品助手浏览器扩展",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.21",
+    "@types/chrome": "^0.0.268",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "sass": "^1.69.5",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
+  }
+}

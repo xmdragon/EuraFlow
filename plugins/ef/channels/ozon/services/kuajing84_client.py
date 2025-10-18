@@ -664,7 +664,7 @@ class Kuajing84Client:
         ) as client:
             try:
                 # 步骤1：查询订单获取 oid
-                logger.debug(f"步骤1: 查询订单 {posting_number} 获取 oid")
+                logger.info(f"步骤1: 查询订单 {posting_number} 获取 oid")
 
                 search_form_data = {
                     "page": "1",
@@ -688,8 +688,13 @@ class Kuajing84Client:
                     "order_type_id": "1"
                 }
 
+                search_url = f"{self.base_url}/index/Accountorder/order_list_purchase"
+                logger.info(f"🔍 请求1 - 查询订单")
+                logger.info(f"URL: {search_url}")
+                logger.info(f"POST数据: {search_form_data}")
+
                 response = await client.post(
-                    f"{self.base_url}/index/Accountorder/order_list_purchase",
+                    search_url,
                     data=search_form_data,
                     headers={
                         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -714,7 +719,8 @@ class Kuajing84Client:
                 # 解析查询响应
                 try:
                     result = response.json()
-                    logger.debug(f"查询响应: {result}")
+                    logger.info(f"✅ 查询响应状态码: {response.status_code}")
+                    logger.info(f"✅ 查询响应内容: {result}")
 
                     if result.get("code") != 0:
                         logger.error(f"查询订单返回错误: {result}")
@@ -758,14 +764,19 @@ class Kuajing84Client:
                     }
 
                 # 步骤2：提交废弃请求
-                logger.debug(f"步骤2: 提交废弃请求，oid={oid}")
+                logger.info(f"步骤2: 提交废弃请求，oid={oid}")
 
                 discard_form_data = {
                     "oid": str(oid)
                 }
 
+                discard_url = f"{self.base_url}/index/Orderinfo/auto_order_info_submit"
+                logger.info(f"🚮 请求2 - 提交废弃")
+                logger.info(f"URL: {discard_url}")
+                logger.info(f"POST数据: {discard_form_data}")
+
                 response = await client.post(
-                    f"{self.base_url}/index/Orderinfo/auto_order_info_submit",
+                    discard_url,
                     data=discard_form_data,
                     headers={
                         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -790,7 +801,8 @@ class Kuajing84Client:
                 # 解析废弃响应
                 try:
                     result = response.json()
-                    logger.debug(f"废弃响应: {result}")
+                    logger.info(f"✅ 废弃响应状态码: {response.status_code}")
+                    logger.info(f"✅ 废弃响应内容: {result}")
 
                     msg = result.get("msg", "")
                     if msg == "获取成功":

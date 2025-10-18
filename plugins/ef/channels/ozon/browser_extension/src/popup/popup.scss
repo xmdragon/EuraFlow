@@ -1,0 +1,234 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  width: 420px;
+  min-height: 600px;
+}
+
+.popup-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.popup-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  text-align: center;
+
+  h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .version {
+    margin: 5px 0 0 0;
+    font-size: 12px;
+    opacity: 0.9;
+  }
+}
+
+.popup-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+
+  h2 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .hint {
+    margin: 6px 0 0 0;
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.4;
+  }
+}
+
+/* 表单样式 */
+.form-group {
+  margin-bottom: 14px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &.checkbox-group {
+    margin-top: 10px;
+  }
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  &[type='number'] {
+    appearance: textfield;
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      appearance: none;
+      margin: 0;
+    }
+  }
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+
+  .form-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+}
+
+/* 按钮样式 */
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+
+  &:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+
+  &:not(:disabled):hover {
+    background: #e5e7eb;
+  }
+}
+
+.btn-save {
+  width: 100%;
+  padding: 10px 16px;
+}
+
+.button-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* 测试结果 */
+.test-result {
+  font-size: 13px;
+  font-weight: 500;
+
+  &.success {
+    color: #10b981;
+  }
+
+  &.error {
+    color: #ef4444;
+  }
+}
+
+/* 保存消息 */
+.save-message {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
+
+  &.success {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  &.error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+}
+
+/* 使用说明 */
+.usage-section {
+  .usage-list {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.6;
+
+    li {
+      margin-bottom: 8px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+.popup-footer {
+  margin-top: auto;
+  padding: 12px 20px;
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+  border-top: 1px solid #e5e7eb;
+
+  p {
+    margin: 0;
+  }
+}
