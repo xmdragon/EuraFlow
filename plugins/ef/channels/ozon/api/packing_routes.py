@@ -487,7 +487,7 @@ async def prepare_order(
         }
 
 
-@router.post("/postings/{posting_number}/discard")
+@router.post("/packing/postings/{posting_number}/discard")
 async def discard_posting(
     posting_number: str,
     db: AsyncSession = Depends(get_async_session)
