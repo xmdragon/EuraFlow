@@ -150,61 +150,29 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
         maxWidth: '90vw',
         top: '5vh',
       }}
-      styles={{
-        body: {
-          padding: 0,
-          position: 'relative',
-          backgroundColor: '#fff',
-          borderRadius: '8px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
-          overflow: 'hidden',
-        }
-      }}
       modalRender={(modal) => (
-        <div style={{ pointerEvents: 'auto' }}>
+        <div className={styles.modalWrapper}>
           {modal}
         </div>
       )}
     >
-      <div style={{
-        position: 'relative',
-        display: 'inline-block',
-        backgroundColor: '#f0f0f0',
-        minWidth: '400px',
-        minHeight: '300px',
-      }}>
+      <div className={styles.container}>
         {/* 加载动画 - 当loading或没有图片时显示 */}
         {(loading || !hasImages) && (
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 10,
-          }}>
+          <div className={styles.loadingWrapper}>
             <Spin size="large" tip="加载图片中..." />
           </div>
         )}
 
         {/* 图片 - 只有当有图片时才渲染 */}
         {hasImages && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px',
-            minHeight: '300px',
-          }}>
+          <div className={styles.imageDisplay}>
             <img
               src={images[currentIndex]}
               alt={`预览图片 ${currentIndex + 1}`}
+              className={styles.previewImage}
               style={{
-                maxWidth: '70vw',
-                maxHeight: '70vh',
-                display: 'block',
                 transform: `scale(${scale}) rotate(${rotate}deg)`,
-                transition: 'transform 0.3s ease',
-                userSelect: 'none',
               }}
               onLoad={() => setLoading(false)}
               onError={() => {
@@ -222,18 +190,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
             type="text"
             icon={<LeftOutlined />}
             onClick={handlePrevious}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              color: 'white',
-              border: 'none',
-              fontSize: '18px',
-              height: '40px',
-              width: '40px',
-            }}
+            className={styles.navButtonLeft}
           />
         )}
 
@@ -243,18 +200,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
             type="text"
             icon={<RightOutlined />}
             onClick={handleNext}
-            style={{
-              position: 'absolute',
-              right: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              color: 'white',
-              border: 'none',
-              fontSize: '18px',
-              height: '40px',
-              width: '40px',
-            }}
+            className={styles.navButtonRight}
           />
         )}
 
@@ -263,110 +209,76 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
           type="text"
           icon={<CloseOutlined />}
           onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            color: 'white',
-            border: 'none',
-            fontSize: '18px',
-            height: '36px',
-            width: '36px',
-          }}
+          className={styles.closeButton}
         />
 
         {/* 顶部信息栏 - 只在有多张图片时显示 */}
         {hasImages && images.length > 1 && (
-          <div style={{
-            position: 'absolute',
-            top: 10,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            color: 'white',
-            padding: '4px 12px',
-            borderRadius: '4px',
-            fontSize: '14px',
-          }}>
+          <div className={styles.imageCounter}>
             {currentIndex + 1} / {images.length}
           </div>
         )}
 
         {/* 底部工具栏 - 只在有图片时显示 */}
         {hasImages && (
-          <div style={{
-          position: 'absolute',
-          bottom: 10,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          padding: '8px',
-          borderRadius: '4px',
-        }}>
+          <div className={styles.toolbar}>
           <Space>
             <Button
               type="text"
               icon={<ZoomOutOutlined />}
               onClick={handleZoomOut}
-              style={{ color: 'white', border: 'none' }}
+              className={styles.toolbarButton}
               title="缩小"
             />
-            <span style={{ color: 'white', minWidth: '50px', textAlign: 'center' }}>
+            <span className={styles.zoomDisplay}>
               {Math.round(scale * 100)}%
             </span>
             <Button
               type="text"
               icon={<ZoomInOutlined />}
               onClick={handleZoomIn}
-              style={{ color: 'white', border: 'none' }}
+              className={styles.toolbarButton}
               title="放大"
             />
             <Button
               type="text"
               icon={<RotateLeftOutlined />}
               onClick={handleRotateLeft}
-              style={{ color: 'white', border: 'none' }}
+              className={styles.toolbarButton}
               title="向左旋转"
             />
             <Button
               type="text"
               icon={<RotateRightOutlined />}
               onClick={handleRotateRight}
-              style={{ color: 'white', border: 'none' }}
+              className={styles.toolbarButton}
               title="向右旋转"
             />
             <Button
               type="text"
               icon={<DownloadOutlined />}
               onClick={handleDownload}
-              style={{ color: 'white', border: 'none' }}
+              className={styles.toolbarButton}
               title="下载图片"
             />
 
             {/* 分隔线和水印操作按钮 */}
             {productInfo && onWatermark && onRestore && (
               <>
-                <div style={{
-                  width: '1px',
-                  height: '20px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                  margin: '0 8px',
-                  display: 'inline-block'
-                }} />
+                <div className={styles.divider} />
 
                 <Button
                   type="text"
                   icon={<PictureOutlined />}
                   onClick={onWatermark}
-                  style={{ color: 'white', border: 'none' }}
+                  className={styles.toolbarButton}
                   title="应用水印"
                 />
                 <Button
                   type="text"
                   icon={<RollbackOutlined />}
                   onClick={onRestore}
-                  style={{ color: 'white', border: 'none' }}
+                  className={styles.toolbarButton}
                   title="还原原图"
                 />
               </>

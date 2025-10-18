@@ -159,3 +159,122 @@
 .navButton:hover {
   background: rgba(0, 0, 0, 0.8);
 }
+
+// Modal specific styles
+.modalBody {
+  padding: 0;
+  position: relative;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.modalWrapper {
+  pointer-events: auto;
+}
+
+.container {
+  position: relative;
+  display: inline-block;
+  background-color: #f0f0f0;
+  min-width: 400px;
+  min-height: 300px;
+}
+
+.loadingWrapper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+.imageDisplay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  min-height: 300px;
+}
+
+.previewImage {
+  max-width: 70vw;
+  max-height: 70vh;
+  display: block;
+  transition: transform 0.3s ease;
+  user-select: none;
+}
+
+.navButtonLeft {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  font-size: 18px;
+  height: 40px;
+  width: 40px;
+}
+
+.navButtonRight {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  font-size: 18px;
+  height: 40px;
+  width: 40px;
+}
+
+.closeButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  font-size: 18px;
+  height: 36px;
+  width: 36px;
+}
+
+.imageCounter {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.toolbar {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.toolbarButton {
+  color: white;
+  border: none;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background-color: rgba(255, 255, 255, 0.3);
+  margin: 0 8px;
+  display: inline-block;
+}
