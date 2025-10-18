@@ -527,9 +527,10 @@ export interface Statistics {
     shipped: number;
     delivered: number;
     cancelled: number;
+    by_ozon_status: Record<string, number>;  // 按 OZON 状态分组的订单数
   };
   revenue: {
-    today: string;
+    yesterday: string;  // 改为昨日销售额
     week: string;
     month: string;
   };

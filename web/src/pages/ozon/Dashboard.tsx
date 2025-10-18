@@ -19,6 +19,19 @@ import styles from './Dashboard.module.scss';
 
 const { Title, Text } = Typography;
 
+// OZON 状态中文映射
+const OZON_STATUS_NAME_MAP: Record<string, string> = {
+  'awaiting_packaging': '待打包',
+  'awaiting_deliver': '待发货',
+  'delivering': '运输中',
+  'delivered': '已送达',
+  'cancelled': '已取消',
+  'acceptance_in_progress': '验收中',
+  'arbitration': '仲裁中',
+  'client_arbitration': '客户仲裁',
+  'sent_by_seller': '卖家已发货',
+};
+
 const OzonDashboard: React.FC = () => {
   // 初始化为 null 表示"全部店铺"
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -75,9 +88,10 @@ const OzonDashboard: React.FC = () => {
       shipped: statisticsData?.orders?.shipped || 0,
       delivered: statisticsData?.orders?.delivered || 0,
       cancelled: statisticsData?.orders?.cancelled || 0,
+      byOzonStatus: statisticsData?.orders?.by_ozon_status || {},
     },
     revenue: {
-      today: statisticsData?.revenue?.today || 0,
+      yesterday: statisticsData?.revenue?.yesterday || 0,
       week: statisticsData?.revenue?.week || 0,
       month: statisticsData?.revenue?.month || 0,
     },
@@ -153,8 +167,8 @@ const OzonDashboard: React.FC = () => {
         <Col xs={24} sm={12} md={6}>
           <Card className={styles.statSuccess}>
             <Statistic
-              title="今日销售额"
-              value={stats.revenue.today}
+              title="昨日销售额"
+              value={stats.revenue.yesterday}
               precision={2}
               prefix="¥"
             />
@@ -218,30 +232,23 @@ const OzonDashboard: React.FC = () => {
         </Col>
 
         <Col xs={24} lg={12}>
-          <Card title="订单统计" extra={<ShoppingCartOutlined />}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Statistic title="处理中" value={stats.orders.processing} />
-              </Col>
-              <Col span={12}>
-                <Statistic title="已发货" value={stats.orders.shipped} />
-              </Col>
-              <Col span={12} className={styles.orderStatCol}>
-                <Card className={styles.orderStatDelivered}>
-                  <Statistic
-                    title="已完成"
-                    value={stats.orders.delivered}
-                  />
-                </Card>
-              </Col>
-              <Col span={12} className={styles.orderStatCol}>
-                <Card className={styles.orderStatCancelled}>
-                  <Statistic
-                    title="已取消"
-                    value={stats.orders.cancelled}
-                  />
-                </Card>
-              </Col>
+          <Card title="订单统计（按OZON状态）" extra={<ShoppingCartOutlined />}>
+            <Row gutter={[8, 8]}>
+              {Object.entries(stats.orders.byOzonStatus).map(([status, count]) => (
+                <Col span={12} key={status}>
+                  <Card>
+                    <Statistic
+                      title={OZON_STATUS_NAME_MAP[status] || status}
+                      value={count}
+                    />
+                  </Card>
+                </Col>
+              ))}
+              {Object.keys(stats.orders.byOzonStatus).length === 0 && (
+                <Col span={24}>
+                  <Text type="secondary">暂无订单数据</Text>
+                </Col>
+              )}
             </Row>
           </Card>
         </Col>

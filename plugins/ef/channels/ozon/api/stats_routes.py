@@ -158,7 +158,7 @@ async def get_statistics(
     Returns:
         统计数据
     """
-    from ..models import OzonShop, OzonProduct, OzonOrder
+    from ..models import OzonShop, OzonProduct, OzonOrder, OzonPosting
     from sqlalchemy import select, func
 
     try:
@@ -257,22 +257,41 @@ async def get_statistics(
         )
         order_cancelled = order_cancelled_result.scalar() or 0
 
-        # 收入统计（今日、本周、本月）
+        # 按 OZON 状态统计订单数（Posting 级别）
+        posting_filter = []
+        if shop_id:
+            posting_filter.append(OzonPosting.shop_id == shop_id)
+
+        posting_stats_result = await db.execute(
+            select(
+                OzonPosting.status,
+                func.count(OzonPosting.id).label('count')
+            )
+            .where(*posting_filter)
+            .group_by(OzonPosting.status)
+        )
+        posting_stats_rows = posting_stats_result.all()
+
+        # 转换为字典
+        ozon_status_counts = {row.status: row.count for row in posting_stats_rows}
+
+        # 收入统计（昨日、本周、本月）
         now = utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
         week_start = today_start - timedelta(days=now.weekday())
         month_start = today_start.replace(day=1)
 
-        # 今日收入
-        today_revenue_result = await db.execute(
+        # 昨日收入（按订单创建时间 ordered_at）
+        yesterday_revenue_result = await db.execute(
             select(func.sum(OzonOrder.total_price))
             .where(
-                OzonOrder.created_at >= today_start,
-                OzonOrder.status.in_(['delivered', 'shipped']),
+                OzonOrder.ordered_at >= yesterday_start,
+                OzonOrder.ordered_at < today_start,
                 *order_filter
             )
         )
-        today_revenue = today_revenue_result.scalar() or Decimal('0')
+        yesterday_revenue = yesterday_revenue_result.scalar() or Decimal('0')
 
         # 本周收入
         week_revenue_result = await db.execute(
@@ -313,10 +332,11 @@ async def get_statistics(
                 "processing": order_processing,
                 "shipped": order_shipped,
                 "delivered": order_delivered,
-                "cancelled": order_cancelled
+                "cancelled": order_cancelled,
+                "by_ozon_status": ozon_status_counts
             },
             "revenue": {
-                "today": str(today_revenue),
+                "yesterday": str(yesterday_revenue),
                 "week": str(week_revenue),
                 "month": str(month_revenue)
             }
