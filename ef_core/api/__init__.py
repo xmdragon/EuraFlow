@@ -36,11 +36,28 @@ api_router.include_router(system_router, prefix="/system", tags=["System"])
 api_router.include_router(finance_router, tags=["Finance"])
 
 # Load plugin routes dynamically
-try:
-    # Import Ozon plugin to get its router
-    from plugins.ef.channels.ozon import get_router
 
-    ozon_router = get_router()
+# 1. Load System Sync Service plugin routes
+try:
+    from plugins.ef.system.sync_service import get_router as get_sync_service_router
+
+    sync_service_router = get_sync_service_router()
+    if sync_service_router:
+        # Plugin router already has /sync-services prefix
+        api_router.include_router(sync_service_router)
+        logger.info("Loaded System Sync Service plugin routes")
+    else:
+        logger.warning("System Sync Service plugin has no routes")
+except ImportError as e:
+    logger.warning(f"Could not import System Sync Service plugin: {e}")
+except Exception as e:
+    logger.error(f"Error loading System Sync Service plugin routes: {e}")
+
+# 2. Load Ozon plugin routes
+try:
+    from plugins.ef.channels.ozon import get_router as get_ozon_router
+
+    ozon_router = get_ozon_router()
     if ozon_router:
         # Plugin router already has /ozon prefix, don't add another one
         api_router.include_router(ozon_router)
