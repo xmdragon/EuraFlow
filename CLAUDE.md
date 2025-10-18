@@ -556,7 +556,148 @@ router.include_router(product_router)
 
 ---
 
-## 19) 术语表（Glossary）
+## 19) 浏览器扩展打包规范
+
+### 打包目标
+为 OZON 选品助手浏览器扩展创建干净、优化的分发包，仅包含运行所需的必要文件。
+
+### 扩展目录位置
+```
+plugins/ef/channels/ozon/browser_extension/
+```
+
+### 必须包含的文件
+```
+✅ manifest.json              - 扩展清单配置
+✅ README.md                   - 安装和使用说明
+✅ dist/manifest.json          - 构建后的清单
+✅ dist/service-worker-loader.js - 后台服务加载器
+✅ dist/assets/*.js            - 所有 JS 构建产物
+✅ dist/assets/*.css           - 所有 CSS 构建产物
+✅ dist/src/popup/popup.html  - 弹窗 HTML 模板
+```
+
+### 必须排除的文件/目录
+```
+❌ dist/.vite/                - Vite 构建缓存（会被自动生成）
+❌ dist/icons/                - 空目录（manifest 未配置图标）
+❌ node_modules/              - 依赖包（不应打包到扩展中）
+❌ src/                       - 源代码（已编译到 dist/）
+❌ *.map                      - Source Map 文件（生产环境不需要）
+❌ .vscode/                   - 编辑器配置
+❌ package-lock.json          - NPM 锁文件
+❌ tsconfig.json              - TypeScript 配置
+❌ vite.config.ts             - Vite 配置
+```
+
+### 标准打包流程
+
+#### 1. 确保扩展已构建
+```bash
+cd plugins/ef/channels/ozon/browser_extension
+npm run build
+```
+
+#### 2. 清理旧的打包文件
+```bash
+rm -f euraflow-ozon-selector-v*.zip
+```
+
+#### 3. 创建 ZIP 包（排除不必要文件）
+```bash
+# 方法1：从 dist 目录打包核心文件
+cd dist && \
+zip -r ../euraflow-ozon-selector-v1.0.0.zip \
+  manifest.json \
+  service-worker-loader.js \
+  assets/ \
+  src/ \
+  -x "*.map" && \
+cd .. && \
+zip -g euraflow-ozon-selector-v1.0.0.zip README.md
+
+# 方法2：使用排除模式（推荐）
+zip -r euraflow-ozon-selector-v1.0.0.zip dist/ README.md \
+  -x "dist/.vite/*" "dist/.vite" "dist/icons/*" "dist/icons" "*.map"
+```
+
+#### 4. 验证打包内容
+```bash
+# 查看文件列表
+unzip -l euraflow-ozon-selector-v1.0.0.zip
+
+# 检查文件大小（应该在 60-65KB 范围）
+ls -lh euraflow-ozon-selector-v1.0.0.zip
+
+# 确认没有 .vite 和 icons 目录
+unzip -l euraflow-ozon-selector-v1.0.0.zip | grep -E "\.vite|icons/"
+# 上述命令应该没有输出
+```
+
+#### 5. 复制到 Web 下载目录
+```bash
+cp euraflow-ozon-selector-v1.0.0.zip /home/grom/EuraFlow/web/public/downloads/
+```
+
+### 预期结果
+- **文件数量**：约 14-16 个文件
+- **包大小**：60-65 KB
+- **结构清晰**：只包含运行必需的文件
+
+### 版本命名规范
+```
+euraflow-ozon-selector-v{major}.{minor}.{patch}.zip
+
+示例：
+- v1.0.0 - 初始版本
+- v1.1.0 - 新增功能
+- v1.0.1 - Bug 修复
+```
+
+### 部署检查清单
+- [ ] 已运行 `npm run build`
+- [ ] ZIP 包不包含 `.vite/` 目录
+- [ ] ZIP 包不包含空的 `icons/` 目录
+- [ ] 包大小在合理范围（60-65KB）
+- [ ] 已复制到 `web/public/downloads/`
+- [ ] 已提交到 Git 仓库
+- [ ] 已推送到远程仓库
+- [ ] 远程服务器已同步
+
+### 常见错误与解决
+
+**错误1：包含 .vite 构建缓存**
+```bash
+# 问题：ZIP 包过大，包含 dist/.vite/ 目录
+# 解决：使用 -x 参数排除
+zip -r euraflow-ozon-selector-v1.0.0.zip dist/ README.md -x "dist/.vite/*"
+```
+
+**错误2：包含空的 icons 目录**
+```bash
+# 问题：manifest.json 未配置图标，但 dist/icons/ 被打包
+# 解决：排除空目录
+zip -r euraflow-ozon-selector-v1.0.0.zip dist/ README.md -x "dist/icons/*"
+```
+
+**错误3：误打包了源代码**
+```bash
+# 问题：打包了 src/ 源代码目录
+# 解决：只打包 dist/ 和 README.md
+# 注意：dist/src/ 是必需的（包含 popup.html）
+```
+
+### 修改后重新打包
+每次修改扩展源代码后，必须：
+1. 重新构建：`npm run build`
+2. 删除旧包：`rm euraflow-ozon-selector-v*.zip`
+3. 重新打包：使用上述标准命令
+4. 验证内容：检查文件列表和大小
+5. 更新版本号（如有必要）
+
+---
+
+## 20) 术语表（Glossary）
 - **TTD**：新单平台到达系统的延迟。
 - **金丝雀/灰度**：按店铺/渠道/地区逐步放量。
 - **悬挂账**：对账差异暂存池，需人工闭环。
