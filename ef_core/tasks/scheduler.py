@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
-from plugins.ef.channels.ozon.models.sync_service import SyncService
+from plugins.ef.system.sync_service.models.sync_service import SyncService
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +32,41 @@ class TaskScheduler:
                 'misfire_grace_time': 300  # 允许延迟5分钟
             }
         )
+        # 不再维护本地handlers，改为使用全局注册表
+        # self.registered_handlers已废弃，保留是为了向后兼容旧代码
         self.registered_handlers: Dict[str, Callable] = {}
         self._running_jobs: set = set()  # 正在运行的任务
 
+        # 引入全局Handler注册表
+        from plugins.ef.system.sync_service.services.handler_registry import get_registry
+        self.registry = get_registry()
+
     def register_handler(self, service_key: str, handler: Callable):
         """
-        注册服务处理函数
+        注册服务处理函数（向后兼容，转发到全局注册表）
 
         Args:
             service_key: 服务唯一标识
             handler: 异步处理函数
+
+        Note:
+            此方法已废弃，建议直接使用全局注册表：
+            from plugins.ef.system.sync_service.services.handler_registry import get_registry
+            get_registry().register(...)
         """
+        # 向后兼容：同时保存到本地和全局注册表
         self.registered_handlers[service_key] = handler
-        logger.info(f"Registered handler for service: {service_key}")
+
+        # 转发到全局注册表（使用默认元数据）
+        self.registry.register(
+            service_key=service_key,
+            handler=handler,
+            name=service_key,  # 默认使用service_key作为名称
+            description="",
+            plugin="unknown"
+        )
+
+        logger.info(f"Registered handler for service: {service_key} (via deprecated register_handler)")
 
     async def start(self):
         """启动调度器并加载所有已启用的服务"""
@@ -122,12 +144,20 @@ class TaskScheduler:
             schedule_config: 调度配置（cron表达式或间隔秒数）
             config_json: 服务特定配置
         """
-        # 检查是否已注册处理函数
-        if service_key not in self.registered_handlers:
+        # 从全局注册表获取Handler（优先）
+        handler = self.registry.get_handler(service_key)
+
+        # 向后兼容：如果注册表中没有，尝试从本地handlers获取
+        if not handler and service_key in self.registered_handlers:
+            handler = self.registered_handlers[service_key]
+            logger.warning(
+                f"Handler for {service_key} found in deprecated local registry, "
+                "please migrate to global registry"
+            )
+
+        if not handler:
             logger.warning(f"No handler registered for service: {service_key}, skipping")
             return
-
-        handler = self.registered_handlers[service_key]
 
         # 创建任务包装器（记录日志、更新统计）
         async def job_wrapper():
@@ -240,10 +270,15 @@ class TaskScheduler:
             service_key: 服务唯一标识
             config_json: 服务特定配置
         """
-        if service_key not in self.registered_handlers:
-            raise ValueError(f"No handler registered for service: {service_key}")
+        # 从全局注册表获取Handler（优先）
+        handler = self.registry.get_handler(service_key)
 
-        handler = self.registered_handlers[service_key]
+        # 向后兼容：如果注册表中没有，尝试从本地handlers获取
+        if not handler and service_key in self.registered_handlers:
+            handler = self.registered_handlers[service_key]
+
+        if not handler:
+            raise ValueError(f"No handler registered for service: {service_key}")
 
         # 异步执行（不阻塞）
         asyncio.create_task(self._execute_manual_trigger(service_key, handler, config_json))
@@ -292,7 +327,7 @@ class TaskScheduler:
         error: Optional[str] = None
     ):
         """更新服务统计（不创建汇总日志，服务自己会创建详细日志）"""
-        from plugins.ef.channels.ozon.models.sync_service import SyncServiceLog
+        # 不再导入SyncServiceLog，因为我们不创建汇总日志
 
         finished_at = datetime.now(timezone.utc)
         execution_time_ms = int((finished_at - started_at).total_seconds() * 1000)

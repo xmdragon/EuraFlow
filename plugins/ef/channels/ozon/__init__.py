@@ -115,28 +115,51 @@ async def setup(hooks) -> None:
         handler=handle_inventory_change
     )
 
-    # 注册同步服务处理函数到调度器
+    # 注册同步服务处理函数到全局Handler注册表
     try:
-        from ef_core.tasks.scheduler import get_scheduler
+        from plugins.ef.system.sync_service.services.handler_registry import get_registry
         from .services.kuajing84_material_cost_sync_service import get_kuajing84_material_cost_sync_service
         from .services.ozon_sync import OzonSyncService
 
-        scheduler = get_scheduler()
+        registry = get_registry()
 
         # 1. 注册跨境巴士物料成本同步服务
         kuajing84_service = get_kuajing84_material_cost_sync_service()
-        scheduler.register_handler(
+        registry.register(
             service_key="kuajing84_material_cost",
-            handler=kuajing84_service.sync_material_costs
+            handler=kuajing84_service.sync_material_costs,
+            name="跨境巴士物料成本同步",
+            description='自动从跨境巴士查询并更新"已打包"订单的物料成本和国内物流单号（单线程模式：每小时第15分钟执行，每次处理1个订单，处理间隔5秒）',
+            plugin="ef.channels.ozon",
+            config_schema={
+                "batch_size": {
+                    "type": "integer",
+                    "default": 1,
+                    "minimum": 1,
+                    "maximum": 10,
+                    "description": "每次处理订单数"
+                },
+                "delay_seconds": {
+                    "type": "integer",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 60,
+                    "description": "处理间隔（秒）"
+                }
+            }
         )
         print("✓ Registered kuajing84_material_cost sync service handler")
 
         # 2. 注册OZON财务费用同步服务
         from .services.ozon_finance_sync_service import get_ozon_finance_sync_service
         finance_service = get_ozon_finance_sync_service()
-        scheduler.register_handler(
+        registry.register(
             service_key="ozon_finance_sync",
-            handler=finance_service.sync_finance_costs
+            handler=finance_service.sync_finance_costs,
+            name="OZON财务费用同步",
+            description="从OZON同步已完成订单的财务费用明细（佣金、物流、退货等）",
+            plugin="ef.channels.ozon",
+            config_schema={}
         )
         print("✓ Registered ozon_finance_sync service handler")
 
@@ -208,9 +231,24 @@ async def setup(hooks) -> None:
                 "shops": shops_synced
             }
 
-        scheduler.register_handler(
+        registry.register(
             service_key="ozon_sync_incremental",
-            handler=ozon_sync_handler
+            handler=ozon_sync_handler,
+            name="OZON增量同步",
+            description="自动从OZON拉取商品和订单的增量更新（每30分钟执行一次）",
+            plugin="ef.channels.ozon",
+            config_schema={
+                "sync_products": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "是否同步商品"
+                },
+                "sync_orders": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "是否同步订单"
+                }
+            }
         )
         print("✓ Registered ozon_sync_incremental service handler")
 
