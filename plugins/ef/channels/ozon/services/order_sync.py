@@ -341,7 +341,8 @@ class OrderSyncService:
                 order_id=order.id,
                 shop_id=self.shop_id,
                 posting_number=posting_number,
-                ozon_posting_number=posting_data.get("posting_number")
+                ozon_posting_number=posting_data.get("posting_number"),
+                operation_status='awaiting_stock'  # 设置初始操作状态
             )
             session.add(posting)
         
