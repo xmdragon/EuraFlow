@@ -533,14 +533,8 @@ async def get_sync_service_handlers():
 
     try:
         handlers = await scheduler.get_available_handlers()
-        return {
-            "ok": True,
-            "data": handlers
-        }
+        return handlers
     except Exception as e:
         logger.error(f"Failed to get handlers: {e}")
         # 如果调度器还没有这个方法，返回空列表
-        return {
-            "ok": True,
-            "data": []
-        }
+        return []
