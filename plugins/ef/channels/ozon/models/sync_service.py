@@ -49,6 +49,7 @@ class SyncService(Base):
     __table_args__ = (
         Index("idx_sync_services_enabled", "is_enabled", "service_type"),
         Index("idx_sync_services_last_run", "last_run_at"),
+        {'extend_existing': True}
     )
 
 
@@ -83,4 +84,5 @@ class SyncServiceLog(Base):
         Index("idx_sync_logs_service", "service_key", "started_at"),
         Index("idx_sync_logs_status", "status", "started_at"),
         Index("idx_sync_logs_run_id", "run_id"),
+        {'extend_existing': True}
     )
