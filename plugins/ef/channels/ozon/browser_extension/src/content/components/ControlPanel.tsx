@@ -34,7 +34,7 @@ export function ControlPanel(props: ControlPanelProps) {
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    z-index: 999999;
+    z-index: 2147483647;
     font-size: 24px;
     transition: transform 0.3s;
   `;
@@ -58,7 +58,7 @@ export function ControlPanel(props: ControlPanelProps) {
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    z-index: 999999;
+    z-index: 2147483647;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 14px;
     width: 350px;
@@ -119,7 +119,7 @@ export function ControlPanel(props: ControlPanelProps) {
     width: 100%;
     height: 100%;
     background: rgba(0,0,0,0.5);
-    z-index: 9999999;
+    z-index: 2147483647;
     display: none;
     align-items: center;
     justify-content: center;
