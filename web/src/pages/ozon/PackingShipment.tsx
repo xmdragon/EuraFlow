@@ -1134,11 +1134,6 @@ const PackingShipment: React.FC = () => {
       return;
     }
 
-    if (!selectedShop) {
-      message.error('请先选择店铺');
-      return;
-    }
-
     setIsPrinting(true);
 
     try {
