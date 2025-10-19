@@ -676,8 +676,14 @@ class OzonAPIClient:
             )
             return result
         except Exception as e:
-            # 记录错误日志，方便调试
-            logger.error(f"获取标签失败 posting_numbers={posting_numbers}: {e}")
+            # 安全地记录错误日志（避免UTF-8解码错误）
+            try:
+                error_msg = str(e)
+            except UnicodeDecodeError:
+                error_msg = repr(e)
+            except Exception:
+                error_msg = "<无法转换的错误>"
+            logger.error(f"获取标签失败 posting_numbers={posting_numbers}: {error_msg}")
             raise
 
     # ========== FBS备货相关 API（Exemplar） ==========
