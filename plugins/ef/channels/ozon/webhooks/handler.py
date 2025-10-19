@@ -321,9 +321,12 @@ class OzonWebhookHandler:
 
                 # 【新增】0. 初始状态设置：如果 operation_status 为空，根据 OZON 状态自动设置
                 if not posting.operation_status:
-                    if new_status in ["awaiting_packaging", "awaiting_deliver"]:
+                    if new_status == "awaiting_packaging":
                         posting.operation_status = "awaiting_stock"
                         logger.info(f"Set initial operation_status for posting {posting_number}: awaiting_stock (OZON status: {new_status})")
+                    elif new_status == "awaiting_deliver":
+                        posting.operation_status = "allocated"
+                        logger.info(f"Set initial operation_status for posting {posting_number}: allocated (OZON status: {new_status})")
                     elif new_status == "delivering":
                         posting.operation_status = "shipping"
                         logger.info(f"Set initial operation_status for posting {posting_number}: shipping (OZON status: {new_status})")
