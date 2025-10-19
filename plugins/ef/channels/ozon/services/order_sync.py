@@ -429,6 +429,22 @@ class OrderSyncService:
             posting.operation_status = "allocated"
             logger.info(f"Auto-updated operation_status: allocating → allocated for posting {posting_number}")
 
+        # 根据 OZON 状态同步更新 operation_status（避免状态不一致）
+        # 处理用户在 OZON 平台直接操作导致的状态跳跃（如从 awaiting_stock 直接变为 delivering）
+        ozon_status = posting.status
+        if ozon_status == "delivering" and posting.operation_status not in ["shipping", "delivered"]:
+            old_status = posting.operation_status
+            posting.operation_status = "shipping"
+            logger.info(f"Auto-synced operation_status: {old_status} → shipping (OZON: {ozon_status})")
+        elif ozon_status == "delivered" and posting.operation_status != "delivered":
+            old_status = posting.operation_status
+            posting.operation_status = "delivered"
+            logger.info(f"Auto-synced operation_status: {old_status} → delivered (OZON: {ozon_status})")
+        elif ozon_status == "cancelled" and posting.operation_status != "cancelled":
+            old_status = posting.operation_status
+            posting.operation_status = "cancelled"
+            logger.info(f"Auto-synced operation_status: {old_status} → cancelled (OZON: {ozon_status})")
+
         return posting
     
     async def _process_order_items(
