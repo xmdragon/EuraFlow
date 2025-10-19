@@ -849,9 +849,10 @@ const OrderList: React.FC = () => {
     } catch (error: any) {
       // 全部失败
       if (error.response?.status === 422) {
-        const errorData = error.response.data.detail;
+        // EuraFlow统一错误格式：error.response.data.error.detail
+        const errorData = error.response.data?.error?.detail || error.response.data?.detail;
 
-        if (errorData.error === 'ALL_FAILED') {
+        if (errorData && typeof errorData === 'object' && errorData.error === 'ALL_FAILED') {
           // 显示详细错误信息
           setPrintErrors(errorData.failed_postings || []);
           setPrintSuccessPostings([]);
@@ -860,7 +861,7 @@ const OrderList: React.FC = () => {
           message.warning('部分标签尚未准备好，请在订单装配后45-60秒重试');
         }
       } else {
-        message.error(`打印失败: ${error.message}`);
+        message.error(`打印失败: ${error.response?.data?.error?.title || error.message}`);
       }
     } finally {
       setIsPrinting(false);
