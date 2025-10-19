@@ -3,11 +3,11 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import Optional, List
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, and_, desc, cast
 from sqlalchemy.dialects.postgresql import JSONB
 from decimal import Decimal
-from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 import logging
 
@@ -656,10 +656,15 @@ async def discard_posting(
         }
 
 
+class BatchPrintRequest(BaseModel):
+    """批量打印请求"""
+    posting_numbers: List[str] = Field(..., max_items=20, description="货件编号列表（最多20个）")
+
+
 @router.post("/packing/postings/batch-print-labels")
 async def batch_print_labels(
     request: Request,
-    posting_numbers: List[str] = Body(..., max_items=20, embed=True, description="货件编号列表"),
+    body: BatchPrintRequest,
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -709,13 +714,8 @@ async def batch_print_labels(
     from datetime import datetime
     import json
 
-    # 调试日志：记录请求体
-    try:
-        body = await request.body()
-        logger.info(f"📝 批量打印请求体: {body.decode('utf-8')}")
-    except Exception as e:
-        logger.error(f"❌ 无法读取请求体: {e}")
-
+    # 调试日志：记录请求
+    posting_numbers = body.posting_numbers
     logger.info(f"📝 posting_numbers 参数: {posting_numbers}")
 
     try:
