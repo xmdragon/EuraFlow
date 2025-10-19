@@ -1,7 +1,7 @@
 """
 打包发货操作 API路由
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, and_, desc, cast
@@ -658,11 +658,14 @@ async def discard_posting(
 
 @router.post("/packing/postings/batch-print-labels")
 async def batch_print_labels(
+    request: Request,
     posting_numbers: List[str] = Body(..., max_items=20, embed=True, description="货件编号列表"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     批量打印快递面单（最多20个）
+
+    调试日志：记录接收到的请求
 
     标签格式: 70mm宽 × 125mm高（竖向）
 
@@ -704,6 +707,16 @@ async def batch_print_labels(
     import uuid
     import httpx
     from datetime import datetime
+    import json
+
+    # 调试日志：记录请求体
+    try:
+        body = await request.body()
+        logger.info(f"📝 批量打印请求体: {body.decode('utf-8')}")
+    except Exception as e:
+        logger.error(f"❌ 无法读取请求体: {e}")
+
+    logger.info(f"📝 posting_numbers 参数: {posting_numbers}")
 
     try:
         # 1. 验证请求参数
