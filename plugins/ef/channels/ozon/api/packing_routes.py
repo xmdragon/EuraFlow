@@ -819,9 +819,14 @@ async def batch_print_labels(
                     # 单个调用OZON API
                     result = await client.get_package_labels([pn])
 
+                    # 调试日志：检查返回结构
+                    logger.debug(f"get_package_labels 返回结构: {list(result.keys())}")
+                    logger.debug(f"file_content 存在: {bool(result.get('file_content'))}")
+
                     # 解析PDF数据
                     pdf_content_base64 = result.get('file_content', '')
                     if not pdf_content_base64:
+                        logger.error(f"OZON API返回的PDF内容为空，result keys: {list(result.keys())}")
                         raise ValueError("OZON API返回的PDF内容为空")
 
                     pdf_content = base64.b64decode(pdf_content_base64)

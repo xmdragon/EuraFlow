@@ -675,8 +675,12 @@ class OzonAPIClient:
                 resource_type="postings"
             )
             # OZON API 返回格式: {"result": {"file_content": "...", "file_name": "...", "content_type": "..."}}
+            # 调试日志
+            logger.debug(f"get_package_labels API 响应结构: {list(response.keys())}")
+            result = response.get('result', response)
+            logger.debug(f"返回给调用方的结构: {list(result.keys()) if isinstance(result, dict) else type(result)}")
             # 直接返回 result 部分，方便调用方使用
-            return response.get('result', response)
+            return result
         except Exception as e:
             # 安全地记录错误日志（避免UTF-8解码错误）
             try:
