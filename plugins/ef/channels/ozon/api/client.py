@@ -668,13 +668,15 @@ class OzonAPIClient:
         payload = {"posting_number": posting_numbers}
 
         try:
-            result = await self._request(
+            response = await self._request(
                 "POST",
                 "/v2/posting/fbs/package-label",
                 data=payload,
                 resource_type="postings"
             )
-            return result
+            # OZON API 返回格式: {"result": {"file_content": "...", "file_name": "...", "content_type": "..."}}
+            # 直接返回 result 部分，方便调用方使用
+            return response.get('result', response)
         except Exception as e:
             # 安全地记录错误日志（避免UTF-8解码错误）
             try:
