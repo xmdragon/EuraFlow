@@ -725,7 +725,36 @@ async def batch_print_labels(
         if not postings:
             raise HTTPException(status_code=404, detail="未找到任何货件记录")
 
-        # 3. 获取shop_id（从第一个posting获取，验证所有posting是否属于同一店铺）
+        # 3. 验证所有posting的状态必须为"awaiting_deliver"（等待发运）
+        invalid_status_postings = []
+        for pn in posting_numbers:
+            posting = postings.get(pn)
+            if not posting:
+                continue
+            if posting.status != 'awaiting_deliver':
+                invalid_status_postings.append({
+                    "posting_number": pn,
+                    "current_status": posting.status,
+                    "status_display": {
+                        "awaiting_packaging": "等待打包",
+                        "awaiting_deliver": "等待发运",
+                        "delivering": "运输中",
+                        "delivered": "已送达",
+                        "cancelled": "已取消"
+                    }.get(posting.status, posting.status)
+                })
+
+        if invalid_status_postings:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "INVALID_STATUS",
+                    "message": "只能打印'等待发运'状态的订单标签",
+                    "invalid_postings": invalid_status_postings
+                }
+            )
+
+        # 4. 获取shop_id（从第一个posting获取，验证所有posting是否属于同一店铺）
         shop_ids = {p.shop_id for p in postings.values()}
         if len(shop_ids) > 1:
             raise HTTPException(status_code=400, detail="不能批量打印不同店铺的订单")
@@ -931,7 +960,18 @@ async def batch_print_labels(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"批量打印失败: {e}")
+        # 安全地记录异常（避免UTF-8解码错误）
+        try:
+            error_msg = str(e)
+        except UnicodeDecodeError:
+            error_msg = repr(e)
+        except Exception:
+            error_msg = "未知错误"
+
+        logger.error(f"批量打印失败: {error_msg}")
         import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"打印失败: {str(e)}")
+        try:
+            logger.error(traceback.format_exc())
+        except Exception:
+            pass  # traceback也可能包含二进制内容，忽略记录错误
+        raise HTTPException(status_code=500, detail=f"打印失败: {error_msg}")

@@ -1132,7 +1132,8 @@ const OrderList: React.FC = () => {
               setSelectedPostingNumbers(selectedKeys as string[]);
             },
             getCheckboxProps: (record: OrderItemRow) => ({
-              disabled: !record.isFirstItem, // 只在第一行显示checkbox
+              // 只在第一行显示checkbox，且只能选择"等待发运"状态的订单
+              disabled: !record.isFirstItem || record.posting.status !== 'awaiting_deliver',
             }),
           }}
           pagination={false}  // 禁用Table内置分页，使用下方独立的Pagination组件
