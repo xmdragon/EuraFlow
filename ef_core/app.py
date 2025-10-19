@@ -204,14 +204,17 @@ def create_app() -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         """处理 Pydantic 验证异常"""
+        # 记录验证错误详情
+        logger.error(f"❌ 验证错误 - URL: {request.url.path}")
+        logger.error(f"❌ 验证错误详情: {exc.errors()}")
         return JSONResponse(
-            status_code=400,
+            status_code=422,  # FastAPI标准是422
             content={
                 "ok": False,
                 "error": {
                     "type": "about:blank",
                     "title": "Validation Error",
-                    "status": 400,
+                    "status": 422,
                     "detail": "Request validation failed",
                     "code": "VALIDATION_ERROR",
                     "validation_errors": exc.errors()

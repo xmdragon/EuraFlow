@@ -897,12 +897,8 @@ async def batch_print_labels(
 
                 except Exception as e:
                     # 安全地转换异常为字符串，避免UTF-8解码错误
-                    try:
-                        error_msg = str(e)[:100]
-                    except UnicodeDecodeError:
-                        error_msg = repr(e)[:100]
-                    except Exception:
-                        error_msg = "获取标签时发生未知错误"
+                    # repr(e) 永远不会失败，因为它返回ASCII可打印的表示
+                    error_msg = repr(e)[:200]  # 使用repr避免UTF-8解码问题
 
                     failed_postings.append({
                         "posting_number": pn,
