@@ -169,9 +169,25 @@ async def get_packing_orders(
         # 为了向后兼容，ozon_status 参数映射到 operation_status
         # 但推荐直接使用 operation_status
         # awaiting_packaging/awaiting_deliver → awaiting_stock
-        query = query.where(OzonPosting.operation_status == 'awaiting_stock')
+        # 双重保险：同时检查 operation_status 和 ozon_status
+        query = query.where(
+            and_(
+                OzonPosting.operation_status == 'awaiting_stock',
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+            )
+        )
     elif operation_status:
-        query = query.where(OzonPosting.operation_status == operation_status)
+        if operation_status == 'awaiting_stock':
+            # 等待备货：双重保险，同时检查 operation_status 和 ozon_status
+            query = query.where(
+                and_(
+                    OzonPosting.operation_status == 'awaiting_stock',
+                    OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+                )
+            )
+        else:
+            # 其他状态：只检查 operation_status
+            query = query.where(OzonPosting.operation_status == operation_status)
 
     # 应用其他过滤条件
     if shop_id:
@@ -197,9 +213,25 @@ async def get_packing_orders(
     # 应用相同的状态筛选逻辑
     if ozon_status:
         # 为了向后兼容，ozon_status 参数映射到 operation_status
-        count_query = count_query.where(OzonPosting.operation_status == 'awaiting_stock')
+        # 双重保险：同时检查 operation_status 和 ozon_status
+        count_query = count_query.where(
+            and_(
+                OzonPosting.operation_status == 'awaiting_stock',
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+            )
+        )
     elif operation_status:
-        count_query = count_query.where(OzonPosting.operation_status == operation_status)
+        if operation_status == 'awaiting_stock':
+            # 等待备货：双重保险，同时检查 operation_status 和 ozon_status
+            count_query = count_query.where(
+                and_(
+                    OzonPosting.operation_status == 'awaiting_stock',
+                    OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+                )
+            )
+        else:
+            # 其他状态：只检查 operation_status
+            count_query = count_query.where(OzonPosting.operation_status == operation_status)
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if posting_number:
