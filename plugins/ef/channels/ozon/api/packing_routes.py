@@ -897,8 +897,25 @@ async def batch_print_labels(
 
                 except Exception as e:
                     # 安全地转换异常为字符串，避免UTF-8解码错误
-                    # repr(e) 永远不会失败，因为它返回ASCII可打印的表示
-                    error_msg = repr(e)[:200]  # 使用repr避免UTF-8解码问题
+                    exc_type = type(e).__name__
+                    try:
+                        # 对于httpx.HTTPStatusError，提取状态码
+                        if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                            error_msg = f"{exc_type}: HTTP {e.response.status_code}"
+                        elif e.args:
+                            # 安全地处理args[0]
+                            arg = e.args[0]
+                            if isinstance(arg, bytes):
+                                error_msg = f"{exc_type}: <binary data, {len(arg)} bytes>"
+                            elif isinstance(arg, str):
+                                error_msg = f"{exc_type}: {arg[:100]}"
+                            else:
+                                error_msg = f"{exc_type}: {type(arg).__name__}"
+                        else:
+                            error_msg = f"{exc_type}: Unknown"
+                    except Exception:
+                        # 如果所有方法都失败，使用安全的默认消息
+                        error_msg = f"{exc_type}: <error details unavailable>"
 
                     failed_postings.append({
                         "posting_number": pn,
