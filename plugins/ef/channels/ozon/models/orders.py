@@ -290,6 +290,9 @@ class OzonPosting(Base):
     profit = Column(Numeric(18, 2), comment="利润金额(CNY)")
     profit_rate = Column(Numeric(10, 4), comment="利润比率(%)")
 
+    # 标签PDF文件路径
+    label_pdf_path = Column(String(500), comment="标签PDF文件路径（70x125mm竖向格式）")
+
     # 时间
     in_process_at = Column(DateTime(timezone=True))
     shipped_at = Column(DateTime(timezone=True))
