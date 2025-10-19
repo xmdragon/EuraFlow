@@ -849,12 +849,20 @@ async def batch_print_labels(
                     logger.warning(f"获取标签失败 {pn}: {error_detail}")
 
                 except Exception as e:
+                    # 安全地转换异常为字符串，避免UTF-8解码错误
+                    try:
+                        error_msg = str(e)[:100]
+                    except UnicodeDecodeError:
+                        error_msg = repr(e)[:100]
+                    except Exception:
+                        error_msg = "获取标签时发生未知错误"
+
                     failed_postings.append({
                         "posting_number": pn,
-                        "error": str(e)[:100],
+                        "error": error_msg,
                         "suggestion": "请检查网络或联系技术支持"
                     })
-                    logger.error(f"获取标签异常 {pn}: {e}")
+                    logger.error(f"获取标签异常 {pn}: {error_msg}")
 
         await db.commit()
 
