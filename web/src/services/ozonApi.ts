@@ -1357,12 +1357,11 @@ export interface BatchPrintResult {
  * 批量打印快递面单（70x125mm竖向标签）
  *
  * @param postingNumbers 货件编号列表（最多20个）
- * @param shopId 店铺ID
  * @returns 批量打印结果，包含PDF URL和详细错误信息
+ * @note shop_id自动从posting记录中获取，无需手动指定
  */
 export const batchPrintLabels = async (
-  postingNumbers: string[],
-  shopId: number
+  postingNumbers: string[]
 ): Promise<BatchPrintResult> => {
   if (postingNumbers.length > 20) {
     throw new Error('最多支持同时打印20个标签');
@@ -1371,8 +1370,7 @@ export const batchPrintLabels = async (
   const response = await apiClient.post(
     '/ozon/packing/postings/batch-print-labels',
     {
-      posting_numbers: postingNumbers,
-      shop_id: shopId
+      posting_numbers: postingNumbers
     }
   );
   return response.data;

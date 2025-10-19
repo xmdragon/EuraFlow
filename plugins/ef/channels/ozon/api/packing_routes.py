@@ -624,13 +624,14 @@ async def discard_posting(
 @router.post("/packing/postings/batch-print-labels")
 async def batch_print_labels(
     posting_numbers: List[str] = Body(..., max_items=20, description="货件编号列表"),
-    shop_id: int = Body(..., description="店铺ID"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
     批量打印快递面单（最多20个）
 
     标签格式: 70mm宽 × 125mm高（竖向）
+
+    说明：shop_id从posting记录中自动获取，无需手动指定
 
     错误处理策略：
     1. 预检查：检查每个posting的缓存状态
@@ -677,21 +678,32 @@ async def batch_print_labels(
         if len(posting_numbers) > 20:
             raise HTTPException(status_code=400, detail="最多支持20个货件")
 
-        # 2. 验证shop_id并获取店铺信息
-        shop_result = await db.execute(
-            select(OzonShop).where(OzonShop.id == shop_id)
-        )
-        shop = shop_result.scalar_one_or_none()
-        if not shop:
-            raise HTTPException(status_code=404, detail="店铺不存在")
-
-        # 3. 查询所有posting，检查缓存状态
+        # 2. 查询所有posting，检查缓存状态和获取shop_id
         postings_result = await db.execute(
             select(OzonPosting).where(
                 OzonPosting.posting_number.in_(posting_numbers)
             )
         )
         postings = {p.posting_number: p for p in postings_result.scalars().all()}
+
+        # 验证所有posting是否存在
+        if not postings:
+            raise HTTPException(status_code=404, detail="未找到任何货件记录")
+
+        # 3. 获取shop_id（从第一个posting获取，验证所有posting是否属于同一店铺）
+        shop_ids = {p.shop_id for p in postings.values()}
+        if len(shop_ids) > 1:
+            raise HTTPException(status_code=400, detail="不能批量打印不同店铺的订单")
+
+        shop_id = list(shop_ids)[0]
+
+        # 获取店铺信息
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+        if not shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
 
         # 4. 分类：有缓存 vs 无缓存
         cached_postings = []

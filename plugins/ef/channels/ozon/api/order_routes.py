@@ -42,6 +42,13 @@ async def get_orders(
         selectinload(OzonOrder.refunds)
     )
 
+    # 预先判断是否需要JOIN posting表
+    need_posting_join = operation_status is not None or posting_number is not None
+
+    # 如果需要posting字段，统一在此处JOIN一次
+    if need_posting_join:
+        query = query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id)
+
     # 应用过滤条件
     if shop_id:
         query = query.where(OzonOrder.shop_id == shop_id)
@@ -50,16 +57,14 @@ async def get_orders(
     if status:
         query = query.where(OzonOrder.status == status)
 
-    # 按 operation_status 过滤（需要 join postings 表）
+    # 按 operation_status 过滤
     if operation_status:
-        query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
-            OzonPosting.operation_status == operation_status
-        )
+        query = query.where(OzonPosting.operation_status == operation_status)
 
     # 搜索条件
     if posting_number:
-        # 搜索订单号、Ozon订单号或通过posting关联
-        query = query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
+        # 搜索订单号、Ozon订单号或posting号
+        query = query.where(
             (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
             (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
             (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
@@ -95,17 +100,19 @@ async def get_orders(
     # 执行查询获取总数（重新构建查询以避免 subquery 问题）
     count_query = select(func.count(OzonOrder.id))
 
+    # 如果需要posting字段，统一在此处JOIN一次
+    if need_posting_join:
+        count_query = count_query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id)
+
     # 应用相同的过滤条件
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if status:
         count_query = count_query.where(OzonOrder.status == status)
     if operation_status:
-        count_query = count_query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
-            OzonPosting.operation_status == operation_status
-        )
+        count_query = count_query.where(OzonPosting.operation_status == operation_status)
     if posting_number:
-        count_query = count_query.outerjoin(OzonPosting, OzonOrder.id == OzonPosting.order_id).where(
+        count_query = count_query.where(
             (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
             (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
             (OzonPosting.posting_number.ilike(f"%{posting_number}%"))

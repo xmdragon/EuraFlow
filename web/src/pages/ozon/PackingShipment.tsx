@@ -1143,8 +1143,7 @@ const PackingShipment: React.FC = () => {
 
     try {
       const result = await ozonApi.batchPrintLabels(
-        selectedPostingNumbers,
-        selectedShop
+        selectedPostingNumbers
       );
 
       if (result.success) {
