@@ -533,7 +533,7 @@ const OrderList: React.FC = () => {
       title: '商品图片',
       key: 'product_image',
       width: 180,
-      fixed: 'left' as const,
+      // fixed: 'left' as const, // 移除fixed，避免与rowSelection冲突
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
         const rawImageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
