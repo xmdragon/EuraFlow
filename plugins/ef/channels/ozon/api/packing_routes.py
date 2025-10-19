@@ -714,6 +714,9 @@ async def batch_print_labels(
     from datetime import datetime
     import json
 
+    # 🔥🔥🔥 最先执行的日志：证明函数体被执行了
+    logger.info(f"🔥 batch_print_labels 函数被调用！请求体类型: {type(body)}")
+
     # 调试日志：记录请求
     posting_numbers = body.posting_numbers
     logger.info(f"📝 posting_numbers 参数: {posting_numbers}")
