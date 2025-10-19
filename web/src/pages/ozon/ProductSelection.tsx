@@ -66,6 +66,7 @@ import ImagePreview from '@/components/ImagePreview';
 import { useCurrency } from '../../hooks/useCurrency';
 import { getExchangeRate } from '@/services/exchangeRateApi';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import styles from './ProductSelection.module.scss';
 import { calculateMaxCost, formatMaxCost } from './profitCalculator';
 
@@ -1141,7 +1142,8 @@ const ProductSelection: React.FC = () => {
                       onChange={(val) => setTargetProfitRate(val || 20)}
                       min={0}
                       max={100}
-                      precision={2}
+                      formatter={getNumberFormatter(2)}
+                      parser={getNumberParser()}
                       controls={false}
                       addonBefore="利润率"
                       addonAfter="%"
