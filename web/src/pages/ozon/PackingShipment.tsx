@@ -292,6 +292,13 @@ const PackingShipment: React.FC = () => {
   // 搜索参数状态（只支持 posting_number 搜索）
   const [searchParams, setSearchParams] = useState<any>({});
 
+  // 批量打印标签状态
+  const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printErrorModalVisible, setPrintErrorModalVisible] = useState(false);
+  const [printErrors, setPrintErrors] = useState<ozonApi.FailedPosting[]>([]);
+  const [printSuccessPostings, setPrintSuccessPostings] = useState<string[]>([]);
+
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === '-') {
@@ -1116,12 +1123,72 @@ const PackingShipment: React.FC = () => {
     });
   };
 
-  const handleBatchPrint = () => {
-    if (selectedOrders.length === 0) {
-      message.warning('请先选择订单');
+  const handleBatchPrint = async () => {
+    if (selectedPostingNumbers.length === 0) {
+      message.warning('请先选择需要打印的订单');
       return;
     }
-    message.info('批量打印功能开发中');
+
+    if (selectedPostingNumbers.length > 20) {
+      message.error('最多支持同时打印20个标签');
+      return;
+    }
+
+    if (!selectedShop) {
+      message.error('请先选择店铺');
+      return;
+    }
+
+    setIsPrinting(true);
+
+    try {
+      const result = await ozonApi.batchPrintLabels(
+        selectedPostingNumbers,
+        selectedShop
+      );
+
+      if (result.success) {
+        // 全部成功
+        if (result.pdf_url) {
+          window.open(result.pdf_url, '_blank');
+        }
+
+        message.success(
+          `成功打印${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}）`
+        );
+
+        // 清空选择
+        setSelectedPostingNumbers([]);
+      } else if (result.error === 'PARTIAL_FAILURE') {
+        // 部分成功
+        setPrintErrors(result.failed_postings || []);
+        setPrintSuccessPostings(result.success_postings || []);
+        setPrintErrorModalVisible(true);
+
+        // 如果有成功的，打开PDF
+        if (result.pdf_url) {
+          window.open(result.pdf_url, '_blank');
+        }
+      }
+    } catch (error: any) {
+      // 全部失败
+      if (error.response?.status === 422) {
+        const errorData = error.response.data.detail;
+
+        if (errorData.error === 'ALL_FAILED') {
+          // 显示详细错误信息
+          setPrintErrors(errorData.failed_postings || []);
+          setPrintSuccessPostings([]);
+          setPrintErrorModalVisible(true);
+        } else {
+          message.warning('部分标签尚未准备好，请在订单装配后45-60秒重试');
+        }
+      } else {
+        message.error(`打印失败: ${error.message}`);
+      }
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const handleBatchShip = () => {
@@ -1141,6 +1208,84 @@ const PackingShipment: React.FC = () => {
     delivered: 0,
     cancelled: 0,
   };
+
+  // 错误展示Modal
+  const PrintErrorModal = () => (
+    <Modal
+      title="打印结果"
+      open={printErrorModalVisible}
+      onCancel={() => setPrintErrorModalVisible(false)}
+      footer={[
+        <Button key="close" onClick={() => setPrintErrorModalVisible(false)}>
+          关闭
+        </Button>,
+        printSuccessPostings.length > 0 && (
+          <Button
+            key="retry-failed"
+            type="primary"
+            onClick={() => {
+              // 移除失败的，保留成功的，重新选择
+              const failedNumbers = printErrors.map(e => e.posting_number);
+              setSelectedPostingNumbers(selectedPostingNumbers.filter(pn => !failedNumbers.includes(pn)));
+              setPrintErrorModalVisible(false);
+              message.info('已移除失败的订单，可重新选择并打印');
+            }}
+          >
+            移除失败订单继续
+          </Button>
+        )
+      ]}
+      width={700}
+    >
+      <Space direction="vertical" style={{ width: '100%' }}>
+        {/* 成功统计 */}
+        {printSuccessPostings.length > 0 && (
+          <Alert
+            message={`成功打印 ${printSuccessPostings.length} 个订单`}
+            type="success"
+            showIcon
+          />
+        )}
+
+        {/* 失败列表 */}
+        {printErrors.length > 0 && (
+          <>
+            <Alert
+              message={`失败 ${printErrors.length} 个订单`}
+              description="以下订单打印失败，请根据提示操作"
+              type="error"
+              showIcon
+            />
+
+            <Table
+              dataSource={printErrors}
+              rowKey="posting_number"
+              pagination={false}
+              size="small"
+              columns={[
+                {
+                  title: '货件编号',
+                  dataIndex: 'posting_number',
+                  width: 180,
+                  render: (text) => <Text strong>{text}</Text>
+                },
+                {
+                  title: '错误原因',
+                  dataIndex: 'error',
+                  render: (text) => <Text type="danger">{text}</Text>
+                },
+                {
+                  title: '建议',
+                  dataIndex: 'suggestion',
+                  render: (text) => <Text type="secondary">{text}</Text>
+                }
+              ]}
+            />
+          </>
+        )}
+      </Space>
+    </Modal>
+  );
 
   return (
     <div>
@@ -1265,12 +1410,34 @@ const PackingShipment: React.FC = () => {
           style={{ marginTop: 16 }}
         />
 
+        {/* 批量操作按钮 */}
+        <Space style={{ marginBottom: 16, marginTop: 16 }}>
+          <Button
+            type="primary"
+            icon={<PrinterOutlined />}
+            disabled={selectedPostingNumbers.length === 0}
+            loading={isPrinting}
+            onClick={handleBatchPrint}
+          >
+            打印标签 ({selectedPostingNumbers.length}/20)
+          </Button>
+        </Space>
+
         {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
         <Table
           loading={isLoading}
           columns={columns}
           dataSource={orderItemRows}
-          rowKey="key"
+          rowKey={(record) => record.posting.posting_number}
+          rowSelection={{
+            selectedRowKeys: selectedPostingNumbers,
+            onChange: (selectedKeys: React.Key[]) => {
+              setSelectedPostingNumbers(selectedKeys as string[]);
+            },
+            getCheckboxProps: (record: OrderItemRow) => ({
+              disabled: !record.isFirstItem, // 只在第一行显示checkbox
+            }),
+          }}
           pagination={false}
           size="small"
         />
@@ -1411,6 +1578,9 @@ const PackingShipment: React.FC = () => {
         sku={selectedSku}
         productName={selectedProductName}
       />
+
+      {/* 批量打印错误展示Modal */}
+      <PrintErrorModal />
     </div>
   );
 };
