@@ -658,7 +658,7 @@ async def discard_posting(
 
 @router.post("/packing/postings/batch-print-labels")
 async def batch_print_labels(
-    posting_numbers: List[str] = Body(..., max_items=20, description="货件编号列表"),
+    posting_numbers: List[str] = Body(..., max_items=20, embed=True, description="货件编号列表"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
