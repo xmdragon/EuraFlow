@@ -189,9 +189,18 @@ class OzonAPIClient:
             return result
 
         except httpx.HTTPStatusError as e:
+            # 安全地获取响应内容（避免二进制PDF解码错误）
+            try:
+                response_content = e.response.text
+            except UnicodeDecodeError:
+                # 如果是二进制内容（如PDF），记录content-type和大小
+                response_content = f"<binary content, type={e.response.headers.get('content-type')}, size={len(e.response.content)} bytes>"
+            except Exception:
+                response_content = "<unable to decode response>"
+
             logger.error(
                 f"Ozon API error: {e.response.status_code}",
-                extra={"request_id": request_id, "response": e.response.text},
+                extra={"request_id": request_id, "response": response_content},
             )
             raise
         except Exception as e:
