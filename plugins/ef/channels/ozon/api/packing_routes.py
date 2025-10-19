@@ -168,21 +168,22 @@ async def get_packing_orders(
     if ozon_status:
         # 为了向后兼容，ozon_status 参数映射到 operation_status
         # 但推荐直接使用 operation_status
-        # awaiting_packaging/awaiting_deliver → awaiting_stock
         # 双重保险：同时检查 operation_status 和 ozon_status
+        # 注意：只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
         query = query.where(
             and_(
                 OzonPosting.operation_status == 'awaiting_stock',
-                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+                OzonPosting.status == 'awaiting_packaging'
             )
         )
     elif operation_status:
         if operation_status == 'awaiting_stock':
             # 等待备货：双重保险，同时检查 operation_status 和 ozon_status
+            # 只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
             query = query.where(
                 and_(
                     OzonPosting.operation_status == 'awaiting_stock',
-                    OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+                    OzonPosting.status == 'awaiting_packaging'
                 )
             )
         else:
@@ -214,19 +215,21 @@ async def get_packing_orders(
     if ozon_status:
         # 为了向后兼容，ozon_status 参数映射到 operation_status
         # 双重保险：同时检查 operation_status 和 ozon_status
+        # 只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
         count_query = count_query.where(
             and_(
                 OzonPosting.operation_status == 'awaiting_stock',
-                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+                OzonPosting.status == 'awaiting_packaging'
             )
         )
     elif operation_status:
         if operation_status == 'awaiting_stock':
             # 等待备货：双重保险，同时检查 operation_status 和 ozon_status
+            # 只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
             count_query = count_query.where(
                 and_(
                     OzonPosting.operation_status == 'awaiting_stock',
-                    OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver'])
+                    OzonPosting.status == 'awaiting_packaging'
                 )
             )
         else:
