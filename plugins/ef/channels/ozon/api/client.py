@@ -619,6 +619,58 @@ class OzonAPIClient:
 
         return await self._request("POST", "/v2/posting/fbs/cancel", data=data, resource_type="postings")
 
+    async def get_package_labels(
+        self, posting_numbers: List[str]
+    ) -> Dict[str, Any]:
+        """
+        批量获取快递面单PDF（最多20个）
+
+        OZON API 端点: POST /v2/posting/fbs/package-label
+        标签格式: 70mm宽 × 125mm高（竖向Portrait）
+
+        注意：
+        - 建议在订单装配后45-60秒内请求标签
+        - 如果至少有一个货件发生错误，则不会为请求中的所有货件准备标签
+
+        Args:
+            posting_numbers: 货件编号列表（最多20个）
+
+        Returns:
+            {
+                "file_content": "base64编码的PDF",
+                "file_name": "labels.pdf",
+                "content_type": "application/pdf"
+            }
+
+        Raises:
+            ValueError: 超过20个货件
+            httpx.HTTPStatusError: OZON API错误（如"The next postings aren't ready"）
+
+        Example:
+            >>> result = await client.get_package_labels(["12345-0001-1", "67890-0002-1"])
+            >>> pdf_bytes = base64.b64decode(result["file_content"])
+        """
+        if len(posting_numbers) > 20:
+            raise ValueError("最多支持20个货件")
+
+        if not posting_numbers:
+            raise ValueError("posting_numbers不能为空")
+
+        payload = {"posting_number": posting_numbers}
+
+        try:
+            result = await self._request(
+                "POST",
+                "/v2/posting/fbs/package-label",
+                data=payload,
+                resource_type="postings"
+            )
+            return result
+        except Exception as e:
+            # 记录错误日志，方便调试
+            logger.error(f"获取标签失败 posting_numbers={posting_numbers}: {e}")
+            raise
+
     # ========== FBS备货相关 API（Exemplar） ==========
 
     async def set_exemplar(

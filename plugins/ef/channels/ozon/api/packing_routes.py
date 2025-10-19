@@ -2,7 +2,7 @@
 打包发货操作 API路由
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, and_, desc, cast
 from sqlalchemy.dialects.postgresql import JSONB
@@ -619,3 +619,264 @@ async def discard_posting(
             "error": "DISCARD_FAILED",
             "message": f"废弃订单失败: {str(e)}"
         }
+
+
+@router.post("/packing/postings/batch-print-labels")
+async def batch_print_labels(
+    posting_numbers: List[str] = Body(..., max_items=20, description="货件编号列表"),
+    shop_id: int = Body(..., description="店铺ID"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    批量打印快递面单（最多20个）
+
+    标签格式: 70mm宽 × 125mm高（竖向）
+
+    错误处理策略：
+    1. 预检查：检查每个posting的缓存状态
+    2. 逐个调用：避免一个失败导致全部失败
+    3. 详细错误：返回具体哪些posting_number失败及原因
+
+    Returns:
+        成功：
+        {
+            "success": true,
+            "pdf_url": "/downloads/labels/batch_xxx.pdf",
+            "cached_count": 5,
+            "fetched_count": 3,
+            "total": 8
+        }
+
+        部分失败：
+        {
+            "success": false,
+            "error": "PARTIAL_FAILURE",
+            "message": "部分订单打印失败",
+            "failed_postings": [
+                {
+                    "posting_number": "12345-0001-1",
+                    "error": "标签未就绪",
+                    "suggestion": "请在45-60秒后重试"
+                }
+            ],
+            "success_postings": ["11111-0003-1"],
+            "pdf_url": "/downloads/labels/batch_xxx.pdf"
+        }
+    """
+    import os
+    import base64
+    import uuid
+    import httpx
+    from datetime import datetime
+
+    try:
+        # 1. 验证请求参数
+        if not posting_numbers:
+            raise HTTPException(status_code=400, detail="posting_numbers不能为空")
+
+        if len(posting_numbers) > 20:
+            raise HTTPException(status_code=400, detail="最多支持20个货件")
+
+        # 2. 验证shop_id并获取店铺信息
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+        if not shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
+
+        # 3. 查询所有posting，检查缓存状态
+        postings_result = await db.execute(
+            select(OzonPosting).where(
+                OzonPosting.posting_number.in_(posting_numbers)
+            )
+        )
+        postings = {p.posting_number: p for p in postings_result.scalars().all()}
+
+        # 4. 分类：有缓存 vs 无缓存
+        cached_postings = []
+        need_fetch_postings = []
+
+        for pn in posting_numbers:
+            posting = postings.get(pn)
+            if not posting:
+                # posting不存在，记录到need_fetch中（后续会报错）
+                need_fetch_postings.append(pn)
+                continue
+
+            # 检查缓存文件是否存在
+            if posting.label_pdf_path and os.path.exists(posting.label_pdf_path):
+                cached_postings.append(pn)
+            else:
+                need_fetch_postings.append(pn)
+
+        logger.info(f"批量打印: 总{len(posting_numbers)}个, 缓存{len(cached_postings)}个, 需获取{len(need_fetch_postings)}个")
+
+        # 5. 调用OZON API获取未缓存的标签（逐个尝试，捕获错误）
+        failed_postings = []
+        success_postings = []
+        pdf_files = []
+
+        # 5.1 添加已缓存的PDF
+        for pn in cached_postings:
+            posting = postings.get(pn)
+            if posting and posting.label_pdf_path:
+                pdf_files.append(posting.label_pdf_path)
+                success_postings.append(pn)
+
+        # 5.2 获取未缓存的标签（逐个调用，避免一个失败影响全部）
+        from ..api.client import OzonAPIClient
+
+        async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
+            for pn in need_fetch_postings:
+                # 检查posting是否存在
+                posting = postings.get(pn)
+                if not posting:
+                    failed_postings.append({
+                        "posting_number": pn,
+                        "error": "货件不存在",
+                        "suggestion": "请检查货件编号是否正确"
+                    })
+                    continue
+
+                try:
+                    # 单个调用OZON API
+                    result = await client.get_package_labels([pn])
+
+                    # 解析PDF数据
+                    pdf_content_base64 = result.get('file_content', '')
+                    if not pdf_content_base64:
+                        raise ValueError("OZON API返回的PDF内容为空")
+
+                    pdf_content = base64.b64decode(pdf_content_base64)
+
+                    # 保存PDF文件
+                    label_dir = f"web/public/downloads/labels/{shop_id}"
+                    os.makedirs(label_dir, exist_ok=True)
+                    pdf_path = f"{label_dir}/{pn}.pdf"
+
+                    with open(pdf_path, 'wb') as f:
+                        f.write(pdf_content)
+
+                    logger.info(f"成功保存标签PDF: {pdf_path}")
+
+                    # 更新数据库
+                    await db.execute(
+                        update(OzonPosting)
+                        .where(OzonPosting.posting_number == pn)
+                        .values(label_pdf_path=pdf_path, updated_at=utcnow())
+                    )
+
+                    pdf_files.append(pdf_path)
+                    success_postings.append(pn)
+
+                except httpx.HTTPStatusError as e:
+                    # 捕获HTTP错误，解析OZON API返回的错误信息
+                    error_detail = "未知错误"
+                    suggestion = "请稍后重试"
+
+                    try:
+                        error_data = e.response.json() if e.response else {}
+                        error_message = error_data.get('message', '') or str(e)
+
+                        # 解析常见错误
+                        if 'aren\'t ready' in error_message.lower() or 'not ready' in error_message.lower():
+                            error_detail = "标签未就绪"
+                            suggestion = "请在订单装配后45-60秒重试"
+                        elif 'not found' in error_message.lower():
+                            error_detail = "货件不存在"
+                            suggestion = "订单可能已取消或不存在"
+                        elif 'invalid' in error_message.lower():
+                            error_detail = "货件编号无效"
+                            suggestion = "请检查货件编号是否正确"
+                        else:
+                            error_detail = error_message[:100]  # 限制长度
+                    except Exception:
+                        error_detail = f"HTTP {e.response.status_code if e.response else 'unknown'}"
+
+                    failed_postings.append({
+                        "posting_number": pn,
+                        "error": error_detail,
+                        "suggestion": suggestion
+                    })
+                    logger.warning(f"获取标签失败 {pn}: {error_detail}")
+
+                except Exception as e:
+                    failed_postings.append({
+                        "posting_number": pn,
+                        "error": str(e)[:100],
+                        "suggestion": "请检查网络或联系技术支持"
+                    })
+                    logger.error(f"获取标签异常 {pn}: {e}")
+
+        await db.commit()
+
+        # 6. 合并PDF文件
+        pdf_url = None
+        if pdf_files:
+            try:
+                from PyPDF2 import PdfMerger
+
+                merger = PdfMerger()
+                for pdf_file in pdf_files:
+                    merger.append(pdf_file)
+
+                # 生成批量PDF文件名
+                batch_filename = f"batch_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.pdf"
+                batch_path = f"web/public/downloads/labels/{batch_filename}"
+
+                # 确保目录存在
+                os.makedirs(os.path.dirname(batch_path), exist_ok=True)
+
+                merger.write(batch_path)
+                merger.close()
+
+                pdf_url = f"/downloads/labels/{batch_filename}"
+                logger.info(f"成功合并PDF: {batch_path}")
+            except Exception as e:
+                logger.error(f"合并PDF失败: {e}")
+                # 合并失败不影响结果，只是没有合并后的PDF
+                pdf_url = None
+
+        # 7. 返回结果
+        if failed_postings and not success_postings:
+            # 全部失败
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "ALL_FAILED",
+                    "message": "所有订单打印失败",
+                    "failed_postings": failed_postings
+                }
+            )
+        elif failed_postings:
+            # 部分失败
+            return {
+                "success": False,
+                "error": "PARTIAL_FAILURE",
+                "message": f"成功打印{len(success_postings)}个，失败{len(failed_postings)}个",
+                "failed_postings": failed_postings,
+                "success_postings": success_postings,
+                "pdf_url": pdf_url,
+                "cached_count": len(cached_postings),
+                "fetched_count": len(success_postings) - len(cached_postings),
+                "total": len(success_postings)
+            }
+        else:
+            # 全部成功
+            return {
+                "success": True,
+                "message": f"成功打印{len(success_postings)}个标签",
+                "pdf_url": pdf_url,
+                "cached_count": len(cached_postings),
+                "fetched_count": len(success_postings) - len(cached_postings),
+                "total": len(success_postings)
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量打印失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"打印失败: {str(e)}")

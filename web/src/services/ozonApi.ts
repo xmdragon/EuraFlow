@@ -1332,3 +1332,48 @@ export const uploadMedia = async (data: UploadMediaRequest) => {
   const response = await apiClient.post('/ozon/listings/media/upload', data);
   return response.data;
 };
+
+// ==================== 批量打印标签 API ====================
+
+export interface FailedPosting {
+  posting_number: string;
+  error: string;
+  suggestion: string;
+}
+
+export interface BatchPrintResult {
+  success: boolean;
+  message: string;
+  pdf_url?: string;
+  cached_count?: number;
+  fetched_count?: number;
+  total?: number;
+  error?: string;
+  failed_postings?: FailedPosting[];
+  success_postings?: string[];
+}
+
+/**
+ * 批量打印快递面单（70x125mm竖向标签）
+ *
+ * @param postingNumbers 货件编号列表（最多20个）
+ * @param shopId 店铺ID
+ * @returns 批量打印结果，包含PDF URL和详细错误信息
+ */
+export const batchPrintLabels = async (
+  postingNumbers: string[],
+  shopId: number
+): Promise<BatchPrintResult> => {
+  if (postingNumbers.length > 20) {
+    throw new Error('最多支持同时打印20个标签');
+  }
+
+  const response = await apiClient.post(
+    '/ozon/packing/postings/batch-print-labels',
+    {
+      posting_numbers: postingNumbers,
+      shop_id: shopId
+    }
+  );
+  return response.data;
+};
