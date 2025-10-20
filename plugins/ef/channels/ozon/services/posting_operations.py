@@ -505,36 +505,25 @@ class PostingOperationsService:
         finance_service = OzonFinanceSyncService()
 
         try:
-            # 3. 调用批量同步服务中的单个发货单同步逻辑
-            # 为了复用逻辑，我们调用 _sync_single_posting 私有方法
-            from datetime import datetime, timedelta, timezone as tz
-
-            # 创建 OZON API 客户端
+            # 3. 创建 OZON API 客户端
             api_client = OzonAPIClient(
                 client_id=shop.client_id,
                 api_key=shop.api_key_enc,
                 shop_id=shop.id
             )
 
-            # 获取 posting 的发货时间作为查询起始时间
-            # 如果没有发货时间，使用创建时间前30天
-            if posting.shipped_at:
-                date_from = posting.shipped_at
-            elif posting.created_at:
-                date_from = posting.created_at - timedelta(days=30)
-            else:
-                date_from = datetime.now(tz.utc) - timedelta(days=30)
-
-            date_to = datetime.now(tz.utc)
-
-            # 4. 获取财务交易记录
-            logger.info(f"获取财务交易记录，posting_number: {posting_number}, date_from: {date_from}, date_to: {date_to}")
-            operations = await api_client.get_finance_transactions(
+            # 4. 调用财务交易API
+            logger.info(f"获取财务交易记录，posting_number: {posting_number}")
+            response = await api_client.get_finance_transaction_list(
                 posting_number=posting_number,
-                date_from=date_from,
-                date_to=date_to
+                transaction_type="all",
+                page=1,
+                page_size=1000
             )
             await api_client.close()
+
+            result = response.get("result", {})
+            operations = result.get("operations", [])
 
             if not operations:
                 return {
@@ -542,13 +531,16 @@ class PostingOperationsService:
                     "message": "未找到该发货单的财务交易记录"
                 }
 
-            # 5. 计算汇率
-            exchange_rate = await finance_service._calculate_exchange_rate(operations)
-            if not exchange_rate:
+            # 5. 计算汇率（需要传入 posting 对象）
+            exchange_rate = await finance_service._calculate_exchange_rate(posting, operations)
+
+            if not exchange_rate or exchange_rate <= 0:
                 return {
                     "success": False,
                     "message": "无法计算汇率（缺少卢布订单金额或人民币订单金额）"
                 }
+
+            logger.info(f"计算得到汇率: {exchange_rate:.6f}")
 
             # 6. 提取并转换费用
             fees = await finance_service._extract_and_convert_fees(operations, exchange_rate)
