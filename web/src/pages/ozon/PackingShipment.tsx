@@ -299,6 +299,11 @@ const PackingShipment: React.FC = () => {
   const [printErrors, setPrintErrors] = useState<ozonApi.FailedPosting[]>([]);
   const [printSuccessPostings, setPrintSuccessPostings] = useState<string[]>([]);
 
+  // 扫描单号状态
+  const [scanTrackingNumber, setScanTrackingNumber] = useState<string>('');
+  const [scanResult, setScanResult] = useState<any>(null);
+  const [isScanning, setIsScanning] = useState(false);
+
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === '-') {
@@ -475,12 +480,24 @@ const PackingShipment: React.FC = () => {
     staleTime: 30000,
   });
 
+  const { data: printedData } = useQuery({
+    queryKey: ['packingOrdersCount', 'printed', selectedShop, searchParams],
+    queryFn: () => ozonApi.getPackingOrders(1, 1, {
+      shop_id: selectedShop,
+      posting_number: searchParams.posting_number,
+      operation_status: 'printed',
+    }),
+    enabled: true,
+    staleTime: 30000,
+  });
+
   // 各状态的数量
   const statusCounts = {
     awaiting_stock: awaitingStockData?.total || 0,
     allocating: allocatingData?.total || 0,
     allocated: allocatedData?.total || 0,
     tracking_confirmed: trackingConfirmedData?.total || 0,
+    printed: printedData?.total || 0,
   };
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
@@ -1194,6 +1211,66 @@ const PackingShipment: React.FC = () => {
     message.info('批量发货功能开发中');
   };
 
+  // 扫描单号查询
+  const handleScanSearch = async () => {
+    if (!scanTrackingNumber.trim()) {
+      message.warning('请输入或扫描追踪号码');
+      return;
+    }
+
+    setIsScanning(true);
+    setScanResult(null);
+
+    try {
+      const result = await ozonApi.searchPostingByTracking(scanTrackingNumber.trim());
+      setScanResult(result.data);
+      if (!result.data) {
+        message.info('未找到对应的订单');
+      }
+    } catch (error: any) {
+      message.error(`查询失败: ${error.response?.data?.error?.title || error.message}`);
+      setScanResult(null);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // 标记为已打印
+  const handleMarkPrinted = async (postingNumber: string) => {
+    try {
+      await ozonApi.markPostingPrinted(postingNumber);
+      message.success('已标记为已打印');
+      // 刷新扫描结果
+      if (scanTrackingNumber.trim()) {
+        handleScanSearch();
+      }
+      // 刷新列表数据
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+    } catch (error: any) {
+      message.error(`标记失败: ${error.response?.data?.error?.title || error.message}`);
+    }
+  };
+
+  // 从扫描结果打印单个标签
+  const handlePrintSingleLabel = async (postingNumber: string) => {
+    setIsPrinting(true);
+    try {
+      const result = await ozonApi.batchPrintLabels([postingNumber]);
+      if (result.success && result.pdf_url) {
+        window.open(result.pdf_url, '_blank');
+        message.success('标签已打开');
+      } else if (result.error === 'PARTIAL_FAILURE' && result.pdf_url) {
+        window.open(result.pdf_url, '_blank');
+      } else {
+        message.error('打印失败');
+      }
+    } catch (error: any) {
+      message.error(`打印失败: ${error.response?.data?.error?.title || error.message}`);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   // 统计数据 - 使用API返回的全局统计数据
   const stats = ordersData?.stats || {
     total: 0,
@@ -1363,6 +1440,11 @@ const PackingShipment: React.FC = () => {
           onChange={(key) => {
             setOperationStatus(key);
             setCurrentPage(1); // 切换tab时重置页码
+            // 切换到扫描标签时清空之前的扫描结果
+            if (key === 'scan') {
+              setScanTrackingNumber('');
+              setScanResult(null);
+            }
           }}
           items={[
             {
@@ -1401,59 +1483,222 @@ const PackingShipment: React.FC = () => {
                 </span>
               ),
             },
+            {
+              key: 'printed',
+              label: (
+                <span>
+                  <PrinterOutlined />
+                  已打印({statusCounts.printed})
+                </span>
+              ),
+            },
+            {
+              key: 'scan',
+              label: (
+                <span>
+                  <SearchOutlined />
+                  扫描单号
+                </span>
+              ),
+            },
           ]}
           style={{ marginTop: 16 }}
         />
 
-        {/* 批量操作按钮 */}
-        <Space style={{ marginBottom: 16, marginTop: 16 }}>
-          <Button
-            type="primary"
-            icon={<PrinterOutlined />}
-            disabled={selectedPostingNumbers.length === 0}
-            loading={isPrinting}
-            onClick={handleBatchPrint}
-          >
-            打印标签 ({selectedPostingNumbers.length}/20)
-          </Button>
-        </Space>
+        {/* 根据不同标签显示不同内容 */}
+        {operationStatus === 'scan' ? (
+          // 扫描单号界面
+          <div style={{ marginTop: 16 }}>
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+              {/* 扫描输入框 */}
+              <Card>
+                <Space.Compact style={{ width: '100%' }}>
+                  <Input
+                    placeholder="请输入或扫描追踪号码"
+                    value={scanTrackingNumber}
+                    onChange={(e) => setScanTrackingNumber(e.target.value)}
+                    onPressEnter={handleScanSearch}
+                    autoFocus
+                    size="large"
+                    prefix={<SearchOutlined />}
+                  />
+                  <Button
+                    type="primary"
+                    size="large"
+                    loading={isScanning}
+                    onClick={handleScanSearch}
+                  >
+                    查询
+                  </Button>
+                </Space.Compact>
+              </Card>
 
-        {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
-        <Table
-          loading={isLoading}
-          columns={columns}
-          dataSource={orderItemRows}
-          rowKey={(record) => record.key}
-          rowSelection={{
-            selectedRowKeys: selectedPostingNumbers,
-            onChange: (selectedKeys: React.Key[]) => {
-              setSelectedPostingNumbers(selectedKeys as string[]);
-            },
-            getCheckboxProps: (record: OrderItemRow) => ({
-              // 只在第一行显示checkbox，且只能选择"等待发运"状态的订单
-              disabled: !record.isFirstItem || record.posting.status !== 'awaiting_deliver',
-            }),
-          }}
-          pagination={false}
-          size="small"
-        />
+              {/* 扫描结果 */}
+              {scanResult && (
+                <Card title="查询结果">
+                  <Descriptions bordered column={2}>
+                    <Descriptions.Item label="货件编号" span={2}>
+                      <Text strong>{scanResult.posting_number}</Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="追踪号码">
+                      {scanResult.tracking_number || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="国内单号">
+                      {scanResult.domestic_tracking_number || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="订单状态">
+                      <Tag color={statusConfig[scanResult.status]?.color || 'default'}>
+                        {statusConfig[scanResult.status]?.text || scanResult.status}
+                      </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="操作状态">
+                      <Tag color={scanResult.operation_status === 'printed' ? 'success' : 'processing'}>
+                        {scanResult.operation_status === 'printed' ? '已打印' : scanResult.operation_status}
+                      </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="配送方式" span={2}>
+                      {scanResult.delivery_method || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="下单时间">
+                      {scanResult.ordered_at ? moment(scanResult.ordered_at).format('YYYY-MM-DD HH:mm') : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="发货截止">
+                      <Text type="danger">
+                        {scanResult.shipment_date ? moment(scanResult.shipment_date).format('YYYY-MM-DD HH:mm') : '-'}
+                      </Text>
+                    </Descriptions.Item>
+                  </Descriptions>
 
-        {/* 独立分页控制（后端分页）*/}
-        <div style={{ marginTop: 16, textAlign: 'center' }}>
-          <Pagination
-            current={currentPage}
-            pageSize={pageSize}
-            total={ordersData?.total || 0}
-            showSizeChanger
-            showQuickJumper
-            pageSizeOptions={[20, 50, 100]}
-            showTotal={(total) => `共 ${total} 条货件`}
-            onChange={(page, size) => {
-              setCurrentPage(page);
-              setPageSize(size || 20);
-            }}
-          />
-        </div>
+                  {/* 商品列表 */}
+                  {scanResult.items && scanResult.items.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <Text strong>商品明细:</Text>
+                      <Table
+                        dataSource={scanResult.items}
+                        rowKey="sku"
+                        pagination={false}
+                        size="small"
+                        style={{ marginTop: 8 }}
+                        columns={[
+                          {
+                            title: '商品图片',
+                            dataIndex: 'image',
+                            width: 80,
+                            render: (image) => (
+                              image ? (
+                                <img src={optimizeOzonImageUrl(image, 60)} alt="" style={{ width: 60, height: 60 }} />
+                              ) : (
+                                <Avatar size={60} icon={<ShoppingCartOutlined />} shape="square" />
+                              )
+                            ),
+                          },
+                          {
+                            title: 'SKU',
+                            dataIndex: 'sku',
+                          },
+                          {
+                            title: '商品名称',
+                            dataIndex: 'name',
+                          },
+                          {
+                            title: '数量',
+                            dataIndex: 'quantity',
+                            width: 80,
+                            render: (qty) => `x${qty}`,
+                          },
+                          {
+                            title: '单价',
+                            dataIndex: 'price',
+                            width: 100,
+                            render: (price) => formatPrice(price),
+                          },
+                        ]}
+                      />
+                    </div>
+                  )}
+
+                  {/* 操作按钮 */}
+                  <div style={{ marginTop: 16, textAlign: 'center' }}>
+                    <Space size="large">
+                      <Button
+                        type="primary"
+                        size="large"
+                        icon={<PrinterOutlined />}
+                        loading={isPrinting}
+                        onClick={() => handlePrintSingleLabel(scanResult.posting_number)}
+                        disabled={scanResult.status !== 'awaiting_deliver'}
+                      >
+                        打印标签
+                      </Button>
+                      <Button
+                        type="default"
+                        size="large"
+                        icon={<CheckCircleOutlined />}
+                        onClick={() => handleMarkPrinted(scanResult.posting_number)}
+                        disabled={scanResult.operation_status === 'printed' || scanResult.status !== 'awaiting_deliver'}
+                      >
+                        {scanResult.operation_status === 'printed' ? '已打印' : '标记已打印'}
+                      </Button>
+                    </Space>
+                  </div>
+                </Card>
+              )}
+            </Space>
+          </div>
+        ) : (
+          // 正常的订单列表界面
+          <>
+            {/* 批量操作按钮 */}
+            <Space style={{ marginBottom: 16, marginTop: 16 }}>
+              <Button
+                type="primary"
+                icon={<PrinterOutlined />}
+                disabled={selectedPostingNumbers.length === 0}
+                loading={isPrinting}
+                onClick={handleBatchPrint}
+              >
+                打印标签 ({selectedPostingNumbers.length}/20)
+              </Button>
+            </Space>
+
+            {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
+            <Table
+              loading={isLoading}
+              columns={columns}
+              dataSource={orderItemRows}
+              rowKey={(record) => record.key}
+              rowSelection={{
+                selectedRowKeys: selectedPostingNumbers,
+                onChange: (selectedKeys: React.Key[]) => {
+                  setSelectedPostingNumbers(selectedKeys as string[]);
+                },
+                getCheckboxProps: (record: OrderItemRow) => ({
+                  // 只在第一行显示checkbox，且只能选择"等待发运"状态的订单
+                  disabled: !record.isFirstItem || record.posting.status !== 'awaiting_deliver',
+                }),
+              }}
+              pagination={false}
+              size="small"
+            />
+
+            {/* 独立分页控制（后端分页）*/}
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={ordersData?.total || 0}
+                showSizeChanger
+                showQuickJumper
+                pageSizeOptions={[20, 50, 100]}
+                showTotal={(total) => `共 ${total} 条货件`}
+                onChange={(page, size) => {
+                  setCurrentPage(page);
+                  setPageSize(size || 20);
+                }}
+              />
+            </div>
+          </>
+        )}
       </Card>
 
       {/* 订单详情弹窗 */}
