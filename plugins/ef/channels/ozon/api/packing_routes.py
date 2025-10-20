@@ -1121,43 +1121,9 @@ async def search_posting_by_tracking(
         if not order:
             raise HTTPException(status_code=404, detail="订单信息不存在")
 
-        # 获取店铺信息
-        shop_result = await db.execute(
-            select(OzonShop).where(OzonShop.id == posting.shop_id)
-        )
-        shop = shop_result.scalar_one_or_none()
-
-        # 构造返回数据
+        # 返回与其他标签一致的数据结构（使用 order.to_dict()）
         return {
-            "posting": {
-                "posting_number": posting.posting_number,
-                "status": posting.status,
-                "operation_status": posting.operation_status,
-                "tracking_number": posting.packages[0].tracking_number if posting.packages else None,
-                "domestic_tracking_number": posting.domestic_tracking_number,
-                "delivery_method_name": posting.delivery_method_name,
-                "shipment_date": posting.shipment_date.isoformat() if posting.shipment_date else None,
-                "delivered_at": posting.delivered_at.isoformat() if posting.delivered_at else None,
-            },
-            "order": {
-                "order_id": order.order_id,
-                "ozon_order_number": order.ozon_order_number,
-                "ordered_at": order.ordered_at.isoformat() if order.ordered_at else None,
-                "total_price": float(order.total_price) if order.total_price else 0,
-                "currency_code": order.currency_code,
-            },
-            "shop": {
-                "shop_name": shop.shop_name if shop else None,
-            },
-            "items": [
-                {
-                    "name": item.name,
-                    "sku": item.sku,
-                    "quantity": item.quantity,
-                    "price": float(item.price) if item.price else 0,
-                }
-                for item in (order.items or [])
-            ]
+            "data": order.to_dict()
         }
 
     except HTTPException:
