@@ -218,6 +218,16 @@ async def get_packing_orders(
             )
         )
 
+    elif operation_status == 'printed':
+        # 已打印：ozon_status = 'awaiting_deliver' AND operation_status = 'printed'
+        # 这是一个手动标记的状态，不依赖字段存在性
+        query = query.where(
+            and_(
+                OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.operation_status == 'printed'
+            )
+        )
+
     # 应用其他过滤条件
     if shop_id:
         query = query.where(OzonOrder.shop_id == shop_id)
@@ -278,6 +288,15 @@ async def get_packing_orders(
                 OzonPosting.domestic_tracking_number != ''
             )
         )
+
+    elif operation_status == 'printed':
+        count_query = count_query.where(
+            and_(
+                OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.operation_status == 'printed'
+            )
+        )
+
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if posting_number:
@@ -1003,7 +1022,19 @@ async def batch_print_labels(
                 # 合并失败不影响结果，只是没有合并后的PDF
                 pdf_url = None
 
-        # 7. 返回结果
+        # 7. 自动标记成功打印的 posting 为"已打印"状态
+        if success_postings:
+            for pn in success_postings:
+                posting = postings.get(pn)
+                if posting and posting.status == 'awaiting_deliver':
+                    posting.operation_status = 'printed'
+                    posting.operation_time = utcnow()
+                    logger.info(f"自动标记 posting {pn} 为已打印状态")
+
+            await db.commit()
+            logger.info(f"成功标记{len(success_postings)}个 posting 为已打印状态")
+
+        # 8. 返回结果
         if failed_postings and not success_postings:
             # 全部失败
             raise HTTPException(
@@ -1056,3 +1087,156 @@ async def batch_print_labels(
         except Exception:
             pass  # traceback也可能包含二进制内容，忽略记录错误
         raise HTTPException(status_code=500, detail=f"打印失败: {error_msg}")
+
+
+@router.get("/packing/postings/search-by-tracking")
+async def search_posting_by_tracking(
+    tracking_number: str = Query(..., description="追踪号码"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    根据追踪号码查询货件
+
+    支持两种查询方式：
+    1. 从 raw_payload['tracking_number'] 查询
+    2. 从 packages 表的 tracking_number 查询
+
+    返回：posting 详情 + 订单信息 + 商品列表
+    """
+    from sqlalchemy.orm import selectinload
+    from ..models import OzonShipmentPackage
+
+    try:
+        # 方法1：从 raw_payload 查询
+        result1 = await db.execute(
+            select(OzonPosting)
+            .options(
+                selectinload(OzonPosting.packages),
+                selectinload(OzonPosting.order).selectinload(OzonOrder.items)
+            )
+            .where(
+                OzonPosting.raw_payload['tracking_number'].astext == tracking_number
+            )
+        )
+        posting = result1.scalar_one_or_none()
+
+        # 方法2：从 packages 表查询（如果方法1没找到）
+        if not posting:
+            result2 = await db.execute(
+                select(OzonPosting)
+                .join(OzonShipmentPackage, OzonPosting.id == OzonShipmentPackage.posting_id)
+                .options(
+                    selectinload(OzonPosting.packages),
+                    selectinload(OzonPosting.order).selectinload(OzonOrder.items)
+                )
+                .where(OzonShipmentPackage.tracking_number == tracking_number)
+            )
+            posting = result2.scalar_one_or_none()
+
+        if not posting:
+            raise HTTPException(status_code=404, detail=f"未找到追踪号码为 {tracking_number} 的货件")
+
+        # 获取订单信息
+        order = posting.order
+        if not order:
+            raise HTTPException(status_code=404, detail="订单信息不存在")
+
+        # 获取店铺信息
+        shop_result = await db.execute(
+            select(OzonShop).where(OzonShop.id == posting.shop_id)
+        )
+        shop = shop_result.scalar_one_or_none()
+
+        # 构造返回数据
+        return {
+            "posting": {
+                "posting_number": posting.posting_number,
+                "status": posting.status,
+                "operation_status": posting.operation_status,
+                "tracking_number": posting.packages[0].tracking_number if posting.packages else None,
+                "domestic_tracking_number": posting.domestic_tracking_number,
+                "delivery_method_name": posting.delivery_method_name,
+                "shipment_date": posting.shipment_date.isoformat() if posting.shipment_date else None,
+                "delivering_date": posting.delivering_date.isoformat() if posting.delivering_date else None,
+            },
+            "order": {
+                "order_id": order.order_id,
+                "ozon_order_number": order.ozon_order_number,
+                "ordered_at": order.ordered_at.isoformat() if order.ordered_at else None,
+                "total_price": float(order.total_price) if order.total_price else 0,
+                "currency_code": order.currency_code,
+            },
+            "shop": {
+                "shop_name": shop.shop_name if shop else None,
+            },
+            "items": [
+                {
+                    "name": item.name,
+                    "sku": item.sku,
+                    "quantity": item.quantity,
+                    "price": float(item.price) if item.price else 0,
+                }
+                for item in (order.items or [])
+            ]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"查询追踪号码失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+@router.post("/packing/postings/{posting_number}/mark-printed")
+async def mark_posting_printed(
+    posting_number: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    将货件标记为"已打印"状态
+
+    条件检查：
+    - posting 必须存在
+    - ozon_status 必须是 'awaiting_deliver'
+    """
+    try:
+        # 查询 posting
+        result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = result.scalar_one_or_none()
+
+        if not posting:
+            raise HTTPException(status_code=404, detail=f"货件不存在: {posting_number}")
+
+        # 检查状态
+        if posting.status != 'awaiting_deliver':
+            raise HTTPException(
+                status_code=422,
+                detail=f"只能标记'等待发运'状态的订单为已打印，当前状态：{posting.status}"
+            )
+
+        # 更新状态
+        posting.operation_status = 'printed'
+        posting.operation_time = utcnow()
+
+        await db.commit()
+        await db.refresh(posting)
+
+        logger.info(f"货件 {posting_number} 已标记为已打印状态")
+
+        return {
+            "success": True,
+            "message": "已标记为已打印",
+            "data": {
+                "posting_number": posting.posting_number,
+                "operation_status": posting.operation_status,
+                "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"标记已打印失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"操作失败: {str(e)}")

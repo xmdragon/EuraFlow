@@ -447,16 +447,20 @@ class OrderSyncService:
             posting.operation_status = "awaiting_stock"
 
         elif ozon_status == "awaiting_deliver":
-            # 根据追踪号码和国内单号判断
-            has_tracking = posting.has_tracking_number()
-            has_domestic = posting.domestic_tracking_number and posting.domestic_tracking_number.strip()
-
-            if not has_tracking:
-                posting.operation_status = "allocating"
-            elif has_tracking and not has_domestic:
-                posting.operation_status = "allocated"
+            # 如果已经是 printed 状态，保持不变（用户已手动标记或自动标记）
+            if old_operation_status == "printed":
+                posting.operation_status = "printed"
             else:
-                posting.operation_status = "tracking_confirmed"
+                # 根据追踪号码和国内单号判断
+                has_tracking = posting.has_tracking_number()
+                has_domestic = posting.domestic_tracking_number and posting.domestic_tracking_number.strip()
+
+                if not has_tracking:
+                    posting.operation_status = "allocating"
+                elif has_tracking and not has_domestic:
+                    posting.operation_status = "allocated"
+                else:
+                    posting.operation_status = "tracking_confirmed"
 
         elif ozon_status == "delivering":
             posting.operation_status = "shipping"

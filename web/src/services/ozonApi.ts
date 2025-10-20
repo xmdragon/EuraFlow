@@ -1375,3 +1375,25 @@ export const batchPrintLabels = async (
   );
   return response.data;
 };
+
+/**
+ * 根据追踪号码查询货件
+ * @param trackingNumber 追踪号码
+ * @returns 货件详情（包含订单信息、商品列表）
+ */
+export const searchPostingByTracking = async (trackingNumber: string) => {
+  const response = await apiClient.get('/ozon/packing/postings/search-by-tracking', {
+    params: { tracking_number: trackingNumber }
+  });
+  return response.data;
+};
+
+/**
+ * 标记货件为已打印状态
+ * @param postingNumber 货件编号
+ * @returns 操作结果
+ */
+export const markPostingPrinted = async (postingNumber: string) => {
+  const response = await apiClient.post(`/ozon/packing/postings/${postingNumber}/mark-printed`);
+  return response.data;
+};
