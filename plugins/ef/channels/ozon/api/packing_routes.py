@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, and_, desc, cast
+from sqlalchemy import select, func, update, and_, or_, desc, cast
 from sqlalchemy.dialects.postgresql import JSONB
 from decimal import Decimal
 from datetime import datetime, timezone
