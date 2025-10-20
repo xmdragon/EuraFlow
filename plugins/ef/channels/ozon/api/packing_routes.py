@@ -205,16 +205,11 @@ async def get_packing_orders(
         )
 
     elif operation_status == 'tracking_confirmed':
-        # 确认单号：ozon_status = 'awaiting_deliver' AND 有追踪号码 AND 有国内单号
+        # 确认单号：ozon_status = 'awaiting_deliver' AND operation_status = 'tracking_confirmed'
         query = query.where(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
-                # 有追踪号码
-                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
-                OzonPosting.raw_payload['tracking_number'].astext != '',
-                # 有国内单号
-                OzonPosting.domestic_tracking_number.isnot(None),
-                OzonPosting.domestic_tracking_number != ''
+                OzonPosting.operation_status == 'tracking_confirmed'
             )
         )
 
@@ -280,10 +275,7 @@ async def get_packing_orders(
         count_query = count_query.where(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
-                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
-                OzonPosting.raw_payload['tracking_number'].astext != '',
-                OzonPosting.domestic_tracking_number.isnot(None),
-                OzonPosting.domestic_tracking_number != ''
+                OzonPosting.operation_status == 'tracking_confirmed'
             )
         )
 
