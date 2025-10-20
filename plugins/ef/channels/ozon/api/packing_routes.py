@@ -1101,11 +1101,14 @@ async def search_posting_by_tracking(
 
     try:
         # 精确匹配国内物流单号
+        # 注意：需要预加载所有关联对象，因为 order.to_dict() 会访问它们
         result = await db.execute(
             select(OzonPosting)
             .options(
                 selectinload(OzonPosting.packages),
-                selectinload(OzonPosting.order).selectinload(OzonOrder.items)
+                selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+                selectinload(OzonPosting.order).selectinload(OzonOrder.items),
+                selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
             )
             .where(
                 OzonPosting.domestic_tracking_number == tracking_number.strip()
