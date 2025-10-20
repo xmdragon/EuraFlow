@@ -67,6 +67,18 @@ class OzonWebhookHandler:
         "return.created",
         "return.status_changed"
     }
+
+    # OZON Webhook 状态映射（posting_ 前缀格式 → 标准格式）
+    WEBHOOK_STATUS_MAP = {
+        "posting_awaiting_registration": "awaiting_packaging",
+        "posting_registered": "awaiting_packaging",
+        "posting_transferring_to_delivery": "awaiting_deliver",
+        "posting_on_way_to_city": "delivering",
+        "posting_received": "delivered",
+        "posting_in_pickup_point": "delivered",
+        "posting_canceled": "cancelled",
+        "posting_cancelled": "cancelled",
+    }
     
     def __init__(self, shop_id: int, webhook_secret: str):
         """
@@ -283,9 +295,16 @@ class OzonWebhookHandler:
         - cancelled（已取消）
         """
         posting_number = payload.get("posting_number")
-        new_status = payload.get("status")
+        raw_status = payload.get("new_state")  # 修正：OZON字段名为 "new_state"，不是 "status"
 
-        logger.info(f"Posting {posting_number} status changed to {new_status}")
+        if not raw_status:
+            logger.warning(f"Posting {posting_number} status change webhook missing new_state field")
+            return {"message": "Missing new_state field"}
+
+        # 映射 OZON webhook 状态到标准状态
+        new_status = self.WEBHOOK_STATUS_MAP.get(raw_status, raw_status)
+
+        logger.info(f"Posting {posting_number} status changed: {raw_status} → {new_status}")
 
         # 更新本地状态
         from ..models.orders import OzonPosting
