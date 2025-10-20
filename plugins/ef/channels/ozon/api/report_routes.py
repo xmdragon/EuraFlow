@@ -522,6 +522,14 @@ async def get_report_summary(
         last_day = calendar.monthrange(year, month_num)[1]
         end_date = datetime(year, month_num, last_day, 23, 59, 59, tzinfo=timezone.utc)
 
+        # 如果结束日期超过今天，则截止到昨天，避免显示今天未完成的数据
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        yesterday = now - timedelta(days=1)
+        yesterday_end = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59, tzinfo=timezone.utc)
+        if end_date > yesterday_end:
+            end_date = yesterday_end
+
         # 计算上月的开始和结束日期
         if month_num == 1:
             prev_year = year - 1
