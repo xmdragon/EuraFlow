@@ -186,6 +186,18 @@ class Kuajing84MaterialCostSyncService:
                                     f"tracking_number={result['logistics_order']}"
                                 )
 
+                            # 更新国际物流费用（如果数据库中为空或为0）
+                            out_freight_str = result.get("out_freight", "0.00")
+                            if out_freight_str != "0.00":
+                                out_freight = Decimal(str(out_freight_str))
+                                # 只在数据库中没有值或为0时才更新
+                                if not posting.international_logistics_fee_cny or posting.international_logistics_fee_cny == 0:
+                                    posting.international_logistics_fee_cny = out_freight
+                                    logger.info(
+                                        f"Updated international logistics fee for posting {posting.id}, "
+                                        f"posting_number={posting_number}, fee={out_freight}"
+                                    )
+
                             # 清除错误状态并更新同步时间
                             posting.kuajing84_sync_error = None
                             posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
@@ -370,7 +382,8 @@ class Kuajing84MaterialCostSyncService:
                             "success": True,
                             "order_status_info": order_data.get("order_status_info", ""),
                             "money": order_data.get("money", "0"),
-                            "logistics_order": logistics_order
+                            "logistics_order": logistics_order,
+                            "out_freight": order_data.get("out_freight", "0.00")
                         }
                     else:
                         logger.warning(f"API returned empty data for {posting_number}")

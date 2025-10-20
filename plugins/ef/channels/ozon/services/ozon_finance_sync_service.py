@@ -167,7 +167,19 @@ class OzonFinanceSyncService:
 
                             # 8. 更新posting记录
                             posting.last_mile_delivery_fee_cny = fees["last_mile_delivery"]
-                            posting.international_logistics_fee_cny = fees["international_logistics"]
+
+                            # 国际物流费用：保护逻辑（如果数据库已有非0值，且新数据为0，则不更新）
+                            if posting.international_logistics_fee_cny and posting.international_logistics_fee_cny != 0:
+                                if fees["international_logistics"] == 0:
+                                    logger.info(
+                                        f"Skipping international_logistics_fee update for posting {posting.id}, "
+                                        f"existing value {posting.international_logistics_fee_cny} is non-zero, new value is 0"
+                                    )
+                                else:
+                                    posting.international_logistics_fee_cny = fees["international_logistics"]
+                            else:
+                                posting.international_logistics_fee_cny = fees["international_logistics"]
+
                             posting.ozon_commission_cny = fees["ozon_commission"]
                             posting.finance_synced_at = datetime.now(timezone.utc)
 
