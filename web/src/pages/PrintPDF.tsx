@@ -71,7 +71,11 @@ const PrintPDF = () => {
         canvas.height = viewport.height;
         canvas.style.display = 'block';
         canvas.style.margin = '0 auto 10px';
-        canvas.style.pageBreakAfter = 'always';
+
+        // 只在非最后一页设置分页，避免最后多一张空白页
+        if (pageNum < pdf.numPages) {
+          canvas.style.pageBreakAfter = 'always';
+        }
 
         container.appendChild(canvas);
 
