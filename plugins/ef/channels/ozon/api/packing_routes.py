@@ -760,6 +760,9 @@ async def batch_print_labels(
     # 获取请求参数
     posting_numbers = body.posting_numbers
 
+    # 调试日志：记录接收到的 posting_numbers
+    logger.info(f"📝 批量打印标签请求 - posting_numbers: {posting_numbers}")
+
     try:
         # 1. 验证请求参数
         if not posting_numbers:
@@ -775,6 +778,15 @@ async def batch_print_labels(
             )
         )
         postings = {p.posting_number: p for p in postings_result.scalars().all()}
+
+        # 调试日志：记录查询到的 posting 数量
+        logger.info(f"📦 查询结果 - 请求{len(posting_numbers)}个, 找到{len(postings)}个")
+        logger.info(f"📦 找到的 posting_numbers: {list(postings.keys())}")
+
+        # 找出缺失的 posting_numbers
+        missing_postings = [pn for pn in posting_numbers if pn not in postings]
+        if missing_postings:
+            logger.warning(f"⚠️ 数据库中不存在的 posting_numbers: {missing_postings}")
 
         # 验证所有posting是否存在
         if not postings:
