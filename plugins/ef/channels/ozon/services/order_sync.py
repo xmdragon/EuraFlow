@@ -364,13 +364,21 @@ class OrderSyncService:
         posting.delivery_method_name = delivery.get("name")
         
         # 取消信息
-        if posting_data.get("cancellation"):
+        cancellation = posting_data.get("cancellation", {})
+        # 检查是否真的有取消信息（不只是空对象）
+        has_cancellation = bool(
+            cancellation.get("cancel_reason_id") or
+            cancellation.get("cancel_reason") or
+            cancellation.get("cancellation_type")
+        )
+
+        if has_cancellation:
             posting.is_cancelled = True
-            posting.cancel_reason_id = posting_data["cancellation"].get("reason_id")
-            posting.cancel_reason = posting_data["cancellation"].get("reason")
-            posting.cancelled_at = self._parse_date(posting_data["cancellation"].get("cancelled_at"))
+            posting.cancel_reason_id = cancellation.get("cancel_reason_id") or cancellation.get("reason_id")
+            posting.cancel_reason = cancellation.get("cancel_reason") or cancellation.get("reason")
+            posting.cancelled_at = self._parse_date(cancellation.get("cancelled_at"))
         else:
-            # 重要：如果API不再返回cancellation，说明订单已恢复，需要重置标志
+            # 重要：如果API不再返回有效的cancellation，说明订单未取消或已恢复，需要重置标志
             posting.is_cancelled = False
 
         posting.raw_payload = posting_data
