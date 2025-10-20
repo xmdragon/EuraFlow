@@ -1218,6 +1218,11 @@ const PackingShipment: React.FC = () => {
       return;
     }
 
+    // 防止重复提交
+    if (isScanning) {
+      return;
+    }
+
     setIsScanning(true);
     setScanResult(null);
 
@@ -1227,6 +1232,8 @@ const PackingShipment: React.FC = () => {
       if (!result.data) {
         message.info('未找到对应的订单');
       }
+      // 查询成功后自动清空输入框
+      setScanTrackingNumber('');
     } catch (error: any) {
       message.error(`查询失败: ${error.response?.data?.error?.title || error.message}`);
       setScanResult(null);
@@ -1518,6 +1525,7 @@ const PackingShipment: React.FC = () => {
                     value={scanTrackingNumber}
                     onChange={(e) => setScanTrackingNumber(e.target.value)}
                     onPressEnter={handleScanSearch}
+                    disabled={isScanning}
                     autoFocus
                     size="large"
                     prefix={<SearchOutlined />}
@@ -1526,6 +1534,7 @@ const PackingShipment: React.FC = () => {
                     type="primary"
                     size="large"
                     loading={isScanning}
+                    disabled={isScanning}
                     onClick={handleScanSearch}
                   >
                     查询
