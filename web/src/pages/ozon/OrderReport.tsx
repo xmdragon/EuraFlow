@@ -708,7 +708,7 @@ const OrderReport: React.FC = () => {
                     <Row gutter={16} style={{ marginBottom: 24 }}>
                       {/* 饼图：成本分解（单店铺）或店铺销售（多店铺） */}
                       <Col span={12}>
-                        <Card title={selectedShop !== null ? "成本构成" : "店铺销售占比"} className={styles.chartCard}>
+                        <Card title={selectedShop !== null ? "销售额分解" : "店铺销售占比"} className={styles.chartCard}>
                           <div className={styles.chartContainer}>
                             {selectedShop !== null ? (
                               <ResponsiveContainer width="100%" height="100%">

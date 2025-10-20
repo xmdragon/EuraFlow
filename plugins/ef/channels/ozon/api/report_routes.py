@@ -712,13 +712,14 @@ async def get_report_summary(
         prev_total_profit = prev_total_sales - (prev_total_purchase + prev_total_commission + prev_total_intl_logistics + prev_total_last_mile + prev_total_material)
         prev_profit_rate = float((prev_total_profit / prev_total_sales * 100)) if prev_total_sales > 0 else 0.0
 
-        # 构建成本分解数据（用于饼图）
+        # 构建成本分解数据（用于饼图）- 包含利润占比
         cost_breakdown = [
             {"name": "进货金额", "value": float(total_purchase)},
             {"name": "Ozon佣金", "value": float(total_commission)},
             {"name": "国际物流", "value": float(total_intl_logistics)},
             {"name": "尾程派送", "value": float(total_last_mile)},
-            {"name": "打包费用", "value": float(total_material)}
+            {"name": "打包费用", "value": float(total_material)},
+            {"name": "利润", "value": float(total_profit)}
         ]
 
         # 构建店铺分布数据（用于饼图）
