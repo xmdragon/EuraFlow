@@ -256,6 +256,23 @@ class OzonSyncService:
                         except Exception as e:
                             logger.error(f"Failed to get {filter_label} products stock batch: {e}")
 
+                    # === 性能优化：批量查询现有商品，避免 N+1 查询 ===
+                    existing_products_result = await db.execute(
+                        select(OzonProduct).where(
+                            and_(
+                                OzonProduct.shop_id == shop_id,
+                                OzonProduct.offer_id.in_(offer_ids)
+                            )
+                        )
+                    )
+                    existing_products_map = {
+                        p.offer_id: p for p in existing_products_result.scalars().all()
+                    }
+                    logger.debug(
+                        f"Batch query: found {len(existing_products_map)} existing products "
+                        f"out of {len(offer_ids)} items"
+                    )
+
                     # 处理每个商品
                     for idx, item in enumerate(items):
 
@@ -278,13 +295,8 @@ class OzonSyncService:
                         price_info = products_price_map.get(item.get("offer_id")) if item.get("offer_id") else None
                         stock_info = products_stock_map.get(item.get("offer_id")) if item.get("offer_id") else None
 
-                        # 检查商品是否存在
-                        existing = await db.execute(
-                            select(OzonProduct).where(
-                                OzonProduct.shop_id == shop_id, OzonProduct.offer_id == item.get("offer_id")
-                            )
-                        )
-                        product = existing.scalar_one_or_none()
+                        # 从批量查询结果中获取现有商品
+                        product = existing_products_map.get(item.get("offer_id"))
 
                         # 处理图片信息
                         images_data = None
@@ -689,6 +701,11 @@ class OzonSyncService:
                     # 处理完这一页的商品，更新计数并检查下一页
                     total_synced += len(items)
 
+                    # === 性能优化：分批提交，避免长事务 ===
+                    # 每处理一页（约100个商品）提交一次，减少事务大小
+                    await db.commit()
+                    logger.debug(f"Committed batch of {len(items)} products for {filter_label}")
+
                     # 检查是否有下一页
                     next_id = result.get("last_id")
                     if next_id:
@@ -698,9 +715,6 @@ class OzonSyncService:
                     else:
                         logger.info(f"{filter_label} 同步完成，共处理了 {page} 页")
                         break
-
-            # 提交所有商品的处理结果
-                await db.commit()
             total_synced = len(all_synced_products)
 
             logger.info(f"\n=== 同步完成 ===")
