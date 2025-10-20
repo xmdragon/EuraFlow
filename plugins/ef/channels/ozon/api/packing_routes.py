@@ -232,13 +232,15 @@ async def get_packing_orders(
     if shop_id:
         query = query.where(OzonOrder.shop_id == shop_id)
 
-    # 搜索条件
+    # 搜索条件：打包发货页面只精确匹配国内单号
     if posting_number:
+        # 精确匹配国内单号（去除首尾空格）
         query = query.where(
-            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
-            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
-            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
+            OzonPosting.domestic_tracking_number == posting_number.strip()
         )
+    else:
+        # 空搜索不返回任何订单（强制用户输入国内单号）
+        query = query.where(False)
 
     # 去重（因为一个订单可能有多个posting，使用distinct on id）
     # PostgreSQL要求DISTINCT ON的字段必须出现在ORDER BY的开头
@@ -300,11 +302,13 @@ async def get_packing_orders(
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if posting_number:
+        # 精确匹配国内单号（去除首尾空格）
         count_query = count_query.where(
-            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
-            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
-            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
+            OzonPosting.domestic_tracking_number == posting_number.strip()
         )
+    else:
+        # 空搜索不返回任何订单
+        count_query = count_query.where(False)
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()
