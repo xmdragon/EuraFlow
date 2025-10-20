@@ -455,7 +455,7 @@ class PostingOperationsService:
                     "posting_number": posting.posting_number,
                     "material_cost": str(posting.material_cost) if posting.material_cost else None,
                     "domestic_tracking_number": posting.domestic_tracking_number,
-                    "profit_amount_cny": str(posting.profit_amount_cny) if posting.profit_amount_cny else None,
+                    "profit_amount_cny": str(posting.profit) if posting.profit else None,
                     "profit_rate": posting.profit_rate
                 }
             }
@@ -583,7 +583,7 @@ class PostingOperationsService:
                     "last_mile_delivery_fee_cny": str(posting.last_mile_delivery_fee_cny) if posting.last_mile_delivery_fee_cny else None,
                     "international_logistics_fee_cny": str(posting.international_logistics_fee_cny) if posting.international_logistics_fee_cny else None,
                     "exchange_rate": str(exchange_rate),
-                    "profit_amount_cny": str(posting.profit_amount_cny) if posting.profit_amount_cny else None,
+                    "profit_amount_cny": str(posting.profit) if posting.profit else None,
                     "profit_rate": posting.profit_rate
                 }
             }
