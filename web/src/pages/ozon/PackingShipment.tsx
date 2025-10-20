@@ -299,6 +299,26 @@ const PackingShipment: React.FC = () => {
   const [printErrors, setPrintErrors] = useState<ozonApi.FailedPosting[]>([]);
   const [printSuccessPostings, setPrintSuccessPostings] = useState<string[]>([]);
 
+  /**
+   * 打开 PDF 并自动触发打印对话框
+   */
+  const printPDF = (pdfUrl: string) => {
+    // 在新窗口打开 PDF
+    const printWindow = window.open(pdfUrl, '_blank');
+
+    if (printWindow) {
+      // 等待 PDF 加载完成后自动触发打印
+      printWindow.onload = () => {
+        // 延迟一下确保 PDF 完全渲染
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+      };
+    } else {
+      message.error('无法打开打印窗口，请检查浏览器弹窗拦截设置');
+    }
+  };
+
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === '-') {
@@ -1144,7 +1164,7 @@ const PackingShipment: React.FC = () => {
       if (result.success) {
         // 全部成功
         if (result.pdf_url) {
-          window.open(result.pdf_url, '_blank');
+          printPDF(result.pdf_url);
         }
 
         message.success(
@@ -1161,7 +1181,7 @@ const PackingShipment: React.FC = () => {
 
         // 如果有成功的，打开PDF
         if (result.pdf_url) {
-          window.open(result.pdf_url, '_blank');
+          printPDF(result.pdf_url);
         }
       }
     } catch (error: any) {
