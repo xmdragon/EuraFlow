@@ -88,8 +88,8 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         setConnectionError('Connection error');
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket disconnected');
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnected', { code: event.code, reason: event.reason });
         setIsConnected(false);
         onDisconnectedRef.current?.();
 
@@ -99,7 +99,30 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           heartbeatTimerRef.current = null;
         }
 
-        // 自动重连
+        // 检查是否是认证失败导致的关闭
+        // WebSocket关闭码：1008 = 策略违规（通常是认证失败）
+        // WebSocket关闭码：4001 = 自定义认证失败码
+        const isAuthFailure = event.code === 1008 || event.code === 4001 ||
+          (event.reason && event.reason.toLowerCase().includes('auth'));
+
+        if (isAuthFailure) {
+          console.error('WebSocket closed due to authentication failure');
+          // 清除token并跳转到登录页
+          import('@/services/authService').then(({ default: authService }) => {
+            authService.clearTokens();
+            if (window.location.pathname !== '/login') {
+              import('antd').then(({ message }) => {
+                message.warning('登录已过期，请重新登录');
+              });
+              setTimeout(() => {
+                window.location.href = '/login';
+              }, 500);
+            }
+          });
+          return; // 不进行重连
+        }
+
+        // 自动重连（非认证失败的情况）
         if (autoReconnect) {
           reconnectTimerRef.current = setTimeout(() => {
             console.log('Reconnecting WebSocket...');
