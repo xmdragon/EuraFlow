@@ -3,8 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { Spin, message } from 'antd';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 设置 PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// 设置 PDF.js worker - 使用本地文件
+// @ts-ignore
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
  * PDF 打印预览页面
