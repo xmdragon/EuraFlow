@@ -360,97 +360,112 @@ class PostingOperationsService:
         Returns:
             操作结果
         """
-        logger.info(f"开始同步打包费用，posting_number: {posting_number}")
+        try:
+            logger.info(f"开始同步打包费用，posting_number: {posting_number}")
 
-        # 1. 查询 posting 和关联的 shop
-        result = await self.db.execute(
-            select(OzonPosting, OzonShop, OzonOrder)
-            .join(OzonShop, OzonPosting.shop_id == OzonShop.id)
-            .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
-            .where(OzonPosting.posting_number == posting_number)
-        )
-        row = result.first()
+            # 1. 查询 posting 和关联的订单
+            result = await self.db.execute(
+                select(OzonPosting)
+                .where(OzonPosting.posting_number == posting_number)
+            )
+            posting = result.scalar_one_or_none()
 
-        if not row:
-            logger.error(f"货件不存在: {posting_number}")
+            if not posting:
+                logger.error(f"货件不存在: {posting_number}")
+                return {
+                    "success": False,
+                    "message": f"货件不存在: {posting_number}"
+                }
+
+            # 2. 查询全局跨境巴士配置
+            from ..models.kuajing84_global_config import Kuajing84GlobalConfig
+            config_result = await self.db.execute(
+                select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
+            )
+            kuajing84_config = config_result.scalar_one_or_none()
+
+            if not kuajing84_config or not kuajing84_config.enabled:
+                return {
+                    "success": False,
+                    "message": "跨境巴士未启用，请在同步服务中配置并启用"
+                }
+
+            # 3. 获取有效的 Cookie
+            from .kuajing84_sync import create_kuajing84_sync_service
+            sync_service = create_kuajing84_sync_service(self.db)
+            valid_cookies = await sync_service._get_valid_cookies()
+
+            if not valid_cookies:
+                return {
+                    "success": False,
+                    "message": "无法获取有效的Cookie，请检查跨境巴士配置或测试连接"
+                }
+
+            # 4. 调用跨境巴士服务获取打包费用
+            from .kuajing84_material_cost_sync_service import Kuajing84MaterialCostSyncService
+            kuajing84_service = Kuajing84MaterialCostSyncService()
+
+            fetch_result = await kuajing84_service._fetch_kuajing84_order(
+                posting_number=posting_number,
+                cookies=valid_cookies,
+                base_url=kuajing84_config.base_url
+            )
+
+            if not fetch_result.get("success"):
+                logger.error(f"跨境巴士API调用失败: {fetch_result.get('message')}")
+                return {
+                    "success": False,
+                    "message": f"跨境巴士同步失败: {fetch_result.get('message', '未知错误')}"
+                }
+
+            # 5. 检查订单状态是否为"已打包"
+            if fetch_result.get("order_status_info") != "已打包":
+                return {
+                    "success": False,
+                    "message": f"跨境巴士订单状态为 '{fetch_result.get('order_status_info')}'，只有'已打包'状态才能同步费用"
+                }
+
+            # 6. 更新打包费用
+            material_cost = Decimal(str(fetch_result["money"]))
+            posting.material_cost = material_cost
+
+            # 7. 如果本地没有国内物流单号，使用跨境巴士的logistics_order
+            if not posting.domestic_tracking_number and fetch_result.get("logistics_order"):
+                posting.domestic_tracking_number = fetch_result["logistics_order"]
+                posting.domestic_tracking_updated_at = utcnow()
+
+            # 8. 清除错误状态并更新同步时间
+            posting.kuajing84_sync_error = None
+            posting.kuajing84_last_sync_at = utcnow()
+
+            # 9. 重新计算利润
+            from .profit_calculator import calculate_and_update_profit
+            await calculate_and_update_profit(self.db, posting)
+
+            # 10. 提交数据库事务
+            await self.db.commit()
+            await self.db.refresh(posting)
+
+            logger.info(f"打包费用同步成功，posting_number: {posting_number}, material_cost: {material_cost}")
+
+            return {
+                "success": True,
+                "message": "打包费用同步成功",
+                "data": {
+                    "posting_number": posting.posting_number,
+                    "material_cost": str(posting.material_cost) if posting.material_cost else None,
+                    "domestic_tracking_number": posting.domestic_tracking_number,
+                    "profit_amount_cny": str(posting.profit_amount_cny) if posting.profit_amount_cny else None,
+                    "profit_rate": posting.profit_rate
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"同步失败: {str(e)}", exc_info=True)
             return {
                 "success": False,
-                "message": f"货件不存在: {posting_number}"
+                "message": f"同步失败: {str(e)}"
             }
-
-        posting, shop, order = row
-
-        # 2. 检查店铺是否配置了跨境巴士
-        if not shop.kuajing84_config or not shop.kuajing84_config.get("enabled"):
-            return {
-                "success": False,
-                "message": "店铺未启用跨境巴士同步"
-            }
-
-        # 3. 检查是否有必要字段
-        if not order.ozon_order_number:
-            return {
-                "success": False,
-                "message": "订单缺少 ozon_order_number"
-            }
-
-        # 4. 调用跨境巴士服务获取打包费用
-        from .kuajing84_material_cost_sync_service import Kuajing84MaterialCostSyncService
-
-        kuajing84_service = Kuajing84MaterialCostSyncService(self.db)
-        fetch_result = await kuajing84_service._fetch_kuajing84_order(
-            shop_config=shop.kuajing84_config,
-            order_number=order.ozon_order_number
-        )
-
-        if not fetch_result["success"]:
-            logger.error(f"跨境巴士API调用失败: {fetch_result.get('message')}")
-            return {
-                "success": False,
-                "message": f"跨境巴士同步失败: {fetch_result.get('message', '未知错误')}"
-            }
-
-        # 5. 检查订单状态是否为"已打包"
-        if fetch_result.get("order_status_info") != "已打包":
-            return {
-                "success": False,
-                "message": f"跨境巴士订单状态为 '{fetch_result.get('order_status_info')}'，只有'已打包'状态才能同步费用"
-            }
-
-        # 6. 更新打包费用
-        material_cost = Decimal(str(fetch_result["money"]))
-        posting.material_cost = material_cost
-
-        # 7. 如果本地没有国内物流单号，使用跨境巴士的logistics_order
-        if not posting.domestic_tracking_number and fetch_result.get("logistics_order"):
-            posting.domestic_tracking_number = fetch_result["logistics_order"]
-            posting.domestic_tracking_updated_at = utcnow()
-
-        # 8. 清除错误状态并更新同步时间
-        posting.kuajing84_sync_error = None
-        posting.kuajing84_last_sync_at = utcnow()
-
-        # 9. 重新计算利润
-        from .profit_calculator import calculate_and_update_profit
-        await calculate_and_update_profit(self.db, posting)
-
-        # 10. 提交数据库事务
-        await self.db.commit()
-        await self.db.refresh(posting)
-
-        logger.info(f"打包费用同步成功，posting_number: {posting_number}, material_cost: {material_cost}")
-
-        return {
-            "success": True,
-            "message": "打包费用同步成功",
-            "data": {
-                "posting_number": posting.posting_number,
-                "material_cost": str(posting.material_cost) if posting.material_cost else None,
-                "domestic_tracking_number": posting.domestic_tracking_number,
-                "profit_amount_cny": str(posting.profit_amount_cny) if posting.profit_amount_cny else None,
-                "profit_rate": posting.profit_rate
-            }
-        }
 
     async def sync_finance_single(
         self,
