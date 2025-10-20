@@ -434,19 +434,34 @@ class PostingOperationsService:
                 posting.domestic_tracking_number = fetch_result["logistics_order"]
                 posting.domestic_tracking_updated_at = utcnow()
 
-            # 8. 清除错误状态并更新同步时间
+            # 8. 更新国际物流费用（如果数据库中为空或为0）
+            out_freight_str = fetch_result.get("out_freight", "0.00")
+            if out_freight_str != "0.00":
+                out_freight = Decimal(str(out_freight_str))
+                # 只在数据库中没有值或为0时才更新
+                if not posting.international_logistics_fee_cny or posting.international_logistics_fee_cny == 0:
+                    posting.international_logistics_fee_cny = out_freight
+                    logger.info(
+                        f"更新国际物流费用: posting_number={posting_number}, fee={out_freight}"
+                    )
+
+            # 9. 清除错误状态并更新同步时间
             posting.kuajing84_sync_error = None
             posting.kuajing84_last_sync_at = utcnow()
 
-            # 9. 重新计算利润
+            # 10. 重新计算利润
             from .profit_calculator import calculate_and_update_profit
             await calculate_and_update_profit(self.db, posting)
 
-            # 10. 提交数据库事务
+            # 11. 提交数据库事务
             await self.db.commit()
             await self.db.refresh(posting)
 
-            logger.info(f"打包费用同步成功，posting_number: {posting_number}, material_cost: {material_cost}")
+            logger.info(
+                f"打包费用同步成功，posting_number: {posting_number}, "
+                f"material_cost: {material_cost}, "
+                f"international_logistics_fee: {posting.international_logistics_fee_cny}"
+            )
 
             return {
                 "success": True,
@@ -455,6 +470,7 @@ class PostingOperationsService:
                     "posting_number": posting.posting_number,
                     "material_cost": str(posting.material_cost) if posting.material_cost else None,
                     "domestic_tracking_number": posting.domestic_tracking_number,
+                    "international_logistics_fee_cny": str(posting.international_logistics_fee_cny) if posting.international_logistics_fee_cny else None,
                     "profit_amount_cny": str(posting.profit) if posting.profit else None,
                     "profit_rate": posting.profit_rate
                 }
