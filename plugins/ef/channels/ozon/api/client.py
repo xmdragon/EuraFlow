@@ -502,7 +502,7 @@ class OzonAPIClient:
         to_str = date_to.replace(tzinfo=None).isoformat() + "Z"
 
         data = {
-            "dir": "asc",
+            "dir": "desc",  # 降序：从新到旧
             "filter": {"since": since_str, "to": to_str},
             "limit": limit,
             "offset": offset,
