@@ -327,9 +327,19 @@ const PackingShipment: React.FC = () => {
               border: none;
             }
           </style>
+          <script>
+            window.onload = function() {
+              var iframe = document.querySelector('iframe');
+              iframe.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 1000);
+              };
+            };
+          </script>
         </head>
         <body>
-          <iframe src="${pdfUrl}" onload="setTimeout(() => window.print(), 500);"></iframe>
+          <iframe src="${pdfUrl}"></iframe>
         </body>
         </html>
       `);
