@@ -1305,14 +1305,9 @@ class OzonSyncService:
         # 同步包裹信息（如果有）
         await OzonSyncService._sync_packages(db, posting, posting_data, shop)
 
-        # ========== 预加载 packages 关系 ==========
-        # 确保 packages 已写入数据库并加载到 posting 对象，以便状态同步逻辑可以正确读取
-        await db.flush()  # 确保 packages 已写入数据库
-        packages_result = await db.execute(
-            select(OzonShipmentPackage).where(OzonShipmentPackage.posting_id == posting.id)
-        )
-        posting.packages = packages_result.scalars().all()
-        logger.info(f"Preloaded {len(posting.packages)} packages for posting {posting_number}")
+        # 刷新以确保包裹数据已写入数据库
+        # posting.has_tracking_number() 会从数据库自动加载 packages 关系
+        await db.flush()
 
         # ========== 自动状态管理 ==========
 
