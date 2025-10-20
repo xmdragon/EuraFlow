@@ -303,17 +303,37 @@ const PackingShipment: React.FC = () => {
    * 打开 PDF 并自动触发打印对话框
    */
   const printPDF = (pdfUrl: string) => {
-    // 在新窗口打开 PDF
-    const printWindow = window.open(pdfUrl, '_blank');
+    // 创建一个临时 HTML 页面来承载 PDF，以便能触发打印对话框
+    const printWindow = window.open('', '_blank');
 
     if (printWindow) {
-      // 等待 PDF 加载完成后自动触发打印
-      printWindow.onload = () => {
-        // 延迟一下确保 PDF 完全渲染
-        setTimeout(() => {
-          printWindow.print();
-        }, 500);
-      };
+      // 写入 HTML 内容，使用 iframe 嵌入 PDF
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>打印标签</title>
+          <style>
+            body, html {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+            }
+            iframe {
+              width: 100%;
+              height: 100vh;
+              border: none;
+            }
+          </style>
+        </head>
+        <body>
+          <iframe src="${pdfUrl}" onload="setTimeout(() => window.print(), 500);"></iframe>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
     } else {
       message.error('无法打开打印窗口，请检查浏览器弹窗拦截设置');
     }
