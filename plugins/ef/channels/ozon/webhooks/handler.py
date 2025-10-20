@@ -986,20 +986,32 @@ class OzonWebhookHandler:
             chat = await session.scalar(stmt)
 
             if not chat:
-                # 创建新的聊天会话
-                chat = OzonChat(
-                    shop_id=self.shop_id,
-                    chat_id=chat_id,
-                    chat_type=payload.get("chat_type", "general"),
-                    status="open",
-                    customer_id=payload.get("customer_id"),
-                    customer_name=payload.get("customer_name"),
-                    order_number=payload.get("order_number"),
-                    message_count=0,
-                    unread_count=0
-                )
-                session.add(chat)
-                await session.flush()
+                # 创建新的聊天会话（处理并发竞争）
+                try:
+                    chat = OzonChat(
+                        shop_id=self.shop_id,
+                        chat_id=chat_id,
+                        chat_type=payload.get("chat_type", "general"),
+                        status="open",
+                        customer_id=payload.get("customer_id"),
+                        customer_name=payload.get("customer_name"),
+                        order_number=payload.get("order_number"),
+                        message_count=0,
+                        unread_count=0
+                    )
+                    session.add(chat)
+                    await session.flush()
+                except Exception as e:
+                    # 并发插入冲突，重新查询
+                    if "UniqueViolationError" in str(type(e)) or "duplicate key" in str(e):
+                        await session.rollback()
+                        chat = await session.scalar(stmt)
+                        if not chat:
+                            # 仍然找不到，抛出异常
+                            raise
+                        logger.info(f"Chat {chat_id} already exists (concurrent creation), using existing record")
+                    else:
+                        raise
 
             # 创建消息记录
             message = OzonChatMessage(
