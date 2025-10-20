@@ -252,6 +252,13 @@ class PostingOperationsService:
                 "message": "该货件已完成国内单号填写操作"
             }
 
+        # 2.1 互斥状态检查：已打印和单号确认互斥
+        if posting.operation_status == "printed":
+            return {
+                "success": False,
+                "message": "该订单已标记为已打印，不能进行单号确认操作"
+            }
+
         # 3. 保存国内单号和备注
         posting.domestic_tracking_number = domestic_tracking_number
         posting.domestic_tracking_updated_at = utcnow()

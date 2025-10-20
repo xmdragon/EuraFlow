@@ -1019,19 +1019,7 @@ async def batch_print_labels(
                 # 合并失败不影响结果，只是没有合并后的PDF
                 pdf_url = None
 
-        # 7. 自动标记成功打印的 posting 为"已打印"状态
-        if success_postings:
-            for pn in success_postings:
-                posting = postings.get(pn)
-                if posting and posting.status == 'awaiting_deliver':
-                    posting.operation_status = 'printed'
-                    posting.operation_time = utcnow()
-                    logger.info(f"自动标记 posting {pn} 为已打印状态")
-
-            await db.commit()
-            logger.info(f"成功标记{len(success_postings)}个 posting 为已打印状态")
-
-        # 8. 返回结果
+        # 7. 返回结果（不再自动标记已打印状态，需用户手动标记）
         if failed_postings and not success_postings:
             # 全部失败
             raise HTTPException(
@@ -1207,6 +1195,13 @@ async def mark_posting_printed(
             raise HTTPException(
                 status_code=422,
                 detail=f"只能标记'等待发运'状态的订单为已打印，当前状态：{posting.status}"
+            )
+
+        # 检查互斥状态：已打印和单号确认互斥
+        if posting.operation_status == 'tracking_confirmed':
+            raise HTTPException(
+                status_code=422,
+                detail="该订单已完成单号确认，不能标记为已打印"
             )
 
         # 更新状态
