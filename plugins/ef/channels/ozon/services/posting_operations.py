@@ -346,3 +346,236 @@ class PostingOperationsService:
 
         # 返回单个包裹（大多数订单是单包裹）
         return [{"products": products}]
+
+    async def sync_material_cost_single(
+        self,
+        posting_number: str
+    ) -> Dict[str, Any]:
+        """
+        从跨境巴士同步单个发货单的打包费用
+
+        Args:
+            posting_number: 货件编号
+
+        Returns:
+            操作结果
+        """
+        logger.info(f"开始同步打包费用，posting_number: {posting_number}")
+
+        # 1. 查询 posting 和关联的 shop
+        result = await self.db.execute(
+            select(OzonPosting, OzonShop, OzonOrder)
+            .join(OzonShop, OzonPosting.shop_id == OzonShop.id)
+            .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
+            .where(OzonPosting.posting_number == posting_number)
+        )
+        row = result.first()
+
+        if not row:
+            logger.error(f"货件不存在: {posting_number}")
+            return {
+                "success": False,
+                "message": f"货件不存在: {posting_number}"
+            }
+
+        posting, shop, order = row
+
+        # 2. 检查店铺是否配置了跨境巴士
+        if not shop.kuajing84_config or not shop.kuajing84_config.get("enabled"):
+            return {
+                "success": False,
+                "message": "店铺未启用跨境巴士同步"
+            }
+
+        # 3. 检查是否有必要字段
+        if not order.ozon_order_number:
+            return {
+                "success": False,
+                "message": "订单缺少 ozon_order_number"
+            }
+
+        # 4. 调用跨境巴士服务获取打包费用
+        from .kuajing84_material_cost_sync_service import Kuajing84MaterialCostSyncService
+
+        kuajing84_service = Kuajing84MaterialCostSyncService(self.db)
+        fetch_result = await kuajing84_service._fetch_kuajing84_order(
+            shop_config=shop.kuajing84_config,
+            order_number=order.ozon_order_number
+        )
+
+        if not fetch_result["success"]:
+            logger.error(f"跨境巴士API调用失败: {fetch_result.get('message')}")
+            return {
+                "success": False,
+                "message": f"跨境巴士同步失败: {fetch_result.get('message', '未知错误')}"
+            }
+
+        # 5. 检查订单状态是否为"已打包"
+        if fetch_result.get("order_status_info") != "已打包":
+            return {
+                "success": False,
+                "message": f"跨境巴士订单状态为 '{fetch_result.get('order_status_info')}'，只有'已打包'状态才能同步费用"
+            }
+
+        # 6. 更新打包费用
+        material_cost = Decimal(str(fetch_result["money"]))
+        posting.material_cost = material_cost
+
+        # 7. 如果本地没有国内物流单号，使用跨境巴士的logistics_order
+        if not posting.domestic_tracking_number and fetch_result.get("logistics_order"):
+            posting.domestic_tracking_number = fetch_result["logistics_order"]
+            posting.domestic_tracking_updated_at = utcnow()
+
+        # 8. 清除错误状态并更新同步时间
+        posting.kuajing84_sync_error = None
+        posting.kuajing84_last_sync_at = utcnow()
+
+        # 9. 重新计算利润
+        from .profit_calculator import calculate_and_update_profit
+        await calculate_and_update_profit(self.db, posting)
+
+        # 10. 提交数据库事务
+        await self.db.commit()
+        await self.db.refresh(posting)
+
+        logger.info(f"打包费用同步成功，posting_number: {posting_number}, material_cost: {material_cost}")
+
+        return {
+            "success": True,
+            "message": "打包费用同步成功",
+            "data": {
+                "posting_number": posting.posting_number,
+                "material_cost": str(posting.material_cost) if posting.material_cost else None,
+                "domestic_tracking_number": posting.domestic_tracking_number,
+                "profit_amount_cny": str(posting.profit_amount_cny) if posting.profit_amount_cny else None,
+                "profit_rate": posting.profit_rate
+            }
+        }
+
+    async def sync_finance_single(
+        self,
+        posting_number: str
+    ) -> Dict[str, Any]:
+        """
+        从 OZON 同步单个发货单的财务费用（佣金、物流费等）
+
+        Args:
+            posting_number: 货件编号
+
+        Returns:
+            操作结果
+        """
+        logger.info(f"开始同步财务费用，posting_number: {posting_number}")
+
+        # 1. 查询 posting 和关联的 shop
+        result = await self.db.execute(
+            select(OzonPosting, OzonShop)
+            .join(OzonShop, OzonPosting.shop_id == OzonShop.id)
+            .where(OzonPosting.posting_number == posting_number)
+        )
+        row = result.first()
+
+        if not row:
+            logger.error(f"货件不存在: {posting_number}")
+            return {
+                "success": False,
+                "message": f"货件不存在: {posting_number}"
+            }
+
+        posting, shop = row
+
+        # 2. 调用 OZON 财务同步服务
+        from .ozon_finance_sync_service import OzonFinanceSyncService
+
+        finance_service = OzonFinanceSyncService(self.db)
+
+        try:
+            # 3. 调用批量同步服务中的单个发货单同步逻辑
+            # 为了复用逻辑，我们调用 _sync_single_posting 私有方法
+            from datetime import datetime, timedelta, timezone as tz
+
+            # 创建 OZON API 客户端
+            api_client = OzonAPIClient(
+                client_id=shop.client_id,
+                api_key=shop.api_key_enc,
+                shop_id=shop.id
+            )
+
+            # 获取 posting 的发货时间作为查询起始时间
+            # 如果没有发货时间，使用创建时间前30天
+            if posting.shipped_at:
+                date_from = posting.shipped_at
+            elif posting.created_at:
+                date_from = posting.created_at - timedelta(days=30)
+            else:
+                date_from = datetime.now(tz.utc) - timedelta(days=30)
+
+            date_to = datetime.now(tz.utc)
+
+            # 4. 获取财务交易记录
+            logger.info(f"获取财务交易记录，posting_number: {posting_number}, date_from: {date_from}, date_to: {date_to}")
+            operations = await api_client.get_finance_transactions(
+                posting_number=posting_number,
+                date_from=date_from,
+                date_to=date_to
+            )
+            await api_client.close()
+
+            if not operations:
+                return {
+                    "success": False,
+                    "message": "未找到该发货单的财务交易记录"
+                }
+
+            # 5. 计算汇率
+            exchange_rate = await finance_service._calculate_exchange_rate(operations)
+            if not exchange_rate:
+                return {
+                    "success": False,
+                    "message": "无法计算汇率（缺少卢布订单金额或人民币订单金额）"
+                }
+
+            # 6. 提取并转换费用
+            fees = await finance_service._extract_and_convert_fees(operations, exchange_rate)
+
+            # 7. 更新 posting 记录
+            posting.last_mile_delivery_fee_cny = fees["last_mile_delivery"]
+            posting.international_logistics_fee_cny = fees["international_logistics"]
+            posting.ozon_commission_cny = fees["ozon_commission"]
+            posting.finance_synced_at = utcnow()
+
+            # 8. 重新计算利润
+            from .profit_calculator import calculate_and_update_profit
+            await calculate_and_update_profit(self.db, posting)
+
+            # 9. 提交数据库事务
+            await self.db.commit()
+            await self.db.refresh(posting)
+
+            logger.info(
+                f"财务费用同步成功，posting_number: {posting_number}, "
+                f"ozon_commission: {fees['ozon_commission']}, "
+                f"last_mile_delivery: {fees['last_mile_delivery']}, "
+                f"international_logistics: {fees['international_logistics']}"
+            )
+
+            return {
+                "success": True,
+                "message": "财务费用同步成功",
+                "data": {
+                    "posting_number": posting.posting_number,
+                    "ozon_commission_cny": str(posting.ozon_commission_cny) if posting.ozon_commission_cny else None,
+                    "last_mile_delivery_fee_cny": str(posting.last_mile_delivery_fee_cny) if posting.last_mile_delivery_fee_cny else None,
+                    "international_logistics_fee_cny": str(posting.international_logistics_fee_cny) if posting.international_logistics_fee_cny else None,
+                    "exchange_rate": str(exchange_rate),
+                    "profit_amount_cny": str(posting.profit_amount_cny) if posting.profit_amount_cny else None,
+                    "profit_rate": posting.profit_rate
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"财务费用同步失败，posting_number: {posting_number}, error: {str(e)}")
+            return {
+                "success": False,
+                "message": f"财务费用同步失败: {str(e)}"
+            }

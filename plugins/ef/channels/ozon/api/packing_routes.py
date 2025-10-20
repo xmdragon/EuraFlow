@@ -1220,3 +1220,82 @@ async def mark_posting_printed(
     except Exception as e:
         logger.error(f"标记已打印失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"操作失败: {str(e)}")
+
+
+@router.post("/postings/{posting_number}/sync-material-cost")
+async def sync_material_cost(
+    posting_number: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    从跨境巴士同步单个发货单的打包费用
+
+    同步流程：
+    1. 调用跨境巴士API获取订单信息
+    2. 检查订单状态是否为"已打包"
+    3. 更新 material_cost（打包费用）
+    4. 更新 domestic_tracking_number（如果本地没有）
+    5. 重新计算利润
+
+    返回：
+    - success: 同步是否成功
+    - message: 提示信息
+    - data: 更新后的字段值（material_cost、domestic_tracking_number、profit_amount_cny、profit_rate）
+    """
+    from ..services.posting_operations import PostingOperationsService
+
+    try:
+        service = PostingOperationsService(db)
+        result = await service.sync_material_cost_single(posting_number)
+
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"同步打包费用失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"同步失败: {str(e)}")
+
+
+@router.post("/postings/{posting_number}/sync-finance")
+async def sync_finance(
+    posting_number: str,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    从 OZON 同步单个发货单的财务费用
+
+    同步流程：
+    1. 调用 OZON Finance API 获取财务交易记录
+    2. 计算汇率（基于 RUB 到 CNY 的转换）
+    3. 提取并转换费用到 CNY
+    4. 更新 ozon_commission_cny（OZON佣金）
+    5. 更新 last_mile_delivery_fee_cny（末端配送费）
+    6. 更新 international_logistics_fee_cny（国际物流费）
+    7. 重新计算利润
+
+    返回：
+    - success: 同步是否成功
+    - message: 提示信息
+    - data: 更新后的字段值（ozon_commission_cny、last_mile_delivery_fee_cny、
+            international_logistics_fee_cny、exchange_rate、profit_amount_cny、profit_rate）
+    """
+    from ..services.posting_operations import PostingOperationsService
+
+    try:
+        service = PostingOperationsService(db)
+        result = await service.sync_finance_single(posting_number)
+
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"同步财务费用失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"同步失败: {str(e)}")
