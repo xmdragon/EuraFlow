@@ -304,10 +304,16 @@ const PackingShipment: React.FC = () => {
    * 使用 PDF.js 渲染 PDF 后自动打印
    */
   const printPDF = (pdfUrl: string) => {
+    // 调试日志
+    console.log('🖨️ printPDF 被调用');
+    console.log('📄 PDF URL:', pdfUrl);
+
     // 构建打印预览页面的 URL
     const printUrl = `/print-pdf?url=${encodeURIComponent(pdfUrl)}`;
+    console.log('🔗 打印预览 URL:', printUrl);
 
     // 在新窗口打开打印预览页面
+    console.log('🚀 正在打开新窗口...');
     window.open(printUrl, '_blank');
   };
 
