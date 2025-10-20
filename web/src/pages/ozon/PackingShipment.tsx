@@ -1394,55 +1394,57 @@ const PackingShipment: React.FC = () => {
         />
       )}
 
-      {/* 搜索过滤 */}
-      <Card className={styles.filterCard}>
-        <Row className={styles.filterRow}>
-          <Col flex="auto">
-            <Space size="large">
-              <span className={styles.shopLabel}>选择店铺:</span>
-              <ShopSelector
-                value={selectedShop}
-                onChange={(shopId) => {
-                  const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
-                  setSelectedShop(normalized);
-                  // 切换店铺时重置页码
-                  setCurrentPage(1);
-                }}
-                showAllOption={true}
-                className={styles.shopSelector}
-              />
-            </Space>
-          </Col>
-        </Row>
-        <Form
-          form={filterForm}
-          layout="inline"
-          onFinish={(values) => {
-            setSearchParams(values);
-            setCurrentPage(1); // 搜索时重置到第一页
-          }}
-        >
-          <Form.Item name="posting_number">
-            <Input placeholder="货件编号" prefix={<SearchOutlined />} />
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
-                查询
-              </Button>
-              <Button
-                onClick={() => {
-                  filterForm.resetFields();
-                  setSearchParams({});
-                  setCurrentPage(1);
-                }}
-              >
-                重置
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
+      {/* 搜索过滤（扫描单号标签时隐藏） */}
+      {operationStatus !== 'scan' && (
+        <Card className={styles.filterCard}>
+          <Row className={styles.filterRow}>
+            <Col flex="auto">
+              <Space size="large">
+                <span className={styles.shopLabel}>选择店铺:</span>
+                <ShopSelector
+                  value={selectedShop}
+                  onChange={(shopId) => {
+                    const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+                    setSelectedShop(normalized);
+                    // 切换店铺时重置页码
+                    setCurrentPage(1);
+                  }}
+                  showAllOption={true}
+                  className={styles.shopSelector}
+                />
+              </Space>
+            </Col>
+          </Row>
+          <Form
+            form={filterForm}
+            layout="inline"
+            onFinish={(values) => {
+              setSearchParams(values);
+              setCurrentPage(1); // 搜索时重置到第一页
+            }}
+          >
+            <Form.Item name="posting_number">
+              <Input placeholder="货件编号" prefix={<SearchOutlined />} />
+            </Form.Item>
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit">
+                  查询
+                </Button>
+                <Button
+                  onClick={() => {
+                    filterForm.resetFields();
+                    setSearchParams({});
+                    setCurrentPage(1);
+                  }}
+                >
+                  重置
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Card>
+      )}
 
       {/* 打包发货列表 */}
       <Card className={styles.listCard}>
