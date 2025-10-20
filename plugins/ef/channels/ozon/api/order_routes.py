@@ -143,13 +143,14 @@ async def get_orders(
 
     # 计算全局统计（所有状态，不受当前status筛选影响）
     # 只按shop_id筛选，包含所有状态的统计
+    # 使用 OzonPosting.status（OZON原生状态）而不是 OzonOrder.status（系统映射状态）
     stats_query = select(
-        OzonOrder.status,
-        func.count(OzonOrder.id).label('count')
+        OzonPosting.status,
+        func.count(OzonPosting.id).label('count')
     )
     if shop_id:
-        stats_query = stats_query.where(OzonOrder.shop_id == shop_id)
-    stats_query = stats_query.group_by(OzonOrder.status)
+        stats_query = stats_query.where(OzonPosting.shop_id == shop_id)
+    stats_query = stats_query.group_by(OzonPosting.status)
 
     stats_result = await db.execute(stats_query)
     status_counts = {row.status: row.count for row in stats_result}
@@ -164,19 +165,16 @@ async def get_orders(
     discarded_result = await db.execute(discarded_query)
     discarded_count = discarded_result.scalar() or 0
 
-    # 构建统计数据字典
+    # 构建统计数据字典（使用OZON原生状态）
     global_stats = {
         "total": sum(status_counts.values()),
         "discarded": discarded_count,  # 已废弃订单（operation_status='cancelled'）
         "awaiting_packaging": status_counts.get('awaiting_packaging', 0),
         "awaiting_deliver": status_counts.get('awaiting_deliver', 0),
+        "awaiting_registration": status_counts.get('awaiting_registration', 0),
         "delivering": status_counts.get('delivering', 0),
         "delivered": status_counts.get('delivered', 0),
         "cancelled": status_counts.get('cancelled', 0),
-        # 其他可能的状态
-        "pending": status_counts.get('pending', 0),
-        "processing": status_counts.get('processing', 0),
-        "confirmed": status_counts.get('confirmed', 0),
     }
 
     # 添加分页

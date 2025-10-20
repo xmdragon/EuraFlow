@@ -1076,7 +1076,7 @@ const OrderList: React.FC = () => {
               key: 'discarded',
             },
             {
-              label: '所有',
+              label: `所有 ${stats.total || 0}`,
               key: 'all',
             },
           ]}
