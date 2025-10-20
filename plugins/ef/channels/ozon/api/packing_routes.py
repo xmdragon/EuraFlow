@@ -1095,7 +1095,7 @@ async def search_posting_by_tracking(
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    根据追踪号码查询货件
+    根据追踪号码查询货件（仅在"单号确认"状态中查询）
 
     支持两种查询方式：
     1. 从 raw_payload['tracking_number'] 查询
@@ -1107,7 +1107,7 @@ async def search_posting_by_tracking(
     from ..models import OzonShipmentPackage
 
     try:
-        # 方法1：从 raw_payload 查询
+        # 方法1：从 raw_payload 查询（仅查询 tracking_confirmed 状态）
         result1 = await db.execute(
             select(OzonPosting)
             .options(
@@ -1115,12 +1115,15 @@ async def search_posting_by_tracking(
                 selectinload(OzonPosting.order).selectinload(OzonOrder.items)
             )
             .where(
-                OzonPosting.raw_payload['tracking_number'].astext == tracking_number
+                and_(
+                    OzonPosting.raw_payload['tracking_number'].astext == tracking_number,
+                    OzonPosting.operation_status == 'tracking_confirmed'
+                )
             )
         )
         posting = result1.scalar_one_or_none()
 
-        # 方法2：从 packages 表查询（如果方法1没找到）
+        # 方法2：从 packages 表查询（如果方法1没找到，仅查询 tracking_confirmed 状态）
         if not posting:
             result2 = await db.execute(
                 select(OzonPosting)
@@ -1129,7 +1132,12 @@ async def search_posting_by_tracking(
                     selectinload(OzonPosting.packages),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.items)
                 )
-                .where(OzonShipmentPackage.tracking_number == tracking_number)
+                .where(
+                    and_(
+                        OzonShipmentPackage.tracking_number == tracking_number,
+                        OzonPosting.operation_status == 'tracking_confirmed'
+                    )
+                )
             )
             posting = result2.scalar_one_or_none()
 
