@@ -474,8 +474,8 @@ class OzonWebhookHandler:
     ) -> Dict[str, Any]:
         """处理发货单取消"""
         posting_number = payload.get("posting_number")
-        cancel_reason = payload.get("cancel_reason")
-        
+        cancel_reason = payload.get("reason")  # 修正：OZON字段名为 "reason"，不是 "cancel_reason"
+
         logger.info(f"Posting {posting_number} cancelled: {cancel_reason}")
 
         from ..models.orders import OzonPosting
@@ -489,22 +489,24 @@ class OzonWebhookHandler:
                 )
             )
             posting = await session.scalar(stmt)
-            
+
             if posting:
                 posting.status = "cancelled"
                 posting.is_cancelled = True
-                posting.cancel_reason = cancel_reason.get("reason")
-                posting.cancel_reason_id = cancel_reason.get("reason_id")
+                # 添加空值检查，防止 NoneType.get() 错误
+                if cancel_reason:
+                    posting.cancel_reason = cancel_reason.get("reason")
+                    posting.cancel_reason_id = cancel_reason.get("id")  # 修正：字段名为 "id"，不是 "reason_id"
                 posting.cancelled_at = utcnow()
-                
+
                 session.add(posting)
                 await session.commit()
-                
+
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
-                
+
                 return {"posting_id": posting.id, "cancelled": True}
-            
+
             return {"message": "Posting not found"}
     
     async def _handle_posting_delivered(
