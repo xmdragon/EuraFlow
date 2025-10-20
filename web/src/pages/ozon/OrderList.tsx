@@ -125,24 +125,6 @@ const OrderList: React.FC = () => {
     });
   };
 
-  /**
-   * 打开 PDF 并自动触发打印对话框
-   * 使用 PDF.js 渲染 PDF 后自动打印
-   */
-  const printPDF = (pdfUrl: string) => {
-    // 调试日志
-    console.log('🖨️ printPDF 被调用');
-    console.log('📄 PDF URL:', pdfUrl);
-
-    // 构建打印预览页面的 URL
-    const printUrl = `/print-pdf?url=${encodeURIComponent(pdfUrl)}`;
-    console.log('🔗 打印预览 URL:', printUrl);
-
-    // 在新窗口打开打印预览页面
-    console.log('🚀 正在打开新窗口...');
-    window.open(printUrl, '_blank');
-  };
-
   // 查询店铺列表（用于显示店铺名称）
   const { data: shopsData } = useQuery({
     queryKey: ['ozonShops'],
@@ -844,7 +826,7 @@ const OrderList: React.FC = () => {
       if (result.success) {
         // 全部成功
         if (result.pdf_url) {
-          printPDF(result.pdf_url);
+          window.open(result.pdf_url, '_blank');
         }
 
         message.success(
@@ -861,7 +843,7 @@ const OrderList: React.FC = () => {
 
         // 如果有成功的，打开PDF
         if (result.pdf_url) {
-          printPDF(result.pdf_url);
+          window.open(result.pdf_url, '_blank');
         }
       }
     } catch (error: any) {

@@ -4,7 +4,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Dashboard from '@/pages/Dashboard';
 import LoginPage from '@/pages/LoginPage';
-import PrintPDF from '@/pages/PrintPDF';
 import NotificationProvider from '@/components/NotificationProvider';
 
 function App() {
@@ -27,7 +26,6 @@ function App() {
         path="/dashboard/*"
         element={user ? <Dashboard /> : <Navigate to="/login" replace />}
       />
-      <Route path="/print-pdf" element={<PrintPDF />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

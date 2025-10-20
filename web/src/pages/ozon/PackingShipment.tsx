@@ -299,24 +299,6 @@ const PackingShipment: React.FC = () => {
   const [printErrors, setPrintErrors] = useState<ozonApi.FailedPosting[]>([]);
   const [printSuccessPostings, setPrintSuccessPostings] = useState<string[]>([]);
 
-  /**
-   * 打开 PDF 并自动触发打印对话框
-   * 使用 PDF.js 渲染 PDF 后自动打印
-   */
-  const printPDF = (pdfUrl: string) => {
-    // 调试日志
-    console.log('🖨️ printPDF 被调用');
-    console.log('📄 PDF URL:', pdfUrl);
-
-    // 构建打印预览页面的 URL
-    const printUrl = `/print-pdf?url=${encodeURIComponent(pdfUrl)}`;
-    console.log('🔗 打印预览 URL:', printUrl);
-
-    // 在新窗口打开打印预览页面
-    console.log('🚀 正在打开新窗口...');
-    window.open(printUrl, '_blank');
-  };
-
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === '-') {
@@ -1162,7 +1144,7 @@ const PackingShipment: React.FC = () => {
       if (result.success) {
         // 全部成功
         if (result.pdf_url) {
-          printPDF(result.pdf_url);
+          window.open(result.pdf_url, '_blank');
         }
 
         message.success(
@@ -1179,7 +1161,7 @@ const PackingShipment: React.FC = () => {
 
         // 如果有成功的，打开PDF
         if (result.pdf_url) {
-          printPDF(result.pdf_url);
+          window.open(result.pdf_url, '_blank');
         }
       }
     } catch (error: any) {
