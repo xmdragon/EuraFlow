@@ -301,41 +301,14 @@ const PackingShipment: React.FC = () => {
 
   /**
    * 打开 PDF 并自动触发打印对话框
+   * 使用 PDF.js 渲染 PDF 后自动打印
    */
   const printPDF = (pdfUrl: string) => {
-    // 在当前页面创建一个隐藏的 iframe 来加载 PDF
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = pdfUrl;
+    // 构建打印预览页面的 URL
+    const printUrl = `/print-pdf?url=${encodeURIComponent(pdfUrl)}`;
 
-    document.body.appendChild(iframe);
-
-    // 等待 PDF 加载完成后触发打印
-    iframe.onload = () => {
-      setTimeout(() => {
-        try {
-          // 尝试调用 iframe 的 print 方法
-          iframe.contentWindow?.print();
-        } catch (error) {
-          console.error('打印失败:', error);
-          message.error('自动打印失败，请手动打印');
-          // 打印失败，直接在新窗口打开 PDF
-          window.open(pdfUrl, '_blank');
-        } finally {
-          // 打印完成后清理 iframe
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-          }, 1000);
-        }
-      }, 1000);
-    };
-
-    // 如果 iframe 加载失败
-    iframe.onerror = () => {
-      message.error('PDF 加载失败');
-      document.body.removeChild(iframe);
-      window.open(pdfUrl, '_blank');
-    };
+    // 在新窗口打开打印预览页面
+    window.open(printUrl, '_blank');
   };
 
   // 复制功能处理函数
