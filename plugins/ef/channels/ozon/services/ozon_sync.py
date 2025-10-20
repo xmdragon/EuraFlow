@@ -1298,8 +1298,12 @@ class OzonSyncService:
         # 保存原始数据
         posting.raw_payload = posting_data
 
+        # 查询shop信息（为_sync_packages提供，避免嵌套异步查询）
+        shop_result = await db.execute(select(OzonShop).where(OzonShop.id == shop_id))
+        shop = shop_result.scalar_one_or_none()
+
         # 同步包裹信息（如果有）
-        await OzonSyncService._sync_packages(db, posting, posting_data)
+        await OzonSyncService._sync_packages(db, posting, posting_data, shop)
 
         # ========== 预加载 packages 关系 ==========
         # 确保 packages 已写入数据库并加载到 posting 对象，以便状态同步逻辑可以正确读取
@@ -1470,13 +1474,14 @@ class OzonSyncService:
         )
 
     @staticmethod
-    async def _sync_packages(db: AsyncSession, posting: OzonPosting, posting_data: Dict[str, Any]) -> None:
+    async def _sync_packages(db: AsyncSession, posting: OzonPosting, posting_data: Dict[str, Any], shop: Optional[OzonShop]) -> None:
         """同步包裹信息
 
         Args:
             db: 数据库会话
             posting: Posting对象
             posting_data: OZON API返回的posting数据
+            shop: 店铺对象（由调用方提前查询，避免嵌套异步查询）
         """
         # 检查posting状态是否需要包裹信息
         posting_status = posting_data.get("status")
@@ -1493,13 +1498,10 @@ class OzonSyncService:
             # 需要追踪号码但列表接口未返回，调用详情接口
             logger.error(f"[DEBUG] Calling detail API for posting {posting.posting_number}")
             try:
-                # 获取shop信息以创建API客户端
-                shop_result = await db.execute(select(OzonShop).where(OzonShop.id == posting.shop_id))
-                shop = shop_result.scalar_one_or_none()
-
+                # 使用调用方传入的shop对象（避免嵌套异步查询）
                 if not shop:
-                    logger.error(f"[DEBUG] Shop {posting.shop_id} not found")
-                    logger.warning(f"Shop {posting.shop_id} not found for posting {posting.posting_number}")
+                    logger.error(f"[DEBUG] Shop not provided for posting {posting.posting_number}")
+                    logger.warning(f"Shop not provided for posting {posting.posting_number}")
                     return
 
                 # 创建API客户端
