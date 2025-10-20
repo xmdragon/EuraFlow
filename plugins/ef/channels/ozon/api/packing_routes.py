@@ -232,15 +232,13 @@ async def get_packing_orders(
     if shop_id:
         query = query.where(OzonOrder.shop_id == shop_id)
 
-    # 搜索条件：打包发货页面只精确匹配国内单号
+    # 搜索条件
     if posting_number:
-        # 精确匹配国内单号（去除首尾空格）
         query = query.where(
-            OzonPosting.domestic_tracking_number == posting_number.strip()
+            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
+            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
+            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
         )
-    else:
-        # 空搜索不返回任何订单（强制用户输入国内单号）
-        query = query.where(False)
 
     # 去重（因为一个订单可能有多个posting，使用distinct on id）
     # PostgreSQL要求DISTINCT ON的字段必须出现在ORDER BY的开头
@@ -302,13 +300,11 @@ async def get_packing_orders(
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if posting_number:
-        # 精确匹配国内单号（去除首尾空格）
         count_query = count_query.where(
-            OzonPosting.domestic_tracking_number == posting_number.strip()
+            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
+            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
+            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
         )
-    else:
-        # 空搜索不返回任何订单
-        count_query = count_query.where(False)
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()
@@ -1095,58 +1091,33 @@ async def batch_print_labels(
 
 @router.get("/packing/postings/search-by-tracking")
 async def search_posting_by_tracking(
-    tracking_number: str = Query(..., description="追踪号码"),
+    tracking_number: str = Query(..., description="国内物流单号"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    根据追踪号码查询货件（仅在"单号确认"状态中查询）
+    根据国内物流单号查询货件（精确匹配）
 
-    支持两种查询方式：
-    1. 从 raw_payload['tracking_number'] 查询
-    2. 从 packages 表的 tracking_number 查询
-
+    搜索字段：domestic_tracking_number（国内单号）
     返回：posting 详情 + 订单信息 + 商品列表
     """
     from sqlalchemy.orm import selectinload
-    from ..models import OzonShipmentPackage
 
     try:
-        # 方法1：从 raw_payload 查询（仅查询 tracking_confirmed 状态）
-        result1 = await db.execute(
+        # 精确匹配国内物流单号
+        result = await db.execute(
             select(OzonPosting)
             .options(
                 selectinload(OzonPosting.packages),
                 selectinload(OzonPosting.order).selectinload(OzonOrder.items)
             )
             .where(
-                and_(
-                    OzonPosting.raw_payload['tracking_number'].astext == tracking_number,
-                    OzonPosting.operation_status == 'tracking_confirmed'
-                )
+                OzonPosting.domestic_tracking_number == tracking_number.strip()
             )
         )
-        posting = result1.scalar_one_or_none()
-
-        # 方法2：从 packages 表查询（如果方法1没找到，仅查询 tracking_confirmed 状态）
-        if not posting:
-            result2 = await db.execute(
-                select(OzonPosting)
-                .join(OzonShipmentPackage, OzonPosting.id == OzonShipmentPackage.posting_id)
-                .options(
-                    selectinload(OzonPosting.packages),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.items)
-                )
-                .where(
-                    and_(
-                        OzonShipmentPackage.tracking_number == tracking_number,
-                        OzonPosting.operation_status == 'tracking_confirmed'
-                    )
-                )
-            )
-            posting = result2.scalar_one_or_none()
+        posting = result.scalar_one_or_none()
 
         if not posting:
-            raise HTTPException(status_code=404, detail=f"未找到追踪号码为 {tracking_number} 的货件")
+            raise HTTPException(status_code=404, detail=f"未找到国内单号为 {tracking_number} 的货件")
 
         # 获取订单信息
         order = posting.order

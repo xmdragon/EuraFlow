@@ -1423,7 +1423,7 @@ const PackingShipment: React.FC = () => {
           }}
         >
           <Form.Item name="posting_number">
-            <Input placeholder="扫描国内单号（精确匹配）" prefix={<SearchOutlined />} />
+            <Input placeholder="货件编号" prefix={<SearchOutlined />} />
           </Form.Item>
           <Form.Item>
             <Space>
