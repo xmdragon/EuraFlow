@@ -89,16 +89,24 @@ class RateLimiter:
         return wait_time
     
     def get_available_tokens(self, resource_type: str = "default") -> float:
-        """获取指定资源的可用令牌数"""
+        """
+        获取指定资源的可用令牌数（估算值）
+
+        注意：由于使用了 aiolimiter.AsyncLimiter，无法精确获取当前可用令牌数。
+        此方法返回桶容量作为保守估计（假设令牌桶处于最佳状态）。
+
+        如果需要检查是否有足够的令牌，建议直接调用 acquire() 方法。
+
+        Args:
+            resource_type: 资源类型
+
+        Returns:
+            估算的可用令牌数（等于桶容量）
+        """
         bucket = self.buckets.get(resource_type, self.buckets["default"])
-        
-        now = time.monotonic()
-        elapsed = now - bucket.last_update
-        
-        return min(
-            bucket.capacity,
-            bucket.tokens + elapsed * bucket.rate
-        )
+        # 返回容量作为保守估计
+        # aiolimiter 不暴露内部令牌计数，这里返回理论最大值
+        return bucket.capacity
 
 
 class AdaptiveRateLimiter(RateLimiter):
