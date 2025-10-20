@@ -430,6 +430,15 @@ class OrderSyncService:
                     session.add(default_package)
                     logger.info(f"Created default package for posting {posting_number} with tracking_number: {raw_tracking_number}")
 
+        # ========== 预加载 packages 关系 ==========
+        # 确保 packages 已写入数据库并加载到 posting 对象，以便状态同步逻辑可以正确读取
+        await session.flush()  # 确保 packages 已写入数据库
+        packages_result = await session.execute(
+            select(OzonShipmentPackage).where(OzonShipmentPackage.posting_id == posting.id)
+        )
+        posting.packages = packages_result.scalars().all()
+        logger.info(f"Preloaded {len(posting.packages)} packages for posting {posting_number}")
+
         # 状态同步逻辑：根据 ozon_status + 字段存在性重新计算 operation_status
         ozon_status = posting.status
         old_operation_status = posting.operation_status

@@ -309,20 +309,35 @@ class OzonPosting(Base):
     # Helper 方法：统一访问多层级字段，屏蔽OZON API数据结构复杂性
     def get_tracking_numbers(self) -> list[str]:
         """
-        获取所有追踪号码列表（从raw_payload）
+        获取所有追踪号码列表
 
         优先级：
-        1. raw_payload的顶层tracking_number字段
-        2. raw_payload的packages数组
+        1. 数据库 packages 关系（如果已加载）
+        2. raw_payload 的 packages 数组
+        3. raw_payload 的顶层 tracking_number 字段
 
-        注意：此方法只读取raw_payload，不触发packages关系的lazy loading
-        如需访问数据库packages表，请使用显式查询或预加载
+        注意：优先读取数据库 packages 关系（如果已预加载），避免数据不一致
+        如果 packages 未预加载，则降级使用 raw_payload
 
         Returns:
             追踪号码列表（去重）
         """
         tracking_numbers = []
 
+        # 优先级1：从数据库 packages 关系获取（如果已预加载，不触发懒加载）
+        try:
+            if hasattr(self, '__dict__') and 'packages' in self.__dict__:
+                # packages 已被预加载或之前访问过
+                for pkg in self.packages:
+                    if pkg.tracking_number:
+                        tracking_numbers.append(pkg.tracking_number)
+                if tracking_numbers:
+                    return list(set(tracking_numbers))
+        except Exception:
+            # 如果访问 packages 失败（懒加载被禁用等），继续使用 raw_payload
+            pass
+
+        # 优先级2：从 raw_payload 获取
         if not self.raw_payload:
             return []
 
