@@ -26,7 +26,12 @@ const PrintPDF = () => {
       return;
     }
 
-    loadAndPrintPDF(pdfUrl);
+    // 确保 DOM 已渲染再加载 PDF
+    const timer = setTimeout(() => {
+      loadAndPrintPDF(pdfUrl);
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [searchParams]);
 
   const loadAndPrintPDF = async (url: string) => {
