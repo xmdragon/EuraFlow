@@ -1075,9 +1075,9 @@ async def search_posting_by_tracking(
     根据追踪号码/国内单号/货件编号查询货件（精确匹配）
 
     搜索字段（按优先级）：
-    1. posting_number（货件编号）
+    1. domestic_tracking_number（国内单号）
     2. packages.tracking_number（OZON追踪号码）
-    3. domestic_tracking_number（国内单号）
+    3. posting_number（货件编号）
 
     返回：posting 详情 + 订单信息 + 商品列表
     """
@@ -1088,7 +1088,7 @@ async def search_posting_by_tracking(
         search_value = tracking_number.strip()
         posting = None
 
-        # 方式1：按货件编号查询（最直接）
+        # 方式1：按国内单号查询（优先级最高）
         result = await db.execute(
             select(OzonPosting)
             .options(
@@ -1097,7 +1097,7 @@ async def search_posting_by_tracking(
                 selectinload(OzonPosting.order).selectinload(OzonOrder.items),
                 selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
             )
-            .where(OzonPosting.posting_number == search_value)
+            .where(OzonPosting.domestic_tracking_number == search_value)
         )
         posting = result.scalar_one_or_none()
 
@@ -1123,7 +1123,7 @@ async def search_posting_by_tracking(
                 )
                 posting = result.scalar_one_or_none()
 
-        # 方式3：如果还没找到，按国内单号查询
+        # 方式3：如果还没找到，按货件编号查询
         if not posting:
             result = await db.execute(
                 select(OzonPosting)
@@ -1133,7 +1133,7 @@ async def search_posting_by_tracking(
                     selectinload(OzonPosting.order).selectinload(OzonOrder.items),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
                 )
-                .where(OzonPosting.domestic_tracking_number == search_value)
+                .where(OzonPosting.posting_number == search_value)
             )
             posting = result.scalar_one_or_none()
 
