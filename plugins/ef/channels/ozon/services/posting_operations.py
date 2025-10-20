@@ -502,7 +502,7 @@ class PostingOperationsService:
         # 2. 调用 OZON 财务同步服务
         from .ozon_finance_sync_service import OzonFinanceSyncService
 
-        finance_service = OzonFinanceSyncService(self.db)
+        finance_service = OzonFinanceSyncService()
 
         try:
             # 3. 调用批量同步服务中的单个发货单同步逻辑
