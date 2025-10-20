@@ -1397,3 +1397,23 @@ export const markPostingPrinted = async (postingNumber: string) => {
   const response = await apiClient.post(`/ozon/packing/postings/${postingNumber}/mark-printed`);
   return response.data;
 };
+
+/**
+ * 从跨境巴士同步单个发货单的打包费用
+ * @param postingNumber 货件编号
+ * @returns 同步结果，包含更新后的打包费用、国内物流单号、利润等信息
+ */
+export const syncMaterialCost = async (postingNumber: string) => {
+  const response = await apiClient.post(`/ozon/postings/${postingNumber}/sync-material-cost`);
+  return response.data;
+};
+
+/**
+ * 从 OZON 同步单个发货单的财务费用
+ * @param postingNumber 货件编号
+ * @returns 同步结果，包含更新后的 OZON 佣金、物流费用、利润等信息
+ */
+export const syncFinance = async (postingNumber: string) => {
+  const response = await apiClient.post(`/ozon/postings/${postingNumber}/sync-finance`);
+  return response.data;
+};

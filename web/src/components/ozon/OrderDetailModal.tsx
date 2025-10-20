@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography, Button, InputNumber, message, Space } from 'antd';
-import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined, SyncOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithFallback } from '@/utils/currency';
@@ -44,6 +44,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [editMaterialCost, setEditMaterialCost] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
+  // 同步状态管理
+  const [syncingMaterialCost, setSyncingMaterialCost] = useState(false);
+  const [syncingFinance, setSyncingFinance] = useState(false);
+
   // 保存进货金额
   const handleSavePurchasePrice = async () => {
     if (!selectedPosting?.posting_number) return;
@@ -81,6 +85,39 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       setSaving(false);
     }
   };
+
+  // 同步打包费用
+  const handleSyncMaterialCost = async () => {
+    if (!selectedPosting?.posting_number) return;
+
+    try {
+      setSyncingMaterialCost(true);
+      await ozonApi.syncMaterialCost(selectedPosting.posting_number);
+      message.success('打包费用同步成功');
+      onUpdate?.(); // 触发父组件刷新
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || '同步失败');
+    } finally {
+      setSyncingMaterialCost(false);
+    }
+  };
+
+  // 同步财务费用
+  const handleSyncFinance = async () => {
+    if (!selectedPosting?.posting_number) return;
+
+    try {
+      setSyncingFinance(true);
+      await ozonApi.syncFinance(selectedPosting.posting_number);
+      message.success('财务费用同步成功');
+      onUpdate?.(); // 触发父组件刷新
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || '同步失败');
+    } finally {
+      setSyncingFinance(false);
+    }
+  };
+
   return (
     <Modal
       title={`订单详情 - ${selectedPosting?.posting_number || selectedOrder?.order_id}`}
@@ -380,13 +417,28 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="Ozon佣金">
-                      {selectedPosting?.ozon_commission_cny
-                        ? formatPriceWithFallback(
-                            selectedPosting.ozon_commission_cny,
-                            selectedOrder.currency_code,
-                            userCurrency
-                          )
-                        : '-'}
+                      <Space>
+                        <Text>
+                          {selectedPosting?.ozon_commission_cny
+                            ? formatPriceWithFallback(
+                                selectedPosting.ozon_commission_cny,
+                                selectedOrder.currency_code,
+                                userCurrency
+                              )
+                            : '-'}
+                        </Text>
+                        {isDelivered && (!selectedPosting?.ozon_commission_cny || parseFloat(selectedPosting.ozon_commission_cny) === 0) && (
+                          <Button
+                            type="link"
+                            size="small"
+                            icon={<SyncOutlined spin={syncingFinance} />}
+                            loading={syncingFinance}
+                            onClick={handleSyncFinance}
+                          >
+                            同步
+                          </Button>
+                        )}
+                      </Space>
                     </Descriptions.Item>
                     <Descriptions.Item label="国际物流">
                       {selectedPosting?.international_logistics_fee_cny
@@ -448,17 +500,30 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                               : '-'}
                           </Text>
                           {isDelivered && (
-                            <Button
-                              type="link"
-                              size="small"
-                              icon={<EditOutlined />}
-                              onClick={() => {
-                                setEditMaterialCost(selectedPosting?.material_cost || '');
-                                setIsEditingMaterialCost(true);
-                              }}
-                            >
-                              编辑
-                            </Button>
+                            <>
+                              {(!selectedPosting?.material_cost || parseFloat(selectedPosting.material_cost) === 0) && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<SyncOutlined spin={syncingMaterialCost} />}
+                                  loading={syncingMaterialCost}
+                                  onClick={handleSyncMaterialCost}
+                                >
+                                  同步
+                                </Button>
+                              )}
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => {
+                                  setEditMaterialCost(selectedPosting?.material_cost || '');
+                                  setIsEditingMaterialCost(true);
+                                }}
+                              >
+                                编辑
+                              </Button>
+                            </>
                           )}
                         </Space>
                       )}
