@@ -1068,20 +1068,27 @@ async def batch_print_labels(
 
 @router.get("/packing/postings/search-by-tracking")
 async def search_posting_by_tracking(
-    tracking_number: str = Query(..., description="国内物流单号"),
+    tracking_number: str = Query(..., description="追踪号码/国内单号/货件编号"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    根据国内物流单号查询货件（精确匹配）
+    根据追踪号码/国内单号/货件编号查询货件（精确匹配）
 
-    搜索字段：domestic_tracking_number（国内单号）
+    搜索字段（按优先级）：
+    1. posting_number（货件编号）
+    2. packages.tracking_number（OZON追踪号码）
+    3. domestic_tracking_number（国内单号）
+
     返回：posting 详情 + 订单信息 + 商品列表
     """
     from sqlalchemy.orm import selectinload
+    from ..models import OzonShipmentPackage
 
     try:
-        # 精确匹配国内物流单号
-        # 注意：需要预加载所有关联对象，因为 order.to_dict() 会访问它们
+        search_value = tracking_number.strip()
+        posting = None
+
+        # 方式1：按货件编号查询（最直接）
         result = await db.execute(
             select(OzonPosting)
             .options(
@@ -1090,14 +1097,48 @@ async def search_posting_by_tracking(
                 selectinload(OzonPosting.order).selectinload(OzonOrder.items),
                 selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
             )
-            .where(
-                OzonPosting.domestic_tracking_number == tracking_number.strip()
-            )
+            .where(OzonPosting.posting_number == search_value)
         )
         posting = result.scalar_one_or_none()
 
+        # 方式2：如果没找到，按OZON追踪号码查询
         if not posting:
-            raise HTTPException(status_code=404, detail=f"未找到国内单号为 {tracking_number} 的货件")
+            package_result = await db.execute(
+                select(OzonShipmentPackage)
+                .where(OzonShipmentPackage.tracking_number == search_value)
+            )
+            package = package_result.scalar_one_or_none()
+
+            if package:
+                # 通过package.posting_id查询posting
+                result = await db.execute(
+                    select(OzonPosting)
+                    .options(
+                        selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.items),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
+                    )
+                    .where(OzonPosting.id == package.posting_id)
+                )
+                posting = result.scalar_one_or_none()
+
+        # 方式3：如果还没找到，按国内单号查询
+        if not posting:
+            result = await db.execute(
+                select(OzonPosting)
+                .options(
+                    selectinload(OzonPosting.packages),
+                    selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+                    selectinload(OzonPosting.order).selectinload(OzonOrder.items),
+                    selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
+                )
+                .where(OzonPosting.domestic_tracking_number == search_value)
+            )
+            posting = result.scalar_one_or_none()
+
+        if not posting:
+            raise HTTPException(status_code=404, detail=f"未找到单号为 {tracking_number} 的货件")
 
         # 获取订单信息
         order = posting.order
