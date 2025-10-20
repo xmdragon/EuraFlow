@@ -847,8 +847,8 @@ async def batch_print_labels(
 
                     pdf_content = base64.b64decode(pdf_content_base64)
 
-                    # 保存PDF文件
-                    label_dir = f"web/public/downloads/labels/{shop_id}"
+                    # 保存PDF文件（保存到 dist 目录，Nginx 可直接访问）
+                    label_dir = f"web/dist/downloads/labels/{shop_id}"
                     os.makedirs(label_dir, exist_ok=True)
                     pdf_path = f"{label_dir}/{pn}.pdf"
 
@@ -939,9 +939,9 @@ async def batch_print_labels(
                 for pdf_file in pdf_files:
                     merger.append(pdf_file)
 
-                # 生成批量PDF文件名
+                # 生成批量PDF文件名（保存到 dist 目录，Nginx 可直接访问）
                 batch_filename = f"batch_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.pdf"
-                batch_path = f"web/public/downloads/labels/{batch_filename}"
+                batch_path = f"web/dist/downloads/labels/{batch_filename}"
 
                 # 确保目录存在
                 os.makedirs(os.path.dirname(batch_path), exist_ok=True)
