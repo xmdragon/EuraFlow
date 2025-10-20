@@ -24,6 +24,7 @@ python-multipart==0.0.6
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 croniter==1.4.1
+aiolimiter==1.1.0
 
 # Data Processing
 pandas==2.3.2

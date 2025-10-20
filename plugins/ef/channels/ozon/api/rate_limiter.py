@@ -1,60 +1,49 @@
 """
 限流器实现
 使用令牌桶算法控制 API 请求频率
+
+性能优化：
+- 使用成熟的 aiolimiter 库，避免持锁睡眠的反模式
+- 支持高并发场景，无锁竞争导致的串行化问题
 """
 import asyncio
 import time
 from typing import Dict, Optional
 from collections import defaultdict
+from aiolimiter import AsyncLimiter
 
 
 class TokenBucket:
-    """令牌桶实现"""
-    
+    """令牌桶实现（基于 aiolimiter.AsyncLimiter）"""
+
     def __init__(self, rate: float, capacity: Optional[float] = None):
         """
         初始化令牌桶
-        
+
         Args:
             rate: 每秒生成的令牌数
             capacity: 桶容量（默认等于rate）
         """
         self.rate = rate
         self.capacity = capacity or rate
-        self.tokens = self.capacity
-        self.last_update = time.monotonic()
-        self.lock = asyncio.Lock()
-    
+        # 使用 aiolimiter 的 AsyncLimiter
+        # max_rate: 最大令牌数, time_period: 时间周期（秒）
+        self._limiter = AsyncLimiter(max_rate=rate, time_period=1.0)
+
     async def acquire(self, tokens: int = 1) -> float:
         """
-        获取令牌
-        
+        获取令牌（无持锁睡眠，支持高并发）
+
         Args:
             tokens: 需要的令牌数
-            
+
         Returns:
-            等待时间（秒）
+            等待时间（秒）- 兼容原接口，始终返回 0
         """
-        async with self.lock:
-            while True:
-                now = time.monotonic()
-                elapsed = now - self.last_update
-                
-                # 补充令牌
-                self.tokens = min(
-                    self.capacity,
-                    self.tokens + elapsed * self.rate
-                )
-                self.last_update = now
-                
-                if self.tokens >= tokens:
-                    # 有足够的令牌
-                    self.tokens -= tokens
-                    return 0
-                
-                # 计算需要等待的时间
-                wait_time = (tokens - self.tokens) / self.rate
-                await asyncio.sleep(wait_time)
+        # aiolimiter 内部正确处理令牌获取和等待
+        # 不会出现持锁睡眠的问题
+        await self._limiter.acquire(tokens)
+        return 0  # aiolimiter 返回值为 None，这里返回 0 保持兼容性
 
 
 class RateLimiter:
@@ -173,22 +162,24 @@ class AdaptiveRateLimiter(RateLimiter):
         if resource_type in self.buckets:
             old_rate = self.buckets[resource_type].rate
             new_rate = min(self.max_rate, old_rate * 1.2)
-            
-            self.buckets[resource_type] = TokenBucket(new_rate)
-            
+
+            # 创建新的 TokenBucket，容量等于速率
+            self.buckets[resource_type] = TokenBucket(new_rate, capacity=new_rate)
+
             import logging
             logging.getLogger(__name__).info(
                 f"Rate limit increased for {resource_type}: {old_rate} -> {new_rate}"
             )
-    
+
     def _decrease_rate(self, resource_type: str):
         """降低速率"""
         if resource_type in self.buckets:
             old_rate = self.buckets[resource_type].rate
             new_rate = max(self.min_rate, old_rate * self.adjustment_factor)
-            
-            self.buckets[resource_type] = TokenBucket(new_rate)
-            
+
+            # 创建新的 TokenBucket，容量等于速率
+            self.buckets[resource_type] = TokenBucket(new_rate, capacity=new_rate)
+
             import logging
             logging.getLogger(__name__).warning(
                 f"Rate limit decreased for {resource_type}: {old_rate} -> {new_rate}"

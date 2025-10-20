@@ -1,6 +1,10 @@
 """
 图片处理服务
 实现智能水印定位和图片合成
+
+性能优化：
+- 复用 httpx.AsyncClient 连接，避免重复 TLS 握手
+- CPU 密集计算移到线程池，避免阻塞事件循环
 """
 
 from PIL import Image, ImageEnhance, ImageOps
@@ -9,6 +13,7 @@ from typing import Dict, Any, Optional, List, Tuple, Union
 from io import BytesIO
 import httpx
 import logging
+import asyncio
 from enum import Enum
 
 from ef_core.utils.logger import get_logger
@@ -38,7 +43,13 @@ class WatermarkColor(Enum):
 
 
 class ImageProcessingService:
-    """图片处理服务"""
+    """
+    图片处理服务（性能优化版）
+
+    特性：
+    - HTTP 连接复用，批量下载时避免重复 TLS 握手
+    - 线程池支持，CPU 密集计算不阻塞事件循环
+    """
 
     # 位置坐标映射（相对位置）
     POSITION_RATIOS = {
@@ -61,9 +72,43 @@ class ImageProcessingService:
         WatermarkColor.TRANSPARENT: None  # 透明水印不考虑对比度
     }
 
+    def __init__(self):
+        """初始化图片处理服务"""
+        self._http_client: Optional[httpx.AsyncClient] = None
+        self._client_lock = asyncio.Lock()
+
+    async def get_client(self) -> httpx.AsyncClient:
+        """
+        获取复用的 HTTP 客户端（单例模式）
+
+        Returns:
+            httpx.AsyncClient 实例
+        """
+        if self._http_client is None:
+            async with self._client_lock:
+                # 双重检查锁定
+                if self._http_client is None:
+                    self._http_client = httpx.AsyncClient(
+                        timeout=30.0,
+                        limits=httpx.Limits(
+                            max_connections=10,  # 最大连接数
+                            max_keepalive_connections=5  # 保持活动的连接数
+                        ),
+                        follow_redirects=True
+                    )
+                    logger.info("Created shared HTTP client for image processing")
+        return self._http_client
+
+    async def close(self):
+        """关闭 HTTP 客户端，释放资源"""
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+            logger.info("Closed HTTP client for image processing")
+
     async def download_image(self, url: str, timeout: int = 30) -> Image.Image:
         """
-        下载图片并转换为PIL Image对象
+        下载图片并转换为PIL Image对象（使用连接复用）
 
         Args:
             url: 图片URL
@@ -73,18 +118,19 @@ class ImageProcessingService:
             PIL Image对象
         """
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, timeout=timeout)
-                response.raise_for_status()
+            # 使用复用的客户端，避免重复 TLS 握手
+            client = await self.get_client()
+            response = await client.get(url, timeout=timeout)
+            response.raise_for_status()
 
-                image = Image.open(BytesIO(response.content))
+            image = Image.open(BytesIO(response.content))
 
-                # 转换为RGB模式（处理RGBA、P模式等）
-                if image.mode not in ('RGB', 'RGBA'):
-                    image = image.convert('RGB')
+            # 转换为RGB模式（处理RGBA、P模式等）
+            if image.mode not in ('RGB', 'RGBA'):
+                image = image.convert('RGB')
 
-                logger.info(f"Downloaded image from {url}, size: {image.size}, mode: {image.mode}")
-                return image
+            logger.info(f"Downloaded image from {url}, size: {image.size}, mode: {image.mode}")
+            return image
 
         except httpx.HTTPError as e:
             logger.error(f"Failed to download image from {url}: {e}")

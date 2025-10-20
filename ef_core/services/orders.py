@@ -8,8 +8,9 @@ from decimal import Decimal
 import hashlib
 import re
 
-from sqlalchemy import select, and_, or_, desc, asc
+from sqlalchemy import select, and_, or_, desc, asc, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ef_core.models import Order, OrderItem
 from ef_core.utils.errors import (
@@ -366,62 +367,66 @@ class OrdersService(BaseService, RepositoryMixin):
         page_size: int,
         offset: int
     ) -> Dict[str, Any]:
-        """订单查询逻辑"""
-        # 构建查询
-        stmt = select(Order).where(
-            and_(
-                Order.shop_id == shop_id,
-                Order.platform == platform
-            )
-        )
-        
+        """
+        订单查询逻辑（性能优化版）
+
+        优化点：
+        1. 使用 selectinload 预加载订单项，避免 N+1 查询
+        2. 使用独立的 count 查询，避免重复排序
+        """
+        # 构建基础过滤条件
+        filters = [
+            Order.shop_id == shop_id,
+            Order.platform == platform
+        ]
+
         # 添加过滤条件
         if status:
-            stmt = stmt.where(Order.status.in_(status))
-        
+            filters.append(Order.status.in_(status))
+
         if from_date:
-            stmt = stmt.where(Order.platform_updated_ts >= from_date)
-        
+            filters.append(Order.platform_updated_ts >= from_date)
+
         if to_date:
-            stmt = stmt.where(Order.platform_updated_ts <= to_date)
-        
+            filters.append(Order.platform_updated_ts <= to_date)
+
         if search_query:
             search_pattern = f"%{search_query}%"
-            stmt = stmt.where(
+            filters.append(
                 or_(
                     Order.external_no.ilike(search_pattern),
                     Order.buyer_phone_raw.ilike(search_pattern),
                     Order.buyer_email.ilike(search_pattern)
                 )
             )
-        
-        # 排序和分页
-        stmt = stmt.order_by(desc(Order.platform_updated_ts))
-        
-        # 获取总数（用于分页信息）
-        from sqlalchemy import func
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+
+        # 优化 1: 独立的 count 查询，避免重复排序
+        count_stmt = select(func.count(Order.id)).where(and_(*filters))
         total_result = await session.execute(count_stmt)
         total = total_result.scalar()
-        
-        # 应用分页
-        stmt = stmt.offset(offset).limit(page_size)
-        
+
+        # 优化 2: 使用 selectinload 预加载订单项，避免 N+1 查询
+        stmt = (
+            select(Order)
+            .options(selectinload(Order.items))  # 一次性加载所有订单项
+            .where(and_(*filters))
+            .order_by(desc(Order.platform_updated_ts))
+            .offset(offset)
+            .limit(page_size)
+        )
+
         # 执行查询
         result = await session.execute(stmt)
         orders = list(result.scalars().all())
-        
-        # 转换为字典格式
+
+        # 转换为字典格式（订单项已预加载，无需额外查询）
         orders_data = []
         for order in orders:
             order_dict = order.to_dict()
-            # 加载订单项
-            items_stmt = select(OrderItem).where(OrderItem.order_id == order.id)
-            items_result = await session.execute(items_stmt)
-            items = list(items_result.scalars().all())
-            order_dict["items"] = [item.to_dict() for item in items]
+            # items 已经通过 selectinload 预加载，直接访问即可
+            order_dict["items"] = [item.to_dict() for item in order.items]
             orders_data.append(order_dict)
-        
+
         return {
             "items": orders_data,
             "total": total,
