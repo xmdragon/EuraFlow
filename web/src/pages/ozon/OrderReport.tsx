@@ -720,7 +720,7 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label
+                                    label={(entry) => `${Math.round(entry.percent * 100)}%`}
                                   >
                                     {summaryData.cost_breakdown.map((entry, index) => (
                                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -740,7 +740,7 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label
+                                    label={(entry) => `${Math.round(entry.percent * 100)}%`}
                                   >
                                     {summaryData.shop_breakdown.map((entry, index) => (
                                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -769,7 +769,7 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label
+                                    label={(entry) => `${Math.round(entry.percent * 100)}%`}
                                   >
                                     {summaryData.shop_breakdown.map((entry, index) => (
                                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
