@@ -665,7 +665,7 @@ class OzonAPIClient:
             }
 
         Raises:
-            ValueError: 超过20个货件
+            ValueError: 超过20个货件或响应格式错误
             httpx.HTTPStatusError: OZON API错误（如"The next postings aren't ready"）
 
         Example:
@@ -680,20 +680,76 @@ class OzonAPIClient:
 
         payload = {"posting_number": posting_numbers}
 
+        # 限流检查
+        await self.rate_limiter.acquire("postings")
+
+        # 生成请求ID
+        import uuid
+        request_id = str(uuid.uuid4())
+
+        # 构建请求
+        headers = {"X-Request-Id": request_id}
+        if self.correlation_id:
+            headers["X-Correlation-Id"] = self.correlation_id
+
         try:
-            response = await self._request(
-                "POST",
-                "/v2/posting/fbs/package-label",
-                data=payload,
-                resource_type="postings"
+            logger.info(
+                f"Ozon API request: POST /v2/posting/fbs/package-label",
+                extra={"request_id": request_id, "shop_id": self.shop_id, "posting_count": len(posting_numbers)}
             )
-            # OZON API 返回格式: {"result": {"file_content": "...", "file_name": "...", "content_type": "..."}}
-            # 调试日志
-            logger.debug(f"get_package_labels API 响应结构: {list(response.keys())}")
-            result = response.get('result', response)
-            logger.debug(f"返回给调用方的结构: {list(result.keys()) if isinstance(result, dict) else type(result)}")
-            # 直接返回 result 部分，方便调用方使用
-            return result
+
+            response = await self.client.request(
+                method="POST",
+                url="/v2/posting/fbs/package-label",
+                json=payload,
+                headers=headers
+            )
+
+            response.raise_for_status()
+
+            # 检查响应的 Content-Type
+            content_type = response.headers.get('content-type', '').lower()
+            logger.debug(f"Response content-type: {content_type}, length: {len(response.content)}")
+
+            # 情况1：JSON 响应（包含 Base64 编码的 PDF）
+            if 'application/json' in content_type:
+                result = response.json()
+                logger.debug(f"get_package_labels JSON响应结构: {list(result.keys())}")
+                # OZON API 返回格式: {"result": {"file_content": "...", "file_name": "...", "content_type": "..."}}
+                final_result = result.get('result', result)
+                logger.debug(f"返回给调用方的结构: {list(final_result.keys()) if isinstance(final_result, dict) else type(final_result)}")
+                return final_result
+
+            # 情况2：直接返回 PDF 二进制数据
+            elif 'application/pdf' in content_type or response.content.startswith(b'%PDF'):
+                import base64
+                logger.info(f"OZON API直接返回PDF二进制数据（{len(response.content)} bytes），转换为Base64格式")
+                pdf_base64 = base64.b64encode(response.content).decode('utf-8')
+                return {
+                    "file_content": pdf_base64,
+                    "file_name": "labels.pdf",
+                    "content_type": "application/pdf"
+                }
+
+            # 情况3：未知格式
+            else:
+                logger.error(f"未知的响应格式: content-type={content_type}, 前100字节={response.content[:100]}")
+                raise ValueError(f"OZON API返回了未知格式的响应 (content-type: {content_type})")
+
+        except httpx.HTTPStatusError as e:
+            # 安全地获取响应内容（避免二进制PDF解码错误）
+            try:
+                response_content = e.response.text
+            except UnicodeDecodeError:
+                response_content = f"<binary content, type={e.response.headers.get('content-type')}, size={len(e.response.content)} bytes>"
+            except Exception:
+                response_content = "<unable to decode response>"
+
+            logger.error(
+                f"Ozon API error: {e.response.status_code}",
+                extra={"request_id": request_id, "response": response_content},
+            )
+            raise
         except Exception as e:
             # 安全地记录错误日志（避免UTF-8解码错误）
             try:
