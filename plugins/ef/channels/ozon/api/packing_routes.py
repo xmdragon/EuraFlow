@@ -1137,7 +1137,7 @@ async def search_posting_by_tracking(
                 "domestic_tracking_number": posting.domestic_tracking_number,
                 "delivery_method_name": posting.delivery_method_name,
                 "shipment_date": posting.shipment_date.isoformat() if posting.shipment_date else None,
-                "delivering_date": posting.delivering_date.isoformat() if posting.delivering_date else None,
+                "delivered_at": posting.delivered_at.isoformat() if posting.delivered_at else None,
             },
             "order": {
                 "order_id": order.order_id,
