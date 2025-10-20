@@ -178,7 +178,20 @@ class OzonAPIClient:
 
             response.raise_for_status()
 
-            result = response.json()
+            # 安全地解析JSON响应（避免UTF-8解码错误）
+            try:
+                result = response.json()
+            except UnicodeDecodeError as e:
+                # 如果无法解码为UTF-8，可能是二进制响应（如PDF）
+                logger.error(
+                    f"Failed to decode response as JSON (UTF-8 error): {endpoint}",
+                    extra={
+                        "request_id": request_id,
+                        "content_type": response.headers.get('content-type'),
+                        "content_length": len(response.content)
+                    }
+                )
+                raise ValueError(f"OZON API返回了无法解码的响应 (UTF-8错误)，可能返回了二进制数据") from e
 
             # 记录成功
             logger.info(
