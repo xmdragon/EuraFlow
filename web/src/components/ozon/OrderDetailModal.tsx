@@ -427,7 +427,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                               )
                             : '-'}
                         </Text>
-                        {isDelivered && (!selectedPosting?.ozon_commission_cny || parseFloat(selectedPosting.ozon_commission_cny) === 0) && (
+                        {isDelivered && (!selectedPosting?.ozon_commission_cny || Number(selectedPosting.ozon_commission_cny || 0) === 0) && (
                           <Button
                             type="link"
                             size="small"
@@ -501,7 +501,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           </Text>
                           {isDelivered && (
                             <>
-                              {(!selectedPosting?.material_cost || parseFloat(selectedPosting.material_cost) === 0) && (
+                              {(!selectedPosting?.material_cost || Number(selectedPosting.material_cost || 0) === 0) && (
                                 <Button
                                   type="link"
                                   size="small"
