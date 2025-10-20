@@ -303,50 +303,39 @@ const PackingShipment: React.FC = () => {
    * 打开 PDF 并自动触发打印对话框
    */
   const printPDF = (pdfUrl: string) => {
-    // 创建一个临时 HTML 页面来承载 PDF，以便能触发打印对话框
-    const printWindow = window.open('', '_blank');
+    // 在当前页面创建一个隐藏的 iframe 来加载 PDF
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = pdfUrl;
 
-    if (printWindow) {
-      // 写入 HTML 内容，使用 iframe 嵌入 PDF
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>打印标签</title>
-          <style>
-            body, html {
-              margin: 0;
-              padding: 0;
-              width: 100%;
-              height: 100%;
-              overflow: hidden;
-            }
-            iframe {
-              width: 100%;
-              height: 100vh;
-              border: none;
-            }
-          </style>
-          <script>
-            window.onload = function() {
-              var iframe = document.querySelector('iframe');
-              iframe.onload = function() {
-                setTimeout(function() {
-                  window.print();
-                }, 1000);
-              };
-            };
-          </script>
-        </head>
-        <body>
-          <iframe src="${pdfUrl}"></iframe>
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
-    } else {
-      message.error('无法打开打印窗口，请检查浏览器弹窗拦截设置');
-    }
+    document.body.appendChild(iframe);
+
+    // 等待 PDF 加载完成后触发打印
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          // 尝试调用 iframe 的 print 方法
+          iframe.contentWindow?.print();
+        } catch (error) {
+          console.error('打印失败:', error);
+          message.error('自动打印失败，请手动打印');
+          // 打印失败，直接在新窗口打开 PDF
+          window.open(pdfUrl, '_blank');
+        } finally {
+          // 打印完成后清理 iframe
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+          }, 1000);
+        }
+      }, 1000);
+    };
+
+    // 如果 iframe 加载失败
+    iframe.onerror = () => {
+      message.error('PDF 加载失败');
+      document.body.removeChild(iframe);
+      window.open(pdfUrl, '_blank');
+    };
   };
 
   // 复制功能处理函数
