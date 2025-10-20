@@ -1124,9 +1124,53 @@ async def search_posting_by_tracking(
         if not order:
             raise HTTPException(status_code=404, detail="订单信息不存在")
 
-        # 返回与其他标签一致的数据结构（使用 order.to_dict()）
+        # 查询商品图片（与其他标签逻辑一致）
+        offer_id_images = {}
+        if order.items:
+            all_offer_ids = [item.offer_id for item in order.items if item.offer_id]
+            if all_offer_ids:
+                product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
+                    OzonProduct.offer_id.in_(all_offer_ids)
+                )
+                products_result = await db.execute(product_query)
+                for offer_id, images in products_result:
+                    if offer_id and images:
+                        # 优先使用primary图片，否则使用第一张
+                        if isinstance(images, dict):
+                            if images.get("primary"):
+                                offer_id_images[offer_id] = images["primary"]
+                            elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                                offer_id_images[offer_id] = images["main"][0]
+                        elif isinstance(images, list) and images:
+                            offer_id_images[offer_id] = images[0]
+
+        # 转换为字典并添加图片
+        order_dict = order.to_dict()
+        if order_dict.get("items"):
+            for item in order_dict["items"]:
+                if item.get("offer_id") and item["offer_id"] in offer_id_images:
+                    item["image"] = offer_id_images[item["offer_id"]]
+
+        # 添加前端期望的字段（从第一个 posting 提取）
+        if order.postings and len(order.postings) > 0:
+            first_posting = order.postings[0]
+            # 添加 status（前端期望的字段名）
+            order_dict['status'] = first_posting.status
+            # 添加 operation_status
+            order_dict['operation_status'] = first_posting.operation_status
+            # 添加 tracking_number（从 packages 或 raw_payload 提取）
+            if first_posting.packages and len(first_posting.packages) > 0:
+                order_dict['tracking_number'] = first_posting.packages[0].tracking_number
+            elif first_posting.raw_payload and 'tracking_number' in first_posting.raw_payload:
+                order_dict['tracking_number'] = first_posting.raw_payload['tracking_number']
+            else:
+                order_dict['tracking_number'] = None
+            # 添加 delivery_method（配送方式）
+            order_dict['delivery_method'] = first_posting.delivery_method_name or order.delivery_method
+
+        # 返回与其他标签一致的数据结构
         return {
-            "data": order.to_dict()
+            "data": order_dict
         }
 
     except HTTPException:

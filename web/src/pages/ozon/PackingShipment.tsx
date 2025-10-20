@@ -1609,12 +1609,17 @@ const PackingShipment: React.FC = () => {
                           {
                             title: '商品图片',
                             dataIndex: 'image',
-                            width: 80,
+                            width: 100,
                             render: (image) => (
                               image ? (
-                                <img src={optimizeOzonImageUrl(image, 60)} alt="" style={{ width: 60, height: 60 }} />
+                                <Tooltip
+                                  overlayInnerStyle={{ padding: 0 }}
+                                  title={<img src={optimizeOzonImageUrl(image, 160)} alt="" style={{ width: 160, height: 160 }} />}
+                                >
+                                  <img src={optimizeOzonImageUrl(image, 80)} alt="" style={{ width: 80, height: 80, cursor: 'pointer' }} />
+                                </Tooltip>
                               ) : (
-                                <Avatar size={60} icon={<ShoppingCartOutlined />} shape="square" />
+                                <Avatar size={80} icon={<ShoppingCartOutlined />} shape="square" />
                               )
                             ),
                           },
