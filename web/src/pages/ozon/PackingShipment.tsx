@@ -1435,7 +1435,7 @@ const PackingShipment: React.FC = () => {
           loading={isLoading}
           columns={columns}
           dataSource={orderItemRows}
-          rowKey={(record) => record.posting.posting_number}
+          rowKey={(record) => record.key}
           rowSelection={{
             selectedRowKeys: selectedPostingNumbers,
             onChange: (selectedKeys: React.Key[]) => {
