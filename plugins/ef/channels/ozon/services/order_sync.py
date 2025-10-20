@@ -422,28 +422,41 @@ class OrderSyncService:
                     session.add(default_package)
                     logger.info(f"Created default package for posting {posting_number} with tracking_number: {raw_tracking_number}")
 
-        # 操作状态自动更新：分配中 → 已分配
-        # 当 operation_status = "allocating" 且有追踪号码时，自动更新为 "allocated"
-        # 使用 Model 的 Helper 方法统一检查（屏蔽多层级字段复杂性）
-        if posting.operation_status == "allocating" and posting.has_tracking_number():
-            posting.operation_status = "allocated"
-            logger.info(f"Auto-updated operation_status: allocating → allocated for posting {posting_number}")
-
-        # 根据 OZON 状态同步更新 operation_status（避免状态不一致）
-        # 处理用户在 OZON 平台直接操作导致的状态跳跃（如从 awaiting_stock 直接变为 delivering）
+        # 状态同步逻辑：根据 ozon_status + 字段存在性重新计算 operation_status
         ozon_status = posting.status
-        if ozon_status == "delivering" and posting.operation_status not in ["shipping", "delivered"]:
-            old_status = posting.operation_status
+        old_operation_status = posting.operation_status
+
+        if ozon_status == "awaiting_packaging":
+            posting.operation_status = "awaiting_stock"
+
+        elif ozon_status == "awaiting_deliver":
+            # 根据追踪号码和国内单号判断
+            has_tracking = posting.has_tracking_number()
+            has_domestic = posting.domestic_tracking_number and posting.domestic_tracking_number.strip()
+
+            if not has_tracking:
+                posting.operation_status = "allocating"
+            elif has_tracking and not has_domestic:
+                posting.operation_status = "allocated"
+            else:
+                posting.operation_status = "tracking_confirmed"
+
+        elif ozon_status == "delivering":
             posting.operation_status = "shipping"
-            logger.info(f"Auto-synced operation_status: {old_status} → shipping (OZON: {ozon_status})")
-        elif ozon_status == "delivered" and posting.operation_status != "delivered":
-            old_status = posting.operation_status
+
+        elif ozon_status == "delivered":
             posting.operation_status = "delivered"
-            logger.info(f"Auto-synced operation_status: {old_status} → delivered (OZON: {ozon_status})")
-        elif ozon_status == "cancelled" and posting.operation_status != "cancelled":
-            old_status = posting.operation_status
+
+        elif ozon_status == "cancelled":
             posting.operation_status = "cancelled"
-            logger.info(f"Auto-synced operation_status: {old_status} → cancelled (OZON: {ozon_status})")
+
+        # 记录状态变化
+        if old_operation_status != posting.operation_status:
+            logger.info(
+                f"Auto-synced operation_status: {old_operation_status} → {posting.operation_status} "
+                f"(OZON status: {ozon_status}, tracking: {posting.has_tracking_number()}, "
+                f"domestic: {bool(posting.domestic_tracking_number)})"
+            )
 
         return posting
     

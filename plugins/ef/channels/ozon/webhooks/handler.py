@@ -319,46 +319,40 @@ class OzonWebhookHandler:
 
                 # ========== operation_status 自动管理 ==========
 
-                # 【新增】0. 初始状态设置：如果 operation_status 为空，根据 OZON 状态自动设置
-                if not posting.operation_status:
-                    if new_status == "awaiting_packaging":
-                        posting.operation_status = "awaiting_stock"
-                        logger.info(f"Set initial operation_status for posting {posting_number}: awaiting_stock (OZON status: {new_status})")
-                    elif new_status == "awaiting_deliver":
+                # 状态同步逻辑：根据 ozon_status + 字段存在性重新计算 operation_status
+                old_operation_status = posting.operation_status
+
+                if new_status == "awaiting_packaging":
+                    posting.operation_status = "awaiting_stock"
+
+                elif new_status == "awaiting_deliver":
+                    # 根据追踪号码和国内单号判断
+                    has_tracking = posting.has_tracking_number()
+                    has_domestic = posting.domestic_tracking_number and posting.domestic_tracking_number.strip()
+
+                    if not has_tracking:
+                        posting.operation_status = "allocating"
+                    elif has_tracking and not has_domestic:
                         posting.operation_status = "allocated"
-                        logger.info(f"Set initial operation_status for posting {posting_number}: allocated (OZON status: {new_status})")
-                    elif new_status == "delivering":
-                        posting.operation_status = "shipping"
-                        logger.info(f"Set initial operation_status for posting {posting_number}: shipping (OZON status: {new_status})")
-                    elif new_status == "delivered":
-                        posting.operation_status = "delivered"
-                        logger.info(f"Set initial operation_status for posting {posting_number}: delivered (OZON status: {new_status})")
-                    elif new_status == "cancelled":
-                        posting.operation_status = "cancelled"
-                        logger.info(f"Set initial operation_status for posting {posting_number}: cancelled (OZON status: {new_status})")
                     else:
-                        posting.operation_status = "awaiting_stock"
-                        logger.warning(f"Unknown OZON status '{new_status}' for posting {posting_number}, defaulting to awaiting_stock")
+                        posting.operation_status = "tracking_confirmed"
 
-                # 1. 分配中 → 已分配：检测到追踪号码
-                if posting.operation_status == "allocating" and posting.has_tracking_number():
-                    posting.operation_status = "allocated"
-                    logger.info(f"Auto-updated operation_status: allocating → allocated for posting {posting_number} (via webhook)")
-
-                # 2. 根据 OZON 状态同步更新 operation_status（避免状态不一致）
-                # 处理用户在 OZON 平台直接操作导致的状态跳跃（如从 awaiting_stock 直接变为 delivering）
-                if new_status == "delivering" and posting.operation_status not in ["shipping", "delivered"]:
-                    old_status = posting.operation_status
+                elif new_status == "delivering":
                     posting.operation_status = "shipping"
-                    logger.info(f"Auto-synced operation_status: {old_status} → shipping (OZON: {new_status}) (via webhook)")
-                elif new_status == "delivered" and posting.operation_status != "delivered":
-                    old_status = posting.operation_status
+
+                elif new_status == "delivered":
                     posting.operation_status = "delivered"
-                    logger.info(f"Auto-synced operation_status: {old_status} → delivered (OZON: {new_status}) (via webhook)")
-                elif new_status == "cancelled" and posting.operation_status != "cancelled":
-                    old_status = posting.operation_status
+
+                elif new_status == "cancelled":
                     posting.operation_status = "cancelled"
-                    logger.info(f"Auto-synced operation_status: {old_status} → cancelled (OZON: {new_status}) (via webhook)")
+
+                # 记录状态变化
+                if old_operation_status != posting.operation_status:
+                    logger.info(
+                        f"Auto-synced operation_status: {old_operation_status} → {posting.operation_status} "
+                        f"(OZON status: {new_status}, tracking: {posting.has_tracking_number()}, "
+                        f"domestic: {bool(posting.domestic_tracking_number)}) (via webhook)"
+                    )
 
                 session.add(posting)
                 await session.commit()

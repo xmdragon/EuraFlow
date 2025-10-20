@@ -164,31 +164,59 @@ async def get_packing_orders(
     # 关联 Posting 表（必须，因为要按 Posting 操作状态筛选）
     query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
 
-    # 核心过滤：统一使用 operation_status 筛选
+    # 核心过滤：基于 ozon_status + 追踪号码/国内单号
+    # 优先使用 operation_status，如果有 ozon_status 参数则转换为 operation_status
     if ozon_status:
-        # 为了向后兼容，ozon_status 参数映射到 operation_status
-        # 但推荐直接使用 operation_status
-        # 双重保险：同时检查 operation_status 和 ozon_status
-        # 注意：只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
+        # 兼容旧的 ozon_status 参数（前端可能还在使用）
+        operation_status = 'awaiting_stock'
+
+    if operation_status == 'awaiting_stock':
+        # 等待备货：ozon_status = 'awaiting_packaging'
+        query = query.where(OzonPosting.status == 'awaiting_packaging')
+
+    elif operation_status == 'allocating':
+        # 分配中：ozon_status = 'awaiting_deliver' AND 无追踪号码
+        # 检查 raw_payload['tracking_number'] 是否为空或不存在
         query = query.where(
             and_(
-                OzonPosting.operation_status == 'awaiting_stock',
-                OzonPosting.status == 'awaiting_packaging'
-            )
-        )
-    elif operation_status:
-        if operation_status == 'awaiting_stock':
-            # 等待备货：双重保险，同时检查 operation_status 和 ozon_status
-            # 只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
-            query = query.where(
-                and_(
-                    OzonPosting.operation_status == 'awaiting_stock',
-                    OzonPosting.status == 'awaiting_packaging'
+                OzonPosting.status == 'awaiting_deliver',
+                or_(
+                    OzonPosting.raw_payload['tracking_number'].astext.is_(None),
+                    OzonPosting.raw_payload['tracking_number'].astext == '',
+                    ~OzonPosting.raw_payload.has_key('tracking_number')
                 )
             )
-        else:
-            # 其他状态：只检查 operation_status
-            query = query.where(OzonPosting.operation_status == operation_status)
+        )
+
+    elif operation_status == 'allocated':
+        # 已分配：ozon_status = 'awaiting_deliver' AND 有追踪号码 AND 无国内单号
+        query = query.where(
+            and_(
+                OzonPosting.status == 'awaiting_deliver',
+                # 有追踪号码
+                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
+                OzonPosting.raw_payload['tracking_number'].astext != '',
+                # 无国内单号
+                or_(
+                    OzonPosting.domestic_tracking_number.is_(None),
+                    OzonPosting.domestic_tracking_number == ''
+                )
+            )
+        )
+
+    elif operation_status == 'tracking_confirmed':
+        # 确认单号：ozon_status = 'awaiting_deliver' AND 有追踪号码 AND 有国内单号
+        query = query.where(
+            and_(
+                OzonPosting.status == 'awaiting_deliver',
+                # 有追踪号码
+                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
+                OzonPosting.raw_payload['tracking_number'].astext != '',
+                # 有国内单号
+                OzonPosting.domestic_tracking_number.isnot(None),
+                OzonPosting.domestic_tracking_number != ''
+            )
+        )
 
     # 应用其他过滤条件
     if shop_id:
@@ -212,29 +240,44 @@ async def get_packing_orders(
     )
 
     # 应用相同的状态筛选逻辑
-    if ozon_status:
-        # 为了向后兼容，ozon_status 参数映射到 operation_status
-        # 双重保险：同时检查 operation_status 和 ozon_status
-        # 只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
+    if operation_status == 'awaiting_stock':
+        count_query = count_query.where(OzonPosting.status == 'awaiting_packaging')
+
+    elif operation_status == 'allocating':
         count_query = count_query.where(
             and_(
-                OzonPosting.operation_status == 'awaiting_stock',
-                OzonPosting.status == 'awaiting_packaging'
-            )
-        )
-    elif operation_status:
-        if operation_status == 'awaiting_stock':
-            # 等待备货：双重保险，同时检查 operation_status 和 ozon_status
-            # 只包含 awaiting_packaging（等待打包），不包括 awaiting_deliver（等待发运）
-            count_query = count_query.where(
-                and_(
-                    OzonPosting.operation_status == 'awaiting_stock',
-                    OzonPosting.status == 'awaiting_packaging'
+                OzonPosting.status == 'awaiting_deliver',
+                or_(
+                    OzonPosting.raw_payload['tracking_number'].astext.is_(None),
+                    OzonPosting.raw_payload['tracking_number'].astext == '',
+                    ~OzonPosting.raw_payload.has_key('tracking_number')
                 )
             )
-        else:
-            # 其他状态：只检查 operation_status
-            count_query = count_query.where(OzonPosting.operation_status == operation_status)
+        )
+
+    elif operation_status == 'allocated':
+        count_query = count_query.where(
+            and_(
+                OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
+                OzonPosting.raw_payload['tracking_number'].astext != '',
+                or_(
+                    OzonPosting.domestic_tracking_number.is_(None),
+                    OzonPosting.domestic_tracking_number == ''
+                )
+            )
+        )
+
+    elif operation_status == 'tracking_confirmed':
+        count_query = count_query.where(
+            and_(
+                OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
+                OzonPosting.raw_payload['tracking_number'].astext != '',
+                OzonPosting.domestic_tracking_number.isnot(None),
+                OzonPosting.domestic_tracking_number != ''
+            )
+        )
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if posting_number:
