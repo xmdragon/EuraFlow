@@ -232,13 +232,10 @@ async def get_packing_orders(
     if shop_id:
         query = query.where(OzonOrder.shop_id == shop_id)
 
-    # 搜索条件：精确匹配货件编号或国内单号
+    # 搜索条件：其他标签只精确匹配货件编号
     if posting_number:
         query = query.where(
-            or_(
-                OzonPosting.posting_number == posting_number.strip(),
-                OzonPosting.domestic_tracking_number == posting_number.strip()
-            )
+            OzonPosting.posting_number == posting_number.strip()
         )
 
     # 去重（因为一个订单可能有多个posting，使用distinct on id）
@@ -301,11 +298,9 @@ async def get_packing_orders(
     if shop_id:
         count_query = count_query.where(OzonOrder.shop_id == shop_id)
     if posting_number:
+        # 其他标签只精确匹配货件编号
         count_query = count_query.where(
-            or_(
-                OzonPosting.posting_number == posting_number.strip(),
-                OzonPosting.domestic_tracking_number == posting_number.strip()
-            )
+            OzonPosting.posting_number == posting_number.strip()
         )
 
     total_result = await db.execute(count_query)
