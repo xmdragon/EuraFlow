@@ -3,13 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { Spin, message } from 'antd';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 设置 PDF.js worker - 使用 npm 包中的 worker
-import pdfjsWorkerEntry from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
-
-// 创建 worker 的 Blob URL
-const workerBlob = new Blob([pdfjsWorkerEntry], { type: 'application/javascript' });
-const workerBlobURL = URL.createObjectURL(workerBlob);
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerBlobURL;
+// 设置 PDF.js worker - 使用 Vite 打包后的 worker URL
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
  * PDF 打印预览页面
