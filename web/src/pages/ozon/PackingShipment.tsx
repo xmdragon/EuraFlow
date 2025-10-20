@@ -302,6 +302,7 @@ const PackingShipment: React.FC = () => {
   // 扫描单号状态
   const [scanTrackingNumber, setScanTrackingNumber] = useState<string>('');
   const [scanResult, setScanResult] = useState<any>(null);
+  const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
 
   // 复制功能处理函数
@@ -1225,19 +1226,23 @@ const PackingShipment: React.FC = () => {
 
     setIsScanning(true);
     setScanResult(null);
+    setScanError('');
 
     try {
       const result = await ozonApi.searchPostingByTracking(scanTrackingNumber.trim());
-      setScanResult(result.data);
-      if (!result.data) {
-        message.info('未找到对应的订单');
+      if (result.data) {
+        setScanResult(result.data);
+        setScanError('');
+      } else {
+        setScanResult(null);
+        setScanError('未找到对应的订单');
       }
-      // 查询成功后自动清空输入框
-      setScanTrackingNumber('');
     } catch (error: any) {
-      message.error(`查询失败: ${error.response?.data?.error?.title || error.message}`);
       setScanResult(null);
+      setScanError(`查询失败: ${error.response?.data?.error?.title || error.message}`);
     } finally {
+      // 无论成功失败都清空输入框
+      setScanTrackingNumber('');
       setIsScanning(false);
     }
   };
@@ -1451,6 +1456,7 @@ const PackingShipment: React.FC = () => {
             if (key === 'scan') {
               setScanTrackingNumber('');
               setScanResult(null);
+              setScanError('');
             }
           }}
           items={[
@@ -1541,6 +1547,17 @@ const PackingShipment: React.FC = () => {
                   </Button>
                 </Space.Compact>
               </Card>
+
+              {/* 错误提示 */}
+              {scanError && (
+                <Alert
+                  message={scanError}
+                  type="warning"
+                  showIcon
+                  closable
+                  onClose={() => setScanError('')}
+                />
+              )}
 
               {/* 扫描结果 */}
               {scanResult && (
