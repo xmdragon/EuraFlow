@@ -13,6 +13,7 @@ from ef_core.database import get_db_manager
 from ..models import OzonShop
 from ..models.finance import OzonFinanceTransaction, OzonFinanceSyncWatermark
 from ..api.client import OzonAPIClient
+from .finance_translations import translate_operation_type_name
 
 logger = logging.getLogger(__name__)
 
@@ -251,7 +252,7 @@ class FinanceTransactionsSyncService:
                         "shop_id": shop_id,
                         "operation_id": operation_id,
                         "operation_type": operation_type,
-                        "operation_type_name": operation_type_name,
+                        "operation_type_name": translate_operation_type_name(operation_type_name),
                         "transaction_type": transaction_type,
                         "posting_number": posting_number,
                         "operation_date": operation_date,
@@ -281,7 +282,7 @@ class FinanceTransactionsSyncService:
                     "shop_id": shop_id,
                     "operation_id": operation_id,
                     "operation_type": operation_type,
-                    "operation_type_name": operation_type_name,
+                    "operation_type_name": translate_operation_type_name(operation_type_name),
                     "transaction_type": transaction_type,
                     "posting_number": posting_number,
                     "operation_date": operation_date,
