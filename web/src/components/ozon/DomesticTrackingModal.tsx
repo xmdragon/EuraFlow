@@ -2,11 +2,10 @@
  * 国内物流单号弹窗组件（支持多单号）
  * 用于"已分配"状态，填写国内物流单号并同步到跨境巴士
  */
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, message, Select, Alert, Progress } from 'antd';
+import React from 'react';
+import { Modal, Form, Input, message, Select } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ozonApi from '@/services/ozonApi';
-import { useKuajing84SyncStatus } from '@/hooks/useKuajing84SyncStatus';
 
 const { TextArea } = Input;
 
@@ -14,37 +13,18 @@ interface DomesticTrackingModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
+  /** 同步开始回调（返回 sync_log_id） */
+  onSyncStart?: (syncLogId: number) => void;
 }
 
 const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
   visible,
   onCancel,
   postingNumber,
+  onSyncStart,
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
-
-  // 同步日志ID（用于轮询）
-  const [syncLogId, setSyncLogId] = useState<number | null>(null);
-
-  // 使用轮询 Hook
-  const { status: syncStatus, isPolling, stopPolling } = useKuajing84SyncStatus(syncLogId, {
-    onSuccess: (data) => {
-      message.success('跨境巴士同步成功！');
-      // 刷新订单列表
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      // 3秒后关闭弹窗
-      setTimeout(() => {
-        handleClose();
-      }, 3000);
-    },
-    onFailure: (data) => {
-      message.error(`跨境巴士同步失败：${data.error_message || '未知错误'}`);
-    },
-    onTimeout: () => {
-      message.warning('跨境巴士同步超时，请稍后在同步日志中查看结果');
-    },
-  });
 
   // 提交国内物流单号 mutation
   const submitTrackingMutation = useMutation({
@@ -52,11 +32,14 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       return ozonApi.submitDomesticTracking(postingNumber, data);
     },
     onSuccess: (response) => {
-      // 获取同步日志ID，开始轮询
+      // 获取同步日志ID，通知父组件开始轮询
       const logId = response.data?.sync_log_id;
       if (logId) {
-        setSyncLogId(logId);
         message.success('国内单号已保存，正在后台同步到跨境巴士...');
+        // 通知父组件开始轮询
+        onSyncStart?.(logId);
+        // 立即关闭弹窗（轮询在父组件继续）
+        handleClose();
       } else {
         // 兼容旧版本（同步响应）
         const syncResult = response.data?.kuajing84_sync;
@@ -78,8 +61,6 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
 
   const handleClose = () => {
     form.resetFields();
-    setSyncLogId(null);
-    stopPolling();
     onCancel();
   };
 
@@ -172,40 +153,6 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
         </Form.Item>
       </Form>
 
-      {/* 同步状态显示 */}
-      {syncLogId && (
-        <Alert
-          style={{ marginTop: 16 }}
-          type={
-            syncStatus?.status === 'success'
-              ? 'success'
-              : syncStatus?.status === 'failed'
-              ? 'error'
-              : 'info'
-          }
-          message={
-            <div>
-              <strong>跨境巴士同步状态：</strong>
-              {syncStatus?.status === 'pending' && ' 等待同步...'}
-              {syncStatus?.status === 'in_progress' && ' 同步中...'}
-              {syncStatus?.status === 'success' && ' 同步成功！'}
-              {syncStatus?.status === 'failed' && ` 同步失败：${syncStatus.error_message}`}
-            </div>
-          }
-          description={
-            isPolling && (
-              <Progress
-                percent={Math.min(100, ((syncStatus?.attempts || 0) / 15) * 100)}
-                status="active"
-                strokeColor={{ from: '#108ee9', to: '#87d068' }}
-                showInfo={false}
-              />
-            )
-          }
-          showIcon
-        />
-      )}
-
       <div style={{ marginTop: 16, padding: 12, background: '#f0f2f5', borderRadius: 4 }}>
         <p style={{ margin: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
           <strong>说明：</strong>
@@ -213,7 +160,8 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
         <ul style={{ margin: '4px 0 0 20px', padding: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
           <li>支持输入多个国内物流单号（一个订单可能从多个供应商采购）</li>
           <li>输入单号后按回车或逗号分隔即可添加</li>
-          <li>提交后将同步到跨境巴士，并更新操作状态为"单号确认"</li>
+          <li>提交后将在后台同步到跨境巴士，弹窗可以关闭，同步继续进行</li>
+          <li>同步完成后会在右下角显示通知，无需等待</li>
         </ul>
       </div>
     </Modal>
