@@ -644,15 +644,15 @@ const ProductList: React.FC = () => {
             </div>
             {/* SKU */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-              <span style={{ fontSize: 12, color: '#1890ff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {record.sku || record.ozon_sku || '-'}
+              <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {record.ozon_sku || '-'}
               </span>
-              {(record.sku || record.ozon_sku) && (
+              {record.ozon_sku && (
                 <Button
                   type="text"
                   size="small"
                   icon={copyIcon}
-                  onClick={() => handleCopyToClipboard(record.sku || String(record.ozon_sku), 'SKU')}
+                  onClick={() => handleCopyToClipboard(String(record.ozon_sku), 'SKU')}
                   style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
                   title="复制SKU"
                 />
@@ -749,9 +749,12 @@ const ProductList: React.FC = () => {
         ].filter(Boolean).join(', ') || '状态正常';
 
         return (
-          <Tooltip title={statusDetails}>
+          <Space direction="vertical" size={2} style={{ width: '100%' }}>
             <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
-          </Tooltip>
+            <div style={{ fontSize: 11, color: '#999' }}>
+              {record.ozon_has_fbs_stocks && <div>FBS</div>}
+            </div>
+          </Space>
         );
       },
     },
@@ -763,12 +766,12 @@ const ProductList: React.FC = () => {
       width: 80,
       render: (visible) => <Switch checked={visible} disabled size="small" />,
     },
-    // 第八列：创建时间（100px）
+    // 第八列：创建时间（110px）
     {
       title: <SortableColumnTitle title="创建时间" field="created_at" />,
       dataIndex: 'ozon_created_at',
       key: 'created_at',
-      width: 100,
+      width: 110,
       render: (date, record) => {
         const displayDate = date || record.created_at;
         if (!displayDate) return '-';
