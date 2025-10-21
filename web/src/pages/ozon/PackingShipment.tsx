@@ -307,6 +307,9 @@ const PackingShipment: React.FC = () => {
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
 
+  // 扫描输入框的 ref，用于重新聚焦
+  const scanInputRef = React.useRef<any>(null);
+
   // 废弃订单同步轮询状态
   const [discardSyncLogId, setDiscardSyncLogId] = useState<number | null>(null);
 
@@ -381,6 +384,15 @@ const PackingShipment: React.FC = () => {
     cancelled: { color: 'error', text: '已取消', icon: <CloseCircleOutlined /> },
     not_accepted: { color: 'error', text: '未接受', icon: <CloseCircleOutlined /> },
     sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
+  };
+
+  // 操作状态配置 - 用于打包发货流程的内部状态
+  const operationStatusConfig: Record<string, { color: string; text: string }> = {
+    awaiting_stock: { color: 'default', text: '等待备货' },
+    allocating: { color: 'processing', text: '分配中' },
+    allocated: { color: 'warning', text: '已分配' },
+    tracking_confirmed: { color: 'success', text: '单号确认' },
+    printed: { color: 'success', text: '已打印' },
   };
 
   // 查询打包发货订单列表
@@ -1283,6 +1295,10 @@ const PackingShipment: React.FC = () => {
       // 无论成功失败都清空输入框
       setScanTrackingNumber('');
       setIsScanning(false);
+      // 重新聚焦到输入框，方便下次扫描
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -1566,27 +1582,30 @@ const PackingShipment: React.FC = () => {
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
               {/* 扫描输入框 */}
               <Card>
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    placeholder="请输入或扫描追踪号码"
-                    value={scanTrackingNumber}
-                    onChange={(e) => setScanTrackingNumber(e.target.value)}
-                    onPressEnter={handleScanSearch}
-                    disabled={isScanning}
-                    autoFocus
-                    size="large"
-                    prefix={<SearchOutlined />}
-                  />
-                  <Button
-                    type="primary"
-                    size="large"
-                    loading={isScanning}
-                    disabled={isScanning}
-                    onClick={handleScanSearch}
-                  >
-                    查询
-                  </Button>
-                </Space.Compact>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Space.Compact style={{ width: '600px' }}>
+                    <Input
+                      ref={scanInputRef}
+                      placeholder="请输入或扫描追踪号码"
+                      value={scanTrackingNumber}
+                      onChange={(e) => setScanTrackingNumber(e.target.value)}
+                      onPressEnter={handleScanSearch}
+                      disabled={isScanning}
+                      autoFocus
+                      size="large"
+                      prefix={<SearchOutlined />}
+                    />
+                    <Button
+                      type="primary"
+                      size="large"
+                      loading={isScanning}
+                      disabled={isScanning}
+                      onClick={handleScanSearch}
+                    >
+                      查询
+                    </Button>
+                  </Space.Compact>
+                </div>
               </Card>
 
               {/* 错误提示 */}
@@ -1627,8 +1646,8 @@ const PackingShipment: React.FC = () => {
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="操作状态">
-                      <Tag color={scanResult.operation_status === 'printed' ? 'success' : 'processing'}>
-                        {scanResult.operation_status === 'printed' ? '已打印' : scanResult.operation_status}
+                      <Tag color={operationStatusConfig[scanResult.operation_status]?.color || 'default'}>
+                        {operationStatusConfig[scanResult.operation_status]?.text || scanResult.operation_status || '-'}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="配送方式" span={2}>
