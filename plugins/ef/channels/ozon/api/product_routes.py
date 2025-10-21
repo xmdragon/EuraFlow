@@ -70,24 +70,27 @@ async def get_products(
 
     # 通用搜索 - 在多个字段中搜索
     if search:
+        logger.info(f"[PRODUCT SEARCH] search={search}, shop_id={shop_id}")
         search_term = f"%{search}%"
         # 对于纯数字搜索，也搜索ozon_sku字段
         search_conditions = [
             OzonProduct.sku.ilike(search_term),
             OzonProduct.title.ilike(search_term),
             OzonProduct.offer_id.ilike(search_term),
-            OzonProduct.barcode.ilike(search_term) if OzonProduct.barcode else False
+            OzonProduct.barcode.ilike(search_term)
         ]
 
         # 如果搜索词是纯数字，也在ozon_sku字段中搜索
         if search.strip().isdigit():
             from sqlalchemy import Text
             search_conditions.append(cast(OzonProduct.ozon_sku, Text).ilike(search_term))
+            logger.info(f"[PRODUCT SEARCH] Numeric search, also searching ozon_sku")
 
         query = query.where(or_(*search_conditions))
 
     # 特定字段搜索（优先级高于通用搜索）
     if sku:
+        logger.info(f"[PRODUCT SEARCH] sku={sku}, shop_id={shop_id}")
         query = query.where(OzonProduct.sku.ilike(f"%{sku}%"))
     if title:
         query = query.where(OzonProduct.title.ilike(f"%{title}%"))
