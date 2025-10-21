@@ -127,7 +127,7 @@ const SyncServices = () => {
   const loadServices = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/ef/v1/ozon/sync-services');
+      const response = await axios.get('/api/ef/v1/sync-services');
       setServices(response.data || []);
     } catch (error: any) {
       message.error(error.response?.data?.error?.detail || '加载服务列表失败');
@@ -139,7 +139,7 @@ const SyncServices = () => {
   // 加载可用Handler列表
   const loadHandlers = async () => {
     try {
-      const response = await axios.get('/api/ef/v1/ozon/sync-services/handlers');
+      const response = await axios.get('/api/ef/v1/sync-services/handlers');
       setHandlers(response.data || []);
     } catch (error: any) {
       console.error('加载Handler列表失败:', error);
@@ -149,7 +149,7 @@ const SyncServices = () => {
   // 切换服务状态
   const toggleService = async (service: SyncService) => {
     try {
-      await axios.post(`/api/ef/v1/ozon/sync-services/${service.id}/toggle`);
+      await axios.post(`/api/ef/v1/sync-services/${service.id}/toggle`);
       message.success(`服务已${service.is_enabled ? '禁用' : '启用'}`);
       loadServices();
     } catch (error: any) {
@@ -160,7 +160,7 @@ const SyncServices = () => {
   // 手动触发服务
   const triggerService = async (service: SyncService) => {
     try {
-      await axios.post(`/api/ef/v1/ozon/sync-services/${service.id}/trigger`);
+      await axios.post(`/api/ef/v1/sync-services/${service.id}/trigger`);
       message.success('服务已触发，正在后台执行');
       setTimeout(loadServices, 3000);
     } catch (error: any) {
@@ -174,7 +174,7 @@ const SyncServices = () => {
     setLogsModalVisible(true);
     setLogsLoading(true);
     try {
-      const response = await axios.get(`/api/ef/v1/ozon/sync-services/${service.id}/logs`);
+      const response = await axios.get(`/api/ef/v1/sync-services/${service.id}/logs`);
       setLogs(response.data || []);
     } catch (error: any) {
       message.error(error.response?.data?.error?.detail || '加载日志失败');
@@ -189,7 +189,7 @@ const SyncServices = () => {
     setStatsModalVisible(true);
     setStatsLoading(true);
     try {
-      const response = await axios.get(`/api/ef/v1/ozon/sync-services/${service.id}/stats`);
+      const response = await axios.get(`/api/ef/v1/sync-services/${service.id}/stats`);
       setStats(response.data || null);
     } catch (error: any) {
       message.error(error.response?.data?.error?.detail || '加载统计失败');
@@ -216,7 +216,7 @@ const SyncServices = () => {
     if (!selectedService) return;
 
     try {
-      await axios.put(`/api/ef/v1/ozon/sync-services/${selectedService.id}`, values);
+      await axios.put(`/api/ef/v1/sync-services/${selectedService.id}`, values);
       message.success('服务配置已更新');
       setEditModalVisible(false);
       editForm.resetFields();
@@ -235,7 +235,7 @@ const SyncServices = () => {
   // 提交添加
   const handleAddSubmit = async (values: any) => {
     try {
-      await axios.post('/api/ef/v1/ozon/sync-services', values);
+      await axios.post('/api/ef/v1/sync-services', values);
       message.success('服务已添加');
       setAddModalVisible(false);
       addForm.resetFields();
@@ -248,7 +248,7 @@ const SyncServices = () => {
   // 清空日志
   const clearLogs = async (service: SyncService, beforeDate?: string) => {
     try {
-      const response = await axios.delete(`/api/ef/v1/ozon/sync-services/${service.id}/logs`, {
+      const response = await axios.delete(`/api/ef/v1/sync-services/${service.id}/logs`, {
         data: { before_date: beforeDate }
       });
       message.success(`已清空 ${response.data.data.deleted_count} 条日志`);
@@ -263,7 +263,7 @@ const SyncServices = () => {
   // 重置统计
   const resetStats = async (service: SyncService) => {
     try {
-      await axios.post(`/api/ef/v1/ozon/sync-services/${service.id}/reset-stats`);
+      await axios.post(`/api/ef/v1/sync-services/${service.id}/reset-stats`);
       message.success('统计数据已重置');
       loadServices(); // 刷新服务列表
       if (statsModalVisible && selectedService?.id === service.id) {
