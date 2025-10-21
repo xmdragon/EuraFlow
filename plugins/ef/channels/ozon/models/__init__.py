@@ -18,6 +18,7 @@ from .listing import (
     OzonPriceUpdateLog,
     OzonStockUpdateLog,
 )
+from .finance import OzonFinanceTransaction, OzonFinanceSyncWatermark
 
 __all__ = [
     "OzonShop",
@@ -45,4 +46,7 @@ __all__ = [
     "OzonProductImportLog",
     "OzonPriceUpdateLog",
     "OzonStockUpdateLog",
+    # Finance models
+    "OzonFinanceTransaction",
+    "OzonFinanceSyncWatermark",
 ]

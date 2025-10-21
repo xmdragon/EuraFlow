@@ -1417,3 +1417,84 @@ export const syncFinance = async (postingNumber: string) => {
   const response = await apiClient.post(`/ozon/postings/${postingNumber}/sync-finance`);
   return response.data;
 };
+
+// ==================== 财务交易相关 API ====================
+
+export interface FinanceTransaction {
+  id: number;
+  shop_id: number;
+  operation_id: number;
+  operation_type: string;
+  operation_type_name?: string;
+  transaction_type: string;
+  posting_number?: string;
+  operation_date: string;
+  accruals_for_sale: string;
+  amount: string;
+  delivery_charge: string;
+  return_delivery_charge: string;
+  sale_commission: string;
+  item_sku?: string;
+  item_name?: string;
+  item_quantity?: number;
+  item_price?: string;
+  posting_delivery_schema?: string;
+  posting_warehouse_name?: string;
+  created_at: string;
+}
+
+export interface FinanceTransactionsResponse {
+  items: FinanceTransaction[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface FinanceTransactionsSummary {
+  total_amount: string;
+  total_accruals_for_sale: string;
+  total_sale_commission: string;
+  total_delivery_charge: string;
+  total_return_delivery_charge: string;
+  transaction_count: number;
+}
+
+export interface FinanceTransactionsFilter {
+  shop_id: number;
+  date_from?: string;
+  date_to?: string;
+  transaction_type?: string;
+  operation_type?: string;
+  posting_number?: string;
+  page?: number;
+  page_size?: number;
+}
+
+/**
+ * 获取财务交易列表
+ */
+export const getFinanceTransactions = async (
+  filter: FinanceTransactionsFilter
+): Promise<FinanceTransactionsResponse> => {
+  const response = await apiClient.get('/ozon/finance/transactions', { params: filter });
+  return response.data;
+};
+
+/**
+ * 获取财务交易汇总
+ */
+export const getFinanceTransactionsSummary = async (
+  shopId: number,
+  dateFrom?: string,
+  dateTo?: string,
+  transactionType?: string
+): Promise<FinanceTransactionsSummary> => {
+  const params: any = { shop_id: shopId };
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  if (transactionType) params.transaction_type = transactionType;
+
+  const response = await apiClient.get('/ozon/finance/transactions/summary', { params });
+  return response.data;
+};

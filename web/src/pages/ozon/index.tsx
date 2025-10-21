@@ -10,6 +10,7 @@ const Dashboard = lazy(() => import('./Dashboard'));
 const OrderList = lazy(() => import('./OrderList'));
 const PackingShipment = lazy(() => import('./PackingShipment'));
 const OrderReport = lazy(() => import('./OrderReport'));
+const FinanceTransactions = lazy(() => import('./FinanceTransactions'));
 const ProductList = lazy(() => import('./ProductList'));
 const ProductListing = lazy(() => import('./ProductListing'));
 const ProductCreate = lazy(() => import('./ProductCreate'));
@@ -39,6 +40,7 @@ const OzonManagement: React.FC = () => {
         <Route path="orders" element={<OrderList />} />
         <Route path="packing" element={<PackingShipment />} />
         <Route path="reports" element={<OrderReport />} />
+        <Route path="finance-transactions" element={<FinanceTransactions />} />
         <Route path="watermark" element={<WatermarkManagement />} />
         <Route path="api-keys" element={<ApiKeys />} />
         <Route path="settings" element={<ShopSettings />} />

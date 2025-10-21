@@ -252,6 +252,29 @@ async def setup(hooks) -> None:
         )
         print("✓ Registered ozon_sync_incremental service handler")
 
+        # 4. 注册OZON财务交易数据同步服务
+        from .services.finance_transactions_sync_service import get_finance_transactions_sync_service
+        finance_transactions_service = get_finance_transactions_sync_service()
+        registry.register(
+            service_key="ozon_finance_transactions_daily",
+            handler=finance_transactions_service.sync_transactions,
+            name="OZON财务交易同步",
+            description="每天自动从OZON同步财务交易数据（默认同步昨天数据，每天UTC 22:00执行=北京时间06:00）",
+            plugin="ef.channels.ozon",
+            config_schema={
+                "target_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "目标同步日期（YYYY-MM-DD格式，留空则默认昨天）"
+                },
+                "shop_id": {
+                    "type": "integer",
+                    "description": "指定店铺ID（留空则同步所有活跃店铺）"
+                }
+            }
+        )
+        print("✓ Registered ozon_finance_transactions_daily service handler")
+
     except Exception as e:
         print(f"Warning: Failed to register sync service handlers: {e}")
         import traceback

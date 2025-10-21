@@ -103,6 +103,13 @@ except ImportError as e:
     logger.warning(f"Could not import report routes: {e}")
 
 try:
+    from .finance_routes import router as finance_router
+    router.include_router(finance_router)
+    logger.info("✓ Loaded finance_routes")
+except ImportError as e:
+    logger.warning(f"Could not import finance routes: {e}")
+
+try:
     from .listing_routes import router as listing_router
     router.include_router(listing_router)
     logger.info("✓ Loaded listing_routes")

@@ -149,6 +149,12 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate('/dashboard/ozon/reports'),
         },
         {
+          key: 'ozon-finance-transactions',
+          icon: <DollarOutlined />,
+          label: '财务交易',
+          onClick: () => navigate('/dashboard/ozon/finance-transactions'),
+        },
+        {
           key: 'ozon-chats',
           icon: <MessageOutlined />,
           label: '聊天管理',
@@ -223,6 +229,7 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/packing')) return 'ozon-packing';
     if (path.includes('/ozon/orders')) return 'ozon-orders';
     if (path.includes('/ozon/reports')) return 'ozon-reports';
+    if (path.includes('/ozon/finance-transactions')) return 'ozon-finance-transactions';
     if (path.includes('/ozon/chat')) return 'ozon-chats';
     if (path.includes('/ozon/watermark')) return 'ozon-watermark';
     if (path.includes('/ozon/api-keys')) return 'ozon-api-keys';

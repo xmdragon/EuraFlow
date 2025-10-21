@@ -1,0 +1,37 @@
+.container {
+  padding: 0;
+}
+
+.filterCard {
+  margin-bottom: 16px;
+}
+
+.summaryRow {
+  margin-bottom: 16px;
+}
+
+.listCard {
+  margin-bottom: 16px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 60px 0;
+  color: #999;
+  font-size: 16px;
+}
+
+.paginationWrapper {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.positive {
+  color: #3f8600;
+  font-weight: 500;
+}
+
+.negative {
+  color: #cf1322;
+  font-weight: 500;
+}
