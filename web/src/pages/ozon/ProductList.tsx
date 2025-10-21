@@ -2115,7 +2115,7 @@ const ProductList: React.FC = () => {
                                       const position = settings?.position || manualPositions.get(key);
 
                                       if (watermarkId && position) {
-                                        const watermarkConfig = watermarkConfigs.find(c => c.id === watermarkId);
+                                        const watermarkConfig = (watermarkConfigs || []).find(c => c.id === watermarkId);
                                         if (watermarkConfig) {
                                           return (
                                             <img
@@ -2269,7 +2269,7 @@ const ProductList: React.FC = () => {
         onClose={() => setPreviewVisible(false)}
         productInfo={currentPreviewProduct}
         onWatermark={() => {
-          if (watermarkConfigs.length === 0) {
+          if (!watermarkConfigs || watermarkConfigs.length === 0) {
             notifyWarning('操作失败', '请先配置水印');
             return;
           }
