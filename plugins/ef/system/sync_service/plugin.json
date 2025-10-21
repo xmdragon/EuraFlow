@@ -1,0 +1,16 @@
+{
+  "name": "ef.system.sync_service",
+  "version": "1.0.0",
+  "enabled": true,
+  "capabilities": [
+    "sync.manage",
+    "sync.schedule",
+    "sync.monitor"
+  ],
+  "required_services": [],
+  "config_schema": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  }
+}
