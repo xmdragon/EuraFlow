@@ -859,7 +859,19 @@ const PackingShipment: React.FC = () => {
       // fixed: 'left' as const, // 移除fixed，避免与rowSelection冲突
       render: (_: any, row: OrderItemRow) => {
         const item = row.item;
-        const rawImageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
+        const order = row.order;
+
+        // 多级回退查找图片
+        let rawImageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
+
+        // 如果还没找到图片，尝试从订单items中根据SKU查找
+        if (!rawImageUrl && item.sku && order.items) {
+          const matchedItem = order.items.find((orderItem: any) => orderItem.sku === item.sku);
+          if (matchedItem) {
+            rawImageUrl = matchedItem.image || (matchedItem.offer_id && offerIdImageMap[matchedItem.offer_id]);
+          }
+        }
+
         const imageUrl = optimizeOzonImageUrl(rawImageUrl, 160);
         const ozonProductUrl = item.sku ? `https://www.ozon.ru/product/${item.sku}/` : null;
 
