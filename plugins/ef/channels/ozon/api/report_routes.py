@@ -672,7 +672,9 @@ async def get_report_summary(
                         # 取消订单：按数量比例分配负利润
                         total_quantity = sum(p.get('quantity', 0) for p in posting.raw_payload['products'])
                         if total_quantity > 0:
-                            product_profit = profit * (quantity / total_quantity)
+                            # 使用 Decimal 避免类型错误
+                            ratio = Decimal(str(quantity)) / Decimal(str(total_quantity))
+                            product_profit = profit * ratio
                             product_stats[offer_id]['profit'] += product_profit
                     elif order_amount > 0:
                         # 正常订单：按销售额比例分配利润
