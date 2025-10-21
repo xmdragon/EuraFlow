@@ -327,22 +327,13 @@ async def get_packing_orders(
     result = await db.execute(query)
     orders = result.scalars().all()
 
-    # 提取所有订单中的offer_id（从order.items和postings中）
+    # 从所有posting的商品中提取offer_id
     all_offer_ids = set()
     for order in orders:
-        # 从主订单项中收集
-        if order.items:
-            for item in order.items:
-                if item.offer_id:
-                    all_offer_ids.add(item.offer_id)
-
-        # 从各个posting的商品中收集
-        if hasattr(order, 'postings') and order.postings:
-            for posting in order.postings:
-                if hasattr(posting, 'products') and posting.products:
-                    for product in posting.products:
-                        if hasattr(product, 'offer_id') and product.offer_id:
-                            all_offer_ids.add(product.offer_id)
+        for posting in order.postings or []:
+            for product in posting.products or []:
+                if product.offer_id:
+                    all_offer_ids.add(product.offer_id)
 
     # 批量查询商品图片（使用offer_id匹配）
     offer_id_images = {}
