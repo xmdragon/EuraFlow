@@ -381,6 +381,7 @@ class CloudinaryService:
         """
         try:
             params = {
+                "type": "upload",  # 资源类型：upload, private, authenticated
                 "max_results": max_results,
                 "resource_type": "image"
             }
