@@ -9,8 +9,9 @@ from decimal import Decimal
 import logging
 
 from ef_core.database import get_async_session
-from ..models import OzonOrder, OzonPosting, OzonProduct
+from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking
 from ..utils.datetime_utils import utcnow, parse_date
+from sqlalchemy import delete
 
 router = APIRouter(tags=["ozon-orders"])
 logger = logging.getLogger(__name__)
@@ -271,10 +272,14 @@ async def update_order_extra_info(
                 posting.purchase_price = new_value_normalized
                 posting.purchase_price_updated_at = utcnow()
 
-        # domestic_tracking_number - 带时间戳，需要比较旧值
+        # domestic_tracking_number - 现在使用关联表存储多个单号
+        # 为了向后兼容，接受单个字符串值，将其作为唯一的单号存储
         if "domestic_tracking_number" in extra_info:
             new_value = extra_info["domestic_tracking_number"]
-            old_value = posting.domestic_tracking_number
+
+            # 获取当前的所有单号
+            current_numbers = posting.get_domestic_tracking_numbers()
+            old_value = current_numbers[0] if current_numbers else None
 
             # 标准化新值：空字符串或None → None，有效字符串 → trim后的字符串
             if new_value and str(new_value).strip():
@@ -282,10 +287,23 @@ async def update_order_extra_info(
             else:
                 new_value_normalized = None
 
-            # 只有当值真正变化时才更新字段和时间戳
+            # 只有当值真正变化时才更新
             if new_value_normalized != old_value:
-                posting.domestic_tracking_number = new_value_normalized
-                posting.domestic_tracking_updated_at = utcnow()
+                # 删除所有现有的国内单号
+                await db.execute(
+                    delete(OzonDomesticTracking).where(
+                        OzonDomesticTracking.posting_id == posting.id
+                    )
+                )
+
+                # 如果有新值，创建新记录
+                if new_value_normalized:
+                    new_tracking = OzonDomesticTracking(
+                        posting_id=posting.id,
+                        tracking_number=new_value_normalized,
+                        created_at=utcnow()
+                    )
+                    db.add(new_tracking)
 
         # material_cost - 无时间戳，直接更新
         if "material_cost" in extra_info:
@@ -316,18 +334,20 @@ async def update_order_extra_info(
 
     from ..utils.serialization import format_currency
 
+    # 获取国内物流单号列表
+    tracking_numbers = posting.get_domestic_tracking_numbers()
+
     return {
         "success": True,
         "message": "Posting extra info updated successfully",
         "data": {
             "posting_number": posting.posting_number,
             "purchase_price": format_currency(posting.purchase_price),
-            "domestic_tracking_number": posting.domestic_tracking_number,
+            "domestic_tracking_numbers": tracking_numbers,  # 统一使用数组形式
             "material_cost": format_currency(posting.material_cost),
             "order_notes": posting.order_notes,
             "source_platform": posting.source_platform,
-            "purchase_price_updated_at": posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
-            "domestic_tracking_updated_at": posting.domestic_tracking_updated_at.isoformat() if posting.domestic_tracking_updated_at else None
+            "purchase_price_updated_at": posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None
         }
     }
 

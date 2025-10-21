@@ -149,8 +149,7 @@ class OzonOrder(Base):
 
             # 添加 posting 维度的业务字段（用于前端表单显示和编辑）
             result['material_cost'] = str(first_posting.material_cost) if first_posting.material_cost else None
-            result['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()  # 新字段：数组
-            result['domestic_tracking_number'] = first_posting.get_domestic_tracking_numbers()[0] if first_posting.get_domestic_tracking_numbers() else None  # 兼容字段
+            result['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()  # 统一使用数组
             result['purchase_price'] = str(first_posting.purchase_price) if first_posting.purchase_price else None
             result['purchase_price_updated_at'] = first_posting.purchase_price_updated_at.isoformat() if first_posting.purchase_price_updated_at else None
             result['order_notes'] = first_posting.order_notes
@@ -211,8 +210,7 @@ class OzonOrder(Base):
                     'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
                     # 添加业务字段到 posting 对象
                     'material_cost': str(posting.material_cost) if posting.material_cost else None,
-                    'domestic_tracking_numbers': posting.get_domestic_tracking_numbers(),  # 新字段：数组
-                    'domestic_tracking_number': posting.get_domestic_tracking_numbers()[0] if posting.get_domestic_tracking_numbers() else None,  # 兼容字段
+                    'domestic_tracking_numbers': posting.get_domestic_tracking_numbers(),  # 统一使用数组
                     'purchase_price': str(posting.purchase_price) if posting.purchase_price else None,
                     'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
                     'order_notes': posting.order_notes,
@@ -233,8 +231,7 @@ class OzonOrder(Base):
             result['shipment_date'] = None
             # 业务字段默认值
             result['material_cost'] = None
-            result['domestic_tracking_numbers'] = []  # 新字段：空数组
-            result['domestic_tracking_number'] = None  # 兼容字段
+            result['domestic_tracking_numbers'] = []  # 统一使用数组
             result['purchase_price'] = None
             result['purchase_price_updated_at'] = None
             result['order_notes'] = None

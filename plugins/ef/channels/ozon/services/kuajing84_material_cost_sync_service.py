@@ -12,7 +12,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
-from ..models.orders import OzonPosting
+from ..models.orders import OzonPosting, OzonDomesticTracking
 from ..models.kuajing84_global_config import Kuajing84GlobalConfig
 from ..models.sync_service import SyncServiceLog
 from .kuajing84_sync import create_kuajing84_sync_service
@@ -178,11 +178,17 @@ class Kuajing84MaterialCostSyncService:
                             posting.material_cost = material_cost
 
                             # 如果本地没有国内物流单号，使用跨境巴士的logistics_order
-                            if not posting.domestic_tracking_number and result.get("logistics_order"):
-                                posting.domestic_tracking_number = result["logistics_order"]
-                                posting.domestic_tracking_updated_at = datetime.now(timezone.utc)
+                            current_tracking_numbers = posting.get_domestic_tracking_numbers()
+                            if not current_tracking_numbers and result.get("logistics_order"):
+                                # 创建新的国内物流单号记录
+                                new_tracking = OzonDomesticTracking(
+                                    posting_id=posting.id,
+                                    tracking_number=result["logistics_order"],
+                                    created_at=datetime.now(timezone.utc)
+                                )
+                                db.add(new_tracking)
                                 logger.info(
-                                    f"Updated domestic tracking number for posting {posting.id}, "
+                                    f"Added domestic tracking number for posting {posting.id}, "
                                     f"tracking_number={result['logistics_order']}"
                                 )
 

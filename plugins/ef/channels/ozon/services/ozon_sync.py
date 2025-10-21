@@ -1338,7 +1338,7 @@ class OzonSyncService:
             elif ozon_status == "awaiting_deliver":
                 # 根据追踪号码和国内单号判断
                 has_tracking = posting.has_tracking_number()  # 使用 Model 的 Helper 方法
-                has_domestic = posting.domestic_tracking_number and posting.domestic_tracking_number.strip()
+                has_domestic = bool(posting.get_domestic_tracking_numbers())  # 检查是否有国内单号
 
                 if not has_tracking:
                     posting.operation_status = "allocating"  # 无追踪号
@@ -1377,7 +1377,7 @@ class OzonSyncService:
             else:
                 # 根据追踪号码和国内单号判断
                 has_tracking = posting.has_tracking_number()
-                has_domestic = posting.domestic_tracking_number and posting.domestic_tracking_number.strip()
+                has_domestic = bool(posting.get_domestic_tracking_numbers())  # 检查是否有国内单号
 
                 if not has_tracking:
                     posting.operation_status = "allocating"
@@ -1401,7 +1401,7 @@ class OzonSyncService:
             logger.info(
                 f"Auto-synced operation_status: {old_operation_status} → {posting.operation_status} "
                 f"(OZON status: {ozon_status}, tracking: {posting.has_tracking_number()}, "
-                f"domestic: {bool(posting.domestic_tracking_number)})"
+                f"domestic: {bool(posting.get_domestic_tracking_numbers())})"
             )
 
         logger.info(

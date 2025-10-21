@@ -468,9 +468,19 @@ class PostingOperationsService:
             posting.material_cost = material_cost
 
             # 7. 如果本地没有国内物流单号，使用跨境巴士的logistics_order
-            if not posting.domestic_tracking_number and fetch_result.get("logistics_order"):
-                posting.domestic_tracking_number = fetch_result["logistics_order"]
-                posting.domestic_tracking_updated_at = utcnow()
+            current_tracking_numbers = posting.get_domestic_tracking_numbers()
+            if not current_tracking_numbers and fetch_result.get("logistics_order"):
+                # 创建新的国内物流单号记录
+                new_tracking = OzonDomesticTracking(
+                    posting_id=posting.id,
+                    tracking_number=fetch_result["logistics_order"],
+                    created_at=utcnow()
+                )
+                self.db.add(new_tracking)
+                logger.info(
+                    f"添加国内物流单号: posting_number={posting_number}, "
+                    f"tracking_number={fetch_result['logistics_order']}"
+                )
 
             # 8. 更新国际物流费用（如果数据库中为空或为0）
             out_freight_str = fetch_result.get("out_freight", "0.00")
@@ -501,13 +511,16 @@ class PostingOperationsService:
                 f"international_logistics_fee: {posting.international_logistics_fee_cny}"
             )
 
+            # 获取国内物流单号列表
+            tracking_numbers = posting.get_domestic_tracking_numbers()
+
             return {
                 "success": True,
                 "message": "打包费用同步成功",
                 "data": {
                     "posting_number": posting.posting_number,
                     "material_cost": str(posting.material_cost) if posting.material_cost else None,
-                    "domestic_tracking_number": posting.domestic_tracking_number,
+                    "domestic_tracking_numbers": tracking_numbers,  # 统一使用数组形式
                     "international_logistics_fee_cny": str(posting.international_logistics_fee_cny) if posting.international_logistics_fee_cny else None,
                     "profit_amount_cny": str(posting.profit) if posting.profit else None,
                     "profit_rate": posting.profit_rate

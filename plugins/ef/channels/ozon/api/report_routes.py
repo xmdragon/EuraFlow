@@ -109,7 +109,9 @@ async def get_order_report(
                 if first_posting:
                     purchase_price = first_posting.purchase_price or Decimal('0')
                     material_cost = first_posting.material_cost or Decimal('0')
-                    domestic_tracking_number = first_posting.domestic_tracking_number
+                    # 获取所有国内物流单号，用逗号分隔显示
+                    tracking_numbers = first_posting.get_domestic_tracking_numbers()
+                    domestic_tracking_number = ', '.join(tracking_numbers) if tracking_numbers else None
                     order_notes = first_posting.order_notes
                     posting_number = first_posting.posting_number
                 else:
