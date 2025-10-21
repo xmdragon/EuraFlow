@@ -59,6 +59,23 @@ export interface WatermarkTask {
   completed_at?: string;
 }
 
+export interface CloudinaryResource {
+  public_id: string;
+  url: string;
+  format: string;
+  bytes: number;
+  width?: number;
+  height?: number;
+  created_at: string;
+}
+
+export interface CloudinaryResourcesResponse {
+  success: boolean;
+  resources: CloudinaryResource[];
+  total: number;
+  next_cursor?: string;
+}
+
 // ============ Cloudinary配置管理 ============
 
 /**
@@ -357,6 +374,49 @@ export async function cleanupOldResources(
     params: {
       days,
       dry_run: dryRun,
+    }
+  });
+  return response.data;
+}
+
+// ============ 资源管理 ============
+
+/**
+ * 列出Cloudinary资源
+ */
+export async function listCloudinaryResources(
+  options?: {
+    folder?: string;
+    max_results?: number;
+    next_cursor?: string;
+  }
+) {
+  const response = await axios.get<CloudinaryResourcesResponse>(
+    '/api/ef/v1/ozon/watermark/resources',
+    {
+      params: {
+        folder: options?.folder,
+        max_results: options?.max_results || 50,
+        next_cursor: options?.next_cursor,
+      }
+    }
+  );
+  return response.data;
+}
+
+/**
+ * 批量删除Cloudinary资源
+ */
+export async function deleteCloudinaryResources(publicIds: string[]) {
+  const response = await axios.delete<{
+    success: boolean;
+    deleted: string[];
+    not_found: string[];
+    deleted_count: number;
+    total_requested: number;
+  }>('/api/ef/v1/ozon/watermark/resources', {
+    data: {
+      public_ids: publicIds
     }
   });
   return response.data;

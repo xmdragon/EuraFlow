@@ -127,3 +127,135 @@
     font-weight: 600;
   }
 }
+
+// ===== 资源管理 =====
+.resourceToolbar {
+  margin-bottom: $spacing-md;
+  padding: $spacing-sm;
+  background-color: #fafafa;
+  border-radius: 8px;
+}
+
+.resourceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: $spacing-md;
+  padding: $spacing-md 0;
+  min-height: 400px;
+}
+
+.resourceCard {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  border: 2px solid #d9d9d9;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  background-color: #fff;
+
+  &:hover {
+    border-color: #1890ff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+    .resourceInfo {
+      opacity: 1;
+    }
+  }
+
+  &.selected {
+    border-color: #1890ff;
+    border-width: 3px;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  }
+}
+
+.resourceThumbnail {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+}
+
+.thumbnailImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.videoPlaceholder,
+.filePlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f0f0;
+}
+
+.videoIcon,
+.fileIcon {
+  font-size: 48px;
+  color: #bfbfbf;
+}
+
+.resourceCheckbox {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 10;
+
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #1890ff;
+  }
+}
+
+.resourceInfo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: $spacing-sm;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.resourceInfoItem {
+  line-height: 1.4;
+  word-break: break-all;
+
+  strong {
+    color: #91d5ff;
+  }
+}
+
+.emptyState {
+  text-align: center;
+  padding: $spacing-xl;
+  color: #999;
+
+  .emptyIcon {
+    font-size: 64px;
+    margin-bottom: $spacing-md;
+    color: #d9d9d9;
+  }
+
+  p {
+    font-size: 16px;
+    margin: 0;
+  }
+}

@@ -34,6 +34,9 @@ import {
   InfoCircleOutlined,
   PictureOutlined,
   SyncOutlined,
+  CloudOutlined,
+  FileImageOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -61,6 +64,8 @@ const WatermarkManagement: React.FC = () => {
   const [previewImage, setPreviewImage] = useState('');
   const [selectedWatermark, setSelectedWatermark] = useState<watermarkApi.WatermarkConfig | null>(null);
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+  const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [resourcesPage, setResourcesPage] = useState(0);
 
   // ============ Cloudinary配置查询（全局配置） ============
   const { data: cloudinaryConfig, isLoading: cloudinaryLoading, refetch: refetchCloudinary } = useQuery({
@@ -80,6 +85,13 @@ const WatermarkManagement: React.FC = () => {
     queryFn: () => watermarkApi.getTasks({ limit: 20 }),
     enabled: activeTab === 'tasks',
     refetchInterval: activeTab === 'tasks' ? 5000 : false,
+  });
+
+  // ============ Cloudinary资源列表查询 ============
+  const { data: resourcesData, isLoading: resourcesLoading, refetch: refetchResources } = useQuery({
+    queryKey: ['cloudinaryResources', resourcesPage],
+    queryFn: () => watermarkApi.listCloudinaryResources({ max_results: 50 }),
+    enabled: activeTab === 'resources',
   });
 
   // ============ Cloudinary配置保存（全局配置） ============
@@ -199,6 +211,19 @@ const WatermarkManagement: React.FC = () => {
     },
     onError: (error: any) => {
       notifyError('清理失败', `清理失败: ${error.message}`);
+    },
+  });
+
+  // ============ 删除Cloudinary资源 ============
+  const deleteResourcesMutation = useMutation({
+    mutationFn: (publicIds: string[]) => watermarkApi.deleteCloudinaryResources(publicIds),
+    onSuccess: (data) => {
+      notifySuccess('删除成功', `成功删除 ${data.deleted_count} 个资源`);
+      setSelectedResources([]);
+      refetchResources();
+    },
+    onError: (error: any) => {
+      notifyError('删除失败', `删除失败: ${error.message}`);
     },
   });
 
@@ -679,6 +704,114 @@ const WatermarkManagement: React.FC = () => {
                       showTotal: (total) => `共 ${total} 条`,
                     }}
                   />
+                </>
+              ),
+            },
+            {
+              key: 'resources',
+              label: (
+                <span>
+                  <CloudOutlined /> 资源管理
+                </span>
+              ),
+              children: (
+                <>
+                  <div className={styles.resourceToolbar}>
+                    <Space>
+                      <span>已选中: {selectedResources.length} 个</span>
+                      <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        disabled={selectedResources.length === 0}
+                        loading={deleteResourcesMutation.isPending}
+                        onClick={() => {
+                          Modal.confirm({
+                            title: '确认删除',
+                            content: `确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`,
+                            onOk: () => deleteResourcesMutation.mutate(selectedResources),
+                          });
+                        }}
+                      >
+                        删除选中
+                      </Button>
+                      <Button icon={<ReloadOutlined />} onClick={() => refetchResources()}>
+                        刷新
+                      </Button>
+                    </Space>
+                  </div>
+
+                  <Spin spinning={resourcesLoading}>
+                    <div className={styles.resourceGrid}>
+                      {resourcesData?.resources?.map((resource) => {
+                        const isSelected = selectedResources.includes(resource.public_id);
+                        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(resource.format?.toLowerCase() || '');
+                        const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(resource.format?.toLowerCase() || '');
+
+                        return (
+                          <div
+                            key={resource.public_id}
+                            className={`${styles.resourceCard} ${isSelected ? styles.selected : ''}`}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedResources(selectedResources.filter(id => id !== resource.public_id));
+                              } else {
+                                setSelectedResources([...selectedResources, resource.public_id]);
+                              }
+                            }}
+                          >
+                            <div className={styles.resourceThumbnail}>
+                              {isImage && (
+                                <img
+                                  src={resource.url.replace('/upload/', '/upload/w_160,h_160,c_fill,q_auto/')}
+                                  alt={resource.public_id}
+                                  className={styles.thumbnailImage}
+                                />
+                              )}
+                              {isVideo && (
+                                <div className={styles.videoPlaceholder}>
+                                  <VideoCameraOutlined className={styles.videoIcon} />
+                                </div>
+                              )}
+                              {!isImage && !isVideo && (
+                                <div className={styles.filePlaceholder}>
+                                  <FileImageOutlined className={styles.fileIcon} />
+                                </div>
+                              )}
+                            </div>
+                            <div className={styles.resourceCheckbox}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                            <div className={styles.resourceInfo}>
+                              <div className={styles.resourceInfoItem}>
+                                <strong>尺寸:</strong> {resource.width}x{resource.height}
+                              </div>
+                              <div className={styles.resourceInfoItem}>
+                                <strong>大小:</strong> {(resource.bytes / 1024).toFixed(2)} KB
+                              </div>
+                              <div className={styles.resourceInfoItem}>
+                                <strong>上传:</strong> {new Date(resource.created_at).toLocaleDateString()}
+                              </div>
+                              <div className={styles.resourceInfoItem}>
+                                <strong>格式:</strong> {resource.format?.toUpperCase()}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {(!resourcesData || resourcesData.resources?.length === 0) && (
+                      <div className={styles.emptyState}>
+                        <CloudOutlined className={styles.emptyIcon} />
+                        <p>暂无资源</p>
+                      </div>
+                    )}
+                  </Spin>
                 </>
               ),
             },

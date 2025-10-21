@@ -929,3 +929,88 @@ async def cleanup_old_resources(
     except Exception as e:
         logger.error(f"Failed to cleanup resources: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# 资源管理
+@router.get("/resources")
+async def list_cloudinary_resources(
+    folder: Optional[str] = Query(None, description="文件夹路径筛选"),
+    max_results: int = Query(50, le=100, description="每页最大结果数"),
+    next_cursor: Optional[str] = Query(None, description="分页游标"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """列出Cloudinary资源"""
+    try:
+        # 获取Cloudinary配置（全局配置）
+        cloudinary_config = await CloudinaryConfigManager.get_config(db)
+        if not cloudinary_config:
+            raise HTTPException(status_code=400, detail="Cloudinary not configured")
+
+        # 创建服务
+        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+
+        # 列出资源
+        result = await service.list_resources(
+            folder=folder,
+            max_results=max_results
+        )
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to list resources"))
+
+        return {
+            "success": True,
+            "resources": result["resources"],
+            "total": result["total"],
+            "next_cursor": result.get("next_cursor")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list resources: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/resources")
+async def delete_cloudinary_resources(
+    request: Dict[str, List[str]] = Body(..., description='{"public_ids": ["id1", "id2"]}'),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """批量删除Cloudinary资源"""
+    try:
+        public_ids = request.get("public_ids", [])
+
+        if not public_ids:
+            raise HTTPException(status_code=400, detail="No public_ids provided")
+
+        if len(public_ids) > 100:
+            raise HTTPException(status_code=400, detail="Cannot delete more than 100 resources at once")
+
+        # 获取Cloudinary配置（全局配置）
+        cloudinary_config = await CloudinaryConfigManager.get_config(db)
+        if not cloudinary_config:
+            raise HTTPException(status_code=400, detail="Cloudinary not configured")
+
+        # 创建服务
+        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+
+        # 批量删除
+        result = await service.delete_resources(public_ids)
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to delete resources"))
+
+        return {
+            "success": True,
+            "deleted": result.get("deleted", []),
+            "not_found": result.get("not_found", []),
+            "deleted_count": len(result.get("deleted", [])),
+            "total_requested": result.get("total_requested", 0)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete resources: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
