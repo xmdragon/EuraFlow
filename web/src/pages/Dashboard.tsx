@@ -27,7 +27,6 @@ const FinanceCalculator = lazy(() => import('./finance'));
 const OzonManagement = lazy(() => import('./ozon'));
 const SystemManagement = lazy(() => import('./system'));
 const Profile = lazy(() => import('./Profile'));
-const Settings = lazy(() => import('./Settings'));
 const UserManagement = lazy(() => import('./UserManagement'));
 const ExchangeRateManagement = lazy(() => import('./ExchangeRateManagement'));
 
@@ -205,12 +204,6 @@ const Dashboard: React.FC = () => {
         },
       ],
     },
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: '系统设置',
-      onClick: () => navigate('/dashboard/settings'),
-    },
     ...(user?.role === 'admin' ? [{
       key: 'users',
       icon: <UserOutlined />,
@@ -325,7 +318,6 @@ const Dashboard: React.FC = () => {
               <Route path="/finance" element={<FinanceCalculator />} />
               <Route path="/exchange-rate" element={<ExchangeRateManagement />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/settings" element={<Settings />} />
               {user?.role === 'admin' && <Route path="/users" element={<UserManagement />} />}
             </Routes>
           </Suspense>

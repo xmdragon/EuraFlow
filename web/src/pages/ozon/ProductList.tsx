@@ -34,8 +34,6 @@ import {
   Tag,
   Dropdown,
   Modal,
-  message,
-  notification,
   Tooltip,
   Badge,
   Switch,
