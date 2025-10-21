@@ -45,6 +45,8 @@ import {
   Image,
   Divider,
   Radio,
+  Popover,
+  Avatar,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
@@ -501,46 +503,66 @@ const ProductList: React.FC = () => {
           ? `https://ozon.ru/product/${generateOzonSlug(record.title)}-${record.ozon_sku}`
           : '';
 
+        const imageUrl80 = record.images?.primary
+          ? optimizeOzonImageUrl(record.images.primary, 80)
+          : '';
+        const imageUrl160 = record.images?.primary
+          ? optimizeOzonImageUrl(record.images.primary, 160)
+          : '';
+
         return (
           <div style={{ position: 'relative', width: '80px', height: '80px' }}>
             {record.images?.primary ? (
-              <div
-                style={{ position: 'relative', width: '80px', height: '80px' }}
-                className={styles.imageWrapper}
+              <Popover
+                content={<img src={imageUrl160} width={160} alt={record.title} />}
+                trigger="hover"
               >
-                <img
-                  src={optimizeOzonImageUrl(record.images.primary, 80)}
-                  alt={record.title}
-                  style={{
-                    width: '80px',
-                    height: '80px',
-                    objectFit: 'cover',
-                    borderRadius: '4px',
-                    border: '1px solid #f0f0f0',
-                    display: 'block',
-                  }}
-                  className={styles.productImage}
-                  onError={(e) => {
-                    const img = e.target as HTMLImageElement;
-                    img.style.display = 'none';
-                    const placeholder = img.parentElement?.nextElementSibling as HTMLElement;
-                    if (placeholder) placeholder.style.display = 'flex';
-                  }}
-                />
-                {/* 左上角链接图标 */}
-                {productUrl && (
+                <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+                  <Avatar
+                    src={imageUrl80}
+                    size={80}
+                    shape="square"
+                    style={{ border: '1px solid #f0f0f0' }}
+                  />
+                  {/* 左上角链接图标 */}
+                  {productUrl && (
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<LinkOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(productUrl, '_blank');
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '2px',
+                        left: '2px',
+                        width: '20px',
+                        height: '20px',
+                        padding: 0,
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        borderRadius: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      title="在OZON查看"
+                    />
+                  )}
+                  {/* 右上角放大镜图标 */}
                   <Button
                     type="text"
                     size="small"
-                    icon={<LinkOutlined />}
+                    icon={<SearchOutlined />}
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.open(productUrl, '_blank');
+                      handleImageClick(record, allImages);
                     }}
                     style={{
                       position: 'absolute',
                       top: '2px',
-                      left: '2px',
+                      right: '2px',
                       width: '20px',
                       height: '20px',
                       padding: 0,
@@ -550,51 +572,27 @@ const ProductList: React.FC = () => {
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
-                    title="在OZON查看"
+                    title="查看图片"
                   />
-                )}
-                {/* 右上角放大镜图标 */}
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<SearchOutlined />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleImageClick(record, allImages);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    right: '2px',
-                    width: '20px',
-                    height: '20px',
-                    padding: 0,
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    borderRadius: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  title="查看图片"
-                />
+                </div>
+              </Popover>
+            ) : (
+              <div
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px dashed #d9d9d9',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#bfbfbf',
+                }}
+              >
+                <FileImageOutlined style={{ fontSize: '24px' }} />
               </div>
-            ) : null}
-            {/* 图片占位符 */}
-            <div
-              style={{
-                width: '80px',
-                height: '80px',
-                backgroundColor: '#f5f5f5',
-                border: '1px dashed #d9d9d9',
-                borderRadius: '4px',
-                display: record.images?.primary ? 'none' : 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#bfbfbf',
-              }}
-            >
-              <FileImageOutlined style={{ fontSize: '24px' }} />
-            </div>
+            )}
           </div>
         );
       },
