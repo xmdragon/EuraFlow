@@ -986,9 +986,10 @@ export interface UpdateBusinessInfoRequest {
   order_notes?: string;  // 订单备注（可选）
 }
 
-// 提交国内物流单号请求参数
+// 提交国内物流单号请求参数（支持多单号）
 export interface SubmitDomesticTrackingRequest {
-  domestic_tracking_number: string;  // 国内物流单号（必填）
+  domestic_tracking_numbers?: string[];  // 国内物流单号列表（推荐）
+  domestic_tracking_number?: string;  // [已废弃] 单个国内物流单号（兼容字段）
   order_notes?: string;  // 订单备注（可选）
 }
 

@@ -3,7 +3,7 @@ Ozon 订单相关数据模型
 """
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Numeric,
@@ -132,7 +132,8 @@ class OzonOrder(Base):
 
             # 添加 posting 维度的业务字段（用于前端表单显示和编辑）
             result['material_cost'] = str(first_posting.material_cost) if first_posting.material_cost else None
-            result['domestic_tracking_number'] = first_posting.domestic_tracking_number
+            result['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()  # 新字段：数组
+            result['domestic_tracking_number'] = first_posting.get_domestic_tracking_numbers()[0] if first_posting.get_domestic_tracking_numbers() else None  # 兼容字段
             result['domestic_tracking_updated_at'] = first_posting.domestic_tracking_updated_at.isoformat() if first_posting.domestic_tracking_updated_at else None
             result['purchase_price'] = str(first_posting.purchase_price) if first_posting.purchase_price else None
             result['purchase_price_updated_at'] = first_posting.purchase_price_updated_at.isoformat() if first_posting.purchase_price_updated_at else None
@@ -189,7 +190,8 @@ class OzonOrder(Base):
                     'delivered_at': posting.delivered_at.isoformat() if posting.delivered_at else None,
                     # 添加业务字段到 posting 对象
                     'material_cost': str(posting.material_cost) if posting.material_cost else None,
-                    'domestic_tracking_number': posting.domestic_tracking_number,
+                    'domestic_tracking_numbers': posting.get_domestic_tracking_numbers(),  # 新字段：数组
+                    'domestic_tracking_number': posting.get_domestic_tracking_numbers()[0] if posting.get_domestic_tracking_numbers() else None,  # 兼容字段
                     'domestic_tracking_updated_at': posting.domestic_tracking_updated_at.isoformat() if posting.domestic_tracking_updated_at else None,
                     'purchase_price': str(posting.purchase_price) if posting.purchase_price else None,
                     'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
@@ -211,7 +213,8 @@ class OzonOrder(Base):
             result['shipment_date'] = None
             # 业务字段默认值
             result['material_cost'] = None
-            result['domestic_tracking_number'] = None
+            result['domestic_tracking_numbers'] = []  # 新字段：空数组
+            result['domestic_tracking_number'] = None  # 兼容字段
             result['domestic_tracking_updated_at'] = None
             result['purchase_price'] = None
             result['purchase_price_updated_at'] = None
@@ -220,6 +223,35 @@ class OzonOrder(Base):
             result['postings'] = []
 
         return result
+
+
+class OzonDomesticTracking(Base):
+    """国内物流单号表（一对多关系）"""
+    __tablename__ = "ozon_domestic_tracking_numbers"
+
+    # 主键
+    id = Column(BigInteger, primary_key=True)
+
+    # 外键关联
+    posting_id = Column(BigInteger, ForeignKey("ozon_postings.id", ondelete="CASCADE"), nullable=False)
+
+    # 单号
+    tracking_number = Column(String(200), nullable=False, comment="国内物流单号")
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), default=utcnow, comment="创建时间")
+
+    # 关系
+    posting = relationship("OzonPosting", back_populates="domestic_trackings")
+
+    __table_args__ = (
+        # 索引1：反查优化（从单号查posting）
+        Index("idx_domestic_tracking_number", "tracking_number"),
+        # 索引2：正查优化（从posting查所有单号）
+        Index("idx_domestic_posting_id", "posting_id"),
+        # 唯一约束：同一个posting不能有重复单号
+        UniqueConstraint("posting_id", "tracking_number", name="uq_posting_tracking")
+    )
 
 
 class OzonPosting(Base):
@@ -261,8 +293,8 @@ class OzonPosting(Base):
 
     # 业务字段（Posting维度）
     material_cost = Column(Numeric(18, 2), comment="物料成本（包装、标签等）")
-    domestic_tracking_number = Column(String(200), comment="国内物流单号")
-    domestic_tracking_updated_at = Column(DateTime(timezone=True), comment="国内物流单号更新时间")
+    domestic_tracking_number = Column(String(200), comment="[已废弃] 请使用 domestic_trackings 关系")
+    domestic_tracking_updated_at = Column(DateTime(timezone=True), comment="[已废弃] 国内物流单号更新时间")
     purchase_price = Column(Numeric(18, 2), comment="进货价格")
     purchase_price_updated_at = Column(DateTime(timezone=True), comment="进货价格更新时间")
     order_notes = Column(String(1000), comment="订单备注")
@@ -305,6 +337,12 @@ class OzonPosting(Base):
     # 关系
     order = relationship("OzonOrder", back_populates="postings")
     packages = relationship("OzonShipmentPackage", back_populates="posting", cascade="all, delete-orphan")
+    domestic_trackings = relationship(
+        "OzonDomesticTracking",
+        back_populates="posting",
+        cascade="all, delete-orphan",
+        lazy="selectin"  # 预加载优化，避免N+1查询
+    )
 
     # Helper 方法：统一访问多层级字段，屏蔽OZON API数据结构复杂性
     def get_tracking_numbers(self) -> list[str]:
@@ -395,6 +433,38 @@ class OzonPosting(Base):
 
         # 默认返回0
         return 0
+
+    def get_domestic_tracking_numbers(self) -> List[str]:
+        """
+        获取所有国内物流单号列表
+
+        优先级：
+        1. 数据库 domestic_trackings 关系（如果已加载）
+        2. 降级：原 domestic_tracking_number 字段（兼容老数据）
+
+        Returns:
+            国内物流单号列表
+        """
+        tracking_numbers = []
+
+        # 优先级1：从数据库 domestic_trackings 关系获取（如果已预加载）
+        try:
+            if hasattr(self, '__dict__') and 'domestic_trackings' in self.__dict__:
+                # domestic_trackings 已被预加载或之前访问过
+                for tracking in self.domestic_trackings:
+                    if tracking.tracking_number:
+                        tracking_numbers.append(tracking.tracking_number)
+                if tracking_numbers:
+                    return tracking_numbers
+        except Exception:
+            # 如果访问 domestic_trackings 失败（懒加载被禁用等），继续使用老字段
+            pass
+
+        # 优先级2：降级到原 domestic_tracking_number 字段（兼容）
+        if self.domestic_tracking_number:
+            return [self.domestic_tracking_number]
+
+        return []
 
     __table_args__ = (
         Index("idx_ozon_postings_status", "shop_id", "status"),

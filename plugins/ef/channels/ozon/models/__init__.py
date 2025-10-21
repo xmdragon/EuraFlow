@@ -2,7 +2,7 @@
 
 from .ozon_shops import OzonShop
 from .products import OzonProduct
-from .orders import OzonOrder, OzonPosting, OzonOrderItem, OzonShipmentPackage, OzonRefund
+from .orders import OzonOrder, OzonPosting, OzonOrderItem, OzonShipmentPackage, OzonRefund, OzonDomesticTracking
 from .warehouses import OzonWarehouse
 from .watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
 from .product_selection import ProductSelectionItem, ImportHistory
@@ -28,6 +28,7 @@ __all__ = [
     "OzonOrderItem",
     "OzonShipmentPackage",
     "OzonRefund",
+    "OzonDomesticTracking",
     "OzonWarehouse",
     "WatermarkConfig",
     "CloudinaryConfig",

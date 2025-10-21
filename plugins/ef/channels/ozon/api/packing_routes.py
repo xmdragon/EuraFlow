@@ -36,9 +36,22 @@ class UpdateBusinessInfoDTO(BaseModel):
 
 
 class SubmitDomesticTrackingDTO(BaseModel):
-    """填写国内单号请求 DTO"""
-    domestic_tracking_number: str = Field(..., description="国内物流单号（必填）")
+    """填写国内单号请求 DTO（支持多单号）"""
+    # 新字段：数组输入（推荐）
+    domestic_tracking_numbers: Optional[List[str]] = Field(None, min_length=1, max_length=10, description="国内物流单号列表（支持多个）")
+
+    # 兼容字段：单值输入（废弃但保留）
+    domestic_tracking_number: Optional[str] = Field(None, description="[已废弃] 单个国内物流单号，请使用 domestic_tracking_numbers")
+
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
+
+    def get_tracking_numbers(self) -> List[str]:
+        """获取国内单号列表（兼容逻辑）"""
+        if self.domestic_tracking_numbers:
+            return self.domestic_tracking_numbers
+        if self.domestic_tracking_number:
+            return [self.domestic_tracking_number]
+        return []
 
 
 @router.post("/postings/{posting_number}/prepare")
@@ -109,11 +122,11 @@ async def submit_domestic_tracking(
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    填写国内物流单号 + 同步跨境巴士
+    填写国内物流单号 + 同步跨境巴士（支持多单号）
 
     操作流程：
-    1. 保存国内物流单号和备注
-    2. 同步到跨境巴士
+    1. 保存国内物流单号列表（支持多个）和备注
+    2. 同步到跨境巴士（使用第一个单号）
     3. 更新操作状态为"单号确认"
     4. 更新操作时间
 
@@ -121,10 +134,16 @@ async def submit_domestic_tracking(
     """
     from ..services.posting_operations import PostingOperationsService
 
+    # 获取国内单号列表（兼容单值和数组输入）
+    tracking_numbers = request.get_tracking_numbers()
+
+    if not tracking_numbers:
+        raise HTTPException(status_code=400, detail="至少需要提供一个国内物流单号")
+
     service = PostingOperationsService(db)
     result = await service.submit_domestic_tracking(
         posting_number=posting_number,
-        domestic_tracking_number=request.domestic_tracking_number,
+        domestic_tracking_numbers=tracking_numbers,
         order_notes=request.order_notes
     )
 

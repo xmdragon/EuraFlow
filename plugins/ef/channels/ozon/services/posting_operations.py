@@ -4,13 +4,13 @@
 """
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.orders import OzonPosting, OzonOrder
+from ..models.orders import OzonPosting, OzonOrder, OzonDomesticTracking
 from ..models.ozon_shops import OzonShop
 from ..api.client import OzonAPIClient
 from .kuajing84_sync import create_kuajing84_sync_service
@@ -217,23 +217,46 @@ class PostingOperationsService:
     async def submit_domestic_tracking(
         self,
         posting_number: str,
-        domestic_tracking_number: str,
+        domestic_tracking_numbers: List[str],
         order_notes: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        填写国内物流单号 + 同步跨境巴士
+        填写国内物流单号 + 同步跨境巴士（支持多单号）
 
         Args:
             posting_number: 货件编号
-            domestic_tracking_number: 国内物流单号（必填）
+            domestic_tracking_numbers: 国内物流单号列表（支持多个）
             order_notes: 订单备注（可选）
 
         Returns:
             操作结果
         """
-        logger.info(f"开始填写国内单号，posting_number: {posting_number}, domestic_tracking_number: {domestic_tracking_number}")
+        logger.info(f"开始填写国内单号，posting_number: {posting_number}, domestic_tracking_numbers: {domestic_tracking_numbers}")
 
-        # 1. 查询 posting
+        # 1. 验证输入
+        if not domestic_tracking_numbers:
+            return {
+                "success": False,
+                "message": "至少需要提供一个国内物流单号"
+            }
+
+        # 去重并清理空值
+        unique_numbers = list(set([n.strip() for n in domestic_tracking_numbers if n and n.strip()]))
+        if not unique_numbers:
+            return {
+                "success": False,
+                "message": "国内物流单号不能为空"
+            }
+
+        if len(unique_numbers) > 10:
+            return {
+                "success": False,
+                "message": "最多支持10个国内物流单号"
+            }
+
+        logger.info(f"去重后的国内单号: {unique_numbers}")
+
+        # 2. 查询 posting
         result = await self.db.execute(
             select(OzonPosting).where(OzonPosting.posting_number == posting_number)
         )
@@ -245,28 +268,44 @@ class PostingOperationsService:
                 "message": f"货件不存在: {posting_number}"
             }
 
-        # 2. 幂等性检查：如果状态已是 tracking_confirmed，禁止重复操作
+        # 3. 幂等性检查：如果状态已是 tracking_confirmed，禁止重复操作
         if posting.operation_status == "tracking_confirmed":
             return {
                 "success": False,
                 "message": "该货件已完成国内单号填写操作"
             }
 
-        # 2.1 互斥状态检查：已打印和单号确认互斥
+        # 3.1 互斥状态检查：已打印和单号确认互斥
         if posting.operation_status == "printed":
             return {
                 "success": False,
                 "message": "该订单已标记为已打印，不能进行单号确认操作"
             }
 
-        # 3. 保存国内单号和备注
-        posting.domestic_tracking_number = domestic_tracking_number
+        # 4. 删除现有单号记录（替换模式）
+        await self.db.execute(
+            delete(OzonDomesticTracking).where(OzonDomesticTracking.posting_id == posting.id)
+        )
+
+        # 5. 批量插入新单号
+        tracking_records = [
+            OzonDomesticTracking(
+                posting_id=posting.id,
+                tracking_number=number,
+                created_at=utcnow()
+            )
+            for number in unique_numbers
+        ]
+        self.db.add_all(tracking_records)
+
+        # 6. 更新元数据
         posting.domestic_tracking_updated_at = utcnow()
+        posting.domestic_tracking_number = unique_numbers[0]  # 兼容：保留第一个单号到老字段
         if order_notes is not None:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
 
-        # 4. 查询关联的订单（用于跨境巴士同步）
+        # 7. 查询关联的订单（用于跨境巴士同步）
         order_result = await self.db.execute(
             select(OzonOrder).where(OzonOrder.id == posting.order_id)
         )
@@ -278,33 +317,34 @@ class PostingOperationsService:
                 "message": f"订单不存在: {posting.order_id}"
             }
 
-        # 5. 同步到跨境巴士
+        # 8. 同步到跨境巴士（使用第一个单号，保持兼容）
         kuajing84_service = create_kuajing84_sync_service(self.db)
         sync_result = await kuajing84_service.sync_logistics_order(
             ozon_order_id=order.id,
             posting_number=posting_number,
-            logistics_order=domestic_tracking_number
+            logistics_order=unique_numbers[0]  # 使用第一个单号
         )
 
         if not sync_result["success"]:
             logger.warning(f"跨境巴士同步失败（不影响状态更新）: {sync_result['message']}")
             # 注意：跨境巴士同步失败不影响状态更新，因为已经保存了国内单号
 
-        # 6. 更新操作状态为"单号确认"
+        # 9. 更新操作状态为"单号确认"
         posting.operation_status = "tracking_confirmed"
 
-        # 7. 提交数据库事务
+        # 10. 提交数据库事务
         await self.db.commit()
         await self.db.refresh(posting)
 
-        logger.info(f"国内单号填写成功，posting_number: {posting_number}, operation_status: {posting.operation_status}")
+        logger.info(f"国内单号填写成功，posting_number: {posting_number}, count: {len(unique_numbers)}, operation_status: {posting.operation_status}")
 
         return {
             "success": True,
-            "message": "国内单号提交成功" + (f"，跨境巴士同步：{'成功' if sync_result['success'] else '失败'}" if sync_result else ""),
+            "message": f"国内单号提交成功（共{len(unique_numbers)}个）" + (f"，跨境巴士同步：{'成功' if sync_result['success'] else '失败'}" if sync_result else ""),
             "data": {
                 "posting_number": posting.posting_number,
-                "domestic_tracking_number": posting.domestic_tracking_number,
+                "domestic_tracking_numbers": unique_numbers,  # 新字段：数组
+                "domestic_tracking_number": unique_numbers[0],  # 兼容字段：第一个单号
                 "operation_status": posting.operation_status,
                 "operation_time": posting.operation_time.isoformat() if posting.operation_time else None,
                 "kuajing84_sync": sync_result
