@@ -12,7 +12,6 @@ import {
   Table,
   Button,
   Select,
-  message,
   Spin,
   Typography,
   Divider,
@@ -56,6 +55,7 @@ import {
 import ShopSelector from '@/components/ozon/ShopSelector';
 import { formatRMB } from '../../utils/currency';
 import { optimizeOzonImageUrl } from '../../utils/ozonImageOptimizer';
+import { notifySuccess, notifyError } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
 import styles from './OrderReport.module.scss';
 
@@ -244,9 +244,9 @@ const OrderReport: React.FC = () => {
   // 复制文本到剪贴板
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
-      message.success('已复制到剪贴板');
+      notifySuccess('复制成功', '已复制到剪贴板');
     }).catch(() => {
-      message.error('复制失败');
+      notifyError('复制失败', '复制失败，请重试');
     });
   };
 

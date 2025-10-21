@@ -8,7 +8,6 @@ import {
   Button,
   Space,
   Tag,
-  message,
   Modal,
   Form,
   Input,
@@ -32,6 +31,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnsType } from 'antd/es/table';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import { notifySuccess, notifyError } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
 
 const { Option } = Select;
@@ -96,16 +96,16 @@ const ProductListing: React.FC = () => {
     },
     onSuccess: (data) => {
       if (data.success) {
-        message.success('商品上架请求已提交');
+        notifySuccess('上架请求已提交', '商品上架请求已提交');
         setListingModalVisible(false);
         form.resetFields();
         queryClient.invalidateQueries({ queryKey: ['products'] });
       } else {
-        message.error(`上架失败: ${data.error || '未知错误'}`);
+        notifyError('上架失败', `上架失败: ${data.error || '未知错误'}`);
       }
     },
     onError: (error: any) => {
-      message.error(`上架失败: ${error.message}`);
+      notifyError('上架失败', `上架失败: ${error.message}`);
     },
   });
 
@@ -120,7 +120,7 @@ const ProductListing: React.FC = () => {
         setCurrentStatus(data);
         setStatusModalVisible(true);
       } else {
-        message.error(`查询状态失败: ${data.error}`);
+        notifyError('查询状态失败', `查询状态失败: ${data.error}`);
       }
     },
   });

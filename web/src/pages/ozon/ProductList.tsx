@@ -488,93 +488,12 @@ const ProductList: React.FC = () => {
 
   // 表格列定义
   const allColumns: ColumnsType<ozonApi.Product> = [
+    // 第一列：图片（80px）
     {
-      title: <SortableColumnTitle title="SKU/编码" field="sku" />,
-      dataIndex: 'sku',
-      key: 'sku',
-      width: 200,
-      render: (text, record) => (
-        <Space direction="vertical" size="small">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: 11, color: '#666', minWidth: '40px' }}>商家:</span>
-            <span style={{ fontWeight: 'bold' }}>{text || record.offer_id}</span>
-            <Button
-              type="text"
-              size="small"
-              icon={
-                <div style={{ position: 'relative', width: '12px', height: '12px' }}>
-                  <div style={{
-                    position: 'absolute',
-                    top: '2px',
-                    left: '2px',
-                    width: '8px',
-                    height: '8px',
-                    border: '1px solid #666',
-                    backgroundColor: 'white'
-                  }} />
-                  <div style={{
-                    position: 'absolute',
-                    top: '0px',
-                    left: '0px',
-                    width: '8px',
-                    height: '8px',
-                    border: '1px solid #666',
-                    backgroundColor: 'white'
-                  }} />
-                </div>
-              }
-              onClick={() => handleCopyToClipboard(text || record.offer_id, '商家SKU')}
-              style={{ padding: '0 4px', height: '20px', minWidth: '20px' }}
-              title="复制商家SKU"
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ fontSize: 11, color: '#666', minWidth: '40px' }}>Ozon:</span>
-            <span style={{ fontSize: 13, color: '#1890ff', fontWeight: 500 }}>
-              {record.ozon_sku || '-'}
-            </span>
-            {record.ozon_sku && (
-              <Button
-                type="text"
-                size="small"
-                icon={
-                  <div style={{ position: 'relative', width: '10px', height: '10px' }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: '2px',
-                      left: '2px',
-                      width: '6px',
-                      height: '6px',
-                      border: '1px solid #666',
-                      backgroundColor: 'white'
-                    }} />
-                    <div style={{
-                      position: 'absolute',
-                      top: '0px',
-                      left: '0px',
-                      width: '6px',
-                      height: '6px',
-                      border: '1px solid #666',
-                      backgroundColor: 'white'
-                    }} />
-                  </div>
-                }
-                onClick={() => handleCopyToClipboard(String(record.ozon_sku), 'Ozon SKU')}
-                style={{ padding: '0 4px', height: '16px', minWidth: '16px', fontSize: '10px' }}
-                title="复制Ozon SKU"
-              />
-            )}
-          </div>
-        </Space>
-      ),
-    },
-    {
-      title: <SortableColumnTitle title="商品信息" field="title" />,
-      dataIndex: 'title',
-      key: 'info',
-      width: 350,
-      render: (text, record) => {
-        // 准备所有图片URL用于预览
+      title: '图片',
+      key: 'image',
+      width: 80,
+      render: (_, record) => {
         const allImages: string[] = [];
         if (record.images?.primary) {
           allImages.push(record.images.primary);
@@ -583,337 +502,379 @@ const ProductList: React.FC = () => {
           allImages.push(...record.images.additional);
         }
 
+        const productUrl = record.ozon_sku
+          ? `https://ozon.ru/product/${generateOzonSlug(record.title)}-${record.ozon_sku}`
+          : '';
+
         return (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-            {/* 商品图片 */}
-            <div style={{ flexShrink: 0 }}>
-              {record.images?.primary ? (
+          <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+            {record.images?.primary ? (
+              <div
+                style={{ position: 'relative', width: '80px', height: '80px' }}
+                className={styles.imageWrapper}
+              >
                 <img
-                  src={optimizeOzonImageUrl(record.images.primary, 60)}
-                  alt={text}
+                  src={optimizeOzonImageUrl(record.images.primary, 80)}
+                  alt={record.title}
                   style={{
-                    width: '60px',
-                    height: '60px',
+                    width: '80px',
+                    height: '80px',
                     objectFit: 'cover',
                     borderRadius: '4px',
                     border: '1px solid #f0f0f0',
-                    cursor: 'pointer',
+                    display: 'block',
                   }}
-                  onClick={() => handleImageClick(record, allImages)}
+                  className={styles.productImage}
                   onError={(e) => {
                     const img = e.target as HTMLImageElement;
                     img.style.display = 'none';
-                    const placeholder = img.nextElementSibling as HTMLElement;
+                    const placeholder = img.parentElement?.nextElementSibling as HTMLElement;
                     if (placeholder) placeholder.style.display = 'flex';
                   }}
                 />
-              ) : null}
-              {/* 图片占位符 */}
-              <div
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  backgroundColor: '#f5f5f5',
-                  border: '1px dashed #d9d9d9',
-                  borderRadius: '4px',
-                  display: record.images?.primary ? 'none' : 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#bfbfbf',
-                }}
-              >
-                <FileImageOutlined style={{ fontSize: '20px' }} />
-              </div>
-            </div>
-
-            {/* 商品信息 */}
-            <Space direction="vertical" size="small" style={{ flex: 1 }}>
-              <span style={{ fontWeight: 500, wordBreak: 'break-word' }}>
-                {record.ozon_sku ? (
-                  <a
-                    href={`https://ozon.ru/product/${record.ozon_sku}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                {/* 左上角链接图标 */}
+                {productUrl && (
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<LinkOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(productUrl, '_blank');
+                    }}
                     style={{
-                      color: '#1890ff',
-                      textDecoration: 'none',
+                      position: 'absolute',
+                      top: '2px',
+                      left: '2px',
+                      width: '20px',
+                      height: '20px',
+                      padding: 0,
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      borderRadius: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.textDecoration = 'underline';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.textDecoration = 'none';
-                    }}
-                  >
-                    {text}
-                  </a>
-                ) : (
-                  text
+                    title="在OZON查看"
+                  />
                 )}
-              </span>
-              <Space size="small" wrap>
-                {record.category_name && <Tag color="blue">{record.category_name}</Tag>}
-                {record.brand && <Tag>{record.brand}</Tag>}
-                {allImages.length > 1 && (
-                  <Tooltip title={`点击图片查看全部 ${allImages.length} 张图片`}>
-                    <Tag icon={<FileImageOutlined />} color="blue">{allImages.length}张图片</Tag>
-                  </Tooltip>
-                )}
-              </Space>
-              {record.barcode && (
-                <span style={{ fontSize: 12, color: '#999' }}>条码: {record.barcode}</span>
-              )}
-            </Space>
+                {/* 右上角放大镜图标 */}
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<SearchOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleImageClick(record, allImages);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '2px',
+                    width: '20px',
+                    height: '20px',
+                    padding: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="查看图片"
+                />
+              </div>
+            ) : null}
+            {/* 图片占位符 */}
+            <div
+              style={{
+                width: '80px',
+                height: '80px',
+                backgroundColor: '#f5f5f5',
+                border: '1px dashed #d9d9d9',
+                borderRadius: '4px',
+                display: record.images?.primary ? 'none' : 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#bfbfbf',
+              }}
+            >
+              <FileImageOutlined style={{ fontSize: '24px' }} />
+            </div>
           </div>
         );
       },
     },
+    // 第二列：SKU信息（100px）
+    {
+      title: 'SKU',
+      key: 'sku',
+      width: 100,
+      render: (_, record) => {
+        const copyIcon = (
+          <div style={{ position: 'relative', width: '12px', height: '12px' }}>
+            <div style={{
+              position: 'absolute',
+              top: '2px',
+              left: '2px',
+              width: '8px',
+              height: '8px',
+              border: '1px solid #666',
+              backgroundColor: 'white'
+            }} />
+            <div style={{
+              position: 'absolute',
+              top: '0px',
+              left: '0px',
+              width: '8px',
+              height: '8px',
+              border: '1px solid #666',
+              backgroundColor: 'white'
+            }} />
+          </div>
+        );
+
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            {/* 商品货号 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+              <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {record.offer_id}
+              </span>
+              <Button
+                type="text"
+                size="small"
+                icon={copyIcon}
+                onClick={() => handleCopyToClipboard(record.offer_id, '商品货号')}
+                style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
+                title="复制商品货号"
+              />
+            </div>
+            {/* SKU */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
+              <span style={{ fontSize: 12, color: '#1890ff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {record.sku || record.ozon_sku || '-'}
+              </span>
+              {(record.sku || record.ozon_sku) && (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={copyIcon}
+                  onClick={() => handleCopyToClipboard(record.sku || String(record.ozon_sku), 'SKU')}
+                  style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
+                  title="复制SKU"
+                />
+              )}
+            </div>
+          </Space>
+        );
+      },
+    },
+    // 第三列：标题（自适应宽度）
+    {
+      title: <SortableColumnTitle title="商品名称" field="title" />,
+      dataIndex: 'title',
+      key: 'title',
+      render: (text) => {
+        const displayText = text && text.length > 80 ? text.substring(0, 80) + '...' : text;
+        return text && text.length > 80 ? (
+          <Tooltip title={text}>
+            <span>{displayText}</span>
+          </Tooltip>
+        ) : (
+          <span>{displayText || '-'}</span>
+        );
+      },
+    },
+    // 第四列：价格（80px）
     {
       title: <SortableColumnTitle title="价格" field="price" />,
       key: 'price',
-      width: 150,
+      width: 80,
       render: (_, record) => {
-        // 确保价格格式正确
         const price = parseFloat(record.price || '0');
         const oldPrice = record.old_price ? parseFloat(record.old_price) : null;
-        const cost = record.cost ? parseFloat(record.cost) : null;
 
         return (
-          <Space direction="vertical" size="small">
-            <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 16 }}>
-              {formatPriceWithCurrency(price, record.currency_code)}
-            </span>
+          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+            {/* 定价（如果有old_price，显示它作为定价） */}
             {oldPrice && oldPrice > price && (
-              <span
-                style={{
-                  textDecoration: 'line-through',
-                  color: '#999',
-                  fontSize: 12,
-                }}
-              >
+              <span style={{ fontSize: 11, color: '#999' }}>
                 {formatPriceWithCurrency(oldPrice, record.currency_code)}
               </span>
             )}
-            {cost && price > 0 && (
-              <Tooltip title={`成本: ${formatPriceWithCurrency(cost, record.currency_code)}`}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: price > cost ? '#52c41a' : '#ff4d4f',
-                  }}
-                >
-                  毛利: {calculateMargin(price, cost)}
-                </span>
-              </Tooltip>
+            {/* 当前价格（绿色） */}
+            <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 13 }}>
+              {formatPriceWithCurrency(price, record.currency_code)}
+            </span>
+            {/* 划线价（如果有） */}
+            {oldPrice && oldPrice > price && (
+              <span style={{ textDecoration: 'line-through', color: '#999', fontSize: 11 }}>
+                {formatPriceWithCurrency(oldPrice, record.currency_code)}
+              </span>
             )}
           </Space>
         );
       },
     },
+    // 第五列：库存（80px）
     {
       title: <SortableColumnTitle title="库存" field="stock" />,
       key: 'stock',
-      width: 120,
-      render: (_, record) => {
-        const stockLevel =
-          record.available > 10 ? 'success' : record.available > 0 ? 'warning' : 'error';
-        return (
-          <Space direction="vertical" size="small">
-            <Badge status={stockLevel} text={`可售: ${record.available}`} />
-            <span style={{ fontSize: 12, color: '#999' }}>
-              总库存: {record.stock} | 预留: {record.reserved}
-            </span>
-          </Space>
-        );
-      },
+      width: 80,
+      render: (_, record) => (
+        <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <span style={{ fontSize: 12 }}>可售: {record.available}</span>
+          <span style={{ fontSize: 12, color: '#999' }}>总: {record.stock}</span>
+          <span style={{ fontSize: 12, color: '#999' }}>预留: {record.reserved}</span>
+        </Space>
+      ),
     },
+    // 第六列：状态（80px）
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
+      width: 80,
       render: (status, record) => {
         const statusMap: Record<string, { color: string; text: string }> = {
           on_sale: { color: 'success', text: '销售中' },
-          ready_to_sell: { color: 'warning', text: '准备销售' },
+          ready_to_sell: { color: 'warning', text: '准备' },
           error: { color: 'error', text: '错误' },
           pending_modification: { color: 'processing', text: '待修改' },
           inactive: { color: 'default', text: '下架' },
-          archived: { color: 'default', text: '已归档' },
-          // 保留旧状态以防万一
+          archived: { color: 'default', text: '归档' },
           draft: { color: 'default', text: '草稿' },
           active: { color: 'success', text: '在售' },
           deleted: { color: 'error', text: '已删除' },
         };
 
-        // 显示状态原因或OZON状态详情
         const statusDetails = record.status_reason || [
           record.ozon_archived && '已归档',
           record.ozon_has_fbo_stocks && '有FBO库存',
           record.ozon_has_fbs_stocks && '有FBS库存',
           record.ozon_is_discounted && '促销中',
-          record.ozon_visibility_status && `可见性: ${record.ozon_visibility_status}`,
         ].filter(Boolean).join(', ') || '状态正常';
 
         return (
-          <Space direction="vertical" size="small">
-            <Tooltip title={statusDetails}>
-              <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
-            </Tooltip>
-            {record.sync_status === 'failed' && (
-              <Tooltip title={record.sync_error}>
-                <Tag color="error" icon={<ExclamationCircleOutlined />}>
-                  同步失败
-                </Tag>
-              </Tooltip>
-            )}
-            {/* 显示OZON库存状态 */}
-            {(record.ozon_has_fbo_stocks || record.ozon_has_fbs_stocks) && (
-              <Space size={4}>
-                {record.ozon_has_fbo_stocks && <Tag color="blue">FBO</Tag>}
-                {record.ozon_has_fbs_stocks && <Tag color="cyan">FBS</Tag>}
-              </Space>
-            )}
-            {record.ozon_is_discounted && <Tag color="red">促销</Tag>}
-          </Space>
+          <Tooltip title={statusDetails}>
+            <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
+          </Tooltip>
         );
       },
     },
+    // 第七列：可见性（80px）
     {
       title: '可见性',
       dataIndex: 'visibility',
       key: 'visibility',
       width: 80,
-      render: (visible) => <Switch checked={visible} disabled />,
+      render: (visible) => <Switch checked={visible} disabled size="small" />,
     },
+    // 第八列：创建时间（100px）
     {
       title: <SortableColumnTitle title="创建时间" field="created_at" />,
       dataIndex: 'ozon_created_at',
       key: 'created_at',
-      width: 150,
+      width: 100,
       render: (date, record) => {
-        // 优先显示OZON平台创建时间，如果没有则显示本地创建时间
         const displayDate = date || record.created_at;
         if (!displayDate) return '-';
         const createDate = new Date(displayDate);
 
-        // 格式化为 2025/9/17 18:41:21 格式
         const formatDate = (d) => {
           const year = d.getFullYear();
           const month = d.getMonth() + 1;
           const day = d.getDate();
           const hours = d.getHours().toString().padStart(2, '0');
           const minutes = d.getMinutes().toString().padStart(2, '0');
-          const seconds = d.getSeconds().toString().padStart(2, '0');
-          return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+          return `${year}/${month}/${day} ${hours}:${minutes}`;
         };
 
         return (
           <Tooltip title={formatDate(createDate)}>
-            <span>{createDate.toLocaleDateString('zh-CN')}</span>
+            <span style={{ fontSize: 12 }}>{createDate.toLocaleDateString('zh-CN')}</span>
           </Tooltip>
         );
       },
     },
-    {
-      title: '最后同步',
-      dataIndex: 'last_sync_at',
-      key: 'last_sync_at',
-      width: 120,
-      render: (date) => {
-        if (!date) return '-';
-        const syncDate = new Date(date);
-        const now = new Date();
-        const diffHours = (now.getTime() - syncDate.getTime()) / (1000 * 60 * 60);
-
-        return (
-          <Tooltip title={syncDate.toLocaleString()}>
-            <span style={{ color: diffHours > 24 ? '#ff4d4f' : '#52c41a' }}>
-              {diffHours < 1
-                ? '刚刚'
-                : diffHours < 24
-                  ? `${Math.floor(diffHours)}小时前`
-                  : `${Math.floor(diffHours / 24)}天前`}
-            </span>
-          </Tooltip>
-        );
-      },
-    },
+    // 第九列：操作（60px）
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 60,
       fixed: 'right',
       render: (_, record) => (
-        <Space>
-          <Tooltip title="编辑">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title="更新价格">
-            <Button
-              type="text"
-              size="small"
-              icon={<DollarOutlined />}
-              onClick={() => handlePriceUpdate(record)}
-            />
-          </Tooltip>
-          <Tooltip title="更新库存">
-            <Button
-              type="text"
-              size="small"
-              icon={<ShoppingOutlined />}
-              onClick={() => handleStockUpdate(record)}
-            />
-          </Tooltip>
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'sync',
-                  icon: <SyncOutlined />,
-                  label: '立即同步',
-                },
-                {
-                  key: 'archive',
-                  icon: <DeleteOutlined />,
-                  label: '归档',
-                },
-                {
-                  type: 'divider',
-                },
-                {
-                  key: 'delete',
-                  icon: <DeleteOutlined />,
-                  label: '删除',
-                  danger: true,
-                },
-              ],
-              onClick: ({ key }) => {
-                switch (key) {
-                  case 'sync':
-                    handleSyncSingle(record);
-                    break;
-                  case 'archive':
-                    handleArchive(record);
-                    break;
-                  case 'delete':
-                    handleDelete(record);
-                    break;
-                }
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'edit',
+                icon: <EditOutlined />,
+                label: '编辑',
               },
-            }}
-          >
-            <Button type="text" size="small" icon={<SettingOutlined />} />
-          </Dropdown>
-        </Space>
+              {
+                key: 'price',
+                icon: <DollarOutlined />,
+                label: '更新价格',
+              },
+              {
+                key: 'stock',
+                icon: <ShoppingOutlined />,
+                label: '更新库存',
+              },
+              {
+                type: 'divider',
+              },
+              {
+                key: 'sync',
+                icon: <SyncOutlined />,
+                label: '立即同步',
+              },
+              {
+                key: 'archive',
+                icon: <DeleteOutlined />,
+                label: '归档',
+              },
+              {
+                type: 'divider',
+              },
+              {
+                key: 'delete',
+                icon: <DeleteOutlined />,
+                label: '删除',
+                danger: true,
+              },
+            ],
+            onClick: ({ key }) => {
+              switch (key) {
+                case 'edit':
+                  handleEdit(record);
+                  break;
+                case 'price':
+                  handlePriceUpdate(record);
+                  break;
+                case 'stock':
+                  handleStockUpdate(record);
+                  break;
+                case 'sync':
+                  handleSyncSingle(record);
+                  break;
+                case 'archive':
+                  handleArchive(record);
+                  break;
+                case 'delete':
+                  handleDelete(record);
+                  break;
+              }
+            },
+          }}
+        >
+          <Button type="text" size="small" icon={<EllipsisOutlined />} />
+        </Dropdown>
       ),
     },
   ];
+
 
   // 根据visibleColumns过滤显示的列
   const columns = allColumns.filter((col) => {
