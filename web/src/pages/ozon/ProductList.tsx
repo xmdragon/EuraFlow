@@ -316,15 +316,16 @@ const ProductList: React.FC = () => {
 
   // 预加载当前页所有商品的大图（160x160）
   useEffect(() => {
-    if (productsData?.data && productsData.data.length > 0 && typeof Image !== 'undefined') {
+    if (productsData?.data && productsData.data.length > 0) {
       productsData.data.forEach(product => {
         if (product.images?.primary) {
           try {
-            const img = new Image();
+            // 使用 document.createElement 替代 new Image() 避免打包问题
+            const img = document.createElement('img');
             img.src = optimizeOzonImageUrl(product.images.primary, 160);
           } catch (error) {
             // 图片预加载失败，静默处理
-            console.warn('Failed to preload image:', error);
+            console.debug('Failed to preload image:', error);
           }
         }
       });
