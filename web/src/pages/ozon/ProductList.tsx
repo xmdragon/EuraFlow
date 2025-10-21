@@ -304,7 +304,7 @@ const ProductList: React.FC = () => {
   }, [watermarkError]);
 
   useEffect(() => {
-    if (watermarkConfigsData) {
+    if (watermarkConfigsData && Array.isArray(watermarkConfigsData)) {
       setWatermarkConfigs(watermarkConfigsData);
     }
   }, [watermarkConfigsData]);
@@ -1967,7 +1967,7 @@ const ProductList: React.FC = () => {
               value={selectedWatermarkConfig}
               onChange={(value) => setSelectedWatermarkConfig(value)}
             >
-              {watermarkConfigs.map((config) => (
+              {(watermarkConfigs || []).map((config) => (
                 <Option key={config.id} value={config.id}>
                   <Space>
                     <img
@@ -2058,7 +2058,7 @@ const ProductList: React.FC = () => {
                                     setImageWatermarkSettings(newSettings);
                                   }}
                                 >
-                                  {watermarkConfigs.map((config) => (
+                                  {(watermarkConfigs || []).map((config) => (
                                     <Option key={config.id} value={config.id}>
                                       <Space size="small">
                                         <img
