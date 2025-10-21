@@ -5,14 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, and_, or_, desc, cast
+from sqlalchemy import select, func, update, and_, or_, desc, cast, exists
 from sqlalchemy.dialects.postgresql import JSONB
 from decimal import Decimal
 from datetime import datetime, timezone
 import logging
 
 from ef_core.database import get_async_session
-from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop
+from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop, OzonDomesticTracking, OzonShipmentPackage
 from ..utils.datetime_utils import utcnow
 
 router = APIRouter(tags=["ozon-packing"])
@@ -215,10 +215,11 @@ async def get_packing_orders(
                 # 有追踪号码
                 OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
                 OzonPosting.raw_payload['tracking_number'].astext != '',
-                # 无国内单号
-                or_(
-                    OzonPosting.domestic_tracking_number.is_(None),
-                    OzonPosting.domestic_tracking_number == ''
+                # 无国内单号 - 使用 NOT EXISTS 子查询
+                ~exists(
+                    select(1).where(
+                        OzonDomesticTracking.posting_id == OzonPosting.id
+                    )
                 )
             )
         )
@@ -283,9 +284,11 @@ async def get_packing_orders(
                 OzonPosting.status == 'awaiting_deliver',
                 OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
                 OzonPosting.raw_payload['tracking_number'].astext != '',
-                or_(
-                    OzonPosting.domestic_tracking_number.is_(None),
-                    OzonPosting.domestic_tracking_number == ''
+                # 无国内单号 - 使用 NOT EXISTS 子查询
+                ~exists(
+                    select(1).where(
+                        OzonDomesticTracking.posting_id == OzonPosting.id
+                    )
                 )
             )
         )
@@ -1095,8 +1098,8 @@ async def search_posting_by_tracking(
 
     智能识别规则：
     1. 包含"-" → 货件编号（posting_number），如 "12345-0001-1"
-    2. 纯数字 → 国内单号（domestic_tracking_number），如 "75324623944112"
-    3. 字母+数字 → OZON追踪号码（packages.tracking_number），如 "UNIM83118549CN"
+    2. 结尾是字母 且 包含数字 → OZON追踪号码（packages.tracking_number），如 "UNIM83118549CN"
+    3. 纯数字 或 字母开头+数字 → 国内单号（domestic_tracking_number），如 "75324623944112" 或 "SF1234567890"
 
     返回：posting 详情 + 订单信息 + 商品列表
     """
@@ -1109,7 +1112,7 @@ async def search_posting_by_tracking(
 
         # 智能识别单号类型
         if '-' in search_value:
-            # 包含"-" → 货件编号
+            # 规则1: 包含"-" → 货件编号
             logger.info(f"识别为货件编号: {search_value}")
             result = await db.execute(
                 select(OzonPosting)
@@ -1123,24 +1126,9 @@ async def search_posting_by_tracking(
             )
             posting = result.scalar_one_or_none()
 
-        elif search_value.isdigit():
-            # 纯数字 → 国内单号
-            logger.info(f"识别为国内单号: {search_value}")
-            result = await db.execute(
-                select(OzonPosting)
-                .options(
-                    selectinload(OzonPosting.packages),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.items),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
-                )
-                .where(OzonPosting.domestic_tracking_number == search_value)
-            )
-            posting = result.scalar_one_or_none()
-
-        else:
-            # 字母+数字 → OZON追踪号码
-            logger.info(f"识别为OZON追踪号码: {search_value}")
+        elif search_value[-1].isalpha() and any(c.isdigit() for c in search_value):
+            # 规则2: 结尾是字母 且 包含数字 → OZON追踪号码（字母+数字+字母）
+            logger.info(f"识别为OZON追踪号码（结尾是字母）: {search_value}")
             package_result = await db.execute(
                 select(OzonShipmentPackage)
                 .where(OzonShipmentPackage.tracking_number == search_value)
@@ -1175,6 +1163,23 @@ async def search_posting_by_tracking(
                     .where(OzonPosting.raw_payload['tracking_number'].astext == search_value)
                 )
                 posting = result.scalar_one_or_none()
+
+        else:
+            # 规则3: 纯数字 或 字母开头+数字 → 国内单号（结尾是数字）
+            logger.info(f"识别为国内单号（纯数字或字母开头+数字）: {search_value}")
+            # 通过关联表查询
+            result = await db.execute(
+                select(OzonPosting)
+                .options(
+                    selectinload(OzonPosting.packages),
+                    selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+                    selectinload(OzonPosting.order).selectinload(OzonOrder.items),
+                    selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
+                )
+                .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
+                .where(OzonDomesticTracking.tracking_number == search_value)
+            )
+            posting = result.scalar_one_or_none()
 
         if not posting:
             raise HTTPException(status_code=404, detail=f"未找到单号为 {tracking_number} 的货件")
