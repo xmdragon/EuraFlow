@@ -15,8 +15,66 @@ from .kuajing84_client import Kuajing84Client
 from ..models.kuajing84 import Kuajing84SyncLog
 from ..models.kuajing84_global_config import Kuajing84GlobalConfig
 from ..models.orders import OzonPosting
+from ef_core.websocket.manager import notification_manager
 
 logger = logging.getLogger(__name__)
+
+
+async def _send_websocket_notification(
+    db: AsyncSession,
+    sync_log: Kuajing84SyncLog,
+    status: str,
+    error_message: Optional[str] = None
+):
+    """
+    发送 WebSocket 通知到前端
+
+    Args:
+        db: 数据库会话
+        sync_log: 同步日志对象
+        status: 同步状态 (success/failed)
+        error_message: 错误信息（可选）
+    """
+    try:
+        # 获取订单所属的用户（通过 shop_id）
+        # 注意：这里假设同步日志有 shop_id 字段
+        shop_id = sync_log.shop_id
+
+        # 构造消息
+        message_text = ""
+        if status == "success":
+            if sync_log.sync_type == "submit_tracking":
+                message_text = f"国内单号 {sync_log.logistics_order} 已成功同步到跨境巴士"
+            elif sync_log.sync_type == "discard_order":
+                message_text = f"订单 {sync_log.order_number} 已成功废弃"
+        else:
+            if sync_log.sync_type == "submit_tracking":
+                message_text = f"国内单号同步失败：{error_message or '未知错误'}"
+            elif sync_log.sync_type == "discard_order":
+                message_text = f"订单废弃失败：{error_message or '未知错误'}"
+
+        notification = {
+            "type": "kuajing84.sync_completed",
+            "shop_id": shop_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "data": {
+                "sync_log_id": sync_log.id,
+                "sync_type": sync_log.sync_type,
+                "status": status,
+                "order_number": sync_log.order_number,
+                "logistics_order": sync_log.logistics_order,
+                "error_message": error_message,
+                "message": message_text
+            }
+        }
+
+        # 发送给订阅了该店铺的所有用户
+        sent_count = await notification_manager.send_to_shop_users(shop_id, notification)
+        logger.info(f"WebSocket通知已发送: sync_log_id={sync_log.id}, 接收连接数={sent_count}")
+
+    except Exception as e:
+        # WebSocket 发送失败不应该影响主流程
+        logger.error(f"发送WebSocket通知失败: sync_log_id={sync_log.id}, error={e}")
 
 
 async def async_sync_logistics_order(
@@ -118,6 +176,10 @@ async def async_sync_logistics_order(
 
                         duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                         logger.info(f"物流单号同步成功: sync_log_id={sync_log_id}, 耗时={duration_ms:.0f}ms")
+
+                        # 发送 WebSocket 通知
+                        await _send_websocket_notification(db, sync_log, "success")
+
                         submit_success = True
                         break
                     else:
@@ -126,6 +188,10 @@ async def async_sync_logistics_order(
                         sync_log.error_message = submit_result["message"]
                         await db.commit()
                         logger.error(f"提交物流单号失败: sync_log_id={sync_log_id}, message={submit_result['message']}")
+
+                        # 发送 WebSocket 通知
+                        await _send_websocket_notification(db, sync_log, "failed", submit_result["message"])
+
                         break
 
                 except Exception as e:
@@ -139,9 +205,13 @@ async def async_sync_logistics_order(
                     else:
                         # 最后一次重试失败
                         sync_log.sync_status = "failed"
-                        sync_log.error_message = f"同步异常: {str(e)}"
+                        error_msg = f"同步异常: {str(e)}"
+                        sync_log.error_message = error_msg
                         sync_log.attempts = attempt
                         await db.commit()
+
+                        # 发送 WebSocket 通知
+                        await _send_websocket_notification(db, sync_log, "failed", error_msg)
 
     except Exception as e:
         logger.error(f"异步同步任务异常: sync_log_id={sync_log_id}, error={e}")
@@ -155,10 +225,14 @@ async def async_sync_logistics_order(
             )
             sync_log = result.scalar_one_or_none()
             if sync_log:
+                error_msg = f"异步任务异常: {str(e)}"
                 sync_log.sync_status = "failed"
-                sync_log.error_message = f"异步任务异常: {str(e)}"
+                sync_log.error_message = error_msg
                 sync_log.attempts += 1
                 await db.commit()
+
+                # 发送 WebSocket 通知
+                await _send_websocket_notification(db, sync_log, "failed", error_msg)
         except Exception as commit_error:
             logger.error(f"更新失败状态异常: {commit_error}")
 
@@ -266,13 +340,21 @@ async def async_discard_order(
 
                         duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
                         logger.info(f"订单废弃成功: sync_log_id={sync_log_id}, 耗时={duration_ms:.0f}ms")
+
+                        # 发送 WebSocket 通知
+                        await _send_websocket_notification(db, sync_log, "success")
+
                         discard_success = True
                         break
                     else:
                         # API 返回失败，但不重试（业务逻辑错误）
+                        error_msg = discard_result.get("message", "废弃订单失败")
                         sync_log.sync_status = "failed"
-                        sync_log.error_message = discard_result.get("message", "废弃订单失败")
+                        sync_log.error_message = error_msg
                         await db.commit()
+
+                        # 发送 WebSocket 通知
+                        await _send_websocket_notification(db, sync_log, "failed", error_msg)
                         logger.error(f"废弃订单失败: sync_log_id={sync_log_id}, message={discard_result.get('message')}")
                         break
 
@@ -286,17 +368,25 @@ async def async_discard_order(
                         await asyncio.sleep(wait_time)
                     else:
                         # 最后一次重试失败
+                        error_msg = f"废弃异常: {str(e)}"
                         sync_log.sync_status = "failed"
-                        sync_log.error_message = f"废弃异常: {str(e)}"
+                        sync_log.error_message = error_msg
                         sync_log.attempts = attempt
                         await db.commit()
 
+                        # 发送 WebSocket 通知
+                        await _send_websocket_notification(db, sync_log, "failed", error_msg)
+
         except Exception as e:
             logger.error(f"跨境84登录失败: {e}")
+            error_msg = f"登录失败: {str(e)}"
             sync_log.sync_status = "failed"
-            sync_log.error_message = f"登录失败: {str(e)}"
+            sync_log.error_message = error_msg
             sync_log.attempts += 1
             await db.commit()
+
+            # 发送 WebSocket 通知
+            await _send_websocket_notification(db, sync_log, "failed", error_msg)
         finally:
             # 确保关闭client释放资源
             await client.close()
@@ -313,9 +403,13 @@ async def async_discard_order(
             )
             sync_log = result.scalar_one_or_none()
             if sync_log:
+                error_msg = f"异步任务异常: {str(e)}"
                 sync_log.sync_status = "failed"
-                sync_log.error_message = f"异步任务异常: {str(e)}"
+                sync_log.error_message = error_msg
                 sync_log.attempts += 1
                 await db.commit()
+
+                # 发送 WebSocket 通知
+                await _send_websocket_notification(db, sync_log, "failed", error_msg)
         except Exception as commit_error:
             logger.error(f"更新失败状态异常: {commit_error}")

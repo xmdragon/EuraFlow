@@ -13,15 +13,12 @@ interface DomesticTrackingModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
-  /** 同步开始回调（返回 sync_log_id） */
-  onSyncStart?: (syncLogId: number) => void;
 }
 
 const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
   visible,
   onCancel,
   postingNumber,
-  onSyncStart,
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
@@ -32,26 +29,10 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       return ozonApi.submitDomesticTracking(postingNumber, data);
     },
     onSuccess: (response) => {
-      // 获取同步日志ID，通知父组件开始轮询
-      const logId = response.data?.sync_log_id;
-      if (logId) {
-        message.success('国内单号已保存，正在后台同步到跨境巴士...');
-        // 通知父组件开始轮询
-        onSyncStart?.(logId);
-        // 立即关闭弹窗（轮询在父组件继续）
-        handleClose();
-      } else {
-        // 兼容旧版本（同步响应）
-        const syncResult = response.data?.kuajing84_sync;
-        if (syncResult && !syncResult.success) {
-          message.warning(`国内单号提交成功，但跨境巴士同步失败：${syncResult.message}`);
-        } else {
-          message.success('国内单号提交成功' + (syncResult?.success ? '，已同步到跨境巴士' : ''));
-        }
-        // 刷新订单列表
-        queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-        handleClose();
-      }
+      // 提交成功，后台会通过 WebSocket 推送同步结果
+      message.success('国内单号已保存，正在后台同步到跨境巴士...');
+      // 立即关闭弹窗，等待 WebSocket 推送结果通知
+      handleClose();
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.message || error.message || '提交失败';

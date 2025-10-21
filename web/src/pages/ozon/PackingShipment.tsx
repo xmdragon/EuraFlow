@@ -55,7 +55,6 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
-import { useKuajing84SyncStatus } from '@/hooks/useKuajing84SyncStatus';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
@@ -310,45 +309,6 @@ const PackingShipment: React.FC = () => {
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<any>(null);
 
-  // 废弃订单同步轮询状态
-  const [discardSyncLogId, setDiscardSyncLogId] = useState<number | null>(null);
-
-  // 国内单号提交同步轮询状态
-  const [domesticTrackingSyncLogId, setDomesticTrackingSyncLogId] = useState<number | null>(null);
-
-  // 使用轮询 Hook 监控废弃订单同步状态
-  useKuajing84SyncStatus(discardSyncLogId, {
-    onSuccess: () => {
-      message.success('订单已成功废弃，跨境巴士同步完成！');
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      setDiscardSyncLogId(null);
-    },
-    onFailure: (data) => {
-      message.error(`订单废弃失败：${data.error_message || '未知错误'}`);
-      setDiscardSyncLogId(null);
-    },
-    onTimeout: () => {
-      message.warning('跨境巴士同步超时，请稍后在同步日志中查看结果');
-      setDiscardSyncLogId(null);
-    },
-  });
-
-  // 使用轮询 Hook 监控国内单号提交同步状态
-  useKuajing84SyncStatus(domesticTrackingSyncLogId, {
-    onSuccess: () => {
-      message.success('国内单号已提交，跨境巴士同步完成！');
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      setDomesticTrackingSyncLogId(null);
-    },
-    onFailure: (data) => {
-      message.error(`国内单号提交失败：${data.error_message || '未知错误'}`);
-      setDomesticTrackingSyncLogId(null);
-    },
-    onTimeout: () => {
-      message.warning('跨境巴士同步超时，请稍后在同步日志中查看结果');
-      setDomesticTrackingSyncLogId(null);
-    },
-  });
 
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
@@ -831,18 +791,9 @@ const PackingShipment: React.FC = () => {
   // 废弃订单
   const discardOrderMutation = useMutation({
     mutationFn: (postingNumber: string) => ozonApi.discardOrder(postingNumber),
-    onSuccess: (response: any) => {
-      // 获取同步日志ID，开始轮询
-      const logId = response.data?.sync_log_id;
-      if (logId) {
-        setDiscardSyncLogId(logId);
-        message.success('废弃请求已提交，正在后台同步到跨境巴士...');
-      } else {
-        // 兼容旧版本（同步响应）
-        message.success('订单已废弃');
-        queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-        refetch();
-      }
+    onSuccess: () => {
+      // 提交成功，后台会通过 WebSocket 推送同步结果
+      message.success('废弃请求已提交，正在后台同步到跨境巴士...');
     },
     onError: (error: any) => {
       message.error(`废弃失败: ${error.response?.data?.message || error.message}`);
@@ -1964,10 +1915,6 @@ const PackingShipment: React.FC = () => {
           visible={domesticTrackingModalVisible}
           onCancel={() => setDomesticTrackingModalVisible(false)}
           postingNumber={currentPosting.posting_number}
-          onSyncStart={(syncLogId) => {
-            // 开始在父组件轮询
-            setDomesticTrackingSyncLogId(syncLogId);
-          }}
         />
       )}
 

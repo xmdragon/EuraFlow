@@ -1,14 +1,16 @@
 /**
- * 通知管理Hook - 处理聊天通知展示
+ * 通知管理Hook - 处理各种 WebSocket 通知展示
  */
 import React, { useCallback } from 'react';
 import { notification } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { WebSocketNotification, ChatNotificationData } from '@/types/notification';
-import { MessageOutlined, UserOutlined } from '@ant-design/icons';
+import { useQueryClient } from '@tanstack/react-query';
+import { WebSocketNotification, ChatNotificationData, Kuajing84SyncNotificationData } from '@/types/notification';
+import { MessageOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 
 export const useNotifications = (shopId: number | null) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const handleChatNotification = useCallback(
     (data: ChatNotificationData, chatId: string) => {
@@ -47,6 +49,38 @@ export const useNotifications = (shopId: number | null) => {
     [shopId, navigate]
   );
 
+  const handleKuajing84SyncNotification = useCallback(
+    (data: Kuajing84SyncNotificationData) => {
+      const key = `kuajing84-sync-${data.sync_log_id}`;
+
+      // 刷新订单数据
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+
+      // 显示通知
+      const isSuccess = data.status === 'success';
+      const title = data.sync_type === 'submit_tracking'
+        ? (isSuccess ? '国内单号同步成功' : '国内单号同步失败')
+        : (isSuccess ? '订单废弃成功' : '订单废弃失败');
+
+      notification.open({
+        key,
+        message: title,
+        description: data.message,
+        icon: isSuccess
+          ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
+          : <CloseCircleOutlined style={{ color: '#ff4d4f' }} />,
+        placement: 'bottomRight',
+        duration: 5,
+        style: {
+          backgroundColor: isSuccess ? '#f6ffed' : '#fff2f0',
+          borderLeft: `4px solid ${isSuccess ? '#52c41a' : '#ff4d4f'}`,
+        },
+      });
+    },
+    [queryClient]
+  );
+
   const handleWebSocketMessage = useCallback(
     (message: WebSocketNotification) => {
       switch (message.type) {
@@ -60,6 +94,13 @@ export const useNotifications = (shopId: number | null) => {
           }
           break;
 
+        case 'kuajing84.sync_completed':
+          // 跨境巴士同步完成通知
+          if (message.data) {
+            handleKuajing84SyncNotification(message.data as Kuajing84SyncNotificationData);
+          }
+          break;
+
         case 'ping':
         case 'pong':
           // 心跳消息，忽略
@@ -69,7 +110,7 @@ export const useNotifications = (shopId: number | null) => {
           console.log('Unknown WebSocket message type:', message.type);
       }
     },
-    [shopId, handleChatNotification]
+    [shopId, handleChatNotification, handleKuajing84SyncNotification]
   );
 
   return {
