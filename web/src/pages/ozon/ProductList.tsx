@@ -360,9 +360,6 @@ const ProductList: React.FC = () => {
     let hasShownProgress = false;
     let pollCount = 0;
 
-    // 立即显示处理中的消息
-    message.loading('正在处理水印任务，请稍候...', 0);
-
     const interval = setInterval(async () => {
       pollCount++;
       console.log(`Polling attempt ${pollCount} for batch ${batchId}`);
@@ -1452,7 +1449,7 @@ const ProductList: React.FC = () => {
           dataSource={productsData?.data || []}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: 1500 }}
+          scroll={{ x: true }}
           pagination={{
             current: currentPage,
             pageSize: pageSize,
