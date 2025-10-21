@@ -1280,9 +1280,13 @@ class OzonSyncService:
                 status=posting_data.get("status", ""),
             )
             db.add(posting)
+            logger.info(f"[DEBUG] Created new posting {posting_number}, status={posting_data.get('status', '')}")
         else:
             # 更新现有posting
-            posting.status = posting_data.get("status", "")
+            old_status = posting.status
+            new_status = posting_data.get("status", "")
+            posting.status = new_status
+            logger.info(f"[DEBUG] Updating posting {posting_number}: old_status='{old_status}' → new_status='{new_status}'")
 
         # 更新posting的详细信息
         posting.substatus = posting_data.get("substatus")
@@ -1404,6 +1408,7 @@ class OzonSyncService:
             f"Synced posting {posting_number} for order {order.order_id}",
             extra={"posting_number": posting_number, "order_id": order.order_id, "status": posting.status, "operation_status": posting.operation_status}
         )
+        logger.info(f"[DEBUG] Final state before flush: posting.status='{posting.status}', posting.operation_status='{posting.operation_status}'")
 
     @staticmethod
     async def _sync_order_items(db: AsyncSession, order: OzonOrder, products_data: list) -> None:
