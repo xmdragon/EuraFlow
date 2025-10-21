@@ -286,7 +286,7 @@ const ProductList: React.FC = () => {
   });
 
   // 查询水印配置
-  const { data: watermarkConfigsData } = useQuery({
+  const { data: watermarkConfigsData, error: watermarkError } = useQuery({
     queryKey: ['watermarkConfigs'],
     queryFn: () => watermarkApi.getWatermarkConfigs(),
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
@@ -294,11 +294,14 @@ const ProductList: React.FC = () => {
     retry: 1, // 减少重试次数
     // 静默失败：水印配置查询失败不影响商品列表显示
     throwOnError: false,
-    // 查询失败时不显示错误，仅记录到控制台
-    onError: (error: any) => {
-      console.warn('水印配置加载失败，水印功能将不可用:', error);
-    },
   });
+
+  // 记录水印配置加载错误（不影响页面显示）
+  useEffect(() => {
+    if (watermarkError) {
+      console.warn('水印配置加载失败，水印功能将不可用:', watermarkError);
+    }
+  }, [watermarkError]);
 
   useEffect(() => {
     if (watermarkConfigsData) {
