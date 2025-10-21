@@ -1624,16 +1624,40 @@ const PackingShipment: React.FC = () => {
                 <Card title="查询结果">
                   <Descriptions bordered column={2}>
                     <Descriptions.Item label="货件编号" span={2}>
-                      <Text strong>{scanResult.posting_number}</Text>
+                      <Space>
+                        <Text strong>{scanResult.posting_number}</Text>
+                        <CopyOutlined
+                          style={{ cursor: 'pointer', color: '#1890ff' }}
+                          onClick={() => handleCopy(scanResult.posting_number, '货件编号')}
+                        />
+                      </Space>
                     </Descriptions.Item>
                     <Descriptions.Item label="追踪号码">
-                      {scanResult.tracking_number || '-'}
+                      {scanResult.tracking_number ? (
+                        <Space>
+                          <span>{scanResult.tracking_number}</span>
+                          <CopyOutlined
+                            style={{ cursor: 'pointer', color: '#1890ff' }}
+                            onClick={() => handleCopy(scanResult.tracking_number, '追踪号码')}
+                          />
+                        </Space>
+                      ) : (
+                        '-'
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="国内单号">
                       {scanResult.domestic_tracking_numbers && scanResult.domestic_tracking_numbers.length > 0 ? (
                         <div>
                           {scanResult.domestic_tracking_numbers.map((number: string, index: number) => (
-                            <div key={index}>{number}</div>
+                            <div key={index} style={{ marginBottom: index < scanResult.domestic_tracking_numbers.length - 1 ? '4px' : 0 }}>
+                              <Space>
+                                <span>{number}</span>
+                                <CopyOutlined
+                                  style={{ cursor: 'pointer', color: '#1890ff' }}
+                                  onClick={() => handleCopy(number, '国内单号')}
+                                />
+                              </Space>
+                            </div>
                           ))}
                         </div>
                       ) : (
