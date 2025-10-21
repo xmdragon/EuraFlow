@@ -469,6 +469,7 @@ async def get_posting_report(
                 'status': posting.status,
                 'is_cancelled': posting.status == 'cancelled',
                 'created_at': order.ordered_at.isoformat(),
+                'in_process_at': posting.in_process_at.isoformat() if posting.in_process_at else None,
                 'products': products_list,
                 'order_amount': format_currency(real_order_amount),  # 显示真实金额
                 'purchase_price': format_currency(purchase_price),

@@ -1057,7 +1057,7 @@ const OrderReport: React.FC = () => {
               {selectedPosting.status === 'cancelled' && '已取消'}
             </Descriptions.Item>
             <Descriptions.Item label="订单时间">
-              {dayjs(selectedPosting.created_at).format('YYYY-MM-DD HH:mm:ss')}
+              {dayjs(selectedPosting.in_process_at || selectedPosting.created_at).format('YYYY-MM-DD HH:mm:ss')}
             </Descriptions.Item>
             <Descriptions.Item label="订单金额">
               {selectedPosting.order_amount}
