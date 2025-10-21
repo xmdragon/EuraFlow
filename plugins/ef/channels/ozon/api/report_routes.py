@@ -334,9 +334,9 @@ async def get_posting_report(
         if status_filter == 'delivered':
             conditions.append(OzonPosting.status == 'delivered')
         elif status_filter == 'placed':
-            # 已下订包含多种状态
+            # 已下订包含多种状态（包括已取消）
             conditions.append(OzonPosting.status.in_([
-                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered'
+                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled'
             ]))
         else:
             raise HTTPException(status_code=400, detail=f"无效的status_filter: {status_filter}")
@@ -439,7 +439,7 @@ async def get_posting_report(
                     })
 
             # 计算订单金额（取消订单不计销售额）
-            if posting.is_cancelled:
+            if posting.status == 'cancelled':
                 order_amount = Decimal('0')
             else:
                 order_amount = Decimal(str(order.total_price or '0'))
@@ -455,7 +455,7 @@ async def get_posting_report(
             profit = order_amount - (purchase_price + ozon_commission + intl_logistics + last_mile + material_cost)
 
             # 计算利润率（取消订单利润率无意义，显示为0）
-            if posting.is_cancelled:
+            if posting.status == 'cancelled':
                 profit_rate = 0.0
             else:
                 profit_rate = float((profit / order_amount * 100)) if order_amount > 0 else 0.0
@@ -464,7 +464,7 @@ async def get_posting_report(
                 'posting_number': posting.posting_number,
                 'shop_name': shop_name,
                 'status': posting.status,
-                'is_cancelled': posting.is_cancelled or False,
+                'is_cancelled': posting.status == 'cancelled',
                 'created_at': order.ordered_at.isoformat(),
                 'products': products_list,
                 'order_amount': format_currency(order_amount),
@@ -560,7 +560,7 @@ async def get_report_summary(
             conditions.append(OzonPosting.status == 'delivered')
         elif status_filter == 'placed':
             conditions.append(OzonPosting.status.in_([
-                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered'
+                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled'
             ]))
 
         # 店铺过滤
@@ -605,7 +605,7 @@ async def get_report_summary(
 
         for posting, order, shop_name in postings_data:
             # 订单金额（取消订单不计销售额）
-            if posting.is_cancelled:
+            if posting.status == 'cancelled':
                 order_amount = Decimal('0')
             else:
                 order_amount = Decimal(str(order.total_price or '0'))
@@ -651,7 +651,7 @@ async def get_report_summary(
                     quantity = product_raw.get('quantity', 0)
                     price = Decimal(str(product_raw.get('price', '0')))
                     # 取消订单不计销售额
-                    if posting.is_cancelled:
+                    if posting.status == 'cancelled':
                         product_sales = Decimal('0')
                     else:
                         product_sales = price * quantity
@@ -668,7 +668,7 @@ async def get_report_summary(
                     product_stats[offer_id]['sales'] += product_sales
                     product_stats[offer_id]['quantity'] += quantity
                     # 按销售额比例分配利润（取消订单的利润也要分配）
-                    if posting.is_cancelled:
+                    if posting.status == 'cancelled':
                         # 取消订单：按数量比例分配负利润
                         total_quantity = sum(p.get('quantity', 0) for p in posting.raw_payload['products'])
                         if total_quantity > 0:
@@ -694,7 +694,7 @@ async def get_report_summary(
             prev_conditions.append(OzonPosting.status == 'delivered')
         elif status_filter == 'placed':
             prev_conditions.append(OzonPosting.status.in_([
-                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered'
+                'awaiting_packaging', 'awaiting_deliver', 'delivering', 'delivered', 'cancelled'
             ]))
         if shop_ids:
             prev_conditions.append(OzonOrder.shop_id.in_(shop_id_list))
@@ -719,7 +719,7 @@ async def get_report_summary(
 
         for posting, order in prev_postings_data:
             # 取消订单不计销售额
-            if posting.is_cancelled:
+            if posting.status == 'cancelled':
                 order_amount = Decimal('0')
             else:
                 order_amount = Decimal(str(order.total_price or '0'))
