@@ -747,9 +747,11 @@ async def get_report_summary(
             {"name": "Ozon佣金", "value": float(total_commission)},
             {"name": "国际物流", "value": float(total_intl_logistics)},
             {"name": "尾程派送", "value": float(total_last_mile)},
-            {"name": "打包费用", "value": float(total_material)},
-            {"name": "利润", "value": float(total_profit)}
+            {"name": "打包费用", "value": float(total_material)}
         ]
+        # 只有利润为正时才加入饼图（饼图不能显示负值）
+        if total_profit > 0:
+            cost_breakdown.append({"name": "利润", "value": float(total_profit)})
 
         # 构建店铺分布数据（用于饼图）
         shop_breakdown = [
