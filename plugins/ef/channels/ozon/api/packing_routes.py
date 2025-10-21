@@ -327,9 +327,14 @@ async def get_packing_orders(
     result = await db.execute(query)
     orders = result.scalars().all()
 
-    # 从所有posting的商品中提取offer_id
+    # 从订单项和货件商品中提取所有offer_id
     all_offer_ids = set()
     for order in orders:
+        # 从订单项收集
+        for item in order.items or []:
+            if item.offer_id:
+                all_offer_ids.add(item.offer_id)
+        # 从货件商品收集
         for posting in order.postings or []:
             for product in posting.products or []:
                 if product.offer_id:
@@ -355,15 +360,12 @@ async def get_packing_orders(
                 elif isinstance(images, list) and images:
                     offer_id_images[offer_id] = images[0]
 
-    # 将图片信息添加到订单数据中
+    # 构建返回数据（移除冗余的 items 字段）
     orders_data = []
     for order in orders:
         order_dict = order.to_dict()
-        # 为每个订单项添加图片
-        if order_dict.get("items"):
-            for item in order_dict["items"]:
-                if item.get("offer_id") and item["offer_id"] in offer_id_images:
-                    item["image"] = offer_id_images[item["offer_id"]]
+        # 移除 items（与 postings[].products 重复）
+        order_dict.pop('items', None)
         orders_data.append(order_dict)
 
     return {
