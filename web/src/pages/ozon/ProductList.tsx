@@ -17,6 +17,8 @@ import {
   FileImageOutlined,
   PictureOutlined,
   RollbackOutlined,
+  EllipsisOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -54,6 +56,7 @@ import * as ozonApi from '@/services/ozonApi';
 import * as watermarkApi from '@/services/watermarkApi';
 import { formatRuble, calculateMargin, formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import './ProductList.css';
@@ -256,7 +259,7 @@ const ProductList: React.FC = () => {
   const syncProductsMutation = useMutation({
     mutationFn: (fullSync: boolean) => ozonApi.syncProducts(selectedShop, fullSync),
     onSuccess: (data) => {
-      message.success('商品同步任务已启动');
+      notifySuccess('同步已启动', '商品同步任务已启动');
       setSyncTaskId(data.task_id);
       setSyncStatus({
         status: 'running',
@@ -265,7 +268,7 @@ const ProductList: React.FC = () => {
       });
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
+      notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
@@ -273,12 +276,12 @@ const ProductList: React.FC = () => {
   const updatePricesMutation = useMutation({
     mutationFn: (updates: ozonApi.PriceUpdate[]) => ozonApi.updatePrices(updates, selectedShop || undefined),
     onSuccess: () => {
-      message.success('价格更新成功');
+      notifySuccess('更新成功', '价格更新成功');
       setPriceModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
     onError: (error: any) => {
-      message.error(`价格更新失败: ${error.message}`);
+      notifyError('更新失败', `价格更新失败: ${error.message}`);
     },
   });
 
@@ -315,12 +318,12 @@ const ProductList: React.FC = () => {
       console.log('Watermark batch response:', data);
 
       if (!data.batch_id) {
-        message.error('未获取到任务ID，请重试');
+        notifyError('任务启动失败', '未获取到任务ID，请重试');
         return;
       }
 
       // 异步模式 - 启动轮询
-      message.info(`水印批处理已在后台启动，任务ID: ${data.batch_id}`);
+      notifyInfo('水印处理已启动', `水印批处理已在后台启动，任务ID: ${data.batch_id}`);
       setWatermarkBatchId(data.batch_id);
 
       // 延迟1秒后开始轮询，给后端时间创建任务
@@ -333,7 +336,7 @@ const ProductList: React.FC = () => {
       setSelectedRows([]);
     },
     onError: (error: any) => {
-      message.error(`水印应用失败: ${error.message}`);
+      notifyError('水印应用失败', `水印应用失败: ${error.message}`);
     },
   });
 
@@ -342,12 +345,12 @@ const ProductList: React.FC = () => {
     mutationFn: (productIds: number[]) =>
       watermarkApi.restoreOriginalBatch(selectedShop!, productIds),
     onSuccess: (data) => {
-      message.success(`原图还原已启动，任务ID: ${data.batch_id}`);
+      notifySuccess('原图还原已启动', `原图还原已启动，任务ID: ${data.batch_id}`);
       setSelectedRows([]);
       queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
     onError: (error: any) => {
-      message.error(`原图还原失败: ${error.message}`);
+      notifyError('原图还原失败', `原图还原失败: ${error.message}`);
     },
   });
 
@@ -381,30 +384,18 @@ const ProductList: React.FC = () => {
         // 显示进度
         if (!hasShownProgress && (completed > 0 || processing > 0)) {
           hasShownProgress = true;
-          message.destroy(); // 清除loading消息
-          message.info(`水印处理进度：${completed}/${total} 完成`);
+          notifyInfo('水印处理中', `水印处理进度：${completed}/${total} 完成`);
         }
 
         // 如果所有任务都完成了（无论成功还是失败）
         if (total > 0 && completed + failed === total) {
           clearInterval(interval);
-          message.destroy(); // 清除所有消息
 
           // 使用通知而不是普通消息，更醒目
           if (failed > 0) {
-            notification.warning({
-              message: '水印批处理完成',
-              description: `成功处理 ${completed} 个商品，失败 ${failed} 个商品`,
-              duration: 5,
-              placement: 'topRight'
-            });
+            notifyWarning('水印批处理完成', `成功处理 ${completed} 个商品，失败 ${failed} 个商品`);
           } else {
-            notification.success({
-              message: '水印批处理成功',
-              description: `已成功为 ${completed} 个商品添加水印`,
-              duration: 5,
-              placement: 'topRight'
-            });
+            notifySuccess('水印批处理成功', `已成功为 ${completed} 个商品添加水印`);
           }
 
           queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
@@ -457,13 +448,13 @@ const ProductList: React.FC = () => {
         setSyncStatus(status);
 
         if (status.status === 'completed') {
-          message.success('同步完成！');
+          notifySuccess('同步完成', '商品同步已完成！');
           queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
           // 刷新页面数据
           refetch();
           setSyncTaskId(null);
         } else if (status.status === 'failed') {
-          message.error(`同步失败: ${status.error || '未知错误'}`);
+          notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
           setSyncTaskId(null);
         }
       } catch (error) {
@@ -486,12 +477,12 @@ const ProductList: React.FC = () => {
   const updateStocksMutation = useMutation({
     mutationFn: (updates: ozonApi.StockUpdate[]) => ozonApi.updateStocks(updates, selectedShop || undefined),
     onSuccess: () => {
-      message.success('库存更新成功');
+      notifySuccess('更新成功', '库存更新成功');
       setStockModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
     onError: (error: any) => {
-      message.error(`库存更新失败: ${error.message}`);
+      notifyError('更新失败', `库存更新失败: ${error.message}`);
     },
   });
 
@@ -967,7 +958,7 @@ const ProductList: React.FC = () => {
 
   const handleBatchStockUpdate = () => {
     if (selectedRows.length === 0) {
-      message.warning('请先选择商品');
+      notifyWarning('操作失败', '请先选择商品');
       return;
     }
     setStockModalVisible(true);
@@ -1011,7 +1002,7 @@ const ProductList: React.FC = () => {
   const handleCopyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      message.success(`${label} 已复制到剪贴板`);
+      notifySuccess('复制成功', `${label} 已复制到剪贴板`);
     } catch (error) {
       // 降级方案：创建临时输入框
       const textArea = document.createElement('textarea');
@@ -1020,7 +1011,7 @@ const ProductList: React.FC = () => {
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      message.success(`${label} 已复制到剪贴板`);
+      notifySuccess('复制成功', `${label} 已复制到剪贴板`);
     }
   };
 
@@ -1040,13 +1031,13 @@ const ProductList: React.FC = () => {
           const result = await response.json();
 
           if (result.success) {
-            message.success(result.message || '商品同步成功');
+            notifySuccess('同步成功', result.message || '商品同步成功');
             queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
           } else {
-            message.error(result.message || '商品同步失败');
+            notifyError('同步失败', result.message || '商品同步失败');
           }
         } catch (error: any) {
-          message.error(`同步失败: ${error.message}`);
+          notifyError('同步失败', `同步失败: ${error.message}`);
         }
       },
     });
@@ -1068,13 +1059,13 @@ const ProductList: React.FC = () => {
           const result = await response.json();
 
           if (result.success) {
-            message.success(result.message || '商品归档成功');
+            notifySuccess('归档成功', result.message || '商品归档成功');
             queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
           } else {
-            message.error(result.message || '商品归档失败');
+            notifyError('归档失败', result.message || '商品归档失败');
           }
         } catch (error: any) {
-          message.error(`归档失败: ${error.message}`);
+          notifyError('归档失败', `归档失败: ${error.message}`);
         }
       },
     });
@@ -1097,13 +1088,13 @@ const ProductList: React.FC = () => {
           const result = await response.json();
 
           if (result.success) {
-            message.success(result.message || '商品删除成功');
+            notifySuccess('删除成功', result.message || '商品删除成功');
             queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
           } else {
-            message.error(result.message || '商品删除失败');
+            notifyError('删除失败', result.message || '商品删除失败');
           }
         } catch (error: any) {
-          message.error(`删除失败: ${error.message}`);
+          notifyError('删除失败', `删除失败: ${error.message}`);
         }
       },
     });

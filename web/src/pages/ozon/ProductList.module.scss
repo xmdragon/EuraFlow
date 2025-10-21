@@ -273,3 +273,21 @@
 .actionButton {
   padding: 0;
 }
+
+// ===== 图片悬浮效果 =====
+.imageWrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+
+  .productImage {
+    transition: transform 0.3s ease;
+    z-index: 1;
+  }
+
+  &:hover .productImage {
+    transform: scale(2);
+    z-index: 999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
