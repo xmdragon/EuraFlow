@@ -121,13 +121,13 @@ const Dashboard: React.FC = () => {
               label: '新建商品',
               onClick: () => navigate('/dashboard/ozon/products/create'),
             },
+            {
+              key: 'ozon-listing',
+              icon: <CloudUploadOutlined />,
+              label: '商品上架',
+              onClick: () => navigate('/dashboard/ozon/listing'),
+            },
           ],
-        },
-        {
-          key: 'ozon-listing',
-          icon: <CloudUploadOutlined />,
-          label: '商品上架',
-          onClick: () => navigate('/dashboard/ozon/listing'),
         },
         {
           key: 'ozon-orders',
@@ -240,6 +240,9 @@ const Dashboard: React.FC = () => {
   // 根据路径获取展开的子菜单
   const getOpenKeys = () => {
     const path = location.pathname;
+    if (path.includes('/ozon/products') || path.includes('/ozon/listing')) {
+      return ['ozon', 'ozon-products'];
+    }
     if (path.includes('/ozon')) return ['ozon'];
     if (path.includes('/system')) return ['system'];
     return [];

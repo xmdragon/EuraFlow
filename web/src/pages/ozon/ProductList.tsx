@@ -305,6 +305,18 @@ const ProductList: React.FC = () => {
     filterForm.setFieldsValue({ status: 'on_sale' });
   }, [filterForm]);
 
+  // 预加载当前页所有商品的大图（160x160）
+  useEffect(() => {
+    if (productsData?.data && productsData.data.length > 0) {
+      productsData.data.forEach(product => {
+        if (product.images?.primary) {
+          const img = new Image();
+          img.src = optimizeOzonImageUrl(product.images.primary, 160);
+        }
+      });
+    }
+  }, [productsData]);
+
   // 应用水印 - 默认使用异步模式
   const applyWatermarkMutation = useMutation({
     mutationFn: ({ productIds, configId, analyzeMode = 'individual', positionOverrides }: {
