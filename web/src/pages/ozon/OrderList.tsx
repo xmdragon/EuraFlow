@@ -649,7 +649,9 @@ const OrderList: React.FC = () => {
         const posting = row.posting;
         const packages = posting.packages || [];
         const trackingNumber = packages.length > 0 ? packages[0].tracking_number : undefined;
-        const domesticTracking = posting.domestic_tracking_number;
+        // 使用新的数组字段（兼容多单号），显示时用逗号分隔
+        const domesticTrackingNumbers = posting.domestic_tracking_numbers || [];
+        const domesticTracking = domesticTrackingNumbers.join(', ');
 
         return {
           children: (
