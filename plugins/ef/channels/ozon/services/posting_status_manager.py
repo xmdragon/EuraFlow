@@ -1,0 +1,193 @@
+"""
+Posting状态管理器
+统一管理OZON posting的operation_status计算和更新逻辑
+被以下模块复用：全量同步、增量同步、Webhook、单个posting同步
+"""
+from typing import Tuple, Dict, Any, Optional
+from datetime import datetime
+import logging
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..models import OzonPosting
+from ..utils.datetime_utils import utcnow
+
+logger = logging.getLogger(__name__)
+
+
+class PostingStatusManager:
+    """
+    Posting状态管理器（单一职责）
+
+    职责：
+    1. 根据OZON状态 + 字段存在性计算operation_status
+    2. 处理特殊规则（printed状态保留、状态互斥）
+    3. 记录状态变化时间戳
+    4. 统一日志输出
+    """
+
+    # OZON状态到operation_status的基础映射
+    # 注意：awaiting_deliver需要特殊处理（根据字段存在性判断）
+    SIMPLE_STATUS_MAP = {
+        "awaiting_packaging": "awaiting_stock",
+        "delivering": "shipping",
+        "delivered": "delivered",
+        "cancelled": "cancelled"
+    }
+
+    @staticmethod
+    def calculate_operation_status(
+        posting: OzonPosting,
+        ozon_status: str,
+        preserve_manual: bool = True
+    ) -> Tuple[str, bool]:
+        """
+        计算新的operation_status（核心算法）
+
+        Args:
+            posting: Posting对象（需要有packages和domestic_tracking_number）
+            ozon_status: OZON原生状态
+            preserve_manual: 是否保留手动标记的状态（printed）
+
+        Returns:
+            (new_operation_status, changed): 新状态和是否有变化
+        """
+        old_operation_status = posting.operation_status
+
+        # 简单映射（不需要判断字段）
+        if ozon_status in PostingStatusManager.SIMPLE_STATUS_MAP:
+            new_status = PostingStatusManager.SIMPLE_STATUS_MAP[ozon_status]
+            return new_status, new_status != old_operation_status
+
+        # 复杂逻辑：awaiting_deliver 根据字段存在性判断
+        if ozon_status == "awaiting_deliver":
+            # 规则1：如果已经是printed状态，保持不变（用户手动标记或已打印）
+            if preserve_manual and old_operation_status == "printed":
+                return "printed", False
+
+            # 规则2：根据追踪号码和国内单号判断
+            has_tracking = posting.has_tracking_number()
+            has_domestic = bool(posting.get_domestic_tracking_numbers())
+
+            if not has_tracking:
+                new_status = "allocating"  # 无追踪号码 → 分配中
+            elif has_tracking and not has_domestic:
+                new_status = "allocated"  # 有追踪号码，无国内单号 → 已分配
+            else:
+                new_status = "tracking_confirmed"  # 都有 → 单号确认
+
+            return new_status, new_status != old_operation_status
+
+        # 未知状态：保持原状态，记录警告
+        logger.warning(
+            f"Unknown OZON status '{ozon_status}' for posting {posting.posting_number}, "
+            f"keeping operation_status as '{old_operation_status}'"
+        )
+        return old_operation_status, False
+
+    @staticmethod
+    async def update_posting_status(
+        posting: OzonPosting,
+        ozon_status: str,
+        db: AsyncSession,
+        source: str = "sync",
+        preserve_manual: bool = True
+    ) -> Dict[str, Any]:
+        """
+        更新posting的operation_status（高层接口）
+
+        Args:
+            posting: Posting对象
+            ozon_status: OZON原生状态
+            db: 数据库会话（用于flush，不会commit）
+            source: 更新来源 (sync/webhook/manual)，用于日志
+            preserve_manual: 是否保留手动标记的状态（printed）
+
+        Returns:
+            {
+                "changed": bool,
+                "old_status": str,
+                "new_status": str,
+                "timestamp": datetime,
+                "source": str
+            }
+        """
+        # 确保packages已加载（用于has_tracking_number判断）
+        # 如果调用方已经用selectinload预加载，这里flush不会产生额外查询
+        await db.flush()
+
+        old_status = posting.operation_status
+
+        # 计算新状态
+        new_status, changed = PostingStatusManager.calculate_operation_status(
+            posting=posting,
+            ozon_status=ozon_status,
+            preserve_manual=preserve_manual
+        )
+
+        # 更新状态
+        posting.operation_status = new_status
+
+        # 记录状态变化时间
+        timestamp = None
+        if changed:
+            timestamp = utcnow()
+            posting.operation_time = timestamp
+
+        # 统一日志输出
+        if changed:
+            logger.info(
+                f"[{source}] Posting operation_status updated: {old_status} → {new_status}",
+                extra={
+                    "posting_number": posting.posting_number,
+                    "ozon_status": ozon_status,
+                    "old_operation_status": old_status,
+                    "new_operation_status": new_status,
+                    "source": source,
+                    "has_tracking": posting.has_tracking_number(),
+                    "has_domestic": bool(posting.get_domestic_tracking_numbers())
+                }
+            )
+        else:
+            logger.debug(
+                f"[{source}] Posting operation_status unchanged: {old_status}",
+                extra={
+                    "posting_number": posting.posting_number,
+                    "ozon_status": ozon_status,
+                    "operation_status": old_status,
+                    "source": source
+                }
+            )
+
+        return {
+            "changed": changed,
+            "old_status": old_status,
+            "new_status": new_status,
+            "timestamp": timestamp,
+            "source": source
+        }
+
+    @staticmethod
+    def validate_status_transition(
+        old_status: str,
+        new_status: str
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        验证状态转换是否合法（可选的高级功能）
+
+        Args:
+            old_status: 旧状态
+            new_status: 新状态
+
+        Returns:
+            (is_valid, error_message)
+        """
+        # 互斥状态检查：printed 和 tracking_confirmed 互斥
+        if old_status == "printed" and new_status == "tracking_confirmed":
+            return False, "Cannot transition from 'printed' to 'tracking_confirmed' (mutually exclusive)"
+
+        if old_status == "tracking_confirmed" and new_status == "printed":
+            return False, "Cannot transition from 'tracking_confirmed' to 'printed' (mutually exclusive)"
+
+        # 其他转换都允许（业务逻辑由calculate_operation_status保证）
+        return True, None

@@ -430,49 +430,16 @@ class OrderSyncService:
                     session.add(default_package)
                     logger.info(f"Created default package for posting {posting_number} with tracking_number: {raw_tracking_number}")
 
-        # 刷新以确保包裹数据已写入数据库
-        # posting.has_tracking_number() 会从数据库自动加载 packages 关系
-        await session.flush()
+        # ========== 使用统一的状态管理器更新operation_status ==========
+        from .posting_status_manager import PostingStatusManager
 
-        # 状态同步逻辑：根据 ozon_status + 字段存在性重新计算 operation_status
-        ozon_status = posting.status
-        old_operation_status = posting.operation_status
-
-        if ozon_status == "awaiting_packaging":
-            posting.operation_status = "awaiting_stock"
-
-        elif ozon_status == "awaiting_deliver":
-            # 如果已经是 printed 状态，保持不变（用户已手动标记或自动标记）
-            if old_operation_status == "printed":
-                posting.operation_status = "printed"
-            else:
-                # 根据追踪号码和国内单号判断
-                has_tracking = posting.has_tracking_number()
-                has_domestic = bool(posting.get_domestic_tracking_numbers())  # 检查是否有国内单号
-
-                if not has_tracking:
-                    posting.operation_status = "allocating"
-                elif has_tracking and not has_domestic:
-                    posting.operation_status = "allocated"
-                else:
-                    posting.operation_status = "tracking_confirmed"
-
-        elif ozon_status == "delivering":
-            posting.operation_status = "shipping"
-
-        elif ozon_status == "delivered":
-            posting.operation_status = "delivered"
-
-        elif ozon_status == "cancelled":
-            posting.operation_status = "cancelled"
-
-        # 记录状态变化
-        if old_operation_status != posting.operation_status:
-            logger.info(
-                f"Auto-synced operation_status: {old_operation_status} → {posting.operation_status} "
-                f"(OZON status: {ozon_status}, tracking: {posting.has_tracking_number()}, "
-                f"domestic: {bool(posting.get_domestic_tracking_numbers())})"
-            )
+        await PostingStatusManager.update_posting_status(
+            posting=posting,
+            ozon_status=posting.status,
+            db=session,
+            source="single_posting_sync",  # 来源：单个posting同步
+            preserve_manual=True  # 保留用户手动标记的printed状态
+        )
 
         return posting
     

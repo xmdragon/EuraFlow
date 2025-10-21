@@ -336,46 +336,16 @@ class OzonWebhookHandler:
                         posting.shipped_at = utcnow()
                         logger.info(f"Posting {posting_number} shipped at {posting.shipped_at} (status: {new_status})")
 
-                # ========== operation_status 自动管理 ==========
+                # ========== 使用统一的状态管理器更新operation_status ==========
+                from ..services.posting_status_manager import PostingStatusManager
 
-                # 状态同步逻辑：根据 ozon_status + 字段存在性重新计算 operation_status
-                old_operation_status = posting.operation_status
-
-                if new_status == "awaiting_packaging":
-                    posting.operation_status = "awaiting_stock"
-
-                elif new_status == "awaiting_deliver":
-                    # 如果已经是 printed 状态，保持不变（用户已手动标记或自动标记）
-                    if old_operation_status == "printed":
-                        posting.operation_status = "printed"
-                    else:
-                        # 根据追踪号码和国内单号判断
-                        has_tracking = posting.has_tracking_number()
-                        has_domestic = bool(posting.get_domestic_tracking_numbers())  # 检查是否有国内单号
-
-                        if not has_tracking:
-                            posting.operation_status = "allocating"
-                        elif has_tracking and not has_domestic:
-                            posting.operation_status = "allocated"
-                        else:
-                            posting.operation_status = "tracking_confirmed"
-
-                elif new_status == "delivering":
-                    posting.operation_status = "shipping"
-
-                elif new_status == "delivered":
-                    posting.operation_status = "delivered"
-
-                elif new_status == "cancelled":
-                    posting.operation_status = "cancelled"
-
-                # 记录状态变化
-                if old_operation_status != posting.operation_status:
-                    logger.info(
-                        f"Auto-synced operation_status: {old_operation_status} → {posting.operation_status} "
-                        f"(OZON status: {new_status}, tracking: {posting.has_tracking_number()}, "
-                        f"domestic: {bool(posting.get_domestic_tracking_numbers())}) (via webhook)"
-                    )
+                await PostingStatusManager.update_posting_status(
+                    posting=posting,
+                    ozon_status=new_status,
+                    db=session,
+                    source="webhook",  # 来源：Webhook
+                    preserve_manual=True  # 保留用户手动标记的printed状态
+                )
 
                 session.add(posting)
                 await session.commit()

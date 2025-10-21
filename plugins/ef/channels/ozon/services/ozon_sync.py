@@ -1323,92 +1323,35 @@ class OzonSyncService:
         # 同步包裹信息（如果有）
         await OzonSyncService._sync_packages(db, posting, posting_data, shop)
 
-        # 刷新以确保包裹数据已写入数据库
-        # posting.has_tracking_number() 会从数据库自动加载 packages 关系
-        await db.flush()
+        # ========== 使用统一的状态管理器更新operation_status ==========
+        from .posting_status_manager import PostingStatusManager
 
-        # ========== 自动状态管理 ==========
-
-        # 【新增】0. 初始状态设置：如果 operation_status 为空，根据 OZON 状态 + 字段存在性自动设置
+        # 初始状态设置：如果operation_status为空，先设置一个初始值
         if not posting.operation_status:
             ozon_status = posting_data.get("status", "")
-            if ozon_status == "awaiting_packaging":
-                posting.operation_status = "awaiting_stock"
-                logger.info(f"Set initial operation_status for posting {posting_number}: awaiting_stock (OZON status: {ozon_status})")
-            elif ozon_status == "awaiting_deliver":
-                # 根据追踪号码和国内单号判断
-                has_tracking = posting.has_tracking_number()  # 使用 Model 的 Helper 方法
-                has_domestic = bool(posting.get_domestic_tracking_numbers())  # 检查是否有国内单号
-
-                if not has_tracking:
-                    posting.operation_status = "allocating"  # 无追踪号
-                    logger.info(f"Set initial operation_status for posting {posting_number}: allocating (OZON status: {ozon_status}, no tracking)")
-                elif has_tracking and not has_domestic:
-                    posting.operation_status = "allocated"  # 有追踪号，无国内单号
-                    logger.info(f"Set initial operation_status for posting {posting_number}: allocated (OZON status: {ozon_status}, has tracking)")
-                else:
-                    posting.operation_status = "tracking_confirmed"  # 都有
-                    logger.info(f"Set initial operation_status for posting {posting_number}: tracking_confirmed (OZON status: {ozon_status}, has both)")
-            elif ozon_status == "delivering":
-                posting.operation_status = "shipping"
-                logger.info(f"Set initial operation_status for posting {posting_number}: shipping (OZON status: {ozon_status})")
-            elif ozon_status == "delivered":
-                posting.operation_status = "delivered"
-                logger.info(f"Set initial operation_status for posting {posting_number}: delivered (OZON status: {ozon_status})")
-            elif ozon_status == "cancelled":
-                posting.operation_status = "cancelled"
-                logger.info(f"Set initial operation_status for posting {posting_number}: cancelled (OZON status: {ozon_status})")
-            else:
-                # 其他未知状态，默认设置为 awaiting_stock
-                posting.operation_status = "awaiting_stock"
-                logger.warning(f"Unknown OZON status '{ozon_status}' for posting {posting_number}, defaulting to awaiting_stock")
-
-        # 状态同步逻辑：根据 ozon_status + 字段存在性重新计算 operation_status
-        ozon_status = posting.status
-        old_operation_status = posting.operation_status
-
-        if ozon_status == "awaiting_packaging":
-            posting.operation_status = "awaiting_stock"
-
-        elif ozon_status == "awaiting_deliver":
-            # 如果已经是 printed 状态，保持不变（用户已手动标记或自动标记）
-            if old_operation_status == "printed":
-                posting.operation_status = "printed"
-            else:
-                # 根据追踪号码和国内单号判断
-                has_tracking = posting.has_tracking_number()
-                has_domestic = bool(posting.get_domestic_tracking_numbers())  # 检查是否有国内单号
-
-                if not has_tracking:
-                    posting.operation_status = "allocating"
-                elif has_tracking and not has_domestic:
-                    posting.operation_status = "allocated"
-                else:
-                    posting.operation_status = "tracking_confirmed"
-
-        elif ozon_status == "delivering":
-            posting.operation_status = "shipping"
-
-        elif ozon_status == "delivered":
-            posting.operation_status = "delivered"
-
-        elif ozon_status == "cancelled":
-            posting.operation_status = "cancelled"
-
-        # 记录状态变化
-        if old_operation_status != posting.operation_status:
-            posting.operation_time = utcnow()
-            logger.info(
-                f"Auto-synced operation_status: {old_operation_status} → {posting.operation_status} "
-                f"(OZON status: {ozon_status}, tracking: {posting.has_tracking_number()}, "
-                f"domestic: {bool(posting.get_domestic_tracking_numbers())})"
+            # 使用状态管理器计算初始状态（不保留手动状态，因为是新posting）
+            await db.flush()  # 确保packages已写入
+            new_status, _ = PostingStatusManager.calculate_operation_status(
+                posting=posting,
+                ozon_status=ozon_status,
+                preserve_manual=False  # 新posting不需要保留手动状态
             )
+            posting.operation_status = new_status
+            logger.info(f"Set initial operation_status for posting {posting_number}: {new_status} (OZON status: {ozon_status})")
+
+        # 状态同步：使用统一的状态管理器更新
+        await PostingStatusManager.update_posting_status(
+            posting=posting,
+            ozon_status=posting.status,
+            db=db,
+            source="sync",  # 来源：同步（全量或增量）
+            preserve_manual=True  # 保留用户手动标记的printed状态
+        )
 
         logger.info(
             f"Synced posting {posting_number} for order {order.order_id}",
             extra={"posting_number": posting_number, "order_id": order.order_id, "status": posting.status, "operation_status": posting.operation_status}
         )
-        logger.info(f"[DEBUG] Final state before flush: posting.status='{posting.status}', posting.operation_status='{posting.operation_status}'")
 
     @staticmethod
     async def _sync_order_items(db: AsyncSession, order: OzonOrder, products_data: list) -> None:
