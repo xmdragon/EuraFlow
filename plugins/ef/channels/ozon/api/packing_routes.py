@@ -1021,6 +1021,7 @@ async def search_posting_by_tracking(
                 select(OzonPosting)
                 .options(
                     selectinload(OzonPosting.packages),
+                    selectinload(OzonPosting.domestic_trackings),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.items),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
@@ -1045,6 +1046,7 @@ async def search_posting_by_tracking(
                     select(OzonPosting)
                     .options(
                         selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.domestic_trackings),
                         selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
                         selectinload(OzonPosting.order).selectinload(OzonOrder.items),
                         selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
@@ -1059,6 +1061,7 @@ async def search_posting_by_tracking(
                     select(OzonPosting)
                     .options(
                         selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.domestic_trackings),
                         selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
                         selectinload(OzonPosting.order).selectinload(OzonOrder.items),
                         selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
@@ -1075,6 +1078,7 @@ async def search_posting_by_tracking(
                 select(OzonPosting)
                 .options(
                     selectinload(OzonPosting.packages),
+                    selectinload(OzonPosting.domestic_trackings),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.items),
                     selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
@@ -1135,6 +1139,8 @@ async def search_posting_by_tracking(
                 order_dict['tracking_number'] = None
             # 添加 delivery_method（配送方式）
             order_dict['delivery_method'] = first_posting.delivery_method_name or order.delivery_method
+            # 添加 domestic_tracking_numbers（国内单号列表）
+            order_dict['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()
 
         # 返回与其他标签一致的数据结构
         return {
