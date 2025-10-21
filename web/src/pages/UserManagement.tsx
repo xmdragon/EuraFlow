@@ -9,7 +9,6 @@ import {
   Select,
   Switch,
   Space,
-  message,
   Tag,
   Typography,
   Popconfirm,
@@ -25,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import axios from '@/services/axios';
 import { useAuth } from '@/hooks/useAuth';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -73,7 +73,7 @@ const UserManagement: React.FC = () => {
       const response = await axios.get('/api/ef/v1/auth/users');
       setUsers(response.data);
     } catch (error) {
-      message.error('获取用户列表失败');
+      notifyError('获取失败', '获取用户列表失败');
     } finally {
       setLoading(false);
     }
@@ -94,11 +94,11 @@ const UserManagement: React.FC = () => {
           is_active: values.is_active,
           permissions: values.permissions || [],
         });
-        message.success('用户更新成功');
+        notifySuccess('更新成功', '用户更新成功');
       } else {
         // 创建用户
         await axios.post('/api/ef/v1/auth/users', values);
-        message.success('用户创建成功');
+        notifySuccess('创建成功', '用户创建成功');
       }
       setModalVisible(false);
       form.resetFields();
@@ -121,7 +121,7 @@ const UserManagement: React.FC = () => {
         errorMsg = error.message;
       }
 
-      message.error(errorMsg);
+      notifyError('操作失败', errorMsg);
     }
   };
 
@@ -131,7 +131,7 @@ const UserManagement: React.FC = () => {
       await axios.put(`/api/ef/v1/auth/users/${user.id}`, {
         is_active: !user.is_active,
       });
-      message.success(user.is_active ? '用户已禁用' : '用户已启用');
+      notifySuccess('操作成功', user.is_active ? '用户已禁用' : '用户已启用');
       fetchUsers();
     } catch (error: any) {
       // 获取具体的错误信息
@@ -143,7 +143,7 @@ const UserManagement: React.FC = () => {
           errorMsg = error.response.data.detail;
         }
       }
-      message.error(errorMsg);
+      notifyError('操作失败', errorMsg);
     }
   };
 
@@ -151,7 +151,7 @@ const UserManagement: React.FC = () => {
   const handleDelete = async (userId: number) => {
     try {
       await axios.delete(`/api/ef/v1/auth/users/${userId}`);
-      message.success('用户已禁用');
+      notifySuccess('操作成功', '用户已禁用');
       fetchUsers();
     } catch (error: any) {
       // 获取具体的错误信息
@@ -163,7 +163,7 @@ const UserManagement: React.FC = () => {
           errorMsg = error.response.data.detail;
         }
       }
-      message.error(errorMsg);
+      notifyError('删除失败', errorMsg);
     }
   };
 

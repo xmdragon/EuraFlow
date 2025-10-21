@@ -11,7 +11,6 @@ import {
   Form,
   Input,
   Select,
-  message,
   Tag,
   Typography,
   Alert,
@@ -36,6 +35,7 @@ import {
   APIKey,
   CreateAPIKeyRequest,
 } from '../../services/apiKeyService';
+import { notifySuccess, notifyError } from '@/utils/notification';
 import styles from './ApiKeys.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
@@ -56,7 +56,7 @@ const ApiKeys: React.FC = () => {
       const data = await listAPIKeys();
       setKeys(data);
     } catch (error: any) {
-      message.error('加载失败: ' + (error.response?.data?.message || error.message));
+      notifyError('加载失败', '加载失败: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
@@ -75,9 +75,9 @@ const ApiKeys: React.FC = () => {
       setCreateModalVisible(false);
       form.resetFields();
       loadKeys();
-      message.success('API Key创建成功');
+      notifySuccess('创建成功', 'API Key创建成功');
     } catch (error: any) {
-      message.error('创建失败: ' + (error.response?.data?.message || error.message));
+      notifyError('创建失败', '创建失败: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -86,9 +86,9 @@ const ApiKeys: React.FC = () => {
     try {
       await deleteAPIKey(keyId);
       loadKeys();
-      message.success('API Key已删除');
+      notifySuccess('删除成功', 'API Key已删除');
     } catch (error: any) {
-      message.error('删除失败: ' + (error.response?.data?.message || error.message));
+      notifyError('删除失败', '删除失败: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -99,9 +99,9 @@ const ApiKeys: React.FC = () => {
       setNewKeyData({ key: result.key, name: result.name });
       setKeyModalVisible(true);
       loadKeys();
-      message.success('API Key已重新生成');
+      notifySuccess('重新生成成功', 'API Key已重新生成');
     } catch (error: any) {
-      message.error('重新生成失败: ' + (error.response?.data?.message || error.message));
+      notifyError('重新生成失败', '重新生成失败: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -109,10 +109,10 @@ const ApiKeys: React.FC = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(
       () => {
-        message.success('已复制到剪贴板');
+        notifySuccess('复制成功', '已复制到剪贴板');
       },
       () => {
-        message.error('复制失败');
+        notifyError('复制失败', '复制失败');
       }
     );
   };

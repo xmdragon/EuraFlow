@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Row, Col, message, Divider, Space, Typography } from 'antd';
+import { Form, Input, Button, Card, Row, Col, Divider, Space, Typography } from 'antd';
 import { UserOutlined, MailOutlined, KeyOutlined } from '@ant-design/icons';
 import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Title, Text } = Typography;
 
@@ -30,12 +31,12 @@ const Profile: React.FC = () => {
     try {
       const response = await axios.put('/api/ef/v1/auth/me', values);
       if (response.data) {
-        message.success('个人资料已更新');
+        notifySuccess('更新成功', '个人资料已更新');
         await refreshUser();
       }
     } catch (error: any) {
       const errorMsg = error.response?.data?.detail?.message || '更新失败';
-      message.error(errorMsg);
+      notifyError('更新失败', errorMsg);
     } finally {
       setUpdatingProfile(false);
     }
@@ -44,7 +45,7 @@ const Profile: React.FC = () => {
   // 修改密码
   const handleChangePassword = async (values: ChangePasswordData) => {
     if (values.new_password !== values.confirm_password) {
-      message.error('两次输入的密码不一致');
+      notifyError('操作失败', '两次输入的密码不一致');
       return;
     }
 
@@ -54,11 +55,11 @@ const Profile: React.FC = () => {
         current_password: values.current_password,
         new_password: values.new_password,
       });
-      message.success('密码已修改成功');
+      notifySuccess('修改成功', '密码已修改成功');
       passwordForm.resetFields();
     } catch (error: any) {
       const errorMsg = error.response?.data?.detail?.message || '修改密码失败';
-      message.error(errorMsg);
+      notifyError('修改失败', errorMsg);
     } finally {
       setChangingPassword(false);
     }
