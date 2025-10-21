@@ -344,6 +344,9 @@ class FinanceTransactionsSyncService:
                 # 创建新记录
                 transaction = OzonFinanceTransaction(**record)
                 db.add(transaction)
+
+                # 立即提交（逐条提交，避免批量提交时一条失败导致整个事务回滚）
+                await db.commit()
                 saved_count += 1
 
             except IntegrityError:
@@ -354,9 +357,6 @@ class FinanceTransactionsSyncService:
                 logger.error(f"保存交易记录失败: {e}", exc_info=True)
                 await db.rollback()
                 continue
-
-        # 提交事务
-        await db.commit()
 
         return saved_count
 
