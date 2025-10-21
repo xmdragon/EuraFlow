@@ -12,7 +12,6 @@ import {
   Input,
   Button,
   Space,
-  message,
   Statistic,
   InputNumber,
   Segmented,
@@ -42,6 +41,7 @@ import {
 } from 'recharts';
 
 import * as exchangeRateApi from '../services/exchangeRateApi';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import styles from './ExchangeRateManagement.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
@@ -83,12 +83,12 @@ const ExchangeRateManagement: React.FC = () => {
   const configMutation = useMutation({
     mutationFn: exchangeRateApi.configureExchangeRateApi,
     onSuccess: () => {
-      message.success('API配置成功');
+      notifySuccess('配置成功', 'API配置成功');
       queryClient.invalidateQueries({ queryKey: ['exchange-rate'] });
       configForm.resetFields();
     },
     onError: (error: any) => {
-      message.error(`配置失败: ${error.response?.data?.error?.detail || error.message}`);
+      notifyError('配置失败', `配置失败: ${error.response?.data?.error?.detail || error.message}`);
     },
   });
 
@@ -97,13 +97,13 @@ const ExchangeRateManagement: React.FC = () => {
     mutationFn: (apiKey: string) => exchangeRateApi.testExchangeRateConnection(apiKey),
     onSuccess: (data) => {
       if (data.success) {
-        message.success(`连接成功！当前汇率: ${data.rate}`);
+        notifySuccess('连接成功', `连接成功！当前汇率: ${data.rate}`);
       } else {
-        message.error(`连接失败: ${data.message}`);
+        notifyError('连接失败', `连接失败: ${data.message}`);
       }
     },
     onError: (error: any) => {
-      message.error(`测试失败: ${error.response?.data?.error?.detail || error.message}`);
+      notifyError('测试失败', `测试失败: ${error.response?.data?.error?.detail || error.message}`);
     },
   });
 
@@ -112,14 +112,14 @@ const ExchangeRateManagement: React.FC = () => {
     mutationFn: exchangeRateApi.refreshExchangeRate,
     onSuccess: (data) => {
       if (data.status === 'success') {
-        message.success(data.message);
+        notifySuccess('刷新成功', data.message);
         queryClient.invalidateQueries({ queryKey: ['exchange-rate'] });
       } else {
-        message.warning(data.message);
+        notifyWarning('刷新提示', data.message);
       }
     },
     onError: (error: any) => {
-      message.error(`刷新失败: ${error.response?.data?.error?.detail || error.message}`);
+      notifyError('刷新失败', `刷新失败: ${error.response?.data?.error?.detail || error.message}`);
     },
   });
 
@@ -142,7 +142,7 @@ const ExchangeRateManagement: React.FC = () => {
   const handleTestConnection = () => {
     const apiKey = configForm.getFieldValue('api_key');
     if (!apiKey) {
-      message.warning('请先输入API Key');
+      notifyWarning('操作失败', '请先输入API Key');
       return;
     }
     testMutation.mutate(apiKey);
@@ -172,7 +172,7 @@ const ExchangeRateManagement: React.FC = () => {
         setCnyAmount(result.converted_amount);
       }
     } catch (error: any) {
-      message.error(`转换失败: ${error.response?.data?.error?.detail || error.message}`);
+      notifyError('转换失败', `转换失败: ${error.response?.data?.error?.detail || error.message}`);
     }
   };
 

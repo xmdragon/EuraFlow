@@ -14,7 +14,6 @@ import {
   Button,
   Space,
   Tag,
-  message,
   Modal,
   Descriptions,
   Switch,
@@ -43,6 +42,7 @@ import { Cron } from 'react-js-cron';
 import 'react-js-cron/dist/styles.css';
 import axios from '@/services/axios';
 import dayjs from 'dayjs';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { TextArea } = Input;
 
@@ -130,7 +130,7 @@ const SyncServices = () => {
       const response = await axios.get('/api/ef/v1/sync-services');
       setServices(response.data || []);
     } catch (error: any) {
-      message.error(error.response?.data?.error?.detail || '加载服务列表失败');
+      notifyError('加载失败', error.response?.data?.error?.detail || '加载服务列表失败');
     } finally {
       setLoading(false);
     }
@@ -150,10 +150,10 @@ const SyncServices = () => {
   const toggleService = async (service: SyncService) => {
     try {
       await axios.post(`/api/ef/v1/sync-services/${service.id}/toggle`);
-      message.success(`服务已${service.is_enabled ? '禁用' : '启用'}`);
+      notifySuccess('操作成功', `服务已${service.is_enabled ? '禁用' : '启用'}`);
       loadServices();
     } catch (error: any) {
-      message.error(error.response?.data?.error?.detail || '操作失败');
+      notifyError('操作失败', error.response?.data?.error?.detail || '操作失败');
     }
   };
 
@@ -161,10 +161,10 @@ const SyncServices = () => {
   const triggerService = async (service: SyncService) => {
     try {
       await axios.post(`/api/ef/v1/sync-services/${service.id}/trigger`);
-      message.success('服务已触发，正在后台执行');
+      notifySuccess('触发成功', '服务已触发，正在后台执行');
       setTimeout(loadServices, 3000);
     } catch (error: any) {
-      message.error(error.response?.data?.error?.detail || '触发失败');
+      notifyError('触发失败', error.response?.data?.error?.detail || '触发失败');
     }
   };
 
@@ -177,7 +177,7 @@ const SyncServices = () => {
       const response = await axios.get(`/api/ef/v1/sync-services/${service.id}/logs`);
       setLogs(response.data || []);
     } catch (error: any) {
-      message.error(error.response?.data?.error?.detail || '加载日志失败');
+      notifyError('加载失败', error.response?.data?.error?.detail || '加载日志失败');
     } finally {
       setLogsLoading(false);
     }
@@ -192,7 +192,7 @@ const SyncServices = () => {
       const response = await axios.get(`/api/ef/v1/sync-services/${service.id}/stats`);
       setStats(response.data || null);
     } catch (error: any) {
-      message.error(error.response?.data?.error?.detail || '加载统计失败');
+      notifyError('加载失败', error.response?.data?.error?.detail || '加载统计失败');
     } finally {
       setStatsLoading(false);
     }
@@ -217,12 +217,12 @@ const SyncServices = () => {
 
     try {
       await axios.put(`/api/ef/v1/sync-services/${selectedService.id}`, values);
-      message.success('服务配置已更新');
+      notifySuccess('更新成功', '服务配置已更新');
       setEditModalVisible(false);
       editForm.resetFields();
       loadServices();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '更新失败');
+      notifyError('更新失败', error.response?.data?.detail || '更新失败');
     }
   };
 
@@ -236,12 +236,12 @@ const SyncServices = () => {
   const handleAddSubmit = async (values: any) => {
     try {
       await axios.post('/api/ef/v1/sync-services', values);
-      message.success('服务已添加');
+      notifySuccess('添加成功', '服务已添加');
       setAddModalVisible(false);
       addForm.resetFields();
       loadServices();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '添加失败');
+      notifyError('添加失败', error.response?.data?.detail || '添加失败');
     }
   };
 
@@ -251,12 +251,12 @@ const SyncServices = () => {
       const response = await axios.delete(`/api/ef/v1/sync-services/${service.id}/logs`, {
         data: { before_date: beforeDate }
       });
-      message.success(`已清空 ${response.data.data.deleted_count} 条日志`);
+      notifySuccess('清空成功', `已清空 ${response.data.data.deleted_count} 条日志`);
       if (logsModalVisible && selectedService?.id === service.id) {
         viewLogs(service);
       }
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '清空日志失败');
+      notifyError('清空失败', error.response?.data?.detail || '清空日志失败');
     }
   };
 
@@ -264,13 +264,13 @@ const SyncServices = () => {
   const resetStats = async (service: SyncService) => {
     try {
       await axios.post(`/api/ef/v1/sync-services/${service.id}/reset-stats`);
-      message.success('统计数据已重置');
+      notifySuccess('重置成功', '统计数据已重置');
       loadServices(); // 刷新服务列表
       if (statsModalVisible && selectedService?.id === service.id) {
         viewStats(service); // 刷新统计数据
       }
     } catch (error: any) {
-      message.error(error.response?.data?.error?.detail || '重置统计失败');
+      notifyError('重置失败', error.response?.data?.error?.detail || '重置统计失败');
     }
   };
 

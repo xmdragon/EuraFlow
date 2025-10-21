@@ -4,12 +4,13 @@
  */
 import React, { useState } from 'react';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
-import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography, Button, InputNumber, message, Space } from 'antd';
+import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography, Button, InputNumber, Space } from 'antd';
 import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined, SyncOutlined, CopyOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithFallback } from '@/utils/currency';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import styles from '@/pages/ozon/OrderList.module.scss';
 
 const { Text } = Typography;
@@ -51,13 +52,13 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === '-') {
-      message.warning(`${label}为空，无法复制`);
+      notifyWarning('复制失败', `${label}为空，无法复制`);
       return;
     }
     navigator.clipboard.writeText(text).then(() => {
-      message.success(`${label}已复制`);
+      notifySuccess('复制成功', `${label}已复制`);
     }).catch(() => {
-      message.error('复制失败，请手动复制');
+      notifyError('复制失败', '复制失败，请手动复制');
     });
   };
 
@@ -70,11 +71,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
         purchase_price: editPurchasePrice,
       });
-      message.success('进货金额已更新');
+      notifySuccess('更新成功', '进货金额已更新');
       setIsEditingPurchasePrice(false);
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || '更新失败');
+      notifyError('更新失败', error?.response?.data?.detail || '更新失败');
     } finally {
       setSaving(false);
     }
@@ -89,11 +90,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
         material_cost: editMaterialCost,
       });
-      message.success('打包费用已更新');
+      notifySuccess('更新成功', '打包费用已更新');
       setIsEditingMaterialCost(false);
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || '更新失败');
+      notifyError('更新失败', error?.response?.data?.detail || '更新失败');
     } finally {
       setSaving(false);
     }
@@ -106,10 +107,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     try {
       setSyncingMaterialCost(true);
       await ozonApi.syncMaterialCost(selectedPosting.posting_number);
-      message.success('打包费用同步成功');
+      notifySuccess('同步成功', '打包费用同步成功');
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || '同步失败');
+      notifyError('同步失败', error?.response?.data?.detail || '同步失败');
     } finally {
       setSyncingMaterialCost(false);
     }
@@ -122,10 +123,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     try {
       setSyncingFinance(true);
       await ozonApi.syncFinance(selectedPosting.posting_number);
-      message.success('财务费用同步成功');
+      notifySuccess('同步成功', '财务费用同步成功');
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || '同步失败');
+      notifyError('同步失败', error?.response?.data?.detail || '同步失败');
     } finally {
       setSyncingFinance(false);
     }
