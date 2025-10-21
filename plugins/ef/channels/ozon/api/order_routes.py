@@ -62,14 +62,9 @@ async def get_orders(
     if operation_status:
         query = query.where(OzonPosting.operation_status == operation_status)
 
-    # 搜索条件
+    # 搜索条件：精确匹配 posting_number，避免返回同订单的其他货件
     if posting_number:
-        # 搜索订单号、Ozon订单号或posting号
-        query = query.where(
-            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
-            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
-            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
-        )
+        query = query.where(OzonPosting.posting_number == posting_number.strip())
 
     if customer_phone:
         query = query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
@@ -114,9 +109,7 @@ async def get_orders(
         count_query = count_query.where(OzonPosting.operation_status == operation_status)
     if posting_number:
         count_query = count_query.where(
-            (OzonOrder.ozon_order_number.ilike(f"%{posting_number}%")) |
-            (OzonOrder.ozon_order_id.ilike(f"%{posting_number}%")) |
-            (OzonPosting.posting_number.ilike(f"%{posting_number}%"))
+            OzonPosting.posting_number == posting_number.strip()
         )
     if customer_phone:
         count_query = count_query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
