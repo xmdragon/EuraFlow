@@ -140,30 +140,7 @@ def register_ozon_handlers():
         )
         print("✓ Registered ozon_sync_incremental service handler")
 
-        # 4. 注册OZON财务交易同步服务
-        from .services.finance_transactions_sync_service import FinanceTransactionsSyncService
-        finance_transactions_service = FinanceTransactionsSyncService()
-        registry.register(
-            service_key="ozon_finance_transactions_sync",
-            handler=finance_transactions_service.sync_transactions,
-            name="OZON财务交易同步",
-            description="每天自动从OZON同步财务交易数据（佣金、退款、补偿等明细）",
-            plugin="ef.channels.ozon",
-            config_schema={
-                "target_date": {
-                    "type": "string",
-                    "format": "date",
-                    "description": "目标日期（可选，默认为昨天）"
-                },
-                "shop_id": {
-                    "type": "integer",
-                    "description": "店铺ID（可选，默认所有活跃店铺）"
-                }
-            }
-        )
-        print("✓ Registered ozon_finance_transactions_sync service handler")
-
-        print(f"OZON plugin: Successfully registered 4 sync service handlers")
+        print(f"OZON plugin: Successfully registered 3 sync service handlers")
 
     except Exception as e:
         print(f"OZON plugin: Warning - Failed to register sync service handlers: {e}")
