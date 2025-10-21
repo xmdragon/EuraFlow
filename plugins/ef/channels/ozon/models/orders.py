@@ -134,7 +134,6 @@ class OzonOrder(Base):
             result['material_cost'] = str(first_posting.material_cost) if first_posting.material_cost else None
             result['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()  # 新字段：数组
             result['domestic_tracking_number'] = first_posting.get_domestic_tracking_numbers()[0] if first_posting.get_domestic_tracking_numbers() else None  # 兼容字段
-            result['domestic_tracking_updated_at'] = first_posting.domestic_tracking_updated_at.isoformat() if first_posting.domestic_tracking_updated_at else None
             result['purchase_price'] = str(first_posting.purchase_price) if first_posting.purchase_price else None
             result['purchase_price_updated_at'] = first_posting.purchase_price_updated_at.isoformat() if first_posting.purchase_price_updated_at else None
             result['order_notes'] = first_posting.order_notes
@@ -192,7 +191,6 @@ class OzonOrder(Base):
                     'material_cost': str(posting.material_cost) if posting.material_cost else None,
                     'domestic_tracking_numbers': posting.get_domestic_tracking_numbers(),  # 新字段：数组
                     'domestic_tracking_number': posting.get_domestic_tracking_numbers()[0] if posting.get_domestic_tracking_numbers() else None,  # 兼容字段
-                    'domestic_tracking_updated_at': posting.domestic_tracking_updated_at.isoformat() if posting.domestic_tracking_updated_at else None,
                     'purchase_price': str(posting.purchase_price) if posting.purchase_price else None,
                     'purchase_price_updated_at': posting.purchase_price_updated_at.isoformat() if posting.purchase_price_updated_at else None,
                     'order_notes': posting.order_notes,
@@ -215,7 +213,6 @@ class OzonOrder(Base):
             result['material_cost'] = None
             result['domestic_tracking_numbers'] = []  # 新字段：空数组
             result['domestic_tracking_number'] = None  # 兼容字段
-            result['domestic_tracking_updated_at'] = None
             result['purchase_price'] = None
             result['purchase_price_updated_at'] = None
             result['order_notes'] = None
@@ -293,8 +290,6 @@ class OzonPosting(Base):
 
     # 业务字段（Posting维度）
     material_cost = Column(Numeric(18, 2), comment="物料成本（包装、标签等）")
-    domestic_tracking_number = Column(String(200), comment="[已废弃] 请使用 domestic_trackings 关系")
-    domestic_tracking_updated_at = Column(DateTime(timezone=True), comment="[已废弃] 国内物流单号更新时间")
     purchase_price = Column(Numeric(18, 2), comment="进货价格")
     purchase_price_updated_at = Column(DateTime(timezone=True), comment="进货价格更新时间")
     order_notes = Column(String(1000), comment="订单备注")
@@ -438,33 +433,25 @@ class OzonPosting(Base):
         """
         获取所有国内物流单号列表
 
-        优先级：
-        1. 数据库 domestic_trackings 关系（如果已加载）
-        2. 降级：原 domestic_tracking_number 字段（兼容老数据）
+        从数据库 domestic_trackings 关系获取（预加载）
 
         Returns:
             国内物流单号列表
         """
         tracking_numbers = []
 
-        # 优先级1：从数据库 domestic_trackings 关系获取（如果已预加载）
+        # 从数据库 domestic_trackings 关系获取
         try:
             if hasattr(self, '__dict__') and 'domestic_trackings' in self.__dict__:
                 # domestic_trackings 已被预加载或之前访问过
                 for tracking in self.domestic_trackings:
                     if tracking.tracking_number:
                         tracking_numbers.append(tracking.tracking_number)
-                if tracking_numbers:
-                    return tracking_numbers
         except Exception:
-            # 如果访问 domestic_trackings 失败（懒加载被禁用等），继续使用老字段
+            # 如果访问 domestic_trackings 失败，返回空列表
             pass
 
-        # 优先级2：降级到原 domestic_tracking_number 字段（兼容）
-        if self.domestic_tracking_number:
-            return [self.domestic_tracking_number]
-
-        return []
+        return tracking_numbers
 
     __table_args__ = (
         Index("idx_ozon_postings_status", "shop_id", "status"),

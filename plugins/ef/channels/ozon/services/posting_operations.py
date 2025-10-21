@@ -299,8 +299,6 @@ class PostingOperationsService:
         self.db.add_all(tracking_records)
 
         # 6. 更新元数据
-        posting.domestic_tracking_updated_at = utcnow()
-        posting.domestic_tracking_number = unique_numbers[0]  # 兼容：保留第一个单号到老字段
         if order_notes is not None:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
