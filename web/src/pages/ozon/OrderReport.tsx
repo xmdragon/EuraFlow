@@ -1038,7 +1038,7 @@ const OrderReport: React.FC = () => {
 
       {/* 货件详情Modal */}
       <Modal
-        title="货件详情"
+        title={selectedPosting ? `订单详情 - ${selectedPosting.posting_number}` : "订单详情"}
         open={postingDetailVisible}
         onCancel={() => setPostingDetailVisible(false)}
         footer={null}
@@ -1046,16 +1046,17 @@ const OrderReport: React.FC = () => {
       >
         {selectedPosting && (
           <Descriptions bordered column={2} size="small">
-            <Descriptions.Item label="货件编号" span={2}>
-              {selectedPosting.posting_number}
-            </Descriptions.Item>
             <Descriptions.Item label="店铺名称" span={2}>
               {selectedPosting.shop_name}
             </Descriptions.Item>
             <Descriptions.Item label="订单状态">
-              {selectedPosting.status}
+              {selectedPosting.status === 'awaiting_packaging' && '等待备货'}
+              {selectedPosting.status === 'awaiting_deliver' && '等待发货'}
+              {selectedPosting.status === 'delivering' && '运输中'}
+              {selectedPosting.status === 'delivered' && '已签收'}
+              {selectedPosting.status === 'cancelled' && '已取消'}
             </Descriptions.Item>
-            <Descriptions.Item label="创建时间">
+            <Descriptions.Item label="订单时间">
               {dayjs(selectedPosting.created_at).format('YYYY-MM-DD HH:mm:ss')}
             </Descriptions.Item>
             <Descriptions.Item label="订单金额">

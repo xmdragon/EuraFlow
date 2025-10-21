@@ -438,11 +438,14 @@ async def get_posting_report(
                         'image_url': image_url  # 原始URL，前端用 optimizeOzonImageUrl 优化
                     })
 
-            # 计算订单金额（取消订单不计销售额）
+            # 真实订单金额（用于显示）
+            real_order_amount = Decimal(str(order.total_price or '0'))
+
+            # 计算订单金额（取消订单不计销售额，用于统计）
             if posting.status == 'cancelled':
                 order_amount = Decimal('0')
             else:
-                order_amount = Decimal(str(order.total_price or '0'))
+                order_amount = real_order_amount
 
             # 获取posting维度的费用字段（取消订单仍然计入成本）
             purchase_price = posting.purchase_price or Decimal('0')
@@ -467,7 +470,7 @@ async def get_posting_report(
                 'is_cancelled': posting.status == 'cancelled',
                 'created_at': order.ordered_at.isoformat(),
                 'products': products_list,
-                'order_amount': format_currency(order_amount),
+                'order_amount': format_currency(real_order_amount),  # 显示真实金额
                 'purchase_price': format_currency(purchase_price),
                 'ozon_commission_cny': format_currency(ozon_commission),
                 'international_logistics_fee_cny': format_currency(intl_logistics),
