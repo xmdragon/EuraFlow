@@ -438,26 +438,33 @@ async def get_posting_report(
                         'image_url': image_url  # 原始URL，前端用 optimizeOzonImageUrl 优化
                     })
 
-            # 计算订单金额
-            order_amount = Decimal(str(order.total_price or '0'))
+            # 计算订单金额（取消订单不计销售额）
+            if posting.is_cancelled:
+                order_amount = Decimal('0')
+            else:
+                order_amount = Decimal(str(order.total_price or '0'))
 
-            # 获取posting维度的费用字段
+            # 获取posting维度的费用字段（取消订单仍然计入成本）
             purchase_price = posting.purchase_price or Decimal('0')
             ozon_commission = posting.ozon_commission_cny or Decimal('0')
             intl_logistics = posting.international_logistics_fee_cny or Decimal('0')
             last_mile = posting.last_mile_delivery_fee_cny or Decimal('0')
             material_cost = posting.material_cost or Decimal('0')
 
-            # 计算利润
+            # 计算利润（取消订单会产生负利润）
             profit = order_amount - (purchase_price + ozon_commission + intl_logistics + last_mile + material_cost)
 
-            # 计算利润率
-            profit_rate = float((profit / order_amount * 100)) if order_amount > 0 else 0.0
+            # 计算利润率（取消订单利润率无意义，显示为0）
+            if posting.is_cancelled:
+                profit_rate = 0.0
+            else:
+                profit_rate = float((profit / order_amount * 100)) if order_amount > 0 else 0.0
 
             report_data.append({
                 'posting_number': posting.posting_number,
                 'shop_name': shop_name,
                 'status': posting.status,
+                'is_cancelled': posting.is_cancelled or False,
                 'created_at': order.ordered_at.isoformat(),
                 'products': products_list,
                 'order_amount': format_currency(order_amount),
@@ -597,17 +604,20 @@ async def get_report_summary(
         from ..utils.serialization import format_currency
 
         for posting, order, shop_name in postings_data:
-            # 订单金额
-            order_amount = Decimal(str(order.total_price or '0'))
+            # 订单金额（取消订单不计销售额）
+            if posting.is_cancelled:
+                order_amount = Decimal('0')
+            else:
+                order_amount = Decimal(str(order.total_price or '0'))
 
-            # 费用字段
+            # 费用字段（取消订单仍然计入成本）
             purchase = posting.purchase_price or Decimal('0')
             commission = posting.ozon_commission_cny or Decimal('0')
             intl_log = posting.international_logistics_fee_cny or Decimal('0')
             last_mile = posting.last_mile_delivery_fee_cny or Decimal('0')
             material = posting.material_cost or Decimal('0')
 
-            # 利润
+            # 利润（取消订单会产生负利润）
             profit = order_amount - (purchase + commission + intl_log + last_mile + material)
 
             # 累加总计
@@ -640,7 +650,11 @@ async def get_report_summary(
 
                     quantity = product_raw.get('quantity', 0)
                     price = Decimal(str(product_raw.get('price', '0')))
-                    product_sales = price * quantity
+                    # 取消订单不计销售额
+                    if posting.is_cancelled:
+                        product_sales = Decimal('0')
+                    else:
+                        product_sales = price * quantity
 
                     if offer_id not in product_stats:
                         product_stats[offer_id] = {
@@ -653,8 +667,15 @@ async def get_report_summary(
 
                     product_stats[offer_id]['sales'] += product_sales
                     product_stats[offer_id]['quantity'] += quantity
-                    # 按销售额比例分配利润
-                    if order_amount > 0:
+                    # 按销售额比例分配利润（取消订单的利润也要分配）
+                    if posting.is_cancelled:
+                        # 取消订单：按数量比例分配负利润
+                        total_quantity = sum(p.get('quantity', 0) for p in posting.raw_payload['products'])
+                        if total_quantity > 0:
+                            product_profit = profit * (quantity / total_quantity)
+                            product_stats[offer_id]['profit'] += product_profit
+                    elif order_amount > 0:
+                        # 正常订单：按销售额比例分配利润
                         product_profit = profit * (product_sales / order_amount)
                         product_stats[offer_id]['profit'] += product_profit
 
@@ -695,7 +716,13 @@ async def get_report_summary(
         prev_total_material = Decimal('0')
 
         for posting, order in prev_postings_data:
-            order_amount = Decimal(str(order.total_price or '0'))
+            # 取消订单不计销售额
+            if posting.is_cancelled:
+                order_amount = Decimal('0')
+            else:
+                order_amount = Decimal(str(order.total_price or '0'))
+
+            # 费用仍然计入
             purchase = posting.purchase_price or Decimal('0')
             commission = posting.ozon_commission_cny or Decimal('0')
             intl_log = posting.international_logistics_fee_cny or Decimal('0')
