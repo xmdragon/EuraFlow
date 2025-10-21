@@ -909,7 +909,7 @@ const ProductList: React.FC = () => {
 
   const handleBatchPriceUpdate = () => {
     if (selectedRows.length === 0) {
-      message.warning('请先选择商品');
+      notifyWarning('操作失败', '请先选择商品');
       return;
     }
     setPriceModalVisible(true);
@@ -1151,7 +1151,7 @@ const ProductList: React.FC = () => {
 
   const handleExport = () => {
     if (!productsData?.data || productsData.data.length === 0) {
-      message.warning('没有商品数据可以导出');
+      notifyWarning('导出失败', '没有商品数据可以导出');
       return;
     }
 
@@ -1208,10 +1208,10 @@ const ProductList: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      message.success(`成功导出 ${csvData.length} 个商品的数据`);
+      notifySuccess('导出成功', `成功导出 ${csvData.length} 个商品的数据`);
     } catch (error) {
       console.error('Export error:', error);
-      message.error('导出失败，请重试');
+      notifyError('导出失败', '导出失败，请重试');
     }
   };
 
@@ -1617,14 +1617,14 @@ const ProductList: React.FC = () => {
                 const result = await response.json();
 
                 if (result.success) {
-                  message.success(result.message || '商品信息更新成功');
+                  notifySuccess('更新成功', result.message || '商品信息更新成功');
                   queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
                   setEditModalVisible(false);
                 } else {
-                  message.error(result.message || '商品信息更新失败');
+                  notifyError('更新失败', result.message || '商品信息更新失败');
                 }
               } catch (error: any) {
-                message.error(`更新失败: ${error.message}`);
+                notifyError('更新失败', `更新失败: ${error.message}`);
               }
             }}
           >
@@ -1748,13 +1748,13 @@ const ProductList: React.FC = () => {
                 file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
               if (!isValidType) {
-                message.error('只支持 CSV 和 Excel 文件格式');
+                notifyError('上传失败', '只支持 CSV 和 Excel 文件格式');
                 return false;
               }
 
               const isLt10M = file.size / 1024 / 1024 < 10;
               if (!isLt10M) {
-                message.error('文件大小不能超过 10MB');
+                notifyError('上传失败', '文件大小不能超过 10MB');
                 return false;
               }
 
@@ -1779,20 +1779,21 @@ const ProductList: React.FC = () => {
                   const result = await response.json();
 
                   if (result.success) {
-                    message.success(result.message || '商品导入成功');
+                    notifySuccess('导入成功', result.message || '商品导入成功');
                     if (result.warnings && result.warnings.length > 0) {
                       setTimeout(() => {
-                        message.warning(
+                        notifyWarning(
+                          '导入警告',
                           `导入过程中发现问题：${result.warnings.slice(0, 3).join('; ')}`
                         );
                       }, 1000);
                     }
                     queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
                   } else {
-                    message.error(result.message || '商品导入失败');
+                    notifyError('导入失败', result.message || '商品导入失败');
                   }
                 } catch (error: any) {
-                  message.error(`导入失败: ${error.message}`);
+                  notifyError('导入失败', `导入失败: ${error.message}`);
                 }
               };
 
@@ -1848,7 +1849,7 @@ const ProductList: React.FC = () => {
         onOk={async () => {
           if (watermarkStep === 'select') {
             if (!selectedWatermarkConfig) {
-              message.warning('请选择水印配置');
+              notifyWarning('操作失败', '请选择水印配置');
               return;
             }
             // 进入预览步骤
@@ -1868,7 +1869,7 @@ const ProductList: React.FC = () => {
               // 初始化每张图片的水印设置为空
               setImageWatermarkSettings(new Map());
             } catch (error) {
-              message.error('预览失败');
+              notifyError('预览失败', '预览失败');
             } finally {
               setPreviewLoading(false);
             }
@@ -2250,7 +2251,7 @@ const ProductList: React.FC = () => {
         productInfo={currentPreviewProduct}
         onWatermark={() => {
           if (watermarkConfigs.length === 0) {
-            message.warning('请先配置水印');
+            notifyWarning('操作失败', '请先配置水印');
             return;
           }
           setSelectedRows([currentPreviewProduct]);
