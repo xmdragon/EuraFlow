@@ -292,6 +292,12 @@ const ProductList: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
     retry: 1, // 减少重试次数
+    // 静默失败：水印配置查询失败不影响商品列表显示
+    throwOnError: false,
+    // 查询失败时不显示错误，仅记录到控制台
+    onError: (error: any) => {
+      console.warn('水印配置加载失败，水印功能将不可用:', error);
+    },
   });
 
   useEffect(() => {
