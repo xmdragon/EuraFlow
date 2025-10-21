@@ -186,12 +186,22 @@ async def get_orders(
     orders = result.scalars().all()
 
     # 提取所有订单中的offer_id
+    # 需要从 posting.raw_payload.products 中提取，因为 order.items 可能不完整
     all_offer_ids = set()
     for order in orders:
+        # 从 order.items 提取（兼容旧数据）
         if order.items:
             for item in order.items:
                 if item.offer_id:
                     all_offer_ids.add(item.offer_id)
+
+        # 从所有 posting.raw_payload.products 中提取（完整数据源）
+        if order.postings:
+            for posting in order.postings:
+                if posting.raw_payload and 'products' in posting.raw_payload:
+                    for product in posting.raw_payload['products']:
+                        if product.get('offer_id'):
+                            all_offer_ids.add(product.get('offer_id'))
 
     # 批量查询商品图片（使用offer_id匹配）
     offer_id_images = {}
