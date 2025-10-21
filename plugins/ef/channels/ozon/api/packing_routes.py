@@ -1098,32 +1098,33 @@ async def search_posting_by_tracking(
         if not order:
             raise HTTPException(status_code=404, detail="订单信息不存在")
 
-        # 查询商品图片（与其他标签逻辑一致）
+        # 查询商品图片（从posting.products收集offer_id）
         offer_id_images = {}
-        if order.items:
-            all_offer_ids = [item.offer_id for item in order.items if item.offer_id]
-            if all_offer_ids:
-                product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
-                    OzonProduct.offer_id.in_(all_offer_ids)
-                )
-                products_result = await db.execute(product_query)
-                for offer_id, images in products_result:
-                    if offer_id and images:
-                        # 优先使用primary图片，否则使用第一张
-                        if isinstance(images, dict):
-                            if images.get("primary"):
-                                offer_id_images[offer_id] = images["primary"]
-                            elif images.get("main") and isinstance(images["main"], list) and images["main"]:
-                                offer_id_images[offer_id] = images["main"][0]
-                        elif isinstance(images, list) and images:
-                            offer_id_images[offer_id] = images[0]
+        all_offer_ids = set()
+        if posting.raw_payload and 'products' in posting.raw_payload:
+            for product in posting.raw_payload['products']:
+                if product.get('offer_id'):
+                    all_offer_ids.add(product.get('offer_id'))
 
-        # 转换为字典并添加图片
+        if all_offer_ids:
+            product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
+                OzonProduct.offer_id.in_(list(all_offer_ids))
+            )
+            products_result = await db.execute(product_query)
+            for offer_id, images in products_result:
+                if offer_id and images:
+                    # 优先使用primary图片，否则使用第一张
+                    if isinstance(images, dict):
+                        if images.get("primary"):
+                            offer_id_images[offer_id] = images["primary"]
+                        elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                            offer_id_images[offer_id] = images["main"][0]
+                    elif isinstance(images, list) and images:
+                        offer_id_images[offer_id] = images[0]
+
+        # 转换为字典并移除冗余的 items 字段
         order_dict = order.to_dict()
-        if order_dict.get("items"):
-            for item in order_dict["items"]:
-                if item.get("offer_id") and item["offer_id"] in offer_id_images:
-                    item["image"] = offer_id_images[item["offer_id"]]
+        order_dict.pop('items', None)
 
         # 添加前端期望的字段（从第一个 posting 提取）
         if order.postings and len(order.postings) > 0:

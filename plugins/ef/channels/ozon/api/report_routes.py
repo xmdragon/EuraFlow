@@ -93,63 +93,58 @@ async def get_order_report(
         report_data = []
 
         for order, shop_name in orders_with_shop:
-            # 获取商品信息
-            items = order.items or []
+            # 遍历每个posting（一个订单可能有多个posting）
+            postings = order.postings or []
 
-            # 获取第一个posting（这些字段现在是posting维度的）
-            first_posting = order.postings[0] if order.postings else None
+            for posting in postings:
+                # 从 posting.raw_payload.products 获取商品列表
+                products = []
+                if posting.raw_payload and 'products' in posting.raw_payload:
+                    products = posting.raw_payload['products']
 
-            for item in items:
-                # 计算单个商品的价格
-                item_price = Decimal(str(item.get('price', 0)))
-                quantity = item.get('quantity', 1)
-                sale_price = item_price * quantity
+                # 从posting读取字段（posting维度）
+                purchase_price = posting.purchase_price or Decimal('0')
+                material_cost = posting.material_cost or Decimal('0')
+                # 获取所有国内物流单号，用逗号分隔显示
+                tracking_numbers = posting.get_domestic_tracking_numbers()
+                domestic_tracking_number = ', '.join(tracking_numbers) if tracking_numbers else None
+                order_notes = posting.order_notes
+                posting_number = posting.posting_number
 
-                # 从posting读取字段（posting维度），如果没有posting则使用默认值
-                if first_posting:
-                    purchase_price = first_posting.purchase_price or Decimal('0')
-                    material_cost = first_posting.material_cost or Decimal('0')
-                    # 获取所有国内物流单号，用逗号分隔显示
-                    tracking_numbers = first_posting.get_domestic_tracking_numbers()
-                    domestic_tracking_number = ', '.join(tracking_numbers) if tracking_numbers else None
-                    order_notes = first_posting.order_notes
-                    posting_number = first_posting.posting_number
-                else:
-                    # 兼容没有posting的订单（不应该出现，但做容错处理）
-                    purchase_price = Decimal('0')
-                    material_cost = Decimal('0')
-                    domestic_tracking_number = None
-                    order_notes = None
-                    posting_number = None
+                for product in products:
+                    # 计算单个商品的价格
+                    item_price = Decimal(str(product.get('price', 0)))
+                    quantity = product.get('quantity', 1)
+                    sale_price = item_price * quantity
 
-                # 计算利润
-                profit = sale_price - purchase_price - material_cost
+                    # 计算利润
+                    profit = sale_price - purchase_price - material_cost
 
-                # 累加统计数据
-                total_sales += sale_price
-                total_purchase += purchase_price
-                total_cost += material_cost
-                order_count += 1
+                    # 累加统计数据
+                    total_sales += sale_price
+                    total_purchase += purchase_price
+                    total_cost += material_cost
+                    order_count += 1
 
-                from ..utils.serialization import format_currency
+                    from ..utils.serialization import format_currency
 
-                # 添加到详细数据
-                report_data.append({
-                    "date": order.created_at.strftime("%Y-%m-%d"),
-                    "shop_name": shop_name,
-                    "product_name": item.get('name', item.get('sku', '未知商品')),
-                    "posting_number": posting_number,
-                    "purchase_price": format_currency(purchase_price),
-                    "sale_price": format_currency(sale_price),
-                    "tracking_number": order.tracking_number,
-                    "domestic_tracking_number": domestic_tracking_number,
-                    "material_cost": format_currency(material_cost),
-                    "order_notes": order_notes,
-                    "profit": format_currency(profit),
-                    "sku": item.get('sku'),
-                    "quantity": quantity,
-                    "offer_id": item.get('offer_id')
-                })
+                    # 添加到详细数据
+                    report_data.append({
+                        "date": order.created_at.strftime("%Y-%m-%d"),
+                        "shop_name": shop_name,
+                        "product_name": product.get('name', product.get('sku', '未知商品')),
+                        "posting_number": posting_number,
+                        "purchase_price": format_currency(purchase_price),
+                        "sale_price": format_currency(sale_price),
+                        "tracking_number": order.tracking_number,
+                        "domestic_tracking_number": domestic_tracking_number,
+                        "material_cost": format_currency(material_cost),
+                        "order_notes": order_notes,
+                        "profit": format_currency(profit),
+                        "sku": product.get('sku'),
+                        "quantity": quantity,
+                        "offer_id": product.get('offer_id')
+                    })
 
         # 计算利润总额和利润率
         total_profit = total_sales - total_purchase - total_cost

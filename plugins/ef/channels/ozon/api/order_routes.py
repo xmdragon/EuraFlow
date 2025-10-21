@@ -185,17 +185,10 @@ async def get_orders(
     result = await db.execute(query)
     orders = result.scalars().all()
 
-    # 提取所有订单中的offer_id
-    # 需要从 posting.raw_payload.products 中提取，因为 order.items 可能不完整
+    # 提取所有订单中的offer_id（从posting.products收集）
     all_offer_ids = set()
     for order in orders:
-        # 从 order.items 提取（兼容旧数据）
-        if order.items:
-            for item in order.items:
-                if item.offer_id:
-                    all_offer_ids.add(item.offer_id)
-
-        # 从所有 posting.raw_payload.products 中提取（完整数据源）
+        # 从所有 posting.raw_payload.products 中提取
         if order.postings:
             for posting in order.postings:
                 if posting.raw_payload and 'products' in posting.raw_payload:
@@ -221,16 +214,13 @@ async def get_orders(
                 elif isinstance(images, list) and images:
                     offer_id_images[offer_id] = images[0]
 
-    # 将图片信息添加到订单数据中
+    # 构建返回数据（移除冗余的 items 字段）
     orders_data = []
     for order in orders:
         # 如果指定了posting_number，只返回匹配的posting数据
         order_dict = order.to_dict(target_posting_number=posting_number)
-        # 为每个订单项添加图片
-        if order_dict.get("items"):
-            for item in order_dict["items"]:
-                if item.get("offer_id") and item["offer_id"] in offer_id_images:
-                    item["image"] = offer_id_images[item["offer_id"]]
+        # 移除 items（与 postings[].products 重复）
+        order_dict.pop('items', None)
         orders_data.append(order_dict)
 
     return {
@@ -404,46 +394,21 @@ async def get_order_detail(
     # 传递posting_number参数，确保返回的主记录是搜索的那个posting
     order_dict = order.to_dict(target_posting_number=posting_number)
 
-    # 为订单商品添加图片信息
-    if order_dict.get("items"):
-        offer_ids = [item.get("offer_id") for item in order_dict["items"] if item.get("offer_id")]
+    # 移除 items（与 postings[].products 重复）
+    order_dict.pop('items', None)
 
-        if offer_ids:
-            # 批量查询商品图片
-            products_result = await db.execute(
-                select(OzonProduct.offer_id, OzonProduct.images, OzonProduct.name, OzonProduct.price)
-                .where(OzonProduct.offer_id.in_(offer_ids))
-                .where(OzonProduct.shop_id == order.shop_id)
-            )
-
-            product_info = {}
-            for offer_id, images, name, price in products_result:
-                if offer_id:
-                    product_info[offer_id] = {
-                        "name": name,
-                        "price": str(price) if price else None,
-                        "image": None
-                    }
-
-                    if images:
-                        # 优先使用primary图片
-                        if isinstance(images, dict):
-                            if images.get("primary"):
-                                product_info[offer_id]["image"] = images["primary"]
-                            elif images.get("main") and isinstance(images["main"], list) and images["main"]:
-                                product_info[offer_id]["image"] = images["main"][0]
-                        elif isinstance(images, list) and images:
-                            product_info[offer_id]["image"] = images[0]
-
-            # 将商品信息合并到订单项中
-            for item in order_dict["items"]:
-                if item.get("offer_id") and item["offer_id"] in product_info:
-                    item.update(product_info[item["offer_id"]])
+    # 从所有 postings[].products 计算汇总信息
+    total_items = 0
+    total_quantity = 0
+    for posting_data in order_dict.get("postings", []):
+        products = posting_data.get("products", [])
+        total_items += len(products)
+        total_quantity += sum(p.get("quantity", 0) for p in products)
 
     # 添加额外的订单汇总信息
     order_summary = {
-        "total_items": len(order_dict.get("items", [])),
-        "total_quantity": sum(item.get("quantity", 0) for item in order_dict.get("items", [])),
+        "total_items": total_items,
+        "total_quantity": total_quantity,
         "has_barcodes": bool(order_dict.get("upper_barcode") or order_dict.get("lower_barcode")),
         "has_cancellation": bool(order_dict.get("cancel_reason") or order_dict.get("cancel_reason_id")),
         "sync_info": {

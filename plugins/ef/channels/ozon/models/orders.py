@@ -106,25 +106,8 @@ class OzonOrder(Base):
         # 调用父类方法获取基础字段
         result = super().to_dict()
 
-        # 添加关联的商品明细
-        if self.items:
-            result['items'] = [
-                {
-                    'id': item.id,
-                    'sku': item.sku,
-                    'offer_id': item.offer_id,
-                    'ozon_sku': item.ozon_sku,
-                    'name': item.name,
-                    'quantity': item.quantity,
-                    'price': str(item.price),
-                    'discount': str(item.discount),
-                    'total_amount': str(item.total_amount),
-                    'status': item.status
-                }
-                for item in self.items
-            ]
-        else:
-            result['items'] = []
+        # 不再构建 items 字段（与 postings[].products 重复）
+        # 所有商品数据都在 postings[].products 中
 
         # 确定使用哪个posting作为主记录
         # 如果指定了target_posting_number，使用匹配的posting；否则使用第一个posting
@@ -237,6 +220,7 @@ class OzonOrder(Base):
             result['order_notes'] = None
             result['source_platform'] = None
             result['postings'] = []
+            # 不设置 items（已废弃）
 
         return result
 
