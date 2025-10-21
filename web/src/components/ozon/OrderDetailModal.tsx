@@ -160,7 +160,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       : '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label="国内单号">
-                    {selectedPosting?.domestic_tracking_numbers?.join(', ') || '-'}
+                    {selectedPosting?.domestic_tracking_numbers && selectedPosting.domestic_tracking_numbers.length > 0 ? (
+                      <div>
+                        {selectedPosting.domestic_tracking_numbers.map((number, index) => (
+                          <div key={index}>{number}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      '-'
+                    )}
                   </Descriptions.Item>
                   <Descriptions.Item label="国际单号">
                     {selectedPosting?.posting_number || selectedOrder.posting_number || '-'}
@@ -277,7 +285,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       {formatDeliveryMethodTextWhite(posting.delivery_method_name)}
                     </Descriptions.Item>
                     <Descriptions.Item label="国内单号">
-                      {posting.domestic_tracking_numbers?.join(', ') || '-'}
+                      {posting.domestic_tracking_numbers && posting.domestic_tracking_numbers.length > 0 ? (
+                        <div>
+                          {posting.domestic_tracking_numbers.map((number, index) => (
+                            <div key={index}>{number}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        '-'
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="国际单号">
                       {posting.packages && posting.packages.length > 0 ? (

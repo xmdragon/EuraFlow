@@ -940,8 +940,8 @@ const PackingShipment: React.FC = () => {
         const posting = row.posting;
         const packages = posting.packages || [];
         const trackingNumber = packages.length > 0 ? packages[0].tracking_number : undefined;
-        // 使用新的数组字段，显示时用逗号分隔
-        const domesticTracking = posting.domestic_tracking_numbers?.join(', ');
+        // 使用新的数组字段
+        const domesticTrackingNumbers = posting.domestic_tracking_numbers;
 
         return {
           children: (
@@ -972,12 +972,20 @@ const PackingShipment: React.FC = () => {
               </div>
               <div>
                 <Text type="secondary">国内: </Text>
-                <span>{domesticTracking || '-'}</span>
-                {domesticTracking && (
-                  <CopyOutlined
-                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => handleCopy(domesticTracking, '国内单号')}
-                  />
+                {domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
+                  <div style={{ display: 'inline-block', verticalAlign: 'top' }}>
+                    {domesticTrackingNumbers.map((number, index) => (
+                      <div key={index}>
+                        {number}
+                        <CopyOutlined
+                          style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                          onClick={() => handleCopy(number, '国内单号')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span>-</span>
                 )}
               </div>
             </div>
@@ -1603,7 +1611,15 @@ const PackingShipment: React.FC = () => {
                       {scanResult.tracking_number || '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="国内单号">
-                      {scanResult.domestic_tracking_numbers?.join(', ') || '-'}
+                      {scanResult.domestic_tracking_numbers && scanResult.domestic_tracking_numbers.length > 0 ? (
+                        <div>
+                          {scanResult.domestic_tracking_numbers.map((number: string, index: number) => (
+                            <div key={index}>{number}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        '-'
+                      )}
                     </Descriptions.Item>
                     <Descriptions.Item label="订单状态">
                       <Tag color={statusConfig[scanResult.status]?.color || 'default'}>
