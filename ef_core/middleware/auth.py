@@ -4,6 +4,7 @@
 from typing import Callable, Optional
 
 from fastapi import Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ef_core.utils.logger import get_logger
@@ -63,16 +64,34 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 request.state.permissions = ["*"]
                 return await call_next(request)
             else:
-                raise UnauthorizedError(
-                    code="MISSING_AUTH_HEADER",
-                    detail="Authorization header or X-API-Key header is required"
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "ok": False,
+                        "error": {
+                            "type": "about:blank",
+                            "title": "Unauthorized",
+                            "status": 401,
+                            "detail": "Authorization header or X-API-Key header is required",
+                            "code": "MISSING_AUTH_HEADER"
+                        }
+                    }
                 )
         
         # 简化的 token 验证（生产环境需要实现 JWT 验证）
         if not auth_header.startswith("Bearer "):
-            raise UnauthorizedError(
-                code="INVALID_AUTH_FORMAT",
-                detail="Authorization header must start with 'Bearer '"
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "ok": False,
+                    "error": {
+                        "type": "about:blank",
+                        "title": "Unauthorized",
+                        "status": 401,
+                        "detail": "Authorization header must start with 'Bearer '",
+                        "code": "INVALID_AUTH_FORMAT"
+                    }
+                }
             )
         
         token = auth_header[7:]  # 移除 "Bearer "
@@ -90,9 +109,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 request.state.permissions = ["*"]
                 return await call_next(request)
             else:
-                raise UnauthorizedError(
-                    code="INVALID_TOKEN",
-                    detail="Invalid or expired token"
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "ok": False,
+                        "error": {
+                            "type": "about:blank",
+                            "title": "Unauthorized",
+                            "status": 401,
+                            "detail": "Invalid or expired token",
+                            "code": "INVALID_TOKEN"
+                        }
+                    }
                 )
         
         # 设置用户信息到请求状态
