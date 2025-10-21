@@ -357,12 +357,38 @@ async def get_packing_orders(
                 elif isinstance(images, list) and images:
                     offer_id_images[offer_id] = images[0]
 
-    # 构建返回数据（移除冗余的 items 字段）
+    # 构建返回数据（移除冗余的 items 字段 + 状态修正）
+    from ..services.posting_status_manager import PostingStatusManager
+
     orders_data = []
     for order in orders:
         order_dict = order.to_dict()
         # 移除 items（与 postings[].products 重复）
         order_dict.pop('items', None)
+
+        # 状态修正兜底机制：检查每个posting的operation_status是否正确
+        if 'postings' in order_dict and order_dict['postings']:
+            for posting_dict in order_dict['postings']:
+                # 获取原始posting对象（用于状态计算）
+                posting_obj = next((p for p in order.postings if p.posting_number == posting_dict['posting_number']), None)
+                if posting_obj:
+                    # 计算正确的operation_status（不保留printed状态，强制重新计算）
+                    correct_status, _ = PostingStatusManager.calculate_operation_status(
+                        posting=posting_obj,
+                        ozon_status=posting_dict.get('status', 'unknown'),
+                        preserve_manual=False  # 不保留手动状态，强制修正
+                    )
+
+                    # 如果状态不一致，记录日志并修正
+                    current_status = posting_dict.get('operation_status')
+                    if current_status != correct_status:
+                        logger.warning(
+                            f"状态修正: posting {posting_dict['posting_number']} "
+                            f"operation_status 不正确 (当前: {current_status}, 应为: {correct_status}, "
+                            f"ozon_status: {posting_dict.get('status')})"
+                        )
+                        posting_dict['operation_status'] = correct_status
+
         orders_data.append(order_dict)
 
     return {
