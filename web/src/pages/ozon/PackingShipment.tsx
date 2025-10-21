@@ -31,7 +31,6 @@ import {
   Select,
   Tag,
   Modal,
-  message,
   DatePicker,
   Tooltip,
   Badge,
@@ -55,6 +54,7 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
@@ -112,12 +112,12 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
       // 调用API更新订单额外信息
       await ozonApi.updateOrderExtraInfo(selectedOrder.posting_number, values);
 
-      message.success('订单额外信息更新成功');
+      notifySuccess('订单信息已更新', '订单额外信息更新成功');
 
       // 刷新列表
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     } catch (error) {
-      message.error('更新失败: ' + (error as Error).message);
+      notifyError('更新失败', '更新失败: ' + (error as Error).message);
     } finally {
       setIsUpdatingExtraInfo(false);
     }
@@ -212,15 +212,15 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
 
                 // 再同步到跨境巴士
                 if (!selectedOrder?.id) {
-                  message.error('订单ID不存在');
+                  notifyError('同步失败', '订单ID不存在');
                   return;
                 }
                 if (!selectedPosting?.posting_number) {
-                  message.error('货件编号不存在');
+                  notifyError('同步失败', '货件编号不存在');
                   return;
                 }
                 if (!values.domestic_tracking_number) {
-                  message.error('请先填写国内物流单号');
+                  notifyError('同步失败', '请先填写国内物流单号');
                   return;
                 }
 
@@ -313,13 +313,13 @@ const PackingShipment: React.FC = () => {
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === '-') {
-      message.warning(`${label}为空，无法复制`);
+      notifyWarning('复制失败', `${label}为空，无法复制`);
       return;
     }
     navigator.clipboard.writeText(text).then(() => {
-      message.success(`${label}已复制`);
+      notifySuccess('复制成功', `${label}已复制`);
     }).catch(() => {
-      message.error('复制失败，请手动复制');
+      notifyError('复制失败', '复制失败，请手动复制');
     });
   };
 
@@ -708,12 +708,12 @@ const PackingShipment: React.FC = () => {
       return ozonApi.syncOrdersDirect(selectedShop, fullSync ? 'full' : 'incremental');
     },
     onSuccess: (data) => {
-      message.success('订单同步任务已启动');
+      notifySuccess('同步已启动', '订单同步任务已启动');
       setSyncTaskId(data.task_id);
       setSyncStatus({ status: 'running', progress: 0, message: '正在启动同步...' });
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
+      notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
@@ -730,13 +730,13 @@ const PackingShipment: React.FC = () => {
         setSyncStatus(status);
 
         if (status.status === 'completed') {
-          message.success('同步完成！');
+          notifySuccess('同步完成', '订单同步已完成！');
           queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
           // 刷新页面数据
           refetch();
           setSyncTaskId(null);
         } else if (status.status === 'failed') {
-          message.error(`同步失败: ${status.error || '未知错误'}`);
+          notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
           setSyncTaskId(null);
         }
       } catch (error) {
@@ -752,13 +752,13 @@ const PackingShipment: React.FC = () => {
   const shipOrderMutation = useMutation({
     mutationFn: ozonApi.shipOrder,
     onSuccess: () => {
-      message.success('发货成功');
+      notifySuccess('发货成功', '订单已成功发货');
       setShipModalVisible(false);
       shipForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
     onError: (error: any) => {
-      message.error(`发货失败: ${error.message}`);
+      notifyError('发货失败', `发货失败: ${error.message}`);
     },
   });
 
@@ -767,11 +767,11 @@ const PackingShipment: React.FC = () => {
     mutationFn: ({ postingNumber, reason }: { postingNumber: string; reason: string }) =>
       ozonApi.cancelOrder(postingNumber, reason),
     onSuccess: () => {
-      message.success('订单已取消');
+      notifySuccess('订单已取消', '订单已成功取消');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
     onError: (error: any) => {
-      message.error(`取消失败: ${error.message}`);
+      notifyError('取消失败', `取消失败: ${error.message}`);
     },
   });
 
@@ -780,11 +780,11 @@ const PackingShipment: React.FC = () => {
     mutationFn: ({ ozonOrderId, postingNumber, logisticsOrder }: { ozonOrderId: number; postingNumber: string; logisticsOrder: string }) =>
       ozonApi.syncToKuajing84(ozonOrderId, postingNumber, logisticsOrder),
     onSuccess: () => {
-      message.success('同步到跨境巴士成功');
+      notifySuccess('同步成功', '已成功同步到跨境巴士');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
+      notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
@@ -793,10 +793,10 @@ const PackingShipment: React.FC = () => {
     mutationFn: (postingNumber: string) => ozonApi.discardOrder(postingNumber),
     onSuccess: () => {
       // 提交成功，后台会通过 WebSocket 推送同步结果
-      message.success('废弃请求已提交，正在后台同步到跨境巴士...');
+      notifySuccess('废弃请求已提交', '正在后台同步到跨境巴士，请稍候...');
     },
     onError: (error: any) => {
-      message.error(`废弃失败: ${error.response?.data?.message || error.message}`);
+      notifyError('废弃失败', `废弃失败: ${error.response?.data?.message || error.message}`);
     },
   });
 
@@ -1162,7 +1162,7 @@ const PackingShipment: React.FC = () => {
 
   const handleSync = (fullSync: boolean) => {
     if (!selectedShop) {
-      message.warning('请先选择店铺');
+      notifyWarning('同步失败', '请先选择店铺');
       return;
     }
 
@@ -1177,12 +1177,12 @@ const PackingShipment: React.FC = () => {
 
   const handleBatchPrint = async () => {
     if (selectedPostingNumbers.length === 0) {
-      message.warning('请先选择需要打印的订单');
+      notifyWarning('打印失败', '请先选择需要打印的订单');
       return;
     }
 
     if (selectedPostingNumbers.length > 20) {
-      message.error('最多支持同时打印20个标签');
+      notifyError('打印失败', '最多支持同时打印20个标签');
       return;
     }
 
@@ -1199,7 +1199,8 @@ const PackingShipment: React.FC = () => {
           window.open(result.pdf_url, '_blank');
         }
 
-        message.success(
+        notifySuccess(
+          '打印成功',
           `成功打印${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}）`
         );
 
@@ -1228,10 +1229,10 @@ const PackingShipment: React.FC = () => {
           setPrintSuccessPostings([]);
           setPrintErrorModalVisible(true);
         } else {
-          message.warning('部分标签尚未准备好，请在订单装配后45-60秒重试');
+          notifyWarning('打印提醒', '部分标签尚未准备好，请在订单装配后45-60秒重试');
         }
       } else {
-        message.error(`打印失败: ${error.response?.data?.error?.title || error.message}`);
+        notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
       }
     } finally {
       setIsPrinting(false);
@@ -1240,16 +1241,16 @@ const PackingShipment: React.FC = () => {
 
   const handleBatchShip = () => {
     if (selectedOrders.length === 0) {
-      message.warning('请先选择订单');
+      notifyWarning('发货失败', '请先选择订单');
       return;
     }
-    message.info('批量发货功能开发中');
+    notifyInfo('功能开发中', '批量发货功能开发中');
   };
 
   // 扫描单号查询
   const handleScanSearch = async () => {
     if (!scanTrackingNumber.trim()) {
-      message.warning('请输入或扫描追踪号码');
+      notifyWarning('查询失败', '请输入或扫描追踪号码');
       return;
     }
 
@@ -1289,7 +1290,7 @@ const PackingShipment: React.FC = () => {
   const handleMarkPrinted = async (postingNumber: string) => {
     try {
       await ozonApi.markPostingPrinted(postingNumber);
-      message.success('已标记为已打印');
+      notifySuccess('标记成功', '已标记为已打印');
       // 刷新扫描结果
       if (scanTrackingNumber.trim()) {
         handleScanSearch();
@@ -1297,7 +1298,7 @@ const PackingShipment: React.FC = () => {
       // 刷新列表数据
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
     } catch (error: any) {
-      message.error(`标记失败: ${error.response?.data?.error?.title || error.message}`);
+      notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
     }
   };
 
@@ -1308,14 +1309,14 @@ const PackingShipment: React.FC = () => {
       const result = await ozonApi.batchPrintLabels([postingNumber]);
       if (result.success && result.pdf_url) {
         window.open(result.pdf_url, '_blank');
-        message.success('标签已打开');
+        notifySuccess('打印成功', '标签已打开');
       } else if (result.error === 'PARTIAL_FAILURE' && result.pdf_url) {
         window.open(result.pdf_url, '_blank');
       } else {
-        message.error('打印失败');
+        notifyError('打印失败', '打印失败');
       }
     } catch (error: any) {
-      message.error(`打印失败: ${error.response?.data?.error?.title || error.message}`);
+      notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
     } finally {
       setIsPrinting(false);
     }
@@ -1350,7 +1351,7 @@ const PackingShipment: React.FC = () => {
               const failedNumbers = printErrors.map(e => e.posting_number);
               setSelectedPostingNumbers(selectedPostingNumbers.filter(pn => !failedNumbers.includes(pn)));
               setPrintErrorModalVisible(false);
-              message.info('已移除失败的订单，可重新选择并打印');
+              notifyInfo('订单已移除', '已移除失败的订单，可重新选择并打印');
             }}
           >
             移除失败订单继续

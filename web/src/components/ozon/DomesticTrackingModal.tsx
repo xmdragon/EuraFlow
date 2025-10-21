@@ -6,6 +6,7 @@ import React from 'react';
 import { Modal, Form, Input, message, Select } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { TextArea } = Input;
 
@@ -30,13 +31,13 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
     },
     onSuccess: (response) => {
       // 提交成功，后台会通过 WebSocket 推送同步结果
-      message.success('国内单号已保存，正在后台同步到跨境巴士...');
+      notifySuccess('国内单号已保存', '正在后台同步到跨境巴士，稍后将收到通知');
       // 立即关闭弹窗，等待 WebSocket 推送结果通知
       handleClose();
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.message || error.message || '提交失败';
-      message.error(errorMsg);
+      notifyError('国内单号提交失败', errorMsg);
     },
   });
 
