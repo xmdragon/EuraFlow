@@ -1503,11 +1503,24 @@ class OzonSyncService:
 
         logger.error(f"[DEBUG _sync_packages] posting_number={posting.posting_number}, status={posting_status}, needs_tracking={needs_tracking}")
 
-        # 如果列表API返回了packages，直接处理
-        if posting_data.get("packages"):
-            packages_list = posting_data["packages"]
-            logger.error(f"[DEBUG] Found {len(packages_list)} packages in list API for posting {posting.posting_number}")
-            logger.info(f"Found {len(packages_list)} packages in list API for posting {posting.posting_number}")
+        # 检查列表API返回的packages是否包含有效的tracking_number
+        packages_from_list = posting_data.get("packages", [])
+        has_valid_tracking = False
+
+        if packages_from_list:
+            # 检查是否至少有一个包裹有tracking_number（且不等于posting_number）
+            for pkg in packages_from_list:
+                tracking = pkg.get("tracking_number")
+                if tracking and tracking != posting.posting_number:
+                    has_valid_tracking = True
+                    break
+
+        # 决定是否使用列表API的packages或调用详情接口
+        if packages_from_list and (has_valid_tracking or not needs_tracking):
+            # 列表API有packages且有有效tracking，或者不需要tracking，直接使用
+            packages_list = packages_from_list
+            logger.error(f"[DEBUG] Using {len(packages_list)} packages from list API for posting {posting.posting_number} (has_valid_tracking={has_valid_tracking})")
+            logger.info(f"Using {len(packages_list)} packages from list API for posting {posting.posting_number}")
         elif needs_tracking:
             # 需要追踪号码但列表接口未返回，调用详情接口
             logger.error(f"[DEBUG] Calling detail API for posting {posting.posting_number}")
