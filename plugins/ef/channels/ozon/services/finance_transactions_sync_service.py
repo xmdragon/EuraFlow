@@ -152,6 +152,11 @@ class FinanceTransactionsSyncService:
 
                 logger.info(f"店铺 {shop.shop_name} 第{page}页获取到 {len(operations)} 条交易记录")
 
+                # DEBUG: 打印第一条交易记录的结构
+                if operations and len(operations) > 0:
+                    import json
+                    logger.info(f"DEBUG - 第一条交易记录示例: {json.dumps(operations[0], ensure_ascii=False, default=str)[:500]}")
+
                 # 扁平化并保存交易记录
                 flattened = self._flatten_operations(operations, shop.id)
                 synced_count = await self._save_transactions(db, flattened)
@@ -208,9 +213,23 @@ class FinanceTransactionsSyncService:
 
             # 提取posting信息
             posting = op.get("posting", {})
-            posting_number = posting.get("posting_number")
-            posting_delivery_schema = posting.get("delivery_schema", {}).get("name")
-            posting_warehouse_name = posting.get("warehouse_name")
+
+            # posting字段可能是字符串(posting_number)或字典(详细信息)
+            if isinstance(posting, str):
+                # 如果是字符串，则为posting_number
+                posting_number = posting
+                posting_delivery_schema = None
+                posting_warehouse_name = None
+            elif isinstance(posting, dict):
+                # 如果是字典，提取详细信息
+                posting_number = posting.get("posting_number")
+                posting_delivery_schema = posting.get("delivery_schema", {}).get("name") if isinstance(posting.get("delivery_schema"), dict) else None
+                posting_warehouse_name = posting.get("warehouse_name")
+            else:
+                # 其他情况，设为None
+                posting_number = None
+                posting_delivery_schema = None
+                posting_warehouse_name = None
 
             # 提取金额字段
             accruals_for_sale = Decimal(str(op.get("accruals_for_sale", 0)))
