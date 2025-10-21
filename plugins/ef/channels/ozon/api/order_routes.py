@@ -213,7 +213,8 @@ async def get_orders(
     # 将图片信息添加到订单数据中
     orders_data = []
     for order in orders:
-        order_dict = order.to_dict()
+        # 如果指定了posting_number，只返回匹配的posting数据
+        order_dict = order.to_dict(target_posting_number=posting_number)
         # 为每个订单项添加图片
         if order_dict.get("items"):
             for item in order_dict["items"]:
@@ -370,7 +371,8 @@ async def get_order_detail(
         )
 
     # 获取订单详细信息
-    order_dict = order.to_dict()
+    # 传递posting_number参数，确保返回的主记录是搜索的那个posting
+    order_dict = order.to_dict(target_posting_number=posting_number)
 
     # 为订单商品添加图片信息
     if order_dict.get("items"):

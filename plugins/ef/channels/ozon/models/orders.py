@@ -96,8 +96,13 @@ class OzonOrder(Base):
         Index("idx_ozon_orders_sync", "sync_status", "last_sync_at")
     )
 
-    def to_dict(self):
-        """转换为字典，包含关联的商品明细和posting信息"""
+    def to_dict(self, target_posting_number: Optional[str] = None):
+        """转换为字典，包含关联的商品明细和posting信息
+
+        Args:
+            target_posting_number: 可选的目标货件号。如果提供，将使用该货件作为主记录，
+                                  并且只在postings数组中包含该货件
+        """
         # 调用父类方法获取基础字段
         result = super().to_dict()
 
@@ -121,9 +126,21 @@ class OzonOrder(Base):
         else:
             result['items'] = []
 
-        # 添加第一个posting的关键信息到订单级别（便于前端显示）
+        # 确定使用哪个posting作为主记录
+        # 如果指定了target_posting_number，使用匹配的posting；否则使用第一个posting
         if self.postings and len(self.postings) > 0:
-            first_posting = self.postings[0]
+            if target_posting_number:
+                # 查找匹配的posting
+                first_posting = next(
+                    (p for p in self.postings if p.posting_number == target_posting_number),
+                    None
+                )
+                # 如果未找到匹配，使用第一个posting（兜底策略）
+                if not first_posting:
+                    first_posting = self.postings[0]
+            else:
+                # 默认使用第一个posting
+                first_posting = self.postings[0]
             result['posting_number'] = first_posting.posting_number
             result['posting_status'] = first_posting.status
             result['in_process_at'] = first_posting.in_process_at.isoformat() if first_posting.in_process_at else None
@@ -140,8 +157,13 @@ class OzonOrder(Base):
             result['source_platform'] = first_posting.source_platform
 
             # 添加完整的postings列表
+            # 如果指定了target_posting_number，只包含匹配的posting
             result['postings'] = []
-            for posting in self.postings:
+            postings_to_include = self.postings
+            if target_posting_number:
+                postings_to_include = [p for p in self.postings if p.posting_number == target_posting_number]
+
+            for posting in postings_to_include:
                 # 构建 packages 列表
                 packages = []
                 if posting.packages:
