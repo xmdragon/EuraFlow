@@ -460,14 +460,13 @@ class OzonPosting(Base):
         tracking_numbers = []
 
         # 从数据库 domestic_trackings 关系获取
+        # 直接访问，lazy="selectin" 会自动触发预加载
         try:
-            if hasattr(self, '__dict__') and 'domestic_trackings' in self.__dict__:
-                # domestic_trackings 已被预加载或之前访问过
-                for tracking in self.domestic_trackings:
-                    if tracking.tracking_number:
-                        tracking_numbers.append(tracking.tracking_number)
+            for tracking in self.domestic_trackings:
+                if tracking.tracking_number:
+                    tracking_numbers.append(tracking.tracking_number)
         except Exception:
-            # 如果访问 domestic_trackings 失败，返回空列表
+            # 如果访问 domestic_trackings 失败（例如在detached状态），返回空列表
             pass
 
         return tracking_numbers
