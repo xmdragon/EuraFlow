@@ -988,8 +988,6 @@ const ProductList: React.FC = () => {
     // 过滤掉空值
     const cleanedValues: ozonApi.ProductFilter = {};
     if (values.search) cleanedValues.search = values.search;
-    if (values.sku) cleanedValues.sku = values.sku;
-    if (values.title) cleanedValues.title = values.title;
     if (values.status) cleanedValues.status = values.status;
     if (values.has_stock !== undefined && values.has_stock !== null) {
       cleanedValues.has_stock = values.has_stock === 'true';
@@ -1413,12 +1411,6 @@ const ProductList: React.FC = () => {
         <Form form={filterForm} layout="inline" onFinish={handleFilter}>
           <Form.Item name="search">
             <Input placeholder="搜索 (SKU/标题/条码/产品ID)" prefix={<SearchOutlined />} style={{ width: 200 }} />
-          </Form.Item>
-          <Form.Item name="sku">
-            <Input placeholder="精确SKU" />
-          </Form.Item>
-          <Form.Item name="title">
-            <Input placeholder="商品名称" />
           </Form.Item>
           <Form.Item name="status">
             <Select placeholder="状态" style={{ width: 120 }} allowClear>

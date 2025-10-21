@@ -161,6 +161,9 @@ async def get_products(
     result = await db.execute(query)
     products = result.scalars().all()
 
+    # 调试日志：打印查询结果
+    logger.info(f"[PRODUCT SEARCH RESULT] Found {len(products)} products, total={total}, search={search}, sku={sku}, shop_id={shop_id}")
+
     # 计算统计信息 - 支持5种状态
     stats_query = select(
         func.count().filter(OzonProduct.status == 'on_sale').label('on_sale'),
