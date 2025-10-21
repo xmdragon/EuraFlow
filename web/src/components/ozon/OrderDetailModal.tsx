@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography, Button, InputNumber, message, Space } from 'antd';
-import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined, SyncOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined, SyncOutlined, CopyOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithFallback } from '@/utils/currency';
@@ -47,6 +47,19 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   // 同步状态管理
   const [syncingMaterialCost, setSyncingMaterialCost] = useState(false);
   const [syncingFinance, setSyncingFinance] = useState(false);
+
+  // 复制功能处理函数
+  const handleCopy = (text: string | undefined, label: string) => {
+    if (!text || text === '-') {
+      message.warning(`${label}为空，无法复制`);
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      message.success(`${label}已复制`);
+    }).catch(() => {
+      message.error('复制失败，请手动复制');
+    });
+  };
 
   // 保存进货金额
   const handleSavePurchasePrice = async () => {
@@ -163,7 +176,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     {selectedPosting?.domestic_tracking_numbers && selectedPosting.domestic_tracking_numbers.length > 0 ? (
                       <div>
                         {selectedPosting.domestic_tracking_numbers.map((number, index) => (
-                          <div key={index}>{number}</div>
+                          <div key={index} style={{ marginBottom: index < selectedPosting.domestic_tracking_numbers.length - 1 ? '4px' : 0 }}>
+                            <Space>
+                              <span>{number}</span>
+                              <CopyOutlined
+                                style={{ cursor: 'pointer', color: '#1890ff' }}
+                                onClick={() => handleCopy(number, '国内单号')}
+                              />
+                            </Space>
+                          </div>
                         ))}
                       </div>
                     ) : (
@@ -288,7 +309,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       {posting.domestic_tracking_numbers && posting.domestic_tracking_numbers.length > 0 ? (
                         <div>
                           {posting.domestic_tracking_numbers.map((number, index) => (
-                            <div key={index}>{number}</div>
+                            <div key={index} style={{ marginBottom: index < posting.domestic_tracking_numbers.length - 1 ? '4px' : 0 }}>
+                              <Space>
+                                <span>{number}</span>
+                                <CopyOutlined
+                                  style={{ cursor: 'pointer', color: '#1890ff' }}
+                                  onClick={() => handleCopy(number, '国内单号')}
+                                />
+                              </Space>
+                            </div>
                           ))}
                         </div>
                       ) : (

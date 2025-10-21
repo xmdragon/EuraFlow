@@ -649,9 +649,8 @@ const OrderList: React.FC = () => {
         const posting = row.posting;
         const packages = posting.packages || [];
         const trackingNumber = packages.length > 0 ? packages[0].tracking_number : undefined;
-        // 使用新的数组字段（兼容多单号），显示时用逗号分隔
+        // 使用新的数组字段
         const domesticTrackingNumbers = posting.domestic_tracking_numbers || [];
-        const domesticTracking = domesticTrackingNumbers.join(', ');
 
         return {
           children: (
@@ -682,12 +681,20 @@ const OrderList: React.FC = () => {
               </div>
               <div>
                 <Text type="secondary">国内: </Text>
-                <span>{domesticTracking || '-'}</span>
-                {domesticTracking && (
-                  <CopyOutlined
-                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => handleCopy(domesticTracking, '国内单号')}
-                  />
+                {domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
+                  <div style={{ display: 'inline-block', verticalAlign: 'top' }}>
+                    {domesticTrackingNumbers.map((number, index) => (
+                      <div key={index}>
+                        {number}
+                        <CopyOutlined
+                          style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                          onClick={() => handleCopy(number, '国内单号')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span>-</span>
                 )}
               </div>
               <div>
