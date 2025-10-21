@@ -29,7 +29,6 @@ import {
   Space,
   Tabs,
   Switch,
-  message,
   Alert,
   Divider,
   Select,
@@ -47,6 +46,7 @@ import {
 } from 'antd';
 import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import styles from './ShopSettings.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
@@ -118,14 +118,14 @@ const ShopSettings: React.FC = () => {
       });
     },
     onSuccess: (data) => {
-      message.success('店铺添加成功');
+      notifySuccess('添加成功', '店铺添加成功');
       setAddShopModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
       // 自动选择新添加的店铺
       setSelectedShop(data);
     },
     onError: (error: any) => {
-      message.error(`添加失败: ${error.message}`);
+      notifyError('添加失败', `添加失败: ${error.message}`);
     },
   });
 
@@ -156,7 +156,7 @@ const ShopSettings: React.FC = () => {
       });
     },
     onSuccess: (data) => {
-      message.success('店铺配置已保存');
+      notifySuccess('保存成功', '店铺配置已保存');
       queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
       // 更新选中的店铺数据
       setSelectedShop(data);
@@ -183,11 +183,11 @@ const ShopSettings: React.FC = () => {
 
       // 如果保存了新的API KEY，显示额外提示
       if (currentApiKey && currentApiKey !== '******') {
-        message.info('API Key 已安全保存（出于安全考虑不显示真实值）');
+        notifyInfo('提示', 'API Key 已安全保存（出于安全考虑不显示真实值）');
       }
     },
     onError: (error: any) => {
-      message.error(`保存失败: ${error.message}`);
+      notifyError('保存失败', `保存失败: ${error.message}`);
     },
   });
 
@@ -205,14 +205,14 @@ const ShopSettings: React.FC = () => {
     },
     onSuccess: (data) => {
       if (data.success) {
-        message.success(`连接测试成功！响应时间: ${data.details?.response_time_ms}ms`);
+        notifySuccess('测试成功', `连接测试成功！响应时间: ${data.details?.response_time_ms}ms`);
       } else {
-        message.warning(data.message || '连接测试失败');
+        notifyWarning('测试失败', data.message || '连接测试失败');
       }
       setTestingConnection(false);
     },
     onError: (error: any) => {
-      message.error(`连接测试失败: ${error.message}`);
+      notifyError('测试失败', `连接测试失败: ${error.message}`);
       setTestingConnection(false);
     },
   });
@@ -225,15 +225,16 @@ const ShopSettings: React.FC = () => {
     onSuccess: (data) => {
       if (data.success) {
         const { total_shops, success_count, failed_count, total_warehouses } = data.data;
-        message.success(
+        notifySuccess(
+          '同步成功',
           `批量同步完成！共${total_shops}个店铺，成功${success_count}个，失败${failed_count}个，同步了${total_warehouses}个仓库`
         );
       } else {
-        message.warning(data.message || '同步失败');
+        notifyWarning('同步失败', data.message || '同步失败');
       }
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.response?.data?.detail || error.message}`);
+      notifyError('同步失败', `同步失败: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -288,7 +289,7 @@ const ShopSettings: React.FC = () => {
         try {
           await ozonApi.deleteShop(shop.id);
 
-          message.success('店铺已删除');
+          notifySuccess('删除成功', '店铺已删除');
           queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
 
           // 如果删除的是当前选中的店铺，清空选择
@@ -296,7 +297,7 @@ const ShopSettings: React.FC = () => {
             setSelectedShop(null);
           }
         } catch (error: any) {
-          message.error(`删除失败: ${error.message}`);
+          notifyError('删除失败', `删除失败: ${error.message}`);
         }
       },
     });
@@ -859,13 +860,13 @@ const Kuajing84Configuration: React.FC = () => {
       });
     },
     onSuccess: () => {
-      message.success('跨境巴士配置已保存');
+      notifySuccess('保存成功', '跨境巴士配置已保存');
       refetchConfig();
       // 清空密码字段（出于安全考虑）
       configForm.setFieldsValue({ password: '' });
     },
     onError: (error: any) => {
-      message.error(`保存失败: ${error.message}`);
+      notifyError('保存失败', `保存失败: ${error.message}`);
     },
   });
 
@@ -894,7 +895,7 @@ const Kuajing84Configuration: React.FC = () => {
         },
       });
     } else if (!values.password) {
-      message.warning('请输入密码');
+      notifyWarning('操作失败', '请输入密码');
     } else {
       saveConfigMutation.mutate(values);
     }
@@ -906,12 +907,12 @@ const Kuajing84Configuration: React.FC = () => {
       const result = await ozonApi.testKuajing84Connection();
 
       if (result.success) {
-        message.success(result.message);
+        notifySuccess('测试成功', result.message);
       } else {
-        message.error(result.message);
+        notifyError('测试失败', result.message);
       }
     } catch (error: any) {
-      message.error(`测试失败: ${error.response?.data?.message || error.message}`);
+      notifyError('测试失败', `测试失败: ${error.response?.data?.message || error.message}`);
     } finally {
       setTestingConnection(false);
     }
@@ -1053,7 +1054,7 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
       return ozonApi.configureWebhook(selectedShop!.id, config);
     },
     onSuccess: (data) => {
-      message.success('Webhook配置成功');
+      notifySuccess('配置成功', 'Webhook配置成功');
       setConfigModalVisible(false);
       refetchWebhookConfig();
 
@@ -1088,7 +1089,7 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
       });
     },
     onError: (error: any) => {
-      message.error(`配置失败: ${error.message}`);
+      notifyError('配置失败', `配置失败: ${error.message}`);
     },
   });
 
@@ -1099,13 +1100,13 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
     },
     onSuccess: (data) => {
       if (data.success) {
-        message.success('Webhook测试成功');
+        notifySuccess('测试成功', 'Webhook测试成功');
       } else {
-        message.error(`Webhook测试失败: ${data.message}`);
+        notifyError('测试失败', `Webhook测试失败: ${data.message}`);
       }
     },
     onError: (error: any) => {
-      message.error(`测试失败: ${error.message}`);
+      notifyError('测试失败', `测试失败: ${error.message}`);
     },
   });
 
@@ -1115,11 +1116,11 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
       return ozonApi.deleteWebhookConfig(selectedShop!.id);
     },
     onSuccess: () => {
-      message.success('Webhook配置已删除');
+      notifySuccess('删除成功', 'Webhook配置已删除');
       refetchWebhookConfig();
     },
     onError: (error: any) => {
-      message.error(`删除失败: ${error.message}`);
+      notifyError('删除失败', `删除失败: ${error.message}`);
     },
   });
 
@@ -1132,7 +1133,7 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
       const response = await ozonApi.getWebhookEvents(selectedShop.id);
       setWebhookEvents(response.events || []);
     } catch (error: any) {
-      message.error(`获取事件失败: ${error.message}`);
+      notifyError('获取失败', `获取事件失败: ${error.message}`);
     } finally {
       setLoading(false);
     }

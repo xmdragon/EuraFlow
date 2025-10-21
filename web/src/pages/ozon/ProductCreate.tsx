@@ -10,7 +10,6 @@ import {
   InputNumber,
   Button,
   Space,
-  message,
   Upload,
   Cascader,
   Modal,
@@ -26,6 +25,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { categoryTree as categoryTreeData } from '@/data/categoryTree';
@@ -73,15 +73,15 @@ const ProductCreate: React.FC = () => {
     },
     onSuccess: (data) => {
       if (data.success) {
-        message.success('商品创建成功！');
+        notifySuccess('创建成功', '商品创建成功！');
         queryClient.invalidateQueries({ queryKey: ['products'] });
         navigate('/dashboard/ozon/listing');
       } else {
-        message.error(data.error || '创建失败');
+        notifyError('创建失败', data.error || '创建失败');
       }
     },
     onError: (error: any) => {
-      message.error(`创建失败: ${error.message}`);
+      notifyError('创建失败', `创建失败: ${error.message}`);
     },
   });
 
@@ -111,29 +111,23 @@ const ProductCreate: React.FC = () => {
     },
     onSuccess: (data) => {
       if (data.success) {
-        message.success({
-          content: `同步成功！已同步 ${data.synced_count || 0} 个类目。页面即将刷新...`,
-          duration: 2,
-          onClose: () => {
-            window.location.reload();
-          }
-        });
+        notifySuccess('同步成功', `已同步 ${data.synced_count || 0} 个类目。页面即将刷新...`);
         setTimeout(() => {
           window.location.reload();
         }, 2000);
       } else {
-        message.error(`同步失败: ${data.error || '未知错误'}`);
+        notifyError('同步失败', `同步失败: ${data.error || '未知错误'}`);
       }
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
+      notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
   // 确认同步类目
   const handleSyncCategory = () => {
     if (!selectedShop) {
-      message.warning('请先选择店铺');
+      notifyWarning('操作失败', '请先选择店铺');
       return;
     }
 
@@ -193,7 +187,7 @@ const ProductCreate: React.FC = () => {
   // 提交商品表单
   const handleProductSubmit = async (values: any) => {
     if (!selectedShop) {
-      message.error('请先选择店铺');
+      notifyError('操作失败', '请先选择店铺');
       return;
     }
 
@@ -227,7 +221,7 @@ const ProductCreate: React.FC = () => {
         weight_unit: 'g',
       });
     } catch (error: any) {
-      message.error(`操作失败: ${error.message}`);
+      notifyError('操作失败', `操作失败: ${error.message}`);
     }
   };
 
@@ -311,7 +305,7 @@ const ProductCreate: React.FC = () => {
   // 删除变体
   const handleDeleteVariant = (id: string) => {
     if (variants.length === 1) {
-      message.warning('至少保留一个变体');
+      notifyWarning('操作失败', '至少保留一个变体');
       return;
     }
     setVariants(variants.filter(v => v.id !== id));

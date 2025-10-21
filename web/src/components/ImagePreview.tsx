@@ -4,7 +4,6 @@ import {
   Button,
   Space,
   Spin,
-  message,
 } from 'antd';
 import {
   LeftOutlined,
@@ -18,6 +17,7 @@ import {
   PictureOutlined,
   RollbackOutlined,
 } from '@ant-design/icons';
+import { notifySuccess, notifyError } from '@/utils/notification';
 import styles from './ImagePreview.module.scss';
 
 interface ImagePreviewProps {
@@ -131,7 +131,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    message.success('图片开始下载');
+    notifySuccess('下载开始', '图片开始下载');
   };
 
   // 当没有图片但visible为true时，也显示Modal（用于loading状态）
@@ -177,7 +177,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
               onLoad={() => setLoading(false)}
               onError={() => {
                 setLoading(false);
-                message.error('图片加载失败');
+                notifyError('加载失败', '图片加载失败');
               }}
               draggable={false}
             />

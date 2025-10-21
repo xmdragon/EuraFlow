@@ -3,9 +3,10 @@
  * 用于"分配中"状态，允许编辑进货价格、采购平台和订单备注
  */
 import React, { useEffect } from 'react';
-import { Modal, Form, Input, Select, InputNumber, message } from 'antd';
+import { Modal, Form, Input, Select, InputNumber } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -47,7 +48,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
       return ozonApi.updatePostingBusinessInfo(postingNumber, data);
     },
     onSuccess: (response) => {
-      message.success('业务信息更新成功');
+      notifySuccess('更新成功', '业务信息更新成功');
       // 刷新订单列表
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
       // 关闭弹窗并重置表单
@@ -55,7 +56,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.message || error.message || '更新失败';
-      message.error(errorMsg);
+      notifyError('更新失败', errorMsg);
     },
   });
 

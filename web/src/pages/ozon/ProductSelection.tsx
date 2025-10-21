@@ -14,7 +14,6 @@ import {
   Select,
   Space,
   Alert,
-  message,
   notification,
   Spin,
   Empty,
@@ -67,6 +66,7 @@ import { useCurrency } from '../../hooks/useCurrency';
 import { getExchangeRate } from '@/services/exchangeRateApi';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import styles from './ProductSelection.module.scss';
 import { calculateMaxCost, formatMaxCost } from './profitCalculator';
 
@@ -381,11 +381,11 @@ const ProductSelection: React.FC = () => {
         refetchHistory();
         queryClient.invalidateQueries({ queryKey: ['productSelectionBrands'] });
       } else {
-        message.error(data.error || '清空数据失败');
+        notifyError('清空失败', data.error || '清空数据失败');
       }
     },
     onError: (error: any) => {
-      message.error('清空数据失败: ' + error.message);
+      notifyError('清空失败', '清空数据失败: ' + error.message);
     },
   });
 
@@ -482,7 +482,7 @@ const ProductSelection: React.FC = () => {
   // 批量标记已读
   const handleMarkAsRead = async () => {
     if (selectedProductIds.size === 0) {
-      message.warning('请先选择商品');
+      notifyWarning('操作失败', '请先选择商品');
       return;
     }
 
@@ -490,7 +490,7 @@ const ProductSelection: React.FC = () => {
     try {
       const result = await api.markProductsAsRead(Array.from(selectedProductIds));
       if (result.success) {
-        message.success(`成功标记 ${result.marked_count} 个商品为已读`);
+        notifySuccess('标记成功', `成功标记 ${result.marked_count} 个商品为已读`);
 
         // 如果当前是"仅显示未读"模式，立即从列表中移除已标记的商品
         if (searchParams.is_read === false) {
@@ -500,10 +500,10 @@ const ProductSelection: React.FC = () => {
         setSelectedProductIds(new Set()); // 清空选择
         refetchProducts(); // 刷新商品列表以确保数据一致性
       } else {
-        message.error('标记失败');
+        notifyError('标记失败', '标记失败');
       }
     } catch (error: any) {
-      message.error('标记失败: ' + error.message);
+      notifyError('标记失败', '标记失败: ' + error.message);
     } finally {
       setMarkingAsRead(false);
     }
@@ -537,7 +537,7 @@ const ProductSelection: React.FC = () => {
         refetchProducts();
         refetchHistory();  // 刷新历史记录
       } else {
-        message.error(result.error || '导入失败');
+        notifyError('导入失败', result.error || '导入失败');
         if (result.missing_columns) {
           notification.error({
             message: '文件格式错误',
@@ -547,7 +547,7 @@ const ProductSelection: React.FC = () => {
         }
       }
     } catch (error: any) {
-      message.error('导入失败: ' + error.message);
+      notifyError('导入失败', '导入失败: ' + error.message);
     } finally {
       setImportLoading(false);
       setFileList([]);
@@ -580,12 +580,12 @@ const ProductSelection: React.FC = () => {
       } else {
         // 如果没有图片，关闭Modal并提示
         setImageModalVisible(false);
-        message.info('该商品暂无更多图片');
+        notifyInfo('提示', '该商品暂无更多图片');
       }
     } catch (error) {
       // 出错时关闭Modal并提示
       setImageModalVisible(false);
-      message.error('获取商品图片失败');
+      notifyError('获取失败', '获取商品图片失败');
       console.error('获取商品图片失败:', error);
     }
   };
@@ -593,7 +593,7 @@ const ProductSelection: React.FC = () => {
   // 执行导入
   const handleImport = async () => {
     if (!fileList[0]) {
-      message.error('请选择文件');
+      notifyError('操作失败', '请选择文件');
       return;
     }
 
@@ -622,10 +622,10 @@ const ProductSelection: React.FC = () => {
         refetchProducts();
         refetchHistory();
       } else {
-        message.error(result.error || '导入失败');
+        notifyError('导入失败', result.error || '导入失败');
       }
     } catch (error: any) {
-      message.error('导入失败: ' + error.message);
+      notifyError('导入失败', '导入失败: ' + error.message);
     } finally {
       setImportLoading(false);
     }
@@ -675,14 +675,14 @@ const ProductSelection: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    message.success('脚本下载已开始');
+    notifySuccess('下载开始', '脚本下载已开始');
   };
 
   // 保存字段配置
   const saveFieldConfig = (config: FieldConfig) => {
     setFieldConfig(config);
     localStorage.setItem('productFieldConfig', JSON.stringify(config));
-    message.success('字段配置已保存');
+    notifySuccess('配置已保存', '字段配置已保存');
     setFieldConfigVisible(false);
   };
 
@@ -690,7 +690,7 @@ const ProductSelection: React.FC = () => {
   const resetFieldConfig = () => {
     setFieldConfig(defaultFieldConfig);
     localStorage.removeItem('productFieldConfig');
-    message.success('已恢复默认配置');
+    notifySuccess('恢复成功', '已恢复默认配置');
   };
 
   // 渲染商品卡片

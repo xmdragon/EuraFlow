@@ -111,8 +111,8 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           import('@/services/authService').then(({ default: authService }) => {
             authService.clearTokens();
             if (window.location.pathname !== '/login') {
-              import('antd').then(({ message }) => {
-                message.warning('登录已过期，请重新登录');
+              import('@/utils/notification').then(({ notifyWarning }) => {
+                notifyWarning('登录过期', '登录已过期，请重新登录');
               });
               setTimeout(() => {
                 window.location.href = '/login';

@@ -31,7 +31,6 @@ import {
   Select,
   Tag,
   Modal,
-  message,
   DatePicker,
   Tooltip,
   Badge,
@@ -55,6 +54,7 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
@@ -115,13 +115,13 @@ const OrderList: React.FC = () => {
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
     if (!text || text === '-') {
-      message.warning(`${label}为空，无法复制`);
+      notifyWarning('复制失败', `${label}为空，无法复制`);
       return;
     }
     navigator.clipboard.writeText(text).then(() => {
-      message.success(`${label}已复制`);
+      notifySuccess('复制成功', `${label}已复制`);
     }).catch(() => {
-      message.error('复制失败，请手动复制');
+      notifyError('复制失败', '复制失败，请手动复制');
     });
   };
 
@@ -445,12 +445,12 @@ const OrderList: React.FC = () => {
       return ozonApi.syncOrdersDirect(selectedShop, fullSync ? 'full' : 'incremental');
     },
     onSuccess: (data) => {
-      message.success('订单同步任务已启动');
+      notifySuccess('同步已启动', '订单同步任务已启动');
       setSyncTaskId(data.task_id);
       setSyncStatus({ status: 'running', progress: 0, message: '正在启动同步...' });
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
+      notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
@@ -467,13 +467,13 @@ const OrderList: React.FC = () => {
         setSyncStatus(status);
 
         if (status.status === 'completed') {
-          message.success('同步完成！');
+          notifySuccess('同步完成', '订单同步已完成！');
           queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
           // 刷新页面数据
           refetch();
           setSyncTaskId(null);
         } else if (status.status === 'failed') {
-          message.error(`同步失败: ${status.error || '未知错误'}`);
+          notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
           setSyncTaskId(null);
         }
       } catch (error) {
@@ -489,13 +489,13 @@ const OrderList: React.FC = () => {
   const shipOrderMutation = useMutation({
     mutationFn: ozonApi.shipOrder,
     onSuccess: () => {
-      message.success('发货成功');
+      notifySuccess('发货成功', '订单已成功发货');
       setShipModalVisible(false);
       shipForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
     onError: (error: any) => {
-      message.error(`发货失败: ${error.message}`);
+      notifyError('发货失败', `发货失败: ${error.message}`);
     },
   });
 
@@ -504,11 +504,11 @@ const OrderList: React.FC = () => {
     mutationFn: ({ postingNumber, reason }: { postingNumber: string; reason: string }) =>
       ozonApi.cancelOrder(postingNumber, reason),
     onSuccess: () => {
-      message.success('订单已取消');
+      notifySuccess('订单已取消', '订单已成功取消');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
     onError: (error: any) => {
-      message.error(`取消失败: ${error.message}`);
+      notifyError('取消失败', `取消失败: ${error.message}`);
     },
   });
 
@@ -517,12 +517,12 @@ const OrderList: React.FC = () => {
     mutationFn: ({ postingNumber, shopId }: { postingNumber: string; shopId: number }) =>
       ozonApi.syncSingleOrder(postingNumber, shopId),
     onSuccess: () => {
-      message.success('订单同步成功');
+      notifySuccess('同步成功', '订单同步成功');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
       refetch();
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
+      notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
@@ -801,7 +801,7 @@ const OrderList: React.FC = () => {
 
   const handleSync = (fullSync: boolean) => {
     if (!selectedShop) {
-      message.warning('请先选择店铺');
+      notifyWarning('操作失败', '请先选择店铺');
       return;
     }
 
@@ -816,12 +816,12 @@ const OrderList: React.FC = () => {
 
   const handleBatchPrint = async () => {
     if (selectedPostingNumbers.length === 0) {
-      message.warning('请先选择需要打印的订单');
+      notifyWarning('操作失败', '请先选择需要打印的订单');
       return;
     }
 
     if (selectedPostingNumbers.length > 20) {
-      message.error('最多支持同时打印20个标签');
+      notifyError('打印失败', '最多支持同时打印20个标签');
       return;
     }
 
@@ -838,7 +838,8 @@ const OrderList: React.FC = () => {
           window.open(result.pdf_url, '_blank');
         }
 
-        message.success(
+        notifySuccess(
+          '打印成功',
           `成功打印${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}）`
         );
 
@@ -867,10 +868,10 @@ const OrderList: React.FC = () => {
           setPrintSuccessPostings([]);
           setPrintErrorModalVisible(true);
         } else {
-          message.warning('部分标签尚未准备好，请在订单装配后45-60秒重试');
+          notifyWarning('打印提示', '部分标签尚未准备好，请在订单装配后45-60秒重试');
         }
       } else {
-        message.error(`打印失败: ${error.response?.data?.error?.title || error.message}`);
+        notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
       }
     } finally {
       setIsPrinting(false);
@@ -879,10 +880,10 @@ const OrderList: React.FC = () => {
 
   const handleBatchShip = () => {
     if (selectedOrders.length === 0) {
-      message.warning('请先选择订单');
+      notifyWarning('操作失败', '请先选择订单');
       return;
     }
-    message.info('批量发货功能开发中');
+    notifyInfo('提示', '批量发货功能开发中');
   };
 
   // 统计数据 - 使用API返回的全局统计数据
@@ -915,7 +916,7 @@ const OrderList: React.FC = () => {
               const failedNumbers = printErrors.map(e => e.posting_number);
               setSelectedPostingNumbers(selectedPostingNumbers.filter(pn => !failedNumbers.includes(pn)));
               setPrintErrorModalVisible(false);
-              message.info('已移除失败的订单，可重新选择并打印');
+              notifyInfo('提示', '已移除失败的订单，可重新选择并打印');
             }}
           >
             移除失败订单继续

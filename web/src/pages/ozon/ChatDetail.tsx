@@ -13,7 +13,6 @@ import {
   Typography,
   Spin,
   Empty,
-  message,
   Descriptions,
   Modal,
   Badge,
@@ -32,6 +31,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import moment from 'moment';
 
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
 import styles from './ChatDetail.module.scss';
 
@@ -82,10 +82,10 @@ const ChatDetail: React.FC = () => {
     onSuccess: () => {
       setMessageText('');
       refetchMessages();
-      message.success('消息发送成功');
+      notifySuccess('发送成功', '消息发送成功');
     },
     onError: (error: any) => {
-      message.error(`发送失败: ${error.message}`);
+      notifyError('发送失败', `发送失败: ${error.message}`);
     },
   });
 
@@ -96,13 +96,13 @@ const ChatDetail: React.FC = () => {
       return ozonApi.markChatAsRead(Number(shopId), chatId);
     },
     onSuccess: () => {
-      message.success('已标记为已读');
+      notifySuccess('操作成功', '已标记为已读');
       queryClient.invalidateQueries({ queryKey: ['chatDetail'] });
       queryClient.invalidateQueries({ queryKey: ['chats'] });
       queryClient.invalidateQueries({ queryKey: ['chatStats'] });
     },
     onError: (error: any) => {
-      message.error(`操作失败: ${error.message}`);
+      notifyError('操作失败', `操作失败: ${error.message}`);
     },
   });
 
@@ -113,12 +113,12 @@ const ChatDetail: React.FC = () => {
       return ozonApi.closeChat(Number(shopId), chatId);
     },
     onSuccess: () => {
-      message.success('聊天已关闭');
+      notifySuccess('操作成功', '聊天已关闭');
       queryClient.invalidateQueries({ queryKey: ['chatDetail'] });
       queryClient.invalidateQueries({ queryKey: ['chats'] });
     },
     onError: (error: any) => {
-      message.error(`操作失败: ${error.message}`);
+      notifyError('操作失败', `操作失败: ${error.message}`);
     },
   });
 
@@ -133,7 +133,7 @@ const ChatDetail: React.FC = () => {
 
   const handleSendMessage = () => {
     if (!messageText.trim()) {
-      message.warning('请输入消息内容');
+      notifyWarning('发送失败', '请输入消息内容');
       return;
     }
     sendMessageMutation.mutate(messageText);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Switch, Select, Button, Row, Col, Typography, Space, message, Divider, Spin } from 'antd';
+import { Card, Form, Switch, Select, Button, Row, Col, Typography, Space, Divider, Spin } from 'antd';
 import { BellOutlined, GlobalOutlined, DatabaseOutlined, SecurityScanOutlined } from '@ant-design/icons';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -108,9 +109,9 @@ const Settings: React.FC = () => {
         throw new Error('保存设置失败');
       }
 
-      message.success('设置已保存');
+      notifySuccess('保存成功', '设置已保存');
     } catch (error) {
-      message.error('保存设置失败');
+      notifyError('保存失败', '保存设置失败');
       console.error('Failed to save settings:', error);
     } finally {
       setSaving(false);

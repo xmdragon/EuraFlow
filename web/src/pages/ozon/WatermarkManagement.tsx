@@ -11,7 +11,6 @@ import {
   InputNumber,
   Select,
   Upload,
-  message,
   Modal,
   Table,
   Space,
@@ -38,6 +37,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
+import { notifySuccess, notifyError } from '@/utils/notification';
 import * as watermarkApi from '@/services/watermarkApi';
 import styles from './WatermarkManagement.module.scss';
 
@@ -86,11 +86,11 @@ const WatermarkManagement: React.FC = () => {
   const saveCloudinaryMutation = useMutation({
     mutationFn: (values: any) => watermarkApi.createCloudinaryConfig(values),
     onSuccess: () => {
-      message.success('Cloudinary配置保存成功');
+      notifySuccess('配置已保存', 'Cloudinary配置保存成功');
       refetchCloudinary();
     },
     onError: (error: any) => {
-      message.error(`保存失败: ${error.message}`);
+      notifyError('保存失败', `保存失败: ${error.message}`);
     },
   });
 
@@ -99,7 +99,7 @@ const WatermarkManagement: React.FC = () => {
     mutationFn: () => watermarkApi.testCloudinaryConnection(),
     onSuccess: (data) => {
       if (data.success) {
-        message.success('连接测试成功');
+        notifySuccess('连接测试成功', '连接测试成功');
         Modal.info({
           title: 'Cloudinary连接信息',
           content: (
@@ -118,12 +118,12 @@ const WatermarkManagement: React.FC = () => {
           ),
         });
       } else {
-        message.error(`连接测试失败: ${data.error}`);
+        notifyError('连接测试失败', `连接测试失败: ${data.error}`);
       }
       refetchCloudinary();
     },
     onError: (error: any) => {
-      message.error(`测试失败: ${error.message}`);
+      notifyError('测试失败', `测试失败: ${error.message}`);
     },
   });
 
@@ -144,12 +144,12 @@ const WatermarkManagement: React.FC = () => {
       );
     },
     onSuccess: () => {
-      message.success('水印配置创建成功');
+      notifySuccess('创建成功', '水印配置创建成功');
       watermarkForm.resetFields();
       refetchWatermarks();
     },
     onError: (error: any) => {
-      message.error(`创建失败: ${error.message}`);
+      notifyError('创建失败', `创建失败: ${error.message}`);
     },
   });
 
@@ -158,12 +158,12 @@ const WatermarkManagement: React.FC = () => {
     mutationFn: ({ configId, options }: { configId: number; options: any }) =>
       watermarkApi.updateWatermarkConfig(configId, options),
     onSuccess: () => {
-      message.success('水印配置更新成功');
+      notifySuccess('更新成功', '水印配置更新成功');
       setEditModalVisible(false);
       refetchWatermarks();
     },
     onError: (error: any) => {
-      message.error(`更新失败: ${error.message}`);
+      notifyError('更新失败', `更新失败: ${error.message}`);
     },
   });
 
@@ -171,11 +171,11 @@ const WatermarkManagement: React.FC = () => {
   const deleteWatermarkMutation = useMutation({
     mutationFn: (configId: number) => watermarkApi.deleteWatermarkConfig(configId),
     onSuccess: () => {
-      message.success('水印配置删除成功');
+      notifySuccess('删除成功', '水印配置删除成功');
       refetchWatermarks();
     },
     onError: (error: any) => {
-      message.error(`删除失败: ${error.message}`);
+      notifyError('删除失败', `删除失败: ${error.message}`);
     },
   });
 
@@ -191,14 +191,14 @@ const WatermarkManagement: React.FC = () => {
             content: `将删除 ${data.count} 个过期资源`,
           });
         } else {
-          message.success(`成功清理 ${data.count} 个过期资源`);
+          notifySuccess('清理成功', `成功清理 ${data.count} 个过期资源`);
         }
       } else {
-        message.error(`清理失败: ${data.error}`);
+        notifyError('清理失败', `清理失败: ${data.error}`);
       }
     },
     onError: (error: any) => {
-      message.error(`清理失败: ${error.message}`);
+      notifyError('清理失败', `清理失败: ${error.message}`);
     },
   });
 

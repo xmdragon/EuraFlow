@@ -14,7 +14,6 @@ import {
   Statistic,
   Row,
   Col,
-  message,
   Avatar,
   Typography,
   Spin,
@@ -34,6 +33,7 @@ import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 
 import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError } from '@/utils/notification';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import styles from './ChatList.module.scss';
 
@@ -99,12 +99,12 @@ const ChatList: React.FC = () => {
       return ozonApi.syncChats(selectedShopId);
     },
     onSuccess: (data) => {
-      message.success(`同步成功: 新增 ${data.new_count} 个聊天，更新 ${data.updated_count} 个聊天`);
+      notifySuccess('同步成功', `同步成功: 新增 ${data.new_count} 个聊天，更新 ${data.updated_count} 个聊天`);
       queryClient.invalidateQueries({ queryKey: ['chats'] });
       queryClient.invalidateQueries({ queryKey: ['chatStats'] });
     },
     onError: (error: any) => {
-      message.error(`同步失败: ${error.message}`);
+      notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
@@ -115,12 +115,12 @@ const ChatList: React.FC = () => {
       return ozonApi.markChatAsRead(selectedShopId, chatId);
     },
     onSuccess: () => {
-      message.success('已标记为已读');
+      notifySuccess('操作成功', '已标记为已读');
       queryClient.invalidateQueries({ queryKey: ['chats'] });
       queryClient.invalidateQueries({ queryKey: ['chatStats'] });
     },
     onError: (error: any) => {
-      message.error(`操作失败: ${error.message}`);
+      notifyError('操作失败', `操作失败: ${error.message}`);
     },
   });
 

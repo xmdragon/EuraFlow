@@ -13,7 +13,6 @@ import {
   Statistic,
   Row,
   Col,
-  message,
   Pagination,
 } from 'antd';
 import {
@@ -27,6 +26,7 @@ import type { ColumnsType } from 'antd/es/table';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
 import * as ozonApi from '@/services/ozonApi';
+import { notifyInfo } from '@/utils/notification';
 import styles from './FinanceTransactions.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -135,7 +135,7 @@ const FinanceTransactions: React.FC = () => {
 
   // 导出CSV
   const handleExport = () => {
-    message.info('CSV导出功能开发中');
+    notifyInfo('提示', 'CSV导出功能开发中');
   };
 
   // 表格列定义

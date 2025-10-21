@@ -3,9 +3,10 @@
  * 用于填写进货价格、采购平台和订单备注
  */
 import React from 'react';
-import { Modal, Form, Input, Select, InputNumber, message } from 'antd';
+import { Modal, Form, Input, Select, InputNumber } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -30,7 +31,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       return ozonApi.prepareStock(postingNumber, data);
     },
     onSuccess: (response) => {
-      message.success('备货操作成功');
+      notifySuccess('操作成功', '备货操作成功');
       // 刷新订单列表
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
       // 关闭弹窗并重置表单
@@ -38,7 +39,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.message || error.message || '备货操作失败';
-      message.error(errorMsg);
+      notifyError('操作失败', errorMsg);
     },
   });
 
