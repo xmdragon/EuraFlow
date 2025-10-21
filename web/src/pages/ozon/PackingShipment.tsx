@@ -55,6 +55,7 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
+import { useKuajing84SyncStatus } from '@/hooks/useKuajing84SyncStatus';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
@@ -90,7 +91,8 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
     if (selectedOrder) {
       form.setFieldsValue({
         purchase_price: selectedOrder.purchase_price || '',
-        domestic_tracking_number: selectedOrder.domestic_tracking_number || '',
+        // 使用新的数组字段的第一个值（如果存在）
+        domestic_tracking_number: selectedPosting?.domestic_tracking_numbers?.[0] || '',
         material_cost: selectedOrder.material_cost || '',
         order_notes: selectedOrder.order_notes || '',
         source_platform: selectedOrder.source_platform || '',
@@ -98,7 +100,7 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
     } else {
       form.resetFields();
     }
-  }, [selectedOrder, form]);
+  }, [selectedOrder, selectedPosting, form]);
 
   const handleFinish = async (values: any) => {
     try {
@@ -304,6 +306,26 @@ const PackingShipment: React.FC = () => {
   const [scanResult, setScanResult] = useState<any>(null);
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
+
+  // 废弃订单同步轮询状态
+  const [discardSyncLogId, setDiscardSyncLogId] = useState<number | null>(null);
+
+  // 使用轮询 Hook 监控废弃订单同步状态
+  useKuajing84SyncStatus(discardSyncLogId, {
+    onSuccess: () => {
+      message.success('订单已成功废弃，跨境巴士同步完成！');
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      setDiscardSyncLogId(null);
+    },
+    onFailure: (data) => {
+      message.error(`订单废弃失败：${data.error_message || '未知错误'}`);
+      setDiscardSyncLogId(null);
+    },
+    onTimeout: () => {
+      message.warning('跨境巴士同步超时，请稍后在同步日志中查看结果');
+      setDiscardSyncLogId(null);
+    },
+  });
 
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
@@ -777,10 +799,18 @@ const PackingShipment: React.FC = () => {
   // 废弃订单
   const discardOrderMutation = useMutation({
     mutationFn: (postingNumber: string) => ozonApi.discardOrder(postingNumber),
-    onSuccess: () => {
-      message.success('订单已废弃');
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      refetch();
+    onSuccess: (response: any) => {
+      // 获取同步日志ID，开始轮询
+      const logId = response.data?.sync_log_id;
+      if (logId) {
+        setDiscardSyncLogId(logId);
+        message.success('废弃请求已提交，正在后台同步到跨境巴士...');
+      } else {
+        // 兼容旧版本（同步响应）
+        message.success('订单已废弃');
+        queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+        refetch();
+      }
     },
     onError: (error: any) => {
       message.error(`废弃失败: ${error.response?.data?.message || error.message}`);
@@ -910,7 +940,8 @@ const PackingShipment: React.FC = () => {
         const posting = row.posting;
         const packages = posting.packages || [];
         const trackingNumber = packages.length > 0 ? packages[0].tracking_number : undefined;
-        const domesticTracking = posting.domestic_tracking_number;
+        // 使用新的数组字段，显示时用逗号分隔
+        const domesticTracking = posting.domestic_tracking_numbers?.join(', ');
 
         return {
           children: (
@@ -1572,7 +1603,7 @@ const PackingShipment: React.FC = () => {
                       {scanResult.tracking_number || '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="国内单号">
-                      {scanResult.domestic_tracking_number || '-'}
+                      {scanResult.domestic_tracking_numbers?.join(', ') || '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="订单状态">
                       <Tag color={statusConfig[scanResult.status]?.color || 'default'}>

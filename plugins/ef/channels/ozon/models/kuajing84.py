@@ -26,11 +26,23 @@ class Kuajing84SyncLog(Base):
     order_number: Mapped[str] = mapped_column(String(100), nullable=False, comment="订单号")
     logistics_order: Mapped[str] = mapped_column(String(100), nullable=False, comment="国内物流单号")
     kuajing84_oid: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="跨境巴士订单OID")
+    sync_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default="submit_tracking",
+        comment="同步类型: submit_tracking/discard_order"
+    )
+    posting_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("ozon_postings.id", ondelete="CASCADE"),
+        nullable=True,
+        comment="货件ID（关联ozon_postings表）"
+    )
     sync_status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
         server_default="pending",
-        comment="同步状态: pending/success/failed"
+        comment="同步状态: pending/in_progress/success/failed"
     )
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="错误信息")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", comment="尝试次数")
@@ -39,6 +51,11 @@ class Kuajing84SyncLog(Base):
         nullable=False,
         server_default="now()",
         comment="创建时间"
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="开始同步时间"
     )
     synced_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
@@ -53,6 +70,7 @@ class Kuajing84SyncLog(Base):
         Index("ix_kuajing84_sync_logs_order_id", "ozon_order_id"),
         Index("ix_kuajing84_sync_logs_status", "shop_id", "sync_status"),
         Index("ix_kuajing84_sync_logs_order_number", "order_number"),
+        Index("ix_kuajing84_sync_logs_posting_id", "posting_id"),
     )
 
     def __repr__(self) -> str:

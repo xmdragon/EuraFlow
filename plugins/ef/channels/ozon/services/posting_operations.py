@@ -315,37 +315,61 @@ class PostingOperationsService:
                 "message": f"订单不存在: {posting.order_id}"
             }
 
-        # 8. 同步到跨境巴士（使用第一个单号，保持兼容）
-        kuajing84_service = create_kuajing84_sync_service(self.db)
-        sync_result = await kuajing84_service.sync_logistics_order(
+        # 8. 创建跨境巴士同步日志（异步模式）
+        from ..models.kuajing84 import Kuajing84SyncLog
+        sync_log = Kuajing84SyncLog(
             ozon_order_id=order.id,
-            posting_number=posting_number,
-            logistics_order=unique_numbers[0]  # 使用第一个单号
+            shop_id=order.shop_id,
+            order_number=posting_number,
+            logistics_order=unique_numbers[0],  # 使用第一个单号
+            sync_type="submit_tracking",
+            posting_id=posting.id,
+            sync_status="pending",
+            attempts=0
         )
-
-        if not sync_result["success"]:
-            logger.warning(f"跨境巴士同步失败（不影响状态更新）: {sync_result['message']}")
-            # 注意：跨境巴士同步失败不影响状态更新，因为已经保存了国内单号
+        self.db.add(sync_log)
 
         # 9. 更新操作状态为"单号确认"
         posting.operation_status = "tracking_confirmed"
 
-        # 10. 提交数据库事务
+        # 10. 提交数据库事务（必须先提交，异步任务才能访问）
         await self.db.commit()
         await self.db.refresh(posting)
+        await self.db.refresh(sync_log)
 
-        logger.info(f"国内单号填写成功，posting_number: {posting_number}, count: {len(unique_numbers)}, operation_status: {posting.operation_status}")
+        # 11. 启动后台异步任务（不等待）
+        import asyncio
+        from .kuajing84_async_tasks import async_sync_logistics_order
+        from ef_core.database import get_async_session
+
+        async def _start_background_task():
+            """创建独立的数据库会话用于后台任务"""
+            async for db_session in get_async_session():
+                try:
+                    await async_sync_logistics_order(db_session, sync_log.id)
+                finally:
+                    await db_session.close()
+
+        # 使用 asyncio.create_task 启动后台任务
+        asyncio.create_task(_start_background_task())
+
+        logger.info(f"国内单号填写成功，posting_number: {posting_number}, count: {len(unique_numbers)}, operation_status: {posting.operation_status}, sync_log_id: {sync_log.id}")
 
         return {
             "success": True,
-            "message": f"国内单号提交成功（共{len(unique_numbers)}个）" + (f"，跨境巴士同步：{'成功' if sync_result['success'] else '失败'}" if sync_result else ""),
+            "message": f"国内单号提交成功（共{len(unique_numbers)}个），正在后台同步到跨境巴士...",
             "data": {
                 "posting_number": posting.posting_number,
                 "domestic_tracking_numbers": unique_numbers,  # 新字段：数组
                 "domestic_tracking_number": unique_numbers[0],  # 兼容字段：第一个单号
                 "operation_status": posting.operation_status,
                 "operation_time": posting.operation_time.isoformat() if posting.operation_time else None,
-                "kuajing84_sync": sync_result
+                "sync_log_id": sync_log.id,  # 新增：同步日志ID（用于轮询）
+                "kuajing84_sync": {
+                    "success": None,  # 异步模式：同步状态未知
+                    "message": "后台同步中...",
+                    "log_id": sync_log.id
+                }
             }
         }
 
@@ -653,3 +677,99 @@ class PostingOperationsService:
                 "success": False,
                 "message": f"财务费用同步失败: {str(e)}"
             }
+
+    async def discard_posting_async(
+        self,
+        posting_number: str
+    ) -> Dict[str, Any]:
+        """
+        异步废弃订单（同步到跨境84并更新本地状态）
+
+        Args:
+            posting_number: 货件编号
+
+        Returns:
+            操作结果（立即返回，包含 sync_log_id 用于轮询）
+        """
+        logger.info(f"开始异步废弃订单，posting_number: {posting_number}")
+
+        # 1. 验证 posting 是否存在
+        result = await self.db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = result.scalar_one_or_none()
+
+        if not posting:
+            return {
+                "success": False,
+                "message": f"发货单 {posting_number} 不存在"
+            }
+
+        # 2. 检查是否已经是取消状态
+        if posting.operation_status == "cancelled":
+            return {
+                "success": False,
+                "message": "订单已经是取消状态"
+            }
+
+        # 3. 查询关联的订单
+        order_result = await self.db.execute(
+            select(OzonOrder).where(OzonOrder.id == posting.order_id)
+        )
+        order = order_result.scalar_one_or_none()
+
+        if not order:
+            return {
+                "success": False,
+                "message": f"订单不存在: {posting.order_id}"
+            }
+
+        # 4. 创建跨境巴士同步日志（异步模式）
+        from ..models.kuajing84 import Kuajing84SyncLog
+        sync_log = Kuajing84SyncLog(
+            ozon_order_id=order.id,
+            shop_id=order.shop_id,
+            order_number=posting_number,
+            logistics_order="",  # 废弃操作不需要物流单号
+            sync_type="discard_order",
+            posting_id=posting.id,
+            sync_status="pending",
+            attempts=0
+        )
+        self.db.add(sync_log)
+
+        # 5. 提交数据库事务（必须先提交，异步任务才能访问）
+        await self.db.commit()
+        await self.db.refresh(sync_log)
+
+        # 6. 启动后台异步任务（不等待）
+        import asyncio
+        from .kuajing84_async_tasks import async_discard_order
+        from ef_core.database import get_async_session
+
+        async def _start_background_task():
+            """创建独立的数据库会话用于后台任务"""
+            async for db_session in get_async_session():
+                try:
+                    await async_discard_order(db_session, sync_log.id)
+                finally:
+                    await db_session.close()
+
+        # 使用 asyncio.create_task 启动后台任务
+        asyncio.create_task(_start_background_task())
+
+        logger.info(f"异步废弃订单任务已启动，posting_number: {posting_number}, sync_log_id: {sync_log.id}")
+
+        return {
+            "success": True,
+            "message": "订单废弃请求已提交，正在后台同步到跨境巴士...",
+            "data": {
+                "posting_number": posting_number,
+                "sync_log_id": sync_log.id,  # 新增：同步日志ID（用于轮询）
+                "kuajing84_sync": {
+                    "success": None,  # 异步模式：同步状态未知
+                    "message": "后台同步中...",
+                    "log_id": sync_log.id
+                }
+            }
+        }

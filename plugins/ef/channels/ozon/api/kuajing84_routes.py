@@ -215,3 +215,81 @@ async def get_sync_logs(
     except Exception as e:
         logger.error(f"获取同步日志失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/sync-status/{sync_log_id}")
+async def get_sync_status(
+    sync_log_id: int,
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    查询跨境巴士同步状态（用于前端轮询）
+
+    返回示例：
+    ```json
+    {
+      "sync_log_id": 123,
+      "status": "in_progress",  // pending / in_progress / success / failed
+      "sync_type": "submit_tracking",  // submit_tracking / discard_order
+      "message": "同步中...",
+      "attempts": 1,
+      "created_at": "2025-10-21T12:00:00Z",
+      "started_at": "2025-10-21T12:00:05Z",
+      "synced_at": null,
+      "error_message": null
+    }
+    ```
+
+    Args:
+        sync_log_id: 同步日志ID
+
+    Returns:
+        同步状态详情
+    """
+    from sqlalchemy import select
+    from ..models.kuajing84 import Kuajing84SyncLog
+
+    try:
+        # 查询同步日志
+        result = await db.execute(
+            select(Kuajing84SyncLog).where(Kuajing84SyncLog.id == sync_log_id)
+        )
+        sync_log = result.scalar_one_or_none()
+
+        if not sync_log:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"同步日志不存在: sync_log_id={sync_log_id}"
+            )
+
+        # 构造友好的状态消息
+        status_messages = {
+            "pending": "等待同步",
+            "in_progress": "同步中...",
+            "success": "同步成功",
+            "failed": f"同步失败: {sync_log.error_message or '未知错误'}"
+        }
+        message = status_messages.get(sync_log.sync_status, "未知状态")
+
+        return {
+            "sync_log_id": sync_log.id,
+            "status": sync_log.sync_status,
+            "sync_type": sync_log.sync_type,
+            "message": message,
+            "attempts": sync_log.attempts,
+            "created_at": sync_log.created_at.isoformat() if sync_log.created_at else None,
+            "started_at": sync_log.started_at.isoformat() if sync_log.started_at else None,
+            "synced_at": sync_log.synced_at.isoformat() if sync_log.synced_at else None,
+            "error_message": sync_log.error_message,
+            "order_number": sync_log.order_number,
+            "logistics_order": sync_log.logistics_order if sync_log.sync_type == "submit_tracking" else None
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"查询同步状态失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"查询同步状态失败: {str(e)}"
+        )

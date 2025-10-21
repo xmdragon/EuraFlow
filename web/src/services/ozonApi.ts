@@ -323,7 +323,9 @@ export interface Order {
   delivered_at?: string;
   cancelled_at?: string;
   purchase_price?: string;
+  /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string;
+  domestic_tracking_numbers?: string[];  // 国内物流单号列表（一对多关系）
   material_cost?: string;
   source_platform?: string;
   order_notes?: string;
@@ -375,7 +377,9 @@ export interface Posting {
   cancelled_at?: string;
   packages?: ShipmentPackage[];
   products?: OrderItem[];  // 该 posting 的商品列表（从 raw_payload 提取）
+  /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string;  // 国内物流单号（常用字段，提升到 Posting）
+  domestic_tracking_numbers?: string[];  // 国内物流单号列表（一对多关系）
   source_platform?: string;  // 采集平台（常用字段，提升到 Posting）
   // 财务字段
   purchase_price?: string;  // 进货价格
@@ -927,7 +931,9 @@ export const getKuajing84SyncLogs = async (shopId: number, status?: string, limi
 export interface OrderExtraInfo {
   purchase_price?: string;
   material_cost?: string;
+  /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string;
+  domestic_tracking_numbers?: string[];  // 国内物流单号列表（一对多关系）
   order_notes?: string;
   source_platform?: string;
 }
@@ -989,6 +995,7 @@ export interface UpdateBusinessInfoRequest {
 // 提交国内物流单号请求参数（支持多单号）
 export interface SubmitDomesticTrackingRequest {
   domestic_tracking_numbers?: string[];  // 国内物流单号列表（推荐）
+  /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string;  // [已废弃] 单个国内物流单号（兼容字段）
   order_notes?: string;  // 订单备注（可选）
 }

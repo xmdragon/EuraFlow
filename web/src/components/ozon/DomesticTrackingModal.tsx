@@ -2,10 +2,11 @@
  * 国内物流单号弹窗组件（支持多单号）
  * 用于"已分配"状态，填写国内物流单号并同步到跨境巴士
  */
-import React from 'react';
-import { Modal, Form, Input, message, Select } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Modal, Form, Input, message, Select, Alert, Progress } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ozonApi from '@/services/ozonApi';
+import { useKuajing84SyncStatus } from '@/hooks/useKuajing84SyncStatus';
 
 const { TextArea } = Input;
 
@@ -23,23 +24,51 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
+  // 同步日志ID（用于轮询）
+  const [syncLogId, setSyncLogId] = useState<number | null>(null);
+
+  // 使用轮询 Hook
+  const { status: syncStatus, isPolling, stopPolling } = useKuajing84SyncStatus(syncLogId, {
+    onSuccess: (data) => {
+      message.success('跨境巴士同步成功！');
+      // 刷新订单列表
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      // 3秒后关闭弹窗
+      setTimeout(() => {
+        handleClose();
+      }, 3000);
+    },
+    onFailure: (data) => {
+      message.error(`跨境巴士同步失败：${data.error_message || '未知错误'}`);
+    },
+    onTimeout: () => {
+      message.warning('跨境巴士同步超时，请稍后在同步日志中查看结果');
+    },
+  });
+
   // 提交国内物流单号 mutation
   const submitTrackingMutation = useMutation({
     mutationFn: (data: ozonApi.SubmitDomesticTrackingRequest) => {
       return ozonApi.submitDomesticTracking(postingNumber, data);
     },
     onSuccess: (response) => {
-      // 检查跨境巴士同步结果
-      const syncResult = response.data?.kuajing84_sync;
-      if (syncResult && !syncResult.success) {
-        message.warning(`国内单号提交成功，但跨境巴士同步失败：${syncResult.message}`);
+      // 获取同步日志ID，开始轮询
+      const logId = response.data?.sync_log_id;
+      if (logId) {
+        setSyncLogId(logId);
+        message.success('国内单号已保存，正在后台同步到跨境巴士...');
       } else {
-        message.success('国内单号提交成功' + (syncResult?.success ? '，已同步到跨境巴士' : ''));
+        // 兼容旧版本（同步响应）
+        const syncResult = response.data?.kuajing84_sync;
+        if (syncResult && !syncResult.success) {
+          message.warning(`国内单号提交成功，但跨境巴士同步失败：${syncResult.message}`);
+        } else {
+          message.success('国内单号提交成功' + (syncResult?.success ? '，已同步到跨境巴士' : ''));
+        }
+        // 刷新订单列表
+        queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+        handleClose();
       }
-      // 刷新订单列表
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      // 关闭弹窗并重置表单
-      handleClose();
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.message || error.message || '提交失败';
@@ -49,6 +78,8 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
 
   const handleClose = () => {
     form.resetFields();
+    setSyncLogId(null);
+    stopPolling();
     onCancel();
   };
 
@@ -140,6 +171,40 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
           />
         </Form.Item>
       </Form>
+
+      {/* 同步状态显示 */}
+      {syncLogId && (
+        <Alert
+          style={{ marginTop: 16 }}
+          type={
+            syncStatus?.status === 'success'
+              ? 'success'
+              : syncStatus?.status === 'failed'
+              ? 'error'
+              : 'info'
+          }
+          message={
+            <div>
+              <strong>跨境巴士同步状态：</strong>
+              {syncStatus?.status === 'pending' && ' 等待同步...'}
+              {syncStatus?.status === 'in_progress' && ' 同步中...'}
+              {syncStatus?.status === 'success' && ' 同步成功！'}
+              {syncStatus?.status === 'failed' && ` 同步失败：${syncStatus.error_message}`}
+            </div>
+          }
+          description={
+            isPolling && (
+              <Progress
+                percent={Math.min(100, ((syncStatus?.attempts || 0) / 15) * 100)}
+                status="active"
+                strokeColor={{ from: '#108ee9', to: '#87d068' }}
+                showInfo={false}
+              />
+            )
+          }
+          showIcon
+        />
+      )}
 
       <div style={{ marginTop: 16, padding: 12, background: '#f0f2f5', borderRadius: 4 }}>
         <p style={{ margin: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
