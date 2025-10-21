@@ -19,6 +19,12 @@ import {
   RollbackOutlined,
   EllipsisOutlined,
   LinkOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  WarningOutlined,
+  InfoCircleOutlined,
+  FileOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -47,6 +53,7 @@ import {
   Radio,
   Popover,
   Avatar,
+  Tabs,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
@@ -1263,103 +1270,6 @@ const ProductList: React.FC = () => {
         />
       )}
 
-      {/* 统计卡片 */}
-      <Row gutter={8} style={{ marginBottom: 8 }}>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="总商品数"
-              value={globalStats?.products?.total || 0}
-              prefix={<ShoppingOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card
-            className={`${styles.statsCard} ${styles.success}`}
-            onClick={() => {
-              filterForm.setFieldsValue({ status: 'on_sale' });
-              setFilterValues({ ...filterValues, status: 'on_sale' });
-            }}
-          >
-            <Statistic
-              title={<span className={styles.title}>销售中</span>}
-              value={globalStats?.products?.on_sale || 0}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card
-            className={`${styles.statsCard} ${styles.warning}`}
-            onClick={() => {
-              filterForm.setFieldsValue({ status: 'ready_to_sell' });
-              setFilterValues({ ...filterValues, status: 'ready_to_sell' });
-            }}
-          >
-            <Statistic
-              title={<span className={styles.title}>准备销售</span>}
-              value={globalStats?.products?.ready_to_sell || 0}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card
-            className={`${styles.statsCard} ${styles.error}`}
-            onClick={() => {
-              filterForm.setFieldsValue({ status: 'error' });
-              setFilterValues({ ...filterValues, status: 'error' });
-            }}
-          >
-            <Statistic
-              title={<span className={styles.title}>错误</span>}
-              value={globalStats?.products?.error || 0}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card
-            className={`${styles.statsCard} ${styles.info}`}
-            onClick={() => {
-              filterForm.setFieldsValue({ status: 'pending_modification' });
-              setFilterValues({ ...filterValues, status: 'pending_modification' });
-            }}
-          >
-            <Statistic
-              title={<span className={styles.title}>待修改</span>}
-              value={globalStats?.products?.pending_modification || 0}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card
-            className={`${styles.statsCard} ${styles.inactive}`}
-            onClick={() => {
-              filterForm.setFieldsValue({ status: 'inactive' });
-              setFilterValues({ ...filterValues, status: 'inactive' });
-            }}
-          >
-            <Statistic
-              title={<span className={styles.title}>已下架</span>}
-              value={globalStats?.products?.inactive || 0}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card
-            className={`${styles.statsCard} ${styles.archived}`}
-            onClick={() => {
-              filterForm.setFieldsValue({ status: 'archived' });
-              setFilterValues({ ...filterValues, status: 'archived' });
-            }}
-          >
-            <Statistic
-              title={<span className={styles.title}>已归档</span>}
-              value={globalStats?.products?.archived || 0}
-            />
-          </Card>
-        </Col>
-      </Row>
-
       {/* 搜索过滤 */}
       <Card className={styles.filterCard}>
         <Row className={styles.filterRow}>
@@ -1419,6 +1329,73 @@ const ProductList: React.FC = () => {
             </Space>
           </Form.Item>
         </Form>
+
+        {/* 商品状态标签 */}
+        <Tabs
+          activeKey={filterValues.status || 'on_sale'}
+          onChange={(key) => {
+            filterForm.setFieldsValue({ status: key });
+            setFilterValues({ ...filterValues, status: key });
+            setCurrentPage(1);
+          }}
+          style={{ marginTop: 16 }}
+          items={[
+            {
+              key: 'on_sale',
+              label: (
+                <span>
+                  <CheckCircleOutlined />
+                  销售中 ({globalStats?.products?.on_sale || 0})
+                </span>
+              ),
+            },
+            {
+              key: 'ready_to_sell',
+              label: (
+                <span>
+                  <ClockCircleOutlined />
+                  准备销售 ({globalStats?.products?.ready_to_sell || 0})
+                </span>
+              ),
+            },
+            {
+              key: 'error',
+              label: (
+                <span>
+                  <CloseCircleOutlined />
+                  错误 ({globalStats?.products?.error || 0})
+                </span>
+              ),
+            },
+            {
+              key: 'pending_modification',
+              label: (
+                <span>
+                  <WarningOutlined />
+                  待修改 ({globalStats?.products?.pending_modification || 0})
+                </span>
+              ),
+            },
+            {
+              key: 'inactive',
+              label: (
+                <span>
+                  <InfoCircleOutlined />
+                  已下架 ({globalStats?.products?.inactive || 0})
+                </span>
+              ),
+            },
+            {
+              key: 'archived',
+              label: (
+                <span>
+                  <FileOutlined />
+                  已归档 ({globalStats?.products?.archived || 0})
+                </span>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       {/* 操作按钮 */}
