@@ -108,12 +108,43 @@ const ChatList: React.FC = () => {
 
   // 同步聊天
   const syncMutation = useMutation({
-    mutationFn: () => {
-      if (!selectedShopId) throw new Error('未选择店铺');
-      return ozonApi.syncChats(selectedShopId);
+    mutationFn: async () => {
+      if (selectedShopId === null) {
+        // 全部店铺模式：批量同步所有店铺
+        const results = [];
+        for (let i = 0; i < shops.length; i++) {
+          const shop = shops[i];
+          notifySuccess(`同步进度`, `正在同步店铺 ${i + 1}/${shops.length}: ${shop.shop_name}`);
+
+          try {
+            const result = await ozonApi.syncChats(shop.id);
+            results.push({ shop_id: shop.id, shop_name: shop.shop_name, ...result });
+          } catch (error: any) {
+            results.push({ shop_id: shop.id, shop_name: shop.shop_name, error: error.message });
+          }
+        }
+        return results;
+      } else {
+        // 单店铺模式
+        return ozonApi.syncChats(selectedShopId);
+      }
     },
     onSuccess: (data) => {
-      notifySuccess('同步成功', `同步成功: 新增 ${data.new_count} 个聊天，更新 ${data.updated_count} 个聊天`);
+      if (Array.isArray(data)) {
+        // 全部店铺模式的结果
+        const total = data.reduce((sum, r) => sum + (r.new_count || 0) + (r.updated_count || 0), 0);
+        const totalMessages = data.reduce((sum, r) => sum + (r.total_new_messages || 0), 0);
+        notifySuccess(
+          '批量同步完成',
+          `已同步 ${data.length} 个店铺，共 ${total} 个聊天，${totalMessages} 条新消息`
+        );
+      } else {
+        // 单店铺模式的结果
+        notifySuccess(
+          '同步成功',
+          `新增 ${data.new_count} 个聊天，更新 ${data.updated_count} 个聊天，${data.total_new_messages || 0} 条新消息`
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['chats'] });
       queryClient.invalidateQueries({ queryKey: ['chatStats'] });
     },
@@ -262,10 +293,9 @@ const ChatList: React.FC = () => {
                   icon={<SyncOutlined />}
                   loading={syncMutation.isPending}
                   onClick={handleSync}
-                  disabled={selectedShopId === null}
-                  title={selectedShopId === null ? '全部店铺模式下不支持同步，请选择具体店铺' : ''}
+                  title={selectedShopId === null ? '将依次同步所有店铺的聊天' : '同步当前店铺的聊天'}
                 >
-                  同步聊天
+                  {selectedShopId === null ? `同步所有店铺 (${shops.length})` : '同步聊天'}
                 </Button>
               </Space>
             </Space>

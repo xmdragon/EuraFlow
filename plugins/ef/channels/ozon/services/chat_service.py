@@ -373,16 +373,112 @@ class OzonChatService:
                 "closed_at": chat.closed_at.isoformat()
             }
 
+    async def _sync_chat_messages(
+        self,
+        chat_id: str,
+        api_client: OzonAPIClient
+    ) -> Dict[str, Any]:
+        """同步单个聊天的消息
+
+        Args:
+            chat_id: 聊天ID
+            api_client: OZON API客户端
+
+        Returns:
+            同步的消息统计
+        """
+        synced_messages = 0
+        new_messages = 0
+
+        # 获取聊天消息历史
+        try:
+            history = await api_client.get_chat_history(chat_id, limit=100)
+            messages_data = history.get("messages", [])
+
+            if not messages_data:
+                return {"synced_messages": 0, "new_messages": 0}
+
+            async with self.db_manager.get_session() as session:
+                # 获取聊天对象以更新信息
+                chat_stmt = select(OzonChat).where(
+                    and_(
+                        OzonChat.shop_id == self.shop_id,
+                        OzonChat.chat_id == chat_id
+                    )
+                )
+                chat = await session.scalar(chat_stmt)
+
+                if not chat:
+                    return {"synced_messages": 0, "new_messages": 0}
+
+                # 反转消息列表（从最早到最新）
+                messages_data = list(reversed(messages_data))
+
+                for msg_data in messages_data:
+                    message_id = str(msg_data.get("id", ""))
+                    if not message_id:
+                        continue
+
+                    # 检查消息是否已存在
+                    msg_stmt = select(OzonChatMessage).where(
+                        OzonChatMessage.message_id == message_id
+                    )
+                    existing_msg = await session.scalar(msg_stmt)
+
+                    if not existing_msg:
+                        # 创建新消息
+                        new_msg = self._create_message_from_api(chat_id, msg_data)
+                        session.add(new_msg)
+                        new_messages += 1
+
+                        # 从消息中提取关联信息
+                        if msg_data.get("data", {}).get("order"):
+                            order_info = msg_data["data"]["order"]
+                            if not chat.order_number:
+                                chat.order_number = order_info.get("number")
+
+                        # 更新客户名称（从用户消息中）
+                        if msg_data.get("user") and msg_data["user"].get("type") == "Customer":
+                            if not chat.customer_name:
+                                chat.customer_name = msg_data["user"].get("name", "未知客户")
+                            if not chat.customer_id:
+                                chat.customer_id = str(msg_data["user"].get("id", ""))
+
+                    synced_messages += 1
+
+                # 更新聊天的最后消息信息
+                if messages_data:
+                    last_msg = messages_data[-1]
+                    chat.last_message_preview = last_msg.get("data", {}).get("text", "")[:500]
+                    chat.last_message_at = parse_datetime(last_msg.get("created_at"))
+                    chat.message_count = len(messages_data)
+
+                await session.commit()
+
+            return {
+                "synced_messages": synced_messages,
+                "new_messages": new_messages
+            }
+
+        except Exception as e:
+            # 记录错误但继续处理其他聊天
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to sync messages for chat {chat_id}: {e}")
+            return {"synced_messages": 0, "new_messages": 0}
+
     async def sync_chats(
         self,
         api_client: OzonAPIClient,
-        chat_id_list: Optional[List[str]] = None
+        chat_id_list: Optional[List[str]] = None,
+        sync_messages: bool = True
     ) -> Dict[str, Any]:
         """从OZON同步聊天数据
 
         Args:
             api_client: OZON API客户端
             chat_id_list: 要同步的聊天ID列表（为空则同步全部）
+            sync_messages: 是否同步消息内容（默认True）
 
         Returns:
             同步结果统计
@@ -390,6 +486,8 @@ class OzonChatService:
         synced_count = 0
         new_count = 0
         updated_count = 0
+        total_messages = 0
+        total_new_messages = 0
 
         # 获取聊天列表 - 使用cursor分页
         limit = 100
@@ -414,7 +512,9 @@ class OzonChatService:
 
             async with self.db_manager.get_session() as session:
                 for chat_data in chats_data:
-                    chat_id = chat_data.get("chat_id")
+                    # 提取chat_id（在嵌套的chat对象中）
+                    chat_info = chat_data.get("chat", {})
+                    chat_id = chat_info.get("chat_id")
                     if not chat_id:
                         continue
 
@@ -441,6 +541,16 @@ class OzonChatService:
 
                 await session.commit()
 
+            # 同步消息内容
+            if sync_messages:
+                for chat_data in chats_data:
+                    chat_info = chat_data.get("chat", {})
+                    chat_id = chat_info.get("chat_id")
+                    if chat_id:
+                        msg_stats = await self._sync_chat_messages(chat_id, api_client)
+                        total_messages += msg_stats.get("synced_messages", 0)
+                        total_new_messages += msg_stats.get("new_messages", 0)
+
             # 检查是否还有更多数据
             has_next = result.get("has_next", False)
             if not has_next:
@@ -454,8 +564,39 @@ class OzonChatService:
         return {
             "synced_count": synced_count,
             "new_count": new_count,
-            "updated_count": updated_count
+            "updated_count": updated_count,
+            "total_messages": total_messages,
+            "total_new_messages": total_new_messages
         }
+
+    def _create_message_from_api(self, chat_id: str, msg_data: Dict[str, Any]) -> OzonChatMessage:
+        """从OZON API数据创建消息对象"""
+        user = msg_data.get("user", {})
+        data = msg_data.get("data", {})
+
+        # 判断发送者类型
+        sender_type_map = {
+            "Customer": "user",
+            "Seller": "seller",
+            "Support": "support"
+        }
+        sender_type = sender_type_map.get(user.get("type"), "user")
+
+        return OzonChatMessage(
+            shop_id=self.shop_id,
+            chat_id=chat_id,
+            message_id=str(msg_data.get("id", "")),
+            message_type=data.get("type", "text"),
+            sender_type=sender_type,
+            sender_id=str(user.get("id", "")),
+            sender_name=user.get("name"),
+            content=data.get("text"),
+            content_data=data,
+            is_read=msg_data.get("is_read", False),
+            is_deleted=False,
+            is_edited=False,
+            created_at=parse_datetime(msg_data.get("created_at"))
+        )
 
     async def get_chat_stats(self) -> Dict[str, Any]:
         """获取聊天统计信息"""
@@ -544,40 +685,63 @@ class OzonChatService:
         }
 
     def _create_chat_from_api(self, chat_data: Dict[str, Any]) -> OzonChat:
-        """从OZON API数据创建聊天对象"""
+        """从OZON API数据创建聊天对象
+
+        OZON API返回格式：
+        {
+            "chat": {
+                "chat_id": "...",
+                "chat_status": "OPENED",
+                "chat_type": "UNSPECIFIED",
+                "created_at": "..."
+            },
+            "unread_count": 2,
+            "first_unread_message_id": ...,
+            "last_message_id": ...
+        }
+        """
+        # 提取chat嵌套对象
+        chat = chat_data.get("chat", {})
+
+        # 状态映射：OPENED -> open, CLOSED -> closed
+        chat_status = chat.get("chat_status", "OPENED")
+        status = "open" if chat_status == "OPENED" else "closed"
+        is_closed = chat_status == "CLOSED"
+
         return OzonChat(
             shop_id=self.shop_id,
-            chat_id=chat_data["chat_id"],
-            chat_type=chat_data.get("chat_type"),
-            subject=chat_data.get("subject"),
+            chat_id=chat.get("chat_id"),
+            chat_type=chat.get("chat_type"),
+            subject=chat.get("subject"),
             customer_id=chat_data.get("customer_id"),
             customer_name=chat_data.get("customer_name"),
-            status=chat_data.get("status", "open"),
-            is_closed=chat_data.get("is_closed", False),
+            status=status,
+            is_closed=is_closed,
             order_number=chat_data.get("order_number"),
             product_id=chat_data.get("product_id"),
             message_count=chat_data.get("message_count", 0),
             unread_count=chat_data.get("unread_count", 0),
-            last_message_at=parse_datetime(chat_data.get("last_message_at")),
-            last_message_preview=chat_data.get("last_message_preview"),
-            extra_data=chat_data
+            last_message_at=parse_datetime(chat.get("created_at")),  # 使用创建时间作为默认值
+            last_message_preview=None,  # 初始为空，后续通过消息同步填充
+            extra_data=chat_data  # 保存完整的原始数据
         )
 
     def _update_chat_from_api(self, chat: OzonChat, chat_data: Dict[str, Any]) -> None:
         """用OZON API数据更新聊天对象"""
-        chat.chat_type = chat_data.get("chat_type", chat.chat_type)
-        chat.subject = chat_data.get("subject", chat.subject)
-        chat.customer_id = chat_data.get("customer_id", chat.customer_id)
-        chat.customer_name = chat_data.get("customer_name", chat.customer_name)
-        chat.status = chat_data.get("status", chat.status)
-        chat.is_closed = chat_data.get("is_closed", chat.is_closed)
-        chat.message_count = chat_data.get("message_count", chat.message_count)
+        # 提取chat嵌套对象
+        chat_info = chat_data.get("chat", {})
+
+        # 状态映射
+        chat_status = chat_info.get("chat_status", "OPENED")
+        status = "open" if chat_status == "OPENED" else "closed"
+        is_closed = chat_status == "CLOSED"
+
+        chat.chat_type = chat_info.get("chat_type", chat.chat_type)
+        chat.subject = chat_info.get("subject", chat.subject)
+        chat.status = status
+        chat.is_closed = is_closed
         chat.unread_count = chat_data.get("unread_count", chat.unread_count)
 
-        last_message_at = parse_datetime(chat_data.get("last_message_at"))
-        if last_message_at:
-            chat.last_message_at = last_message_at
-
-        chat.last_message_preview = chat_data.get("last_message_preview", chat.last_message_preview)
+        # 更新extra_data保存完整原始数据
         chat.extra_data = chat_data
         chat.updated_at = utcnow()
