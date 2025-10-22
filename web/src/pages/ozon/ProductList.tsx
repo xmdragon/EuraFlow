@@ -54,6 +54,7 @@ import {
   Popover,
   Avatar,
   Tabs,
+  notification,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
@@ -276,17 +277,71 @@ const ProductList: React.FC = () => {
     retryDelay: 1000, // 重试延迟1秒
   });
 
-  // 同步商品
+  // 异步轮询商品同步状态（后台任务）
+  const pollProductSyncStatus = async (taskId: string) => {
+    const notificationKey = 'product-sync';
+    let completed = false;
+
+    // 显示初始进度通知
+    notification.open({
+      key: notificationKey,
+      message: '商品同步进行中',
+      description: (
+        <div>
+          <Progress percent={0} size="small" status="active" />
+          <div style={{ marginTop: 8 }}>正在启动同步...</div>
+        </div>
+      ),
+      duration: 0, // 不自动关闭
+      icon: <SyncOutlined spin />,
+    });
+
+    // 持续轮询状态
+    while (!completed) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 每2秒检查一次
+        const result = await ozonApi.getSyncStatus(taskId);
+        const status = result.data || result;
+
+        if (status.status === 'completed') {
+          completed = true;
+          notification.close(notificationKey);
+          notifySuccess('同步完成', '商品同步已完成！');
+          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+          refetch();
+        } else if (status.status === 'failed') {
+          completed = true;
+          notification.close(notificationKey);
+          notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
+        } else {
+          // 更新进度通知
+          const percent = Math.round(status.progress || 0);
+          notification.open({
+            key: notificationKey,
+            message: '商品同步进行中',
+            description: (
+              <div>
+                <Progress percent={percent} size="small" status="active" />
+                <div style={{ marginTop: 8 }}>{status.message || '同步中...'}</div>
+              </div>
+            ),
+            duration: 0,
+            icon: <SyncOutlined spin />,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch sync status:', error);
+      }
+    }
+  };
+
+  // 同步商品（非阻塞）
   const syncProductsMutation = useMutation({
     mutationFn: (fullSync: boolean) => ozonApi.syncProducts(selectedShop, fullSync),
     onSuccess: (data) => {
-      notifySuccess('同步已启动', '商品同步任务已启动');
-      setSyncTaskId(data.task_id);
-      setSyncStatus({
-        status: 'running',
-        progress: 0,
-        message: '正在启动同步...',
-      });
+      // 立即启动后台轮询任务
+      pollProductSyncStatus(data.task_id);
+      // 不再使用 setSyncTaskId 和 setSyncStatus
     },
     onError: (error: any) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
@@ -480,35 +535,7 @@ const ProductList: React.FC = () => {
     }, 300000);
   };
 
-  // 轮询同步任务状态
-  useEffect(() => {
-    if (!syncTaskId || syncStatus?.status === 'completed' || syncStatus?.status === 'failed') {
-      return;
-    }
-
-    const interval = setInterval(async () => {
-      try {
-        const result = await ozonApi.getSyncStatus(syncTaskId);
-        const status = result.data || result; // 兼容不同响应格式
-        setSyncStatus(status);
-
-        if (status.status === 'completed') {
-          notifySuccess('同步完成', '商品同步已完成！');
-          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-          // 刷新页面数据
-          refetch();
-          setSyncTaskId(null);
-        } else if (status.status === 'failed') {
-          notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
-          setSyncTaskId(null);
-        }
-      } catch (error) {
-        console.error('Failed to fetch sync status:', error);
-      }
-    }, 2000); // 每2秒检查一次
-
-    return () => clearInterval(interval);
-  }, [syncTaskId, syncStatus?.status, queryClient]);
+  // 已移除旧的 useEffect 轮询逻辑，改为异步后台任务
 
   // 处理图片点击
   const handleImageClick = (product: any, images: string[], index: number = 0) => {
@@ -1266,26 +1293,7 @@ const ProductList: React.FC = () => {
 
   return (
     <div>
-      {/* 同步进度显示 */}
-      {syncStatus && syncStatus.status === 'running' && (
-        <Alert
-          message="商品同步中"
-          description={
-            <div>
-              <p>{syncStatus.message}</p>
-              <Progress percent={Math.round(syncStatus.progress)} status="active" />
-            </div>
-          }
-          type="info"
-          showIcon
-          closable
-          onClose={() => {
-            setSyncStatus(null);
-            setSyncTaskId(null);
-          }}
-          style={{ marginBottom: 8 }}
-        />
-      )}
+      {/* 同步进度已改为右下角通知显示 */}
 
       {/* 搜索过滤 */}
       <Card className={styles.filterCard}>
