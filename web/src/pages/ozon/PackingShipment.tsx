@@ -50,6 +50,7 @@ import {
   Divider,
   Checkbox,
   Spin,
+  notification,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
@@ -1278,7 +1279,80 @@ const PackingShipment: React.FC = () => {
     },
   });
 
-  // 批量同步处理函数
+  // 异步执行批量同步（后台任务）
+  const executeBatchSync = async (postings: any[]) => {
+    const notificationKey = 'batch-sync';
+    let successCount = 0;
+    let failedCount = 0;
+    const total = postings.length;
+
+    // 显示初始进度通知
+    notification.open({
+      key: notificationKey,
+      message: '批量同步进行中',
+      description: (
+        <div>
+          <Progress percent={0} size="small" status="active" />
+          <div style={{ marginTop: 8 }}>
+            已完成 0/{total} (成功: 0, 失败: 0)
+          </div>
+        </div>
+      ),
+      duration: 0, // 不自动关闭
+      icon: <SyncOutlined spin />,
+    });
+
+    // 逐个同步订单
+    for (let i = 0; i < postings.length; i++) {
+      const posting = postings[i];
+      try {
+        await ozonApi.syncSingleOrder(posting.posting_number, posting.order.shop_id);
+        successCount++;
+      } catch (error) {
+        console.error(`同步失败: ${posting.posting_number}`, error);
+        failedCount++;
+      }
+
+      // 更新进度通知
+      const completed = i + 1;
+      const percent = Math.round((completed / total) * 100);
+      notification.open({
+        key: notificationKey,
+        message: '批量同步进行中',
+        description: (
+          <div>
+            <Progress percent={percent} size="small" status="active" />
+            <div style={{ marginTop: 8 }}>
+              已完成 {completed}/{total} (成功: {successCount}, 失败: {failedCount})
+            </div>
+          </div>
+        ),
+        duration: 0,
+        icon: <SyncOutlined spin />,
+      });
+    }
+
+    // 关闭进度通知
+    notification.close(notificationKey);
+
+    // 显示最终结果
+    if (failedCount === 0) {
+      notifySuccess('批量同步完成', `成功同步 ${successCount} 个订单`);
+    } else {
+      notifyWarning('批量同步完成', `成功: ${successCount}, 失败: ${failedCount}`);
+    }
+
+    // 刷新数据
+    queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+    queryClient.invalidateQueries({ queryKey: ['packingStats'] });
+    resetAndRefresh();
+
+    // 重置同步状态
+    setIsBatchSyncing(false);
+    setSyncProgress({ success: 0, failed: 0, total: 0 });
+  };
+
+  // 批量同步处理函数（非阻塞）
   const handleBatchSync = () => {
     if (allPostings.length === 0) {
       notifyWarning('操作失败', '当前页面没有可同步的订单');
@@ -1288,37 +1362,16 @@ const PackingShipment: React.FC = () => {
     Modal.confirm({
       title: '确认批量同步？',
       content: `将同步当前页面的 ${allPostings.length} 个订单，是否继续？`,
-      onOk: async () => {
+      onOk: () => {
+        // 立即设置同步状态
         setIsBatchSyncing(true);
         setSyncProgress({ success: 0, failed: 0, total: allPostings.length });
 
-        let successCount = 0;
-        let failedCount = 0;
+        // 在后台执行同步任务（非阻塞）
+        executeBatchSync([...allPostings]);
 
-        for (const posting of allPostings) {
-          try {
-            await ozonApi.syncSingleOrder(posting.posting_number, posting.order.shop_id);
-            successCount++;
-          } catch (error) {
-            console.error(`同步失败: ${posting.posting_number}`, error);
-            failedCount++;
-          }
-          setSyncProgress({ success: successCount, failed: failedCount, total: allPostings.length });
-        }
-
-        setIsBatchSyncing(false);
-
-        // 显示结果
-        if (failedCount === 0) {
-          notifySuccess('批量同步完成', `成功同步 ${successCount} 个订单`);
-        } else {
-          notifyWarning('批量同步完成', `成功: ${successCount}, 失败: ${failedCount}`);
-        }
-
-        // 刷新数据
-        queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-        queryClient.invalidateQueries({ queryKey: ['packingStats'] });
-        resetAndRefresh();
+        // 立即返回，对话框会关闭
+        return Promise.resolve();
       }
     });
   };
