@@ -1011,6 +1011,7 @@ export interface PrepareStockRequest {
   purchase_price: string;  // 进货价格（必填）
   source_platform?: string;  // 采购平台（可选：1688/拼多多/咸鱼/淘宝）
   order_notes?: string;  // 订单备注（可选）
+  sync_to_ozon?: boolean;  // 是否同步到Ozon（可选，默认true）
 }
 
 // 更新业务信息请求参数

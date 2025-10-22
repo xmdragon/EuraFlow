@@ -3,7 +3,7 @@
  * 用于填写进货价格、采购平台和订单备注
  */
 import React from 'react';
-import { Modal, Form, Input, Select, InputNumber } from 'antd';
+import { Modal, Form, Input, Select, InputNumber, Checkbox } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -36,6 +36,12 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
         purchase_price: posting.purchase_price ? parseFloat(posting.purchase_price) : undefined,
         source_platform: posting.source_platform || undefined,
         order_notes: posting.order_notes || undefined,
+        sync_to_ozon: true, // 默认勾选
+      });
+    } else if (visible) {
+      // 新建时也设置默认值
+      form.setFieldsValue({
+        sync_to_ozon: true,
       });
     }
   }, [visible, posting, form]);
@@ -75,6 +81,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
         purchase_price: String(values.purchase_price),
         source_platform: values.source_platform,
         order_notes: values.order_notes,
+        sync_to_ozon: values.sync_to_ozon !== false, // 默认为true
       };
       prepareStockMutation.mutate(data);
     } catch (error) {
@@ -142,13 +149,15 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
             showCount
           />
         </Form.Item>
-      </Form>
 
-      <div style={{ marginTop: 16, padding: 12, background: '#f0f2f5', borderRadius: 4 }}>
-        <p style={{ margin: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
-          <strong>说明：</strong>备货操作将保存业务信息并调用 OZON exemplar set API，操作成功后状态将变更为"分配中"。
-        </p>
-      </div>
+        <Form.Item
+          name="sync_to_ozon"
+          valuePropName="checked"
+          tooltip="勾选后会将组装完成状态同步到OZON平台"
+        >
+          <Checkbox>同步到 Ozon</Checkbox>
+        </Form.Item>
+      </Form>
     </Modal>
   );
 };

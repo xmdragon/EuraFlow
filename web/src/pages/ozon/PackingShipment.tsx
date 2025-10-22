@@ -961,7 +961,7 @@ const PackingShipment: React.FC = () => {
     setTimeout(() => refetch(), 0);
   }, [initialPageSize, refetch]);
 
-  // 查询各操作状态的数量统计（按需加载 - 只加载用户访问过的标签）
+  // 查询各操作状态的数量统计（立即全部加载）
   // 第一个标签"等待备货"：使用OZON原生状态（awaiting_packaging, awaiting_deliver）
   const { data: awaitingStockData } = useQuery({
     queryKey: ['packingOrdersCount', 'awaiting_stock', selectedShop, searchParams],
@@ -970,7 +970,6 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       ozon_status: 'awaiting_packaging,awaiting_deliver',  // 使用OZON原生状态
     }),
-    enabled: visitedTabs.has('awaiting_stock'), // 按需加载：只有访问过才加载
     staleTime: 30000, // 30秒缓存
   });
 
@@ -981,7 +980,6 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'allocating',
     }),
-    enabled: visitedTabs.has('allocating'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 
@@ -992,7 +990,6 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'allocated',
     }),
-    enabled: visitedTabs.has('allocated'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 
@@ -1003,7 +1000,6 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'tracking_confirmed',
     }),
-    enabled: visitedTabs.has('tracking_confirmed'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 

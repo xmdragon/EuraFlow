@@ -34,16 +34,18 @@ class PostingOperationsService:
         posting_number: str,
         purchase_price: Decimal,
         source_platform: Optional[str] = None,
-        order_notes: Optional[str] = None
+        order_notes: Optional[str] = None,
+        sync_to_ozon: Optional[bool] = True
     ) -> Dict[str, Any]:
         """
-        备货操作：保存业务信息 + 调用 OZON ship API（v4）
+        备货操作：保存业务信息 + 可选同步到 OZON
 
         Args:
             posting_number: 货件编号
             purchase_price: 进货价格（必填）
             source_platform: 采购平台（可选：1688/拼多多/咸鱼/淘宝）
             order_notes: 订单备注（可选）
+            sync_to_ozon: 是否同步到Ozon（默认True）
 
         Returns:
             操作结果
@@ -67,58 +69,9 @@ class PostingOperationsService:
 
         posting, shop = row
 
-        logger.info(f"找到货件，当前状态: {posting.operation_status}, shop_id: {posting.shop_id}")
+        logger.info(f"找到货件，当前状态: {posting.operation_status}, shop_id: {posting.shop_id}, sync_to_ozon: {sync_to_ozon}")
 
-        # 2. 检查是否需要调用OZON API
-        # 如果已有进货价格，且用户提交的值都没变化，则只更新operation_status，跳过OZON API调用
-        old_purchase_price = str(posting.purchase_price) if posting.purchase_price else None
-        old_source_platform = posting.source_platform
-        old_order_notes = posting.order_notes
-
-        # 将传入的值转换为字符串进行比较（purchase_price是Decimal类型）
-        new_purchase_price_str = str(purchase_price) if purchase_price else None
-
-        # 判断是否有变化的逻辑：
-        # - 进货价格：必填字段，必须比较
-        # - 采购平台/备注：可选字段，如果传入None，视为"不修改"，不参与比较
-        price_unchanged = (old_purchase_price == new_purchase_price_str)
-        # 采购平台：传入None时视为不修改，不算变化
-        platform_unchanged = (source_platform is None or old_source_platform == source_platform)
-        # 备注：传入None时视为不修改，不算变化
-        notes_unchanged = (order_notes is None or old_order_notes == order_notes)
-
-        # 如果已有进货价格且所有值都没变，跳过OZON API调用
-        skip_ozon_api = (
-            posting.purchase_price is not None and
-            price_unchanged and
-            platform_unchanged and
-            notes_unchanged
-        )
-
-        if skip_ozon_api:
-            logger.info(
-                f"备货信息未变化，跳过OZON API调用: posting_number={posting_number}, "
-                f"purchase_price={purchase_price}, source_platform={source_platform}"
-            )
-            # 只更新operation_status和operation_time
-            posting.operation_status = "allocating"
-            posting.operation_time = utcnow()
-
-            await self.db.commit()
-            await self.db.refresh(posting)
-
-            return {
-                "success": True,
-                "message": "备货操作成功（信息未变化，未调用OZON API）",
-                "data": {
-                    "posting_number": posting.posting_number,
-                    "operation_status": posting.operation_status,
-                    "operation_time": posting.operation_time.isoformat() if posting.operation_time else None,
-                    "skipped_ozon_api": True
-                }
-            }
-
-        # 3. 保存业务信息
+        # 2. 保存业务信息
         posting.purchase_price = purchase_price
         posting.purchase_price_updated_at = utcnow()
         if source_platform:
@@ -130,56 +83,67 @@ class PostingOperationsService:
         # 立即更新操作状态为"分配中"（在 API 调用前）
         posting.operation_status = "allocating"
 
-        # 4. 调用 OZON ship API（v4）告诉 OZON 订单已组装完成
-        try:
-            packages = self._build_packages_for_ship(posting)
+        # 3. 根据 sync_to_ozon 决定是否调用 OZON API
+        if sync_to_ozon:
+            # 调用 OZON ship API（v4）告诉 OZON 订单已组装完成
+            try:
+                packages = self._build_packages_for_ship(posting)
 
-            # 创建 API 客户端
-            api_client = OzonAPIClient(
-                client_id=shop.client_id,
-                api_key=shop.api_key_enc,
-                shop_id=shop.id
-            )
+                # 创建 API 客户端
+                api_client = OzonAPIClient(
+                    client_id=shop.client_id,
+                    api_key=shop.api_key_enc,
+                    shop_id=shop.id
+                )
 
-            # 调用 v4 ship API
-            logger.info(f"调用 OZON ship API (v4)，posting_number: {posting_number}, packages: {packages}")
-            ship_result = await api_client.ship_posting_v4(
-                posting_number=posting_number,
-                packages=packages
-            )
-            await api_client.close()
+                # 调用 v4 ship API
+                logger.info(f"调用 OZON ship API (v4)，posting_number: {posting_number}, packages: {packages}")
+                ship_result = await api_client.ship_posting_v4(
+                    posting_number=posting_number,
+                    packages=packages
+                )
+                await api_client.close()
 
-            logger.info(f"OZON ship API 调用成功，posting_number: {posting_number}, result: {ship_result}")
+                logger.info(f"OZON ship API 调用成功，posting_number: {posting_number}, result: {ship_result}")
 
-        except Exception as e:
-            logger.error(f"调用 OZON ship API 失败，posting_number: {posting_number}, error: {str(e)}")
-            # OZON API 调用失败不回滚数据库事务，因为业务信息已保存且状态已更新
-            # 返回部分成功的结果
-            await self.db.commit()
-            await self.db.refresh(posting)
-            return {
-                "success": False,
-                "message": f"业务信息已保存，状态已更新为分配中，但 OZON API 调用失败：{str(e)}",
-                "data": {
-                    "posting_number": posting.posting_number,
-                    "operation_status": posting.operation_status,
-                    "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
+            except Exception as e:
+                logger.error(f"调用 OZON ship API 失败，posting_number: {posting_number}, error: {str(e)}")
+                # OZON API 调用失败不回滚数据库事务，因为业务信息已保存且状态已更新
+                # 返回部分成功的结果
+                await self.db.commit()
+                await self.db.refresh(posting)
+                return {
+                    "success": False,
+                    "message": f"业务信息已保存，状态已更新为分配中，但 OZON API 调用失败：{str(e)}",
+                    "data": {
+                        "posting_number": posting.posting_number,
+                        "operation_status": posting.operation_status,
+                        "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
+                    }
                 }
-            }
+        else:
+            logger.info(f"用户未勾选同步到Ozon，跳过 OZON API 调用，posting_number: {posting_number}")
 
-        # 5. 提交数据库事务
+        # 4. 提交数据库事务
         await self.db.commit()
         await self.db.refresh(posting)
 
-        logger.info(f"备货操作成功，posting_number: {posting_number}, operation_status: {posting.operation_status}")
+        logger.info(f"备货操作成功，posting_number: {posting_number}, operation_status: {posting.operation_status}, sync_to_ozon: {sync_to_ozon}")
+
+        # 根据是否同步到Ozon返回不同的提示
+        if sync_to_ozon:
+            message = "备货成功，已同步到Ozon"
+        else:
+            message = "备货成功（未同步到Ozon）"
 
         return {
             "success": True,
-            "message": "备货成功",
+            "message": message,
             "data": {
                 "posting_number": posting.posting_number,
                 "operation_status": posting.operation_status,
-                "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
+                "operation_time": posting.operation_time.isoformat() if posting.operation_time else None,
+                "synced_to_ozon": sync_to_ozon
             }
         }
 

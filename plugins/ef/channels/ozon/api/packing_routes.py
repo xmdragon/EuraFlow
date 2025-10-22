@@ -25,6 +25,7 @@ class PrepareStockDTO(BaseModel):
     purchase_price: Decimal = Field(..., description="进货价格（必填）")
     source_platform: Optional[str] = Field(None, description="采购平台（可选：1688/拼多多/咸鱼/淘宝）")
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
+    sync_to_ozon: Optional[bool] = Field(True, description="是否同步到Ozon（默认true）")
 
 
 class UpdateBusinessInfoDTO(BaseModel):
@@ -61,15 +62,13 @@ async def prepare_stock(
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    备货操作：保存业务信息 + 调用 OZON exemplar set API
+    备货操作：保存业务信息 + 可选同步到 OZON
 
     操作流程：
     1. 保存进货价格、采购平台、备注
-    2. 调用 OZON exemplar set API（自动构造合规数据）
+    2. 如果勾选"同步到Ozon"，调用 OZON ship API（v4）
     3. 更新操作状态为"分配中"
     4. 更新操作时间
-
-    幂等性：如果状态已 >= allocating，返回错误
     """
     from ..services.posting_operations import PostingOperationsService
 
@@ -78,7 +77,8 @@ async def prepare_stock(
         posting_number=posting_number,
         purchase_price=request.purchase_price,
         source_platform=request.source_platform,
-        order_notes=request.order_notes
+        order_notes=request.order_notes,
+        sync_to_ozon=request.sync_to_ozon
     )
 
     if not result["success"]:
