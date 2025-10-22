@@ -70,7 +70,7 @@ class PostingOperationsService:
         logger.info(f"找到货件，当前状态: {posting.operation_status}, shop_id: {posting.shop_id}")
 
         # 2. 检查是否需要调用OZON API
-        # 如果已有进货价格，且三个值都没变化，则只更新operation_status，跳过OZON API调用
+        # 如果已有进货价格，且用户提交的值都没变化，则只更新operation_status，跳过OZON API调用
         old_purchase_price = str(posting.purchase_price) if posting.purchase_price else None
         old_source_platform = posting.source_platform
         old_order_notes = posting.order_notes
@@ -78,12 +78,16 @@ class PostingOperationsService:
         # 将传入的值转换为字符串进行比较（purchase_price是Decimal类型）
         new_purchase_price_str = str(purchase_price) if purchase_price else None
 
-        # 判断三个值是否都没有变化
+        # 判断是否有变化的逻辑：
+        # - 进货价格：必填字段，必须比较
+        # - 采购平台/备注：可选字段，如果传入None，视为"不修改"，不参与比较
         price_unchanged = (old_purchase_price == new_purchase_price_str)
-        platform_unchanged = (old_source_platform == source_platform)
-        notes_unchanged = (old_order_notes == order_notes)
+        # 采购平台：传入None时视为不修改，不算变化
+        platform_unchanged = (source_platform is None or old_source_platform == source_platform)
+        # 备注：传入None时视为不修改，不算变化
+        notes_unchanged = (order_notes is None or old_order_notes == order_notes)
 
-        # 如果已有进货价格且三个值都没变，跳过OZON API调用
+        # 如果已有进货价格且所有值都没变，跳过OZON API调用
         skip_ozon_api = (
             posting.purchase_price is not None and
             price_unchanged and
