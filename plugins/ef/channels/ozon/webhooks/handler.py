@@ -6,6 +6,7 @@ import json
 import hashlib
 import hmac
 from datetime import datetime
+from decimal import Decimal
 from typing import Dict, Any, Optional
 
 from sqlalchemy import select, and_
@@ -392,6 +393,135 @@ class OzonWebhookHandler:
 
                 return {"message": "Posting not found, sync triggered"}
     
+    async def _create_posting_from_webhook(self, payload: Dict[str, Any]) -> Optional[Any]:
+        """从webhook payload创建基本订单记录
+
+        Webhook payload包含基本信息，足够创建初始订单：
+        - posting_number, products, in_process_at, shipment_date等
+        - 后续会通过API获取完整信息更新
+        """
+        try:
+            from ..models.orders import OzonOrder, OzonPosting
+            from ..models.products import OzonProduct
+
+            posting_number = payload.get("posting_number")
+            in_process_at = payload.get("in_process_at")
+            shipment_date = payload.get("shipment_date")
+            warehouse_id = payload.get("warehouse_id")
+            products = payload.get("products", [])
+
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as session:
+                # 检查是否已存在
+                existing_posting = await session.scalar(
+                    select(OzonPosting).where(
+                        and_(
+                            OzonPosting.shop_id == self.shop_id,
+                            OzonPosting.posting_number == posting_number
+                        )
+                    )
+                )
+
+                if existing_posting:
+                    logger.info(f"Posting {posting_number} already exists, skipping creation")
+                    return existing_posting
+
+                # 创建或获取Order（使用posting_number作为临时order_id）
+                order = await session.scalar(
+                    select(OzonOrder).where(
+                        and_(
+                            OzonOrder.shop_id == self.shop_id,
+                            OzonOrder.order_id == f"webhook_{posting_number}"
+                        )
+                    )
+                )
+
+                if not order:
+                    order = OzonOrder(
+                        shop_id=self.shop_id,
+                        order_id=f"webhook_{posting_number}",  # 临时ID，后续API更新
+                        ozon_order_id=f"webhook_{posting_number}",
+                        status="awaiting_packaging",
+                        total_price=Decimal("0.00"),  # 待API更新
+                        ordered_at=parse_datetime(in_process_at) if in_process_at else utcnow(),
+                        raw_payload=payload
+                    )
+                    session.add(order)
+                    await session.flush()  # 获取order.id
+
+                # 创建Posting
+                posting = OzonPosting(
+                    shop_id=self.shop_id,
+                    order_id=order.id,
+                    posting_number=posting_number,
+                    status="awaiting_packaging",  # 默认状态
+                    operation_status="awaiting_stock",  # 默认操作状态
+                    shipment_date=parse_datetime(shipment_date) if shipment_date else None,
+                    warehouse_id=warehouse_id,
+                    in_process_at=parse_datetime(in_process_at) if in_process_at else utcnow(),
+                    raw_payload=payload
+                )
+
+                session.add(posting)
+                await session.commit()
+                await session.refresh(posting)
+
+                logger.info(f"Created posting {posting_number} from webhook payload (order_id={order.id})")
+                return posting
+
+        except Exception as e:
+            logger.error(f"Failed to create posting from webhook payload: {e}", exc_info=True)
+            return None
+
+    async def _update_posting_with_api_data(self, posting_number: str) -> None:
+        """后台异步获取OZON API完整数据并更新订单
+
+        包含延迟重试机制：
+        - 首次立即尝试
+        - 如果404，延迟5秒后重试
+        - 最多重试3次
+        """
+        retry_delays = [0, 5, 15, 30]  # 立即、5秒、15秒、30秒
+
+        for attempt, delay in enumerate(retry_delays, 1):
+            if delay > 0:
+                import asyncio
+                await asyncio.sleep(delay)
+
+            try:
+                logger.info(f"Attempting to fetch API data for posting {posting_number} (attempt {attempt}/{len(retry_delays)})")
+
+                # 调用原有的同步逻辑
+                await self._trigger_order_sync(posting_number)
+
+                # 检查是否成功更新
+                from ..models.orders import OzonPosting, OzonOrder
+                db_manager = get_db_manager()
+
+                async with db_manager.get_session() as session:
+                    posting = await session.scalar(
+                        select(OzonPosting).where(
+                            and_(
+                                OzonPosting.shop_id == self.shop_id,
+                                OzonPosting.posting_number == posting_number
+                            )
+                        )
+                    )
+
+                    # 检查是否已有完整数据（order_id不是临时的）
+                    if posting and posting.order_id:
+                        order = await session.get(OzonOrder, posting.order_id)
+                        if order and not order.order_id.startswith("webhook_"):
+                            logger.info(f"Successfully updated posting {posting_number} with API data")
+                            return  # 成功，退出
+
+                logger.warning(f"API data not yet available for posting {posting_number}, will retry")
+
+            except Exception as e:
+                logger.error(f"Error updating posting {posting_number} with API data (attempt {attempt}): {e}")
+
+        logger.warning(f"Failed to update posting {posting_number} with API data after {len(retry_delays)} attempts")
+
     async def _trigger_order_sync(self, posting_number: str) -> None:
         """触发特定订单的同步（只从当前店铺获取）"""
         try:
@@ -839,31 +969,20 @@ class OzonWebhookHandler:
     ) -> Dict[str, Any]:
         """处理新订单创建事件 (TYPE_NEW_POSTING)
 
-        流程：先同步订单数据 → 确认数据库有订单 → 发送 WebSocket 通知
+        优化流程：
+        1. 先用webhook payload创建基本订单记录（立即可用）
+        2. 立即通知前端（用户能看到新订单）
+        3. 后台异步获取完整信息并更新
         """
         posting_number = payload.get("posting_number")
         products = payload.get("products", [])
 
         logger.info(f"New posting created: {posting_number} with {len(products)} products")
 
-        # 步骤1：等待订单同步完成（不使用 create_task）
-        await self._trigger_order_sync(posting_number)
+        # 步骤1：先用webhook payload创建基本订单（确保用户能立即看到）
+        posting = await self._create_posting_from_webhook(payload)
 
-        # 步骤2：查询订单是否成功保存
-        from ..models.orders import OzonPosting
-        db_manager = get_db_manager()
-
-        posting = None
-        async with db_manager.get_session() as session:
-            stmt = select(OzonPosting).where(
-                and_(
-                    OzonPosting.shop_id == self.shop_id,
-                    OzonPosting.posting_number == posting_number
-                )
-            )
-            posting = await session.scalar(stmt)
-
-        # 步骤3：仅在订单存在时发送 WebSocket 通知
+        # 步骤2：立即发送 WebSocket 通知
         if posting:
             try:
                 from ef_core.websocket.manager import notification_manager
@@ -874,7 +993,7 @@ class OzonWebhookHandler:
                     "data": {
                         "posting_number": posting_number,
                         "product_count": len(products),
-                        "total_price": str(posting.total_price) if posting.total_price else "0",
+                        "total_price": "0",  # webhook payload中没有价格信息
                         "timestamp": utcnow().isoformat()
                     }
                 }
@@ -890,9 +1009,14 @@ class OzonWebhookHandler:
 
             webhook_event.entity_type = "posting"
             webhook_event.entity_id = str(posting.id)
-            return {"posting_number": posting_number, "synced": True, "notified": True}
+
+            # 步骤3：后台异步获取完整信息并更新（不阻塞webhook响应）
+            import asyncio
+            asyncio.create_task(self._update_posting_with_api_data(posting_number))
+
+            return {"posting_number": posting_number, "synced": True, "notified": True, "source": "webhook_payload"}
         else:
-            logger.warning(f"Posting {posting_number} not found after sync, notification not sent")
+            logger.error(f"Failed to create posting {posting_number} from webhook payload")
             webhook_event.entity_type = "posting"
             webhook_event.entity_id = posting_number
             return {"posting_number": posting_number, "synced": False, "notified": False}
