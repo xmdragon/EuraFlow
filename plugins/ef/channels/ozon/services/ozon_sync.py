@@ -271,6 +271,14 @@ class OzonSyncService:
 
                                 if attr_response.get("result", {}).get("items"):
                                     for idx, attr_item in enumerate(attr_response["result"]["items"]):
+                                        # 类型检查：确保 attr_item 是字典
+                                        if not isinstance(attr_item, dict):
+                                            logger.warning(
+                                                f"Unexpected item type in attributes response: "
+                                                f"{type(attr_item).__name__}, skipping item {idx}"
+                                            )
+                                            continue
+
                                         if attr_item.get("offer_id"):
                                             products_attributes_map[attr_item["offer_id"]] = attr_item
 
