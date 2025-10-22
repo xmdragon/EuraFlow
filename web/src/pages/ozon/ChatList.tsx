@@ -193,16 +193,15 @@ const ChatList: React.FC = () => {
   };
 
   const getChatDisplayName = (chat: ozonApi.OzonChat) => {
-    // 如果有客户名称，直接显示
-    if (chat.customer_name) {
+    // 如果有客户名称且不是旧数据的"未知客户"，直接显示
+    if (chat.customer_name && chat.customer_name !== '未知客户') {
       return chat.customer_name;
     }
 
-    // 根据 chat_type 显示类型标签
-    // 注意：API返回的是 Buyer_Sueller（拼写错误），不是 Buyer_Seller
-    if (chat.chat_type === 'Buyer_Sueller') {
+    // 根据 chat_type 显示类型标签（全大写格式）
+    if (chat.chat_type === 'BUYER_SELLER') {
       return '买家';
-    } else if (chat.chat_type === 'Seller_Support') {
+    } else if (chat.chat_type === 'SELLER_SUPPORT') {
       return 'Ozon官方';
     } else {
       return '客户';
@@ -364,8 +363,8 @@ const ChatList: React.FC = () => {
                             {selectedShopId === null && chat.shop_name && (
                               <Tag color="purple">{chat.shop_name}</Tag>
                             )}
-                            {/* 显示聊天类型标签（仅当没有客户名称时） */}
-                            {!chat.customer_name && chat.chat_type === 'Seller_Support' && (
+                            {/* 显示聊天类型标签（仅当没有客户名称或是旧数据时） */}
+                            {(!chat.customer_name || chat.customer_name === '未知客户') && chat.chat_type === 'SELLER_SUPPORT' && (
                               <Tag color="orange">客服咨询</Tag>
                             )}
                             {getStatusTag(chat.status)}

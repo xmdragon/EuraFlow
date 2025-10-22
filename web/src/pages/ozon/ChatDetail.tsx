@@ -164,16 +164,15 @@ const ChatDetail: React.FC = () => {
   };
 
   const getChatDisplayName = (chatData: any) => {
-    // 如果有客户名称，直接显示
-    if (chatData.customer_name) {
+    // 如果有客户名称且不是旧数据的"未知客户"，直接显示
+    if (chatData.customer_name && chatData.customer_name !== '未知客户') {
       return chatData.customer_name;
     }
 
-    // 根据 chat_type 显示类型标签
-    // 注意：API返回的是 Buyer_Sueller（拼写错误），不是 Buyer_Seller
-    if (chatData.chat_type === 'Buyer_Sueller') {
+    // 根据 chat_type 显示类型标签（全大写格式）
+    if (chatData.chat_type === 'BUYER_SELLER') {
       return '买家';
-    } else if (chatData.chat_type === 'Seller_Support') {
+    } else if (chatData.chat_type === 'SELLER_SUPPORT') {
       return 'Ozon官方';
     } else {
       return '客户';
@@ -275,8 +274,8 @@ const ChatDetail: React.FC = () => {
                     <Title level={4} className={styles.chatTitle}>
                       {getChatDisplayName(chatData)}
                     </Title>
-                    {/* 显示聊天类型标签（仅当没有客户名称时） */}
-                    {!chatData.customer_name && chatData.chat_type === 'Seller_Support' && (
+                    {/* 显示聊天类型标签（仅当没有客户名称或是旧数据时） */}
+                    {(!chatData.customer_name || chatData.customer_name === '未知客户') && chatData.chat_type === 'SELLER_SUPPORT' && (
                       <Tag color="orange">客服咨询</Tag>
                     )}
                     {getStatusTag(chatData.status)}
