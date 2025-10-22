@@ -169,19 +169,20 @@ async def get_packing_orders(
     - 支持按 ozon_status 筛选（OZON原生状态，如 awaiting_packaging, awaiting_deliver）
     - ozon_status 优先级高于 operation_status
     - 如果都不指定，返回所有订单
+
+    注意：返回以Posting为粒度的数据，一个订单拆分成多个posting时会显示为多条记录
     """
     from datetime import datetime
 
-    # 构建查询（使用 selectinload 避免懒加载问题）
+    # 构建查询：以Posting为主体，JOIN Order获取订单信息
     from sqlalchemy.orm import selectinload
-    query = select(OzonOrder).options(
-        selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
-        selectinload(OzonOrder.items),
-        selectinload(OzonOrder.refunds)
+    query = select(OzonPosting).join(
+        OzonOrder, OzonPosting.order_id == OzonOrder.id
+    ).options(
+        selectinload(OzonPosting.packages),
+        selectinload(OzonPosting.order).selectinload(OzonOrder.postings),  # 预加载order及其所有postings
+        selectinload(OzonPosting.domestic_trackings)
     )
-
-    # 关联 Posting 表（必须，因为要按 Posting 操作状态筛选）
-    query = query.join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
 
     # 核心过滤：基于 ozon_status + 追踪号码/国内单号
     # 优先使用 operation_status，如果有 ozon_status 参数则转换为 operation_status
@@ -245,21 +246,18 @@ async def get_packing_orders(
 
     # 应用其他过滤条件
     if shop_id:
-        query = query.where(OzonOrder.shop_id == shop_id)
+        query = query.where(OzonPosting.shop_id == shop_id)
 
-    # 搜索条件：其他标签只精确匹配货件编号
+    # 搜索条件：精确匹配货件编号
     if posting_number:
-        query = query.where(
-            OzonPosting.posting_number == posting_number.strip()
-        )
+        query = query.where(OzonPosting.posting_number == posting_number.strip())
 
-    # 去重（因为一个订单可能有多个posting，使用distinct on id）
-    # PostgreSQL要求DISTINCT ON的字段必须出现在ORDER BY的开头
-    query = query.distinct(OzonOrder.id).order_by(OzonOrder.id, OzonOrder.ordered_at.desc())
+    # 排序：按订单创建时间倒序
+    query = query.order_by(OzonOrder.ordered_at.desc())
 
-    # 执行查询获取总数
-    count_query = select(func.count(OzonOrder.id.distinct())).select_from(OzonOrder).join(
-        OzonPosting, OzonOrder.id == OzonPosting.order_id
+    # 执行查询获取总数（统计Posting数量）
+    count_query = select(func.count(OzonPosting.id)).select_from(OzonPosting).join(
+        OzonOrder, OzonPosting.order_id == OzonOrder.id
     )
 
     # 应用相同的状态筛选逻辑
@@ -310,12 +308,9 @@ async def get_packing_orders(
         )
 
     if shop_id:
-        count_query = count_query.where(OzonOrder.shop_id == shop_id)
+        count_query = count_query.where(OzonPosting.shop_id == shop_id)
     if posting_number:
-        # 其他标签只精确匹配货件编号
-        count_query = count_query.where(
-            OzonPosting.posting_number == posting_number.strip()
-        )
+        count_query = count_query.where(OzonPosting.posting_number == posting_number.strip())
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()
@@ -323,19 +318,17 @@ async def get_packing_orders(
     # 添加分页
     query = query.offset(offset).limit(limit)
 
-    # 执行查询
+    # 执行查询，获取Posting列表
     result = await db.execute(query)
-    orders = result.scalars().all()
+    postings = result.scalars().all()
 
-    # 从货件商品中提取所有offer_id
+    # 从posting中提取所有offer_id
     all_offer_ids = set()
-    for order in orders:
-        # 从所有 posting.raw_payload.products 中提取
-        for posting in order.postings or []:
-            if posting.raw_payload and 'products' in posting.raw_payload:
-                for product in posting.raw_payload['products']:
-                    if product.get('offer_id'):
-                        all_offer_ids.add(product.get('offer_id'))
+    for posting in postings:
+        if posting.raw_payload and 'products' in posting.raw_payload:
+            for product in posting.raw_payload['products']:
+                if product.get('offer_id'):
+                    all_offer_ids.add(product.get('offer_id'))
 
     # 批量查询商品图片（使用offer_id匹配）
     offer_id_images = {}
@@ -357,24 +350,25 @@ async def get_packing_orders(
                 elif isinstance(images, list) and images:
                     offer_id_images[offer_id] = images[0]
 
-    # 构建返回数据（移除冗余的 items 字段 + 状态修正）
+    # 构建返回数据：每个posting作为独立记录
     from ..services.posting_status_manager import PostingStatusManager
 
     orders_data = []
-    for order in orders:
-        order_dict = order.to_dict()
-        # 移除 items（与 postings[].products 重复）
-        order_dict.pop('items', None)
+    for posting in postings:
+        # 使用关联的order对象构造完整数据
+        order = posting.order
+        if order:
+            # 调用order.to_dict()，指定target_posting_number确保只返回当前posting的数据
+            order_dict = order.to_dict(target_posting_number=posting.posting_number)
+            # 移除 items（与 postings[].products 重复）
+            order_dict.pop('items', None)
 
-        # 状态修正兜底机制：检查每个posting的operation_status是否正确
-        if 'postings' in order_dict and order_dict['postings']:
-            for posting_dict in order_dict['postings']:
-                # 获取原始posting对象（用于状态计算）
-                posting_obj = next((p for p in order.postings if p.posting_number == posting_dict['posting_number']), None)
-                if posting_obj:
+            # 状态修正兜底机制：检查posting的operation_status是否正确
+            if 'postings' in order_dict and order_dict['postings']:
+                for posting_dict in order_dict['postings']:
                     # 计算正确的operation_status（不保留printed状态，强制重新计算）
                     correct_status, _ = PostingStatusManager.calculate_operation_status(
-                        posting=posting_obj,
+                        posting=posting,
                         ozon_status=posting_dict.get('status', 'unknown'),
                         preserve_manual=False  # 不保留手动状态，强制修正
                     )
@@ -389,7 +383,7 @@ async def get_packing_orders(
                         )
                         posting_dict['operation_status'] = correct_status
 
-        orders_data.append(order_dict)
+            orders_data.append(order_dict)
 
     return {
         "data": orders_data,
