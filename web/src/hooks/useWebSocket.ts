@@ -3,6 +3,8 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { WebSocketNotification, WebSocketMessage } from '@/types/notification';
+import authService from '@/services/authService';
+import { notifyWarning } from '@/utils/notification';
 
 interface UseWebSocketOptions {
   url: string;
@@ -110,17 +112,13 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         if (isAuthFailure) {
           console.error('WebSocket closed due to authentication failure', { code: event.code, reason: event.reason });
           // 清除token并跳转到登录页
-          import('@/services/authService').then(({ default: authService }) => {
-            authService.clearTokens();
-            if (window.location.pathname !== '/login') {
-              import('@/utils/notification').then(({ notifyWarning }) => {
-                notifyWarning('登录过期', '登录已过期，请重新登录');
-              });
-              setTimeout(() => {
-                window.location.href = '/login';
-              }, 500);
-            }
-          });
+          authService.clearTokens();
+          if (window.location.pathname !== '/login') {
+            notifyWarning('登录过期', '登录已过期，请重新登录');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 500);
+          }
           return; // 不进行重连
         }
 
