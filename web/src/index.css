@@ -46,3 +46,13 @@ html, body {
   width: 100%;
   max-width: 400px;
 }
+
+/* 全局覆盖 Ant Design Card body padding */
+:where(.css-1cj4ms).ant-card .ant-card-body {
+  padding: 4px !important;
+}
+
+/* 兼容其他可能的 Ant Design 版本 */
+.ant-card .ant-card-body {
+  padding: 4px !important;
+}
