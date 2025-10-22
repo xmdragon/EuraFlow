@@ -21,7 +21,7 @@ import {
   LinkOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Space,
@@ -46,7 +46,6 @@ import {
   Avatar,
   Flex,
   Table,
-  Pagination,
   InputNumber,
   Divider,
   Checkbox,
@@ -272,8 +271,26 @@ const PackingShipment: React.FC = () => {
   const { currency: userCurrency, symbol: userSymbol } = useCurrency();
 
   // 状态管理
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // 动态计算每次加载的数量（4行）
+  const [pageSize, setPageSize] = useState(40); // 默认40个（假设每行10个）
+
+  // 计算每行能放多少个卡片
+  useEffect(() => {
+    const calculatePageSize = () => {
+      // 卡片宽度160px + 间距16px = 176px
+      const cardWidth = 176;
+      // 获取容器宽度（假设留出一些padding，约100px）
+      const containerWidth = window.innerWidth - 100;
+      // 每行卡片数
+      const cardsPerRow = Math.floor(containerWidth / cardWidth) || 1;
+      // 4行
+      setPageSize(cardsPerRow * 4);
+    };
+
+    calculatePageSize();
+    window.addEventListener('resize', calculatePageSize);
+    return () => window.removeEventListener('resize', calculatePageSize);
+  }, []);
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
   // 始终默认为null（全部店铺），不从localStorage读取
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -323,6 +340,26 @@ const PackingShipment: React.FC = () => {
   // 图片预览状态
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
+
+  // 滚动监听 - 无限加载
+  useEffect(() => {
+    const handleScroll = () => {
+      // 获取页面滚动信息
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+
+      // 滚动到底部时加载下一页（距离底部200px时触发）
+      if (scrollHeight - scrollTop - clientHeight < 200) {
+        if (hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
@@ -389,15 +426,18 @@ const PackingShipment: React.FC = () => {
     printed: { color: 'success', text: '已打印' },
   };
 
-  // 查询打包发货订单列表
+  // 查询打包发货订单列表（无限滚动）
   // 第一个标签"等待备货"使用OZON原生状态，其他标签使用operation_status
   const {
     data: ordersData,
     isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     refetch,
-  } = useQuery({
-    queryKey: ['packingOrders', currentPage, pageSize, selectedShop, operationStatus, searchParams],
-    queryFn: () => {
+  } = useInfiniteQuery({
+    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams],
+    queryFn: ({ pageParam = 1 }) => {
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
       const queryParams: any = {
         shop_id: selectedShop,
@@ -410,8 +450,16 @@ const PackingShipment: React.FC = () => {
         queryParams.operation_status = operationStatus;
       }
 
-      return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
+      return ozonApi.getPackingOrders(pageParam, pageSize, queryParams);
     },
+    getNextPageParam: (lastPage, allPages) => {
+      // 如果返回的数据少于pageSize，说明没有更多数据了
+      if (!lastPage?.data || lastPage.data.length < pageSize) {
+        return undefined;
+      }
+      return allPages.length + 1;
+    },
+    initialPageParam: 1,
     enabled: true, // 支持查询全部店铺（selectedShop=null）
     refetchInterval: 60000, // 1分钟自动刷新
     retry: 1, // 减少重试次数
@@ -421,10 +469,13 @@ const PackingShipment: React.FC = () => {
 
   // 展开订单数据为货件维度（PostingWithOrder 数组）
   const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
-    if (!ordersData?.data) return [];
+    if (!ordersData?.pages) return [];
+
+    // 合并所有页面的数据
+    const allOrders = ordersData.pages.flatMap(page => page?.data || []);
 
     const flattened: ozonApi.PostingWithOrder[] = [];
-    ordersData.data.forEach((order: ozonApi.Order) => {
+    allOrders.forEach((order: ozonApi.Order) => {
       // 如果订单有 postings，展开每个 posting
       if (order.postings && order.postings.length > 0) {
         order.postings.forEach((posting) => {
@@ -694,7 +745,7 @@ const PackingShipment: React.FC = () => {
     return (
       <div className={styles.deliveryMethodText}>
         <div className={styles.deliveryMethodMain}>{mainPart}</div>
-        <div className={styles.deliveryMethodDetail}>
+        <div className={styles.deliveryMethodDetail} style={{ color: '#fff' }}>
           {restrictionLines.map((line, index) => (
             <div key={index}>{line}</div>
           ))}
@@ -1858,8 +1909,7 @@ const PackingShipment: React.FC = () => {
                   onChange={(shopId) => {
                     const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
                     setSelectedShop(normalized);
-                    // 切换店铺时重置页码
-                    setCurrentPage(1);
+                    // 切换店铺时会自动重新加载（queryKey改变）
                   }}
                   showAllOption={true}
                   style={{ width: 200 }}
@@ -1877,7 +1927,6 @@ const PackingShipment: React.FC = () => {
 
                   if (!searchValue) {
                     setSearchParams({});
-                    setCurrentPage(1);
                     return;
                   }
 
@@ -1899,7 +1948,6 @@ const PackingShipment: React.FC = () => {
                   }
 
                   setSearchParams(params);
-                  setCurrentPage(1);
                 }}
               >
                 <Form.Item name="search_text">
@@ -1918,7 +1966,6 @@ const PackingShipment: React.FC = () => {
                       onClick={() => {
                         filterForm.resetFields();
                         setSearchParams({});
-                        setCurrentPage(1);
                       }}
                     >
                       重置
@@ -1938,7 +1985,7 @@ const PackingShipment: React.FC = () => {
           activeKey={operationStatus}
           onChange={(key) => {
             setOperationStatus(key);
-            setCurrentPage(1); // 切换tab时重置页码
+            // 切换tab时会自动重新加载（queryKey改变）
             // 切换到扫描标签时清空之前的扫描结果
             if (key === 'scan') {
               setScanTrackingNumber('');
@@ -2229,22 +2276,18 @@ const PackingShipment: React.FC = () => {
                   {orderCards.map(card => renderOrderCard(card))}
                 </div>
 
-                {/* 独立分页控制（后端分页）*/}
-                <div style={{ marginTop: 16, textAlign: 'center' }}>
-                  <Pagination
-                    current={currentPage}
-                    pageSize={pageSize}
-                    total={ordersData?.total || 0}
-                    showSizeChanger
-                    showQuickJumper
-                    pageSizeOptions={[20, 50, 100]}
-                    showTotal={(total) => `共 ${total} 条货件`}
-                    onChange={(page, size) => {
-                      setCurrentPage(page);
-                      setPageSize(size || 20);
-                    }}
-                  />
-                </div>
+                {/* 加载提示 */}
+                {isFetchingNextPage && (
+                  <div className={styles.loadingMore}>
+                    <SyncOutlined spin /> 加载更多...
+                  </div>
+                )}
+
+                {!hasNextPage && orderCards.length > 0 && (
+                  <div className={styles.loadingMore}>
+                    <Text type="secondary">没有更多数据了</Text>
+                  </div>
+                )}
               </>
             )}
           </>
