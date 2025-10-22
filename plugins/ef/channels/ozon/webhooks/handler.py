@@ -416,7 +416,7 @@ class OzonWebhookHandler:
                         )
 
                         # 尝试获取特定订单的详情
-                        order_info = await client.get_order_info(posting_number)
+                        order_info = await client.get_posting_details(posting_number)
 
                         if order_info.get("result"):
                             # 保存订单到数据库
