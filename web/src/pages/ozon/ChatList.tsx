@@ -170,7 +170,7 @@ const ChatList: React.FC = () => {
 
   const handleChatClick = (chat: ozonApi.OzonChat) => {
     // 使用chat的shop_id，支持全部店铺模式
-    navigate(`/ozon/chat/${chat.chat_id}?shopId=${chat.shop_id}`);
+    navigate(`/dashboard/ozon/chat/${chat.chat_id}?shopId=${chat.shop_id}`);
   };
 
   const handleMarkAsRead = (chat: ozonApi.OzonChat, e: React.MouseEvent) => {

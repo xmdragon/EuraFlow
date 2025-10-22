@@ -221,7 +221,7 @@ const ChatDetail: React.FC = () => {
       {/* 返回按钮 */}
       <Button
         icon={<ArrowLeftOutlined />}
-        onClick={() => navigate('/ozon/chats')}
+        onClick={() => navigate('/dashboard/ozon/chats')}
         className={styles.backButton}
       >
         返回聊天列表
