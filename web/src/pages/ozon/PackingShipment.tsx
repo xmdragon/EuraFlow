@@ -691,12 +691,15 @@ const PackingShipment: React.FC = () => {
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
   const [imageLoading, setImageLoading] = useState(false);
 
+  // 标记是否已计算过 pageSize
+  const pageSizeCalculated = React.useRef(false);
+
   // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
-  useEffect(() => {
-    const calculateItemsPerRow = () => {
-      const container = document.querySelector(`.${styles.orderGrid}`);
-      if (container) {
-        const containerWidth = container.clientWidth;
+  const calculateItemsPerRow = React.useCallback(() => {
+    const container = document.querySelector(`.${styles.orderGrid}`);
+    if (container) {
+      const containerWidth = container.clientWidth;
+      if (containerWidth > 0) {
         const itemWidth = 160;
         const gap = 10;
         const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
@@ -706,13 +709,16 @@ const PackingShipment: React.FC = () => {
         const calculatedPageSize = Math.min(columns * 3, 100);
         setInitialPageSize(calculatedPageSize);
         setPageSize(calculatedPageSize);
+        pageSizeCalculated.current = true;
       }
-    };
+    }
+  }, []);
 
-    calculateItemsPerRow();
+  // 监听窗口大小变化
+  useEffect(() => {
     window.addEventListener('resize', calculateItemsPerRow);
     return () => window.removeEventListener('resize', calculateItemsPerRow);
-  }, []);
+  }, [calculateItemsPerRow]);
 
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
@@ -901,8 +907,14 @@ const PackingShipment: React.FC = () => {
       // 这些 setState 会和上面的 setAllPostings 批处理，只触发一次渲染
       setHasMoreData(newPostingsLength < (ordersData.total || 0));
       setIsLoadingMore(false);
+
+      // 首次加载完成后，计算正确的 pageSize
+      if (currentPageRef.current === 1 && !pageSizeCalculated.current) {
+        // 延迟执行，确保 DOM 已更新
+        setTimeout(calculateItemsPerRow, 0);
+      }
     }
-  }, [ordersData?.data]);  // 只依赖数据变化
+  }, [ordersData?.data, calculateItemsPerRow]);  // 只依赖数据变化
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
