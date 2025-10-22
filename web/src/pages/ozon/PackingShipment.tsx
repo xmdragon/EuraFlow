@@ -2597,32 +2597,39 @@ const PackingShipment: React.FC = () => {
         centered
         bodyStyle={{ padding: 0 }}
       >
-        <div className={styles.imagePreviewContainer}>
+        <div className={styles.imagePreviewContainer} style={{ position: 'relative' }}>
           <Button
             type="text"
             icon={<CloseOutlined />}
             onClick={handleCloseImagePreview}
             className={styles.imagePreviewCloseButton}
           />
-          {/* 加载状态 */}
+          {/* 加载占位符 - 覆盖在图片上方 */}
           {imageLoading && (
             <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               minWidth: '600px',
               minHeight: '600px',
-              backgroundColor: '#f0f0f0'
+              backgroundColor: '#f0f0f0',
+              zIndex: 10
             }}>
               <Spin size="large" tip="加载图片中..." />
             </div>
           )}
-          {/* 图片 - 只在有URL且不在加载中时显示 */}
-          {previewImageUrl && !imageLoading && (
+          {/* 图片 - 始终渲染（如果有URL），loading时用visibility隐藏 */}
+          {previewImageUrl && (
             <img
               src={previewImageUrl}
               alt="商品大图"
               className={styles.imagePreviewImage}
+              style={{ visibility: imageLoading ? 'hidden' : 'visible' }}
               onLoad={() => setImageLoading(false)}
               onError={() => {
                 setImageLoading(false);
