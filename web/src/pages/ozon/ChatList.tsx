@@ -52,7 +52,7 @@ const ChatList: React.FC = () => {
   const pageSize = 20;
 
   // 获取店铺列表
-  const { data: shopsData } = useQuery({
+  const { data: shopsData, isLoading: shopsLoading } = useQuery({
     queryKey: ['ozon', 'shops'],
     queryFn: ozonApi.getShops,
   });
@@ -292,6 +292,7 @@ const ChatList: React.FC = () => {
                 <Button
                   icon={<SyncOutlined />}
                   loading={syncMutation.isPending}
+                  disabled={selectedShopId === null && (shopsLoading || shops.length === 0)}
                   onClick={handleSync}
                   title={selectedShopId === null ? '将依次同步所有店铺的聊天' : '同步当前店铺的聊天'}
                 >
