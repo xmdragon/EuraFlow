@@ -270,9 +270,14 @@ class OzonSyncService:
                                 )
 
                                 if attr_response.get("result", {}).get("items"):
-                                    for attr_item in attr_response["result"]["items"]:
+                                    for idx, attr_item in enumerate(attr_response["result"]["items"]):
                                         if attr_item.get("offer_id"):
                                             products_attributes_map[attr_item["offer_id"]] = attr_item
+
+                                            # 调试：输出第一个商品的所有字段
+                                            if idx == 0:
+                                                logger.info(f"📋 v4/product/info/attributes API返回的字段: {list(attr_item.keys())}")
+                                                logger.info(f"📦 第一个商品完整数据示例: {attr_item}")
                         except Exception as e:
                             logger.error(f"Failed to get {filter_label} products attributes batch: {e}")
 
