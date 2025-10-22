@@ -441,7 +441,9 @@ const OrderCardComponent = React.memo<OrderCardComponentProps>(({
         {product && (
           <div className={styles.infoRow}>
             <Text type="secondary" className={styles.label}>数量:</Text>
-            <Text className={styles.value}>X {product.quantity || 1}</Text>
+            <Text className={(product.quantity || 1) > 1 ? styles.quantityHighlight : styles.value}>
+              X {product.quantity || 1}
+            </Text>
           </div>
         )}
 
@@ -456,22 +458,22 @@ const OrderCardComponent = React.memo<OrderCardComponentProps>(({
         )}
 
         {/* 进价 */}
-        {purchasePrice && parseFloat(purchasePrice) > 0 && (
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>进价:</Text>
+        <div className={styles.infoRow}>
+          <Text type="secondary" className={styles.label}>进价:</Text>
+          {purchasePrice && parseFloat(purchasePrice) > 0 ? (
             <span className={styles.price}>
               {symbol} {formatPrice(purchasePrice)}
             </span>
-          </div>
-        )}
+          ) : (
+            <Text type="secondary" className={styles.value}>-</Text>
+          )}
+        </div>
 
         {/* 平台 */}
-        {sourcePlatform && (
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>平台:</Text>
-            <Text className={styles.value}>{sourcePlatform}</Text>
-          </div>
-        )}
+        <div className={styles.infoRow}>
+          <Text type="secondary" className={styles.label}>平台:</Text>
+          <Text className={styles.value}>{sourcePlatform || '-'}</Text>
+        </div>
 
         {/* 货件 */}
         <div className={styles.infoRow}>
