@@ -699,7 +699,7 @@ const PackingShipment: React.FC = () => {
       if (container) {
         const containerWidth = container.clientWidth;
         const itemWidth = 160; // 卡片宽度
-        const gap = 16; // 间距
+        const gap = 10; // 间距
         // 公式：(containerWidth + gap) / (itemWidth + gap)
         const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
         setItemsPerRow(columns);
