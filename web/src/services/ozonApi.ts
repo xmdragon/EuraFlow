@@ -678,6 +678,7 @@ export const retryWebhookEvent = async (eventId: string) => {
 
 export interface OzonChat {
   id: number;
+  shop_id: number;  // 聊天所属店铺ID
   chat_id: string;
   chat_type?: string;
   subject?: string;
@@ -694,6 +695,7 @@ export interface OzonChat {
   closed_at?: string;
   created_at: string;
   updated_at?: string;
+  shop_name?: string;  // 全部店铺模式下包含店铺名称
 }
 
 export interface OzonChatMessage {
@@ -725,7 +727,7 @@ export interface ChatStats {
 
 // 获取聊天列表
 export const getChats = async (
-  shopId: number,
+  shopId: number | null,
   params?: {
     status?: string;
     has_unread?: boolean;
@@ -734,7 +736,9 @@ export const getChats = async (
     offset?: number;
   }
 ): Promise<{ items: OzonChat[]; total: number; limit: number; offset: number }> => {
-  const response = await apiClient.get(`/ozon/chats/${shopId}`, { params });
+  // 如果shopId为null，使用全部店铺端点
+  const url = shopId === null ? '/ozon/chats/all' : `/ozon/chats/${shopId}`;
+  const response = await apiClient.get(url, { params });
   return response.data.data;
 };
 
@@ -801,8 +805,10 @@ export const syncChats = async (shopId: number, chatIdList?: string[]): Promise<
 };
 
 // 获取聊天统计信息
-export const getChatStats = async (shopId: number): Promise<ChatStats> => {
-  const response = await apiClient.get(`/ozon/chats/${shopId}/stats`);
+export const getChatStats = async (shopId: number | null): Promise<ChatStats> => {
+  // 如果shopId为null，使用全部店铺端点
+  const url = shopId === null ? '/ozon/chats/all/stats' : `/ozon/chats/${shopId}/stats`;
+  const response = await apiClient.get(url);
   return response.data.data;
 };
 

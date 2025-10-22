@@ -295,6 +295,69 @@ class OzonAPIClient:
 
         return await self._request("POST", "/v3/product/info/list", data=payload, resource_type="products")
 
+    async def get_product_info_attributes(
+        self,
+        offer_ids: Optional[List[str]] = None,
+        product_ids: Optional[List[int]] = None,
+        skus: Optional[List[int]] = None,
+        limit: int = 100,
+        last_id: Optional[str] = None,
+        visibility: str = "ALL",
+        sort_by: Optional[str] = None,
+        sort_dir: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        获取商品详细属性信息（包含attributes, barcode, dimensions等）
+        使用 /v4/product/info/attributes 接口
+
+        Args:
+            offer_ids: 商品的offer_id列表（最多1000个）
+            product_ids: 商品的product_id列表（最多1000个）
+            skus: 商品的SKU列表（最多1000个）
+            limit: 每页数量（1-1000）
+            last_id: 上一页最后一个商品ID（用于分页）
+            visibility: 商品可见性过滤（ALL/VISIBLE/INVISIBLE/ARCHIVED等）
+            sort_by: 排序字段（sku/offer_id/id/title）
+            sort_dir: 排序方向（asc/desc）
+
+        Returns:
+            商品详细属性数据，包含：
+            - attributes: 商品特征数组
+            - barcode/barcodes: 条形码
+            - dimensions (width/height/depth/weight): 尺寸和重量
+            - images/primary_image: 图片信息
+            - model_info: 型号信息
+            - pdf_list: PDF文件列表
+            等详细属性
+        """
+        # 构建过滤器
+        filter_data = {"visibility": visibility}
+
+        # 添加商品ID过滤
+        if offer_ids:
+            filter_data["offer_id"] = offer_ids
+        elif product_ids:
+            filter_data["product_id"] = [str(pid) for pid in product_ids]
+        elif skus:
+            filter_data["sku"] = [str(sku) for sku in skus]
+
+        # 构建请求体
+        payload = {
+            "filter": filter_data,
+            "limit": min(limit, 1000),  # 最大1000
+        }
+
+        if last_id:
+            payload["last_id"] = last_id
+
+        if sort_by:
+            payload["sort_by"] = sort_by
+
+        if sort_dir:
+            payload["sort_dir"] = sort_dir
+
+        return await self._request("POST", "/v4/product/info/attributes", data=payload, resource_type="products")
+
     async def update_prices(self, prices: List[Dict]) -> Dict[str, Any]:
         """
         批量更新商品价格

@@ -54,8 +54,7 @@ const ChatList: React.FC = () => {
   // 获取聊天统计
   const { data: statsData } = useQuery({
     queryKey: ['chatStats', selectedShopId],
-    queryFn: () => selectedShopId ? ozonApi.getChatStats(selectedShopId) : null,
-    enabled: !!selectedShopId,
+    queryFn: () => ozonApi.getChatStats(selectedShopId),
   });
 
   // 获取聊天列表
@@ -66,8 +65,6 @@ const ChatList: React.FC = () => {
   } = useQuery({
     queryKey: ['chats', selectedShopId, statusFilter, unreadFilter, searchText, currentPage],
     queryFn: async () => {
-      if (!selectedShopId) return null;
-
       const params: any = {
         limit: pageSize,
         offset: (currentPage - 1) * pageSize,
@@ -89,7 +86,6 @@ const ChatList: React.FC = () => {
 
       return ozonApi.getChats(selectedShopId, params);
     },
-    enabled: !!selectedShopId,
   });
 
   // 同步聊天
@@ -110,9 +106,8 @@ const ChatList: React.FC = () => {
 
   // 标记为已读
   const markAsReadMutation = useMutation({
-    mutationFn: ({ chatId }: { chatId: string }) => {
-      if (!selectedShopId) throw new Error('未选择店铺');
-      return ozonApi.markChatAsRead(selectedShopId, chatId);
+    mutationFn: ({ chatId, shopId }: { chatId: string; shopId: number }) => {
+      return ozonApi.markChatAsRead(shopId, chatId);
     },
     onSuccess: () => {
       notifySuccess('操作成功', '已标记为已读');
@@ -125,12 +120,14 @@ const ChatList: React.FC = () => {
   });
 
   const handleChatClick = (chat: ozonApi.OzonChat) => {
-    navigate(`/ozon/chat/${chat.chat_id}?shopId=${selectedShopId}`);
+    // 使用chat的shop_id，支持全部店铺模式
+    navigate(`/ozon/chat/${chat.chat_id}?shopId=${chat.shop_id}`);
   };
 
   const handleMarkAsRead = (chat: ozonApi.OzonChat, e: React.MouseEvent) => {
     e.stopPropagation();
-    markAsReadMutation.mutate({ chatId: chat.chat_id });
+    // 使用chat的shop_id，支持全部店铺模式
+    markAsReadMutation.mutate({ chatId: chat.chat_id, shopId: chat.shop_id });
   };
 
   const handleSync = () => {
@@ -160,9 +157,7 @@ const ChatList: React.FC = () => {
         />
       </Card>
 
-      {selectedShopId && (
-        <>
-          {/* 统计卡片 */}
+      {/* 统计卡片 */}
           <Row gutter={16} className={styles.statsRow}>
             <Col span={6}>
               <Card>
@@ -249,6 +244,8 @@ const ChatList: React.FC = () => {
                   icon={<SyncOutlined />}
                   loading={syncMutation.isPending}
                   onClick={handleSync}
+                  disabled={selectedShopId === null}
+                  title={selectedShopId === null ? '全部店铺模式下不支持同步，请选择具体店铺' : ''}
                 >
                   同步聊天
                 </Button>
@@ -297,6 +294,10 @@ const ChatList: React.FC = () => {
                         title={
                           <Space>
                             <Text strong>{chat.customer_name || '未知客户'}</Text>
+                            {/* 全部店铺模式下显示店铺名称 */}
+                            {selectedShopId === null && chat.shop_name && (
+                              <Tag color="purple">{chat.shop_name}</Tag>
+                            )}
                             {getStatusTag(chat.status)}
                             {chat.order_number && (
                               <Tag icon={<ShoppingOutlined />} color="blue">
@@ -332,8 +333,6 @@ const ChatList: React.FC = () => {
               )}
             </Spin>
           </Card>
-        </>
-      )}
     </div>
   );
 };

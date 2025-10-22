@@ -15,6 +15,93 @@ from ef_core.database import get_db_manager
 router = APIRouter(prefix="/chats", tags=["ozon-chats"])
 
 
+@router.get("/all")
+async def get_all_chats(
+    status: Optional[str] = Query(None, description="聊天状态筛选 (open/closed)"),
+    has_unread: Optional[bool] = Query(None, description="是否有未读消息"),
+    order_number: Optional[str] = Query(None, description="订单号筛选"),
+    limit: int = Query(20, ge=1, le=100, description="每页数量"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+    user: User = Depends(get_current_user)
+):
+    """获取所有店铺的聊天列表（当前用户有权访问的）
+
+    Args:
+        status: 聊天状态 (open/closed)
+        has_unread: 是否有未读消息
+        order_number: 订单号
+        limit: 每页数量 (1-100)
+        offset: 偏移量
+
+    Returns:
+        {
+            "ok": true,
+            "data": {
+                "items": [...],  # 每个item包含shop_name字段
+                "total": int,
+                "limit": int,
+                "offset": int
+            }
+        }
+    """
+    try:
+        # 使用当前用户ID，不指定shop_id
+        service = OzonChatService(shop_id=None, user_id=user.id)
+        result = await service.get_chats(
+            status=status,
+            has_unread=has_unread,
+            order_number=order_number,
+            limit=limit,
+            offset=offset
+        )
+        return {"ok": True, "data": result}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "about:blank",
+                "title": "Internal Server Error",
+                "status": 500,
+                "detail": str(e),
+                "code": "INTERNAL_ERROR"
+            }
+        )
+
+
+@router.get("/all/stats")
+async def get_all_chat_stats(
+    user: User = Depends(get_current_user)
+):
+    """获取所有店铺的聊天统计信息
+
+    Returns:
+        {
+            "ok": true,
+            "data": {
+                "total_chats": int,
+                "active_chats": int,
+                "total_unread": int,
+                "unread_chats": int
+            }
+        }
+    """
+    try:
+        service = OzonChatService(shop_id=None, user_id=user.id)
+        result = await service.get_chat_stats()
+        return {"ok": True, "data": result}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "about:blank",
+                "title": "Internal Server Error",
+                "status": 500,
+                "detail": str(e),
+                "code": "INTERNAL_ERROR"
+            }
+        )
+
+
 class SendMessageRequest(BaseModel):
     """发送消息请求"""
     content: str = Field(..., min_length=1, description="消息内容")

@@ -37,9 +37,11 @@ class OzonProduct(Base):
     ozon_sku = Column(BigInteger, comment="Ozon SKU")
     
     # 商品基本信息
-    title = Column(String(500), nullable=False)
+    title = Column(String(500), nullable=False, comment="商品标题(俄文)")
+    title_cn = Column(String(500), comment="中文名称(用于商品创建和管理)")
     description = Column(String(5000))
-    barcode = Column(String(50))
+    barcode = Column(String(50), comment="主条形码")
+    barcodes = Column(JSONB, comment="所有条形码数组")
     category_id = Column(Integer)
     brand = Column(String(200))
     
@@ -73,6 +75,21 @@ class OzonProduct(Base):
     width = Column(Numeric(10, 2), comment="宽度(cm)")
     height = Column(Numeric(10, 2), comment="高度(cm)")
     depth = Column(Numeric(10, 2), comment="深度(cm)")
+
+    # OZON详细属性字段
+    dimension_unit = Column(String(10), comment="尺寸单位(mm/cm/in)")
+    weight_unit = Column(String(10), comment="重量单位")
+    description_category_id = Column(BigInteger, comment="类目标识符")
+    type_id = Column(BigInteger, comment="商品类型标识符")
+    color_image = Column(String(200), comment="市场营销色彩")
+    primary_image = Column(String(500), comment="主图链接")
+
+    # OZON详细属性(JSONB存储)
+    attributes = Column(JSONB, comment="商品特征数组")
+    complex_attributes = Column(JSONB, comment="嵌套特征列表")
+    model_info = Column(JSONB, comment="型号信息")
+    pdf_list = Column(JSONB, comment="PDF文件列表")
+    attributes_with_defaults = Column(JSONB, comment="具有默认值的特征ID列表")
     
     # 原始数据
     raw_payload = Column(JSONB, comment="Ozon原始数据")
@@ -107,6 +124,7 @@ class OzonProduct(Base):
         Index("idx_ozon_products_ozon_archived", "ozon_archived"),
         Index("idx_ozon_products_ozon_visibility", "ozon_visibility_status"),
         Index("idx_ozon_products_sync", "shop_id", "sync_status", "last_sync_at"),
+        Index("idx_ozon_products_title_cn", "title_cn"),
         {"extend_existing": True}
     )
 

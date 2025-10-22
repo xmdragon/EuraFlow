@@ -256,6 +256,26 @@ class OzonSyncService:
                         except Exception as e:
                             logger.error(f"Failed to get {filter_label} products stock batch: {e}")
 
+                    # 批量获取商品详细属性（v4 attributes API）
+                    products_attributes_map = {}
+                    if offer_ids:
+                        try:
+                            # 分批处理属性查询，每批最多100个
+                            attr_batch_size = 100
+                            for i in range(0, len(offer_ids), attr_batch_size):
+                                batch_ids = offer_ids[i : i + attr_batch_size]
+                                attr_response = await client.get_product_info_attributes(
+                                    offer_ids=batch_ids,
+                                    visibility=filter_config.get("visibility", "ALL")
+                                )
+
+                                if attr_response.get("result", {}).get("items"):
+                                    for attr_item in attr_response["result"]["items"]:
+                                        if attr_item.get("offer_id"):
+                                            products_attributes_map[attr_item["offer_id"]] = attr_item
+                        except Exception as e:
+                            logger.error(f"Failed to get {filter_label} products attributes batch: {e}")
+
                     # === 性能优化：批量查询现有商品，避免 N+1 查询 ===
                     existing_products_result = await db.execute(
                         select(OzonProduct).where(
@@ -290,10 +310,11 @@ class OzonSyncService:
                         SYNC_TASKS[task_id]["progress"] = min(progress, 90)
                         SYNC_TASKS[task_id]["message"] = f"正在同步商品 {item.get('offer_id', 'unknown')} ({total_synced + idx + 1}/{total_products if total_products else '?'})..."
 
-                        # 从批量查询结果中获取商品详情、价格和库存信息
+                        # 从批量查询结果中获取商品详情、价格、库存和属性信息
                         product_details = products_detail_map.get(item.get("offer_id")) if item.get("offer_id") else None
                         price_info = products_price_map.get(item.get("offer_id")) if item.get("offer_id") else None
                         stock_info = products_stock_map.get(item.get("offer_id")) if item.get("offer_id") else None
+                        attr_info = products_attributes_map.get(item.get("offer_id")) if item.get("offer_id") else None
 
                         # 从批量查询结果中获取现有商品
                         product = existing_products_map.get(item.get("offer_id"))
@@ -541,6 +562,32 @@ class OzonSyncService:
                                 product.width = None
                                 product.height = None
                                 product.depth = None
+
+                            # 更新详细属性信息（从v4 attributes API）
+                            if attr_info:
+                                # 基础条形码数组
+                                product.barcodes = attr_info.get("barcodes")
+                                # 商品特征数组
+                                product.attributes = attr_info.get("attributes")
+                                # 嵌套特征列表
+                                product.complex_attributes = attr_info.get("complex_attributes")
+                                # 类目标识符
+                                product.description_category_id = attr_info.get("description_category_id")
+                                # 商品类型标识符
+                                product.type_id = attr_info.get("type_id")
+                                # 市场营销色彩
+                                product.color_image = attr_info.get("color_image")
+                                # 主图链接
+                                product.primary_image = attr_info.get("primary_image")
+                                # 尺寸和重量单位
+                                product.dimension_unit = attr_info.get("dimension_unit")
+                                product.weight_unit = attr_info.get("weight_unit")
+                                # 型号信息
+                                product.model_info = attr_info.get("model_info")
+                                # PDF文件列表
+                                product.pdf_list = attr_info.get("pdf_list")
+                                # 具有默认值的特征ID列表
+                                product.attributes_with_defaults = attr_info.get("attributes_with_defaults")
 
                             product.sync_status = "success"
                             product.last_sync_at = utcnow()
