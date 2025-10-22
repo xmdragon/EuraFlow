@@ -91,7 +91,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
 
   return (
     <Modal
-      title="备货操作"
+      title={`备货操作 - ${postingNumber}`}
       open={visible}
       onCancel={handleClose}
       onOk={handleSubmit}

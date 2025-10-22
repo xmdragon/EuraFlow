@@ -198,8 +198,17 @@ async def get_packing_orders(
         operation_status = 'awaiting_stock'
 
     if operation_status == 'awaiting_stock':
-        # 等待备货：ozon_status = 'awaiting_packaging'
-        query = query.where(OzonPosting.status == 'awaiting_packaging')
+        # 等待备货：ozon_status = 'awaiting_packaging' AND (operation_status IS NULL OR = 'awaiting_stock')
+        # 排除已经进入后续状态的订单（allocating/allocated/tracking_confirmed/printed等）
+        query = query.where(
+            and_(
+                OzonPosting.status == 'awaiting_packaging',
+                or_(
+                    OzonPosting.operation_status.is_(None),
+                    OzonPosting.operation_status == 'awaiting_stock'
+                )
+            )
+        )
 
     elif operation_status == 'allocating':
         # 分配中：ozon_status = 'awaiting_deliver' AND 无追踪号码
@@ -312,7 +321,15 @@ async def get_packing_orders(
 
     # 应用相同的状态筛选逻辑
     if operation_status == 'awaiting_stock':
-        count_query = count_query.where(OzonPosting.status == 'awaiting_packaging')
+        count_query = count_query.where(
+            and_(
+                OzonPosting.status == 'awaiting_packaging',
+                or_(
+                    OzonPosting.operation_status.is_(None),
+                    OzonPosting.operation_status == 'awaiting_stock'
+                )
+            )
+        )
 
     elif operation_status == 'allocating':
         count_query = count_query.where(
@@ -1403,3 +1420,161 @@ async def sync_finance(
     except Exception as e:
         logger.error(f"同步财务费用失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"同步失败: {str(e)}")
+
+
+@router.get("/packing/stats")
+async def get_packing_stats(
+    shop_id: Optional[int] = None,
+    posting_number: Optional[str] = Query(None, description="按货件编号搜索"),
+    sku: Optional[str] = Query(None, description="按商品SKU搜索"),
+    tracking_number: Optional[str] = Query(None, description="按OZON追踪号码搜索"),
+    domestic_tracking_number: Optional[str] = Query(None, description="按国内单号搜索"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取打包发货各状态的统计数据（合并请求）
+
+    一次性返回所有操作状态的数量统计，支持搜索条件过滤
+
+    Returns:
+        {
+            "success": true,
+            "data": {
+                "awaiting_stock": 10,
+                "allocating": 5,
+                "allocated": 8,
+                "tracking_confirmed": 3,
+                "printed": 2
+            }
+        }
+    """
+    try:
+        # 构建基础查询条件（应用于所有状态统计）
+        def build_base_conditions():
+            """构建公共筛选条件"""
+            conditions = []
+            if shop_id:
+                conditions.append(OzonPosting.shop_id == shop_id)
+            if posting_number:
+                conditions.append(OzonPosting.posting_number == posting_number.strip())
+            return conditions
+
+        # 构建搜索条件（SKU/tracking_number/domestic_tracking_number）
+        def apply_search_conditions(query):
+            """应用搜索条件到查询"""
+            # SKU搜索
+            if sku:
+                try:
+                    sku_int = int(sku)
+                    subquery = exists(
+                        select(literal_column('1'))
+                        .select_from(
+                            func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
+                        )
+                        .where(
+                            literal_column("product->>'sku'") == str(sku_int)
+                        )
+                    )
+                    query = query.where(subquery)
+                except ValueError:
+                    pass
+
+            # OZON追踪号码搜索
+            if tracking_number:
+                query = query.join(
+                    OzonShipmentPackage,
+                    OzonShipmentPackage.posting_id == OzonPosting.id
+                ).where(
+                    OzonShipmentPackage.tracking_number == tracking_number.strip()
+                )
+
+            # 国内单号搜索
+            if domestic_tracking_number:
+                query = query.join(
+                    OzonDomesticTracking,
+                    OzonDomesticTracking.posting_id == OzonPosting.id
+                ).where(
+                    OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
+                )
+
+            return query
+
+        # 统计各状态数量
+        stats = {}
+        base_conditions = build_base_conditions()
+
+        # 1. 等待备货：awaiting_packaging AND (operation_status IS NULL OR = 'awaiting_stock')
+        count_query = select(func.count(OzonPosting.id)).where(
+            OzonPosting.status == 'awaiting_packaging',
+            or_(
+                OzonPosting.operation_status.is_(None),
+                OzonPosting.operation_status == 'awaiting_stock'
+            ),
+            *base_conditions
+        )
+        count_query = apply_search_conditions(count_query)
+        result = await db.execute(count_query)
+        stats['awaiting_stock'] = result.scalar() or 0
+
+        # 2. 分配中：awaiting_deliver AND 无追踪号码
+        count_query = select(func.count(OzonPosting.id)).where(
+            OzonPosting.status == 'awaiting_deliver',
+            or_(
+                OzonPosting.raw_payload['tracking_number'].astext.is_(None),
+                OzonPosting.raw_payload['tracking_number'].astext == '',
+                ~OzonPosting.raw_payload.has_key('tracking_number')
+            ),
+            *base_conditions
+        )
+        count_query = apply_search_conditions(count_query)
+        result = await db.execute(count_query)
+        stats['allocating'] = result.scalar() or 0
+
+        # 3. 已分配：awaiting_deliver AND 有追踪号码 AND 无国内单号
+        count_query = select(func.count(OzonPosting.id)).where(
+            OzonPosting.status == 'awaiting_deliver',
+            OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
+            OzonPosting.raw_payload['tracking_number'].astext != '',
+            ~exists(
+                select(1).where(
+                    OzonDomesticTracking.posting_id == OzonPosting.id
+                )
+            ),
+            *base_conditions
+        )
+        count_query = apply_search_conditions(count_query)
+        result = await db.execute(count_query)
+        stats['allocated'] = result.scalar() or 0
+
+        # 4. 单号确认：awaiting_deliver AND operation_status = 'tracking_confirmed'
+        count_query = select(func.count(OzonPosting.id)).where(
+            OzonPosting.status == 'awaiting_deliver',
+            OzonPosting.operation_status == 'tracking_confirmed',
+            *base_conditions
+        )
+        count_query = apply_search_conditions(count_query)
+        result = await db.execute(count_query)
+        stats['tracking_confirmed'] = result.scalar() or 0
+
+        # 5. 已打印：awaiting_deliver AND operation_status = 'printed'
+        count_query = select(func.count(OzonPosting.id)).where(
+            OzonPosting.status == 'awaiting_deliver',
+            OzonPosting.operation_status == 'printed',
+            *base_conditions
+        )
+        count_query = apply_search_conditions(count_query)
+        result = await db.execute(count_query)
+        stats['printed'] = result.scalar() or 0
+
+        logger.info(f"统计查询完成: shop_id={shop_id}, stats={stats}")
+
+        return {
+            "success": True,
+            "data": stats
+        }
+
+    except Exception as e:
+        logger.error(f"统计查询失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"统计查询失败: {str(e)}")

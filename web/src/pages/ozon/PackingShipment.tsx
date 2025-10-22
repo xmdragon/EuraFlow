@@ -974,65 +974,23 @@ const PackingShipment: React.FC = () => {
     setTimeout(() => refetch(), 0);
   }, [initialPageSize, refetch]);
 
-  // 查询各操作状态的数量统计（立即全部加载）
-  // 第一个标签"等待备货"：使用OZON原生状态（awaiting_packaging, awaiting_deliver）
-  const { data: awaitingStockData } = useQuery({
-    queryKey: ['packingOrdersCount', 'awaiting_stock', selectedShop, searchParams],
-    queryFn: () => ozonApi.getPackingOrders(1, 1, {
+  // 查询各操作状态的数量统计（合并为单个请求）
+  const { data: statsData } = useQuery({
+    queryKey: ['packingStats', selectedShop, searchParams],
+    queryFn: () => ozonApi.getPackingStats({
       shop_id: selectedShop,
       ...searchParams,  // 展开所有搜索参数
-      ozon_status: 'awaiting_packaging,awaiting_deliver',  // 使用OZON原生状态
     }),
     staleTime: 30000, // 30秒缓存
   });
 
-  const { data: allocatingData } = useQuery({
-    queryKey: ['packingOrdersCount', 'allocating', selectedShop, searchParams],
-    queryFn: () => ozonApi.getPackingOrders(1, 1, {
-      shop_id: selectedShop,
-      ...searchParams,  // 展开所有搜索参数
-      operation_status: 'allocating',
-    }),
-    staleTime: 30000,
-  });
-
-  const { data: allocatedData } = useQuery({
-    queryKey: ['packingOrdersCount', 'allocated', selectedShop, searchParams],
-    queryFn: () => ozonApi.getPackingOrders(1, 1, {
-      shop_id: selectedShop,
-      ...searchParams,  // 展开所有搜索参数
-      operation_status: 'allocated',
-    }),
-    staleTime: 30000,
-  });
-
-  const { data: trackingConfirmedData } = useQuery({
-    queryKey: ['packingOrdersCount', 'tracking_confirmed', selectedShop, searchParams],
-    queryFn: () => ozonApi.getPackingOrders(1, 1, {
-      shop_id: selectedShop,
-      ...searchParams,  // 展开所有搜索参数
-      operation_status: 'tracking_confirmed',
-    }),
-    staleTime: 30000,
-  });
-
-  const { data: printedData } = useQuery({
-    queryKey: ['packingOrdersCount', 'printed', selectedShop, searchParams],
-    queryFn: () => ozonApi.getPackingOrders(1, 1, {
-      shop_id: selectedShop,
-      ...searchParams,  // 展开所有搜索参数
-      operation_status: 'printed',
-    }),
-    staleTime: 30000,
-  });
-
   // 各状态的数量
   const statusCounts = {
-    awaiting_stock: awaitingStockData?.total || 0,
-    allocating: allocatingData?.total || 0,
-    allocated: allocatedData?.total || 0,
-    tracking_confirmed: trackingConfirmedData?.total || 0,
-    printed: printedData?.total || 0,
+    awaiting_stock: statsData?.data?.awaiting_stock || 0,
+    allocating: statsData?.data?.allocating || 0,
+    allocated: statsData?.data?.allocated || 0,
+    tracking_confirmed: statsData?.data?.tracking_confirmed || 0,
+    printed: statsData?.data?.printed || 0,
   };
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）

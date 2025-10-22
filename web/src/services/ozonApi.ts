@@ -1004,6 +1004,32 @@ export const getPackingOrders = async (
   return response.data;
 };
 
+// 获取打包发货各状态的统计数据（合并请求）
+export const getPackingStats = async (params?: {
+  shop_id?: number | null;
+  posting_number?: string;
+  sku?: string;
+  tracking_number?: string;
+  domestic_tracking_number?: string;
+}): Promise<{
+  success: boolean;
+  data: {
+    awaiting_stock: number;
+    allocating: number;
+    allocated: number;
+    tracking_confirmed: number;
+    printed: number;
+  };
+}> => {
+  const requestParams: any = { ...params };
+  // 如果shop_id为null（全部店铺），不传递该参数
+  if (requestParams.shop_id === null) {
+    delete requestParams.shop_id;
+  }
+  const response = await apiClient.get('/ozon/packing/stats', { params: requestParams });
+  return response.data;
+};
+
 // ==================== 打包发货操作 API ====================
 
 // 备货操作请求参数
