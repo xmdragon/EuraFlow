@@ -437,10 +437,11 @@ const PackingShipment: React.FC = () => {
       return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
-    refetchInterval: 60000, // 1分钟自动刷新
+    // 禁用自动刷新，避免与无限滚动冲突
+    // refetchInterval: 60000,
     retry: 1, // 减少重试次数
     retryDelay: 1000, // 重试延迟1秒
-    staleTime: 10000, // 数据10秒内不会被认为是过期的
+    staleTime: 30000, // 数据30秒内不会被认为是过期的
   });
 
   // 当店铺、状态或搜索参数变化时，重置分页
@@ -455,12 +456,6 @@ const PackingShipment: React.FC = () => {
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
     if (ordersData?.data) {
-      // 如果不是第一页，保存当前滚动位置
-      let savedScrollHeight = 0;
-      if (currentPage > 1) {
-        savedScrollHeight = document.documentElement.scrollHeight;
-      }
-
       // 累积图片映射
       const newImageMap: Record<string, string> = {};
 
@@ -514,32 +509,19 @@ const PackingShipment: React.FC = () => {
 
       // 后端已做精确匹配，无需前端二次过滤
 
-      if (currentPage === 1) {
-        // 第一页，替换数据
-        setAllPostings(flattened);
-      } else {
-        // 后续页，追加数据
-        setAllPostings(prev => [...prev, ...flattened]);
-      }
+      // 更新数据和检查状态
+      setAllPostings(prev => {
+        const newPostings = currentPage === 1 ? flattened : [...prev, ...flattened];
 
-      // 检查是否还有更多数据
-      const totalLoaded = currentPage === 1
-        ? flattened.length
-        : allPostings.length + flattened.length;
-      setHasMoreData(totalLoaded < (ordersData.total || 0));
-      setIsLoadingMore(false);
+        // 在同一个 setter 中计算是否还有更多数据
+        const totalLoaded = newPostings.length;
+        setHasMoreData(totalLoaded < (ordersData.total || 0));
+        setIsLoadingMore(false);
 
-      // 如果不是第一页，恢复滚动位置（保持在触发加载的位置）
-      if (currentPage > 1 && savedScrollHeight > 0) {
-        requestAnimationFrame(() => {
-          const newScrollHeight = document.documentElement.scrollHeight;
-          const scrollDiff = newScrollHeight - savedScrollHeight;
-          const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
-          window.scrollTo(0, currentScrollTop + scrollDiff);
-        });
-      }
+        return newPostings;
+      });
     }
-  }, [ordersData?.data, currentPage, allPostings.length]);
+  }, [ordersData?.data]);  // 只依赖数据变化，避免循环触发
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
