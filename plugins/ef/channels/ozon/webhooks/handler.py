@@ -385,7 +385,7 @@ class OzonWebhookHandler:
 
                 # 触发订单同步任务
                 import asyncio
-                from ..services.order_sync import OzonOrderSyncService
+                from ..services.order_sync import OrderSyncService
 
                 # 异步触发同步任务（不等待完成）
                 asyncio.create_task(self._trigger_order_sync(posting_number))
@@ -420,8 +420,8 @@ class OzonWebhookHandler:
 
                         if order_info.get("result"):
                             # 保存订单到数据库
-                            from ..services.order_sync import OzonOrderSyncService
-                            service = OzonOrderSyncService()
+                            from ..services.order_sync import OrderSyncService
+                            service = OrderSyncService()
                             await service.save_order(shop.id, order_info["result"])
                             logger.info(f"Successfully synced order {posting_number} from webhook")
                             break
