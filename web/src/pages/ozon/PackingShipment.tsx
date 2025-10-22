@@ -380,14 +380,12 @@ const OrderCardComponent = React.memo<OrderCardComponentProps>(({
           {/* 商品图片 */}
           {imageUrl ? (
             <>
-              <div className={styles.imageWrapper}>
-                <img
-                  src={imageUrl}
-                  alt={product?.name || product?.sku || '商品图片'}
-                  className={styles.orderImage}
-                  onClick={() => onOpenImagePreview(optimizeOzonImageUrl(imageUrl, 800))}
-                />
-              </div>
+              <img
+                src={imageUrl}
+                alt={product?.name || product?.sku || '商品图片'}
+                className={styles.orderImage}
+                onClick={() => onOpenImagePreview(optimizeOzonImageUrl(imageUrl, 800))}
+              />
               {ozonProductUrl && (
                 <Tooltip title="打开OZON链接" color="#000" overlayInnerStyle={{ color: '#fff' }}>
                   <div
@@ -629,6 +627,7 @@ const PackingShipment: React.FC = () => {
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
   const currentPageRef = React.useRef(1);  // 使用 ref 跟踪当前页，避免 useEffect 依赖
+  const scrollPositionRef = React.useRef<number>(0);  // 保存滚动位置，用于恢复
   const [pageSize, setPageSize] = useState(24); // 会根据容器宽度动态调整
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量
   const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize
@@ -824,6 +823,11 @@ const PackingShipment: React.FC = () => {
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
     if (ordersData?.data) {
+      // 如果不是第一页，保存当前滚动位置
+      if (currentPageRef.current > 1) {
+        scrollPositionRef.current = window.pageYOffset || document.documentElement.scrollTop;
+      }
+
       // 累积图片映射
       const newImageMap: Record<string, string> = {};
 
@@ -891,6 +895,17 @@ const PackingShipment: React.FC = () => {
       setIsLoadingMore(false);
     }
   }, [ordersData?.data]);  // 只依赖数据变化
+
+  // 恢复滚动位置（在 DOM 更新后立即执行）
+  React.useLayoutEffect(() => {
+    if (currentPageRef.current > 1 && scrollPositionRef.current > 0) {
+      // 使用 requestAnimationFrame 确保 DOM 已完全渲染
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPositionRef.current);
+        console.log(`[Scroll Restore] Page ${currentPageRef.current}: Restored to ${scrollPositionRef.current}px`);
+      });
+    }
+  }, [allPostings.length]); // 当列表长度变化时恢复滚动位置
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
@@ -1395,17 +1410,15 @@ const PackingShipment: React.FC = () => {
           <div className={styles.productImageContainer}>
             {imageUrl ? (
               <>
-                <div className={styles.imageWrapper}>
-                  <img
-                    src={imageUrl}
-                    alt={item.name || item.sku || '商品图片'}
-                    className={styles.productImage}
-                    onClick={() => {
-                      setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800));
-                      setImagePreviewVisible(true);
-                    }}
-                  />
-                </div>
+                <img
+                  src={imageUrl}
+                  alt={item.name || item.sku || '商品图片'}
+                  className={styles.productImage}
+                  onClick={() => {
+                    setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800));
+                    setImagePreviewVisible(true);
+                  }}
+                />
                 {ozonProductUrl && (
                   <Tooltip title="打开OZON链接" color="#000" overlayInnerStyle={{ color: '#fff' }}>
                     <div
