@@ -442,8 +442,9 @@ class OzonChatService:
 
                         # 更新客户名称（从用户消息中）
                         if msg_data.get("user") and msg_data["user"].get("type") == "Customer":
-                            if not chat.customer_name:
-                                chat.customer_name = msg_data["user"].get("name", "未知客户")
+                            user_name = msg_data["user"].get("name", "")
+                            if user_name and not chat.customer_name:
+                                chat.customer_name = user_name
                             if not chat.customer_id:
                                 chat.customer_id = str(msg_data["user"].get("id", ""))
 
@@ -581,20 +582,28 @@ class OzonChatService:
         content = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
 
         # 判断发送者类型
+        # OZON API实际返回格式：NotificationUser, ChatBot, Seller, Support, Customer (大写)
         user_type = user.get("type", "")
+        user_id = user.get("id", "")
+        user_name = user.get("name", "")
+
+        # 类型映射
         sender_type_map = {
             "Customer": "user",
             "Seller": "seller",
             "Support": "support",
-            "NotificationUser": "support"  # 官方通知消息
+            "NotificationUser": "support",
+            "ChatBot": "support",
         }
         sender_type = sender_type_map.get(user_type, "user")
 
         # 设置友好的发送者名称
-        sender_name = user.get("name")
-        if not sender_name or sender_name == "":
+        sender_name = user.get("name", "")
+        if not sender_name:
             if user_type == "NotificationUser":
-                sender_name = "Ozon官方通知"
+                sender_name = "Ozon官方"
+            elif user_type == "ChatBot":
+                sender_name = "Ozon智能助手"
             elif user_type == "Support":
                 sender_name = "Ozon客服"
             elif user_type == "Seller":
@@ -733,13 +742,13 @@ class OzonChatService:
             chat_id=chat.get("chat_id"),
             chat_type=chat.get("chat_type"),
             subject=chat.get("subject"),
-            customer_id=chat_data.get("customer_id"),
-            customer_name=chat_data.get("customer_name"),
+            customer_id=None,  # API不返回，需从消息中提取
+            customer_name=None,  # API不返回，需从消息中提取
             status=status,
             is_closed=is_closed,
-            order_number=chat_data.get("order_number"),
-            product_id=chat_data.get("product_id"),
-            message_count=chat_data.get("message_count", 0),
+            order_number=None,  # API不返回，需从消息中提取
+            product_id=None,  # API不返回，需从消息中提取
+            message_count=0,  # 初始为0，同步消息后更新
             unread_count=chat_data.get("unread_count", 0),
             last_message_at=parse_datetime(chat.get("created_at")),  # 使用创建时间作为默认值
             last_message_preview=None,  # 初始为空，后续通过消息同步填充

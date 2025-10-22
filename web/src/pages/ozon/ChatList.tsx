@@ -192,6 +192,22 @@ const ChatList: React.FC = () => {
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
+  const getChatDisplayName = (chat: ozonApi.OzonChat) => {
+    // 如果有客户名称，直接显示
+    if (chat.customer_name) {
+      return chat.customer_name;
+    }
+
+    // 根据 chat_type 显示类型标签
+    if (chat.chat_type === 'Buyer_Seller') {
+      return '买家';
+    } else if (chat.chat_type === 'Seller_Support') {
+      return 'Ozon官方';
+    } else {
+      return '客户';
+    }
+  };
+
   return (
     <div>
       {/* 店铺选择器 */}
@@ -342,10 +358,14 @@ const ChatList: React.FC = () => {
                         }
                         title={
                           <Space>
-                            <Text strong>{chat.customer_name || '未知客户'}</Text>
+                            <Text strong>{getChatDisplayName(chat)}</Text>
                             {/* 全部店铺模式下显示店铺名称 */}
                             {selectedShopId === null && chat.shop_name && (
                               <Tag color="purple">{chat.shop_name}</Tag>
+                            )}
+                            {/* 显示聊天类型标签（仅当没有客户名称时） */}
+                            {!chat.customer_name && chat.chat_type === 'Seller_Support' && (
+                              <Tag color="orange">客服咨询</Tag>
                             )}
                             {getStatusTag(chat.status)}
                             {chat.order_number && (

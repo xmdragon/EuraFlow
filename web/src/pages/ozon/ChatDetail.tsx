@@ -163,6 +163,22 @@ const ChatDetail: React.FC = () => {
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
+  const getChatDisplayName = (chatData: any) => {
+    // 如果有客户名称，直接显示
+    if (chatData.customer_name) {
+      return chatData.customer_name;
+    }
+
+    // 根据 chat_type 显示类型标签
+    if (chatData.chat_type === 'Buyer_Seller') {
+      return '买家';
+    } else if (chatData.chat_type === 'Seller_Support') {
+      return 'Ozon官方';
+    } else {
+      return '客户';
+    }
+  };
+
   const renderMessage = (msg: ozonApi.OzonChatMessage) => {
     const isUser = msg.sender_type === 'user';
     const isSeller = msg.sender_type === 'seller';
@@ -170,7 +186,7 @@ const ChatDetail: React.FC = () => {
 
     // 智能显示发送者名称
     const getSenderName = () => {
-      if (msg.sender_name && msg.sender_name !== '未知客户') {
+      if (msg.sender_name) {
         return msg.sender_name;
       }
 
@@ -255,8 +271,12 @@ const ChatDetail: React.FC = () => {
                 <div className={styles.chatHeader}>
                   <Space>
                     <Title level={4} className={styles.chatTitle}>
-                      {chatData.customer_name || '未知客户'}
+                      {getChatDisplayName(chatData)}
                     </Title>
+                    {/* 显示聊天类型标签（仅当没有客户名称时） */}
+                    {!chatData.customer_name && chatData.chat_type === 'Seller_Support' && (
+                      <Tag color="orange">客服咨询</Tag>
+                    )}
                     {getStatusTag(chatData.status)}
                     {chatData.unread_count > 0 && (
                       <Badge count={chatData.unread_count} />
