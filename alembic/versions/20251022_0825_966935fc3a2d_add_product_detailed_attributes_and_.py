@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.add_column('ozon_products', sa.Column('title_cn', sa.String(500), nullable=True, comment='中文名称'))
 
     # 添加OZON API详细属性字段
-    op.add_column('ozon_products', sa.Column('attributes', JSONB, nullable=True, comment='商品特征数组'))
+    op.add_column('ozon_products', sa.Column('ozon_attributes', JSONB, nullable=True, comment='商品特征数组'))
     op.add_column('ozon_products', sa.Column('complex_attributes', JSONB, nullable=True, comment='嵌套特征'))
     op.add_column('ozon_products', sa.Column('description_category_id', sa.BigInteger, nullable=True, comment='类目标识符'))
     op.add_column('ozon_products', sa.Column('color_image', sa.String(200), nullable=True, comment='市场营销色彩'))
@@ -57,5 +57,5 @@ def downgrade() -> None:
     op.drop_column('ozon_products', 'color_image')
     op.drop_column('ozon_products', 'description_category_id')
     op.drop_column('ozon_products', 'complex_attributes')
-    op.drop_column('ozon_products', 'attributes')
+    op.drop_column('ozon_products', 'ozon_attributes')
     op.drop_column('ozon_products', 'title_cn')

@@ -85,7 +85,7 @@ class OzonProduct(Base):
     primary_image = Column(String(500), comment="主图链接")
 
     # OZON详细属性(JSONB存储)
-    attributes = Column(JSONB, comment="商品特征数组")
+    ozon_attributes = Column(JSONB, comment="商品特征数组")
     complex_attributes = Column(JSONB, comment="嵌套特征列表")
     model_info = Column(JSONB, comment="型号信息")
     pdf_list = Column(JSONB, comment="PDF文件列表")

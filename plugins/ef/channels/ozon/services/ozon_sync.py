@@ -568,7 +568,7 @@ class OzonSyncService:
                                 # 基础条形码数组
                                 product.barcodes = attr_info.get("barcodes")
                                 # 商品特征数组
-                                product.attributes = attr_info.get("attributes")
+                                product.ozon_attributes = attr_info.get("attributes")
                                 # 嵌套特征列表
                                 product.complex_attributes = attr_info.get("complex_attributes")
                                 # 类目标识符
@@ -742,6 +742,32 @@ class OzonSyncService:
 
                             # 保存状态原因
                             product.status_reason = status_reason
+
+                            # 添加详细属性信息（从v4 attributes API）
+                            if attr_info:
+                                # 基础条形码数组
+                                product.barcodes = attr_info.get("barcodes")
+                                # 商品特征数组
+                                product.ozon_attributes = attr_info.get("attributes")
+                                # 嵌套特征列表
+                                product.complex_attributes = attr_info.get("complex_attributes")
+                                # 类目标识符
+                                product.description_category_id = attr_info.get("description_category_id")
+                                # 商品类型标识符
+                                product.type_id = attr_info.get("type_id")
+                                # 市场营销色彩
+                                product.color_image = attr_info.get("color_image")
+                                # 主图链接
+                                product.primary_image = attr_info.get("primary_image")
+                                # 尺寸和重量单位
+                                product.dimension_unit = attr_info.get("dimension_unit")
+                                product.weight_unit = attr_info.get("weight_unit")
+                                # 型号信息
+                                product.model_info = attr_info.get("model_info")
+                                # PDF文件列表
+                                product.pdf_list = attr_info.get("pdf_list")
+                                # 具有默认值的特征ID列表
+                                product.attributes_with_defaults = attr_info.get("attributes_with_defaults")
 
                             db.add(product)
 
