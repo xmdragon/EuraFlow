@@ -205,7 +205,10 @@ const SyncServices = () => {
       service_name: service.service_name,
       service_description: service.service_description,
       service_type: service.service_type,
-      schedule_config: service.schedule_config,
+      // 如果是 interval 类型，将字符串转换为数字
+      schedule_config: service.service_type === 'interval'
+        ? parseInt(service.schedule_config)
+        : service.schedule_config,
       is_enabled: service.is_enabled,
     });
     setEditModalVisible(true);
@@ -216,7 +219,15 @@ const SyncServices = () => {
     if (!selectedService) return;
 
     try {
-      await axios.put(`/api/ef/v1/sync-services/${selectedService.id}`, values);
+      // 如果是 interval 类型，确保 schedule_config 是字符串
+      const payload = {
+        ...values,
+        schedule_config: values.service_type === 'interval'
+          ? String(values.schedule_config)
+          : values.schedule_config
+      };
+
+      await axios.put(`/api/ef/v1/sync-services/${selectedService.id}`, payload);
       notifySuccess('更新成功', '服务配置已更新');
       setEditModalVisible(false);
       editForm.resetFields();
@@ -235,7 +246,15 @@ const SyncServices = () => {
   // 提交添加
   const handleAddSubmit = async (values: any) => {
     try {
-      await axios.post('/api/ef/v1/sync-services', values);
+      // 如果是 interval 类型，确保 schedule_config 是字符串
+      const payload = {
+        ...values,
+        schedule_config: values.service_type === 'interval'
+          ? String(values.schedule_config)
+          : values.schedule_config
+      };
+
+      await axios.post('/api/ef/v1/sync-services', payload);
       notifySuccess('添加成功', '服务已添加');
       setAddModalVisible(false);
       addForm.resetFields();
