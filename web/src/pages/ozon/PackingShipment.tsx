@@ -698,30 +698,21 @@ const PackingShipment: React.FC = () => {
       const container = document.querySelector(`.${styles.orderGrid}`);
       if (container) {
         const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
         const itemWidth = 160; // 卡片宽度
-        const itemHeight = 200; // 卡片高度（估算：图片+内容+按钮）
         const gap = 10; // 间距
 
         // 计算列数：(containerWidth + gap) / (itemWidth + gap)
         const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
         setItemsPerRow(columns);
 
-        // 计算可见行数：(containerHeight + gap) / (itemHeight + gap)
-        const visibleRows = Math.max(1, Math.ceil((containerHeight + gap) / (itemHeight + gap)));
-
-        // 动态设置初始pageSize：列数 × (可见行数 × 1.5)，确保填满屏幕且有缓冲
-        // 最小值为 columns × 2，最大值为 100
-        const calculatedPageSize = Math.min(
-          Math.max(columns * 2, Math.ceil(columns * visibleRows * 1.5)),
-          100
-        );
+        // 默认加载3行数据
+        const defaultRows = 3;
+        const calculatedPageSize = Math.min(columns * defaultRows, 100);
 
         console.log('分页计算:', {
           containerWidth,
-          containerHeight,
           columns,
-          visibleRows,
+          defaultRows,
           calculatedPageSize
         });
 
