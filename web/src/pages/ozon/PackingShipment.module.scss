@@ -47,6 +47,11 @@
     padding: 1px !important;
     font-size: 11px;
   }
+
+  // 覆盖Ant Design默认样式，确保flex布局生效
+  :global(.ant-card-cover) > * {
+    display: flex !important;
+  }
 }
 
 .orderCover {
