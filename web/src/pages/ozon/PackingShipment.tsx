@@ -923,7 +923,7 @@ const PackingShipment: React.FC = () => {
         );
       },
     },
-    // 第三列：物流信息（货件编号、追踪号码、国内单号，带复制图标）
+    // 第三列：物流信息（货件编号、追踪号码、国内单号、进货价格，带复制图标）
     {
       title: '物流信息',
       key: 'logistics_info',
@@ -933,10 +933,15 @@ const PackingShipment: React.FC = () => {
         if (!row.isFirstItem) return null;
 
         const posting = row.posting;
+        const order = row.order;
         const packages = posting.packages || [];
         const trackingNumber = packages.length > 0 ? packages[0].tracking_number : undefined;
         // 使用新的数组字段
         const domesticTrackingNumbers = posting.domestic_tracking_numbers;
+        // 获取进货价格
+        const purchasePrice = order.purchase_price;
+        const currency = order.currency_code || userCurrency || 'CNY';
+        const symbol = getCurrencySymbol(currency);
 
         return {
           children: (
@@ -983,6 +988,14 @@ const PackingShipment: React.FC = () => {
                   <span>-</span>
                 )}
               </div>
+              {purchasePrice && parseFloat(purchasePrice) > 0 && (
+                <div>
+                  <Text type="secondary">进货价格: </Text>
+                  <span className={styles.price}>
+                    {symbol} {formatPrice(purchasePrice)}
+                  </span>
+                </div>
+              )}
             </div>
           ),
           props: {
