@@ -49,6 +49,7 @@ import {
   InputNumber,
   Divider,
   Checkbox,
+  Spin,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
@@ -685,6 +686,7 @@ const PackingShipment: React.FC = () => {
   // 图片预览状态
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
+  const [imageLoading, setImageLoading] = useState(false);
 
   // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
   useEffect(() => {
@@ -1319,8 +1321,17 @@ const PackingShipment: React.FC = () => {
   }, []);
 
   const handleOpenImagePreviewCallback = React.useCallback((url: string) => {
-    setPreviewImageUrl(url);
+    setPreviewImageUrl('');  // 先清空旧图
+    setImageLoading(true);   // 设置加载状态
     setImagePreviewVisible(true);
+    // 延迟设置新URL，确保组件已重新渲染
+    setTimeout(() => setPreviewImageUrl(url), 0);
+  }, []);
+
+  const handleCloseImagePreview = React.useCallback(() => {
+    setImagePreviewVisible(false);
+    setPreviewImageUrl('');  // 关闭时清空图片URL
+    setImageLoading(false);
   }, []);
 
   const handleOpenPriceHistoryCallback = React.useCallback((sku: string, productName: string) => {
@@ -1400,8 +1411,11 @@ const PackingShipment: React.FC = () => {
                   alt={item.name || item.sku || '商品图片'}
                   className={styles.productImage}
                   onClick={() => {
-                    setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800));
+                    setPreviewImageUrl('');  // 先清空旧图
+                    setImageLoading(true);   // 设置加载状态
                     setImagePreviewVisible(true);
+                    // 延迟设置新URL
+                    setTimeout(() => setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800)), 0);
                   }}
                 />
                 {ozonProductUrl && (
@@ -2575,7 +2589,7 @@ const PackingShipment: React.FC = () => {
       {/* 图片预览Modal */}
       <Modal
         open={imagePreviewVisible}
-        onCancel={() => setImagePreviewVisible(false)}
+        onCancel={handleCloseImagePreview}
         footer={null}
         closable={false}
         mask={false}
@@ -2587,14 +2601,35 @@ const PackingShipment: React.FC = () => {
           <Button
             type="text"
             icon={<CloseOutlined />}
-            onClick={() => setImagePreviewVisible(false)}
+            onClick={handleCloseImagePreview}
             className={styles.imagePreviewCloseButton}
           />
-          <img
-            src={previewImageUrl}
-            alt="商品大图"
-            className={styles.imagePreviewImage}
-          />
+          {/* 加载状态 */}
+          {imageLoading && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '600px',
+              minHeight: '600px',
+              backgroundColor: '#f0f0f0'
+            }}>
+              <Spin size="large" tip="加载图片中..." />
+            </div>
+          )}
+          {/* 图片 - 只在有URL且不在加载中时显示 */}
+          {previewImageUrl && !imageLoading && (
+            <img
+              src={previewImageUrl}
+              alt="商品大图"
+              className={styles.imagePreviewImage}
+              onLoad={() => setImageLoading(false)}
+              onError={() => {
+                setImageLoading(false);
+                notifyError('加载失败', '图片加载失败');
+              }}
+            />
+          )}
         </div>
       </Modal>
     </div>
