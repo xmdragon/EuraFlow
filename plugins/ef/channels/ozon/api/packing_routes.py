@@ -213,11 +213,11 @@ async def get_packing_orders(
 
     elif operation_status == 'allocating':
         # 分配中：operation_status='allocating' AND 无追踪号码
-        # status限制：awaiting_packaging（刚备货）或 awaiting_deliver（已同步到OZON）
+        # status限制：awaiting_packaging（刚备货）、awaiting_registration（等待登记）或 awaiting_deliver（已同步到OZON）
         query = query.where(
             and_(
                 OzonPosting.operation_status == 'allocating',
-                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver']),
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
                 or_(
                     OzonPosting.raw_payload['tracking_number'].astext.is_(None),
                     OzonPosting.raw_payload['tracking_number'].astext == '',
@@ -337,7 +337,7 @@ async def get_packing_orders(
         count_query = count_query.where(
             and_(
                 OzonPosting.operation_status == 'allocating',
-                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver']),
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
                 or_(
                     OzonPosting.raw_payload['tracking_number'].astext.is_(None),
                     OzonPosting.raw_payload['tracking_number'].astext == '',
@@ -1506,9 +1506,9 @@ async def get_packing_stats(
         stats = {}
         base_conditions = build_base_conditions()
 
-        # 1. 等待备货：awaiting_packaging AND (operation_status IS NULL OR = 'awaiting_stock')
+        # 1. 等待备货：(awaiting_packaging OR awaiting_registration) AND (operation_status IS NULL OR = 'awaiting_stock')
         count_query = select(func.count(OzonPosting.id)).where(
-            OzonPosting.status == 'awaiting_packaging',
+            OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
             or_(
                 OzonPosting.operation_status.is_(None),
                 OzonPosting.operation_status == 'awaiting_stock'
@@ -1519,10 +1519,10 @@ async def get_packing_stats(
         result = await db.execute(count_query)
         stats['awaiting_stock'] = result.scalar() or 0
 
-        # 2. 分配中：operation_status='allocating' AND status in ['awaiting_packaging', 'awaiting_deliver'] AND 无追踪号码
+        # 2. 分配中：operation_status='allocating' AND status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 无追踪号码
         count_query = select(func.count(OzonPosting.id)).where(
             OzonPosting.operation_status == 'allocating',
-            OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver']),
+            OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
             or_(
                 OzonPosting.raw_payload['tracking_number'].astext.is_(None),
                 OzonPosting.raw_payload['tracking_number'].astext == '',
