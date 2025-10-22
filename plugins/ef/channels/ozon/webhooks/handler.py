@@ -515,14 +515,11 @@ class OzonWebhookHandler:
                         )
                     )
 
-                    # 检查是否已有完整数据（order_id不是临时的 AND 有价格信息）
+                    # 检查是否已有完整数据（order_id不是临时的即可，不强制要求total_price>0）
                     if posting and posting.order_id:
                         order = await session.get(OzonOrder, posting.order_id)
-                        if (order and
-                            not order.order_id.startswith("webhook_") and
-                            order.total_price and
-                            order.total_price > 0):
-                            logger.info(f"Successfully updated posting {posting_number} with API data (total_price={order.total_price})")
+                        if order and not order.order_id.startswith("webhook_"):
+                            logger.info(f"Successfully updated posting {posting_number} with API data (order_id={order.order_id}, ozon_order_id={order.ozon_order_id})")
                             return  # 成功，退出
 
                 logger.warning(f"API data not yet available for posting {posting_number}, will retry")
@@ -561,7 +558,17 @@ class OzonWebhookHandler:
                     # 获取订单详情
                     order_info = await client.get_posting_details(posting_number)
 
-                    if order_info.get("result"):
+                    # 记录API原始返回
+                    logger.info(f"API response for {posting_number}: {json.dumps(order_info, ensure_ascii=False)[:500]}")
+
+                    # 检查响应和result是否有效
+                    if not order_info:
+                        logger.warning(f"API returned None for posting {posting_number}")
+                    elif not order_info.get("result"):
+                        logger.warning(f"No result in API response for posting {posting_number}: {order_info}")
+                    elif order_info["result"] is None:
+                        logger.warning(f"API result is None for posting {posting_number}")
+                    else:
                         # 保存订单到数据库
                         from ..services.order_sync import OrderSyncService
 
@@ -573,13 +580,11 @@ class OzonWebhookHandler:
                         await db.commit()
 
                         logger.info(f"Successfully synced order {posting_number} from webhook for shop {shop.id}")
-                    else:
-                        logger.warning(f"No result in order info for posting {posting_number}")
 
                     await client.close()
 
                 except Exception as e:
-                    logger.error(f"Failed to sync order {posting_number} for shop {shop.id}: {e}")
+                    logger.error(f"Failed to sync order {posting_number} for shop {shop.id}: {e}", exc_info=True)
 
         except Exception as e:
             logger.error(f"Failed to trigger order sync for {posting_number}: {e}")

@@ -264,8 +264,8 @@ class OrderSyncService:
         order_id = posting_data.get("order_id")
         order_number = posting_data.get("order_number")
         posting_number = posting_data.get("posting_number")
-        
-        # 查找或创建订单（ozon_order_id是VARCHAR，需要转换为字符串）
+
+        # 先尝试通过 ozon_order_id 查找订单
         stmt = select(OzonOrder).where(
             and_(
                 OzonOrder.shop_id == self.shop_id,
@@ -274,8 +274,31 @@ class OrderSyncService:
         )
         order = await session.scalar(stmt)
 
+        # 如果没找到，尝试通过 posting_number 查找关联的临时订单（webhook创建的）
+        if not order:
+            posting_stmt = select(OzonPosting).where(
+                and_(
+                    OzonPosting.shop_id == self.shop_id,
+                    OzonPosting.posting_number == posting_number
+                )
+            )
+            existing_posting = await session.scalar(posting_stmt)
+            if existing_posting and existing_posting.order_id:
+                order = await session.get(OzonOrder, existing_posting.order_id)
+                # 更新临时订单的 ozon_order_id 为真实值
+                if order and order.ozon_order_id.startswith("webhook_"):
+                    order.ozon_order_id = str(order_id)
+                    order.order_id = f"OZ-{order_id}"
+
         if not order:
             # 创建新订单
+            # ordered_at: 优先使用created_at，其次in_process_at，最后使用当前时间
+            ordered_at = (
+                self._parse_datetime(posting_data.get("created_at")) or
+                self._parse_datetime(posting_data.get("in_process_at")) or
+                datetime.now(timezone.utc)
+            )
+
             order = OzonOrder(
                 shop_id=self.shop_id,
                 order_id=f"OZ-{order_id}",  # 生成本地订单号
@@ -283,7 +306,7 @@ class OrderSyncService:
                 ozon_order_number=order_number,
                 status=self._map_order_status(posting_data.get("status")),
                 ozon_status=posting_data.get("status"),
-                ordered_at=self._parse_datetime(posting_data.get("created_at"))
+                ordered_at=ordered_at
             )
             session.add(order)
             await session.flush()  # 获取order.id
@@ -292,25 +315,25 @@ class OrderSyncService:
         order.status = self._map_order_status(posting_data.get("status"))
         order.ozon_status = posting_data.get("status")
         
-        # 金额信息
-        analytics = posting_data.get("analytics_data", {})
-        financial = posting_data.get("financial_data", {})
-        
+        # 金额信息（API可能返回null，需要处理）
+        analytics = posting_data.get("analytics_data") or {}
+        financial = posting_data.get("financial_data") or {}
+
         order.total_price = Decimal(str(analytics.get("total_price", "0")))
         order.products_price = Decimal(str(analytics.get("products_price", "0")))
         order.delivery_price = Decimal(str(analytics.get("delivery_cost", "0")))
         order.commission_amount = Decimal(str(financial.get("commission_amount", "0")))
         
-        # 客户信息
-        customer = posting_data.get("customer", {})
+        # 客户信息（API可能返回null）
+        customer = posting_data.get("customer") or {}
         if customer:
             order.customer_id = str(customer.get("id", ""))
             order.customer_phone = customer.get("phone")
             order.customer_email = customer.get("email")
-        
-        # 地址信息
-        delivery = posting_data.get("delivery_method", {})
-        address = posting_data.get("analytics_data", {}).get("delivery_address", {})
+
+        # 地址信息（API可能返回null）
+        delivery = posting_data.get("delivery_method") or {}
+        address = (posting_data.get("analytics_data") or {}).get("delivery_address") or {}
         
         order.delivery_address = {
             "city": address.get("city"),
