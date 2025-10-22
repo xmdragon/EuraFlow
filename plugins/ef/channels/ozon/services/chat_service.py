@@ -460,6 +460,22 @@ class OzonChatService:
                     chat.last_message_at = parse_datetime(last_msg.get("created_at"))
                     chat.message_count = len(messages_data)
 
+                    # 智能推断 UNSPECIFIED 类型的聊天
+                    if chat.chat_type == "UNSPECIFIED":
+                        user_types = set()
+                        for msg in messages_data:
+                            user = msg.get("user", {})
+                            user_type = user.get("type", "")
+                            if user_type:
+                                user_types.add(user_type)
+
+                        # 如果有Customer消息，判定为买家聊天
+                        if "Customer" in user_types:
+                            chat.chat_type = "BUYER_SELLER"
+                        # 如果只有Support/NotificationUser/ChatBot，判定为官方聊天
+                        elif user_types & {"Support", "NotificationUser", "ChatBot"}:
+                            chat.chat_type = "SELLER_SUPPORT"
+
                 await session.commit()
 
             return {
