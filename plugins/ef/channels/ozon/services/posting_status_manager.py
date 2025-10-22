@@ -35,6 +35,19 @@ class PostingStatusManager:
         "cancelled": "cancelled"
     }
 
+    # 状态优先级定义（用于防止状态回退）
+    # 数字越大表示状态越靠后，状态只能前进不能后退
+    STATUS_PRIORITY = {
+        "awaiting_stock": 0,         # 等待备货
+        "allocating": 1,             # 分配中（手动"备货"）
+        "allocated": 2,              # 已分配（有tracking但无domestic）
+        "tracking_confirmed": 3,     # 单号确认（有tracking和domestic）
+        "printed": 4,                # 已打印
+        "shipping": 5,               # 运输中
+        "delivered": 6,              # 已送达
+        "cancelled": -1,             # 已取消（终态，不参与优先级比较）
+    }
+
     @staticmethod
     def calculate_operation_status(
         posting: OzonPosting,
@@ -54,18 +67,38 @@ class PostingStatusManager:
         """
         old_operation_status = posting.operation_status
 
+        # ========== 状态优先级保护（防止状态回退） ==========
+        if preserve_manual and old_operation_status:
+            # cancelled 是终态，不允许任何改变
+            if old_operation_status == "cancelled":
+                logger.debug(
+                    f"Posting {posting.posting_number} is cancelled (terminal state), "
+                    f"ignoring status change to {ozon_status}"
+                )
+                return old_operation_status, False
+
         # 简单映射（不需要判断字段）
         if ozon_status in PostingStatusManager.SIMPLE_STATUS_MAP:
             new_status = PostingStatusManager.SIMPLE_STATUS_MAP[ozon_status]
+
+            # 检查优先级：防止状态回退
+            if preserve_manual and old_operation_status:
+                old_priority = PostingStatusManager.STATUS_PRIORITY.get(old_operation_status, -999)
+                new_priority = PostingStatusManager.STATUS_PRIORITY.get(new_status, -999)
+
+                # 如果新状态优先级 <= 旧状态优先级，保留旧状态（不允许回退）
+                if new_priority <= old_priority:
+                    logger.debug(
+                        f"Posting {posting.posting_number}: preventing status rollback "
+                        f"({old_operation_status}[{old_priority}] → {new_status}[{new_priority}])"
+                    )
+                    return old_operation_status, False
+
             return new_status, new_status != old_operation_status
 
         # 复杂逻辑：awaiting_deliver 根据字段存在性判断
         if ozon_status == "awaiting_deliver":
-            # 规则1：如果已经是printed状态，保持不变（用户手动标记或已打印）
-            if preserve_manual and old_operation_status == "printed":
-                return "printed", False
-
-            # 规则2：根据追踪号码和国内单号判断
+            # 根据追踪号码和国内单号判断
             has_tracking = posting.has_tracking_number()
             has_domestic = bool(posting.get_domestic_tracking_numbers())
 
@@ -75,6 +108,20 @@ class PostingStatusManager:
                 new_status = "allocated"  # 有追踪号码，无国内单号 → 已分配
             else:
                 new_status = "tracking_confirmed"  # 都有 → 单号确认
+
+            # 检查优先级：防止状态回退
+            if preserve_manual and old_operation_status:
+                old_priority = PostingStatusManager.STATUS_PRIORITY.get(old_operation_status, -999)
+                new_priority = PostingStatusManager.STATUS_PRIORITY.get(new_status, -999)
+
+                # 如果新状态优先级 <= 旧状态优先级，保留旧状态（不允许回退）
+                if new_priority <= old_priority:
+                    logger.debug(
+                        f"Posting {posting.posting_number}: preventing status rollback "
+                        f"({old_operation_status}[{old_priority}] → {new_status}[{new_priority}]), "
+                        f"has_tracking={has_tracking}, has_domestic={has_domestic}"
+                    )
+                    return old_operation_status, False
 
             return new_status, new_status != old_operation_status
 
