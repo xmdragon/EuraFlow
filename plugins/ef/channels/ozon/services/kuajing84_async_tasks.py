@@ -198,8 +198,8 @@ async def async_sync_logistics_order(
                     logger.error(f"提交物流单号异常 (尝试 {attempt}/{max_retries}): sync_log_id={sync_log_id}, error={e}")
 
                     if attempt < max_retries:
-                        # 指数退避
-                        wait_time = 2 ** attempt  # 2s, 4s, 8s
+                        # 固定间隔重试：10s, 20s, 30s
+                        wait_time = attempt * 10
                         logger.info(f"等待 {wait_time}s 后重试...")
                         await asyncio.sleep(wait_time)
                     else:
@@ -362,8 +362,8 @@ async def async_discard_order(
                     logger.error(f"废弃订单异常 (尝试 {attempt}/{max_retries}): sync_log_id={sync_log_id}, error={e}")
 
                     if attempt < max_retries:
-                        # 指数退避
-                        wait_time = 2 ** attempt  # 2s, 4s, 8s
+                        # 固定间隔重试：10s, 20s, 30s
+                        wait_time = attempt * 10
                         logger.info(f"等待 {wait_time}s 后重试...")
                         await asyncio.sleep(wait_time)
                     else:
