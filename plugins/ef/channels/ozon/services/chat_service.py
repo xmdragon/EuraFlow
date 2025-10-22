@@ -1,6 +1,7 @@
 """OZON聊天服务"""
 from typing import Dict, List, Any, Optional
 from datetime import datetime
+import logging
 from sqlalchemy import select, and_, or_, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,8 @@ from ..models.chat import OzonChat, OzonChatMessage
 from ..models.ozon_shops import OzonShop
 from ..api.client import OzonAPIClient
 from ..utils.datetime_utils import parse_datetime, utcnow
+
+logger = logging.getLogger(__name__)
 
 
 class OzonChatService:
@@ -415,7 +418,7 @@ class OzonChatService:
                 messages_data = list(reversed(messages_data))
 
                 for msg_data in messages_data:
-                    message_id = str(msg_data.get("id", ""))
+                    message_id = str(msg_data.get("message_id", ""))
                     if not message_id:
                         continue
 
@@ -431,11 +434,11 @@ class OzonChatService:
                         session.add(new_msg)
                         new_messages += 1
 
-                        # 从消息中提取关联信息
-                        if msg_data.get("data", {}).get("order"):
-                            order_info = msg_data["data"]["order"]
-                            if not chat.order_number:
-                                chat.order_number = order_info.get("number")
+                        # 从消息上下文中提取订单信息
+                        context = msg_data.get("context", {})
+                        if context and isinstance(context, dict):
+                            if context.get("order_number") and not chat.order_number:
+                                chat.order_number = context.get("order_number")
 
                         # 更新客户名称（从用户消息中）
                         if msg_data.get("user") and msg_data["user"].get("type") == "Customer":
@@ -449,7 +452,10 @@ class OzonChatService:
                 # 更新聊天的最后消息信息
                 if messages_data:
                     last_msg = messages_data[-1]
-                    chat.last_message_preview = last_msg.get("data", {}).get("text", "")[:500]
+                    # data 是字符串数组，提取文本预览
+                    data_array = last_msg.get("data", [])
+                    preview = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
+                    chat.last_message_preview = preview[:500]
                     chat.last_message_at = parse_datetime(last_msg.get("created_at"))
                     chat.message_count = len(messages_data)
 
@@ -461,9 +467,6 @@ class OzonChatService:
             }
 
         except Exception as e:
-            # 记录错误但继续处理其他聊天
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to sync messages for chat {chat_id}: {e}")
             return {"synced_messages": 0, "new_messages": 0}
 
@@ -572,7 +575,10 @@ class OzonChatService:
     def _create_message_from_api(self, chat_id: str, msg_data: Dict[str, Any]) -> OzonChatMessage:
         """从OZON API数据创建消息对象"""
         user = msg_data.get("user", {})
-        data = msg_data.get("data", {})
+        data_array = msg_data.get("data", [])
+
+        # data 是字符串数组，合并为文本
+        content = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
 
         # 判断发送者类型
         sender_type_map = {
@@ -585,13 +591,13 @@ class OzonChatService:
         return OzonChatMessage(
             shop_id=self.shop_id,
             chat_id=chat_id,
-            message_id=str(msg_data.get("id", "")),
-            message_type=data.get("type", "text"),
+            message_id=str(msg_data.get("message_id", "")),
+            message_type="text",
             sender_type=sender_type,
             sender_id=str(user.get("id", "")),
             sender_name=user.get("name"),
-            content=data.get("text"),
-            content_data=data,
+            content=content,
+            content_data=msg_data,
             is_read=msg_data.get("is_read", False),
             is_deleted=False,
             is_edited=False,
