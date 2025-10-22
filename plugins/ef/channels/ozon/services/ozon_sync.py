@@ -589,6 +589,16 @@ class OzonSyncService:
                                 # 具有默认值的特征ID列表
                                 product.attributes_with_defaults = attr_info.get("attributes_with_defaults")
 
+                                # 重量和尺寸信息（从v4 attributes API优先获取）
+                                if attr_info.get("weight") is not None:
+                                    product.weight = safe_decimal_conversion(attr_info.get("weight"))
+                                if attr_info.get("width") is not None:
+                                    product.width = safe_decimal_conversion(attr_info.get("width"))
+                                if attr_info.get("height") is not None:
+                                    product.height = safe_decimal_conversion(attr_info.get("height"))
+                                if attr_info.get("depth") is not None:
+                                    product.depth = safe_decimal_conversion(attr_info.get("depth"))
+
                             product.sync_status = "success"
                             product.last_sync_at = utcnow()
                             product.updated_at = utcnow()
@@ -768,6 +778,16 @@ class OzonSyncService:
                                 product.pdf_list = attr_info.get("pdf_list")
                                 # 具有默认值的特征ID列表
                                 product.attributes_with_defaults = attr_info.get("attributes_with_defaults")
+
+                                # 重量和尺寸信息（从v4 attributes API优先获取）
+                                if attr_info.get("weight") is not None:
+                                    product.weight = safe_decimal_conversion(attr_info.get("weight"))
+                                if attr_info.get("width") is not None:
+                                    product.width = safe_decimal_conversion(attr_info.get("width"))
+                                if attr_info.get("height") is not None:
+                                    product.height = safe_decimal_conversion(attr_info.get("height"))
+                                if attr_info.get("depth") is not None:
+                                    product.depth = safe_decimal_conversion(attr_info.get("depth"))
 
                             db.add(product)
 
