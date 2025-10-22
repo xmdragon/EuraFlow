@@ -135,8 +135,10 @@ export interface Product {
   ozon_product_id?: number;
   ozon_sku?: number;
   title: string;
+  title_cn?: string;
   description?: string;
   barcode?: string;
+  barcodes?: string[];
   category_id?: number;
   category_name?: string;
   brand?: string;
@@ -163,6 +165,17 @@ export interface Product {
   width?: number;
   height?: number;
   depth?: number;
+  dimension_unit?: string;
+  weight_unit?: string;
+  description_category_id?: number;
+  type_id?: number;
+  color_image?: string;
+  primary_image?: string;
+  ozon_attributes?: any;
+  complex_attributes?: any;
+  model_info?: any;
+  pdf_list?: any[];
+  attributes_with_defaults?: any[];
   ozon_archived?: boolean;
   ozon_has_fbo_stocks?: boolean;
   ozon_has_fbs_stocks?: boolean;

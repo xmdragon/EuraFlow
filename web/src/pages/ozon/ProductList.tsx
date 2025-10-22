@@ -1582,6 +1582,7 @@ const ProductList: React.FC = () => {
             layout="vertical"
             initialValues={{
               title: selectedProduct.title,
+              title_cn: selectedProduct.title_cn,
               description: selectedProduct.description,
               brand: selectedProduct.brand,
               barcode: selectedProduct.barcode,
@@ -1621,15 +1622,28 @@ const ProductList: React.FC = () => {
               <Col span={12}>
                 <Form.Item
                   name="title"
-                  label="商品标题"
+                  label="商品标题（俄文）"
                   rules={[{ required: true, message: '请输入商品标题' }]}
                 >
                   <Input placeholder="请输入商品标题" />
                 </Form.Item>
               </Col>
               <Col span={12}>
+                <Form.Item name="title_cn" label="中文名称">
+                  <Input placeholder="请输入中文名称（便于管理）" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
                 <Form.Item name="brand" label="品牌">
                   <Input placeholder="请输入品牌" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="barcode" label="主条形码">
+                  <Input placeholder="请输入条形码" disabled />
                 </Form.Item>
               </Col>
             </Row>
@@ -1639,12 +1653,7 @@ const ProductList: React.FC = () => {
             </Form.Item>
 
             <Row gutter={16}>
-              <Col span={8}>
-                <Form.Item name="barcode" label="条形码">
-                  <Input placeholder="请输入条形码" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
+              <Col span={12}>
                 <Form.Item name="price" label="售价">
                   <InputNumber
                     style={{ width: '100%' }}
@@ -1656,7 +1665,7 @@ const ProductList: React.FC = () => {
                   />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col span={12}>
                 <Form.Item name="old_price" label="原价">
                   <InputNumber
                     style={{ width: '100%' }}
