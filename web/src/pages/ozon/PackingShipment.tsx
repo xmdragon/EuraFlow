@@ -332,20 +332,30 @@ const PackingShipment: React.FC = () => {
   // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
   useEffect(() => {
     const calculateItemsPerRow = () => {
-      // 卡片宽度160px + 间距16px = 176px
-      const containerWidth = window.innerWidth - 100;
-      const columns = Math.max(1, Math.floor(containerWidth / 176));
-      setItemsPerRow(columns);
+      // 获取实际容器的宽度，而不是屏幕宽度（因为有左侧菜单栏）
+      const container = document.querySelector(`.${styles.orderGrid}`);
+      if (container) {
+        const containerWidth = container.clientWidth;
+        const itemWidth = 160; // 卡片宽度
+        const gap = 16; // 间距
+        // 公式：(containerWidth + gap) / (itemWidth + gap)
+        const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
+        setItemsPerRow(columns);
 
-      // 动态设置初始pageSize：列数 × 4行
-      const calculatedPageSize = columns * 4;
-      setInitialPageSize(calculatedPageSize);
-      setPageSize(calculatedPageSize);
+        // 动态设置初始pageSize：列数 × 4行
+        const calculatedPageSize = columns * 4;
+        setInitialPageSize(calculatedPageSize);
+        setPageSize(calculatedPageSize);
+      }
     };
 
-    calculateItemsPerRow();
+    // 延迟执行，确保 DOM 已渲染
+    const timer = setTimeout(calculateItemsPerRow, 100);
     window.addEventListener('resize', calculateItemsPerRow);
-    return () => window.removeEventListener('resize', calculateItemsPerRow);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', calculateItemsPerRow);
+    };
   }, []);
 
   // 复制功能处理函数
