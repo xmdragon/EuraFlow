@@ -21,7 +21,7 @@ import {
   LinkOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Space,
@@ -270,26 +270,14 @@ const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency, symbol: userSymbol } = useCurrency();
 
-  // 状态管理
-  // 动态计算每次加载的数量（4行）
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const pageSize = React.useMemo(() => {
-    // 卡片宽度160px + 间距16px = 176px
-    const cardWidth = 176;
-    // 获取容器宽度（假设留出一些padding，约100px）
-    const containerWidth = windowWidth - 100;
-    // 每行卡片数
-    const cardsPerRow = Math.floor(containerWidth / cardWidth) || 1;
-    // 4行
-    return cardsPerRow * 4;
-  }, [windowWidth]);
+  // 状态管理 - 分页和滚动加载
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24); // 会根据容器宽度动态调整
+  const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量
+  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize
+  const [allPostings, setAllPostings] = useState<ozonApi.PostingWithOrder[]>([]); // 累积所有已加载的posting
+  const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
+  const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
   // 始终默认为null（全部店铺），不从localStorage读取
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -340,25 +328,24 @@ const PackingShipment: React.FC = () => {
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
 
-  // 滚动监听 - 无限加载
+  // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
   useEffect(() => {
-    const handleScroll = () => {
-      // 获取页面滚动信息
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = window.innerHeight;
+    const calculateItemsPerRow = () => {
+      // 卡片宽度160px + 间距16px = 176px
+      const containerWidth = window.innerWidth - 100;
+      const columns = Math.max(1, Math.floor(containerWidth / 176));
+      setItemsPerRow(columns);
 
-      // 滚动到底部时加载下一页（距离底部200px时触发）
-      if (scrollHeight - scrollTop - clientHeight < 200) {
-        if (hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      }
+      // 动态设置初始pageSize：列数 × 4行
+      const calculatedPageSize = columns * 4;
+      setInitialPageSize(calculatedPageSize);
+      setPageSize(calculatedPageSize);
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    calculateItemsPerRow();
+    window.addEventListener('resize', calculateItemsPerRow);
+    return () => window.removeEventListener('resize', calculateItemsPerRow);
+  }, []);
 
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
@@ -425,18 +412,15 @@ const PackingShipment: React.FC = () => {
     printed: { color: 'success', text: '已打印' },
   };
 
-  // 查询打包发货订单列表（无限滚动）
+  // 查询打包发货订单列表
   // 第一个标签"等待备货"使用OZON原生状态，其他标签使用operation_status
   const {
     data: ordersData,
     isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
     refetch,
-  } = useInfiniteQuery({
-    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams],
-    queryFn: ({ pageParam = 1 }) => {
+  } = useQuery({
+    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, pageSize],
+    queryFn: () => {
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
       const queryParams: any = {
         shop_id: selectedShop,
@@ -449,16 +433,8 @@ const PackingShipment: React.FC = () => {
         queryParams.operation_status = operationStatus;
       }
 
-      return ozonApi.getPackingOrders(pageParam, pageSize, queryParams);
+      return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
     },
-    getNextPageParam: (lastPage, allPages) => {
-      // 如果返回的数据少于pageSize，说明没有更多数据了
-      if (!lastPage?.data || lastPage.data.length < pageSize) {
-        return undefined;
-      }
-      return allPages.length + 1;
-    },
-    initialPageParam: 1,
     enabled: true, // 支持查询全部店铺（selectedShop=null）
     refetchInterval: 60000, // 1分钟自动刷新
     retry: 1, // 减少重试次数
@@ -466,52 +442,92 @@ const PackingShipment: React.FC = () => {
     staleTime: 10000, // 数据10秒内不会被认为是过期的
   });
 
-  // 展开订单数据为货件维度（PostingWithOrder 数组）
-  const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
-    if (!ordersData?.pages) return [];
-
-    // 合并所有页面的数据
-    const allOrders = ordersData.pages.flatMap(page => page?.data || []);
-
-    const flattened: ozonApi.PostingWithOrder[] = [];
-    allOrders.forEach((order: ozonApi.Order) => {
-      // 如果订单有 postings，展开每个 posting
-      if (order.postings && order.postings.length > 0) {
-        order.postings.forEach((posting) => {
-          flattened.push({
-            ...posting,
-            order: order  // 关联完整的订单信息
+  // 当收到新数据时，累积到 allPostings
+  useEffect(() => {
+    if (ordersData?.data) {
+      // 展开订单为货件
+      const flattened: ozonApi.PostingWithOrder[] = [];
+      ordersData.data.forEach((order: ozonApi.Order) => {
+        // 如果订单有 postings，展开每个 posting
+        if (order.postings && order.postings.length > 0) {
+          order.postings.forEach((posting) => {
+            flattened.push({
+              ...posting,
+              order: order  // 关联完整的订单信息
+            });
           });
-        });
-      } else {
-        // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
-        // 这是为了兼容可能存在的没有 postings 数组的订单
-        if (order.posting_number) {
-          flattened.push({
-            id: order.id,
-            posting_number: order.posting_number,
-            status: order.status,
-            shipment_date: order.shipment_date,
-            delivery_method_name: order.delivery_method,
-            warehouse_name: order.warehouse_name,
-            packages_count: 1,
-            is_cancelled: order.status === 'cancelled',
-            order: order
-          } as ozonApi.PostingWithOrder);
+        } else {
+          // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
+          if (order.posting_number) {
+            flattened.push({
+              id: order.id,
+              posting_number: order.posting_number,
+              status: order.status,
+              shipment_date: order.shipment_date,
+              delivery_method_name: order.delivery_method,
+              warehouse_name: order.warehouse_name,
+              packages_count: 1,
+              is_cancelled: order.status === 'cancelled',
+              order: order
+            } as ozonApi.PostingWithOrder);
+          }
         }
+      });
+
+      // 如果用户搜索了 posting_number，进行二次过滤
+      const searchPostingNumber = searchParams.posting_number?.trim();
+      let filteredFlattened = flattened;
+      if (searchPostingNumber) {
+        filteredFlattened = flattened.filter(posting =>
+          posting.posting_number.toLowerCase().includes(searchPostingNumber.toLowerCase())
+        );
       }
-    });
 
-    // 如果用户搜索了 posting_number，进行二次过滤，只保留匹配的货件
-    const searchPostingNumber = searchParams.posting_number?.trim();
-    if (searchPostingNumber) {
-      return flattened.filter(posting =>
-        posting.posting_number.toLowerCase().includes(searchPostingNumber.toLowerCase())
-      );
+      if (currentPage === 1) {
+        // 第一页，替换数据
+        setAllPostings(filteredFlattened);
+      } else {
+        // 后续页，追加数据
+        setAllPostings(prev => [...prev, ...filteredFlattened]);
+      }
+
+      // 检查是否还有更多数据
+      const totalLoaded = currentPage === 1
+        ? filteredFlattened.length
+        : allPostings.length + filteredFlattened.length;
+      setHasMoreData(totalLoaded < (ordersData.total || 0));
+      setIsLoadingMore(false);
     }
+  }, [ordersData?.data]);
 
-    return flattened;
-  }, [ordersData, searchParams.posting_number]);
+  // 滚动监听：滚动到底部加载下一页
+  useEffect(() => {
+    const handleScroll = () => {
+      if (isLoadingMore || !hasMoreData) return;
+
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrollPercent = (scrollTop + windowHeight) / documentHeight;
+
+      // 滚动到80%时触发加载
+      if (scrollPercent > 0.8) {
+        setIsLoadingMore(true);
+        // 加载更多时使用较小的pageSize（初始值的一半，但至少一行）
+        const loadMoreSize = Math.min(Math.max(Math.floor(initialPageSize / 2), itemsPerRow), 100);
+        setPageSize(loadMoreSize);
+        setCurrentPage(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
+
+  // 展开订单数据为货件维度（PostingWithOrder 数组）- 使用累积的数据
+  const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
+    return allPostings;
+  }, [allPostings]);
 
   // 查询各操作状态的数量统计（并行查询）
   // 第一个标签"等待备货"：使用OZON原生状态（awaiting_packaging, awaiting_deliver）
@@ -2276,13 +2292,13 @@ const PackingShipment: React.FC = () => {
                 </div>
 
                 {/* 加载提示 */}
-                {isFetchingNextPage && (
+                {isLoadingMore && (
                   <div className={styles.loadingMore}>
                     <SyncOutlined spin /> 加载更多...
                   </div>
                 )}
 
-                {!hasNextPage && orderCards.length > 0 && (
+                {!hasMoreData && orderCards.length > 0 && (
                   <div className={styles.loadingMore}>
                     <Text type="secondary">没有更多数据了</Text>
                   </div>
