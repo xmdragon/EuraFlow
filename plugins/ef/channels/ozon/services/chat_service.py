@@ -581,12 +581,26 @@ class OzonChatService:
         content = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
 
         # 判断发送者类型
+        user_type = user.get("type", "")
         sender_type_map = {
             "Customer": "user",
             "Seller": "seller",
-            "Support": "support"
+            "Support": "support",
+            "NotificationUser": "support"  # 官方通知消息
         }
-        sender_type = sender_type_map.get(user.get("type"), "user")
+        sender_type = sender_type_map.get(user_type, "user")
+
+        # 设置友好的发送者名称
+        sender_name = user.get("name")
+        if not sender_name or sender_name == "":
+            if user_type == "NotificationUser":
+                sender_name = "Ozon官方通知"
+            elif user_type == "Support":
+                sender_name = "Ozon客服"
+            elif user_type == "Seller":
+                sender_name = "卖家"
+            else:
+                sender_name = "客户"
 
         return OzonChatMessage(
             shop_id=self.shop_id,
@@ -595,7 +609,7 @@ class OzonChatService:
             message_type="text",
             sender_type=sender_type,
             sender_id=str(user.get("id", "")),
-            sender_name=user.get("name"),
+            sender_name=sender_name,
             content=content,
             content_data=msg_data,
             is_read=msg_data.get("is_read", False),

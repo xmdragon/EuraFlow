@@ -108,6 +108,77 @@
   }
 }
 
+// ===== 消息内容 =====
+.messageContent {
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+
+  // Markdown样式
+  :global {
+    p {
+      margin: 0 0 8px 0;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    strong, b {
+      font-weight: 600;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: underline;
+
+      &:hover {
+        opacity: 0.8;
+      }
+    }
+
+    ul, ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    code {
+      background-color: rgba(0, 0, 0, 0.06);
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background-color: rgba(0, 0, 0, 0.06);
+      padding: 8px;
+      border-radius: 4px;
+      overflow-x: auto;
+
+      code {
+        background-color: transparent;
+        padding: 0;
+      }
+    }
+  }
+}
+
+// 卖家消息中的markdown样式（白色文本）
+.sellerBubble .messageContent :global {
+  code {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  pre {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+}
+
 .messageTimeContainer {
   margin-top: 4px;
 

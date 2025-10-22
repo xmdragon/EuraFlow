@@ -30,6 +30,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import moment from 'moment';
+import ReactMarkdown from 'react-markdown';
 
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
@@ -190,7 +191,9 @@ const ChatDetail: React.FC = () => {
                   {msg.sender_name || (isSeller ? '卖家' : '客户')}
                 </Text>
               </div>
-              <div>{msg.content}</div>
+              <div className={styles.messageContent}>
+                <ReactMarkdown>{msg.content || ''}</ReactMarkdown>
+              </div>
             </div>
             <div
               className={`${styles.messageTimeContainer} ${isUser ? styles.userTimeContainer : styles.sellerTimeContainer}`}
