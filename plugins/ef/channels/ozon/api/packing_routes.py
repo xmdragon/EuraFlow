@@ -159,6 +159,7 @@ async def get_packing_orders(
     limit: int = Query(50, le=100),
     shop_id: Optional[int] = None,
     posting_number: Optional[str] = None,
+    sku: Optional[str] = Query(None, description="按商品SKU搜索（在posting的products中查找）"),
     operation_status: Optional[str] = Query(None, description="操作状态筛选：awaiting_stock/allocating/allocated/tracking_confirmed/shipping"),
     ozon_status: Optional[str] = Query(None, description="OZON原生状态筛选，支持逗号分隔的多个状态，如：awaiting_packaging,awaiting_deliver"),
     db: AsyncSession = Depends(get_async_session)
@@ -167,6 +168,8 @@ async def get_packing_orders(
     获取打包发货页面的订单列表
     - 支持按 operation_status 筛选（等待备货/分配中/已分配/单号确认/运输中）
     - 支持按 ozon_status 筛选（OZON原生状态，如 awaiting_packaging, awaiting_deliver）
+    - 支持按 posting_number 精确搜索（货件编号）
+    - 支持按 sku 搜索（在posting的products中查找，SKU为整数）
     - ozon_status 优先级高于 operation_status
     - 如果都不指定，返回所有订单
 
@@ -252,6 +255,22 @@ async def get_packing_orders(
     if posting_number:
         query = query.where(OzonPosting.posting_number == posting_number.strip())
 
+    # 搜索条件：SKU搜索（在products数组中查找）
+    if sku:
+        # 在raw_payload.products数组中查找包含指定SKU的posting
+        # SKU在OZON API中是整数类型
+        try:
+            sku_int = int(sku)
+            query = query.where(
+                OzonPosting.raw_payload['products'].op('@>')(
+                    cast([{'sku': sku_int}], JSONB)
+                )
+            )
+        except ValueError:
+            # 如果SKU不是整数，不应用此过滤条件
+            logger.warning(f"Invalid SKU format: {sku}, expected integer")
+            pass
+
     # 排序：按订单创建时间倒序
     query = query.order_by(OzonOrder.ordered_at.desc())
 
@@ -311,6 +330,17 @@ async def get_packing_orders(
         count_query = count_query.where(OzonPosting.shop_id == shop_id)
     if posting_number:
         count_query = count_query.where(OzonPosting.posting_number == posting_number.strip())
+    if sku:
+        # SKU搜索（count查询也需要应用）
+        try:
+            sku_int = int(sku)
+            count_query = count_query.where(
+                OzonPosting.raw_payload['products'].op('@>')(
+                    cast([{'sku': sku_int}], JSONB)
+                )
+            )
+        except ValueError:
+            pass
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()

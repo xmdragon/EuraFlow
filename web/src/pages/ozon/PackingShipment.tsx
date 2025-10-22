@@ -62,7 +62,7 @@ import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
-import styles from './OrderList.module.scss';
+import styles from './PackingShipment.module.scss';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -254,6 +254,14 @@ interface OrderItemRow {
   order: ozonApi.Order;             // 订单信息
   isFirstItem: boolean;             // 是否是第一个商品（用于rowSpan）
   itemCount: number;                // 该posting的商品总数（用于rowSpan）
+}
+
+// 订单卡片数据结构（用于卡片展示）
+interface OrderCard {
+  key: string;                      // 唯一标识：posting_number + product_index
+  posting: ozonApi.PostingWithOrder;// 货件信息
+  product: ozonApi.OrderItem | null;// 商品信息（可能为空）
+  order: ozonApi.Order;             // 订单信息
 }
 
 const PackingShipment: React.FC = () => {
@@ -557,6 +565,41 @@ const PackingShipment: React.FC = () => {
     return rows;
   }, [postingsData]);
 
+  // 将 PostingWithOrder 数组转换为 OrderCard 数组（每个商品一张卡片）
+  const orderCards = React.useMemo<OrderCard[]>(() => {
+    const cards: OrderCard[] = [];
+
+    postingsData.forEach((posting) => {
+      // 优先使用 posting.products（从 raw_payload 提取的该 posting 的商品）
+      // 如果不存在，降级使用 posting.order.items（订单级别的商品汇总）
+      const products = (posting.products && posting.products.length > 0)
+        ? posting.products
+        : (posting.order.items || []);
+
+      if (products.length === 0) {
+        // 如果没有商品，创建一张空卡片
+        cards.push({
+          key: `${posting.posting_number}_0`,
+          posting: posting,
+          product: null,
+          order: posting.order,
+        });
+      } else {
+        // 为每个商品创建一张卡片
+        products.forEach((product, index) => {
+          cards.push({
+            key: `${posting.posting_number}_${index}`,
+            posting: posting,
+            product: product,
+            order: posting.order,
+          });
+        });
+      }
+    });
+
+    return cards;
+  }, [postingsData]);
+
   // 使用统一的货币格式化函数（移除货币符号）
   const formatPrice = (price: any): string => {
     // 移除所有可能的货币符号
@@ -799,6 +842,335 @@ const PackingShipment: React.FC = () => {
       notifyError('废弃失败', `废弃失败: ${error.response?.data?.message || error.message}`);
     },
   });
+
+  // 渲染单个订单卡片
+  const renderOrderCard = (card: OrderCard) => {
+    const { posting, product, order } = card;
+    const currency = order.currency_code || userCurrency || 'CNY';
+    const symbol = getCurrencySymbol(currency);
+
+    // 获取店铺名称
+    const shopName = shopNameMap[order.shop_id] || `店铺${order.shop_id}`;
+
+    // 获取商品图片
+    let rawImageUrl = product?.image || (product?.offer_id && offerIdImageMap[product.offer_id]);
+    if (!rawImageUrl && product?.sku && order.items) {
+      const matchedItem = order.items.find((item: any) => item.sku === product.sku);
+      if (matchedItem) {
+        rawImageUrl = matchedItem.image || (matchedItem.offer_id && offerIdImageMap[matchedItem.offer_id]);
+      }
+    }
+    const imageUrl = optimizeOzonImageUrl(rawImageUrl, 160);
+    const ozonProductUrl = product?.sku ? `https://www.ozon.ru/product/${product.sku}/` : null;
+
+    // 获取追踪号码
+    const packages = posting.packages || [];
+    const trackingNumber = packages.length > 0 ? packages[0].tracking_number : undefined;
+
+    // 获取国内单号列表
+    const domesticTrackingNumbers = posting.domestic_tracking_numbers;
+
+    // 获取进货价格
+    const purchasePrice = order.purchase_price;
+
+    // 获取采购平台
+    const sourcePlatform = posting.source_platform;
+
+    // 配送方式
+    const deliveryMethod = posting.delivery_method_name || order.delivery_method || order.order_type || 'FBS';
+    const shortDeliveryMethod = deliveryMethod.split('（')[0].split('(')[0].trim();
+
+    // 状态
+    const status = statusConfig[posting.status] || statusConfig.pending;
+    const operationStatusObj = operationStatusConfig[posting.operation_status || ''] || null;
+
+    // 操作状态
+    const currentStatus = posting.operation_status || operationStatus;
+
+    // 是否选中
+    const isSelected = selectedPostingNumbers.includes(posting.posting_number);
+
+    // 处理函数
+    const handlePrepareStock = () => {
+      setCurrentPosting(posting);
+      setPrepareStockModalVisible(true);
+    };
+
+    const handleUpdateBusinessInfo = () => {
+      setCurrentPosting(posting);
+      setUpdateBusinessInfoModalVisible(true);
+    };
+
+    const handleSubmitTracking = () => {
+      setCurrentPosting(posting);
+      setDomesticTrackingModalVisible(true);
+    };
+
+    const handleDiscardOrder = () => {
+      confirm({
+        title: '确认废弃订单？',
+        content: `货件号: ${posting.posting_number}。废弃后订单将同步到跨境84并更新为取消状态。`,
+        okText: '确认废弃',
+        okType: 'danger',
+        cancelText: '取消',
+        onOk: () => {
+          discardOrderMutation.mutate(posting.posting_number);
+        },
+      });
+    };
+
+    const handleCheckboxChange = (e: any) => {
+      e.stopPropagation();
+      if (isSelected) {
+        setSelectedPostingNumbers(prev => prev.filter(pn => pn !== posting.posting_number));
+      } else {
+        setSelectedPostingNumbers(prev => [...prev, posting.posting_number]);
+      }
+    };
+
+    return (
+      <Card
+        key={card.key}
+        hoverable
+        size="small"
+        className={styles.orderCard}
+        cover={
+          <div className={styles.orderCover}>
+            {/* 复选框 - 左上角 */}
+            {posting.status === 'awaiting_deliver' && (
+              <Checkbox
+                className={styles.orderCheckbox}
+                checked={isSelected}
+                onChange={handleCheckboxChange}
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+
+            {/* 商品图片 */}
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={product?.name || product?.sku || '商品图片'}
+                className={styles.orderImage}
+                onClick={() => {
+                  if (ozonProductUrl) {
+                    window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+              />
+            ) : (
+              <Avatar
+                size={160}
+                icon={<ShoppingCartOutlined />}
+                shape="square"
+                className={styles.orderImagePlaceholder}
+              />
+            )}
+          </div>
+        }
+      >
+        <div className={styles.orderCardBody}>
+          {/* 店铺 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>店铺:</Text>
+            <Tooltip title={shopName}>
+              <span className={styles.value}>{shopName}</span>
+            </Tooltip>
+          </div>
+
+          {/* SKU */}
+          {product?.sku && (
+            <div className={styles.skuRow}>
+              <Text type="secondary" className={styles.label}>SKU:</Text>
+              <a
+                onClick={() => {
+                  setSelectedSku(product.sku);
+                  setSelectedProductName(product.name || '');
+                  setPriceHistoryModalVisible(true);
+                }}
+                className={styles.link}
+              >
+                {product.sku}
+              </a>
+              <CopyOutlined
+                className={styles.copyIcon}
+                onClick={() => handleCopy(product.sku, 'SKU')}
+              />
+            </div>
+          )}
+
+          {/* 数量 */}
+          {product && (
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>数量:</Text>
+              <Text className={styles.value}>X {product.quantity || 1}</Text>
+            </div>
+          )}
+
+          {/* 单价 */}
+          {product && (
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>单价:</Text>
+              <span className={styles.price}>
+                {symbol} {formatPrice(product.price || 0)}
+              </span>
+            </div>
+          )}
+
+          {/* 进价 */}
+          {purchasePrice && parseFloat(purchasePrice) > 0 && (
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>进价:</Text>
+              <span className={styles.price}>
+                {symbol} {formatPrice(purchasePrice)}
+              </span>
+            </div>
+          )}
+
+          {/* 平台 */}
+          {sourcePlatform && (
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>平台:</Text>
+              <Text className={styles.value}>{sourcePlatform}</Text>
+            </div>
+          )}
+
+          {/* 货件 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>货件:</Text>
+            <a
+              onClick={() => showOrderDetail(order, posting)}
+              className={styles.link}
+            >
+              {posting.posting_number}
+            </a>
+            <CopyOutlined
+              className={styles.copyIcon}
+              onClick={() => handleCopy(posting.posting_number, '货件编号')}
+            />
+          </div>
+
+          {/* 追踪 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>追踪:</Text>
+            {trackingNumber ? (
+              <>
+                <span className={styles.value}>{trackingNumber}</span>
+                <CopyOutlined
+                  className={styles.copyIcon}
+                  onClick={() => handleCopy(trackingNumber, '追踪号码')}
+                />
+              </>
+            ) : (
+              <Text type="secondary" className={styles.value}>-</Text>
+            )}
+          </div>
+
+          {/* 国内 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>国内:</Text>
+            {domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
+              <div style={{ flex: 1 }}>
+                {domesticTrackingNumbers.map((number, index) => (
+                  <div key={index}>
+                    <span className={styles.value}>{number}</span>
+                    <CopyOutlined
+                      className={styles.copyIcon}
+                      onClick={() => handleCopy(number, '国内单号')}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Text type="secondary" className={styles.value}>-</Text>
+            )}
+          </div>
+
+          {/* 配送 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>配送:</Text>
+            <Tooltip title={formatDeliveryMethodText(deliveryMethod)}>
+              <span className={styles.value}>{shortDeliveryMethod}</span>
+            </Tooltip>
+          </div>
+
+          {/* 状态 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>状态:</Text>
+            <Tag color={operationStatusObj?.color || status.color} className={styles.statusTag}>
+              {operationStatusObj?.text || status.text}
+            </Tag>
+          </div>
+
+          {/* 下单 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>下单:</Text>
+            <Text className={styles.value}>
+              {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
+            </Text>
+          </div>
+
+          {/* 截止 */}
+          <div className={styles.infoRow}>
+            <Text type="secondary" className={styles.label}>截止:</Text>
+            <span className={styles.deadline}>
+              {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
+            </span>
+          </div>
+
+          {/* 操作按钮 */}
+          <div className={styles.actionButtons}>
+            {currentStatus === 'awaiting_stock' && (
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Button type="primary" size="small" block onClick={handlePrepareStock}>
+                  备货
+                </Button>
+                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'allocating' && (
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Button type="default" size="small" block onClick={handleUpdateBusinessInfo}>
+                  备注
+                </Button>
+                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'allocated' && (
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Button type="primary" size="small" block onClick={handleSubmitTracking}>
+                  国内单号
+                </Button>
+                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'tracking_confirmed' && (
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Tag color="success">已完成</Tag>
+                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'printed' && (
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Tag color="success">已打印</Tag>
+                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  };
 
   // 表格列定义（商品维度 - 4列布局）
   const columns: any[] = [
@@ -1449,9 +1821,10 @@ const PackingShipment: React.FC = () => {
       {/* 搜索过滤（扫描单号标签时隐藏） */}
       {operationStatus !== 'scan' && (
         <Card className={styles.filterCard}>
-          <Row className={styles.filterRow}>
-            <Col flex="auto">
-              <Space size="large">
+          <Row gutter={16} align="middle">
+            {/* 左侧：店铺选择器 */}
+            <Col flex="300px">
+              <Space size="middle">
                 <span className={styles.shopLabel}>选择店铺:</span>
                 <ShopSelector
                   value={selectedShop}
@@ -1462,39 +1835,72 @@ const PackingShipment: React.FC = () => {
                     setCurrentPage(1);
                   }}
                   showAllOption={true}
-                  className={styles.shopSelector}
+                  style={{ width: 200 }}
                 />
               </Space>
             </Col>
-          </Row>
-          <Form
-            form={filterForm}
-            layout="inline"
-            onFinish={(values) => {
-              setSearchParams(values);
-              setCurrentPage(1); // 搜索时重置到第一页
-            }}
-          >
-            <Form.Item name="posting_number">
-              <Input placeholder="货件编号" prefix={<SearchOutlined />} />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button type="primary" htmlType="submit">
-                  查询
-                </Button>
-                <Button
-                  onClick={() => {
-                    filterForm.resetFields();
+
+            {/* 右侧：搜索框 */}
+            <Col flex="auto">
+              <Form
+                form={filterForm}
+                layout="inline"
+                onFinish={(values) => {
+                  const searchValue = values.search_text?.trim();
+
+                  if (!searchValue) {
                     setSearchParams({});
                     setCurrentPage(1);
-                  }}
-                >
-                  重置
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
+                    return;
+                  }
+
+                  // 智能识别搜索类型
+                  const isPureNumber = /^\d+$/.test(searchValue);
+                  const hasHyphen = searchValue.includes('-');
+
+                  let params: any = {};
+
+                  if (hasHyphen) {
+                    // 包含"-" → posting_number
+                    params.posting_number = searchValue;
+                  } else if (isPureNumber) {
+                    // 纯数字 → SKU
+                    params.sku = searchValue;
+                  } else {
+                    // 其他情况默认按posting_number搜索
+                    params.posting_number = searchValue;
+                  }
+
+                  setSearchParams(params);
+                  setCurrentPage(1);
+                }}
+              >
+                <Form.Item name="search_text">
+                  <Input
+                    placeholder="输入SKU或货件编号"
+                    prefix={<SearchOutlined />}
+                    style={{ width: 300 }}
+                  />
+                </Form.Item>
+                <Form.Item>
+                  <Space>
+                    <Button type="primary" htmlType="submit">
+                      查询
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        filterForm.resetFields();
+                        setSearchParams({});
+                        setCurrentPage(1);
+                      }}
+                    >
+                      重置
+                    </Button>
+                  </Space>
+                </Form.Item>
+              </Form>
+            </Col>
+          </Row>
         </Card>
       )}
 
@@ -1769,7 +2175,7 @@ const PackingShipment: React.FC = () => {
           // 正常的订单列表界面
           <>
             {/* 批量操作按钮 */}
-            <Space style={{ marginBottom: 16, marginTop: 16 }}>
+            <div className={styles.batchActions}>
               <Button
                 type="primary"
                 icon={<PrinterOutlined />}
@@ -1779,44 +2185,41 @@ const PackingShipment: React.FC = () => {
               >
                 打印标签 ({selectedPostingNumbers.length}/20)
               </Button>
-            </Space>
-
-            {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
-            <Table
-              loading={isLoading}
-              columns={columns}
-              dataSource={orderItemRows}
-              rowKey={(record) => record.key}
-              rowSelection={{
-                selectedRowKeys: selectedPostingNumbers,
-                onChange: (selectedKeys: React.Key[]) => {
-                  setSelectedPostingNumbers(selectedKeys as string[]);
-                },
-                getCheckboxProps: (record: OrderItemRow) => ({
-                  // 只在第一行显示checkbox，且只能选择"等待发运"状态的订单
-                  disabled: !record.isFirstItem || record.posting.status !== 'awaiting_deliver',
-                }),
-              }}
-              pagination={false}
-              size="small"
-            />
-
-            {/* 独立分页控制（后端分页）*/}
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={ordersData?.total || 0}
-                showSizeChanger
-                showQuickJumper
-                pageSizeOptions={[20, 50, 100]}
-                showTotal={(total) => `共 ${total} 条货件`}
-                onChange={(page, size) => {
-                  setCurrentPage(page);
-                  setPageSize(size || 20);
-                }}
-              />
             </div>
+
+            {/* 订单卡片网格 */}
+            {isLoading ? (
+              <div className={styles.loadingMore}>
+                <SyncOutlined spin /> 加载中...
+              </div>
+            ) : orderCards.length === 0 ? (
+              <div className={styles.emptyState}>
+                <Text type="secondary">暂无数据</Text>
+              </div>
+            ) : (
+              <>
+                <div className={styles.orderGrid}>
+                  {orderCards.map(card => renderOrderCard(card))}
+                </div>
+
+                {/* 独立分页控制（后端分页）*/}
+                <div style={{ marginTop: 16, textAlign: 'center' }}>
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={ordersData?.total || 0}
+                    showSizeChanger
+                    showQuickJumper
+                    pageSizeOptions={[20, 50, 100]}
+                    showTotal={(total) => `共 ${total} 条货件`}
+                    onChange={(page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size || 20);
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
       </Card>

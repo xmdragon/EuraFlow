@@ -1,0 +1,255 @@
+@use '@/styles/variables' as *;
+@use '@/styles/mixins' as *;
+
+// ===== 顶部筛选区域 =====
+.filterCard {
+  margin-bottom: 2px;
+
+  :global(.ant-card-body) {
+    padding: 16px !important;
+  }
+}
+
+.shopLabel {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+// ===== 列表卡片 =====
+.listCard {
+  margin-top: 2px; // 最小间距
+
+  // 移除Tabs默认的margin-top
+  :global(.ant-tabs) {
+    margin-top: 0 !important;
+  }
+
+  // Tabs头部间距调整
+  :global(.ant-tabs-nav) {
+    margin-bottom: 8px !important;
+  }
+}
+
+// ===== 订单网格布局 =====
+.orderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 160px);
+  gap: 16px;
+  margin-top: 16px;
+  justify-content: start; // 左对齐
+}
+
+// ===== 订单卡片 =====
+.orderCard {
+  width: 160px;
+
+  :global(.ant-card-body) {
+    padding: 8px !important;
+    font-size: 11px;
+  }
+}
+
+.orderCover {
+  height: 160px;
+  width: 160px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  cursor: pointer;
+  position: relative;
+}
+
+.orderCheckbox {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 2px;
+  padding: 2px;
+
+  &:hover {
+    background: rgba(255, 255, 255, 1);
+  }
+}
+
+.orderImage {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.orderImagePlaceholder {
+  height: 160px;
+  @include flex-center;
+  background: #f0f0f0;
+  cursor: pointer;
+
+  :global(.anticon) {
+    font-size: 40px;
+    color: #ccc;
+  }
+}
+
+// ===== 卡片内容 =====
+.orderCardBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.infoRow {
+  margin-bottom: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.label {
+  flex-shrink: 0;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.link {
+  color: #1890ff;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.price {
+  color: #ff4d4f;
+  font-weight: 500;
+}
+
+.deadline {
+  color: #ff4d4f;
+  font-weight: bold;
+}
+
+.copyIcon {
+  margin-left: 4px;
+  cursor: pointer;
+  color: #1890ff;
+  font-size: 12px;
+
+  &:hover {
+    color: #40a9ff;
+  }
+}
+
+// ===== SKU行 =====
+.skuRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.skuValue {
+  flex: 1;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: #595959;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ===== 状态标签 =====
+.statusTag {
+  font-size: 11px;
+  padding: 0 4px;
+  line-height: 18px;
+  margin: 0;
+}
+
+// ===== 操作按钮区域 =====
+.actionButtons {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+// ===== 批量操作区域 =====
+.batchActions {
+  margin-bottom: 16px;
+  margin-top: 16px;
+}
+
+// ===== 加载更多提示 =====
+.loadingMore {
+  text-align: center;
+  padding: 20px 0;
+}
+
+// ===== 空状态 =====
+.emptyState {
+  text-align: center;
+  padding: 40px 0;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+// ===== 配送方式文本样式 =====
+.deliveryMethodText {
+  font-size: 11px;
+}
+
+.deliveryMethodMain {
+  font-weight: 500;
+}
+
+.deliveryMethodDetail {
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.65);
+  margin-top: 2px;
+}
+
+.deliveryMethodTextWhite {
+  font-size: 11px;
+  background: white;
+}
+
+// ===== 扫描标签页 =====
+.scanContainer {
+  margin-top: 16px;
+}
+
+.scanInputWrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.scanResultCard {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+// ===== Alert间距 =====
+.alertMargin {
+  margin-bottom: 16px;
+}
