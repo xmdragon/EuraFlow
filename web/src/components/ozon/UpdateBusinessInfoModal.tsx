@@ -20,6 +20,7 @@ interface UpdateBusinessInfoModalProps {
     source_platform?: string;
     order_notes?: string;
   };
+  onUpdate?: () => void;  // 更新成功后的回调
 }
 
 const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
@@ -27,6 +28,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
   onCancel,
   postingNumber,
   currentData,
+  onUpdate,
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
@@ -49,8 +51,10 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
     },
     onSuccess: (response) => {
       notifySuccess('更新成功', '业务信息更新成功');
-      // 刷新订单列表
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      // 调用父组件的更新回调
+      onUpdate?.();
+      // 刷新计数查询
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       // 关闭弹窗并重置表单
       handleClose();
     },

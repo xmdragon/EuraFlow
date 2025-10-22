@@ -562,6 +562,17 @@ const PackingShipment: React.FC = () => {
     return allPostings;
   }, [allPostings]);
 
+  // 重置分页并刷新数据的辅助函数
+  const resetAndRefresh = React.useCallback(() => {
+    setCurrentPage(1);
+    setAllPostings([]);
+    setHasMoreData(true);
+    setAccumulatedImageMap({});
+    setPageSize(initialPageSize);
+    // 延迟执行 refetch，确保状态已更新
+    setTimeout(() => refetch(), 0);
+  }, [initialPageSize, refetch]);
+
   // 查询各操作状态的数量统计（并行查询）
   // 第一个标签"等待备货"：使用OZON原生状态（awaiting_packaging, awaiting_deliver）
   const { data: awaitingStockData } = useQuery({
@@ -858,8 +869,8 @@ const PackingShipment: React.FC = () => {
         if (status.status === 'completed') {
           notifySuccess('同步完成', '订单同步已完成！');
           queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-          // 刷新页面数据
-          refetch();
+          // 重置分页并刷新页面数据
+          resetAndRefresh();
           setSyncTaskId(null);
         } else if (status.status === 'failed') {
           notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
@@ -1784,8 +1795,10 @@ const PackingShipment: React.FC = () => {
       if (scanTrackingNumber.trim()) {
         handleScanSearch();
       }
-      // 刷新列表数据
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      // 重置分页并刷新列表数据
+      resetAndRefresh();
+      // 同时刷新计数
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
     } catch (error: any) {
       notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
     }
@@ -2338,8 +2351,8 @@ const PackingShipment: React.FC = () => {
         offerIdImageMap={offerIdImageMap}
         formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
         onUpdate={() => {
-          // Refresh packing orders data
-          refetch();
+          // 重置分页并刷新数据
+          resetAndRefresh();
         }}
       />
 
@@ -2426,6 +2439,7 @@ const PackingShipment: React.FC = () => {
             source_platform: currentPosting.source_platform,
             order_notes: currentPosting.order?.order_notes,
           }}
+          onUpdate={resetAndRefresh}
         />
       )}
 
