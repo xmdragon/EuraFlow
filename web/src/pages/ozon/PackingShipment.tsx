@@ -272,25 +272,24 @@ const PackingShipment: React.FC = () => {
 
   // 状态管理
   // 动态计算每次加载的数量（4行）
-  const [pageSize, setPageSize] = useState(40); // 默认40个（假设每行10个）
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-  // 计算每行能放多少个卡片
   useEffect(() => {
-    const calculatePageSize = () => {
-      // 卡片宽度160px + 间距16px = 176px
-      const cardWidth = 176;
-      // 获取容器宽度（假设留出一些padding，约100px）
-      const containerWidth = window.innerWidth - 100;
-      // 每行卡片数
-      const cardsPerRow = Math.floor(containerWidth / cardWidth) || 1;
-      // 4行
-      setPageSize(cardsPerRow * 4);
-    };
-
-    calculatePageSize();
-    window.addEventListener('resize', calculatePageSize);
-    return () => window.removeEventListener('resize', calculatePageSize);
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const pageSize = React.useMemo(() => {
+    // 卡片宽度160px + 间距16px = 176px
+    const cardWidth = 176;
+    // 获取容器宽度（假设留出一些padding，约100px）
+    const containerWidth = windowWidth - 100;
+    // 每行卡片数
+    const cardsPerRow = Math.floor(containerWidth / cardWidth) || 1;
+    // 4行
+    return cardsPerRow * 4;
+  }, [windowWidth]);
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
   // 始终默认为null（全部店铺），不从localStorage读取
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
