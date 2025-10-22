@@ -49,6 +49,7 @@ import {
   Pagination,
   InputNumber,
   Divider,
+  Checkbox,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
@@ -964,7 +965,7 @@ const PackingShipment: React.FC = () => {
                   }}
                 />
                 {ozonProductUrl && (
-                  <Tooltip title="打开OZON链接">
+                  <Tooltip title="打开OZON链接" color="#000" overlayInnerStyle={{ color: '#fff' }}>
                     <div
                       className={styles.linkIconOverlay}
                       onClick={(e) => {
@@ -1108,7 +1109,7 @@ const PackingShipment: React.FC = () => {
           {/* 配送 */}
           <div className={styles.infoRow}>
             <Text type="secondary" className={styles.label}>配送:</Text>
-            <Tooltip title={formatDeliveryMethodText(deliveryMethod)}>
+            <Tooltip title={formatDeliveryMethodText(deliveryMethod)} overlayInnerStyle={{ color: '#fff' }}>
               <span className={styles.value}>{shortDeliveryMethod}</span>
             </Tooltip>
           </div>
@@ -1231,7 +1232,7 @@ const PackingShipment: React.FC = () => {
                   }}
                 />
                 {ozonProductUrl && (
-                  <Tooltip title="打开OZON链接">
+                  <Tooltip title="打开OZON链接" color="#000" overlayInnerStyle={{ color: '#fff' }}>
                     <div
                       className={styles.linkIconOverlay}
                       onClick={(e) => {
@@ -1421,7 +1422,7 @@ const PackingShipment: React.FC = () => {
             <div className={styles.infoColumn}>
               <div>
                 <Text type="secondary">配送: </Text>
-                <Tooltip title={formatDeliveryMethodText(fullText)}>
+                <Tooltip title={formatDeliveryMethodText(fullText)} overlayInnerStyle={{ color: '#fff' }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '150px', verticalAlign: 'bottom' }}>
                     {shortText}
                   </span>
@@ -2380,10 +2381,8 @@ const PackingShipment: React.FC = () => {
         closable={false}
         mask={false}
         width="auto"
-        centered={false}
-        style={{
-          top: '5vh',
-        }}
+        centered
+        bodyStyle={{ padding: 0 }}
       >
         <div className={styles.imagePreviewContainer}>
           <Button

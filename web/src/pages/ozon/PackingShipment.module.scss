@@ -301,10 +301,10 @@
 .imagePreviewContainer {
   position: relative;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  padding: 20px;
   background-color: #f0f0f0;
+  padding: 20px;
 }
 
 .imagePreviewCloseButton {
@@ -327,7 +327,8 @@
 
 .imagePreviewImage {
   max-width: 90vw;
-  max-height: 66.67vh; // 2/3屏幕高度
+  min-height: 66.67vh; // 至少2/3屏幕高度
+  max-height: 90vh;
   height: auto;
   width: auto;
   display: block;
