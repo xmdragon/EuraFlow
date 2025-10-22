@@ -734,6 +734,7 @@ export const getChats = async (
     order_number?: string;
     limit?: number;
     offset?: number;
+    shop_ids?: string;  // 全部店铺模式下传递的店铺ID列表
   }
 ): Promise<{ items: OzonChat[]; total: number; limit: number; offset: number }> => {
   // 如果shopId为null，使用全部店铺端点
@@ -805,11 +806,17 @@ export const syncChats = async (shopId: number, chatIdList?: string[]): Promise<
 };
 
 // 获取聊天统计信息
-export const getChatStats = async (shopId: number | null): Promise<ChatStats> => {
+export const getChatStats = async (shopId: number | null, shopIds?: string): Promise<ChatStats> => {
   // 如果shopId为null，使用全部店铺端点
-  const url = shopId === null ? '/ozon/chats/all/stats' : `/ozon/chats/${shopId}/stats`;
-  const response = await apiClient.get(url);
-  return response.data.data;
+  if (shopId === null) {
+    const response = await apiClient.get('/ozon/chats/all/stats', {
+      params: { shop_ids: shopIds }
+    });
+    return response.data.data;
+  } else {
+    const response = await apiClient.get(`/ozon/chats/${shopId}/stats`);
+    return response.data.data;
+  }
 };
 
 // ========== 报表相关 API ==========

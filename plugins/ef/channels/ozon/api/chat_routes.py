@@ -17,6 +17,7 @@ router = APIRouter(prefix="/chats", tags=["ozon-chats"])
 
 @router.get("/all")
 async def get_all_chats(
+    shop_ids: str = Query(..., description="店铺ID列表，逗号分隔"),
     status: Optional[str] = Query(None, description="聊天状态筛选 (open/closed)"),
     has_unread: Optional[bool] = Query(None, description="是否有未读消息"),
     order_number: Optional[str] = Query(None, description="订单号筛选"),
@@ -24,9 +25,10 @@ async def get_all_chats(
     offset: int = Query(0, ge=0, description="偏移量"),
     user: User = Depends(get_current_user)
 ):
-    """获取所有店铺的聊天列表（当前用户有权访问的）
+    """获取多个店铺的聊天列表
 
     Args:
+        shop_ids: 店铺ID列表，逗号分隔（如 "1,2,3"）
         status: 聊天状态 (open/closed)
         has_unread: 是否有未读消息
         order_number: 订单号
@@ -45,8 +47,14 @@ async def get_all_chats(
         }
     """
     try:
-        # 使用当前用户ID，不指定shop_id
-        service = OzonChatService(shop_id=None, user_id=user.id)
+        # 解析店铺ID列表
+        shop_id_list = [int(sid.strip()) for sid in shop_ids.split(',') if sid.strip()]
+
+        if not shop_id_list:
+            return {"ok": True, "data": {"items": [], "total": 0, "limit": limit, "offset": offset}}
+
+        # 使用店铺ID列表查询
+        service = OzonChatService(shop_id=None, shop_ids=shop_id_list)
         result = await service.get_chats(
             status=status,
             has_unread=has_unread,
@@ -70,9 +78,13 @@ async def get_all_chats(
 
 @router.get("/all/stats")
 async def get_all_chat_stats(
+    shop_ids: str = Query(..., description="店铺ID列表，逗号分隔"),
     user: User = Depends(get_current_user)
 ):
-    """获取所有店铺的聊天统计信息
+    """获取多个店铺的聊天统计信息
+
+    Args:
+        shop_ids: 店铺ID列表，逗号分隔（如 "1,2,3"）
 
     Returns:
         {
@@ -86,7 +98,13 @@ async def get_all_chat_stats(
         }
     """
     try:
-        service = OzonChatService(shop_id=None, user_id=user.id)
+        # 解析店铺ID列表
+        shop_id_list = [int(sid.strip()) for sid in shop_ids.split(',') if sid.strip()]
+
+        if not shop_id_list:
+            return {"ok": True, "data": {"total_chats": 0, "active_chats": 0, "total_unread": 0, "unread_chats": 0}}
+
+        service = OzonChatService(shop_id=None, shop_ids=shop_id_list)
         result = await service.get_chat_stats()
         return {"ok": True, "data": result}
     except Exception as e:

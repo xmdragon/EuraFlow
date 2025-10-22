@@ -51,10 +51,22 @@ const ChatList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 20;
 
+  // 获取店铺列表
+  const { data: shopsData } = useQuery({
+    queryKey: ['ozon', 'shops'],
+    queryFn: ozonApi.getShops,
+  });
+
+  const shops = shopsData?.data || [];
+
+  // 构建shop_ids字符串（逗号分隔）
+  const shopIdsString = shops.map((s: any) => s.id).join(',');
+
   // 获取聊天统计
   const { data: statsData } = useQuery({
-    queryKey: ['chatStats', selectedShopId],
-    queryFn: () => ozonApi.getChatStats(selectedShopId),
+    queryKey: ['chatStats', selectedShopId, shopIdsString],
+    queryFn: () => ozonApi.getChatStats(selectedShopId, shopIdsString),
+    enabled: selectedShopId === null ? !!shopIdsString : true,
   });
 
   // 获取聊天列表
@@ -63,12 +75,17 @@ const ChatList: React.FC = () => {
     isLoading,
     refetch: refetchChats,
   } = useQuery({
-    queryKey: ['chats', selectedShopId, statusFilter, unreadFilter, searchText, currentPage],
+    queryKey: ['chats', selectedShopId, shopIdsString, statusFilter, unreadFilter, searchText, currentPage],
     queryFn: async () => {
       const params: any = {
         limit: pageSize,
         offset: (currentPage - 1) * pageSize,
       };
+
+      // 全部店铺模式下传递 shop_ids
+      if (selectedShopId === null) {
+        params.shop_ids = shopIdsString;
+      }
 
       if (statusFilter !== 'all') {
         params.status = statusFilter;
@@ -86,6 +103,7 @@ const ChatList: React.FC = () => {
 
       return ozonApi.getChats(selectedShopId, params);
     },
+    enabled: selectedShopId === null ? !!shopIdsString : true,
   });
 
   // 同步聊天

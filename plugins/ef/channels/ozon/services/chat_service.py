@@ -14,15 +14,15 @@ from ..utils.datetime_utils import parse_datetime, utcnow
 class OzonChatService:
     """OZON聊天服务"""
 
-    def __init__(self, shop_id: Optional[int] = None, user_id: Optional[int] = None):
+    def __init__(self, shop_id: Optional[int] = None, shop_ids: Optional[List[int]] = None):
         """初始化聊天服务
 
         Args:
             shop_id: 店铺ID（单店铺模式）
-            user_id: 用户ID（全部店铺模式）
+            shop_ids: 店铺ID列表（多店铺模式）
         """
         self.shop_id = shop_id
-        self.user_id = user_id
+        self.shop_ids = shop_ids
         self.db_manager = get_db_manager()
 
     async def get_chats(
@@ -58,22 +58,9 @@ class OzonChatService:
             if self.shop_id is not None:
                 # 单店铺模式
                 conditions.append(OzonChat.shop_id == self.shop_id)
-            elif self.user_id is not None:
-                # 全部店铺模式：只查询用户拥有的店铺
-                shop_stmt = select(OzonShop.id).where(OzonShop.owner_user_id == self.user_id)
-                shop_result = await session.execute(shop_stmt)
-                shop_ids = [row[0] for row in shop_result]
-
-                if not shop_ids:
-                    # 用户没有店铺，返回空结果
-                    return {
-                        "items": [],
-                        "total": 0,
-                        "limit": limit,
-                        "offset": offset
-                    }
-
-                conditions.append(OzonChat.shop_id.in_(shop_ids))
+            elif self.shop_ids:
+                # 多店铺模式：使用提供的店铺ID列表
+                conditions.append(OzonChat.shop_id.in_(self.shop_ids))
 
             if status:
                 conditions.append(OzonChat.status == status)
@@ -92,8 +79,8 @@ class OzonChatService:
             total = await session.scalar(count_stmt)
 
             # 查询列表
-            # 全部店铺模式需要JOIN获取店铺名称
-            if self.shop_id is None and self.user_id is not None:
+            # 多店铺模式需要JOIN获取店铺名称
+            if self.shop_id is None and self.shop_ids:
                 stmt = (
                     select(OzonChat, OzonShop.shop_name)
                     .join(OzonShop, OzonChat.shop_id == OzonShop.id)
@@ -478,22 +465,9 @@ class OzonChatService:
             if self.shop_id is not None:
                 # 单店铺模式
                 shop_conditions.append(OzonChat.shop_id == self.shop_id)
-            elif self.user_id is not None:
-                # 全部店铺模式：只统计用户拥有的店铺
-                shop_stmt = select(OzonShop.id).where(OzonShop.owner_user_id == self.user_id)
-                shop_result = await session.execute(shop_stmt)
-                shop_ids = [row[0] for row in shop_result]
-
-                if not shop_ids:
-                    # 用户没有店铺，返回0统计
-                    return {
-                        "total_chats": 0,
-                        "active_chats": 0,
-                        "total_unread": 0,
-                        "unread_chats": 0
-                    }
-
-                shop_conditions.append(OzonChat.shop_id.in_(shop_ids))
+            elif self.shop_ids:
+                # 多店铺模式：使用提供的店铺ID列表
+                shop_conditions.append(OzonChat.shop_id.in_(self.shop_ids))
 
             # 总聊天数
             total_stmt = select(func.count()).select_from(OzonChat)
