@@ -984,6 +984,9 @@ export const getPackingOrders = async (
   params?: {
     shop_id?: number | null;
     posting_number?: string;
+    sku?: string;  // SKU搜索
+    tracking_number?: string;  // OZON追踪号码搜索
+    domestic_tracking_number?: string;  // 国内单号搜索
     operation_status?: string;  // awaiting_stock/allocating/allocated/tracking_confirmed
     ozon_status?: string;  // OZON原生状态，支持逗号分隔（如：awaiting_packaging,awaiting_deliver）
   }

@@ -160,6 +160,8 @@ async def get_packing_orders(
     shop_id: Optional[int] = None,
     posting_number: Optional[str] = None,
     sku: Optional[str] = Query(None, description="按商品SKU搜索（在posting的products中查找）"),
+    tracking_number: Optional[str] = Query(None, description="按OZON追踪号码搜索（在packages中查找）"),
+    domestic_tracking_number: Optional[str] = Query(None, description="按国内单号搜索（在domestic_trackings中查找）"),
     operation_status: Optional[str] = Query(None, description="操作状态筛选：awaiting_stock/allocating/allocated/tracking_confirmed/shipping"),
     ozon_status: Optional[str] = Query(None, description="OZON原生状态筛选，支持逗号分隔的多个状态，如：awaiting_packaging,awaiting_deliver"),
     db: AsyncSession = Depends(get_async_session)
@@ -170,6 +172,8 @@ async def get_packing_orders(
     - 支持按 ozon_status 筛选（OZON原生状态，如 awaiting_packaging, awaiting_deliver）
     - 支持按 posting_number 精确搜索（货件编号）
     - 支持按 sku 搜索（在posting的products中查找，SKU为整数）
+    - 支持按 tracking_number 搜索（OZON追踪号码，在packages中查找）
+    - 支持按 domestic_tracking_number 搜索（国内单号，在domestic_trackings中查找）
     - ozon_status 优先级高于 operation_status
     - 如果都不指定，返回所有订单
 
@@ -271,6 +275,26 @@ async def get_packing_orders(
             logger.warning(f"Invalid SKU format: {sku}, expected integer")
             pass
 
+    # 搜索条件：OZON追踪号码搜索（在packages中查找）
+    if tracking_number:
+        # 在packages数组中查找tracking_number
+        query = query.join(
+            OzonPackage,
+            OzonPackage.posting_id == OzonPosting.id
+        ).where(
+            OzonPackage.tracking_number == tracking_number.strip()
+        )
+
+    # 搜索条件：国内单号搜索（在domestic_trackings中查找）
+    if domestic_tracking_number:
+        # 在domestic_trackings表中查找
+        query = query.join(
+            OzonDomesticTracking,
+            OzonDomesticTracking.posting_id == OzonPosting.id
+        ).where(
+            OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
+        )
+
     # 排序：按订单创建时间倒序
     query = query.order_by(OzonOrder.ordered_at.desc())
 
@@ -341,6 +365,22 @@ async def get_packing_orders(
             )
         except ValueError:
             pass
+    if tracking_number:
+        # OZON追踪号码搜索（count查询也需要应用）
+        count_query = count_query.join(
+            OzonPackage,
+            OzonPackage.posting_id == OzonPosting.id
+        ).where(
+            OzonPackage.tracking_number == tracking_number.strip()
+        )
+    if domestic_tracking_number:
+        # 国内单号搜索（count查询也需要应用）
+        count_query = count_query.join(
+            OzonDomesticTracking,
+            OzonDomesticTracking.posting_id == OzonPosting.id
+        ).where(
+            OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
+        )
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()

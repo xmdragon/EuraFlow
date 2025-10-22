@@ -278,6 +278,7 @@ const PackingShipment: React.FC = () => {
   const [allPostings, setAllPostings] = useState<ozonApi.PostingWithOrder[]>([]); // 累积所有已加载的posting
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
+  const [accumulatedImageMap, setAccumulatedImageMap] = useState<Record<string, string>>({}); // 累积的图片映射
   const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
   // 始终默认为null（全部店铺），不从localStorage读取
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -424,7 +425,7 @@ const PackingShipment: React.FC = () => {
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
       const queryParams: any = {
         shop_id: selectedShop,
-        posting_number: searchParams.posting_number,
+        ...searchParams,  // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
       };
 
       if (operationStatus === 'awaiting_stock') {
@@ -442,9 +443,39 @@ const PackingShipment: React.FC = () => {
     staleTime: 10000, // 数据10秒内不会被认为是过期的
   });
 
+  // 当店铺、状态或搜索参数变化时，重置分页
+  useEffect(() => {
+    setCurrentPage(1);
+    setAllPostings([]);
+    setHasMoreData(true);
+    setAccumulatedImageMap({}); // 重置图片映射
+  }, [selectedShop, operationStatus, searchParams]);
+
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
     if (ordersData?.data) {
+      // 累积图片映射
+      const newImageMap: Record<string, string> = {};
+
+      // 从后端返回的 offer_id_images 中提取
+      if (ordersData.offer_id_images) {
+        Object.assign(newImageMap, ordersData.offer_id_images);
+      }
+
+      // 从订单项中提取图片作为备用
+      ordersData.data.forEach((order: any) => {
+        if (order.items) {
+          order.items.forEach((item: any) => {
+            if (item.offer_id && item.image && !newImageMap[item.offer_id]) {
+              newImageMap[item.offer_id] = item.image;
+            }
+          });
+        }
+      });
+
+      // 合并到累积的映射中
+      setAccumulatedImageMap(prev => ({ ...prev, ...newImageMap }));
+
       // 展开订单为货件
       const flattened: ozonApi.PostingWithOrder[] = [];
       ordersData.data.forEach((order: ozonApi.Order) => {
@@ -474,31 +505,24 @@ const PackingShipment: React.FC = () => {
         }
       });
 
-      // 如果用户搜索了 posting_number，进行二次过滤
-      const searchPostingNumber = searchParams.posting_number?.trim();
-      let filteredFlattened = flattened;
-      if (searchPostingNumber) {
-        filteredFlattened = flattened.filter(posting =>
-          posting.posting_number.toLowerCase().includes(searchPostingNumber.toLowerCase())
-        );
-      }
+      // 后端已做精确匹配，无需前端二次过滤
 
       if (currentPage === 1) {
         // 第一页，替换数据
-        setAllPostings(filteredFlattened);
+        setAllPostings(flattened);
       } else {
         // 后续页，追加数据
-        setAllPostings(prev => [...prev, ...filteredFlattened]);
+        setAllPostings(prev => [...prev, ...flattened]);
       }
 
       // 检查是否还有更多数据
       const totalLoaded = currentPage === 1
-        ? filteredFlattened.length
-        : allPostings.length + filteredFlattened.length;
+        ? flattened.length
+        : allPostings.length + flattened.length;
       setHasMoreData(totalLoaded < (ordersData.total || 0));
       setIsLoadingMore(false);
     }
-  }, [ordersData?.data]);
+  }, [ordersData?.data, currentPage, allPostings.length]);
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
@@ -535,7 +559,7 @@ const PackingShipment: React.FC = () => {
     queryKey: ['packingOrdersCount', 'awaiting_stock', selectedShop, searchParams],
     queryFn: () => ozonApi.getPackingOrders(1, 1, {
       shop_id: selectedShop,
-      posting_number: searchParams.posting_number,
+      ...searchParams,  // 展开所有搜索参数
       ozon_status: 'awaiting_packaging,awaiting_deliver',  // 使用OZON原生状态
     }),
     enabled: true,
@@ -546,7 +570,7 @@ const PackingShipment: React.FC = () => {
     queryKey: ['packingOrdersCount', 'allocating', selectedShop, searchParams],
     queryFn: () => ozonApi.getPackingOrders(1, 1, {
       shop_id: selectedShop,
-      posting_number: searchParams.posting_number,
+      ...searchParams,  // 展开所有搜索参数
       operation_status: 'allocating',
     }),
     enabled: true,
@@ -557,7 +581,7 @@ const PackingShipment: React.FC = () => {
     queryKey: ['packingOrdersCount', 'allocated', selectedShop, searchParams],
     queryFn: () => ozonApi.getPackingOrders(1, 1, {
       shop_id: selectedShop,
-      posting_number: searchParams.posting_number,
+      ...searchParams,  // 展开所有搜索参数
       operation_status: 'allocated',
     }),
     enabled: true,
@@ -568,7 +592,7 @@ const PackingShipment: React.FC = () => {
     queryKey: ['packingOrdersCount', 'tracking_confirmed', selectedShop, searchParams],
     queryFn: () => ozonApi.getPackingOrders(1, 1, {
       shop_id: selectedShop,
-      posting_number: searchParams.posting_number,
+      ...searchParams,  // 展开所有搜索参数
       operation_status: 'tracking_confirmed',
     }),
     enabled: true,
@@ -579,7 +603,7 @@ const PackingShipment: React.FC = () => {
     queryKey: ['packingOrdersCount', 'printed', selectedShop, searchParams],
     queryFn: () => ozonApi.getPackingOrders(1, 1, {
       shop_id: selectedShop,
-      posting_number: searchParams.posting_number,
+      ...searchParams,  // 展开所有搜索参数
       operation_status: 'printed',
     }),
     enabled: true,
@@ -680,30 +704,8 @@ const PackingShipment: React.FC = () => {
       .trim();
   };
 
-  // offer_id到图片的映射，从订单数据中提取
-  const offerIdImageMap = React.useMemo(() => {
-    const map: Record<string, string> = {};
-
-    // 从订单响应中获取offer_id图片映射
-    if (ordersData?.offer_id_images) {
-      Object.assign(map, ordersData.offer_id_images);
-    }
-
-    // 同时从订单项中提取图片（作为备用）
-    if (ordersData?.data) {
-      ordersData.data.forEach((order: any) => {
-        if (order.items) {
-          order.items.forEach((item: any) => {
-            if (item.offer_id && item.image && !map[item.offer_id]) {
-              map[item.offer_id] = item.image;
-            }
-          });
-        }
-      });
-    }
-
-    return map;
-  }, [ordersData]);
+  // offer_id到图片的映射，使用累积的映射
+  const offerIdImageMap = accumulatedImageMap;
 
   // 获取订单项的图片
   const getOrderItemImage = (order: ozonApi.Order): string => {
@@ -1946,19 +1948,26 @@ const PackingShipment: React.FC = () => {
                   }
 
                   // 智能识别搜索类型
-                  const isPureNumber = /^\d+$/.test(searchValue);
-                  const hasHyphen = searchValue.includes('-');
-
                   let params: any = {};
 
-                  if (hasHyphen) {
-                    // 包含"-" → posting_number
-                    params.posting_number = searchValue;
-                  } else if (isPureNumber) {
-                    // 纯数字 → SKU
+                  // 规则1: SKU - 10位数字
+                  if (/^\d{10}$/.test(searchValue)) {
                     params.sku = searchValue;
-                  } else {
-                    // 其他情况默认按posting_number搜索
+                  }
+                  // 规则2: 货件编号 - 包含数字和"-"
+                  else if (/\d/.test(searchValue) && searchValue.includes('-')) {
+                    params.posting_number = searchValue;
+                  }
+                  // 规则3: 追踪号码 - 字母开头+中间数字+字母结尾
+                  else if (/^[A-Za-z]+\d+[A-Za-z]+$/.test(searchValue)) {
+                    params.tracking_number = searchValue;
+                  }
+                  // 规则4: 国内单号 - 纯数字或字母开头+数字
+                  else if (/^\d+$/.test(searchValue) || /^[A-Za-z]+\d+$/.test(searchValue)) {
+                    params.domestic_tracking_number = searchValue;
+                  }
+                  // 其他情况默认按货件编号搜索
+                  else {
                     params.posting_number = searchValue;
                   }
 
@@ -1967,9 +1976,9 @@ const PackingShipment: React.FC = () => {
               >
                 <Form.Item name="search_text">
                   <Input
-                    placeholder="输入SKU或货件编号"
+                    placeholder="输入SKU/货件编号/追踪号码/国内单号"
                     prefix={<SearchOutlined />}
-                    style={{ width: 300 }}
+                    style={{ width: 320 }}
                   />
                 </Form.Item>
                 <Form.Item>
