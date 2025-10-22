@@ -653,6 +653,9 @@ const PackingShipment: React.FC = () => {
   // 操作状态Tab（4个状态：等待备货、分配中、已分配、单号确认）
   const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
 
+  // 追踪用户访问过的标签（用于按需加载统计数据）
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['awaiting_stock']));
+
   // 操作弹窗状态
   const [prepareStockModalVisible, setPrepareStockModalVisible] = useState(false);
   const [updateBusinessInfoModalVisible, setUpdateBusinessInfoModalVisible] = useState(false);
@@ -939,7 +942,7 @@ const PackingShipment: React.FC = () => {
     setTimeout(() => refetch(), 0);
   }, [initialPageSize, refetch]);
 
-  // 查询各操作状态的数量统计（并行查询）
+  // 查询各操作状态的数量统计（按需加载 - 只加载用户访问过的标签）
   // 第一个标签"等待备货"：使用OZON原生状态（awaiting_packaging, awaiting_deliver）
   const { data: awaitingStockData } = useQuery({
     queryKey: ['packingOrdersCount', 'awaiting_stock', selectedShop, searchParams],
@@ -948,7 +951,7 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       ozon_status: 'awaiting_packaging,awaiting_deliver',  // 使用OZON原生状态
     }),
-    enabled: true,
+    enabled: visitedTabs.has('awaiting_stock'), // 按需加载：只有访问过才加载
     staleTime: 30000, // 30秒缓存
   });
 
@@ -959,7 +962,7 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'allocating',
     }),
-    enabled: true,
+    enabled: visitedTabs.has('allocating'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 
@@ -970,7 +973,7 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'allocated',
     }),
-    enabled: true,
+    enabled: visitedTabs.has('allocated'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 
@@ -981,7 +984,7 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'tracking_confirmed',
     }),
-    enabled: true,
+    enabled: visitedTabs.has('tracking_confirmed'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 
@@ -992,7 +995,7 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'printed',
     }),
-    enabled: true,
+    enabled: visitedTabs.has('printed'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 
@@ -1294,9 +1297,13 @@ const PackingShipment: React.FC = () => {
   // 废弃订单
   const discardOrderMutation = useMutation({
     mutationFn: (postingNumber: string) => ozonApi.discardOrder(postingNumber),
-    onSuccess: () => {
+    onSuccess: (_, postingNumber) => {
       // 提交成功，后台会通过 WebSocket 推送同步结果
       notifySuccess('废弃请求已提交', '正在后台同步到跨境巴士，请稍候...');
+      // 刷新计数查询
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 从当前列表中移除该posting
+      setAllPostings(prev => prev.filter(p => p.posting_number !== postingNumber));
     },
     onError: (error: any) => {
       notifyError('废弃失败', `废弃失败: ${error.response?.data?.message || error.message}`);
@@ -1894,10 +1901,10 @@ const PackingShipment: React.FC = () => {
       if (scanTrackingNumber.trim()) {
         handleScanSearch();
       }
-      // 重置分页并刷新列表数据
-      resetAndRefresh();
-      // 同时刷新计数
+      // 刷新计数
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 从当前列表中移除该posting
+      setAllPostings(prev => prev.filter(p => p.posting_number !== postingNumber));
     } catch (error: any) {
       notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
     }
@@ -2130,6 +2137,8 @@ const PackingShipment: React.FC = () => {
           activeKey={operationStatus}
           onChange={(key) => {
             setOperationStatus(key);
+            // 记录访问过的标签（用于按需加载统计数据）
+            setVisitedTabs(prev => new Set(prev).add(key));
             // 切换tab时会自动重新加载（queryKey改变）
             // 切换到扫描标签时清空之前的扫描结果
             if (key === 'scan') {
@@ -2548,6 +2557,11 @@ const PackingShipment: React.FC = () => {
           onCancel={() => setPrepareStockModalVisible(false)}
           postingNumber={currentPosting.posting_number}
           posting={currentPosting}
+          onSuccess={() => {
+            // 操作成功后，从当前列表中移除该posting
+            setAllPostings(prev => prev.filter(p => p.posting_number !== currentPosting.posting_number));
+            setPrepareStockModalVisible(false);
+          }}
         />
       )}
 
@@ -2572,6 +2586,11 @@ const PackingShipment: React.FC = () => {
           visible={domesticTrackingModalVisible}
           onCancel={() => setDomesticTrackingModalVisible(false)}
           postingNumber={currentPosting.posting_number}
+          onSuccess={() => {
+            // 操作成功后，从当前列表中移除该posting
+            setAllPostings(prev => prev.filter(p => p.posting_number !== currentPosting.posting_number));
+            setDomesticTrackingModalVisible(false);
+          }}
         />
       )}
 

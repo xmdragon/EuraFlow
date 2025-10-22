@@ -14,12 +14,14 @@ interface DomesticTrackingModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
+  onSuccess?: () => void; // 操作成功后的回调
 }
 
 const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
   visible,
   onCancel,
   postingNumber,
+  onSuccess,
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
@@ -32,6 +34,12 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
     onSuccess: (response) => {
       // 提交成功，后台会通过 WebSocket 推送同步结果
       notifySuccess('国内单号已保存', '正在后台同步到跨境巴士，稍后将收到通知');
+      // 刷新计数查询
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 调用父组件回调（用于从列表中移除）
+      if (onSuccess) {
+        onSuccess();
+      }
       // 立即关闭弹窗，等待 WebSocket 推送结果通知
       handleClose();
     },

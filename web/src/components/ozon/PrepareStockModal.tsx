@@ -16,6 +16,7 @@ interface PrepareStockModalProps {
   onCancel: () => void;
   postingNumber: string;
   posting?: any; // 传入完整的posting对象，用于加载原有值
+  onSuccess?: () => void; // 操作成功后的回调
 }
 
 const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
@@ -23,6 +24,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   onCancel,
   postingNumber,
   posting,
+  onSuccess,
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
@@ -45,8 +47,12 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
     },
     onSuccess: (response) => {
       notifySuccess('操作成功', '备货操作成功');
-      // 刷新订单列表
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      // 刷新计数查询
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 调用父组件回调（用于从列表中移除）
+      if (onSuccess) {
+        onSuccess();
+      }
       // 关闭弹窗并重置表单
       handleClose();
     },
