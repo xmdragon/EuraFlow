@@ -691,31 +691,22 @@ const PackingShipment: React.FC = () => {
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
   const [imageLoading, setImageLoading] = useState(false);
 
-  // 标记是否已计算过 pageSize
-  const pageSizeCalculated = React.useRef(false);
-
-  // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
+  // 计算每行显示数量（根据屏幕宽度预估）
   const calculateItemsPerRow = React.useCallback(() => {
-    const container = document.querySelector(`.${styles.orderGrid}`);
-    if (container) {
-      const containerWidth = container.clientWidth;
-      if (containerWidth > 0) {
-        const itemWidth = 160;
-        const gap = 10;
-        const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
-        setItemsPerRow(columns);
+    const screenWidth = window.innerWidth;
+    const menuWidth = 250; // 左边菜单宽度（估计值）
+    const columns = Math.max(1, Math.floor((screenWidth - menuWidth - 10) / 170));
+    setItemsPerRow(columns);
 
-        // 动态设置初始pageSize：列数 × 3行，但不超过后端限制100
-        const calculatedPageSize = Math.min(columns * 3, 100);
-        setInitialPageSize(calculatedPageSize);
-        setPageSize(calculatedPageSize);
-        pageSizeCalculated.current = true;
-      }
-    }
+    // 动态设置初始pageSize：列数 × 3行，但不超过后端限制100
+    const calculatedPageSize = Math.min(columns * 3, 100);
+    setInitialPageSize(calculatedPageSize);
+    setPageSize(calculatedPageSize);
   }, []);
 
-  // 监听窗口大小变化
+  // 组件挂载时立即计算，并监听窗口大小变化
   useEffect(() => {
+    calculateItemsPerRow();
     window.addEventListener('resize', calculateItemsPerRow);
     return () => window.removeEventListener('resize', calculateItemsPerRow);
   }, [calculateItemsPerRow]);
@@ -907,14 +898,8 @@ const PackingShipment: React.FC = () => {
       // 这些 setState 会和上面的 setAllPostings 批处理，只触发一次渲染
       setHasMoreData(newPostingsLength < (ordersData.total || 0));
       setIsLoadingMore(false);
-
-      // 首次加载完成后，计算正确的 pageSize
-      if (currentPageRef.current === 1 && !pageSizeCalculated.current) {
-        // 延迟执行，确保 DOM 已更新
-        setTimeout(calculateItemsPerRow, 0);
-      }
     }
-  }, [ordersData?.data, calculateItemsPerRow]);  // 只依赖数据变化
+  }, [ordersData?.data]);  // 只依赖数据变化
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
