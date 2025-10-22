@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, Any, Optional, List
 import logging
+import asyncio
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -127,6 +128,13 @@ class PostingOperationsService:
         # 4. 提交数据库事务
         await self.db.commit()
         await self.db.refresh(posting)
+
+        # 5. 如果没有追踪号，启动后台异步查询OZON
+        if not self._has_tracking_number(posting):
+            logger.info(f"posting无追踪号，启动后台异步查询OZON，posting_number: {posting_number}")
+            asyncio.create_task(
+                self._async_fetch_and_update_tracking(posting.id, shop.id, posting_number)
+            )
 
         logger.info(f"备货操作成功，posting_number: {posting_number}, operation_status: {posting.operation_status}, sync_to_ozon: {sync_to_ozon}")
 
@@ -778,3 +786,90 @@ class PostingOperationsService:
                 }
             }
         }
+
+    def _has_tracking_number(self, posting: OzonPosting) -> bool:
+        """
+        检查posting是否有追踪号
+
+        Args:
+            posting: OzonPosting实例
+
+        Returns:
+            True if posting有有效的追踪号, False otherwise
+        """
+        if not posting.raw_payload:
+            return False
+        tracking = posting.raw_payload.get('tracking_number')
+        return tracking and str(tracking).strip() != ''
+
+    async def _async_fetch_and_update_tracking(
+        self,
+        posting_id: int,
+        shop_id: int,
+        posting_number: str
+    ):
+        """
+        后台异步任务：查询OZON posting详情并更新数据
+        复用现有的订单同步逻辑 (OrderSyncService._process_single_posting)
+
+        Args:
+            posting_id: posting的数据库ID
+            shop_id: 店铺ID
+            posting_number: posting编号
+        """
+        try:
+            from ef_core.database import get_async_session
+            async for db_session in get_async_session():
+                try:
+                    # 获取shop信息
+                    shop_result = await db_session.execute(
+                        select(OzonShop).where(OzonShop.id == shop_id)
+                    )
+                    shop = shop_result.scalar_one_or_none()
+                    if not shop:
+                        logger.error(f"异步查询失败：店铺不存在, shop_id={shop_id}")
+                        return
+
+                    # 创建API客户端
+                    api_client = OzonAPIClient(
+                        client_id=shop.client_id,
+                        api_key=shop.api_key_enc,
+                        shop_id=shop_id
+                    )
+
+                    # 查询posting详情
+                    logger.info(f"异步查询OZON posting详情: posting_number={posting_number}")
+                    detail_response = await api_client.get_posting_details(
+                        posting_number=posting_number,
+                        with_analytics_data=True,
+                        with_financial_data=True
+                    )
+
+                    if detail_response.get("result"):
+                        # 使用现有的订单同步服务更新posting
+                        from ..services.order_sync import OrderSyncService
+                        sync_service = OrderSyncService(shop_id=shop_id, api_client=api_client)
+                        await sync_service._process_single_posting(db_session, detail_response["result"])
+                        await db_session.commit()
+
+                        # 记录结果
+                        tracking = detail_response["result"].get("tracking_number")
+                        ozon_status = detail_response["result"].get("status")
+                        if tracking and str(tracking).strip():
+                            logger.info(
+                                f"异步查询成功，获取到追踪号: posting_number={posting_number}, "
+                                f"tracking={tracking}, ozon_status={ozon_status}"
+                            )
+                        else:
+                            logger.info(
+                                f"异步查询成功，但OZON尚未分配追踪号: posting_number={posting_number}, "
+                                f"ozon_status={ozon_status}"
+                            )
+
+                    await api_client.close()
+
+                finally:
+                    await db_session.close()
+
+        except Exception as e:
+            logger.error(f"异步查询OZON失败: posting_number={posting_number}, error={str(e)}")
