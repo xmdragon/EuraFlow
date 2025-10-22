@@ -272,6 +272,7 @@ const PackingShipment: React.FC = () => {
 
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
+  const currentPageRef = React.useRef(1);  // 使用 ref 跟踪当前页，避免 useEffect 依赖
   const [pageSize, setPageSize] = useState(24); // 会根据容器宽度动态调整
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量
   const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize
@@ -457,6 +458,7 @@ const PackingShipment: React.FC = () => {
   // 当店铺、状态或搜索参数变化时，重置分页
   useEffect(() => {
     setCurrentPage(1);
+    currentPageRef.current = 1;  // 同步更新 ref
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
@@ -519,19 +521,20 @@ const PackingShipment: React.FC = () => {
 
       // 后端已做精确匹配，无需前端二次过滤
 
-      // 更新数据和检查状态
+      // 批量更新状态 - 使用 ref 避免依赖循环
+      // React 18 会自动批处理所有 setState，只触发一次渲染
+      let newPostingsLength = 0;
       setAllPostings(prev => {
-        const newPostings = currentPage === 1 ? flattened : [...prev, ...flattened];
-
-        // 在同一个 setter 中计算是否还有更多数据
-        const totalLoaded = newPostings.length;
-        setHasMoreData(totalLoaded < (ordersData.total || 0));
-        setIsLoadingMore(false);
-
+        const newPostings = currentPageRef.current === 1 ? flattened : [...prev, ...flattened];
+        newPostingsLength = newPostings.length;
         return newPostings;
       });
+
+      // 这些 setState 会和上面的 setAllPostings 批处理，只触发一次渲染
+      setHasMoreData(newPostingsLength < (ordersData.total || 0));
+      setIsLoadingMore(false);
     }
-  }, [ordersData?.data]);  // 只依赖数据变化，避免循环触发
+  }, [ordersData?.data]);  // 只依赖数据变化
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
@@ -549,7 +552,11 @@ const PackingShipment: React.FC = () => {
         // 加载更多时使用较小的pageSize（初始值的一半，但至少一行）
         const loadMoreSize = Math.min(Math.max(Math.floor(initialPageSize / 2), itemsPerRow), 100);
         setPageSize(loadMoreSize);
-        setCurrentPage(prev => prev + 1);
+        setCurrentPage(prev => {
+          const next = prev + 1;
+          currentPageRef.current = next;  // 同步更新 ref
+          return next;
+        });
       }
     };
 
@@ -565,6 +572,7 @@ const PackingShipment: React.FC = () => {
   // 重置分页并刷新数据的辅助函数
   const resetAndRefresh = React.useCallback(() => {
     setCurrentPage(1);
+    currentPageRef.current = 1;  // 同步更新 ref
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({});
