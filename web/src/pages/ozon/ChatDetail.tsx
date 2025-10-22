@@ -170,7 +170,8 @@ const ChatDetail: React.FC = () => {
     }
 
     // 根据 chat_type 显示类型标签
-    if (chatData.chat_type === 'Buyer_Seller') {
+    // 注意：API返回的是 Buyer_Sueller（拼写错误），不是 Buyer_Seller
+    if (chatData.chat_type === 'Buyer_Sueller') {
       return '买家';
     } else if (chatData.chat_type === 'Seller_Support') {
       return 'Ozon官方';
@@ -180,9 +181,10 @@ const ChatDetail: React.FC = () => {
   };
 
   const renderMessage = (msg: ozonApi.OzonChatMessage) => {
-    const isUser = msg.sender_type === 'user';
     const isSeller = msg.sender_type === 'seller';
     const isSupport = msg.sender_type === 'support';
+    // 收到的消息（客户或官方）在左边，发出的消息（卖家）在右边
+    const isReceived = !isSeller;
 
     // 智能显示发送者名称
     const getSenderName = () => {
@@ -202,23 +204,23 @@ const ChatDetail: React.FC = () => {
     return (
       <div
         key={msg.id}
-        className={`${styles.messageContainer} ${isUser ? styles.userMessage : styles.sellerMessage}`}
+        className={`${styles.messageContainer} ${isReceived ? styles.userMessage : styles.sellerMessage}`}
       >
         <div
-          className={`${styles.messageWrapper} ${isUser ? styles.userWrapper : styles.sellerWrapper}`}
+          className={`${styles.messageWrapper} ${isReceived ? styles.userWrapper : styles.sellerWrapper}`}
         >
           <Avatar
-            className={`${styles.messageAvatar} ${isUser ? styles.userAvatar : styles.sellerAvatar}`}
+            className={`${styles.messageAvatar} ${isReceived ? styles.userAvatar : styles.sellerAvatar}`}
             icon={<UserOutlined />}
           />
           <div>
             <div
-              className={`${styles.messageBubble} ${isUser ? styles.userBubble : styles.sellerBubble}`}
+              className={`${styles.messageBubble} ${isReceived ? styles.userBubble : styles.sellerBubble}`}
             >
               <div className={styles.senderNameContainer}>
                 <Text
                   strong
-                  className={`${styles.senderName} ${isUser ? styles.userName : styles.sellerName}`}
+                  className={`${styles.senderName} ${isReceived ? styles.userName : styles.sellerName}`}
                 >
                   {getSenderName()}
                 </Text>
@@ -228,7 +230,7 @@ const ChatDetail: React.FC = () => {
               </div>
             </div>
             <div
-              className={`${styles.messageTimeContainer} ${isUser ? styles.userTimeContainer : styles.sellerTimeContainer}`}
+              className={`${styles.messageTimeContainer} ${isReceived ? styles.userTimeContainer : styles.sellerTimeContainer}`}
             >
               <Text type="secondary" className={styles.messageTime}>
                 {moment(msg.created_at).format('MM-DD HH:mm')}

@@ -199,7 +199,8 @@ const ChatList: React.FC = () => {
     }
 
     // 根据 chat_type 显示类型标签
-    if (chat.chat_type === 'Buyer_Seller') {
+    // 注意：API返回的是 Buyer_Sueller（拼写错误），不是 Buyer_Seller
+    if (chat.chat_type === 'Buyer_Sueller') {
       return '买家';
     } else if (chat.chat_type === 'Seller_Support') {
       return 'Ozon官方';
