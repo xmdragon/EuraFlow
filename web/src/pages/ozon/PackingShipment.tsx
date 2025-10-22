@@ -1140,47 +1140,47 @@ const PackingShipment: React.FC = () => {
           {/* 操作按钮 */}
           <div className={styles.actionButtons}>
             {currentStatus === 'awaiting_stock' && (
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Button type="primary" size="small" block onClick={handlePrepareStock}>
+              <Space size="small">
+                <Button type="primary" size="small" onClick={handlePrepareStock}>
                   备货
                 </Button>
-                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                <Button type="default" size="small" onClick={handleDiscardOrder} danger>
                   废弃
                 </Button>
               </Space>
             )}
             {currentStatus === 'allocating' && (
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Button type="default" size="small" block onClick={handleUpdateBusinessInfo}>
+              <Space size="small">
+                <Button type="default" size="small" onClick={handleUpdateBusinessInfo}>
                   备注
                 </Button>
-                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                <Button type="default" size="small" onClick={handleDiscardOrder} danger>
                   废弃
                 </Button>
               </Space>
             )}
             {currentStatus === 'allocated' && (
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Button type="primary" size="small" block onClick={handleSubmitTracking}>
+              <Space size="small">
+                <Button type="primary" size="small" onClick={handleSubmitTracking}>
                   国内单号
                 </Button>
-                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                <Button type="default" size="small" onClick={handleDiscardOrder} danger>
                   废弃
                 </Button>
               </Space>
             )}
             {currentStatus === 'tracking_confirmed' && (
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Space size="small">
                 <Tag color="success">已完成</Tag>
-                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                <Button type="default" size="small" onClick={handleDiscardOrder} danger>
                   废弃
                 </Button>
               </Space>
             )}
             {currentStatus === 'printed' && (
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Space size="small">
                 <Tag color="success">已打印</Tag>
-                <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                <Button type="default" size="small" onClick={handleDiscardOrder} danger>
                   废弃
                 </Button>
               </Space>
@@ -2378,10 +2378,7 @@ const PackingShipment: React.FC = () => {
         onCancel={() => setImagePreviewVisible(false)}
         footer={null}
         closable={false}
-        mask={true}
-        maskStyle={{
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-        }}
+        mask={false}
         width="auto"
         centered={false}
         style={{
