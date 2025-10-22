@@ -677,6 +677,10 @@ const PackingShipment: React.FC = () => {
   const [printErrors, setPrintErrors] = useState<ozonApi.FailedPosting[]>([]);
   const [printSuccessPostings, setPrintSuccessPostings] = useState<string[]>([]);
 
+  // 批量同步状态
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ success: 0, failed: 0, total: 0 });
+
   // 扫描单号状态
   const [scanTrackingNumber, setScanTrackingNumber] = useState<string>('');
   const [scanResult, setScanResult] = useState<any>(null);
@@ -1266,6 +1270,51 @@ const PackingShipment: React.FC = () => {
       notifyError('废弃失败', `废弃失败: ${error.response?.data?.message || error.message}`);
     },
   });
+
+  // 批量同步处理函数
+  const handleBatchSync = () => {
+    if (allPostings.length === 0) {
+      notifyWarning('操作失败', '当前页面没有可同步的订单');
+      return;
+    }
+
+    Modal.confirm({
+      title: '确认批量同步？',
+      content: `将同步当前页面的 ${allPostings.length} 个订单，是否继续？`,
+      onOk: async () => {
+        setIsBatchSyncing(true);
+        setSyncProgress({ success: 0, failed: 0, total: allPostings.length });
+
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (const posting of allPostings) {
+          try {
+            await ozonApi.syncSingleOrder(posting.posting_number, posting.order.shop_id);
+            successCount++;
+          } catch (error) {
+            console.error(`同步失败: ${posting.posting_number}`, error);
+            failedCount++;
+          }
+          setSyncProgress({ success: successCount, failed: failedCount, total: allPostings.length });
+        }
+
+        setIsBatchSyncing(false);
+
+        // 显示结果
+        if (failedCount === 0) {
+          notifySuccess('批量同步完成', `成功同步 ${successCount} 个订单`);
+        } else {
+          notifyWarning('批量同步完成', `成功: ${successCount}, 失败: ${failedCount}`);
+        }
+
+        // 刷新数据
+        queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+        queryClient.invalidateQueries({ queryKey: ['packingStats'] });
+        resetAndRefresh();
+      }
+    });
+  };
 
   // 稳定化的回调函数 - 使用 useCallback 避免重复渲染
   const handleCopyCallback = React.useCallback((text: string | undefined, label: string) => {
@@ -2361,15 +2410,32 @@ const PackingShipment: React.FC = () => {
           <>
             {/* 批量操作按钮 */}
             <div className={styles.batchActions}>
-              <Button
-                type="primary"
-                icon={<PrinterOutlined />}
-                disabled={selectedPostingNumbers.length === 0}
-                loading={isPrinting}
-                onClick={handleBatchPrint}
-              >
-                打印标签 ({selectedPostingNumbers.length}/20)
-              </Button>
+              {/* 批量同步按钮 - 只在"分配中"标签显示 */}
+              {operationStatus === 'allocating' && (
+                <Button
+                  type="primary"
+                  icon={<SyncOutlined spin={isBatchSyncing} />}
+                  disabled={allPostings.length === 0}
+                  loading={isBatchSyncing}
+                  onClick={handleBatchSync}
+                >
+                  批量同步 ({allPostings.length})
+                  {isBatchSyncing && ` - ${syncProgress.success}/${syncProgress.total}`}
+                </Button>
+              )}
+
+              {/* 批量打印按钮 - 只在"已分配"及之后的标签显示 */}
+              {operationStatus !== 'awaiting_stock' && operationStatus !== 'allocating' && (
+                <Button
+                  type="primary"
+                  icon={<PrinterOutlined />}
+                  disabled={selectedPostingNumbers.length === 0}
+                  loading={isPrinting}
+                  onClick={handleBatchPrint}
+                >
+                  打印标签 ({selectedPostingNumbers.length}/20)
+                </Button>
+              )}
             </div>
 
             {/* 订单卡片网格 */}
