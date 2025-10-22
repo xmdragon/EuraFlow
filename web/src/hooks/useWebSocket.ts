@@ -100,13 +100,15 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         }
 
         // 检查是否是认证失败导致的关闭
-        // WebSocket关闭码：1008 = 策略违规（通常是认证失败）
+        // 更严格的认证失败判断：只有明确的认证错误才清除token
+        // WebSocket关闭码：1008 = 策略违规（需配合reason判断是否认证失败）
         // WebSocket关闭码：4001 = 自定义认证失败码
-        const isAuthFailure = event.code === 1008 || event.code === 4001 ||
-          (event.reason && event.reason.toLowerCase().includes('auth'));
+        const isAuthFailure =
+          (event.code === 1008 && event.reason?.toLowerCase().includes('authentication')) ||
+          event.code === 4001;
 
         if (isAuthFailure) {
-          console.error('WebSocket closed due to authentication failure');
+          console.error('WebSocket closed due to authentication failure', { code: event.code, reason: event.reason });
           // 清除token并跳转到登录页
           import('@/services/authService').then(({ default: authService }) => {
             authService.clearTokens();
@@ -121,6 +123,9 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           });
           return; // 不进行重连
         }
+
+        // 非认证失败的断开（如网络抖动、超时等）
+        console.log('WebSocket closed, will attempt reconnect', { code: event.code, reason: event.reason });
 
         // 自动重连（非认证失败的情况）
         if (autoReconnect) {

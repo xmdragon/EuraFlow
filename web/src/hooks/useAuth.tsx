@@ -32,6 +32,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [data, error]);
 
+  // 自动刷新Token机制：在过期前1小时自动刷新
+  useEffect(() => {
+    const token = authService.accessToken;
+    if (!token) return;
+
+    const checkAndRefreshToken = async () => {
+      try {
+        // 解析JWT获取过期时间
+        const parts = token.split('.');
+        if (parts.length !== 3) return;
+
+        const payload = JSON.parse(atob(parts[1]));
+        if (!payload.exp) return;
+
+        const expiresAt = payload.exp * 1000; // 转换为毫秒
+        const now = Date.now();
+        const timeUntilExpiry = expiresAt - now;
+
+        // 如果剩余时间小于1小时且大于0，则刷新token
+        if (timeUntilExpiry < 60 * 60 * 1000 && timeUntilExpiry > 0) {
+          console.log('Token即将过期，自动刷新中...', {
+            expiresAt: new Date(expiresAt).toISOString(),
+            remainingMinutes: Math.floor(timeUntilExpiry / 60000),
+          });
+
+          await authService.refresh();
+          await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+
+          console.log('Token自动刷新成功');
+        }
+      } catch (error) {
+        console.error('自动刷新Token失败:', error);
+        // 刷新失败不清除token，让用户继续使用直到真正过期
+      }
+    };
+
+    // 立即检查一次
+    checkAndRefreshToken();
+
+    // 每5分钟检查一次
+    const intervalId = setInterval(checkAndRefreshToken, 5 * 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [queryClient]);
+
   const login = async (credentials: LoginRequest) => {
     try {
       const response = await authService.login(credentials);
