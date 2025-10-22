@@ -900,7 +900,14 @@ const PackingShipment: React.FC = () => {
       });
 
       // 这些 setState 会和上面的 setAllPostings 批处理，只触发一次渲染
-      setHasMoreData(newPostingsLength < (ordersData.total || 0));
+      // 判断是否还有更多数据：
+      // 1. 累积的数据量小于总数 AND
+      // 2. 本次返回的数据量等于请求的limit（如果小于limit说明已经是最后一页）
+      const hasMore = (
+        newPostingsLength < (ordersData.total || 0) &&
+        ordersData.data.length >= pageSize
+      );
+      setHasMoreData(hasMore);
       setIsLoadingMore(false);
     }
   }, [ordersData?.data]);  // 只依赖数据变化
