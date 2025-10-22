@@ -393,7 +393,7 @@ class OzonWebhookHandler:
                 return {"message": "Posting not found, sync triggered"}
     
     async def _trigger_order_sync(self, posting_number: str) -> None:
-        """触发特定订单的同步"""
+        """触发特定订单的同步（只从当前店铺获取）"""
         try:
             from ..models import OzonShop
             from ..api.client import OzonAPIClient
@@ -401,35 +401,39 @@ class OzonWebhookHandler:
 
             db_manager = get_db_manager()
             async with db_manager.get_session() as db:
-                # 获取所有活跃店铺
+                # 只获取当前店铺（webhook已经包含了shop_id信息）
                 result = await db.execute(
-                    select(OzonShop).where(OzonShop.status == "active")
+                    select(OzonShop).where(OzonShop.id == self.shop_id)
                 )
-                shops = result.scalars().all()
+                shop = result.scalar_one_or_none()
 
-                for shop in shops:
-                    try:
-                        # 创建API客户端
-                        client = OzonAPIClient(
-                            client_id=shop.client_id,
-                            api_key=shop.api_key_enc
-                        )
+                if not shop:
+                    logger.error(f"Shop {self.shop_id} not found for posting {posting_number}")
+                    return
 
-                        # 尝试获取特定订单的详情
-                        order_info = await client.get_posting_details(posting_number)
+                try:
+                    # 创建API客户端
+                    client = OzonAPIClient(
+                        client_id=shop.client_id,
+                        api_key=shop.api_key_enc
+                    )
 
-                        if order_info.get("result"):
-                            # 保存订单到数据库
-                            from ..services.order_sync import OrderSyncService
-                            service = OrderSyncService()
-                            await service.save_order(shop.id, order_info["result"])
-                            logger.info(f"Successfully synced order {posting_number} from webhook")
-                            break
+                    # 获取订单详情
+                    order_info = await client.get_posting_details(posting_number)
 
-                        await client.close()
+                    if order_info.get("result"):
+                        # 保存订单到数据库
+                        from ..services.order_sync import OrderSyncService
+                        service = OrderSyncService()
+                        await service.save_order(shop.id, order_info["result"])
+                        logger.info(f"Successfully synced order {posting_number} from webhook for shop {shop.id}")
+                    else:
+                        logger.warning(f"No result in order info for posting {posting_number}")
 
-                    except Exception as e:
-                        logger.error(f"Failed to sync order {posting_number} for shop {shop.id}: {e}")
+                    await client.close()
+
+                except Exception as e:
+                    logger.error(f"Failed to sync order {posting_number} for shop {shop.id}: {e}")
 
         except Exception as e:
             logger.error(f"Failed to trigger order sync for {posting_number}: {e}")
