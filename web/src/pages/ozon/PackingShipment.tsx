@@ -698,6 +698,13 @@ const PackingShipment: React.FC = () => {
       const container = document.querySelector(`.${styles.orderGrid}`);
       if (container) {
         const containerWidth = container.clientWidth;
+
+        // 如果容器宽度为0或过小，说明还没渲染完成，等待下次重试
+        if (containerWidth < 100) {
+          console.log('容器宽度过小，等待渲染:', containerWidth);
+          return false;
+        }
+
         const itemWidth = 160; // 卡片宽度
         const gap = 10; // 间距
 
@@ -718,14 +725,38 @@ const PackingShipment: React.FC = () => {
 
         setInitialPageSize(calculatedPageSize);
         setPageSize(calculatedPageSize);
+        return true;
       }
+      return false;
     };
 
-    // 延迟执行，确保 DOM 已渲染
-    const timer = setTimeout(calculateItemsPerRow, 100);
+    // 使用轮询检测容器是否已渲染，最多尝试20次（2秒）
+    let attempts = 0;
+    const maxAttempts = 20;
+    const pollInterval = 100;
+
+    const pollTimer = setInterval(() => {
+      attempts++;
+      const success = calculateItemsPerRow();
+
+      if (success || attempts >= maxAttempts) {
+        clearInterval(pollTimer);
+        if (!success) {
+          console.warn('容器宽度检测超时，使用默认值');
+          // 超时后使用默认值：假设6列
+          const fallbackColumns = 6;
+          const fallbackPageSize = fallbackColumns * 3;
+          setItemsPerRow(fallbackColumns);
+          setInitialPageSize(fallbackPageSize);
+          setPageSize(fallbackPageSize);
+        }
+      }
+    }, pollInterval);
+
     window.addEventListener('resize', calculateItemsPerRow);
+
     return () => {
-      clearTimeout(timer);
+      clearInterval(pollTimer);
       window.removeEventListener('resize', calculateItemsPerRow);
     };
   }, []);
