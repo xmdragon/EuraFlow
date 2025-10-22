@@ -449,11 +449,18 @@ const PackingShipment: React.FC = () => {
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
-  }, [selectedShop, operationStatus, searchParams]);
+    setPageSize(initialPageSize); // 重置为初始pageSize
+  }, [selectedShop, operationStatus, searchParams, initialPageSize]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
     if (ordersData?.data) {
+      // 如果不是第一页，保存当前滚动位置
+      let savedScrollHeight = 0;
+      if (currentPage > 1) {
+        savedScrollHeight = document.documentElement.scrollHeight;
+      }
+
       // 累积图片映射
       const newImageMap: Record<string, string> = {};
 
@@ -521,6 +528,16 @@ const PackingShipment: React.FC = () => {
         : allPostings.length + flattened.length;
       setHasMoreData(totalLoaded < (ordersData.total || 0));
       setIsLoadingMore(false);
+
+      // 如果不是第一页，恢复滚动位置（保持在触发加载的位置）
+      if (currentPage > 1 && savedScrollHeight > 0) {
+        requestAnimationFrame(() => {
+          const newScrollHeight = document.documentElement.scrollHeight;
+          const scrollDiff = newScrollHeight - savedScrollHeight;
+          const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          window.scrollTo(0, currentScrollTop + scrollDiff);
+        });
+      }
     }
   }, [ordersData?.data, currentPage, allPostings.length]);
 

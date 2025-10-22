@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, and_, or_, desc, cast, exists
+from sqlalchemy import select, func, update, and_, or_, desc, cast, exists, literal_column
 from sqlalchemy.dialects.postgresql import JSONB
 from decimal import Decimal
 from datetime import datetime, timezone
@@ -265,11 +265,18 @@ async def get_packing_orders(
         # SKU在OZON API中是整数类型
         try:
             sku_int = int(sku)
-            query = query.where(
-                OzonPosting.raw_payload['products'].op('@>')(
-                    cast([{'sku': sku_int}], JSONB)
+            # 使用jsonb_array_elements展开products数组，然后检查sku字段
+            # 这种方式兼容性好，适用于PostgreSQL 9.3+
+            subquery = exists(
+                select(literal_column('1'))
+                .select_from(
+                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
+                )
+                .where(
+                    literal_column("product->>'sku'") == str(sku_int)
                 )
             )
+            query = query.where(subquery)
         except ValueError:
             # 如果SKU不是整数，不应用此过滤条件
             logger.warning(f"Invalid SKU format: {sku}, expected integer")
@@ -358,11 +365,17 @@ async def get_packing_orders(
         # SKU搜索（count查询也需要应用）
         try:
             sku_int = int(sku)
-            count_query = count_query.where(
-                OzonPosting.raw_payload['products'].op('@>')(
-                    cast([{'sku': sku_int}], JSONB)
+            # 使用jsonb_array_elements展开products数组，然后检查sku字段
+            subquery = exists(
+                select(literal_column('1'))
+                .select_from(
+                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
+                )
+                .where(
+                    literal_column("product->>'sku'") == str(sku_int)
                 )
             )
+            count_query = count_query.where(subquery)
         except ValueError:
             pass
     if tracking_number:
@@ -508,9 +521,16 @@ async def get_product_purchase_price_history(
         .where(
             and_(
                 OzonPosting.purchase_price.isnot(None),  # 必须有进货价格
-                OzonPosting.raw_payload['products'].op('@>')(
-                    cast([{'sku': int(sku)}], JSONB)
-                )  # JSONB数组包含查询：sku为整数
+                # 使用jsonb_array_elements展开products数组，然后检查sku字段
+                exists(
+                    select(literal_column('1'))
+                    .select_from(
+                        func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product')
+                    )
+                    .where(
+                        literal_column("product->>'sku'") == str(int(sku))
+                    )
+                )
             )
         )
         .order_by(
