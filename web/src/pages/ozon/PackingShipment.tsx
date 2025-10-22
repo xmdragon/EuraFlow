@@ -905,9 +905,22 @@ const PackingShipment: React.FC = () => {
       // React 18 会自动批处理所有 setState，只触发一次渲染
       let newPostingsLength = 0;
       setAllPostings(prev => {
-        const newPostings = currentPageRef.current === 1 ? flattened : [...prev, ...flattened];
-        newPostingsLength = newPostings.length;
-        return newPostings;
+        if (currentPageRef.current === 1) {
+          // 第一页，直接使用新数据
+          newPostingsLength = flattened.length;
+          return flattened;
+        }
+
+        // 构建已有posting的Set（使用posting_number作为唯一标识）
+        const existingNumbers = new Set(prev.map(p => p.posting_number));
+
+        // 过滤掉已存在的posting（去重）
+        const newPostings = flattened.filter(p => !existingNumbers.has(p.posting_number));
+
+        // 合并数据
+        const result = [...prev, ...newPostings];
+        newPostingsLength = result.length;
+        return result;
       });
 
       // 这些 setState 会和上面的 setAllPostings 批处理，只触发一次渲染
@@ -1010,7 +1023,6 @@ const PackingShipment: React.FC = () => {
       ...searchParams,  // 展开所有搜索参数
       operation_status: 'printed',
     }),
-    enabled: visitedTabs.has('printed'), // 按需加载：只有访问过才加载
     staleTime: 30000,
   });
 
