@@ -694,69 +694,26 @@ const PackingShipment: React.FC = () => {
   // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
   useEffect(() => {
     const calculateItemsPerRow = () => {
-      // 获取实际容器的宽度，而不是屏幕宽度（因为有左侧菜单栏）
       const container = document.querySelector(`.${styles.orderGrid}`);
       if (container) {
         const containerWidth = container.clientWidth;
-
-        // 如果容器宽度为0或过小，说明还没渲染完成，等待下次重试
-        if (containerWidth < 100) {
-          console.log('容器宽度过小，等待渲染:', containerWidth);
-          return false;
-        }
-
         const itemWidth = 160; // 卡片宽度
         const gap = 10; // 间距
-
-        // 计算列数：(containerWidth + gap) / (itemWidth + gap)
         const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
         setItemsPerRow(columns);
 
-        // 默认加载3行数据
-        const defaultRows = 3;
-        const calculatedPageSize = Math.min(columns * defaultRows, 100);
-
-        console.log('分页计算:', {
-          containerWidth,
-          columns,
-          defaultRows,
-          calculatedPageSize
-        });
-
+        // 动态设置初始pageSize：列数 × 3行，但不超过后端限制100
+        const calculatedPageSize = Math.min(columns * 3, 100);
         setInitialPageSize(calculatedPageSize);
         setPageSize(calculatedPageSize);
-        return true;
       }
-      return false;
     };
 
-    // 使用轮询检测容器是否已渲染，最多尝试20次（2秒）
-    let attempts = 0;
-    const maxAttempts = 20;
-    const pollInterval = 100;
-
-    const pollTimer = setInterval(() => {
-      attempts++;
-      const success = calculateItemsPerRow();
-
-      if (success || attempts >= maxAttempts) {
-        clearInterval(pollTimer);
-        if (!success) {
-          console.warn('容器宽度检测超时，使用默认值');
-          // 超时后使用默认值：假设6列
-          const fallbackColumns = 6;
-          const fallbackPageSize = fallbackColumns * 3;
-          setItemsPerRow(fallbackColumns);
-          setInitialPageSize(fallbackPageSize);
-          setPageSize(fallbackPageSize);
-        }
-      }
-    }, pollInterval);
-
+    // 延迟执行，等待DOM完全渲染
+    const timer = setTimeout(calculateItemsPerRow, 0);
     window.addEventListener('resize', calculateItemsPerRow);
-
     return () => {
-      clearInterval(pollTimer);
+      clearTimeout(timer);
       window.removeEventListener('resize', calculateItemsPerRow);
     };
   }, []);
