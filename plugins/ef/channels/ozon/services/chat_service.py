@@ -748,10 +748,18 @@ class OzonChatService:
         # 提取chat嵌套对象
         chat = chat_data.get("chat", {})
 
-        # 状态映射：OPENED -> open, CLOSED -> closed
+        # 状态映射（API返回：OPENED/CLOSED/UNSPECIFIED/All）
         chat_status = chat.get("chat_status", "OPENED")
-        status = "open" if chat_status == "OPENED" else "closed"
-        is_closed = chat_status == "CLOSED"
+        if chat_status == "OPENED":
+            status = "open"
+            is_closed = False
+        elif chat_status == "CLOSED":
+            status = "closed"
+            is_closed = True
+        else:
+            # UNSPECIFIED 或其他未知状态，默认为开放
+            status = "open"
+            is_closed = False
 
         return OzonChat(
             shop_id=self.shop_id,
@@ -776,15 +784,21 @@ class OzonChatService:
         # 提取chat嵌套对象
         chat_info = chat_data.get("chat", {})
 
-        # 状态映射
+        # 状态映射（API返回：OPENED/CLOSED/UNSPECIFIED/All）
         chat_status = chat_info.get("chat_status", "OPENED")
-        status = "open" if chat_status == "OPENED" else "closed"
-        is_closed = chat_status == "CLOSED"
+        if chat_status == "OPENED":
+            chat.status = "open"
+            chat.is_closed = False
+        elif chat_status == "CLOSED":
+            chat.status = "closed"
+            chat.is_closed = True
+        else:
+            # UNSPECIFIED 或其他未知状态，默认为开放
+            chat.status = "open"
+            chat.is_closed = False
 
         chat.chat_type = chat_info.get("chat_type", chat.chat_type)
         chat.subject = chat_info.get("subject", chat.subject)
-        chat.status = status
-        chat.is_closed = is_closed
         chat.unread_count = chat_data.get("unread_count", chat.unread_count)
 
         # 更新extra_data保存完整原始数据
