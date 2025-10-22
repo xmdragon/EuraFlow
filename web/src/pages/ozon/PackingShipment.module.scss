@@ -257,8 +257,19 @@
 
 // ===== 图片相关样式 =====
 .imageWrapper {
-  position: relative;
   display: inline-block;
+}
+
+.productImageContainer {
+  height: 160px;
+  width: 160px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  cursor: pointer;
+  position: relative;
 }
 
 .linkIconOverlay {

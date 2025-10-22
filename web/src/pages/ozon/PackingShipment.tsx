@@ -1050,16 +1050,18 @@ const PackingShipment: React.FC = () => {
 
             {/* 商品图片 */}
             {imageUrl ? (
-              <div className={styles.imageWrapper}>
-                <img
-                  src={imageUrl}
-                  alt={product?.name || product?.sku || '商品图片'}
-                  className={styles.orderImage}
-                  onClick={() => {
-                    setPreviewImageUrl(optimizeOzonImageUrl(imageUrl, 800));
-                    setImagePreviewVisible(true);
-                  }}
-                />
+              <>
+                <div className={styles.imageWrapper}>
+                  <img
+                    src={imageUrl}
+                    alt={product?.name || product?.sku || '商品图片'}
+                    className={styles.orderImage}
+                    onClick={() => {
+                      setPreviewImageUrl(optimizeOzonImageUrl(imageUrl, 800));
+                      setImagePreviewVisible(true);
+                    }}
+                  />
+                </div>
                 {ozonProductUrl && (
                   <Tooltip title="打开OZON链接" color="#000" overlayInnerStyle={{ color: '#fff' }}>
                     <div
@@ -1073,7 +1075,7 @@ const PackingShipment: React.FC = () => {
                     </div>
                   </Tooltip>
                 )}
-              </div>
+              </>
             ) : (
               <Avatar
                 size={160}
@@ -1317,16 +1319,18 @@ const PackingShipment: React.FC = () => {
         return (
           <div className={styles.productImageContainer}>
             {imageUrl ? (
-              <div className={styles.imageWrapper}>
-                <img
-                  src={imageUrl}
-                  alt={item.name || item.sku || '商品图片'}
-                  className={styles.productImage}
-                  onClick={() => {
-                    setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800));
-                    setImagePreviewVisible(true);
-                  }}
-                />
+              <>
+                <div className={styles.imageWrapper}>
+                  <img
+                    src={imageUrl}
+                    alt={item.name || item.sku || '商品图片'}
+                    className={styles.productImage}
+                    onClick={() => {
+                      setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800));
+                      setImagePreviewVisible(true);
+                    }}
+                  />
+                </div>
                 {ozonProductUrl && (
                   <Tooltip title="打开OZON链接" color="#000" overlayInnerStyle={{ color: '#fff' }}>
                     <div
@@ -1340,7 +1344,7 @@ const PackingShipment: React.FC = () => {
                     </div>
                   </Tooltip>
                 )}
-              </div>
+              </>
             ) : (
               <Avatar
                 size={160}
