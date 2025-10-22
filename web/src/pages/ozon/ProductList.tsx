@@ -1307,19 +1307,6 @@ const ProductList: React.FC = () => {
               <Option value="archived">已归档</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="has_stock">
-            <Select placeholder="库存状态" style={{ width: 120 }} allowClear>
-              <Option value="true">有库存</Option>
-              <Option value="false">无库存</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="sync_status">
-            <Select placeholder="同步状态" style={{ width: 120 }} allowClear>
-              <Option value="success">成功</Option>
-              <Option value="failed">失败</Option>
-              <Option value="pending">待同步</Option>
-            </Select>
-          </Form.Item>
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">
