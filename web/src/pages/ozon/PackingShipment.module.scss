@@ -44,7 +44,7 @@
   width: 160px;
 
   :global(.ant-card-body) {
-    padding: 8px !important;
+    padding: 1px !important;
     font-size: 11px;
   }
 }
@@ -121,6 +121,7 @@
   flex-shrink: 0;
   color: rgba(0, 0, 0, 0.45);
   white-space: nowrap;
+  font-size: 11px;
 }
 
 .value {
