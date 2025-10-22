@@ -15,15 +15,28 @@ interface PrepareStockModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
+  posting?: any; // 传入完整的posting对象，用于加载原有值
 }
 
 const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   visible,
   onCancel,
   postingNumber,
+  posting,
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+
+  // 当弹窗打开时，如果有原有数据，加载到表单
+  React.useEffect(() => {
+    if (visible && posting) {
+      form.setFieldsValue({
+        purchase_price: posting.purchase_price ? parseFloat(posting.purchase_price) : undefined,
+        source_platform: posting.source_platform || undefined,
+        order_notes: posting.order_notes || undefined,
+      });
+    }
+  }, [visible, posting, form]);
 
   // 备货操作 mutation
   const prepareStockMutation = useMutation({

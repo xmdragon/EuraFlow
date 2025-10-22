@@ -69,12 +69,49 @@ class PostingOperationsService:
 
         logger.info(f"找到货件，当前状态: {posting.operation_status}, shop_id: {posting.shop_id}")
 
-        # 2. 幂等性检查：如果状态已 >= allocating，禁止重复操作
-        if posting.operation_status in ["allocating", "allocated", "tracking_confirmed"]:
-            logger.warning(f"货件已完成备货操作，当前状态：{posting.operation_status}")
+        # 2. 检查是否需要调用OZON API
+        # 如果已有进货价格，且三个值都没变化，则只更新operation_status，跳过OZON API调用
+        old_purchase_price = str(posting.purchase_price) if posting.purchase_price else None
+        old_source_platform = posting.source_platform
+        old_order_notes = posting.order_notes
+
+        # 将传入的值转换为字符串进行比较（purchase_price是Decimal类型）
+        new_purchase_price_str = str(purchase_price) if purchase_price else None
+
+        # 判断三个值是否都没有变化
+        price_unchanged = (old_purchase_price == new_purchase_price_str)
+        platform_unchanged = (old_source_platform == source_platform)
+        notes_unchanged = (old_order_notes == order_notes)
+
+        # 如果已有进货价格且三个值都没变，跳过OZON API调用
+        skip_ozon_api = (
+            posting.purchase_price is not None and
+            price_unchanged and
+            platform_unchanged and
+            notes_unchanged
+        )
+
+        if skip_ozon_api:
+            logger.info(
+                f"备货信息未变化，跳过OZON API调用: posting_number={posting_number}, "
+                f"purchase_price={purchase_price}, source_platform={source_platform}"
+            )
+            # 只更新operation_status和operation_time
+            posting.operation_status = "allocating"
+            posting.operation_time = utcnow()
+
+            await self.db.commit()
+            await self.db.refresh(posting)
+
             return {
-                "success": False,
-                "message": f"该货件已完成备货操作，当前状态：{posting.operation_status}"
+                "success": True,
+                "message": "备货操作成功（信息未变化，未调用OZON API）",
+                "data": {
+                    "posting_number": posting.posting_number,
+                    "operation_status": posting.operation_status,
+                    "operation_time": posting.operation_time.isoformat() if posting.operation_time else None,
+                    "skipped_ozon_api": True
+                }
             }
 
         # 3. 保存业务信息

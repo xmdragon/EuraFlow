@@ -2548,6 +2548,7 @@ const PackingShipment: React.FC = () => {
           visible={prepareStockModalVisible}
           onCancel={() => setPrepareStockModalVisible(false)}
           postingNumber={currentPosting.posting_number}
+          posting={currentPosting}
         />
       )}
 
