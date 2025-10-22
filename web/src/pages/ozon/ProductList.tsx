@@ -230,7 +230,7 @@ const ProductList: React.FC = () => {
     refetch,
   } = useQuery({
     queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues, sortBy, sortOrder],
-    queryFn: () => {
+    queryFn: async () => {
       const params: ozonApi.ProductFilter = {
         ...filterValues,
         shop_id: selectedShop,
@@ -240,7 +240,21 @@ const ProductList: React.FC = () => {
         params.sort_by = sortBy;
         params.sort_order = sortOrder;
       }
-      return ozonApi.getProducts(currentPage, pageSize, params);
+      const result = await ozonApi.getProducts(currentPage, pageSize, params);
+
+      // 调试：检查SKU 3001670275的数据
+      const targetProduct = result.data?.find((p: any) => p.sku === '3001670275');
+      if (targetProduct) {
+        console.log('🔍 找到SKU 3001670275，API返回的数据:', targetProduct);
+        console.log('📏 重量字段:', targetProduct.weight, '类型:', typeof targetProduct.weight);
+        console.log('📦 尺寸字段:', {
+          width: targetProduct.width,
+          height: targetProduct.height,
+          depth: targetProduct.depth
+        });
+      }
+
+      return result;
     },
     refetchInterval: 30000, // 30秒自动刷新
     // 只有选中店铺后才发送请求
@@ -925,6 +939,9 @@ const ProductList: React.FC = () => {
 
   // 处理函数
   const handleEdit = (product: ozonApi.Product) => {
+    console.log('📝 编辑商品数据:', product);
+    console.log('📏 重量字段值:', product.weight, '类型:', typeof product.weight);
+    console.log('📦 尺寸字段:', { width: product.width, height: product.height, depth: product.depth });
     setSelectedProduct(product);
     setEditModalVisible(true);
   };
