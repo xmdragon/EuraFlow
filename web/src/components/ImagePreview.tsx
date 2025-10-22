@@ -143,9 +143,12 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       onCancel={onClose}
       footer={null}
       closable={false}
-      mask={false}
+      mask={true}
+      maskStyle={{
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      }}
       width="auto"
-      centered
+      centered={false}
       style={{
         maxWidth: '90vw',
         top: '5vh',
