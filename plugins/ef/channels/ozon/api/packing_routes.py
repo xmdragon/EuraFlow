@@ -198,11 +198,12 @@ async def get_packing_orders(
         operation_status = 'awaiting_stock'
 
     if operation_status == 'awaiting_stock':
-        # 等待备货：ozon_status = 'awaiting_packaging' AND (operation_status IS NULL OR = 'awaiting_stock')
+        # 等待备货：ozon_status IN ('awaiting_packaging', 'awaiting_registration') AND (operation_status IS NULL OR = 'awaiting_stock')
+        # 包含：awaiting_packaging（待打包）、awaiting_registration（等待登记）
         # 排除已经进入后续状态的订单（allocating/allocated/tracking_confirmed/printed等）
         query = query.where(
             and_(
-                OzonPosting.status == 'awaiting_packaging',
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
                 or_(
                     OzonPosting.operation_status.is_(None),
                     OzonPosting.operation_status == 'awaiting_stock'
@@ -324,7 +325,7 @@ async def get_packing_orders(
     if operation_status == 'awaiting_stock':
         count_query = count_query.where(
             and_(
-                OzonPosting.status == 'awaiting_packaging',
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
                 or_(
                     OzonPosting.operation_status.is_(None),
                     OzonPosting.operation_status == 'awaiting_stock'
