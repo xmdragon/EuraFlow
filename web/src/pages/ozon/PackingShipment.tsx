@@ -697,8 +697,8 @@ const PackingShipment: React.FC = () => {
       const container = document.querySelector(`.${styles.orderGrid}`);
       if (container) {
         const containerWidth = container.clientWidth;
-        const itemWidth = 160; // 卡片宽度
-        const gap = 10; // 间距
+        const itemWidth = 160;
+        const gap = 10;
         const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
         setItemsPerRow(columns);
 
@@ -709,13 +709,9 @@ const PackingShipment: React.FC = () => {
       }
     };
 
-    // 延迟执行，等待DOM完全渲染
-    const timer = setTimeout(calculateItemsPerRow, 0);
+    calculateItemsPerRow();
     window.addEventListener('resize', calculateItemsPerRow);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', calculateItemsPerRow);
-    };
+    return () => window.removeEventListener('resize', calculateItemsPerRow);
   }, []);
 
   // 复制功能处理函数
