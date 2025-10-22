@@ -194,15 +194,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 40px 60px 40px; // 增加底部padding为工具栏留空间
+  padding: 40px;
   min-height: 300px;
 }
 
 .previewImage {
-  max-width: 90vw;
-  max-height: 66.67vh; // 2/3屏幕高度
-  height: auto;
-  width: auto;
+  max-width: 70vw;
+  max-height: 70vh;
   display: block;
   transition: transform 0.3s ease;
   user-select: none;

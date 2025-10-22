@@ -18,6 +18,8 @@ import {
   MoreOutlined,
   SendOutlined,
   CopyOutlined,
+  LinkOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -317,6 +319,9 @@ const PackingShipment: React.FC = () => {
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<any>(null);
 
+  // 图片预览状态
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
 
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {
@@ -948,16 +953,30 @@ const PackingShipment: React.FC = () => {
 
             {/* 商品图片 */}
             {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={product?.name || product?.sku || '商品图片'}
-                className={styles.orderImage}
-                onClick={() => {
-                  if (ozonProductUrl) {
-                    window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
-                  }
-                }}
-              />
+              <div className={styles.imageWrapper}>
+                <img
+                  src={imageUrl}
+                  alt={product?.name || product?.sku || '商品图片'}
+                  className={styles.orderImage}
+                  onClick={() => {
+                    setPreviewImageUrl(optimizeOzonImageUrl(imageUrl, 800));
+                    setImagePreviewVisible(true);
+                  }}
+                />
+                {ozonProductUrl && (
+                  <Tooltip title="打开OZON链接">
+                    <div
+                      className={styles.linkIconOverlay}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <LinkOutlined />
+                    </div>
+                  </Tooltip>
+                )}
+              </div>
             ) : (
               <Avatar
                 size={160}
@@ -1198,35 +1217,42 @@ const PackingShipment: React.FC = () => {
         const imageUrl = optimizeOzonImageUrl(rawImageUrl, 160);
         const ozonProductUrl = item.sku ? `https://www.ozon.ru/product/${item.sku}/` : null;
 
-        const handleImageClick = () => {
-          if (ozonProductUrl) {
-            window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
-          }
-        };
-
         return (
-          <Tooltip title={item.name || item.sku || '点击打开OZON商品页'}>
-            <div
-              className={styles.productImageContainer}
-              onClick={handleImageClick}
-              style={{ cursor: ozonProductUrl ? 'pointer' : 'default' }}
-            >
-              {imageUrl ? (
+          <div className={styles.productImageContainer}>
+            {imageUrl ? (
+              <div className={styles.imageWrapper}>
                 <img
                   src={imageUrl}
                   alt={item.name || item.sku || '商品图片'}
                   className={styles.productImage}
+                  onClick={() => {
+                    setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800));
+                    setImagePreviewVisible(true);
+                  }}
                 />
-              ) : (
-                <Avatar
-                  size={160}
-                  icon={<ShoppingCartOutlined />}
-                  shape="square"
-                  className={styles.productImagePlaceholder}
-                />
-              )}
-            </div>
-          </Tooltip>
+                {ozonProductUrl && (
+                  <Tooltip title="打开OZON链接">
+                    <div
+                      className={styles.linkIconOverlay}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <LinkOutlined />
+                    </div>
+                  </Tooltip>
+                )}
+              </div>
+            ) : (
+              <Avatar
+                size={160}
+                icon={<ShoppingCartOutlined />}
+                shape="square"
+                className={styles.productImagePlaceholder}
+              />
+            )}
+          </div>
         );
       },
     },
@@ -2345,6 +2371,37 @@ const PackingShipment: React.FC = () => {
 
       {/* 批量打印错误展示Modal */}
       <PrintErrorModal />
+
+      {/* 图片预览Modal */}
+      <Modal
+        open={imagePreviewVisible}
+        onCancel={() => setImagePreviewVisible(false)}
+        footer={null}
+        closable={false}
+        mask={true}
+        maskStyle={{
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        }}
+        width="auto"
+        centered={false}
+        style={{
+          top: '5vh',
+        }}
+      >
+        <div className={styles.imagePreviewContainer}>
+          <Button
+            type="text"
+            icon={<CloseOutlined />}
+            onClick={() => setImagePreviewVisible(false)}
+            className={styles.imagePreviewCloseButton}
+          />
+          <img
+            src={previewImageUrl}
+            alt="商品大图"
+            className={styles.imagePreviewImage}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };
