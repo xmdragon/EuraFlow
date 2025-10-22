@@ -20,11 +20,21 @@ export interface Kuajing84SyncNotificationData {
   message: string;
 }
 
+export interface PostingNotificationData {
+  posting_number: string;
+  product_count?: number;
+  total_price?: string;
+  cancel_reason?: string;
+  old_status?: string;
+  new_status?: string;
+  timestamp: string;
+}
+
 export interface WebSocketNotification {
-  type: 'connected' | 'ping' | 'pong' | 'chat.new_message' | 'chat.message_updated' | 'kuajing84.sync_completed';
+  type: 'connected' | 'ping' | 'pong' | 'chat.new_message' | 'chat.message_updated' | 'kuajing84.sync_completed' | 'posting.created' | 'posting.cancelled' | 'posting.status_changed';
   shop_id?: number;
   chat_id?: string;
-  data?: ChatNotificationData | Kuajing84SyncNotificationData | any;
+  data?: ChatNotificationData | Kuajing84SyncNotificationData | PostingNotificationData | any;
   timestamp?: string;
 }
 

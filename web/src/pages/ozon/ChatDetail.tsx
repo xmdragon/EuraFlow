@@ -166,6 +166,22 @@ const ChatDetail: React.FC = () => {
   const renderMessage = (msg: ozonApi.OzonChatMessage) => {
     const isUser = msg.sender_type === 'user';
     const isSeller = msg.sender_type === 'seller';
+    const isSupport = msg.sender_type === 'support';
+
+    // 智能显示发送者名称
+    const getSenderName = () => {
+      if (msg.sender_name && msg.sender_name !== '未知客户') {
+        return msg.sender_name;
+      }
+
+      if (isSupport) {
+        return 'Ozon官方';
+      } else if (isSeller) {
+        return '卖家';
+      } else {
+        return '客户';
+      }
+    };
 
     return (
       <div
@@ -188,7 +204,7 @@ const ChatDetail: React.FC = () => {
                   strong
                   className={`${styles.senderName} ${isUser ? styles.userName : styles.sellerName}`}
                 >
-                  {msg.sender_name || (isSeller ? '卖家' : '客户')}
+                  {getSenderName()}
                 </Text>
               </div>
               <div className={styles.messageContent}>

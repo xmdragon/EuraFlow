@@ -5,8 +5,8 @@ import React, { useCallback } from 'react';
 import { notification } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { WebSocketNotification, ChatNotificationData, Kuajing84SyncNotificationData } from '@/types/notification';
-import { MessageOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { WebSocketNotification, ChatNotificationData, Kuajing84SyncNotificationData, PostingNotificationData } from '@/types/notification';
+import { MessageOutlined, CheckCircleOutlined, CloseCircleOutlined, ShoppingOutlined, WarningOutlined, InfoCircleOutlined } from '@ant-design/icons';
 
 export const useNotifications = (shopId: number | null) => {
   const navigate = useNavigate();
@@ -81,6 +81,83 @@ export const useNotifications = (shopId: number | null) => {
     [queryClient]
   );
 
+  const handlePostingCreated = useCallback(
+    (data: PostingNotificationData) => {
+      const key = `posting-created-${data.posting_number}`;
+
+      notification.success({
+        key,
+        message: '新订单',
+        description: `订单 ${data.posting_number}\n商品数量: ${data.product_count || 0}`,
+        icon: <ShoppingOutlined style={{ color: '#52c41a' }} />,
+        placement: 'bottomRight',
+        duration: 8,
+        onClick: () => {
+          notification.destroy(key);
+          if (shopId) {
+            navigate(`/ozon/orders?shopId=${shopId}`);
+          }
+        },
+      });
+
+      // 播放音效
+      try {
+        const audio = new Audio('/notice.mp3');
+        audio.volume = 0.8;
+        audio.play().catch(() => {
+          // 忽略自动播放被阻止的错误
+        });
+      } catch (error) {
+        // 忽略音效错误
+      }
+
+      // 刷新订单列表
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+    },
+    [shopId, navigate, queryClient]
+  );
+
+  const handlePostingCancelled = useCallback(
+    (data: PostingNotificationData) => {
+      const key = `posting-cancelled-${data.posting_number}`;
+
+      notification.warning({
+        key,
+        message: '订单已取消',
+        description: `订单 ${data.posting_number}\n原因: ${data.cancel_reason || '无原因'}`,
+        icon: <WarningOutlined style={{ color: '#faad14' }} />,
+        placement: 'bottomRight',
+        duration: 6,
+      });
+
+      // 刷新订单列表
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+    },
+    [queryClient]
+  );
+
+  const handlePostingStatusChanged = useCallback(
+    (data: PostingNotificationData) => {
+      const key = `posting-status-${data.posting_number}-${data.timestamp}`;
+
+      notification.info({
+        key,
+        message: '订单状态变更',
+        description: `订单 ${data.posting_number}\n新状态: ${data.new_status || '未知'}`,
+        icon: <InfoCircleOutlined style={{ color: '#1890ff' }} />,
+        placement: 'bottomRight',
+        duration: 6,
+      });
+
+      // 刷新订单列表
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+    },
+    [queryClient]
+  );
+
   const handleWebSocketMessage = useCallback(
     (message: WebSocketNotification) => {
       switch (message.type) {
@@ -101,6 +178,27 @@ export const useNotifications = (shopId: number | null) => {
           }
           break;
 
+        case 'posting.created':
+          // 新订单创建通知
+          if (message.shop_id === shopId && message.data) {
+            handlePostingCreated(message.data as PostingNotificationData);
+          }
+          break;
+
+        case 'posting.cancelled':
+          // 订单取消通知
+          if (message.shop_id === shopId && message.data) {
+            handlePostingCancelled(message.data as PostingNotificationData);
+          }
+          break;
+
+        case 'posting.status_changed':
+          // 订单状态变更通知
+          if (message.shop_id === shopId && message.data) {
+            handlePostingStatusChanged(message.data as PostingNotificationData);
+          }
+          break;
+
         case 'ping':
         case 'pong':
           // 心跳消息，忽略
@@ -110,7 +208,7 @@ export const useNotifications = (shopId: number | null) => {
           console.log('Unknown WebSocket message type:', message.type);
       }
     },
-    [shopId, handleChatNotification, handleKuajing84SyncNotification]
+    [shopId, handleChatNotification, handleKuajing84SyncNotification, handlePostingCreated, handlePostingCancelled, handlePostingStatusChanged]
   );
 
   return {

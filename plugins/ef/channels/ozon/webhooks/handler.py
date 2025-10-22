@@ -354,6 +354,30 @@ class OzonWebhookHandler:
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
 
+                # 发送 WebSocket 通知
+                try:
+                    from ef_core.websocket.manager import notification_manager
+
+                    notification_data = {
+                        "type": "posting.status_changed",
+                        "shop_id": self.shop_id,
+                        "data": {
+                            "posting_number": posting_number,
+                            "old_status": raw_status,
+                            "new_status": new_status,
+                            "timestamp": utcnow().isoformat()
+                        }
+                    }
+
+                    sent_count = await notification_manager.send_to_shop_users(
+                        self.shop_id,
+                        notification_data
+                    )
+                    logger.info(f"Sent posting status changed notification to {sent_count} connections for shop {self.shop_id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+
                 return {"posting_id": posting.id, "status": new_status, "shipped_at": posting.shipped_at.isoformat() if posting.shipped_at else None}
             else:
                 # Posting不存在，触发同步
@@ -493,6 +517,29 @@ class OzonWebhookHandler:
 
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
+
+                # 发送 WebSocket 通知
+                try:
+                    from ef_core.websocket.manager import notification_manager
+
+                    notification_data = {
+                        "type": "posting.cancelled",
+                        "shop_id": self.shop_id,
+                        "data": {
+                            "posting_number": posting_number,
+                            "cancel_reason": cancel_reason.get("reason") if cancel_reason else "无原因",
+                            "timestamp": utcnow().isoformat()
+                        }
+                    }
+
+                    sent_count = await notification_manager.send_to_shop_users(
+                        self.shop_id,
+                        notification_data
+                    )
+                    logger.info(f"Sent posting cancelled notification to {sent_count} connections for shop {self.shop_id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
 
                 return {"posting_id": posting.id, "cancelled": True}
 
@@ -786,19 +833,65 @@ class OzonWebhookHandler:
         payload: Dict[str, Any],
         webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
-        """处理新订单创建事件 (TYPE_NEW_POSTING)"""
+        """处理新订单创建事件 (TYPE_NEW_POSTING)
+
+        流程：先同步订单数据 → 确认数据库有订单 → 发送 WebSocket 通知
+        """
         posting_number = payload.get("posting_number")
         products = payload.get("products", [])
 
         logger.info(f"New posting created: {posting_number} with {len(products)} products")
 
-        # 触发订单同步
-        import asyncio
-        asyncio.create_task(self._trigger_order_sync(posting_number))
+        # 步骤1：等待订单同步完成（不使用 create_task）
+        await self._trigger_order_sync(posting_number)
 
-        webhook_event.entity_type = "posting"
-        webhook_event.entity_id = posting_number
-        return {"posting_number": posting_number, "sync_triggered": True}
+        # 步骤2：查询订单是否成功保存
+        from ..models.orders import OzonPosting
+        db_manager = get_db_manager()
+
+        posting = None
+        async with db_manager.get_session() as session:
+            stmt = select(OzonPosting).where(
+                and_(
+                    OzonPosting.shop_id == self.shop_id,
+                    OzonPosting.posting_number == posting_number
+                )
+            )
+            posting = await session.scalar(stmt)
+
+        # 步骤3：仅在订单存在时发送 WebSocket 通知
+        if posting:
+            try:
+                from ef_core.websocket.manager import notification_manager
+
+                notification_data = {
+                    "type": "posting.created",
+                    "shop_id": self.shop_id,
+                    "data": {
+                        "posting_number": posting_number,
+                        "product_count": len(products),
+                        "total_price": str(posting.total_price) if posting.total_price else "0",
+                        "timestamp": utcnow().isoformat()
+                    }
+                }
+
+                sent_count = await notification_manager.send_to_shop_users(
+                    self.shop_id,
+                    notification_data
+                )
+                logger.info(f"Sent new posting notification to {sent_count} connections for shop {self.shop_id}")
+
+            except Exception as e:
+                logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+
+            webhook_event.entity_type = "posting"
+            webhook_event.entity_id = str(posting.id)
+            return {"posting_number": posting_number, "synced": True, "notified": True}
+        else:
+            logger.warning(f"Posting {posting_number} not found after sync, notification not sent")
+            webhook_event.entity_type = "posting"
+            webhook_event.entity_id = posting_number
+            return {"posting_number": posting_number, "synced": False, "notified": False}
 
     async def _handle_posting_cutoff_date_changed(
         self,
