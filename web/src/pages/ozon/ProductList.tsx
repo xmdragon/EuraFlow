@@ -75,7 +75,7 @@ import ImagePreview from '@/components/ImagePreview';
 import PageTitle from '@/components/PageTitle';
 import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
-import ProductStatusTabs from '@/components/ozon/product/ProductStatusTabs';
+import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
 import './ProductList.css';
 import styles from './ProductList.module.scss';
 
@@ -1285,61 +1285,29 @@ const ProductList: React.FC = () => {
       <PageTitle icon={<ShoppingOutlined />} title="商品列表" />
 
       {/* 搜索过滤 */}
-      <Card className={styles.filterCard}>
-        <Form form={filterForm} layout="inline" onFinish={handleFilter}>
-          <Form.Item label="选择店铺">
-            <ShopSelector
-              value={selectedShop}
-              onChange={(shopId) => {
-                const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
-                setSelectedShop(normalized);
-                // 切换店铺时重置页码和选中的行
-                setCurrentPage(1);
-                setSelectedRows([]);
-                // 保存到localStorage
-                localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
-              }}
-              showAllOption={false}
-              className={styles.shopSelector}
-            />
-          </Form.Item>
-          <Form.Item name="search">
-            <Input placeholder="搜索 (SKU/标题/条码/产品ID)" prefix={<SearchOutlined />} style={{ width: 250 }} />
-          </Form.Item>
-          <Form.Item name="status">
-            <Select placeholder="状态" style={{ width: 120 }} allowClear>
-              <Option value="on_sale">销售中</Option>
-              <Option value="ready_to_sell">准备销售</Option>
-              <Option value="error">错误</Option>
-              <Option value="pending_modification">待修改</Option>
-              <Option value="inactive">下架</Option>
-              <Option value="archived">已归档</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">
-                查询
-              </Button>
-              <Button onClick={handleReset}>重置</Button>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/dashboard/ozon/products/create')}>
-                新建商品
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-
-        {/* 商品状态标签 */}
-        <ProductStatusTabs
-          stats={globalStats?.products}
-          activeStatus={filterValues.status || 'on_sale'}
-          onStatusChange={(key) => {
-            filterForm.setFieldsValue({ status: key });
-            setFilterValues({ ...filterValues, status: key });
-            setCurrentPage(1);
-          }}
-        />
-      </Card>
+      <ProductFilterBar
+        form={filterForm}
+        selectedShop={selectedShop}
+        onShopChange={(shopId) => {
+          const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+          setSelectedShop(normalized);
+          // 切换店铺时重置页码和选中的行
+          setCurrentPage(1);
+          setSelectedRows([]);
+          // 保存到localStorage
+          localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
+        }}
+        filterValues={filterValues}
+        onFilter={handleFilter}
+        onReset={handleReset}
+        onStatusChange={(key) => {
+          filterForm.setFieldsValue({ status: key });
+          setFilterValues({ ...filterValues, status: key });
+          setCurrentPage(1);
+        }}
+        onCreateProduct={() => navigate('/dashboard/ozon/products/create')}
+        stats={globalStats?.products}
+      />
 
       {/* 操作按钮 */}
       <Card className={styles.productListCard}>
