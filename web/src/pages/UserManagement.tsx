@@ -12,10 +12,12 @@ import {
   Tag,
   Typography,
   Tooltip,
+  Popconfirm,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
+  DeleteOutlined,
   UserAddOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -46,7 +48,6 @@ interface Shop {
 
 interface CreateUserData {
   username: string;
-  email?: string;
   password: string;
   role: string;
   is_active: boolean;
@@ -155,13 +156,13 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  // 禁用/启用用户
+  // 停用/启用用户
   const handleToggleStatus = async (user: User) => {
     try {
       await axios.put(`/api/ef/v1/auth/users/${user.id}`, {
         is_active: !user.is_active,
       });
-      notifySuccess('操作成功', user.is_active ? '用户已禁用' : '用户已启用');
+      notifySuccess('操作成功', user.is_active ? '用户已停用' : '用户已启用');
       fetchUsers();
     } catch (error: any) {
       // 获取具体的错误信息
@@ -177,11 +178,30 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  // 删除用户
+  const handleDelete = async (userId: number) => {
+    try {
+      await axios.delete(`/api/ef/v1/auth/users/${userId}`);
+      notifySuccess('删除成功', '用户已删除');
+      fetchUsers();
+    } catch (error: any) {
+      // 获取具体的错误信息
+      let errorMsg = '删除失败';
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'object') {
+          errorMsg = error.response.data.detail.message || '删除失败';
+        } else {
+          errorMsg = error.response.data.detail;
+        }
+      }
+      notifyError('删除失败', errorMsg);
+    }
+  };
+
   // 打开编辑模态框
   const handleEdit = (user: User) => {
     setEditingUser(user);
     form.setFieldsValue({
-      email: user.email,
       username: user.username,
       role: user.role,
       is_active: user.is_active,
@@ -202,12 +222,6 @@ const UserManagement: React.FC = () => {
       title: '用户名',
       dataIndex: 'username',
       key: 'username',
-    },
-    {
-      title: '邮箱',
-      dataIndex: 'email',
-      key: 'email',
-      render: (text: string) => text || '-',
     },
     {
       title: '角色',
@@ -234,7 +248,7 @@ const UserManagement: React.FC = () => {
       render: (isActive: boolean) => (
         <Tag icon={isActive ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
              color={isActive ? 'success' : 'error'}>
-          {isActive ? '激活' : '禁用'}
+          {isActive ? '激活' : '停用'}
         </Tag>
       ),
     },
@@ -264,13 +278,28 @@ const UserManagement: React.FC = () => {
                 onClick={() => handleEdit(record)}
               />
             </Tooltip>
-            <Tooltip title={record.is_active ? '禁用' : '启用'}>
+            <Tooltip title={record.is_active ? '停用' : '启用'}>
               <Switch
                 checked={record.is_active}
                 onChange={() => handleToggleStatus(record)}
                 size="small"
               />
             </Tooltip>
+            <Popconfirm
+              title="确定要删除此用户吗？"
+              description="删除后无法恢复，请谨慎操作"
+              onConfirm={() => handleDelete(record.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Tooltip title="删除">
+                <Button
+                  type="link"
+                  danger
+                  icon={<DeleteOutlined />}
+                />
+              </Tooltip>
+            </Popconfirm>
           </Space>
         );
       },
@@ -329,7 +358,7 @@ const UserManagement: React.FC = () => {
             <>
               <Form.Item
                 name="username"
-                label="用户名（必填）"
+                label="用户名"
                 rules={[
                   { required: true, message: '请输入用户名' },
                   { min: 3, message: '用户名至少3个字符' },
@@ -337,16 +366,6 @@ const UserManagement: React.FC = () => {
                 ]}
               >
                 <Input placeholder="3-50个字符，用于登录" />
-              </Form.Item>
-
-              <Form.Item
-                name="email"
-                label="邮箱（选填）"
-                rules={[
-                  { type: 'email', message: '请输入有效的邮箱地址' },
-                ]}
-              >
-                <Input placeholder="user@example.com（可不填）" />
               </Form.Item>
 
               <Form.Item
@@ -391,7 +410,7 @@ const UserManagement: React.FC = () => {
             valuePropName="checked"
             label="账号状态"
           >
-            <Switch checkedChildren="激活" unCheckedChildren="禁用" />
+            <Switch checkedChildren="激活" unCheckedChildren="停用" />
           </Form.Item>
 
           <Form.Item
