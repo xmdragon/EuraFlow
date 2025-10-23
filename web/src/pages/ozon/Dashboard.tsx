@@ -14,7 +14,7 @@ import { Card, Row, Col, Statistic, Space, Progress, List, Tag, Typography } fro
 import React, { useState, useEffect, useCallback } from 'react';
 
 import * as ozonApi from '../../services/ozonApi';
-import ShopSelector from '../../components/ozon/ShopSelector';
+import ShopSelectorWithLabel from '../../components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import styles from './Dashboard.module.scss';
 
@@ -132,9 +132,11 @@ const OzonDashboard: React.FC = () => {
     <div>
       <PageTitle icon={<ShoppingOutlined />} title="Ozon 管理概览" />
 
-      <Row className={styles.titleRow} align="middle" justify="flex-end">
+      <div className={styles.contentContainer}>
+        <Row className={styles.titleRow} align="middle" justify="flex-end">
         <Col>
-          <ShopSelector
+          <ShopSelectorWithLabel
+            showLabel={false}
             value={selectedShop}
             onChange={handleShopChange}
             showAllOption={false}
@@ -278,6 +280,7 @@ const OzonDashboard: React.FC = () => {
           />
         </Card>
       )}
+      </div>
     </div>
   );
 };

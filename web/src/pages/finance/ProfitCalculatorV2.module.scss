@@ -1,0 +1,56 @@
+@use '@/styles/variables' as *;
+@use '@/styles/mixins' as *;
+
+// ===== 内容容器（抵消 Row gutter 负边距） =====
+.contentContainer {
+  padding: 0 12px;
+}
+
+// ===== 页面标题 =====
+.titleSpace {
+  margin-bottom: 24px;
+}
+
+.titleIcon {
+  font-size: 24px;
+  color: #1890ff;
+}
+
+.titleText {
+  margin: 0;
+}
+
+// ===== 卡片 =====
+.infoCard {
+  margin-bottom: 16px;
+}
+
+.scenarioCard {
+  margin-bottom: 16px;
+}
+
+// ===== 表单控件 =====
+.fullWidthInput {
+  width: 100%;
+}
+
+.fullWidthSpace {
+  width: 100%;
+}
+
+// ===== 结果展示 =====
+.profitText {
+  color: #52c41a;
+}
+
+.divider {
+  margin: 8px 0;
+}
+
+.formulaText {
+  font-size: 11px;
+}
+
+.scenarioIcon {
+  font-size: 18px;
+}

@@ -5,7 +5,7 @@
 import React from 'react';
 import { Card, Row, Col, Space, Form, Input, Button, FormInstance } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
-import ShopSelector from '@/components/ozon/ShopSelector';
+import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
 export interface SearchParams {
@@ -79,16 +79,14 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
     <Card className={styles.filterCard}>
       <Row gutter={16} align="middle">
         {/* 左侧：店铺选择器 */}
-        <Col flex="300px">
-          <Space size="middle">
-            <span className={styles.shopLabel}>选择店铺:</span>
-            <ShopSelector
-              value={selectedShop}
-              onChange={onShopChange}
-              showAllOption={false}
-              style={{ width: 200 }}
-            />
-          </Space>
+        <Col>
+          <ShopSelectorWithLabel
+            label="选择店铺"
+            value={selectedShop}
+            onChange={onShopChange}
+            showAllOption={false}
+            style={{ width: 200 }}
+          />
         </Col>
 
         {/* 右侧：搜索框 */}

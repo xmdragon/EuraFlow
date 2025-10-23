@@ -30,7 +30,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnsType } from 'antd/es/table';
-import ShopSelector from '@/components/ozon/ShopSelector';
+import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
@@ -244,7 +244,8 @@ const ProductListing: React.FC = () => {
       {/* 页面标题和店铺选择器 */}
       <PageTitle icon={<CloudUploadOutlined />} title="商品上架管理" />
       <div style={{ marginBottom: 24 }}>
-        <ShopSelector
+        <ShopSelectorWithLabel
+          showLabel={false}
           value={selectedShop}
           onChange={(shopId) => setSelectedShop(shopId as number)}
           style={{ width: 200 }}

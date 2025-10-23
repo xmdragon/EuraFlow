@@ -233,7 +233,8 @@ const FinanceTransactions: React.FC = () => {
     <div>
       <PageTitle icon={<DollarOutlined />} title="财务交易" />
 
-      <Card className={styles.filterCard}>
+      <div className={styles.contentContainer}>
+        <Card className={styles.filterCard}>
         <Row gutter={[16, 16]} align="middle">
           <Col>
             <span>选择店铺:</span>
@@ -403,6 +404,7 @@ const FinanceTransactions: React.FC = () => {
           </>
         )}
       </Card>
+      </div>
     </div>
   );
 };

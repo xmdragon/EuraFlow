@@ -1,6 +1,11 @@
 @use '@/styles/variables' as *;
 @use '@/styles/mixins' as *;
 
+// ===== 内容容器（抵消 Row gutter 负边距） =====
+.contentContainer {
+  padding: 0 4px;
+}
+
 // ===== 页面标题行 =====
 .titleRow {
   margin-bottom: 8px;

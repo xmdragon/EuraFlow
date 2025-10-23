@@ -34,7 +34,7 @@ import moment from 'moment';
 
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
-import ShopSelector from '@/components/ozon/ShopSelector';
+import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import styles from './ChatList.module.scss';
 
@@ -214,9 +214,11 @@ const ChatList: React.FC = () => {
     <div>
       <PageTitle icon={<MessageOutlined />} title="聊天管理" />
 
-      {/* 店铺选择器 */}
-      <Card className={styles.shopCard}>
-        <ShopSelector
+      <div className={styles.contentContainer}>
+        {/* 店铺选择器 */}
+        <Card className={styles.shopCard}>
+        <ShopSelectorWithLabel
+          label="选择店铺"
           value={selectedShopId}
           onChange={(shopId) => {
             const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : shopId;
@@ -407,6 +409,7 @@ const ChatList: React.FC = () => {
               )}
             </Spin>
           </Card>
+      </div>
     </div>
   );
 };

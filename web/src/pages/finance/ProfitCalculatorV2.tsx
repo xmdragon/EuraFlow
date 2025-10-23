@@ -7,6 +7,7 @@ import { SCENARIOS } from './constants';
 import ScenarioCard from './ScenarioCard';
 import { matchScenario, matchAllScenarios } from '../ozon/profitCalculator';
 import { getExchangeRate } from '@/services/exchangeRateApi';
+import styles from './ProfitCalculatorV2.module.scss';
 
 const { Title, Text } = Typography;
 
@@ -64,15 +65,16 @@ const ProfitCalculatorV2: React.FC = () => {
 
   return (
     <div>
-      <Space align="center" style={{ marginBottom: 24 }}>
-        <CalculatorOutlined style={{ fontSize: 24, color: '#1890ff' }} />
-        <Title level={3} style={{ margin: 0 }}>
-          利润计算器
-        </Title>
-      </Space>
+      <div className={styles.contentContainer}>
+        <Space align="center" className={styles.titleSpace}>
+          <CalculatorOutlined className={styles.titleIcon} />
+          <Title level={3} className={styles.titleText}>
+            利润计算器
+          </Title>
+        </Space>
 
-      {/* 统一输入区域 */}
-      <Card title="商品信息" style={{ marginBottom: 16 }}>
+        {/* 统一输入区域 */}
+        <Card title="商品信息" className={styles.infoCard}>
         <Form
           form={form}
           layout="horizontal"
@@ -84,12 +86,12 @@ const ProfitCalculatorV2: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="成本(RMB)" name="cost">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="请输入" controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} precision={2} placeholder="请输入" controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item label="售价(RMB)" name="price">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="请输入" controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} precision={2} placeholder="请输入" controls={false} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -97,12 +99,12 @@ const ProfitCalculatorV2: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="重量(克)" name="weight">
-                    <InputNumber style={{ width: '100%' }} min={0} max={25000} precision={0} placeholder="请输入" controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} max={25000} precision={0} placeholder="请输入" controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item label="打包费(RMB)" name="packingFee">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={1} placeholder="默认2.0" controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} precision={1} placeholder="默认2.0" controls={false} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -110,7 +112,7 @@ const ProfitCalculatorV2: React.FC = () => {
 
             <Col span={12}>
               <Card size="small" title="场景匹配信息" type="inner">
-                <Space direction="vertical" style={{ width: '100%' }}>
+                <Space direction="vertical" className={styles.fullWidthSpace}>
                   {primaryScenario ? (
                     <>
                       <Row justify="space-between">
@@ -118,7 +120,7 @@ const ProfitCalculatorV2: React.FC = () => {
                           <Text>匹配场景：</Text>
                         </Col>
                         <Col>
-                          <Text strong style={{ color: '#52c41a' }}>
+                          <Text strong className={styles.profitText}>
                             {primaryScenario.icon} {primaryScenario.title}
                           </Text>
                         </Col>
@@ -149,7 +151,7 @@ const ProfitCalculatorV2: React.FC = () => {
                           <Tag color="green">{primaryScenario.priceRange}</Tag>
                         </Col>
                       </Row>
-                      <Divider style={{ margin: '8px 0' }} />
+                      <Divider className={styles.divider} />
                       <Row justify="space-between">
                         <Col>
                           <Text>平台扣点：</Text>
@@ -163,7 +165,7 @@ const ProfitCalculatorV2: React.FC = () => {
                           <Text>运费公式：</Text>
                         </Col>
                         <Col>
-                          <Text code style={{ fontSize: 11 }}>{primaryScenario.shipping.formula}</Text>
+                          <Text code className={styles.formulaText}>{primaryScenario.shipping.formula}</Text>
                         </Col>
                       </Row>
                     </>
@@ -199,7 +201,7 @@ const ProfitCalculatorV2: React.FC = () => {
               key: scenario.id,
               label: (
                 <Space>
-                  <span style={{ fontSize: '18px' }}>{scenario.icon}</span>
+                  <span className={styles.scenarioIcon}>{scenario.icon}</span>
                   <Text strong>{scenario.title}</Text>
                   <Tag color="blue">{scenario.weightRange}</Tag>
                   {isMatched && (
@@ -225,7 +227,7 @@ const ProfitCalculatorV2: React.FC = () => {
                                 <Text strong>{s.title}</Text>
                               </Space>
                             }
-                            style={{ marginBottom: 16 }}
+                            className={styles.scenarioCard}
                           >
                             <ScenarioCard
                               scenario={s}
@@ -254,6 +256,7 @@ const ProfitCalculatorV2: React.FC = () => {
           })}
         />
       </Card>
+      </div>
     </div>
   );
 };

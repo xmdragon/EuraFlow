@@ -456,8 +456,9 @@ const WatermarkManagement: React.FC = () => {
       {/* 页面标题 */}
       <PageTitle icon={<PictureOutlined />} title="水印管理" />
 
-      {/* Cloudinary全局配置 */}
-      <Card title="Cloudinary全局配置" className={styles.cloudinaryCard}>
+      <div className={styles.contentContainer}>
+        {/* Cloudinary全局配置 */}
+        <Card title="Cloudinary全局配置" className={styles.cloudinaryCard}>
         <Spin spinning={cloudinaryLoading}>
           <Form
             form={cloudinaryForm}
@@ -1011,6 +1012,7 @@ const WatermarkManagement: React.FC = () => {
           </div>
         )}
       </Modal>
+      </div>
     </div>
   );
 };

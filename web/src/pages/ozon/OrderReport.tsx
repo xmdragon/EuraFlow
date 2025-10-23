@@ -53,7 +53,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import ShopSelector from '@/components/ozon/ShopSelector';
+import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import { formatRMB } from '../../utils/currency';
 import { optimizeOzonImageUrl } from '../../utils/ozonImageOptimizer';
@@ -547,20 +547,18 @@ const OrderReport: React.FC = () => {
             </Space>
           </Col>
           <Col>
-            <Space>
-              <span>选择店铺：</span>
-              <ShopSelector
-                value={selectedShop}
-                onChange={(value) => {
-                  setSelectedShop(value as number | null);
-                  setPage(1);
-                  setAllLoadedData([]);
-                }}
-                placeholder="请选择店铺"
-                style={{ minWidth: 180 }}
-                showAllOption={false}
-              />
-            </Space>
+            <ShopSelectorWithLabel
+              label="选择店铺"
+              value={selectedShop}
+              onChange={(value) => {
+                setSelectedShop(value as number | null);
+                setPage(1);
+                setAllLoadedData([]);
+              }}
+              placeholder="请选择店铺"
+              style={{ minWidth: 180 }}
+              showAllOption={false}
+            />
           </Col>
           <Col>
             <Space>

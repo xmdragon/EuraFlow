@@ -1,6 +1,11 @@
 @use '@/styles/variables' as *;
 @use '@/styles/mixins' as *;
 
+// ===== 内容容器（抵消 Row gutter 负边距） =====
+.contentContainer {
+  padding: 0 8px;
+}
+
 // ===== 页面容器 =====
 .pageContainer {
   background: #f0f2f5;

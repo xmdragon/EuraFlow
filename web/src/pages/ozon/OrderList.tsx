@@ -57,7 +57,7 @@ import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../u
 import { useCurrency } from '../../hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import ShopSelector from '@/components/ozon/ShopSelector';
+import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import PrintErrorModal from '@/components/ozon/order/PrintErrorModal';
@@ -952,8 +952,9 @@ const OrderList: React.FC = () => {
             setCurrentPage(1); // 搜索时重置到第一页
           }}
         >
-          <Form.Item label="选择店铺">
-            <ShopSelector
+          <Form.Item>
+            <ShopSelectorWithLabel
+              label="选择店铺"
               value={selectedShop}
               onChange={(shopId) => {
                 const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);

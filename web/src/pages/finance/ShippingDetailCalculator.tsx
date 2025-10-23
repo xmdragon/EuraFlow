@@ -25,6 +25,7 @@ import {
   type UNIService,
   type UNICategory,
 } from './ozonUniShippingData';
+import styles from './ShippingDetailCalculator.module.scss';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -335,8 +336,9 @@ const ShippingDetailCalculator: React.FC = () => {
 
   return (
     <div>
-      {/* 价格测算表 */}
-      <Card title="价格测算表" style={{ marginBottom: 16 }}>
+      <div className={styles.contentContainer}>
+        {/* 价格测算表 */}
+        <Card title="价格测算表" className={styles.cardMargin}>
         <Form
           form={form}
           layout="horizontal"
@@ -348,12 +350,12 @@ const ShippingDetailCalculator: React.FC = () => {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="重量(克)" name="weight">
-                    <InputNumber style={{ width: '100%' }} min={0} max={25000} precision={0} controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} max={25000} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item label="货值(RMB)" name="value">
-                    <InputNumber style={{ width: '100%' }} min={0} precision={0} controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -361,17 +363,17 @@ const ShippingDetailCalculator: React.FC = () => {
               <Row gutter={16}>
                 <Col span={8}>
                   <Form.Item label="长(cm)" name="length">
-                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} max={150} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="宽(cm)" name="width">
-                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} max={150} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="高(cm)" name="height">
-                    <InputNumber style={{ width: '100%' }} min={0} max={150} precision={0} controls={false} />
+                    <InputNumber className={styles.fullWidthInput} min={0} max={150} precision={0} controls={false} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -386,7 +388,7 @@ const ShippingDetailCalculator: React.FC = () => {
 
             <Col span={12}>
               <Card size="small" title="体积重量" type="inner">
-                <Space direction="vertical" style={{ width: '100%' }}>
+                <Space direction="vertical" className={styles.fullWidthSpace}>
                   <Row justify="space-between">
                     <Col>
                       <Text>体积重量：</Text>
@@ -437,7 +439,7 @@ const ShippingDetailCalculator: React.FC = () => {
                 message="体积重量 = (长×宽×高) / 5000"
                 type="info"
                 showIcon
-                style={{ marginTop: 16 }}
+                className={styles.alertMargin}
               />
             </Col>
           </Row>
@@ -479,6 +481,7 @@ const ShippingDetailCalculator: React.FC = () => {
             }))}
         />
       </Card>
+      </div>
     </div>
   );
 };

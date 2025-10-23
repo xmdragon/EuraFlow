@@ -115,12 +115,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   if (!isMultiple && shops.length === 1 && !showAllOption) {
     const shop = shops[0];
     const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
-    return (
-      <Space>
-        <ShopOutlined />
-        <span>{displayName}</span>
-      </Space>
-    );
+    return <span>{displayName}</span>;
   }
 
   return (
