@@ -8,6 +8,7 @@ export interface User {
   is_active: boolean;
   parent_user_id?: number;
   primary_shop_id?: number;
+  shop_ids?: number[];  // 用户关联的店铺ID列表
   last_login_at?: string;
   created_at: string;
   updated_at: string;

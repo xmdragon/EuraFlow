@@ -317,20 +317,32 @@ async def async_discard_order(
         # 解密密码
         password = kuajing84_service._decrypt(config.password)
 
-        # 重新登录获取最新Cookie
+        # 强制重新登录并执行废弃操作
         from .kuajing84_client import Kuajing84Client
-        client = Kuajing84Client(base_url=config.base_url, timeout=60.0)
+        async with Kuajing84Client(base_url=config.base_url, timeout=60.0) as client:
+            # 登录获取最新Cookie
+            try:
+                login_result = await client.login(config.username, password)
+                cookies = login_result["cookies"]
 
-        try:
-            login_result = await client.login(config.username, password)
-            cookies = login_result["cookies"]
+                # 更新数据库中的Cookie
+                config.cookie = cookies
+                config.cookie_expires_at = datetime.fromisoformat(login_result["expires_at"].replace("Z", "+00:00"))
+                await db.commit()
 
-            # 更新数据库中的Cookie
-            config.cookie = cookies
-            config.cookie_expires_at = datetime.fromisoformat(login_result["expires_at"].replace("Z", "+00:00"))
-            await db.commit()
+                logger.info("跨境84强制登录成功（废弃订单）")
 
-            logger.info("跨境84登录成功（废弃订单）")
+            except Exception as e:
+                logger.error(f"跨境84登录失败: {e}")
+                error_msg = f"登录失败: {str(e)}"
+                sync_log.sync_status = "failed"
+                sync_log.error_message = error_msg
+                sync_log.attempts += 1
+                await db.commit()
+
+                # 发送 WebSocket 通知
+                await _send_websocket_notification(db, sync_log, "failed", error_msg)
+                return
 
             # 5. 调用跨境84 API 废弃订单（支持重试）
             discard_success = False

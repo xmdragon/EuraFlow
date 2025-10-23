@@ -36,7 +36,14 @@ interface User {
   role: string;
   is_active: boolean;
   parent_user_id?: number;
+  shop_ids?: number[];
   created_at: string;
+}
+
+interface Shop {
+  id: number;
+  name: string;
+  platform: string;
 }
 
 interface CreateUserData {
@@ -51,6 +58,7 @@ interface CreateUserData {
 const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -79,13 +87,29 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  // 获取店铺列表
+  const fetchShops = async () => {
+    try {
+      const response = await axios.get('/api/ef/v1/ozon/shops');
+      setShops(response.data);
+    } catch (error) {
+      notifyError('获取失败', '获取店铺列表失败');
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchShops();
   }, []);
 
   // 创建/更新用户
   const handleSubmit = async (values: any) => {
     try {
+      // 处理shop_ids：如果是admin角色，传入所有店铺ID
+      const shopIds = values.role === 'admin'
+        ? shops.map(shop => shop.id)
+        : (values.shop_ids || []);
+
       if (editingUser) {
         // 更新用户
         await axios.put(`/api/ef/v1/auth/users/${editingUser.id}`, {
@@ -93,11 +117,15 @@ const UserManagement: React.FC = () => {
           role: values.role,
           is_active: values.is_active,
           permissions: values.permissions || [],
+          shop_ids: shopIds,
         });
         notifySuccess('更新成功', '用户更新成功');
       } else {
         // 创建用户
-        await axios.post('/api/ef/v1/auth/users', values);
+        await axios.post('/api/ef/v1/auth/users', {
+          ...values,
+          shop_ids: shopIds,
+        });
         notifySuccess('创建成功', '用户创建成功');
       }
       setModalVisible(false);
@@ -175,6 +203,7 @@ const UserManagement: React.FC = () => {
       username: user.username,
       role: user.role,
       is_active: user.is_active,
+      shop_ids: user.shop_ids || [],
     });
     setModalVisible(true);
   };
@@ -395,6 +424,37 @@ const UserManagement: React.FC = () => {
             label="账号状态"
           >
             <Switch checkedChildren="激活" unCheckedChildren="禁用" />
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
+          >
+            {({ getFieldValue }) => {
+              const currentRole = getFieldValue('role');
+              const isAdmin = currentRole === 'admin';
+
+              return (
+                <Form.Item
+                  name="shop_ids"
+                  label="关联店铺"
+                  tooltip={isAdmin ? 'admin角色自动关联所有店铺' : '选择用户可访问的店铺'}
+                >
+                  <Select
+                    mode="multiple"
+                    placeholder={isAdmin ? '自动关联所有店铺' : '请选择店铺'}
+                    disabled={isAdmin}
+                    value={isAdmin ? shops.map(shop => shop.id) : undefined}
+                  >
+                    {shops.map(shop => (
+                      <Option key={shop.id} value={shop.id}>
+                        {shop.name}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              );
+            }}
           </Form.Item>
 
           <Form.Item

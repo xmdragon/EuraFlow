@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 import logging
 
 from ef_core.database import get_async_session
+from ef_core.models.users import User
+from ef_core.api.auth import get_current_user_flexible
 from ..models import OzonShop, OzonProduct, OzonOrder
 from ..utils.datetime_utils import utcnow
 
@@ -48,14 +50,23 @@ class ShopResponseDTO(BaseModel):
 
 @router.get("/shops")
 async def get_shops(
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
-    """获取 Ozon 店铺列表"""
-    # 从数据库获取店铺列表
-    result = await db.execute(
-        select(OzonShop).where(OzonShop.owner_user_id == 1)  # 临时硬编码用户ID
-    )
+    """获取 Ozon 店铺列表（只返回用户关联的店铺）"""
+    from ef_core.models.users import user_shops
+
+    # 根据用户角色过滤店铺
+    if current_user.role == "admin":
+        # admin 返回所有店铺
+        stmt = select(OzonShop)
+    else:
+        # 其他用户只返回关联的店铺
+        stmt = select(OzonShop).join(
+            user_shops, OzonShop.id == user_shops.c.shop_id
+        ).where(user_shops.c.user_id == current_user.id)
+
+    result = await db.execute(stmt.order_by(OzonShop.created_at.desc()))
     shops = result.scalars().all()
 
     # 计算真实的统计数据
@@ -87,21 +98,32 @@ async def get_shops(
 @router.post("/shops")
 async def create_shop(
     shop_data: ShopCreateDTO,
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """创建新的 Ozon 店铺"""
     new_shop = OzonShop(
         shop_name=shop_data.name,  # 使用前端的name字段
         platform=shop_data.platform,
         status="active",
-        owner_user_id=1,  # 临时硬编码
+        owner_user_id=current_user.id,
         client_id=shop_data.client_id,
         api_key_enc=shop_data.api_key,  # 实际应该加密
         config=shop_data.config or {}
     )
 
     db.add(new_shop)
+    await db.flush()  # 先flush获取shop ID
+
+    # 关联所有 admin 用户到新店铺
+    admin_users_result = await db.execute(
+        select(User).where(User.role == "admin")
+    )
+    admin_users = admin_users_result.scalars().all()
+
+    for admin in admin_users:
+        admin.shops.append(new_shop)
+
     await db.commit()
     await db.refresh(new_shop)
 

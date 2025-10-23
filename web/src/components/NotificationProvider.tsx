@@ -30,6 +30,16 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children, u
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // 从用户对象获取关联的店铺ID列表
+  useEffect(() => {
+    if (user?.shop_ids) {
+      setShopIds(user.shop_ids);
+      console.log('WebSocket subscribing to shops:', user.shop_ids);
+    } else {
+      setShopIds([]);
+    }
+  }, [user]);
+
   const { handleWebSocketMessage } = useNotifications(shopIds[0] || null);
 
   // 建立WebSocket连接
