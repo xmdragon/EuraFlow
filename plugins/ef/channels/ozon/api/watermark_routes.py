@@ -13,6 +13,8 @@ from sqlalchemy import select, and_, update
 import logging
 
 from ef_core.database import get_async_session
+from ef_core.middleware.auth import require_role
+from ef_core.models.users import User
 from ..models.watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
 from ..models import OzonProduct, OzonShop
 from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
@@ -132,7 +134,8 @@ async def create_cloudinary_config(
     api_secret: str = Form(...),
     folder_prefix: str = Form("euraflow"),
     auto_cleanup_days: int = Form(30),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """创建或更新Cloudinary配置（全局唯一）"""
     try:
@@ -214,7 +217,8 @@ async def get_cloudinary_config(
 
 @router.post("/cloudinary/test")
 async def test_cloudinary_connection(
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """测试Cloudinary连接"""
     # 获取全局配置
@@ -257,7 +261,8 @@ async def create_watermark_config(
     margin_pixels: int = Form(20),
     positions: str = Form('["bottom_right"]'),  # JSON字符串
     watermark_file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """创建水印配置"""
     try:
@@ -364,7 +369,8 @@ async def update_watermark_config(
     positions: str = Form('["bottom_right"]'),  # JSON字符串
     color_type: str = Form("white"),
     is_active: bool = Form(True),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """更新水印配置"""
     try:
@@ -412,7 +418,8 @@ async def update_watermark_config(
 @router.delete("/configs/{config_id}")
 async def delete_watermark_config(
     config_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """删除水印配置"""
     config = await db.get(WatermarkConfig, config_id)
@@ -436,7 +443,8 @@ async def delete_watermark_config(
 @router.post("/preview")
 async def preview_watermark(
     request: WatermarkPreviewRequest,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """预览单图水印效果"""
     try:
@@ -483,7 +491,8 @@ async def preview_watermark(
 @router.post("/batch/preview")
 async def preview_watermark_batch(
     request: BatchPreviewRequest,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """批量预览水印效果，返回每个商品所有图片的预览结果（不进行位置分析）"""
     try:
@@ -624,7 +633,8 @@ async def apply_watermark_batch(
     request: BatchWatermarkRequest,
     sync_mode: bool = Query(True, description="同步处理模式（True:立即处理，False:异步处理）"),
     analyze_mode: str = Query("individual", description="分析模式: 'individual'=每张图片单独分析, 'fast'=使用第一张图片的分析结果"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """批量应用水印"""
     try:
@@ -767,7 +777,8 @@ async def apply_watermark_batch(
 @router.post("/batch/restore")
 async def restore_original_batch(
     request: BatchRestoreRequest,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """批量还原原图"""
     try:
@@ -907,7 +918,8 @@ async def cleanup_old_resources(
     shop_id: Optional[int] = Query(None),
     days: int = Query(30, ge=1),
     dry_run: bool = Query(False),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """清理过期Cloudinary资源"""
     try:
@@ -975,7 +987,8 @@ async def list_cloudinary_resources(
 @router.delete("/resources")
 async def delete_cloudinary_resources(
     request: Dict[str, List[str]] = Body(..., description='{"public_ids": ["id1", "id2"]}'),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """批量删除Cloudinary资源"""
     try:

@@ -11,6 +11,7 @@ from ef_core.services.api_key_service import get_api_key_service
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user
+from ef_core.middleware.auth import require_role
 from ef_core.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -68,7 +69,7 @@ class RegenerateAPIKeyResponse(BaseModel):
 @router.post("/", response_model=CreateAPIKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     request: CreateAPIKeyRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("operator")),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -130,7 +131,7 @@ async def list_api_keys(
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_api_key(
     key_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("operator")),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -171,7 +172,7 @@ async def delete_api_key(
 @router.put("/{key_id}/regenerate", response_model=RegenerateAPIKeyResponse)
 async def regenerate_api_key(
     key_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("operator")),
     db: AsyncSession = Depends(get_async_session)
 ):
     """

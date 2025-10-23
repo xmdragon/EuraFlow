@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ef_core.database import get_async_session
 from ef_core.services.exchange_rate_service import ExchangeRateService
 from ef_core.utils.logger import get_logger
+from ef_core.middleware.auth import require_role
+from ef_core.models.users import User
 
 router = APIRouter(prefix="/exchange-rates", tags=["exchange-rates"])
 logger = get_logger(__name__)
@@ -82,7 +84,8 @@ class TestConnectionRequest(BaseModel):
 @router.post("/config", response_model=ConfigureAPIResponse)
 async def configure_api(
     request: ConfigureAPIRequest,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
     配置汇率API密钥
@@ -177,7 +180,10 @@ async def convert(
 
 
 @router.post("/refresh")
-async def refresh_rate(db: AsyncSession = Depends(get_async_session)):
+async def refresh_rate(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
     """
     手动刷新汇率
     """
@@ -208,7 +214,10 @@ async def get_rate_history(
 
 
 @router.post("/test-connection")
-async def test_connection(request: TestConnectionRequest):
+async def test_connection(
+    request: TestConnectionRequest,
+    current_user: User = Depends(require_role("operator"))
+):
     """
     测试API连接
     """
