@@ -104,6 +104,9 @@ export class ProductCollector {
           behavior: 'smooth'
         });
 
+        // 【关键修复】先等待页面加载（对齐 Tampermonkey 版本）
+        await this.sleep(this.config.scrollWaitTime);
+
         // 采集新商品（并行轮询）
         const beforeCount = this.collected.size;
         await this.collectVisibleProducts();
@@ -240,9 +243,6 @@ export class ProductCollector {
         this.progress.errors.push(error.message);
       }
     }
-
-    // 等待内容加载
-    await this.sleep(this.config.scrollWaitTime);
   }
 
   /**
