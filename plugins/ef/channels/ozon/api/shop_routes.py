@@ -59,20 +59,17 @@ async def get_shops(
     current_user: User = Depends(get_current_user_flexible)
 ):
     """获取 Ozon 店铺列表（只返回用户关联的店铺）"""
+    from ef_core.models.users import user_shops
+
     # 根据用户角色过滤店铺
     if current_user.role == "admin":
         # admin 返回所有店铺
         stmt = select(OzonShop)
     else:
-        # 其他用户只返回自己创建的店铺或父账号创建的店铺
-        # 如果是子账号，允许查看父账号创建的店铺
-        if current_user.parent_user_id:
-            stmt = select(OzonShop).where(
-                (OzonShop.owner_user_id == current_user.id) |
-                (OzonShop.owner_user_id == current_user.parent_user_id)
-            )
-        else:
-            stmt = select(OzonShop).where(OzonShop.owner_user_id == current_user.id)
+        # 其他用户通过 user_shops 关联表获取授权的店铺
+        stmt = select(OzonShop).join(
+            user_shops, OzonShop.id == user_shops.c.shop_id
+        ).where(user_shops.c.user_id == current_user.id)
 
     result = await db.execute(stmt.order_by(OzonShop.created_at.desc()))
     shops = result.scalars().all()
