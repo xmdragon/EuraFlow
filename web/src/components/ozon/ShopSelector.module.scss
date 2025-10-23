@@ -1,0 +1,19 @@
+@use '@/styles/variables' as *;
+@use '@/styles/mixins' as *;
+
+// ===== Select 组件 =====
+.shopSelect {
+  min-width: 280px;
+}
+
+// ===== 下拉菜单自适应宽度 =====
+:global(.ant-select-dropdown).shopSelectDropdown {
+  min-width: fit-content !important;
+  width: auto !important;
+}
+
+// ===== 状态标签样式 =====
+.statusLabel {
+  color: #999;
+  font-size: 12px;
+}

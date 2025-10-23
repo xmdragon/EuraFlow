@@ -3,6 +3,7 @@ import { Select, Space, Spin } from 'antd';
 import { ShopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import * as ozonApi from '../../services/ozonApi';
+import styles from './ShopSelector.module.scss';
 
 const { Option } = Select;
 
@@ -131,11 +132,13 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         return selectedShop === null ? 'all' : selectedShop;
       })()}
       onChange={handleChange}
-      style={{ minWidth: 200, ...style }}
-      className={className}
+      style={style}
+      className={className ? `${styles.shopSelect} ${className}` : styles.shopSelect}
       placeholder={placeholder}
       loading={isLoading}
       mode={mode}
+      dropdownMatchSelectWidth={false}
+      popupClassName={styles.shopSelectDropdown}
     >
       {!isMultiple && showAllOption && (
         <Option value="all">
@@ -153,7 +156,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
               <ShopOutlined />
               <span>{displayName}</span>
               {shop.status !== 'active' && (
-                <span style={{ color: '#999', fontSize: 12 }}>({shop.status})</span>
+                <span className={styles.statusLabel}>({shop.status})</span>
               )}
             </Space>
           </Option>
