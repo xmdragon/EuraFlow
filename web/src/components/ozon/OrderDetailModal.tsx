@@ -11,6 +11,7 @@ import * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithFallback } from '@/utils/currency';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { usePermission } from '@/hooks/usePermission';
 import styles from '@/pages/ozon/OrderList.module.scss';
 
 const { Text } = Typography;
@@ -38,6 +39,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   formatDeliveryMethodTextWhite,
   onUpdate,
 }) => {
+  // 权限检查
+  const { canOperate, canSync } = usePermission();
+
   // 编辑状态管理
   const [isEditingPurchasePrice, setIsEditingPurchasePrice] = useState(false);
   const [isEditingMaterialCost, setIsEditingMaterialCost] = useState(false);
@@ -75,6 +79,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       setIsEditingPurchasePrice(false);
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
+      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
+      if (error.response?.status === 403) {
+        return;
+      }
       notifyError('更新失败', error?.response?.data?.detail || '更新失败');
     } finally {
       setSaving(false);
@@ -94,6 +102,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       setIsEditingMaterialCost(false);
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
+      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
+      if (error.response?.status === 403) {
+        return;
+      }
       notifyError('更新失败', error?.response?.data?.detail || '更新失败');
     } finally {
       setSaving(false);
@@ -110,6 +122,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       notifySuccess('同步成功', '打包费用同步成功');
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
+      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
+      if (error.response?.status === 403) {
+        return;
+      }
       notifyError('同步失败', error?.response?.data?.detail || '同步失败');
     } finally {
       setSyncingMaterialCost(false);
@@ -126,6 +142,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       notifySuccess('同步成功', '财务费用同步成功');
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
+      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
+      if (error.response?.status === 403) {
+        return;
+      }
       notifyError('同步失败', error?.response?.data?.detail || '同步失败');
     } finally {
       setSyncingFinance(false);
@@ -406,7 +426,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="进货金额">
-                      {isDelivered && isEditingPurchasePrice ? (
+                      {isDelivered && isEditingPurchasePrice && canOperate ? (
                         <Space>
                           <InputNumber
                             value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
@@ -446,7 +466,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                 )
                               : '-'}
                           </Text>
-                          {isDelivered && (
+                          {isDelivered && canOperate && (
                             <Button
                               type="link"
                               size="small"
@@ -473,7 +493,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                               )
                             : '-'}
                         </Text>
-                        {isDelivered && (
+                        {isDelivered && canSync && (
                           <Button
                             type="link"
                             size="small"
@@ -505,7 +525,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="打包费用">
-                      {isDelivered && isEditingMaterialCost ? (
+                      {isDelivered && isEditingMaterialCost && canOperate ? (
                         <Space>
                           <InputNumber
                             value={editMaterialCost ? parseFloat(editMaterialCost) : undefined}
@@ -547,26 +567,30 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           </Text>
                           {isDelivered && (
                             <>
-                              <Button
-                                type="link"
-                                size="small"
-                                icon={<SyncOutlined spin={syncingMaterialCost} />}
-                                loading={syncingMaterialCost}
-                                onClick={handleSyncMaterialCost}
-                              >
-                                同步
-                              </Button>
-                              <Button
-                                type="link"
-                                size="small"
-                                icon={<EditOutlined />}
-                                onClick={() => {
-                                  setEditMaterialCost(selectedPosting?.material_cost || '');
-                                  setIsEditingMaterialCost(true);
-                                }}
-                              >
-                                编辑
-                              </Button>
+                              {canSync && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<SyncOutlined spin={syncingMaterialCost} />}
+                                  loading={syncingMaterialCost}
+                                  onClick={handleSyncMaterialCost}
+                                >
+                                  同步
+                                </Button>
+                              )}
+                              {canOperate && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<EditOutlined />}
+                                  onClick={() => {
+                                    setEditMaterialCost(selectedPosting?.material_cost || '');
+                                    setIsEditingMaterialCost(true);
+                                  }}
+                                >
+                                  编辑
+                                </Button>
+                              )}
                             </>
                           )}
                         </Space>

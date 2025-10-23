@@ -80,9 +80,10 @@ interface ExtraInfoFormProps {
   selectedPosting: ozonApi.Posting | null;
   setIsUpdatingExtraInfo: (loading: boolean) => void;
   syncToKuajing84Mutation: any;
+  canOperate: boolean;
 }
 
-const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPosting, setIsUpdatingExtraInfo, syncToKuajing84Mutation }) => {
+const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPosting, setIsUpdatingExtraInfo, syncToKuajing84Mutation, canOperate }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const { symbol: userSymbol } = useCurrency();
@@ -121,7 +122,11 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
 
       // 刷新列表
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-    } catch (error) {
+    } catch (error: any) {
+      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
+      if (error.response?.status === 403) {
+        return;
+      }
       notifyError('更新失败', '更新失败: ' + (error as Error).message);
     } finally {
       setIsUpdatingExtraInfo(false);
@@ -200,52 +205,54 @@ const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({ selectedOrder, selectedPo
         />
       </Form.Item>
 
-      <Form.Item>
-        <Space>
-          <Button type="primary" htmlType="submit">
-            保存信息
-          </Button>
-          <Button
-            type="default"
-            icon={<SendOutlined />}
-            loading={syncToKuajing84Mutation.isPending}
-            onClick={async () => {
-              try {
-                // 先保存表单
-                const values = await form.validateFields();
-                await handleFinish(values);
+      {canOperate && (
+        <Form.Item>
+          <Space>
+            <Button type="primary" htmlType="submit">
+              保存信息
+            </Button>
+            <Button
+              type="default"
+              icon={<SendOutlined />}
+              loading={syncToKuajing84Mutation.isPending}
+              onClick={async () => {
+                try {
+                  // 先保存表单
+                  const values = await form.validateFields();
+                  await handleFinish(values);
 
-                // 再同步到跨境巴士
-                if (!selectedOrder?.id) {
-                  notifyError('同步失败', '订单ID不存在');
-                  return;
-                }
-                if (!selectedPosting?.posting_number) {
-                  notifyError('同步失败', '货件编号不存在');
-                  return;
-                }
-                if (!values.domestic_tracking_number) {
-                  notifyError('同步失败', '请先填写国内物流单号');
-                  return;
-                }
+                  // 再同步到跨境巴士
+                  if (!selectedOrder?.id) {
+                    notifyError('同步失败', '订单ID不存在');
+                    return;
+                  }
+                  if (!selectedPosting?.posting_number) {
+                    notifyError('同步失败', '货件编号不存在');
+                    return;
+                  }
+                  if (!values.domestic_tracking_number) {
+                    notifyError('同步失败', '请先填写国内物流单号');
+                    return;
+                  }
 
-                syncToKuajing84Mutation.mutate({
-                  ozonOrderId: selectedOrder.id,
-                  postingNumber: selectedPosting.posting_number,
-                  logisticsOrder: values.domestic_tracking_number,
-                });
-              } catch (error) {
-                console.error('保存并同步失败:', error);
-              }
-            }}
-          >
-            保存并同步跨境巴士
-          </Button>
-          <Button onClick={() => form.resetFields()}>
-            重置
-          </Button>
-        </Space>
-      </Form.Item>
+                  syncToKuajing84Mutation.mutate({
+                    ozonOrderId: selectedOrder.id,
+                    postingNumber: selectedPosting.posting_number,
+                    logisticsOrder: values.domestic_tracking_number,
+                  });
+                } catch (error) {
+                  console.error('保存并同步失败:', error);
+                }
+              }}
+            >
+              保存并同步跨境巴士
+            </Button>
+            <Button onClick={() => form.resetFields()}>
+              重置
+            </Button>
+          </Space>
+        </Form.Item>
+      )}
     </Form>
   );
 };
