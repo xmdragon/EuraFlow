@@ -132,8 +132,7 @@ const OzonDashboard: React.FC = () => {
     <div>
       <PageTitle icon={<ShoppingOutlined />} title="Ozon 管理概览" />
 
-      <div className={styles.pageContainer}>
-        <Row className={styles.titleRow} align="middle" justify="flex-end">
+      <Row className={styles.titleRow} align="middle" justify="flex-end">
         <Col>
           <ShopSelector
             value={selectedShop}
@@ -279,7 +278,6 @@ const OzonDashboard: React.FC = () => {
           />
         </Card>
       )}
-      </div>
     </div>
   );
 };

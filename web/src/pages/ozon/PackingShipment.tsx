@@ -708,6 +708,7 @@ const PackingShipment: React.FC = () => {
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
   const [imageLoading, setImageLoading] = useState(false);
+  const imageRef = React.useRef<HTMLImageElement>(null);
 
   // 计算每行显示数量（根据屏幕宽度预估）
   const calculateItemsPerRow = React.useCallback(() => {
@@ -1407,28 +1408,26 @@ const PackingShipment: React.FC = () => {
   }, []);
 
   const handleOpenImagePreviewCallback = React.useCallback((url: string) => {
-    // 检查是否是同一张图片
-    const isSameImage = previewImageUrl === url && imagePreviewVisible;
-
-    if (isSameImage) {
-      // 同一张图片，直接显示，不重新加载
-      setImageLoading(false);
-      return;
-    }
-
-    // 不同图片，先清空旧图
-    setPreviewImageUrl('');
     setImageLoading(true);
     setImagePreviewVisible(true);
-    // 延迟设置新URL，确保组件已重新渲染
-    setTimeout(() => setPreviewImageUrl(url), 0);
-  }, [previewImageUrl, imagePreviewVisible]);
+    setPreviewImageUrl(url);
+  }, []);
 
   const handleCloseImagePreview = React.useCallback(() => {
     setImagePreviewVisible(false);
     setPreviewImageUrl('');  // 关闭时清空图片URL
     setImageLoading(false);
   }, []);
+
+  // 检查图片是否已从缓存加载（处理 onLoad 不触发的情况）
+  React.useEffect(() => {
+    if (previewImageUrl && imageRef.current) {
+      // 图片已经从缓存加载完成
+      if (imageRef.current.complete) {
+        setImageLoading(false);
+      }
+    }
+  }, [previewImageUrl]);
 
   const handleOpenPriceHistoryCallback = React.useCallback((sku: string, productName: string) => {
     setSelectedSku(sku);
@@ -2757,6 +2756,7 @@ const PackingShipment: React.FC = () => {
           {/* 图片 - 始终渲染（如果有URL），loading时用visibility隐藏 */}
           {previewImageUrl && (
             <img
+              ref={imageRef}
               src={previewImageUrl}
               alt="商品大图"
               className={styles.imagePreviewImage}

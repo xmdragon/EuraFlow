@@ -329,9 +329,8 @@ const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
     <div>
       <PageTitle icon={<DashboardOutlined />} title="系统状态" />
 
-      <div className={styles.pageContainer}>
-        <Card>
-          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <Card>
+        <div style={{ padding: '40px 20px', textAlign: 'center' }}>
             <Title level={2} style={{ marginBottom: 40 }}>
               欢迎使用 EuraFlow 跨境电商管理平台
             </Title>
@@ -370,7 +369,6 @@ const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
             </Row>
           </div>
         </Card>
-      </div>
     </div>
   );
 };

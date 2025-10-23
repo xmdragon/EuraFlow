@@ -481,8 +481,7 @@ const SyncServices = () => {
     <div>
       <PageTitle icon={<SyncOutlined />} title="后台服务管理" />
 
-      <div className={styles.pageContainer}>
-        <Card
+      <Card
         extra={
         <Space>
           {canOperate && (
@@ -804,7 +803,6 @@ const SyncServices = () => {
         </Spin>
       </Modal>
       </Card>
-      </div>
     </div>
   );
 };
