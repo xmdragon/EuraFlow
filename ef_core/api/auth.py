@@ -569,8 +569,9 @@ async def update_user(
             }
         )
 
-    # 获取要更新的用户
-    stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
+    # 获取要更新的用户（预加载shops关系以避免懒加载问题）
+    from sqlalchemy.orm import selectinload
+    stmt = select(User).options(selectinload(User.shops)).where(User.id == user_id, User.parent_user_id == current_user.id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -620,22 +621,52 @@ async def update_user(
 
     # 处理店铺关联更新
     if update_data.shop_ids is not None:
-        from plugins.ef.channels.ozon.models.ozon_shops import OzonShop
-        if update_data.role == "admin" or user.role == "admin":
-            # admin 自动关联所有店铺
-            stmt = select(OzonShop)
-            result = await session.execute(stmt)
-            all_shops = result.scalars().all()
-            user.shops = list(all_shops)
-        else:
-            # 其他角色根据传入的 shop_ids 关联
-            stmt = select(OzonShop).where(OzonShop.id.in_(update_data.shop_ids))
-            result = await session.execute(stmt)
-            shops = result.scalars().all()
-            user.shops = list(shops)
+        try:
+            from plugins.ef.channels.ozon.models.ozon_shops import OzonShop
+            logger.info(f"更新用户{user_id}的店铺关联: shop_ids={update_data.shop_ids}, role={user.role}")
 
-    await session.commit()
-    await session.refresh(user, attribute_names=["shops"])
+            if update_data.role == "admin" or user.role == "admin":
+                # admin 自动关联所有店铺
+                stmt = select(OzonShop)
+                result = await session.execute(stmt)
+                all_shops = result.scalars().all()
+                user.shops = list(all_shops)
+                logger.info(f"admin用户关联了{len(all_shops)}个店铺")
+            else:
+                # 其他角色根据传入的 shop_ids 关联
+                if not update_data.shop_ids:
+                    # 如果shop_ids为空列表，清空用户的店铺关联
+                    user.shops = []
+                    logger.info(f"清空用户{user_id}的店铺关联")
+                else:
+                    stmt = select(OzonShop).where(OzonShop.id.in_(update_data.shop_ids))
+                    result = await session.execute(stmt)
+                    shops = result.scalars().all()
+                    user.shops = list(shops)
+                    logger.info(f"用户{user_id}关联了{len(shops)}个店铺: {[s.id for s in shops]}")
+        except Exception as e:
+            logger.error(f"更新用户店铺关联失败: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "code": "SHOP_ASSIGNMENT_FAILED",
+                    "message": f"更新店铺关联失败: {str(e)}"
+                }
+            )
+
+    try:
+        await session.commit()
+        await session.refresh(user, attribute_names=["shops"])
+        logger.info(f"用户{user_id}更新成功")
+    except Exception as e:
+        logger.error(f"提交用户更新失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "COMMIT_FAILED",
+                "message": f"提交更新失败: {str(e)}"
+            }
+        )
 
     return UserResponse(**{**user.to_dict(), "shop_ids": [shop.id for shop in user.shops]})
 
