@@ -490,7 +490,7 @@ const ShopSettings: React.FC = () => {
                     ),
                     key: '1',
                     children: (
-                      <>
+                      <div className={styles.contentContainer}>
                         <Row gutter={16}>
                           <Col span={12}>
                             <Form.Item
@@ -532,7 +532,7 @@ const ShopSettings: React.FC = () => {
                             </Form.Item>
                           </Col>
                         </Row>
-                      </>
+                      </div>
                     ),
                   },
                   {
@@ -543,7 +543,7 @@ const ShopSettings: React.FC = () => {
                     ),
                     key: '2',
                     children: (
-                      <>
+                      <div className={styles.contentContainer}>
                         <Row gutter={16}>
                           <Col span={12}>
                             <Form.Item
@@ -594,7 +594,7 @@ const ShopSettings: React.FC = () => {
                             </Form.Item>
                           </Col>
                         </Row>
-                      </>
+                      </div>
                     ),
                   },
                   {
@@ -605,7 +605,7 @@ const ShopSettings: React.FC = () => {
                     ),
                     key: '3',
                     children: (
-                      <>
+                      <div className={styles.contentContainer}>
                         <Title level={5}>API限流设置</Title>
                         <Paragraph type="secondary">
                           设置每秒最大请求数，避免触发Ozon API限流
@@ -667,7 +667,7 @@ const ShopSettings: React.FC = () => {
                         >
                           添加仓库映射
                         </Button>
-                      </>
+                      </div>
                     ),
                   },
                 ]}
