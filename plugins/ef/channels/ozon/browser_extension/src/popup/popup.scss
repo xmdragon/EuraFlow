@@ -165,7 +165,10 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 12px;
+
+  .btn {
+    flex: 1;
+  }
 }
 
 /* 测试结果 */

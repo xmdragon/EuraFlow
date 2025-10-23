@@ -83,7 +83,7 @@ function Popup() {
     <div className="popup-container">
       <header className="popup-header">
         <h1>🛒 EuraFlow 选品助手</h1>
-        <p className="version">v1.0.0</p>
+        <p className="version">v1.1.1</p>
       </header>
 
       {/* API配置 */}
@@ -122,23 +122,6 @@ function Popup() {
             />
             <span>自动上传采集结果</span>
           </label>
-        </div>
-
-        {/* 测试连接 */}
-        <div className="button-group">
-          <button
-            className="btn btn-secondary"
-            onClick={handleTestConnection}
-            disabled={isTesting || !apiConfig.apiUrl || !apiConfig.apiKey}
-          >
-            {isTesting ? '测试中...' : '测试连接'}
-          </button>
-
-          {testResult && (
-            <span className={`test-result ${testResult}`}>
-              {testResult === 'success' ? '✓ 连接成功' : '✗ 连接失败'}
-            </span>
-          )}
         </div>
       </section>
 
@@ -202,15 +185,31 @@ function Popup() {
         </div>
       </section>
 
-      {/* 保存按钮 */}
+      {/* 操作按钮 */}
       <section className="popup-section">
-        <button
-          className="btn btn-primary btn-save"
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? '保存中...' : '保存配置'}
-        </button>
+        <div className="button-group">
+          <button
+            className="btn btn-secondary"
+            onClick={handleTestConnection}
+            disabled={isTesting || !apiConfig.apiUrl || !apiConfig.apiKey}
+          >
+            {isTesting ? '测试中...' : '测试连接'}
+          </button>
+
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? '保存中...' : '保存配置'}
+          </button>
+        </div>
+
+        {testResult && (
+          <p className={`test-result ${testResult}`}>
+            {testResult === 'success' ? '✓ 连接成功' : '✗ 连接失败'}
+          </p>
+        )}
 
         {saveMessage && (
           <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
