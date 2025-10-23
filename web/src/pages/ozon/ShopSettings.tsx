@@ -499,7 +499,7 @@ const ShopSettings: React.FC = () => {
                               label="店铺名称（俄文）"
                               rules={[{ required: true, message: '请输入店铺名称' }]}
                             >
-                              <Input placeholder="请输入店铺名称（俄文）" />
+                              <Input placeholder="请输入店铺名称（俄文）" className={styles.nameInput} />
                             </Form.Item>
                           </Col>
                           <Col span={12}>
@@ -507,7 +507,7 @@ const ShopSettings: React.FC = () => {
                               name="shop_name_cn"
                               label="店铺中文名称"
                             >
-                              <Input placeholder="请输入店铺中文名称（选填）" />
+                              <Input placeholder="请输入店铺中文名称（选填）" className={styles.nameInput} />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -519,7 +519,7 @@ const ShopSettings: React.FC = () => {
                               label="Client ID"
                               rules={[{ required: true, message: '请输入Client ID' }]}
                             >
-                              <Input placeholder="Ozon Client ID" />
+                              <Input placeholder="Ozon Client ID" className={styles.apiInput} />
                             </Form.Item>
                           </Col>
                           <Col span={12}>
@@ -529,7 +529,7 @@ const ShopSettings: React.FC = () => {
                               rules={[{ required: true, message: '请输入API Key' }]}
                               extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可。"
                             >
-                              <Input.Password placeholder="Ozon API Key" />
+                              <Input.Password placeholder="Ozon API Key" className={styles.apiInput} />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -557,7 +557,7 @@ const ShopSettings: React.FC = () => {
                           </Col>
                           <Col span={12}>
                             <Form.Item name="sync_interval_minutes" label="同步间隔（分钟）">
-                              <InputNumber min={5} max={1440} className={styles.fullWidthInput} controls={false} />
+                              <InputNumber min={5} max={1440} className={styles.apiInput} controls={false} />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -615,17 +615,17 @@ const ShopSettings: React.FC = () => {
                         <Row gutter={16}>
                           <Col span={8}>
                             <Form.Item name="rate_limit_products" label="商品接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.fullWidthInput} controls={false} />
+                              <InputNumber min={1} max={100} className={styles.apiInput} controls={false} />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_orders" label="订单接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.fullWidthInput} controls={false} />
+                              <InputNumber min={1} max={100} className={styles.apiInput} controls={false} />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_postings" label="发货接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.fullWidthInput} controls={false} />
+                              <InputNumber min={1} max={100} className={styles.apiInput} controls={false} />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -740,14 +740,14 @@ const ShopSettings: React.FC = () => {
             label="店铺名称（俄文）"
             rules={[{ required: true, message: '请输入店铺名称' }]}
           >
-            <Input placeholder="请输入店铺名称（俄文）" />
+            <Input placeholder="请输入店铺名称（俄文）" className={styles.nameInput} />
           </Form.Item>
 
           <Form.Item
             name="shop_name_cn"
             label="店铺中文名称"
           >
-            <Input placeholder="请输入店铺中文名称（选填）" />
+            <Input placeholder="请输入店铺中文名称（选填）" className={styles.nameInput} />
           </Form.Item>
 
           <Form.Item
@@ -755,7 +755,7 @@ const ShopSettings: React.FC = () => {
             label="Client ID"
             rules={[{ required: true, message: '请输入Client ID' }]}
           >
-            <Input placeholder="从Ozon后台获取的Client ID" />
+            <Input placeholder="从Ozon后台获取的Client ID" className={styles.apiInput} />
           </Form.Item>
 
           <Form.Item
@@ -763,7 +763,7 @@ const ShopSettings: React.FC = () => {
             label="API Key"
             rules={[{ required: true, message: '请输入API Key' }]}
           >
-            <Input.Password placeholder="从Ozon后台获取的API Key" />
+            <Input.Password placeholder="从Ozon后台获取的API Key" className={styles.apiInput} />
           </Form.Item>
 
           <Alert
