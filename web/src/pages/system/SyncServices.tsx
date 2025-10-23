@@ -43,6 +43,7 @@ import 'react-js-cron/dist/styles.css';
 import axios from '@/services/axios';
 import dayjs from 'dayjs';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { usePermission } from '@/hooks/usePermission';
 
 const { TextArea } = Input;
 
@@ -99,6 +100,7 @@ interface HandlerInfo {
 }
 
 const SyncServices = () => {
+  const { canOperate } = usePermission();
   const [services, setServices] = useState<SyncService[]>([]);
   const [handlers, setHandlers] = useState<HandlerInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -373,29 +375,33 @@ const SyncServices = () => {
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title={record.is_enabled ? '禁用服务' : '启用服务'}>
-            <Switch
-              size="small"
-              checked={record.is_enabled}
-              onChange={() => toggleService(record)}
-            />
-          </Tooltip>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => openEditModal(record)}
-          >
-            编辑
-          </Button>
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlayCircleOutlined />}
-            onClick={() => triggerService(record)}
-          >
-            触发
-          </Button>
+          {canOperate && (
+            <>
+              <Tooltip title={record.is_enabled ? '禁用服务' : '启用服务'}>
+                <Switch
+                  size="small"
+                  checked={record.is_enabled}
+                  onChange={() => toggleService(record)}
+                />
+              </Tooltip>
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => openEditModal(record)}
+              >
+                编辑
+              </Button>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => triggerService(record)}
+              >
+                触发
+              </Button>
+            </>
+          )}
           <Button
             size="small"
             icon={<FileTextOutlined />}
@@ -479,9 +485,11 @@ const SyncServices = () => {
       }
       extra={
         <Space>
-          <Button icon={<PlusOutlined />} type="primary" onClick={openAddModal}>
-            添加服务
-          </Button>
+          {canOperate && (
+            <Button icon={<PlusOutlined />} type="primary" onClick={openAddModal}>
+              添加服务
+            </Button>
+          )}
           <Button icon={<ReloadOutlined />} onClick={loadServices}>
             刷新
           </Button>
@@ -700,33 +708,35 @@ const SyncServices = () => {
         width={1000}
         footer={
           <Space>
-            <Popconfirm
-              title="清空日志"
-              description={
-                <div>
-                  <p>选择清空范围：</p>
-                  <DatePicker
-                    placeholder="清空此日期前的日志（可选）"
-                    onChange={(date) => {
-                      if (selectedService) {
-                        clearLogs(selectedService, date ? date.toISOString() : undefined);
-                      }
-                    }}
-                  />
-                </div>
-              }
-              onConfirm={() => {
-                if (selectedService) {
-                  clearLogs(selectedService);
+            {canOperate && (
+              <Popconfirm
+                title="清空日志"
+                description={
+                  <div>
+                    <p>选择清空范围：</p>
+                    <DatePicker
+                      placeholder="清空此日期前的日志（可选）"
+                      onChange={(date) => {
+                        if (selectedService) {
+                          clearLogs(selectedService, date ? date.toISOString() : undefined);
+                        }
+                      }}
+                    />
+                  </div>
                 }
-              }}
-              okText="全部清空"
-              cancelText="取消"
-            >
-              <Button danger icon={<DeleteOutlined />}>
-                清空日志
-              </Button>
-            </Popconfirm>
+                onConfirm={() => {
+                  if (selectedService) {
+                    clearLogs(selectedService);
+                  }
+                }}
+                okText="全部清空"
+                cancelText="取消"
+              >
+                <Button danger icon={<DeleteOutlined />}>
+                  清空日志
+                </Button>
+              </Popconfirm>
+            )}
             <Button icon={<ReloadOutlined />} onClick={() => selectedService && viewLogs(selectedService)}>
               刷新日志
             </Button>
@@ -752,21 +762,23 @@ const SyncServices = () => {
         width={800}
         footer={
           <Space>
-            <Popconfirm
-              title="重置统计数据"
-              description="确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。"
-              onConfirm={() => {
-                if (selectedService) {
-                  resetStats(selectedService);
-                }
-              }}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Button danger icon={<DeleteOutlined />}>
-                重置统计
-              </Button>
-            </Popconfirm>
+            {canOperate && (
+              <Popconfirm
+                title="重置统计数据"
+                description="确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。"
+                onConfirm={() => {
+                  if (selectedService) {
+                    resetStats(selectedService);
+                  }
+                }}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button danger icon={<DeleteOutlined />}>
+                  重置统计
+                </Button>
+              </Popconfirm>
+            )}
             <Button onClick={() => setStatsModalVisible(false)}>
               关闭
             </Button>

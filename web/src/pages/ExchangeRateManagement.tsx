@@ -136,7 +136,7 @@ const ExchangeRateManagement: React.FC = () => {
       api_key: values.api_key,
       api_provider: 'exchangerate-api',
       base_currency: 'CNY',
-      is_enabled: values.is_enabled ?? true,
+      is_enabled: true, // 始终启用，通过后台服务管理启停
     });
   };
 
@@ -266,7 +266,6 @@ const ExchangeRateManagement: React.FC = () => {
                   form={configForm}
                   layout="vertical"
                   onFinish={handleConfigSubmit}
-                  initialValues={{ is_enabled: true }}
                 >
                   <Form.Item
                     label="API Key"
@@ -277,14 +276,6 @@ const ExchangeRateManagement: React.FC = () => {
                       placeholder="请输入exchangerate-api.com的API Key"
                       prefix={<ApiOutlined />}
                     />
-                  </Form.Item>
-
-                  <Form.Item
-                    label="启用服务"
-                    name="is_enabled"
-                    valuePropName="checked"
-                  >
-                    <Switch />
                   </Form.Item>
 
                   {canOperate && (

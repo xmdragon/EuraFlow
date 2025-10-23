@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.tasks.scheduler import get_scheduler
+from ef_core.models.users import User
+from ef_core.middleware.auth import require_role
 from ..models.sync_service import SyncService
 from ..models.sync_service_log import SyncServiceLog
 from ..services.handler_registry import get_registry
@@ -169,9 +171,10 @@ async def list_sync_services(
 @router.post("", response_model=SyncServiceResponse)
 async def create_sync_service(
     data: SyncServiceCreate,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """创建同步服务（增强验证）"""
+    """创建同步服务（需要操作员权限）"""
     manager = SyncServiceManager(db)
 
     # 使用Manager创建服务（包含Handler验证和Cron验证）
@@ -218,9 +221,10 @@ async def create_sync_service(
 async def update_sync_service(
     service_id: int,
     data: SyncServiceUpdate,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """更新同步服务配置（增强验证和调度器更新）"""
+    """更新同步服务配置（需要操作员权限）"""
     manager = SyncServiceManager(db)
 
     # 使用Manager更新服务（包含验证和调度器更新）
@@ -266,9 +270,10 @@ async def update_sync_service(
 @router.delete("/{service_id}")
 async def delete_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """删除同步服务"""
+    """删除同步服务（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -296,9 +301,10 @@ async def delete_sync_service(
 @router.post("/{service_id}/trigger")
 async def trigger_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """手动触发同步服务"""
+    """手动触发同步服务（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -326,9 +332,10 @@ async def trigger_sync_service(
 @router.post("/{service_id}/toggle")
 async def toggle_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """切换同步服务开关"""
+    """切换同步服务开关（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -415,9 +422,10 @@ async def get_sync_service_logs(
 async def clear_sync_service_logs(
     service_id: int,
     request: ClearLogsRequest,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """清空同步服务日志（按日期）"""
+    """清空同步服务日志（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -502,3 +510,34 @@ async def get_sync_service_stats(
         avg_execution_time_ms=round(avg_execution_time_ms, 2) if avg_execution_time_ms else None,
         recent_errors=recent_errors
     )
+
+
+@router.post("/{service_id}/reset-stats")
+async def reset_sync_service_stats(
+    service_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """重置同步服务统计数据（需要操作员权限）"""
+    # 查找服务
+    result = await db.execute(
+        select(SyncService).where(SyncService.id == service_id)
+    )
+    service = result.scalar_one_or_none()
+
+    if not service:
+        raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
+
+    # 重置统计数据
+    service.run_count = 0
+    service.success_count = 0
+    service.error_count = 0
+    service.last_run_at = None
+    service.last_run_status = None
+    service.last_run_message = None
+
+    await db.commit()
+
+    logger.info(f"Service stats reset: {service.service_key}")
+
+    return {"ok": True, "message": f"Service {service.service_key} stats reset successfully"}
