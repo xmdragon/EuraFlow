@@ -12,7 +12,9 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
+from ef_core.api.auth import get_current_user_flexible
 from ..models import OzonProduct, OzonShop
+from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-products"])
 logger = logging.getLogger(__name__)
@@ -41,8 +43,8 @@ async def get_products(
     brand: Optional[str] = Query(None, description="品牌"),
     sort_by: Optional[str] = Query("updated_at", description="排序字段：price,stock,created_at,updated_at,title"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc,desc"),
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取 Ozon 商品列表
@@ -51,8 +53,18 @@ async def get_products(
     - 通用搜索：在SKU、标题、offer_id、条码中搜索
     - 精确筛选：按状态、价格范围、库存范围等
     - 灵活排序：支持多字段排序
+
+    权限控制：
+    - admin: 可以访问所有店铺的商品
+    - operator/viewer: 只能访问已授权店铺的商品
     """
     from sqlalchemy import or_, and_, cast, Numeric
+
+    # 权限过滤：根据用户角色过滤店铺
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 处理分页参数
     if offset is None and limit is None:
@@ -65,10 +77,10 @@ async def get_products(
     # 构建查询
     query = select(OzonProduct)
 
-    # 应用过滤条件
-    if shop_id:
-        query = query.where(OzonProduct.shop_id == shop_id)
-    # 不再设置默认店铺，如果没有指定shop_id则返回所有店铺的商品
+    # 应用权限过滤条件
+    shop_filter = build_shop_filter_condition(OzonProduct, allowed_shop_ids)
+    if shop_filter is not True:
+        query = query.where(shop_filter)
 
     # 通用搜索 - 在多个字段中搜索
     if search:
@@ -180,9 +192,9 @@ async def get_products(
         func.count().filter(OzonProduct.sync_status == 'failed').label('sync_failed')
     ).select_from(OzonProduct)
 
-    if shop_id:
-        stats_query = stats_query.where(OzonProduct.shop_id == shop_id)
-    # 不再设置默认店铺
+    # 应用与主查询相同的权限过滤
+    if shop_filter is not True:
+        stats_query = stats_query.where(shop_filter)
 
     stats_result = await db.execute(stats_query)
     stats = stats_result.first()

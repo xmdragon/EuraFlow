@@ -11,9 +11,11 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
+from ef_core.api.auth import get_current_user_flexible
 from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking
 from ..utils.datetime_utils import utcnow, parse_date
 from sqlalchemy import delete
+from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-orders"])
 logger = logging.getLogger(__name__)
@@ -31,14 +33,24 @@ async def get_orders(
     order_type: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """获取 Ozon 订单列表，支持多种搜索条件（limit最大1000用于客户端分页）
 
     注意：返回以Posting为粒度的数据，一个订单拆分成多个posting时会显示为多条记录
+
+    权限控制：
+    - admin: 可以访问所有店铺的订单
+    - operator/viewer: 只能访问已授权店铺的订单
     """
     from datetime import datetime
+
+    # 权限过滤：根据用户角色过滤店铺
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 构建查询：以Posting为主体，JOIN Order获取订单信息
     from sqlalchemy.orm import selectinload
@@ -50,9 +62,10 @@ async def get_orders(
         selectinload(OzonPosting.domestic_trackings)
     )
 
-    # 应用过滤条件
-    if shop_id:
-        query = query.where(OzonPosting.shop_id == shop_id)
+    # 应用权限过滤条件
+    shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
+    if shop_filter is not True:
+        query = query.where(shop_filter)
 
     if status:
         # status参数指的是系统映射的订单状态
