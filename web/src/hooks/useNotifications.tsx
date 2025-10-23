@@ -158,6 +158,26 @@ export const useNotifications = (shopId: number | null) => {
     [queryClient]
   );
 
+  const handlePostingDelivered = useCallback(
+    (data: PostingNotificationData) => {
+      const key = `posting-delivered-${data.posting_number}`;
+
+      notification.success({
+        key,
+        message: '订单已妥投',
+        description: `订单 ${data.posting_number}\n已成功送达客户`,
+        icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+        placement: 'bottomRight',
+        duration: 8,
+      });
+
+      // 刷新订单列表
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+    },
+    [queryClient]
+  );
+
   const handleWebSocketMessage = useCallback(
     (message: WebSocketNotification) => {
       switch (message.type) {
@@ -166,7 +186,8 @@ export const useNotifications = (shopId: number | null) => {
           break;
 
         case 'chat.new_message':
-          if (message.shop_id === shopId && message.chat_id && message.data) {
+          // 聊天新消息通知（全局广播，不过滤店铺）
+          if (message.chat_id && message.data) {
             handleChatNotification(message.data as ChatNotificationData, message.chat_id);
           }
           break;
@@ -186,16 +207,23 @@ export const useNotifications = (shopId: number | null) => {
           break;
 
         case 'posting.cancelled':
-          // 订单取消通知
-          if (message.shop_id === shopId && message.data) {
+          // 订单取消通知（全局广播，不过滤店铺）
+          if (message.data) {
             handlePostingCancelled(message.data as PostingNotificationData);
           }
           break;
 
         case 'posting.status_changed':
-          // 订单状态变更通知
-          if (message.shop_id === shopId && message.data) {
+          // 订单状态变更通知（全局广播，不过滤店铺）
+          if (message.data) {
             handlePostingStatusChanged(message.data as PostingNotificationData);
+          }
+          break;
+
+        case 'posting.delivered':
+          // 订单妥投通知（全局广播，不过滤店铺）
+          if (message.data) {
+            handlePostingDelivered(message.data as PostingNotificationData);
           }
           break;
 
@@ -208,7 +236,7 @@ export const useNotifications = (shopId: number | null) => {
           console.log('Unknown WebSocket message type:', message.type);
       }
     },
-    [shopId, handleChatNotification, handleKuajing84SyncNotification, handlePostingCreated, handlePostingCancelled, handlePostingStatusChanged]
+    [shopId, handleChatNotification, handleKuajing84SyncNotification, handlePostingCreated, handlePostingCancelled, handlePostingStatusChanged, handlePostingDelivered]
   );
 
   return {

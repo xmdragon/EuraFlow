@@ -27,11 +27,12 @@ export interface PostingNotificationData {
   cancel_reason?: string;
   old_status?: string;
   new_status?: string;
+  delivered_at?: string;
   timestamp: string;
 }
 
 export interface WebSocketNotification {
-  type: 'connected' | 'ping' | 'pong' | 'chat.new_message' | 'chat.message_updated' | 'kuajing84.sync_completed' | 'posting.created' | 'posting.cancelled' | 'posting.status_changed';
+  type: 'connected' | 'ping' | 'pong' | 'chat.new_message' | 'chat.message_updated' | 'kuajing84.sync_completed' | 'posting.created' | 'posting.cancelled' | 'posting.status_changed' | 'posting.delivered';
   shop_id?: number;
   chat_id?: string;
   data?: ChatNotificationData | Kuajing84SyncNotificationData | PostingNotificationData | any;

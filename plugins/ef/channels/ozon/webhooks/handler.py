@@ -356,7 +356,7 @@ class OzonWebhookHandler:
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
 
-                # 发送 WebSocket 通知
+                # 发送 WebSocket 通知（全局广播）
                 try:
                     from ef_core.websocket.manager import notification_manager
 
@@ -371,11 +371,9 @@ class OzonWebhookHandler:
                         }
                     }
 
-                    sent_count = await notification_manager.send_to_shop_users(
-                        self.shop_id,
-                        notification_data
-                    )
-                    logger.info(f"Sent posting status changed notification to {sent_count} connections for shop {self.shop_id}")
+                    # 全局广播通知（所有WebSocket连接都能收到）
+                    sent_count = await notification_manager.broadcast(notification_data)
+                    logger.info(f"Broadcast posting status changed notification to {sent_count} connections (shop {self.shop_id})")
 
                 except Exception as e:
                     logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
@@ -673,7 +671,7 @@ class OzonWebhookHandler:
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
 
-                # 发送 WebSocket 通知
+                # 发送 WebSocket 通知（全局广播）
                 try:
                     from ef_core.websocket.manager import notification_manager
 
@@ -687,11 +685,9 @@ class OzonWebhookHandler:
                         }
                     }
 
-                    sent_count = await notification_manager.send_to_shop_users(
-                        self.shop_id,
-                        notification_data
-                    )
-                    logger.info(f"Sent posting cancelled notification to {sent_count} connections for shop {self.shop_id}")
+                    # 全局广播通知（所有WebSocket连接都能收到）
+                    sent_count = await notification_manager.broadcast(notification_data)
+                    logger.info(f"Broadcast posting cancelled notification to {sent_count} connections (shop {self.shop_id})")
 
                 except Exception as e:
                     logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
@@ -733,15 +729,36 @@ class OzonWebhookHandler:
                     order.status = "delivered"
                     order.delivered_at = posting.delivered_at
                     session.add(order)
-                
+
                 session.add(posting)
                 await session.commit()
-                
+
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
-                
+
+                # 发送 WebSocket 通知（全局广播）
+                try:
+                    from ef_core.websocket.manager import notification_manager
+
+                    notification_data = {
+                        "type": "posting.delivered",
+                        "shop_id": self.shop_id,
+                        "data": {
+                            "posting_number": posting_number,
+                            "delivered_at": delivered_at,
+                            "timestamp": utcnow().isoformat()
+                        }
+                    }
+
+                    # 全局广播通知（所有WebSocket连接都能收到）
+                    sent_count = await notification_manager.broadcast(notification_data)
+                    logger.info(f"Broadcast posting delivered notification to {sent_count} connections (shop {self.shop_id})")
+
+                except Exception as e:
+                    logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
+
                 return {"posting_id": posting.id, "delivered": True}
-            
+
             return {"message": "Posting not found"}
     
     async def _handle_product_price_changed(
@@ -1252,7 +1269,7 @@ class OzonWebhookHandler:
             webhook_event.entity_type = "chat_message"
             webhook_event.entity_id = str(message.id)
 
-            # 发送WebSocket实时通知
+            # 发送WebSocket实时通知（全局广播）
             if sender_type == "user":  # 只有买家消息才推送通知
                 try:
                     from ef_core.websocket.manager import notification_manager
@@ -1270,9 +1287,9 @@ class OzonWebhookHandler:
                         }
                     }
 
-                    # 推送给订阅了此店铺的所有用户
-                    sent_count = await notification_manager.send_to_shop_users(self.shop_id, notification_data)
-                    logger.info(f"Sent chat notification to {sent_count} connections for shop {self.shop_id}")
+                    # 全局广播通知（所有WebSocket连接都能收到）
+                    sent_count = await notification_manager.broadcast(notification_data)
+                    logger.info(f"Broadcast chat notification to {sent_count} connections (shop {self.shop_id})")
 
                 except Exception as e:
                     logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
