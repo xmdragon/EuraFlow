@@ -248,6 +248,7 @@ const ProductListing: React.FC = () => {
           value={selectedShop}
           onChange={(shopId) => setSelectedShop(shopId as number)}
           style={{ width: 200 }}
+          showAllOption={false}
         />
       </div>
 
