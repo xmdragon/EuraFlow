@@ -85,7 +85,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
             <ShopSelector
               value={selectedShop}
               onChange={onShopChange}
-              showAllOption={true}
+              showAllOption={false}
               style={{ width: 200 }}
             />
           </Space>
