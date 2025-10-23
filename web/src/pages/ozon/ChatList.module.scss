@@ -1,11 +1,6 @@
 @use '@/styles/variables' as *;
 @use '@/styles/mixins' as *;
 
-// ===== 页面容器 =====
-.pageContainer {
-  padding: 0 24px;
-}
-
 // ===== 店铺选择器 =====
 .shopCard {
   margin-bottom: $spacing-md;

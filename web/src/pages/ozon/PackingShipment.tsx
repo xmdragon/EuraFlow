@@ -66,6 +66,7 @@ import PrepareStockModal from '@/components/ozon/PrepareStockModal';
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import PageTitle from '@/components/PageTitle';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import styles from './PackingShipment.module.scss';
 
@@ -2098,6 +2099,9 @@ const PackingShipment: React.FC = () => {
 
   return (
     <div>
+      {/* 页面标题 */}
+      <PageTitle icon={<TruckOutlined />} title="打包发货" />
+
       {/* 同步进度显示 */}
       {syncStatus && syncStatus.status === 'running' && (
         <Alert

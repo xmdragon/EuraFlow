@@ -60,6 +60,7 @@ import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/n
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import PageTitle from '@/components/PageTitle';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import styles from './OrderList.module.scss';
 
@@ -1013,6 +1014,9 @@ const OrderList: React.FC = () => {
   return (
     <div>
       {/* 同步进度已改为右下角通知显示 */}
+
+      {/* 页面标题 */}
+      <PageTitle icon={<ShoppingCartOutlined />} title="订单管理" />
 
       {/* 搜索过滤 */}
       <Card className={styles.filterCard}>

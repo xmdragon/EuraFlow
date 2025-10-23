@@ -48,9 +48,10 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { usePermission } from '@/hooks/usePermission';
+import PageTitle from '@/components/PageTitle';
 import styles from './ShopSettings.module.scss';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph, Title } = Typography;
 const { Option: _Option } = Select;
 const { confirm } = Modal;
 
@@ -336,11 +337,10 @@ const ShopSettings: React.FC = () => {
 
   return (
     <div>
-      <Card className={styles.mainCard}>
-        <Title level={4}>
-          <ShopOutlined /> Ozon 店铺管理
-        </Title>
+      {/* 页面标题 */}
+      <PageTitle icon={<ShopOutlined />} title="Ozon 店铺管理" />
 
+      <Card className={styles.mainCard}>
         {/* 店铺列表 */}
         <Card className={styles.shopListCard}>
           {canOperate && (

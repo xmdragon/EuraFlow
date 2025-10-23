@@ -27,6 +27,7 @@ import type { ColumnsType } from 'antd/es/table';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import * as ozonApi from '@/services/ozonApi';
 import { notifyInfo } from '@/utils/notification';
+import PageTitle from '@/components/PageTitle';
 import styles from './FinanceTransactions.module.scss';
 
 const { RangePicker } = DatePicker;
@@ -229,7 +230,9 @@ const FinanceTransactions: React.FC = () => {
   ];
 
   return (
-    <div className={styles.container}>
+    <div>
+      <PageTitle icon={<DollarOutlined />} title="财务交易" />
+
       <Card className={styles.filterCard}>
         <Row gutter={[16, 16]} align="middle">
           <Col>

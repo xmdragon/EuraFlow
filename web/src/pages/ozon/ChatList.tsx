@@ -211,7 +211,7 @@ const ChatList: React.FC = () => {
   };
 
   return (
-    <div className={styles.pageContainer}>
+    <div>
       <PageTitle icon={<MessageOutlined />} title="聊天管理" />
 
       {/* 店铺选择器 */}

@@ -37,9 +37,10 @@ import {
 } from '../../services/apiKeyService';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import { usePermission } from '@/hooks/usePermission';
+import PageTitle from '@/components/PageTitle';
 import styles from './ApiKeys.module.scss';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 const { Option } = Select;
 
 const ApiKeys: React.FC = () => {
@@ -229,26 +230,23 @@ const ApiKeys: React.FC = () => {
   return (
     <div>
       {/* 标题和操作 */}
-      <Card className={styles.headerCard}>
-        <div className={styles.headerRow}>
-          <div className={styles.titleSection}>
-            <Title level={2} className={styles.pageTitle}>
-              <KeyOutlined className={styles.titleIcon} />
-              API密钥管理
-            </Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <PageTitle icon={<KeyOutlined />} title="API密钥管理" />
+          <div style={{ paddingLeft: 24, marginTop: -8 }}>
             <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
           </div>
-          {canOperate && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateModalVisible(true)}
-            >
-              创建API Key
-            </Button>
-          )}
         </div>
-      </Card>
+        {canOperate && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setCreateModalVisible(true)}
+          >
+            创建API Key
+          </Button>
+        )}
+      </div>
 
       {/* API地址显示 */}
       <Card className={styles.apiInfoCard}>

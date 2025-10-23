@@ -71,6 +71,7 @@ import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/n
 import { usePermission } from '@/hooks/usePermission';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
+import PageTitle from '@/components/PageTitle';
 import './ProductList.css';
 import styles from './ProductList.module.scss';
 
@@ -1301,32 +1302,30 @@ const ProductList: React.FC = () => {
     <div>
       {/* 同步进度已改为右下角通知显示 */}
 
+      {/* 页面标题 */}
+      <PageTitle icon={<ShoppingOutlined />} title="商品列表" />
+
       {/* 搜索过滤 */}
       <Card className={styles.filterCard}>
-        <Row className={styles.filterRow}>
-          <Col flex="auto">
-            <Space size="large">
-              <span className={styles.shopLabel}>选择店铺:</span>
-              <ShopSelector
-                value={selectedShop}
-                onChange={(shopId) => {
-                  const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
-                  setSelectedShop(normalized);
-                  // 切换店铺时重置页码和选中的行
-                  setCurrentPage(1);
-                  setSelectedRows([]);
-                  // 保存到localStorage
-                  localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
-                }}
-                showAllOption={false}
-                className={styles.shopSelector}
-              />
-            </Space>
-          </Col>
-        </Row>
         <Form form={filterForm} layout="inline" onFinish={handleFilter}>
+          <Form.Item label="选择店铺">
+            <ShopSelector
+              value={selectedShop}
+              onChange={(shopId) => {
+                const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+                setSelectedShop(normalized);
+                // 切换店铺时重置页码和选中的行
+                setCurrentPage(1);
+                setSelectedRows([]);
+                // 保存到localStorage
+                localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
+              }}
+              showAllOption={false}
+              className={styles.shopSelector}
+            />
+          </Form.Item>
           <Form.Item name="search">
-            <Input placeholder="搜索 (SKU/标题/条码/产品ID)" prefix={<SearchOutlined />} style={{ width: 200 }} />
+            <Input placeholder="搜索 (SKU/标题/条码/产品ID)" prefix={<SearchOutlined />} style={{ width: 250 }} />
           </Form.Item>
           <Form.Item name="status">
             <Select placeholder="状态" style={{ width: 120 }} allowClear>

@@ -452,7 +452,7 @@ const WatermarkManagement: React.FC = () => {
   ];
 
   return (
-    <div className={styles.pageContainer}>
+    <div>
       {/* 页面标题 */}
       <PageTitle icon={<PictureOutlined />} title="水印管理" />
 

@@ -62,6 +62,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
+import PageTitle from '@/components/PageTitle';
 import { useCurrency } from '../../hooks/useCurrency';
 import { getExchangeRate } from '@/services/exchangeRateApi';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
@@ -71,7 +72,7 @@ import styles from './ProductSelection.module.scss';
 import { calculateMaxCost, formatMaxCost } from './profitCalculator';
 
 const { Option } = Select;
-const { Title, Text, Link, Paragraph } = Typography;
+const { Text, Link, Paragraph, Title } = Typography;
 
 // 字段配置接口
 interface FieldConfig {
@@ -989,7 +990,9 @@ const ProductSelection: React.FC = () => {
   };
 
   return (
-    <Card title="选品助手">
+    <div>
+      <PageTitle icon={<FilterOutlined />} title="选品助手" />
+      <Card>
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
@@ -1997,6 +2000,7 @@ const ProductSelection: React.FC = () => {
         )}
       </Modal>
     </Card>
+    </div>
   );
 };
 

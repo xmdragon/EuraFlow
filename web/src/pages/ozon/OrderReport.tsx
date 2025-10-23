@@ -524,7 +524,7 @@ const OrderReport: React.FC = () => {
   // ===== 渲染 =====
 
   return (
-    <div className={styles.pageContainer}>
+    <div>
       {/* 页面标题 */}
       <PageTitle icon={<FileTextOutlined />} title="订单报表" />
 

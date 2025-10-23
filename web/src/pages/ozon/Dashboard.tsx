@@ -15,9 +15,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import * as ozonApi from '../../services/ozonApi';
 import ShopSelector from '../../components/ozon/ShopSelector';
+import PageTitle from '@/components/PageTitle';
 import styles from './Dashboard.module.scss';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 // OZON 状态中文映射
 const OZON_STATUS_NAME_MAP: Record<string, string> = {
@@ -129,12 +130,9 @@ const OzonDashboard: React.FC = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Row className={styles.titleRow} align="middle" justify="space-between">
-        <Col>
-          <Title level={2} className={styles.pageTitle}>
-            Ozon 管理概览
-          </Title>
-        </Col>
+      <PageTitle icon={<ShoppingOutlined />} title="Ozon 管理概览" />
+
+      <Row className={styles.titleRow} align="middle" justify="flex-end">
         <Col>
           <ShopSelector
             value={selectedShop}

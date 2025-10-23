@@ -34,6 +34,7 @@ import ReactMarkdown from 'react-markdown';
 
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
+import PageTitle from '@/components/PageTitle';
 import styles from './ChatDetail.module.scss';
 
 const { TextArea } = Input;
@@ -253,7 +254,9 @@ const ChatDetail: React.FC = () => {
   }
 
   return (
-    <div className={styles.pageContainer}>
+    <div>
+      <PageTitle icon={<MessageOutlined />} title="聊天详情" />
+
       {/* 返回按钮 */}
       <Button
         icon={<ArrowLeftOutlined />}

@@ -31,6 +31,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnsType } from 'antd/es/table';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import PageTitle from '@/components/PageTitle';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
 
@@ -239,22 +240,16 @@ const ProductListing: React.FC = () => {
   } : { total: 0, draft: 0, listed: 0, ready: 0 };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div>
       {/* 页面标题和店铺选择器 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col span={12}>
-          <h2 style={{ margin: 0 }}>
-            <CloudUploadOutlined /> 商品上架管理
-          </h2>
-        </Col>
-        <Col span={12} style={{ textAlign: 'right' }}>
-          <ShopSelector
-            value={selectedShop}
-            onChange={(shopId) => setSelectedShop(shopId as number)}
-            style={{ width: 200 }}
-          />
-        </Col>
-      </Row>
+      <PageTitle icon={<CloudUploadOutlined />} title="商品上架管理" />
+      <div style={{ marginBottom: 24 }}>
+        <ShopSelector
+          value={selectedShop}
+          onChange={(shopId) => setSelectedShop(shopId as number)}
+          style={{ width: 200 }}
+        />
+      </div>
 
       {/* 统计卡片 */}
       {selectedShop && (
@@ -295,17 +290,6 @@ const ProductListing: React.FC = () => {
             </Card>
           </Col>
         </Row>
-      )}
-
-      {/* 提示信息 */}
-      {!selectedShop && (
-        <Alert
-          message="请先选择店铺"
-          description="在右上角选择一个店铺以查看和管理商品上架状态"
-          type="info"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
       )}
 
       {/* 商品列表 */}

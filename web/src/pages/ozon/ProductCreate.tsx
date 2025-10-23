@@ -25,6 +25,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import PageTitle from '@/components/PageTitle';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -313,11 +314,7 @@ const ProductCreate: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h2>
-          <PlusOutlined /> 新建商品
-        </h2>
-      </div>
+      <PageTitle icon={<PlusOutlined />} title="新建商品" />
 
       <div className={styles.formCard}>
         <Form
