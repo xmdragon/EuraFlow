@@ -63,6 +63,7 @@ import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
 import ImagePreview from '@/components/ImagePreview';
 import PageTitle from '@/components/PageTitle';
+import FieldConfigModal, { type FieldConfig, defaultFieldConfig } from '@/components/ozon/selection/FieldConfigModal';
 import { useCurrency } from '../../hooks/useCurrency';
 import { getExchangeRate } from '@/services/exchangeRateApi';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
@@ -73,36 +74,6 @@ import { calculateMaxCost, formatMaxCost } from './profitCalculator';
 
 const { Option } = Select;
 const { Text, Link, Paragraph, Title } = Typography;
-
-// 字段配置接口
-interface FieldConfig {
-  brand: boolean;
-  originalPrice: boolean;
-  rfbsCommission: boolean;
-  rfbsCommissionHigh: boolean;  // rFBS高档佣金率（>5000₽）
-  fbpCommission: boolean;
-  fbpCommissionHigh: boolean;   // FBP高档佣金率（>5000₽）
-  monthlySales: boolean;
-  weight: boolean;
-  competitors: boolean;
-  rating: boolean;
-  listingDate: boolean;  // 上架时间
-}
-
-// 默认字段配置（全部显示）
-const defaultFieldConfig: FieldConfig = {
-  brand: true,
-  originalPrice: true,
-  rfbsCommission: true,
-  rfbsCommissionHigh: true,
-  fbpCommission: true,
-  fbpCommissionHigh: true,
-  monthlySales: true,
-  weight: true,
-  competitors: true,
-  rating: true,
-  listingDate: true,
-};
 
 const ProductSelection: React.FC = () => {
   const queryClient = useQueryClient();
@@ -1801,160 +1772,14 @@ const ProductSelection: React.FC = () => {
       />
 
       {/* 字段配置Modal */}
-      <Modal
-        title="配置显示字段"
-        open={fieldConfigVisible}
-        onOk={() => saveFieldConfig(fieldConfig)}
+      <FieldConfigModal
+        visible={fieldConfigVisible}
+        fieldConfig={fieldConfig}
+        onFieldConfigChange={setFieldConfig}
+        onSave={saveFieldConfig}
+        onReset={resetFieldConfig}
         onCancel={() => setFieldConfigVisible(false)}
-        okText="保存"
-        cancelText="取消"
-        width={500}
-      >
-        <div className={styles.fieldConfigList}>
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.brand}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, brand: e.target.checked })}
-                id="field-brand"
-              />
-              <label htmlFor="field-brand">品牌</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.originalPrice}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, originalPrice: e.target.checked })}
-                id="field-originalPrice"
-              />
-              <label htmlFor="field-originalPrice">原价和折扣</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.rfbsCommission}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, rfbsCommission: e.target.checked })}
-                id="field-rfbsCommission"
-              />
-              <label htmlFor="field-rfbsCommission">rFBS佣金率（低档和中档）</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.rfbsCommissionHigh}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, rfbsCommissionHigh: e.target.checked })}
-                id="field-rfbsCommissionHigh"
-              />
-              <label htmlFor="field-rfbsCommissionHigh">rFBS佣金率（高档&gt;5000₽）</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.fbpCommission}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, fbpCommission: e.target.checked })}
-                id="field-fbpCommission"
-              />
-              <label htmlFor="field-fbpCommission">FBP佣金率（低档和中档）</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.fbpCommissionHigh}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, fbpCommissionHigh: e.target.checked })}
-                id="field-fbpCommissionHigh"
-              />
-              <label htmlFor="field-fbpCommissionHigh">FBP佣金率（高档&gt;5000₽）</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.monthlySales}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, monthlySales: e.target.checked })}
-                id="field-monthlySales"
-              />
-              <label htmlFor="field-monthlySales">月销量</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.weight}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, weight: e.target.checked })}
-                id="field-weight"
-              />
-              <label htmlFor="field-weight">重量</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.competitors}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, competitors: e.target.checked })}
-                id="field-competitors"
-              />
-              <label htmlFor="field-competitors">竞争对手信息</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.rating}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, rating: e.target.checked })}
-                id="field-rating"
-              />
-              <label htmlFor="field-rating">评分和评价</label>
-            </Space>
-          </div>
-
-          <div className={styles.fieldConfigItem}>
-            <Space>
-              <input
-                type="checkbox"
-                checked={fieldConfig.listingDate}
-                onChange={(e) => setFieldConfig({ ...fieldConfig, listingDate: e.target.checked })}
-                id="field-listingDate"
-              />
-              <label htmlFor="field-listingDate">上架时间</label>
-            </Space>
-          </div>
-        </div>
-
-        <Divider />
-
-        <Space>
-          <Button onClick={resetFieldConfig} size="small">
-            恢复默认
-          </Button>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            注意：商品名称和当前价格始终显示
-          </Text>
-        </Space>
-      </Modal>
+      />
 
       {/* 导入预览和确认弹窗 */}
       <Modal
