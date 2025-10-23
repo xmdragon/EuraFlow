@@ -216,7 +216,6 @@ const ExchangeRateManagement: React.FC = () => {
       <PageTitle icon={<DollarOutlined />} title="汇率管理" />
 
       <div className={styles.pageContainer}>
-        <div className={styles.content}>
         {canOperate && (
           <Row className={styles.titleRow} align="middle" justify="flex-end">
             <Col>
@@ -503,7 +502,6 @@ const ExchangeRateManagement: React.FC = () => {
           </Card>
         </Col>
       </Row>
-        </div>
       </div>
     </div>
   );

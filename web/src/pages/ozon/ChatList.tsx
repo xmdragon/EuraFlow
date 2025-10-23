@@ -214,9 +214,8 @@ const ChatList: React.FC = () => {
     <div>
       <PageTitle icon={<MessageOutlined />} title="聊天管理" />
 
-      <div className={styles.pageContainer}>
-        {/* 店铺选择器 */}
-        <Card className={styles.shopCard}>
+      {/* 店铺选择器 */}
+      <Card className={styles.shopCard}>
         <ShopSelector
           value={selectedShopId}
           onChange={(shopId) => {
@@ -407,7 +406,6 @@ const ChatList: React.FC = () => {
               )}
             </Spin>
           </Card>
-      </div>
     </div>
   );
 };

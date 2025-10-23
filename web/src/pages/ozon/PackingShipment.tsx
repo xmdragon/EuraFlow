@@ -1407,12 +1407,22 @@ const PackingShipment: React.FC = () => {
   }, []);
 
   const handleOpenImagePreviewCallback = React.useCallback((url: string) => {
-    setPreviewImageUrl('');  // 先清空旧图
-    setImageLoading(true);   // 设置加载状态
+    // 检查是否是同一张图片
+    const isSameImage = previewImageUrl === url && imagePreviewVisible;
+
+    if (isSameImage) {
+      // 同一张图片，直接显示，不重新加载
+      setImageLoading(false);
+      return;
+    }
+
+    // 不同图片，先清空旧图
+    setPreviewImageUrl('');
+    setImageLoading(true);
     setImagePreviewVisible(true);
     // 延迟设置新URL，确保组件已重新渲染
     setTimeout(() => setPreviewImageUrl(url), 0);
-  }, []);
+  }, [previewImageUrl, imagePreviewVisible]);
 
   const handleCloseImagePreview = React.useCallback(() => {
     setImagePreviewVisible(false);

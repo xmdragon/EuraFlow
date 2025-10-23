@@ -27,6 +27,7 @@ import axios from '@/services/axios';
 import { useAuth } from '@/hooks/useAuth';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import PageTitle from '@/components/PageTitle';
+import styles from './UserManagement.module.scss';
 
 const { Option } = Select;
 
@@ -65,7 +66,7 @@ const UserManagement: React.FC = () => {
   // 检查是否为管理员
   if (currentUser?.role !== 'admin') {
     return (
-      <div style={{ padding: '24px' }}>
+      <div>
         <PageTitle icon={<UserOutlined />} title="用户管理" />
         <Card style={{ textAlign: 'center' }}>
           <p>只有管理员可以访问用户管理页面</p>
@@ -309,8 +310,8 @@ const UserManagement: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div>
+      <div className={styles.pageHeader}>
         <PageTitle icon={<UserOutlined />} title="用户管理" />
         <Button
           type="primary"
