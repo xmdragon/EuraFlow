@@ -15,6 +15,7 @@ from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import UnauthorizedError, ValidationError, NotFoundError, ConflictError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 logger = get_logger(__name__)
 
@@ -112,7 +113,7 @@ class UpdateProfileRequest(BaseModel):
 
 async def get_current_user_from_api_key(
     request: Request,
-    session: AsyncSession
+    session: AsyncSession = Depends(get_async_session)
 ) -> Optional[User]:
     """
     通过API Key认证用户（从X-API-Key Header）
@@ -188,7 +189,7 @@ async def get_current_user_flexible(
 
         # 获取用户
         user_id = payload.get("sub")
-        stmt = select(User).where(User.id == int(user_id)).options(selectinload(User.shops))
+        stmt = select(User).where(User.id == int(user_id))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -245,7 +246,7 @@ async def get_current_user(
 
         # 获取用户
         user_id = payload.get("sub")
-        stmt = select(User).where(User.id == int(user_id)).options(selectinload(User.shops))
+        stmt = select(User).where(User.id == int(user_id))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -381,7 +382,6 @@ async def get_current_user_info(request: Request):
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
-            from sqlalchemy.orm import selectinload
             stmt = select(User).where(User.id == int(user_id)).options(
                 selectinload(User.primary_shop),
                 selectinload(User.shops)
