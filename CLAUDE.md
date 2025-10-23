@@ -374,6 +374,7 @@ ssh ozon "cd /opt/euraflow && git pull && cd web && rm -rf dist && npm run build
 ```
 
 ### 部署注意事项
+- 🚫 **禁止自动远程部署**：执行远程部署命令（`ssh ozon ...`）前**必须先询问用户确认**，不得自动执行
 - ✅ **每次代码修改后必须推送到远程仓库**
 - ✅ **前端代码修改后必须重新构建** (`npm run build`)
 - ✅ **构建完成后必须重启服务** (`./restart.sh`)
