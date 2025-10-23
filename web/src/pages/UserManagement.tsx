@@ -88,10 +88,10 @@ const UserManagement: React.FC = () => {
   const fetchShops = async () => {
     try {
       const response = await axios.get('/api/ef/v1/ozon/shops');
-      // API返回格式: { data: [...] }，且字段是 shop_name 而非 name
+      // API返回格式: { data: [...] }，显示格式：俄文 [中文]
       const shopsData = (response.data.data || []).map((shop: any) => ({
         id: shop.id,
-        name: shop.shop_name,
+        name: shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : ''),
         platform: shop.platform,
       }));
       setShops(shopsData);

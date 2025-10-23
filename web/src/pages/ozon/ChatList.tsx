@@ -114,13 +114,14 @@ const ChatList: React.FC = () => {
         const results = [];
         for (let i = 0; i < shops.length; i++) {
           const shop = shops[i];
-          notifySuccess(`同步进度`, `正在同步店铺 ${i + 1}/${shops.length}: ${shop.shop_name}`);
+          const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
+          notifySuccess(`同步进度`, `正在同步店铺 ${i + 1}/${shops.length}: ${displayName}`);
 
           try {
             const result = await ozonApi.syncChats(shop.id);
-            results.push({ shop_id: shop.id, shop_name: shop.shop_name, ...result });
+            results.push({ shop_id: shop.id, shop_name: displayName, ...result });
           } catch (error: any) {
-            results.push({ shop_id: shop.id, shop_name: shop.shop_name, error: error.message });
+            results.push({ shop_id: shop.id, shop_name: displayName, error: error.message });
           }
         }
         return results;

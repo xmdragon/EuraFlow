@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 # DTO 模型
 class ShopCreateDTO(BaseModel):
     """创建店铺DTO - 匹配前端扁平结构"""
-    name: str  # 店铺名称（前端使用name）
+    shop_name: str  # 店铺名称（俄文）
+    shop_name_cn: Optional[str] = None  # 店铺中文名称
     client_id: str  # OZON Client ID
     api_key: str  # OZON API Key
     platform: str = "ozon"
@@ -32,6 +33,7 @@ class ShopCreateDTO(BaseModel):
 
 class ShopUpdateDTO(BaseModel):
     shop_name: Optional[str] = None
+    shop_name_cn: Optional[str] = None
     status: Optional[str] = None
     api_credentials: Optional[Dict[str, str]] = None
     config: Optional[Dict[str, Any]] = None
@@ -40,6 +42,8 @@ class ShopUpdateDTO(BaseModel):
 class ShopResponseDTO(BaseModel):
     id: int
     shop_name: str
+    shop_name_cn: Optional[str] = None
+    display_name: Optional[str] = None
     platform: str
     status: str
     api_credentials: Optional[Dict[str, str]]
@@ -104,7 +108,8 @@ async def create_shop(
 ):
     """创建新的 Ozon 店铺（需要操作员权限）"""
     new_shop = OzonShop(
-        shop_name=shop_data.name,  # 使用前端的name字段
+        shop_name=shop_data.shop_name,
+        shop_name_cn=shop_data.shop_name_cn,
         platform=shop_data.platform,
         status="active",
         owner_user_id=current_user.id,
@@ -151,6 +156,8 @@ async def update_shop(
     # 更新店铺信息
     if shop_data.shop_name is not None:
         shop.shop_name = shop_data.shop_name
+    if shop_data.shop_name_cn is not None:
+        shop.shop_name_cn = shop_data.shop_name_cn
     if shop_data.status is not None:
         shop.status = shop_data.status
     if shop_data.api_credentials is not None:

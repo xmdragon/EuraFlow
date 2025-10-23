@@ -384,7 +384,10 @@ const ShopSettings: React.FC = () => {
                 render: (text: string, record: Shop) => (
                   <Space>
                     <ShopOutlined />
-                    <Text strong>{text}</Text>
+                    <Text strong>
+                      {text}
+                      {record.shop_name_cn && <Text type="secondary"> [{record.shop_name_cn}]</Text>}
+                    </Text>
                     {record.id === selectedShop?.id && <Tag color="blue">当前选中</Tag>}
                   </Space>
                 ),
@@ -441,6 +444,7 @@ const ShopSettings: React.FC = () => {
                         setSelectedShop(record);
                         form.setFieldsValue({
                           shop_name: record.shop_name,
+                          shop_name_cn: record.shop_name_cn,
                           client_id: record.api_credentials?.client_id,
                           api_key: record.api_credentials?.api_key,
                           webhook_url: record.config?.webhook_url,
@@ -542,10 +546,18 @@ const ShopSettings: React.FC = () => {
                           <Col span={12}>
                             <Form.Item
                               name="shop_name"
-                              label="店铺名称"
+                              label="店铺名称（俄文）"
                               rules={[{ required: true, message: '请输入店铺名称' }]}
                             >
-                              <Input placeholder="请输入店铺名称" />
+                              <Input placeholder="请输入店铺名称（俄文）" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={12}>
+                            <Form.Item
+                              name="shop_name_cn"
+                              label="店铺中文名称"
+                            >
+                              <Input placeholder="请输入店铺中文名称（选填）" />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -792,10 +804,17 @@ const ShopSettings: React.FC = () => {
         >
           <Form.Item
             name="shop_name"
-            label="店铺名称"
+            label="店铺名称（俄文）"
             rules={[{ required: true, message: '请输入店铺名称' }]}
           >
-            <Input placeholder="请输入店铺名称" />
+            <Input placeholder="请输入店铺名称（俄文）" />
+          </Form.Item>
+
+          <Form.Item
+            name="shop_name_cn"
+            label="店铺中文名称"
+          >
+            <Input placeholder="请输入店铺中文名称（选填）" />
           </Form.Item>
 
           <Form.Item

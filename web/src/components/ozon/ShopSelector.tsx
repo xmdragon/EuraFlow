@@ -106,10 +106,12 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
 
   // 如果只有一个店铺且不显示"全部"选项，隐藏选择器
   if (!isMultiple && shops.length === 1 && !showAllOption) {
+    const shop = shops[0];
+    const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
     return (
       <Space>
         <ShopOutlined />
-        <span>{shops[0].shop_name}</span>
+        <span>{displayName}</span>
       </Space>
     );
   }
@@ -141,17 +143,20 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
           </Space>
         </Option>
       )}
-      {shops.map((shop) => (
-        <Option key={shop.id} value={shop.id}>
-          <Space>
-            <ShopOutlined />
-            <span>{shop.shop_name}</span>
-            {shop.status !== 'active' && (
-              <span style={{ color: '#999', fontSize: 12 }}>({shop.status})</span>
-            )}
-          </Space>
-        </Option>
-      ))}
+      {shops.map((shop) => {
+        const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
+        return (
+          <Option key={shop.id} value={shop.id}>
+            <Space>
+              <ShopOutlined />
+              <span>{displayName}</span>
+              {shop.status !== 'active' && (
+                <span style={{ color: '#999', fontSize: 12 }}>({shop.status})</span>
+              )}
+            </Space>
+          </Option>
+        );
+      })}
     </Select>
   );
 };

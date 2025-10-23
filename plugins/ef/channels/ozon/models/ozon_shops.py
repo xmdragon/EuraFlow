@@ -29,11 +29,17 @@ class OzonShop(Base):
     
     # 基本信息
     shop_name: Mapped[str] = mapped_column(
-        String(200), 
+        String(200),
         nullable=False,
-        comment="店铺名称"
+        comment="店铺名称（俄文）"
     )
-    
+
+    shop_name_cn: Mapped[Optional[str]] = mapped_column(
+        String(200),
+        nullable=True,
+        comment="店铺中文名称"
+    )
+
     platform: Mapped[str] = mapped_column(
         String(50),
         default="ozon",
@@ -117,6 +123,8 @@ class OzonShop(Base):
         result = {
             "id": self.id,
             "shop_name": self.shop_name,
+            "shop_name_cn": self.shop_name_cn,
+            "display_name": self.shop_name_cn or self.shop_name,  # 优先显示中文名称
             "platform": self.platform,
             "status": self.status,
             "owner_user_id": self.owner_user_id,

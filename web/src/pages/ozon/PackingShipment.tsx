@@ -748,12 +748,12 @@ const PackingShipment: React.FC = () => {
     staleTime: 300000, // 5分钟缓存
   });
 
-  // 建立 shop_id → shop_name 的映射
+  // 建立 shop_id → shop_name 的映射（显示格式：俄文 [中文]）
   const shopNameMap = React.useMemo(() => {
     const map: Record<number, string> = {};
     if (shopsData?.data) {
       shopsData.data.forEach((shop: any) => {
-        map[shop.id] = shop.shop_name;
+        map[shop.id] = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
       });
     }
     return map;
