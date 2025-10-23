@@ -1023,11 +1023,9 @@ class OzonWebhookHandler:
                     }
                 }
 
-                sent_count = await notification_manager.send_to_shop_users(
-                    self.shop_id,
-                    notification_data
-                )
-                logger.info(f"Sent new posting notification to {sent_count} connections for shop {self.shop_id}")
+                # 全局广播通知（所有WebSocket连接都能收到）
+                sent_count = await notification_manager.broadcast(notification_data)
+                logger.info(f"Broadcast new posting notification to {sent_count} connections (shop {self.shop_id})")
 
             except Exception as e:
                 logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
