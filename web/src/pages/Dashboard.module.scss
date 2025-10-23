@@ -1,6 +1,11 @@
 // Dashboard 样式文件
 // 遵守 CLAUDE.md §8 规范：禁止 inline style
 
+// ===== 页面容器 =====
+.pageContainer {
+  padding: 0 24px;
+}
+
 .userProfile {
   padding: 16px;
   margin: 0 16px 16px;

@@ -32,6 +32,7 @@ const ExchangeRateManagement = lazy(() => import('./ExchangeRateManagement'));
 
 import { useAuth } from '@/hooks/useAuth';
 import type { User } from '@/types/auth';
+import PageTitle from '@/components/PageTitle';
 import styles from './Dashboard.module.scss';
 
 // 加载中组件
@@ -325,9 +326,11 @@ const Dashboard: React.FC = () => {
 // 仪表板首页组件
 const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
   return (
-    <Row>
-      <Col span={24}>
-        <Card title="系统状态">
+    <div>
+      <PageTitle icon={<DashboardOutlined />} title="系统状态" />
+
+      <div className={styles.pageContainer}>
+        <Card>
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
             <Title level={2} style={{ marginBottom: 40 }}>
               欢迎使用 EuraFlow 跨境电商管理平台
@@ -367,8 +370,8 @@ const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
             </Row>
           </div>
         </Card>
-      </Col>
-    </Row>
+      </div>
+    </div>
   );
 };
 
