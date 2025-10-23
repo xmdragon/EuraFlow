@@ -179,8 +179,8 @@ export const useNotifications = (shopId: number | null) => {
           break;
 
         case 'posting.created':
-          // 新订单创建通知
-          if (message.shop_id === shopId && message.data) {
+          // 新订单创建通知（全局广播，不过滤店铺）
+          if (message.data) {
             handlePostingCreated(message.data as PostingNotificationData);
           }
           break;
