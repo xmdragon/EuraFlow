@@ -216,7 +216,10 @@ class NotificationManager:
             Exception: 发送失败
         """
         try:
+            # 添加调试日志
+            logger.info(f"Sending WebSocket message: type={message.get('type')}, message={str(message)[:200]}")
             await websocket.send_json(message)
+            logger.info(f"WebSocket message sent successfully: type={message.get('type')}")
         except Exception as e:
             logger.error(f"WebSocket send failed: {e}")
             raise

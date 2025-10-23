@@ -116,29 +116,50 @@ async def async_sync_logistics_order(
         sync_log.started_at = start_time
         await db.commit()
 
-        # 3. 获取跨境巴士服务
-        kuajing84_service = create_kuajing84_sync_service(db)
-
-        # 4. 获取有效的 Cookie
-        cookies = await kuajing84_service._get_valid_cookies()
-
-        if not cookies:
-            sync_log.sync_status = "failed"
-            sync_log.error_message = "无法获取有效的 Cookie（登录失败）"
-            sync_log.attempts += 1
-            await db.commit()
-            logger.error(f"登录失败: sync_log_id={sync_log_id}")
-            return
-
-        # 5. 获取全局配置的 base_url
+        # 3. 获取跨境巴士全局配置
         config_result = await db.execute(
             select(Kuajing84GlobalConfig).where(Kuajing84GlobalConfig.id == 1)
         )
         global_config = config_result.scalar_one_or_none()
-        base_url = global_config.base_url if global_config else "https://www.kuajing84.com"
 
-        # 6. 查找跨境巴士订单 oid
+        if not global_config or not global_config.enabled:
+            sync_log.sync_status = "failed"
+            sync_log.error_message = "跨境84未配置或未启用"
+            sync_log.attempts += 1
+            await db.commit()
+            logger.error(f"跨境84未启用: sync_log_id={sync_log_id}")
+            return
+
+        # 4. 获取跨境巴士服务（用于解密密码）
+        kuajing84_service = create_kuajing84_sync_service(db)
+        password = kuajing84_service._decrypt(global_config.password)
+
+        base_url = global_config.base_url if global_config.base_url else "https://www.kuajing84.com"
+
+        # 5. 强制重新登录并执行同步操作
+        from .kuajing84_client import Kuajing84Client
         async with Kuajing84Client(base_url=base_url, timeout=60.0) as client:
+            # 5.1 强制登录获取最新 Cookie
+            try:
+                login_result = await client.login(global_config.username, password)
+                cookies = login_result["cookies"]
+
+                # 更新数据库中的 Cookie（保持一致性）
+                global_config.cookie = cookies
+                global_config.cookie_expires_at = datetime.fromisoformat(login_result["expires_at"].replace("Z", "+00:00"))
+                await db.commit()
+
+                logger.info(f"跨境84强制登录成功（同步物流单号）: sync_log_id={sync_log_id}")
+
+            except Exception as e:
+                sync_log.sync_status = "failed"
+                sync_log.error_message = f"登录失败: {str(e)}"
+                sync_log.attempts += 1
+                await db.commit()
+                logger.error(f"登录跨境84失败: sync_log_id={sync_log_id}, error: {e}")
+                return
+
+            # 6. 查找跨境巴士订单 oid
             oid = await client.find_order_oid(
                 order_number=sync_log.order_number,
                 cookies=cookies
