@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ef_core.services.auth_service import get_auth_service
 from ef_core.services.api_key_service import get_api_key_service
-from ef_core.database import get_async_session
+from ef_core.database import get_async_session, get_db_manager
 from ef_core.models.users import User
 from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import UnauthorizedError, ValidationError, NotFoundError, ConflictError
@@ -112,7 +112,7 @@ class UpdateProfileRequest(BaseModel):
 
 async def get_current_user_from_api_key(
     request: Request,
-    session: AsyncSession = Depends(get_async_session)
+    session: AsyncSession
 ) -> Optional[User]:
     """
     通过API Key认证用户（从X-API-Key Header）
@@ -360,39 +360,45 @@ async def refresh_token(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(
-    current_user: User = Depends(get_current_user_flexible),
-    session: AsyncSession = Depends(get_async_session)
-):
+async def get_current_user_info(request: Request):
     """
     获取当前用户信息
 
     - 支持 JWT Token (Authorization: Bearer <token>) 或 API Key (X-API-Key: <key>)
     - 返回用户基本信息和关联的店铺
     """
-    # 加载关联的店铺
-    from sqlalchemy.orm import selectinload
-    stmt = select(User).where(User.id == current_user.id).options(
-        selectinload(User.primary_shop),
-        selectinload(User.owned_shops)
-    )
-    result = await session.execute(stmt)
-    user = result.scalar_one()
+    # 手动验证token（绕过依赖注入）
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail={"code": "MISSING_AUTH", "message": "Missing authorization"})
 
-    # 构建响应
-    user_data = user.to_dict()
+    token = auth_header.replace("Bearer ", "")
+    auth_service = get_auth_service()
 
-    # 添加店铺列表
-    shops = []
-    if user.primary_shop:
-        shops.append(user.primary_shop.to_dict())
-    for shop in user.owned_shops:
-        if shop.id != user.primary_shop_id:
-            shops.append(shop.to_dict())
+    try:
+        payload = auth_service.decode_token(token)
+        user_id = payload.get("sub")
 
-    user_data["shops"] = shops
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            from sqlalchemy.orm import selectinload
+            stmt = select(User).where(User.id == int(user_id)).options(
+                selectinload(User.primary_shop),
+                selectinload(User.shops)
+            )
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
 
-    return UserResponse(**user_data)
+            if not user or not user.is_active:
+                raise HTTPException(status_code=401, detail={"code": "USER_NOT_FOUND", "message": "User not found"})
+
+            # 构建响应
+            user_data = user.to_dict()
+            user_data["shop_ids"] = [shop.id for shop in user.shops] if user.shops else []
+
+            return UserResponse(**user_data)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail={"code": "AUTH_FAILED", "message": str(e)})
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

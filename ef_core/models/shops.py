@@ -71,7 +71,6 @@ class Shop(Base):
     )
     
     # 关系
-    owner = relationship("User", back_populates="owned_shops", foreign_keys=[owner_user_id])
     primary_users = relationship("User", back_populates="primary_shop", foreign_keys="User.primary_shop_id")
     
     def __repr__(self) -> str:

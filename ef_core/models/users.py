@@ -111,7 +111,6 @@ class User(Base):
     
     # 关系
     primary_shop = relationship("Shop", back_populates="primary_users", foreign_keys=[primary_shop_id])
-    owned_shops = relationship("Shop", back_populates="owner", foreign_keys="Shop.owner_user_id")
     parent_user = relationship("User", remote_side=[id], foreign_keys=[parent_user_id], backref="sub_accounts")
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     # 用户关联的店铺（多对多）
