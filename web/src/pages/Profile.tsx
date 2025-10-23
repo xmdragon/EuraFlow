@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Space, Typography } from 'antd';
-import { KeyOutlined } from '@ant-design/icons';
+import { KeyOutlined, UserOutlined } from '@ant-design/icons';
 import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import PageTitle from '@/components/PageTitle';
+import styles from './Profile.module.scss';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface ChangePasswordData {
   current_password: string;
@@ -43,46 +45,46 @@ const Profile: React.FC = () => {
 
   return (
     <div>
-      <Title level={3} style={{ marginBottom: 16 }}>个人资料</Title>
+      <PageTitle icon={<UserOutlined />} title="个人资料" />
 
-      <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 600 }}>
-        <Card title="基本信息" bordered={false}>
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <div>
-              <Text type="secondary">用户名：</Text>
-              <Text strong style={{ marginLeft: 8 }}>{user?.username}</Text>
+      <Space direction="vertical" size="large" className={styles.container}>
+        <Card title="基本信息" bordered={false} className={styles.card}>
+          <div className={styles.infoItem}>
+            <div className={styles.label}>用户名</div>
+            <div className={styles.value}>{user?.username}</div>
+          </div>
+
+          <div className={styles.infoItem}>
+            <div className={styles.label}>角色</div>
+            <div className={styles.value}>
+              {user?.role === 'admin' ? '管理员' :
+               user?.role === 'operator' ? '操作员' : '查看员'}
             </div>
+          </div>
 
-            <div>
-              <Text type="secondary">角色：</Text>
-              <Text strong style={{ marginLeft: 8 }}>
-                {user?.role === 'admin' ? '管理员' :
-                 user?.role === 'operator' ? '操作员' : '查看员'}
-              </Text>
-            </div>
-
-            <div>
-              <Text type="secondary">账号状态：</Text>
-              <Text strong style={{ marginLeft: 8, color: user?.is_active ? '#52c41a' : '#ff4d4f' }}>
+          <div className={styles.infoItem}>
+            <div className={styles.label}>账号状态</div>
+            <div className={styles.value}>
+              <Text strong type={user?.is_active ? 'success' : 'danger'}>
                 {user?.is_active ? '激活' : '未激活'}
               </Text>
             </div>
+          </div>
 
-            {user?.parent_user_id && (
-              <div>
-                <Text type="secondary">账号类型：</Text>
-                <Text strong style={{ marginLeft: 8 }}>子账号</Text>
-              </div>
-            )}
-
-            <div>
-              <Text type="secondary">创建时间：</Text>
-              <Text style={{ marginLeft: 8 }}>{new Date(user?.created_at || '').toLocaleString('zh-CN')}</Text>
+          {user?.parent_user_id && (
+            <div className={styles.infoItem}>
+              <div className={styles.label}>账号类型</div>
+              <div className={styles.value}>子账号</div>
             </div>
-          </Space>
+          )}
+
+          <div className={styles.infoItem}>
+            <div className={styles.label}>创建时间</div>
+            <div className={styles.value}>{new Date(user?.created_at || '').toLocaleString('zh-CN')}</div>
+          </div>
         </Card>
 
-        <Card title="修改密码" bordered={false}>
+        <Card title="修改密码" bordered={false} className={styles.card}>
           <Form
             form={passwordForm}
             layout="vertical"
@@ -96,7 +98,6 @@ const Profile: React.FC = () => {
               <Input.Password
                 prefix={<KeyOutlined />}
                 placeholder="请输入当前密码"
-                style={{ width: 200 }}
               />
             </Form.Item>
 
@@ -111,7 +112,6 @@ const Profile: React.FC = () => {
               <Input.Password
                 prefix={<KeyOutlined />}
                 placeholder="请输入新密码"
-                style={{ width: 200 }}
               />
             </Form.Item>
 
@@ -134,7 +134,6 @@ const Profile: React.FC = () => {
               <Input.Password
                 prefix={<KeyOutlined />}
                 placeholder="请再次输入新密码"
-                style={{ width: 200 }}
               />
             </Form.Item>
 

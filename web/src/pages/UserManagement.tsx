@@ -21,12 +21,13 @@ import {
   UserAddOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import axios from '@/services/axios';
 import { useAuth } from '@/hooks/useAuth';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import PageTitle from '@/components/PageTitle';
 
-const { Title } = Typography;
 const { Option } = Select;
 
 interface User {
@@ -64,9 +65,11 @@ const UserManagement: React.FC = () => {
   // 检查是否为管理员
   if (currentUser?.role !== 'admin') {
     return (
-      <div style={{ padding: '24px', textAlign: 'center' }}>
-        <Title level={4}>无权限访问</Title>
-        <p>只有管理员可以访问用户管理页面</p>
+      <div style={{ padding: '24px' }}>
+        <PageTitle icon={<UserOutlined />} title="用户管理" />
+        <Card style={{ textAlign: 'center' }}>
+          <p>只有管理员可以访问用户管理页面</p>
+        </Card>
       </div>
     );
   }
@@ -307,21 +310,18 @@ const UserManagement: React.FC = () => {
 
   return (
     <div style={{ padding: '24px' }}>
-      <Card
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title level={4} style={{ margin: 0 }}>用户管理</Title>
-            <Button
-              type="primary"
-              icon={<UserAddOutlined />}
-              onClick={handleCreate}
-            >
-              添加用户
-            </Button>
-          </div>
-        }
-        bordered={false}
-      >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <PageTitle icon={<UserOutlined />} title="用户管理" />
+        <Button
+          type="primary"
+          icon={<UserAddOutlined />}
+          onClick={handleCreate}
+        >
+          添加用户
+        </Button>
+      </div>
+
+      <Card bordered={false}>
         <Table
           columns={columns}
           dataSource={users}

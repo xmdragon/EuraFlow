@@ -1,0 +1,25 @@
+.container {
+  max-width: 600px;
+  width: 100%;
+}
+
+.card {
+  &:not(:last-child) {
+    margin-bottom: 24px;
+  }
+}
+
+.infoItem {
+  &:not(:last-child) {
+    margin-bottom: 12px;
+  }
+}
+
+.label {
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 4px;
+}
+
+.value {
+  font-size: 16px;
+}

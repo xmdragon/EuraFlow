@@ -44,6 +44,8 @@ import axios from '@/services/axios';
 import dayjs from 'dayjs';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import { usePermission } from '@/hooks/usePermission';
+import PageTitle from '@/components/PageTitle';
+import styles from './SyncServices.module.scss';
 
 const { TextArea } = Input;
 
@@ -476,14 +478,12 @@ const SyncServices = () => {
   ];
 
   return (
-    <Card
-      title={
-        <Space>
-          <SyncOutlined />
-          后台服务管理
-        </Space>
-      }
-      extra={
+    <div>
+      <PageTitle icon={<SyncOutlined />} title="后台服务管理" />
+
+      <div className={styles.pageContainer}>
+        <Card
+        extra={
         <Space>
           {canOperate && (
             <Button icon={<PlusOutlined />} type="primary" onClick={openAddModal}>
@@ -803,7 +803,9 @@ const SyncServices = () => {
           )}
         </Spin>
       </Modal>
-    </Card>
+      </Card>
+      </div>
+    </div>
   );
 };
 

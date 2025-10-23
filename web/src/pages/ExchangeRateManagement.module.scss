@@ -3,9 +3,14 @@
 
 // ===== 页面容器 =====
 .pageContainer {
-  padding: 24px;
   background: #f0f2f5;
   min-height: 100vh;
+  // padding 已移除，PageTitle 提供了统一的左右 padding
+}
+
+// ===== 内容区域 =====
+.content {
+  padding: 0 24px;
 }
 
 // ===== 页面标题行 =====
