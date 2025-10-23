@@ -62,7 +62,7 @@ class UserResponse(BaseModel):
     is_active: bool
     parent_user_id: Optional[int]
     primary_shop_id: Optional[int]
-    shops: list = []
+    shop_ids: list[int] = []  # 用户关联的店铺ID列表
     permissions: list = []
     last_login_at: Optional[str]
     created_at: str
@@ -76,6 +76,7 @@ class CreateUserRequest(BaseModel):
     role: str = Field("operator", description="角色：operator/viewer")
     is_active: bool = Field(True, description="是否激活")
     primary_shop_id: Optional[int] = Field(None, description="主店铺ID")
+    shop_ids: Optional[list[int]] = Field(None, description="关联店铺ID列表")
     permissions: list = Field(default_factory=list, description="权限列表")
 
     @validator('role')
@@ -91,6 +92,7 @@ class UpdateUserRequest(BaseModel):
     role: Optional[str] = Field(None, description="角色")
     is_active: Optional[bool] = Field(None, description="是否激活")
     primary_shop_id: Optional[int] = Field(None, description="主店铺ID")
+    shop_ids: Optional[list[int]] = Field(None, description="关联店铺ID列表")
     permissions: Optional[list] = Field(None, description="权限列表")
 
 
@@ -489,6 +491,24 @@ async def create_user(
     )
 
     session.add(new_user)
+    await session.flush()  # 先flush获取用户ID
+
+    # 处理店铺关联
+    if user_data.role == "admin":
+        # admin 自动关联所有店铺
+        from ef_core.models.shops import Shop
+        stmt = select(Shop)
+        result = await session.execute(stmt)
+        all_shops = result.scalars().all()
+        new_user.shops = list(all_shops)
+    elif user_data.shop_ids:
+        # 其他角色根据传入的 shop_ids 关联
+        from ef_core.models.shops import Shop
+        stmt = select(Shop).where(Shop.id.in_(user_data.shop_ids))
+        result = await session.execute(stmt)
+        shops = result.scalars().all()
+        new_user.shops = list(shops)
+
     await session.commit()
     await session.refresh(new_user)
 
@@ -595,6 +615,22 @@ async def update_user(
 
     if update_data.permissions is not None:
         user.permissions = update_data.permissions
+
+    # 处理店铺关联更新
+    if update_data.shop_ids is not None:
+        from ef_core.models.shops import Shop
+        if update_data.role == "admin" or user.role == "admin":
+            # admin 自动关联所有店铺
+            stmt = select(Shop)
+            result = await session.execute(stmt)
+            all_shops = result.scalars().all()
+            user.shops = list(all_shops)
+        else:
+            # 其他角色根据传入的 shop_ids 关联
+            stmt = select(Shop).where(Shop.id.in_(update_data.shop_ids))
+            result = await session.execute(stmt)
+            shops = result.scalars().all()
+            user.shops = list(shops)
 
     await session.commit()
     await session.refresh(user)

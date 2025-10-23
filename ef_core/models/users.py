@@ -6,11 +6,21 @@ from typing import Optional, List
 
 from sqlalchemy import (
     BigInteger, String, Boolean, DateTime, JSON, Integer,
-    ForeignKey, Index, UniqueConstraint, func
+    ForeignKey, Index, UniqueConstraint, func, Table, Column
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ef_core.models.base import Base
+
+
+# 用户-店铺关联表（多对多）
+user_shops = Table(
+    'user_shops',
+    Base.metadata,
+    Column('user_id', BigInteger, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True, comment='用户ID'),
+    Column('shop_id', BigInteger, ForeignKey('shops.id', ondelete='CASCADE'), primary_key=True, comment='店铺ID'),
+    Column('created_at', DateTime(timezone=True), server_default=func.now(), nullable=False, comment='关联创建时间')
+)
 
 
 class User(Base):
@@ -104,6 +114,8 @@ class User(Base):
     owned_shops = relationship("Shop", back_populates="owner", foreign_keys="Shop.owner_user_id")
     parent_user = relationship("User", remote_side=[id], foreign_keys=[parent_user_id], backref="sub_accounts")
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
+    # 用户关联的店铺（多对多）
+    shops = relationship("Shop", secondary=user_shops, backref="associated_users")
     
     # 索引
     __table_args__ = (
@@ -134,6 +146,7 @@ class User(Base):
             "is_active": self.is_active,
             "parent_user_id": self.parent_user_id,
             "primary_shop_id": self.primary_shop_id,
+            "shop_ids": [shop.id for shop in self.shops] if self.shops else [],
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat()
