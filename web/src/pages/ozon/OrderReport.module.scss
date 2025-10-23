@@ -1,6 +1,11 @@
 @use '@/styles/variables' as *;
 @use '@/styles/mixins' as *;
 
+// ===== 内容容器（抵消 Row gutter 负边距） =====
+.contentContainer {
+  padding: 0 8px;
+}
+
 // ===== 主卡片 =====
 .mainCard {
   :global(.ant-card-body) {
@@ -229,6 +234,20 @@
 .chartContainer {
   height: 300px;
   padding: $spacing-sm 0;
+}
+
+.chartRowMargin {
+  margin-bottom: 24px;
+}
+
+// ===== Divider 样式 =====
+.divider {
+  margin: 8px 0;
+}
+
+// ===== Modal 商品列表样式 =====
+.modalProductItem {
+  margin-bottom: 8px;
 }
 
 // ===== 统计卡片样式 =====

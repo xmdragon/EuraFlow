@@ -529,6 +529,7 @@ const OrderReport: React.FC = () => {
       <PageTitle icon={<FileTextOutlined />} title="订单报表" />
 
       <Card className={styles.mainCard}>
+        <div className={styles.contentContainer}>
         {/* 筛选区域 */}
         <Row gutter={16} className={styles.filterRow} align="middle">
           <Col>
@@ -707,7 +708,7 @@ const OrderReport: React.FC = () => {
                     <Divider />
 
                     {/* 图表行 */}
-                    <Row gutter={16} style={{ marginBottom: 24 }}>
+                    <Row gutter={16} className={styles.chartRowMargin}>
                       {/* 饼图：成本分解（单店铺）或店铺销售（多店铺） */}
                       <Col span={12}>
                         <Card title={selectedShop !== null ? "销售额分解" : "店铺销售占比"} className={styles.chartCard}>
@@ -821,7 +822,7 @@ const OrderReport: React.FC = () => {
                       )}
                     </Row>
 
-                    <Row gutter={16} style={{ marginBottom: 24 }}>
+                    <Row gutter={16} className={styles.chartRowMargin}>
                       {/* 每日销售趋势 */}
                       <Col span={24}>
                         <Card title="每日销售趋势" className={styles.chartCard}>
@@ -844,7 +845,7 @@ const OrderReport: React.FC = () => {
 
                     {/* 多店铺/全部时，额外显示月度对比 */}
                     {selectedShop === null && (
-                      <Row gutter={16} style={{ marginBottom: 24 }}>
+                      <Row gutter={16} className={styles.chartRowMargin}>
                         <Col span={24}>
                           <Card title="月度对比" className={styles.chartCard}>
                             <div className={styles.chartContainer}>
@@ -879,7 +880,7 @@ const OrderReport: React.FC = () => {
                     )}
 
                     {/* 销售额TOP10 */}
-                    <Card title="销售额TOP10" style={{ marginBottom: 24 }}>
+                    <Card title="销售额TOP10" className={styles.chartRowMargin}>
                       <Table
                         dataSource={summaryData.top_products_by_sales}
                         pagination={false}
@@ -956,7 +957,7 @@ const OrderReport: React.FC = () => {
                     </Card>
 
                     {/* 销售量TOP10 */}
-                    <Card title="销售量TOP10" style={{ marginBottom: 24 }}>
+                    <Card title="销售量TOP10" className={styles.chartRowMargin}>
                       <Table
                         dataSource={summaryData.top_products_by_quantity}
                         pagination={false}
@@ -1036,6 +1037,7 @@ const OrderReport: React.FC = () => {
               </Spin>
             </Tabs.TabPane>
           </Tabs>
+        </div>
       </Card>
 
       {/* 货件详情Modal */}
@@ -1091,11 +1093,11 @@ const OrderReport: React.FC = () => {
             </Descriptions.Item>
             <Descriptions.Item label="商品列表" span={2}>
               {selectedPosting.products.map((product, index) => (
-                <div key={index} style={{ marginBottom: 8 }}>
+                <div key={index} className={styles.modalProductItem}>
                   <div><strong>{product.name}</strong></div>
                   <div>SKU: {product.sku}</div>
                   <div>数量: {product.quantity} | 价格: {product.price}</div>
-                  {index < selectedPosting.products.length - 1 && <Divider style={{ margin: '8px 0' }} />}
+                  {index < selectedPosting.products.length - 1 && <Divider className={styles.divider} />}
                 </div>
               ))}
             </Descriptions.Item>
