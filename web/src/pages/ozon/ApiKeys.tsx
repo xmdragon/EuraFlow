@@ -36,12 +36,14 @@ import {
   CreateAPIKeyRequest,
 } from '../../services/apiKeyService';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { usePermission } from '@/hooks/usePermission';
 import styles from './ApiKeys.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 
 const ApiKeys: React.FC = () => {
+  const { canOperate } = usePermission();
   const [keys, setKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -188,7 +190,7 @@ const ApiKeys: React.FC = () => {
       key: 'created_at',
       render: (date: string) => formatDate(date),
     },
-    {
+    ...(canOperate ? [{
       title: '操作',
       key: 'actions',
       render: (_: any, record: APIKey) => (
@@ -221,7 +223,7 @@ const ApiKeys: React.FC = () => {
           </Tooltip>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -236,13 +238,15 @@ const ApiKeys: React.FC = () => {
             </Title>
             <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
           </div>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setCreateModalVisible(true)}
-          >
-            创建API Key
-          </Button>
+          {canOperate && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreateModalVisible(true)}
+            >
+              创建API Key
+            </Button>
+          )}
         </div>
       </Card>
 

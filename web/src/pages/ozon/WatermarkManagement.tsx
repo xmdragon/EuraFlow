@@ -41,6 +41,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { usePermission } from '@/hooks/usePermission';
 import * as watermarkApi from '@/services/watermarkApi';
 import styles from './WatermarkManagement.module.scss';
 
@@ -55,6 +56,7 @@ const OPACITY_STEP: number = 0.1;
 
 const WatermarkManagement: React.FC = () => {
   const queryClient = useQueryClient();
+  const { canOperate } = usePermission();
   const [activeTab, setActiveTab] = useState('watermarks');
   const [cloudinaryForm] = Form.useForm();
   const [watermarkForm] = Form.useForm();
@@ -344,7 +346,7 @@ const WatermarkManagement: React.FC = () => {
         </Tag>
       ),
     },
-    {
+    ...(canOperate ? [{
       title: '操作',
       key: 'actions',
       render: (_: any, record: watermarkApi.WatermarkConfig) => (
@@ -393,7 +395,7 @@ const WatermarkManagement: React.FC = () => {
           </Button>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   // 任务表格列
@@ -507,14 +509,16 @@ const WatermarkManagement: React.FC = () => {
                 </Form.Item>
               </Col>
             </Row>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={saveCloudinaryMutation.isPending}>
-                保存配置
-              </Button>
-              <Button onClick={() => testCloudinaryMutation.mutate()} loading={testCloudinaryMutation.isPending}>
-                测试连接
-              </Button>
-            </Space>
+            {canOperate && (
+              <Space>
+                <Button type="primary" htmlType="submit" loading={saveCloudinaryMutation.isPending}>
+                  保存配置
+                </Button>
+                <Button onClick={() => testCloudinaryMutation.mutate()} loading={testCloudinaryMutation.isPending}>
+                  测试连接
+                </Button>
+              </Space>
+            )}
           </Form>
 
           {cloudinaryConfig && (
@@ -550,37 +554,39 @@ const WatermarkManagement: React.FC = () => {
                     suffix="MB"
                   />
                 </Col>
-                <Col span={6}>
-                  <Button
-                    type="default"
-                    icon={<DeleteOutlined />}
-                          onClick={() => {
-                            Modal.confirm({
-                              title: '资源清理',
-                              content: (
-                                <div>
-                                  <p>清理多少天前的资源？</p>
-                                  <InputNumber
-                                    id="cleanup-days"
-                                    defaultValue={30}
-                                    min={1}
-                                    max={365}
-                                    className={styles.smallInput}
-                                    controls={false}
-                                  />
-                                </div>
-                              ),
-                              onOk: () => {
-                                const input = document.getElementById('cleanup-days') as HTMLInputElement | null;
-                                const days = input ? Number(input.value) || 30 : 30;
-                                cleanupResourcesMutation.mutate({ days, dryRun: false });
-                              },
-                            });
-                          }}
-                  >
-                    清理过期资源
-                  </Button>
-                </Col>
+                {canOperate && (
+                  <Col span={6}>
+                    <Button
+                      type="default"
+                      icon={<DeleteOutlined />}
+                            onClick={() => {
+                              Modal.confirm({
+                                title: '资源清理',
+                                content: (
+                                  <div>
+                                    <p>清理多少天前的资源？</p>
+                                    <InputNumber
+                                      id="cleanup-days"
+                                      defaultValue={30}
+                                      min={1}
+                                      max={365}
+                                      className={styles.smallInput}
+                                      controls={false}
+                                    />
+                                  </div>
+                                ),
+                                onOk: () => {
+                                  const input = document.getElementById('cleanup-days') as HTMLInputElement | null;
+                                  const days = input ? Number(input.value) || 30 : 30;
+                                  cleanupResourcesMutation.mutate({ days, dryRun: false });
+                                },
+                              });
+                            }}
+                    >
+                      清理过期资源
+                    </Button>
+                  </Col>
+                )}
               </Row>
             </div>
           )}
@@ -602,71 +608,73 @@ const WatermarkManagement: React.FC = () => {
               ),
               children: (
                 <>
-                  <Form
-                    form={watermarkForm}
-                    layout="inline"
-                    onFinish={(values) => createWatermarkMutation.mutate(values)}
-                    className={styles.watermarkForm}
-                  >
-                    <Form.Item
-                      name="name"
-                      rules={[{ required: true, message: '请输入水印名称' }]}
+                  {canOperate && (
+                    <Form
+                      form={watermarkForm}
+                      layout="inline"
+                      onFinish={(values) => createWatermarkMutation.mutate(values)}
+                      className={styles.watermarkForm}
                     >
-                      <Input placeholder="水印名称" className={styles.mediumInput} />
-                    </Form.Item>
-                    <Form.Item
-                      name="watermarkFile"
-                      rules={[{ required: true, message: '请上传水印图片' }]}
-                      valuePropName="fileList"
-                      getValueFromEvent={(e) => {
-                        if (Array.isArray(e)) {
-                          return e;
-                        }
-                        return e?.fileList;
-                      }}
-                    >
-                      <Upload maxCount={1} beforeUpload={() => false} accept="image/*">
-                        <Button icon={<UploadOutlined />}>选择图片</Button>
-                      </Upload>
-                    </Form.Item>
-                    <Form.Item name="color_type" initialValue="white">
-                      <Select className={styles.smallInput}>
-                        <Option value="white">白色</Option>
-                        <Option value="blue">蓝色</Option>
-                        <Option value="black">黑色</Option>
-                        <Option value="transparent">透明</Option>
-                      </Select>
-                    </Form.Item>
-                    <Form.Item name="scale_ratio" label="缩放比例" initialValue={0.1}>
-                      <InputNumber
-                        min={SCALE_RATIO_MIN}
-                        max={SCALE_RATIO_MAX}
-                        step={SCALE_RATIO_STEP}
-                        formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
-                        parser={(value) => Number(value?.replace('%', '')) / 100}
-                        placeholder="缩放比例"
-                        className={styles.smallInput}
-                        controls={false}
-                      />
-                    </Form.Item>
-                    <Form.Item name="opacity" label="透明度" initialValue={0.8}>
-                      <InputNumber
-                        min={OPACITY_MIN}
-                        max={OPACITY_MAX}
-                        step={OPACITY_STEP}
-                        formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
-                        parser={(value) => Number(value?.replace('%', '')) / 100}
-                        placeholder="透明度"
-                        className={styles.smallInput}
-                        controls={false}
-                      />
-                    </Form.Item>
-                    <Form.Item>
-                      <Button type="primary" htmlType="submit" loading={createWatermarkMutation.isPending}>
-                        创建水印
-                      </Button>
-                    </Form.Item>
-                  </Form>
+                      <Form.Item
+                        name="name"
+                        rules={[{ required: true, message: '请输入水印名称' }]}
+                      >
+                        <Input placeholder="水印名称" className={styles.mediumInput} />
+                      </Form.Item>
+                      <Form.Item
+                        name="watermarkFile"
+                        rules={[{ required: true, message: '请上传水印图片' }]}
+                        valuePropName="fileList"
+                        getValueFromEvent={(e) => {
+                          if (Array.isArray(e)) {
+                            return e;
+                          }
+                          return e?.fileList;
+                        }}
+                      >
+                        <Upload maxCount={1} beforeUpload={() => false} accept="image/*">
+                          <Button icon={<UploadOutlined />}>选择图片</Button>
+                        </Upload>
+                      </Form.Item>
+                      <Form.Item name="color_type" initialValue="white">
+                        <Select className={styles.smallInput}>
+                          <Option value="white">白色</Option>
+                          <Option value="blue">蓝色</Option>
+                          <Option value="black">黑色</Option>
+                          <Option value="transparent">透明</Option>
+                        </Select>
+                      </Form.Item>
+                      <Form.Item name="scale_ratio" label="缩放比例" initialValue={0.1}>
+                        <InputNumber
+                          min={SCALE_RATIO_MIN}
+                          max={SCALE_RATIO_MAX}
+                          step={SCALE_RATIO_STEP}
+                          formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
+                          parser={(value) => Number(value?.replace('%', '')) / 100}
+                          placeholder="缩放比例"
+                          className={styles.smallInput}
+                          controls={false}
+                        />
+                      </Form.Item>
+                      <Form.Item name="opacity" label="透明度" initialValue={0.8}>
+                        <InputNumber
+                          min={OPACITY_MIN}
+                          max={OPACITY_MAX}
+                          step={OPACITY_STEP}
+                          formatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
+                          parser={(value) => Number(value?.replace('%', '')) / 100}
+                          placeholder="透明度"
+                          className={styles.smallInput}
+                          controls={false}
+                        />
+                      </Form.Item>
+                      <Form.Item>
+                        <Button type="primary" htmlType="submit" loading={createWatermarkMutation.isPending}>
+                          创建水印
+                        </Button>
+                      </Form.Item>
+                    </Form>
+                  )}
 
                   <Table
                     columns={watermarkColumns}
@@ -719,21 +727,23 @@ const WatermarkManagement: React.FC = () => {
                   <div className={styles.resourceToolbar}>
                     <Space>
                       <span>已选中: {selectedResources.length} 个</span>
-                      <Button
-                        danger
-                        icon={<DeleteOutlined />}
-                        disabled={selectedResources.length === 0}
-                        loading={deleteResourcesMutation.isPending}
-                        onClick={() => {
-                          Modal.confirm({
-                            title: '确认删除',
-                            content: `确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`,
-                            onOk: () => deleteResourcesMutation.mutate(selectedResources),
-                          });
-                        }}
-                      >
-                        删除选中
-                      </Button>
+                      {canOperate && (
+                        <Button
+                          danger
+                          icon={<DeleteOutlined />}
+                          disabled={selectedResources.length === 0}
+                          loading={deleteResourcesMutation.isPending}
+                          onClick={() => {
+                            Modal.confirm({
+                              title: '确认删除',
+                              content: `确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`,
+                              onOk: () => deleteResourcesMutation.mutate(selectedResources),
+                            });
+                          }}
+                        >
+                          删除选中
+                        </Button>
+                      )}
                       <Button icon={<ReloadOutlined />} onClick={() => refetchResources()}>
                         刷新
                       </Button>

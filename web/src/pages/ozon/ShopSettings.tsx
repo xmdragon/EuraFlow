@@ -47,6 +47,7 @@ import {
 import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { usePermission } from '@/hooks/usePermission';
 import styles from './ShopSettings.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
@@ -56,6 +57,7 @@ const { confirm } = Modal;
 interface Shop {
   id: number;
   shop_name: string;
+  shop_name_cn?: string;
   platform: string;
   status: 'active' | 'inactive' | 'suspended';
   api_credentials?: {
@@ -89,6 +91,7 @@ interface Shop {
 
 const ShopSettings: React.FC = () => {
   const queryClient = useQueryClient();
+  const { canOperate, canSync } = usePermission();
   const [form] = Form.useForm();
   const [testingConnection, setTestingConnection] = useState(false);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -282,7 +285,7 @@ const ShopSettings: React.FC = () => {
   const handleDeleteShop = (shop: Shop) => {
     confirm({
       title: '确认删除店铺？',
-      content: `店铺名称: ${shop.shop_name}`,
+      content: `店铺名称: ${shop.shop_name_cn || shop.shop_name}`,
       okText: '确认删除',
       okType: 'danger',
       onOk: async () => {
@@ -336,18 +339,22 @@ const ShopSettings: React.FC = () => {
 
         {/* 店铺列表 */}
         <Card className={styles.shopListCard}>
-          <div className={styles.addButtonRow}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
-              添加店铺
-            </Button>
-            <Button
-              icon={<TruckOutlined />}
-              loading={syncAllWarehousesMutation.isPending}
-              onClick={() => syncAllWarehousesMutation.mutate()}
-            >
-              同步所有店铺仓库
-            </Button>
-          </div>
+          {canOperate && (
+            <div className={styles.addButtonRow}>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
+                添加店铺
+              </Button>
+              {canSync && (
+                <Button
+                  icon={<TruckOutlined />}
+                  loading={syncAllWarehousesMutation.isPending}
+                  onClick={() => syncAllWarehousesMutation.mutate()}
+                >
+                  同步所有店铺仓库
+                </Button>
+              )}
+            </div>
+          )}
 
           {shops.length === 0 ? (
             <div className={styles.emptyState}>
@@ -356,11 +363,13 @@ const ShopSettings: React.FC = () => {
                 暂无店铺
               </Title>
               <Text type="secondary" className={styles.emptyText}>
-                您还没有添加任何Ozon店铺，点击上方"添加店铺"按钮开始配置
+                您还没有添加任何Ozon店铺{canOperate && '，点击上方"添加店铺"按钮开始配置'}
               </Text>
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
-                立即添加店铺
-              </Button>
+              {canOperate && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
+                  立即添加店铺
+                </Button>
+              )}
             </div>
           ) : (
           <Table
@@ -420,7 +429,7 @@ const ShopSettings: React.FC = () => {
                   );
                 },
               },
-              {
+              ...(canOperate ? [{
                 title: '操作',
                 key: 'action',
                 render: (_: unknown, record: Shop) => (
@@ -455,7 +464,7 @@ const ShopSettings: React.FC = () => {
                     </Button>
                   </Space>
                 ),
-              },
+              }] : []),
             ]}
           />
           )}
@@ -563,16 +572,18 @@ const ShopSettings: React.FC = () => {
                           </Col>
                         </Row>
 
-                        <Form.Item>
-                          <Button
-                            type="primary"
-                            icon={<ApiOutlined />}
-                            onClick={handleTestConnection}
-                            loading={testingConnection}
-                          >
-                            测试连接
-                          </Button>
-                        </Form.Item>
+                        {canOperate && (
+                          <Form.Item>
+                            <Button
+                              type="primary"
+                              icon={<ApiOutlined />}
+                              onClick={handleTestConnection}
+                              loading={testingConnection}
+                            >
+                              测试连接
+                            </Button>
+                          </Form.Item>
+                        )}
 
                         <Divider />
 
@@ -727,21 +738,23 @@ const ShopSettings: React.FC = () => {
 
               <Divider />
 
-              <Form.Item>
-                <Space>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<SaveOutlined />}
-                    loading={saveShopMutation.isPending}
-                  >
-                    保存配置
-                  </Button>
-                  <Button icon={<ReloadOutlined />} onClick={() => form.resetFields()}>
-                    重置
-                  </Button>
-                </Space>
-              </Form.Item>
+              {canOperate && (
+                <Form.Item>
+                  <Space>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      icon={<SaveOutlined />}
+                      loading={saveShopMutation.isPending}
+                    >
+                      保存配置
+                    </Button>
+                    <Button icon={<ReloadOutlined />} onClick={() => form.resetFields()}>
+                      重置
+                    </Button>
+                  </Space>
+                </Form.Item>
+              )}
             </Form>
           </>
         )}

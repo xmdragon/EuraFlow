@@ -42,6 +42,7 @@ import {
 
 import * as exchangeRateApi from '../services/exchangeRateApi';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { usePermission } from '@/hooks/usePermission';
 import styles from './ExchangeRateManagement.module.scss';
 
 const { Title, Text, Paragraph } = Typography;
@@ -49,6 +50,7 @@ const { Title, Text, Paragraph } = Typography;
 const ExchangeRateManagement: React.FC = () => {
   const [configForm] = Form.useForm();
   const queryClient = useQueryClient();
+  const { canOperate } = usePermission();
 
   // 货币转换状态
   const [cnyAmount, setCnyAmount] = useState<string>('');
@@ -216,17 +218,19 @@ const ExchangeRateManagement: React.FC = () => {
             汇率管理
           </Title>
         </Col>
-        <Col>
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={handleManualRefresh}
-            loading={refreshMutation.isPending}
-            disabled={!config?.configured}
-          >
-            手动刷新汇率
-          </Button>
-        </Col>
+        {canOperate && (
+          <Col>
+            <Button
+              type="primary"
+              icon={<ReloadOutlined />}
+              onClick={handleManualRefresh}
+              loading={refreshMutation.isPending}
+              disabled={!config?.configured}
+            >
+              手动刷新汇率
+            </Button>
+          </Col>
+        )}
       </Row>
 
       <Row gutter={[16, 16]}>
@@ -283,23 +287,25 @@ const ExchangeRateManagement: React.FC = () => {
                     <Switch />
                   </Form.Item>
 
-                  <Form.Item>
-                    <Space>
-                      <Button
-                        type="primary"
-                        htmlType="submit"
-                        loading={configMutation.isPending}
-                      >
-                        保存配置
-                      </Button>
-                      <Button
-                        onClick={handleTestConnection}
-                        loading={testMutation.isPending}
-                      >
-                        测试连接
-                      </Button>
-                    </Space>
-                  </Form.Item>
+                  {canOperate && (
+                    <Form.Item>
+                      <Space>
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          loading={configMutation.isPending}
+                        >
+                          保存配置
+                        </Button>
+                        <Button
+                          onClick={handleTestConnection}
+                          loading={testMutation.isPending}
+                        >
+                          测试连接
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                  )}
                 </Form>
 
                 <Paragraph type="secondary" className={styles.configHint}>
