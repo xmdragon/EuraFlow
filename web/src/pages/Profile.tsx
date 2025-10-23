@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Row, Col, Divider, Space, Typography } from 'antd';
-import { UserOutlined, MailOutlined, KeyOutlined } from '@ant-design/icons';
+import { UserOutlined, KeyOutlined } from '@ant-design/icons';
 import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -9,7 +9,6 @@ const { Title, Text } = Typography;
 
 interface UpdateProfileData {
   username?: string;
-  email?: string;
 }
 
 interface ChangePasswordData {
@@ -77,7 +76,6 @@ const Profile: React.FC = () => {
               layout="vertical"
               initialValues={{
                 username: user?.username || '',
-                email: user?.email || '',
               }}
               onFinish={handleUpdateProfile}
             >
@@ -87,16 +85,6 @@ const Profile: React.FC = () => {
                 tooltip="用户名创建后不可修改"
               >
                 <Input prefix={<UserOutlined />} placeholder="请输入用户名" disabled />
-              </Form.Item>
-
-              <Form.Item
-                label="邮箱"
-                name="email"
-                rules={[
-                  { type: 'email', message: '请输入有效的邮箱地址' },
-                ]}
-              >
-                <Input prefix={<MailOutlined />} placeholder="请输入邮箱（可选）" />
               </Form.Item>
 
               <Form.Item>

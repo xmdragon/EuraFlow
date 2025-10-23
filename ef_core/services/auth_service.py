@@ -160,10 +160,9 @@ class AuthService:
         db_manager = get_db_manager()
 
         async with db_manager.get_session() as session:
-            # 查询用户（优先使用用户名，其次邮箱）
+            # 查询用户
             stmt = select(User).where(
-                (User.username == email_or_username) |
-                (User.email == email_or_username)
+                User.username == email_or_username
             ).options(selectinload(User.primary_shop), selectinload(User.shops))
             
             result = await session.execute(stmt)
@@ -215,17 +214,16 @@ class AuthService:
                 
                 raise UnauthorizedError(
                     code="INVALID_CREDENTIALS",
-                    detail="Invalid email/username or password"
+                    detail="Invalid username or password"
                 )
             
             # 记录成功登录
             await self.record_login_attempt(email_or_username, ip_address, success=True)
-            logger.info(f"User logged in", user_id=user.id, email=user.email, ip=ip_address)
+            logger.info(f"User logged in", user_id=user.id, username=user.username, ip=ip_address)
             
             # 在会话内构建用户数据，避免detached instance错误
             user_data = {
                 "id": user.id,
-                "email": user.email,
                 "username": user.username,
                 "role": user.role,
                 "permissions": user.permissions,
@@ -236,11 +234,11 @@ class AuthService:
                 "created_at": user.created_at.isoformat(),
                 "updated_at": user.updated_at.isoformat()
             }
-            
+
             # 创建令牌
             token_data = {
                 "sub": str(user.id),
-                "email": user.email,
+                "username": user.username,
                 "role": user.role,
                 "permissions": user.permissions,
                 "shop_id": user.primary_shop_id
@@ -294,7 +292,7 @@ class AuthService:
                 # 创建新的访问令牌
                 token_data = {
                     "sub": str(user.id),
-                    "email": user.email,
+                    "username": user.username,
                     "role": user.role,
                     "permissions": user.permissions,
                     "shop_id": user.primary_shop_id

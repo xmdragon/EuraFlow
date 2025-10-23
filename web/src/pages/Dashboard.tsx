@@ -277,7 +277,6 @@ const Dashboard: React.FC = () => {
               {!collapsed && (
                 <div className={styles.userDetails}>
                   <p className={styles.username}>{user?.username || '未设置'}</p>
-                  <p className={styles.userEmail}>{user?.email || '未设置邮箱'}</p>
                 </div>
               )}
             </div>
@@ -305,7 +304,6 @@ const Dashboard: React.FC = () => {
                       user || {
                         id: 0,
                         username: 'Guest',
-                        email: '',
                         role: 'guest',
                         permissions: [],
                         is_active: false,

@@ -55,6 +55,7 @@ import {
   Avatar,
   Tabs,
   notification,
+  message,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
@@ -305,13 +306,13 @@ const ProductList: React.FC = () => {
 
         if (status.status === 'completed') {
           completed = true;
-          notification.close(notificationKey);
+          notification.destroy(notificationKey);
           notifySuccess('同步完成', '商品同步已完成！');
           queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
           refetch();
         } else if (status.status === 'failed') {
           completed = true;
-          notification.close(notificationKey);
+          notification.destroy(notificationKey);
           notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
         } else {
           // 更新进度通知

@@ -465,13 +465,13 @@ const OrderList: React.FC = () => {
 
         if (status.status === 'completed') {
           completed = true;
-          notification.close(notificationKey);
+          notification.destroy(notificationKey);
           notifySuccess('同步完成', '订单同步已完成！');
           queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
           refetch();
         } else if (status.status === 'failed') {
           completed = true;
-          notification.close(notificationKey);
+          notification.destroy(notificationKey);
           notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
         } else {
           // 更新进度通知

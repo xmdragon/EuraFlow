@@ -279,7 +279,7 @@ interface OrderCardComponentProps {
   operationStatusConfig: Record<string, { color: string; text: string }>;
   operationStatus: string;
   formatPrice: (price: any) => string;
-  formatDeliveryMethodText: (method: string) => string;
+  formatDeliveryMethodText: (method: string | undefined) => React.ReactNode;
   onCopy: (text: string | undefined, label: string) => void;
   onShowDetail: (order: ozonApi.Order, posting: ozonApi.Posting) => void;
   onOpenImagePreview: (url: string) => void;
@@ -1332,7 +1332,7 @@ const PackingShipment: React.FC = () => {
     }
 
     // 关闭进度通知
-    notification.close(notificationKey);
+    notification.destroy(notificationKey);
 
     // 显示最终结果
     if (failedCount === 0) {

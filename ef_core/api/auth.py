@@ -58,7 +58,6 @@ class UserResponse(BaseModel):
     """用户信息响应"""
     id: int
     username: str
-    email: Optional[str]
     role: str
     is_active: bool
     parent_user_id: Optional[int]
@@ -71,8 +70,7 @@ class UserResponse(BaseModel):
 
 class CreateUserRequest(BaseModel):
     """创建用户请求"""
-    username: str = Field(..., min_length=3, max_length=50, description="用户名（必填）")
-    email: Optional[EmailStr] = Field(None, description="邮箱地址（选填）")
+    username: str = Field(..., min_length=3, max_length=50, description="用户名")
     password: str = Field(..., min_length=8, description="密码")
     role: str = Field("operator", description="角色：operator/viewer")
     is_active: bool = Field(True, description="是否激活")
@@ -106,7 +104,6 @@ class ChangePasswordRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     """更新个人资料请求"""
     username: Optional[str] = Field(None, min_length=3, max_length=50, description="用户名")
-    email: Optional[EmailStr] = Field(None, description="邮箱")
 
 
 # ========== 依赖函数 ==========
@@ -471,22 +468,8 @@ async def create_user(
             }
         )
 
-    # 如果提供了邮箱，检查是否已存在
-    if user_data.email:
-        stmt = select(User).where(User.email == user_data.email)
-        result = await session.execute(stmt)
-        if result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "EMAIL_EXISTS",
-                    "message": "该邮箱已被注册"
-                }
-            )
-
     # 创建新用户
     new_user = User(
-        email=user_data.email,
         username=user_data.username,
         password_hash=auth_service.hash_password(user_data.password),
         role=user_data.role,
@@ -718,21 +701,6 @@ async def update_profile(
                 }
             )
         user.username = update_data.username
-
-    # 更新邮箱
-    if update_data.email is not None:
-        # 检查邮箱是否已存在
-        stmt = select(User).where(User.email == update_data.email, User.id != user.id)
-        result = await session.execute(stmt)
-        if result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "EMAIL_EXISTS",
-                    "message": "该邮箱已被使用"
-                }
-            )
-        user.email = update_data.email
 
     await session.commit()
     await session.refresh(user, attribute_names=["shops"])

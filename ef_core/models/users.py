@@ -41,14 +41,8 @@ class User(Base):
         nullable=False,
         comment="用户名"
     )
-    email: Mapped[Optional[str]] = mapped_column(
-        String(255),
-        unique=False,
-        nullable=True,
-        comment="邮箱地址（选填）"
-    )
     password_hash: Mapped[str] = mapped_column(
-        String(255), 
+        String(255),
         nullable=False,
         comment="密码哈希"
     )
@@ -118,13 +112,12 @@ class User(Base):
     
     # 索引
     __table_args__ = (
-        Index("ix_users_email", "email"),
         Index("ix_users_role", "role"),
         Index("ix_users_is_active", "is_active"),
     )
     
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, email={self.email}, role={self.role})>"
+        return f"<User(id={self.id}, username={self.username}, role={self.role})>"
     
     def has_permission(self, permission: str) -> bool:
         """检查用户是否有指定权限"""
@@ -138,7 +131,6 @@ class User(Base):
         """转换为字典"""
         return {
             "id": self.id,
-            "email": self.email,
             "username": self.username,
             "role": self.role,
             "permissions": self.permissions,
