@@ -489,14 +489,16 @@ async def create_user(
         stmt = select(Shop)
         result = await session.execute(stmt)
         all_shops = result.scalars().all()
-        new_user.shops = list(all_shops)
+        # 使用 run_sync 包装同步操作，避免 MissingGreenlet 错误
+        await session.run_sync(lambda s: setattr(new_user, 'shops', list(all_shops)))
     elif user_data.shop_ids:
         # 其他角色根据传入的 shop_ids 关联
         from ef_core.models.shops import Shop
         stmt = select(Shop).where(Shop.id.in_(user_data.shop_ids))
         result = await session.execute(stmt)
         shops = result.scalars().all()
-        new_user.shops = list(shops)
+        # 使用 run_sync 包装同步操作，避免 MissingGreenlet 错误
+        await session.run_sync(lambda s: setattr(new_user, 'shops', list(shops)))
 
     await session.commit()
     await session.refresh(new_user, attribute_names=["shops"])
