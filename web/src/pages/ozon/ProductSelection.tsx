@@ -1139,7 +1139,7 @@ const ProductSelection: React.FC = () => {
                   <Space.Compact>
                     <InputNumber
                       value={targetProfitRate}
-                      onChange={(val) => setTargetProfitRate(val || 20)}
+                      onChange={(val) => setTargetProfitRate((val as number) || 20)}
                       min={0}
                       max={100}
                       formatter={getNumberFormatter(2)}

@@ -233,7 +233,7 @@ const ProductListing: React.FC = () => {
   // 统计信息
   const stats = productsData?.data ? {
     total: productsData.data.length,
-    draft: productsData.data.filter((p: ozonApi.Product) => p.status === 'draft').length,
+    draft: productsData.data.filter((p: ozonApi.Product) => !p.ozon_product_id && (!p.price || p.stock <= 0)).length,
     listed: productsData.data.filter((p: ozonApi.Product) => p.ozon_product_id).length,
     ready: productsData.data.filter((p: ozonApi.Product) => p.price && p.stock > 0 && !p.ozon_product_id).length,
   } : { total: 0, draft: 0, listed: 0, ready: 0 };
@@ -250,7 +250,7 @@ const ProductListing: React.FC = () => {
         <Col span={12} style={{ textAlign: 'right' }}>
           <ShopSelector
             value={selectedShop}
-            onChange={setSelectedShop}
+            onChange={(shopId) => setSelectedShop(shopId as number)}
             style={{ width: 200 }}
           />
         </Col>

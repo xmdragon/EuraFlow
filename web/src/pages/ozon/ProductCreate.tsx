@@ -336,7 +336,7 @@ const ProductCreate: React.FC = () => {
             >
               <ShopSelector
                 value={selectedShop}
-                onChange={setSelectedShop}
+                onChange={(shopId) => setSelectedShop(shopId as number)}
                 showAllOption={false}
               />
             </Form.Item>

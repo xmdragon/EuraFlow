@@ -81,6 +81,7 @@ interface PostingReportItem {
   shop_name: string;
   status: string;
   created_at: string;
+  in_process_at?: string;
   products: ProductInPosting[];
   order_amount: string;
   purchase_price: string;

@@ -240,7 +240,7 @@ const OzonDashboard: React.FC = () => {
                   <Card>
                     <Statistic
                       title={OZON_STATUS_NAME_MAP[status] || status}
-                      value={count}
+                      value={count as number}
                     />
                   </Card>
                 </Col>
