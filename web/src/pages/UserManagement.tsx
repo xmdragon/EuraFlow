@@ -11,13 +11,11 @@ import {
   Space,
   Tag,
   Typography,
-  Popconfirm,
   Tooltip,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
-  DeleteOutlined,
   UserAddOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -52,7 +50,6 @@ interface CreateUserData {
   password: string;
   role: string;
   is_active: boolean;
-  permissions: string[];
 }
 
 const UserManagement: React.FC = () => {
@@ -122,7 +119,6 @@ const UserManagement: React.FC = () => {
           username: values.username,
           role: values.role,
           is_active: values.is_active,
-          permissions: values.permissions || [],
           shop_ids: shopIds,
         });
         notifySuccess('更新成功', '用户更新成功');
@@ -178,26 +174,6 @@ const UserManagement: React.FC = () => {
         }
       }
       notifyError('操作失败', errorMsg);
-    }
-  };
-
-  // 删除用户
-  const handleDelete = async (userId: number) => {
-    try {
-      await axios.delete(`/api/ef/v1/auth/users/${userId}`);
-      notifySuccess('操作成功', '用户已禁用');
-      fetchUsers();
-    } catch (error: any) {
-      // 获取具体的错误信息
-      let errorMsg = '删除失败';
-      if (error.response?.data?.detail) {
-        if (typeof error.response.data.detail === 'object') {
-          errorMsg = error.response.data.detail.message || '删除失败';
-        } else {
-          errorMsg = error.response.data.detail;
-        }
-      }
-      notifyError('删除失败', errorMsg);
     }
   };
 
@@ -295,20 +271,6 @@ const UserManagement: React.FC = () => {
                 size="small"
               />
             </Tooltip>
-            <Popconfirm
-              title="确定要禁用此用户吗？"
-              onConfirm={() => handleDelete(record.id)}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Tooltip title="禁用">
-                <Button
-                  type="link"
-                  danger
-                  icon={<DeleteOutlined />}
-                />
-              </Tooltip>
-            </Popconfirm>
           </Space>
         );
       },
@@ -461,22 +423,6 @@ const UserManagement: React.FC = () => {
                 </Form.Item>
               );
             }}
-          </Form.Item>
-
-          <Form.Item
-            name="permissions"
-            label="权限"
-          >
-            <Select mode="multiple" placeholder="选择权限">
-              <Option value="view_orders">查看订单</Option>
-              <Option value="manage_orders">管理订单</Option>
-              <Option value="view_products">查看商品</Option>
-              <Option value="manage_products">管理商品</Option>
-              <Option value="view_inventory">查看库存</Option>
-              <Option value="manage_inventory">管理库存</Option>
-              <Option value="view_finance">查看财务</Option>
-              <Option value="manage_finance">管理财务</Option>
-            </Select>
           </Form.Item>
 
           <Form.Item>
