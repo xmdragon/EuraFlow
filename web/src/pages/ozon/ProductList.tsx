@@ -66,6 +66,7 @@ import * as watermarkApi from '@/services/watermarkApi';
 import { formatRuble, calculateMargin, formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { usePermission } from '@/hooks/usePermission';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import './ProductList.css';
@@ -101,6 +102,7 @@ const generateOzonSlug = (title: string): string => {
 
 const ProductList: React.FC = () => {
   const queryClient = useQueryClient();
+  const { canOperate, canSync, canImport, canExport, canDelete } = usePermission();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -879,44 +881,44 @@ const ProductList: React.FC = () => {
         <Dropdown
           menu={{
             items: [
-              {
+              canOperate && {
                 key: 'edit',
                 icon: <EditOutlined />,
                 label: '编辑',
               },
-              {
+              canOperate && {
                 key: 'price',
                 icon: <DollarOutlined />,
                 label: '更新价格',
               },
-              {
+              canOperate && {
                 key: 'stock',
                 icon: <ShoppingOutlined />,
                 label: '更新库存',
               },
-              {
-                type: 'divider',
+              (canOperate || canSync) && {
+                type: 'divider' as const,
               },
-              {
+              canSync && {
                 key: 'sync',
                 icon: <SyncOutlined />,
                 label: '立即同步',
               },
-              {
+              canOperate && {
                 key: 'archive',
                 icon: <DeleteOutlined />,
                 label: '归档',
               },
-              {
-                type: 'divider',
+              canDelete && {
+                type: 'divider' as const,
               },
-              {
+              canDelete && {
                 key: 'delete',
                 icon: <DeleteOutlined />,
                 label: '删除',
                 danger: true,
               },
-            ],
+            ].filter(Boolean),
             onClick: ({ key }) => {
               switch (key) {
                 case 'edit':
@@ -1415,41 +1417,53 @@ const ProductList: React.FC = () => {
       <Card className={styles.productListCard}>
         <div className={styles.actionWrapper}>
           <Space>
-            <Button
-              type="primary"
-              icon={<SyncOutlined />}
-              onClick={() => handleSync(false)}
-              loading={syncProductsMutation.isPending}
-            >
-              增量同步
-            </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => handleSync(true)}
-              loading={syncProductsMutation.isPending}
-            >
-              全量同步
-            </Button>
-            <Button
-              icon={<DollarOutlined />}
-              onClick={handleBatchPriceUpdate}
-              disabled={selectedRows.length === 0}
-            >
-              批量调价
-            </Button>
-            <Button
-              icon={<ShoppingOutlined />}
-              onClick={handleBatchStockUpdate}
-              disabled={selectedRows.length === 0}
-            >
-              批量改库存
-            </Button>
-            <Button icon={<UploadOutlined />} onClick={handleImport}>
-              导入商品
-            </Button>
-            <Button icon={<DownloadOutlined />} onClick={handleExport}>
-              导出数据
-            </Button>
+            {canSync && (
+              <Button
+                type="primary"
+                icon={<SyncOutlined />}
+                onClick={() => handleSync(false)}
+                loading={syncProductsMutation.isPending}
+              >
+                增量同步
+              </Button>
+            )}
+            {canSync && (
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => handleSync(true)}
+                loading={syncProductsMutation.isPending}
+              >
+                全量同步
+              </Button>
+            )}
+            {canOperate && (
+              <Button
+                icon={<DollarOutlined />}
+                onClick={handleBatchPriceUpdate}
+                disabled={selectedRows.length === 0}
+              >
+                批量调价
+              </Button>
+            )}
+            {canOperate && (
+              <Button
+                icon={<ShoppingOutlined />}
+                onClick={handleBatchStockUpdate}
+                disabled={selectedRows.length === 0}
+              >
+                批量改库存
+              </Button>
+            )}
+            {canImport && (
+              <Button icon={<UploadOutlined />} onClick={handleImport}>
+                导入商品
+              </Button>
+            )}
+            {canExport && (
+              <Button icon={<DownloadOutlined />} onClick={handleExport}>
+                导出数据
+              </Button>
+            )}
           </Space>
           <Tooltip title="列显示设置">
             <Button

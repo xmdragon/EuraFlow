@@ -43,8 +43,8 @@ const processQueue = (_error: unknown, _token: string | null = null) => {
 const isAuthenticationError = (error: any): boolean => {
   const status = error.response?.status;
 
-  // 明确的认证错误状态码
-  if (status === 401 || status === 403) {
+  // 401是认证错误（未登录或token过期）
+  if (status === 401) {
     return true;
   }
 
@@ -70,6 +70,20 @@ const isAuthenticationError = (error: any): boolean => {
   }
 
   return false;
+};
+
+/**
+ * 处理权限不足错误（403）
+ */
+const handlePermissionDenied = (error: any) => {
+  // 使用动态导入避免循环依赖
+  import('antd').then(({ message: antdMessage }) => {
+    const errorDetail = error.response?.data?.error?.detail || '您没有执行此操作的权限';
+    antdMessage.error(`权限不足: ${errorDetail}`);
+  }).catch(() => {
+    // 如果antd加载失败，使用原生alert
+    alert('权限不足：您没有执行此操作的权限');
+  });
 };
 
 /**
@@ -158,11 +172,12 @@ axios.interceptors.response.use(
         }
       }
 
-      // 403错误直接跳转登录页
-      if (status === 403) {
-        handleAuthenticationFailure('没有访问权限，请重新登录');
-        return Promise.reject(error);
-      }
+    }
+
+    // 403错误是权限不足，不是认证错误
+    if (error.response?.status === 403) {
+      handlePermissionDenied(error);
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);
