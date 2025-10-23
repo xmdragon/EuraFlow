@@ -565,33 +565,29 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                 )
                               : '-'}
                           </Text>
-                          {isDelivered && (
-                            <>
-                              {canSync && (
-                                <Button
-                                  type="link"
-                                  size="small"
-                                  icon={<SyncOutlined spin={syncingMaterialCost} />}
-                                  loading={syncingMaterialCost}
-                                  onClick={handleSyncMaterialCost}
-                                >
-                                  同步
-                                </Button>
-                              )}
-                              {canOperate && (
-                                <Button
-                                  type="link"
-                                  size="small"
-                                  icon={<EditOutlined />}
-                                  onClick={() => {
-                                    setEditMaterialCost(selectedPosting?.material_cost || '');
-                                    setIsEditingMaterialCost(true);
-                                  }}
-                                >
-                                  编辑
-                                </Button>
-                              )}
-                            </>
+                          {isDelivered && canSync && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<SyncOutlined spin={syncingMaterialCost} />}
+                              loading={syncingMaterialCost}
+                              onClick={handleSyncMaterialCost}
+                            >
+                              同步
+                            </Button>
+                          )}
+                          {isDelivered && canOperate && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EditOutlined />}
+                              onClick={() => {
+                                setEditMaterialCost(selectedPosting?.material_cost || '');
+                                setIsEditingMaterialCost(true);
+                              }}
+                            >
+                              编辑
+                            </Button>
                           )}
                         </Space>
                       )}
