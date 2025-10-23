@@ -116,12 +116,6 @@ const Dashboard: React.FC = () => {
               onClick: () => navigate('/dashboard/ozon/products'),
             },
             {
-              key: 'ozon-products-create',
-              icon: <PlusOutlined />,
-              label: '新建商品',
-              onClick: () => navigate('/dashboard/ozon/products/create'),
-            },
-            {
               key: 'ozon-listing',
               icon: <CloudUploadOutlined />,
               label: '商品上架',

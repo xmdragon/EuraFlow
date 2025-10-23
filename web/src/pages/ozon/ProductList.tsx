@@ -25,6 +25,7 @@ import {
   WarningOutlined,
   InfoCircleOutlined,
   FileOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -59,6 +60,7 @@ import {
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 
 import * as ozonApi from '@/services/ozonApi';
@@ -101,6 +103,7 @@ const generateOzonSlug = (title: string): string => {
 };
 
 const ProductList: React.FC = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canSync, canImport, canExport, canDelete } = usePermission();
 
@@ -1341,6 +1344,9 @@ const ProductList: React.FC = () => {
                 查询
               </Button>
               <Button onClick={handleReset}>重置</Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/dashboard/ozon/products/create')}>
+                新建商品
+              </Button>
             </Space>
           </Form.Item>
         </Form>

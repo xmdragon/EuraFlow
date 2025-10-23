@@ -14,11 +14,12 @@ from ef_core.models.base import Base
 
 
 # 用户-店铺关联表（多对多）
+# 注意：外键已迁移为指向 ozon_shops.id（详见迁移脚本 20251023_1810_ec18764825d6）
 user_shops = Table(
     'user_shops',
     Base.metadata,
     Column('user_id', BigInteger, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True, comment='用户ID'),
-    Column('shop_id', BigInteger, ForeignKey('shops.id', ondelete='CASCADE'), primary_key=True, comment='店铺ID'),
+    Column('shop_id', BigInteger, ForeignKey('ozon_shops.id', ondelete='CASCADE'), primary_key=True, comment='店铺ID (指向ozon_shops)'),
     Column('created_at', DateTime(timezone=True), server_default=func.now(), nullable=False, comment='关联创建时间')
 )
 
@@ -76,11 +77,12 @@ class User(Base):
     )
 
     # 店铺关联
+    # 注意：外键已迁移为指向 ozon_shops.id（详见迁移脚本 20251023_1810_ec18764825d6）
     primary_shop_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
-        ForeignKey("shops.id", ondelete="SET NULL"),
+        ForeignKey("ozon_shops.id", ondelete="SET NULL"),
         nullable=True,
-        comment="主店铺ID"
+        comment="主店铺ID (指向ozon_shops)"
     )
     
     # 时间戳
@@ -104,11 +106,12 @@ class User(Base):
     )
     
     # 关系
-    primary_shop = relationship("Shop", back_populates="primary_users", foreign_keys=[primary_shop_id])
+    # 注意：已迁移为使用 OzonShop 模型（详见迁移脚本 20251023_1810_ec18764825d6）
+    primary_shop = relationship("OzonShop", foreign_keys=[primary_shop_id])
     parent_user = relationship("User", remote_side=[id], foreign_keys=[parent_user_id], backref="sub_accounts")
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
     # 用户关联的店铺（多对多）
-    shops = relationship("Shop", secondary=user_shops, backref="associated_users")
+    shops = relationship("OzonShop", secondary=user_shops, backref="associated_users")
     
     # 索引
     __table_args__ = (

@@ -8,7 +8,6 @@ from .inventory import Inventory
 from .listings import Listing
 from .returns import Return, Refund
 from .users import User
-from .shops import Shop
 from .api_keys import APIKey
 from .exchange_rate import ExchangeRateConfig, ExchangeRate
 
@@ -23,7 +22,6 @@ __all__ = [
     "Return",
     "Refund",
     "User",
-    "Shop",
     "APIKey",
     "ExchangeRateConfig",
     "ExchangeRate"

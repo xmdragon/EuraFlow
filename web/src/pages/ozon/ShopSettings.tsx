@@ -114,6 +114,7 @@ const ShopSettings: React.FC = () => {
     mutationFn: async (values: any) => {
       return ozonApi.createShop({
         name: values.shop_name,
+        shop_name_cn: values.shop_name_cn,
         client_id: values.client_id,
         api_key: values.api_key,
         platform: 'ozon',
@@ -141,6 +142,7 @@ const ShopSettings: React.FC = () => {
 
       return ozonApi.updateShop(selectedShop.id, {
         shop_name: values.shop_name,
+        shop_name_cn: values.shop_name_cn,
         status: 'active',
         api_credentials: {
           client_id: values.client_id,
@@ -170,6 +172,7 @@ const ShopSettings: React.FC = () => {
       // 更新表单值，但保留用户输入的API KEY（不用返回的掩码值）
       form.setFieldsValue({
         shop_name: data.shop_name,
+        shop_name_cn: data.shop_name_cn,
         client_id: data.api_credentials?.client_id,
         // 如果用户输入了新的API KEY，保持显示；否则显示掩码
         api_key:
@@ -254,6 +257,7 @@ const ShopSettings: React.FC = () => {
     if (selectedShop) {
       form.setFieldsValue({
         shop_name: selectedShop.shop_name,
+        shop_name_cn: selectedShop.shop_name_cn,
         client_id: selectedShop.api_credentials?.client_id,
         api_key: selectedShop.api_credentials?.api_key,
         webhook_url: selectedShop.config?.webhook_url,
@@ -407,16 +411,6 @@ const ShopSettings: React.FC = () => {
                 },
               },
               {
-                title: '商品数',
-                key: 'products',
-                render: (_: unknown, record: Shop) => record.stats?.total_products || 0,
-              },
-              {
-                title: '订单数',
-                key: 'orders',
-                render: (_: unknown, record: Shop) => record.stats?.total_orders || 0,
-              },
-              {
                 title: '最后同步',
                 key: 'last_sync',
                 render: (_: unknown, record: Shop) => {
@@ -483,52 +477,6 @@ const ShopSettings: React.FC = () => {
               className={styles.currentShopAlert}
             />
 
-            {/* 店铺统计 */}
-            <Row gutter={16} className={styles.statsRow}>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="商品总数"
-                    value={selectedShop.stats?.total_products || 0}
-                    prefix={<ShoppingOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="订单总数"
-                    value={selectedShop.stats?.total_orders || 0}
-                    prefix={<ShopOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="同步状态"
-                    value={selectedShop.stats?.sync_status === 'success' ? '正常' : '异常'}
-                    prefix={
-                      selectedShop.stats?.sync_status === 'success' ? (
-                        <CheckCircleOutlined className={styles.statusSuccess} />
-                      ) : (
-                        <ExclamationCircleOutlined className={styles.statusError} />
-                      )
-                    }
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="API状态"
-                    value={testingConnection ? '测试中...' : '已连接'}
-                    prefix={<ApiOutlined />}
-                  />
-                </Card>
-              </Col>
-            </Row>
-
             <Form form={form} layout="vertical" onFinish={handleSave}>
               <Tabs
                 defaultActiveKey="1"
@@ -583,30 +531,6 @@ const ShopSettings: React.FC = () => {
                             </Form.Item>
                           </Col>
                         </Row>
-
-                        {canOperate && (
-                          <Form.Item>
-                            <Button
-                              type="primary"
-                              icon={<ApiOutlined />}
-                              onClick={handleTestConnection}
-                              loading={testingConnection}
-                            >
-                              测试连接
-                            </Button>
-                          </Form.Item>
-                        )}
-
-                        <Divider />
-
-                        <Title level={5}>
-                          Webhook配置
-                          <Text type="secondary" className={styles.webhookSubtitle}>
-                            实时事件通知
-                          </Text>
-                        </Title>
-
-                        <WebhookConfiguration selectedShop={selectedShop} />
                       </>
                     ),
                   },
@@ -753,6 +677,13 @@ const ShopSettings: React.FC = () => {
               {canOperate && (
                 <Form.Item>
                   <Space>
+                    <Button
+                      icon={<ApiOutlined />}
+                      onClick={handleTestConnection}
+                      loading={testingConnection}
+                    >
+                      测试连接
+                    </Button>
                     <Button
                       type="primary"
                       htmlType="submit"
@@ -1206,82 +1137,65 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
         className={styles.webhookAlert}
       />
 
-      <Row gutter={16}>
-        <Col span={12}>
-          <Card size="small" title="配置状态">
-            <Space direction="vertical" className={styles.webhookStatusCard}>
-              <div>
-                <Badge
-                  status={webhookEnabled ? 'success' : 'default'}
-                  text={webhookEnabled ? '已配置' : '未配置'}
-                />
-              </div>
-              {webhookEnabled && (
-                <div>
-                  <Text type="secondary">URL: </Text>
-                  <Text code className={styles.webhookUrlCode}>
-                    {webhookData.webhook_url || 'N/A'}
-                  </Text>
-                </div>
-              )}
-              <Space>
-                {webhookEnabled ? (
-                  <>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<ApiOutlined />}
-                      onClick={() => testWebhookMutation.mutate()}
-                      loading={testWebhookMutation.isPending}
-                    >
-                      测试
-                    </Button>
-                    <Button
-                      size="small"
-                      onClick={() => {
-                        fetchWebhookEvents();
-                        setEventsModalVisible(true);
-                      }}
-                    >
-                      查看事件
-                    </Button>
-                    <Button
-                      danger
-                      size="small"
-                      onClick={handleDeleteWebhook}
-                      loading={deleteWebhookMutation.isPending}
-                    >
-                      删除
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<SettingOutlined />}
-                    onClick={handleConfigureWebhook}
-                  >
-                    配置Webhook
-                  </Button>
-                )}
-              </Space>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card size="small" title="支持的事件">
-            <div className={styles.webhookEventsContainer}>
-              {webhookData?.supported_events?.map((event: string) => (
-                <Tag key={event} className={styles.webhookEventTag}>
-                  {event}
-                </Tag>
-              )) || (
-                <Text type="secondary">配置后显示支持的事件类型</Text>
-              )}
+      <Card size="small" title="配置状态">
+        <Space direction="vertical" className={styles.webhookStatusCard}>
+          <div>
+            <Badge
+              status={webhookEnabled ? 'success' : 'default'}
+              text={webhookEnabled ? '已配置' : '未配置'}
+            />
+          </div>
+          {webhookEnabled && (
+            <div>
+              <Text type="secondary">URL: </Text>
+              <Text code className={styles.webhookUrlCode}>
+                {webhookData.webhook_url || 'N/A'}
+              </Text>
             </div>
-          </Card>
-        </Col>
-      </Row>
+          )}
+          <Space>
+            {webhookEnabled ? (
+              <>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<ApiOutlined />}
+                  onClick={() => testWebhookMutation.mutate()}
+                  loading={testWebhookMutation.isPending}
+                >
+                  测试
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    fetchWebhookEvents();
+                    setEventsModalVisible(true);
+                  }}
+                >
+                  查看事件
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  onClick={handleDeleteWebhook}
+                  loading={deleteWebhookMutation.isPending}
+                >
+                  删除
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="primary"
+                size="small"
+                icon={<SettingOutlined />}
+                onClick={handleConfigureWebhook}
+              >
+                配置Webhook
+              </Button>
+            )}
+          </Space>
+        </Space>
+      </Card>
 
       {/* 配置Webhook弹窗 */}
       <Modal
@@ -1347,7 +1261,7 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
             关闭
           </Button>
         ]}
-        width={800}
+        width={1200}
       >
         <Table
           dataSource={webhookEvents}
@@ -1359,31 +1273,49 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
               title: '事件ID',
               dataIndex: 'event_id',
               key: 'event_id',
-              width: 120,
-              render: (text) => <Text code>{text}</Text>
+              width: 100,
+              render: (text) => {
+                // 只显示后面的数字部分（去掉evt_前缀）
+                const id = text ? text.replace(/^evt_/, '') : '-';
+                return <Text code>{id}</Text>;
+              }
             },
             {
               title: '事件类型',
               dataIndex: 'event_type',
               key: 'event_type',
-              width: 150,
-              render: (text) => <Tag>{text}</Tag>
+              width: 180,
+              render: (text) => {
+                // 事件类型中文映射
+                const eventTypeMap: Record<string, string> = {
+                  'posting.status_changed': '订单状态变更',
+                  'posting.cancelled': '订单取消',
+                  'posting.delivered': '订单妥投',
+                  'product.price_changed': '商品价格变更',
+                  'product.stock_changed': '商品库存变更',
+                  'return.created': '退货创建',
+                  'return.status_changed': '退货状态变更',
+                };
+                const displayText = eventTypeMap[text] || text;
+                return <Tag>{displayText}</Tag>;
+              }
             },
             {
               title: '状态',
               dataIndex: 'status',
               key: 'status',
-              width: 80,
-              render: (status) => (
-                <Badge
-                  status={
-                    status === 'processed' ? 'success' :
-                    status === 'failed' ? 'error' :
-                    status === 'processing' ? 'processing' : 'default'
-                  }
-                  text={status}
-                />
-              )
+              width: 100,
+              render: (status) => {
+                // 状态中文映射
+                const statusMap: Record<string, { text: string; badgeStatus: any }> = {
+                  'processed': { text: '已处理', badgeStatus: 'success' },
+                  'failed': { text: '失败', badgeStatus: 'error' },
+                  'processing': { text: '处理中', badgeStatus: 'processing' },
+                  'pending': { text: '待处理', badgeStatus: 'default' },
+                };
+                const config = statusMap[status] || { text: status, badgeStatus: 'default' };
+                return <Badge status={config.badgeStatus} text={config.text} />;
+              }
             },
             {
               title: '重试次数',
@@ -1395,14 +1327,13 @@ const WebhookConfiguration: React.FC<{ selectedShop: Shop | null }> = ({ selecte
               title: '创建时间',
               dataIndex: 'created_at',
               key: 'created_at',
-              width: 150,
+              width: 160,
               render: (time) => time ? new Date(time).toLocaleString() : '-'
             },
             {
               title: '错误信息',
               dataIndex: 'error_message',
               key: 'error_message',
-              ellipsis: true,
               render: (error) => error ? <Text type="danger">{error}</Text> : '-'
             },
           ]}

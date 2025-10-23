@@ -18,7 +18,6 @@ import redis.asyncio as redis
 from ef_core.config import get_settings
 from ef_core.database import get_db_manager
 from ef_core.models.users import User
-from ef_core.models.shops import Shop
 from ef_core.utils.logger import get_logger
 from ef_core.utils.errors import UnauthorizedError, ValidationError
 from sqlalchemy import select

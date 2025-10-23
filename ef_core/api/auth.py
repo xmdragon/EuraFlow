@@ -495,16 +495,16 @@ async def create_user(
     # 处理店铺关联
     if user_data.role == "admin":
         # admin 自动关联所有店铺
-        from ef_core.models.shops import Shop
-        stmt = select(Shop)
+        from plugins.ef.channels.ozon.models.ozon_shops import OzonShop
+        stmt = select(OzonShop)
         result = await session.execute(stmt)
         all_shops = result.scalars().all()
         # 使用 run_sync 包装同步操作，避免 MissingGreenlet 错误
         await session.run_sync(lambda s: setattr(new_user, 'shops', list(all_shops)))
     elif user_data.shop_ids:
         # 其他角色根据传入的 shop_ids 关联
-        from ef_core.models.shops import Shop
-        stmt = select(Shop).where(Shop.id.in_(user_data.shop_ids))
+        from plugins.ef.channels.ozon.models.ozon_shops import OzonShop
+        stmt = select(OzonShop).where(OzonShop.id.in_(user_data.shop_ids))
         result = await session.execute(stmt)
         shops = result.scalars().all()
         # 使用 run_sync 包装同步操作，避免 MissingGreenlet 错误
@@ -620,16 +620,16 @@ async def update_user(
 
     # 处理店铺关联更新
     if update_data.shop_ids is not None:
-        from ef_core.models.shops import Shop
+        from plugins.ef.channels.ozon.models.ozon_shops import OzonShop
         if update_data.role == "admin" or user.role == "admin":
             # admin 自动关联所有店铺
-            stmt = select(Shop)
+            stmt = select(OzonShop)
             result = await session.execute(stmt)
             all_shops = result.scalars().all()
             user.shops = list(all_shops)
         else:
             # 其他角色根据传入的 shop_ids 关联
-            stmt = select(Shop).where(Shop.id.in_(update_data.shop_ids))
+            stmt = select(OzonShop).where(OzonShop.id.in_(update_data.shop_ids))
             result = await session.execute(stmt)
             shops = result.scalars().all()
             user.shops = list(shops)
