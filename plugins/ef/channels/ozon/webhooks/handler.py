@@ -81,6 +81,18 @@ class OzonWebhookHandler:
         "posting_canceled": "cancelled",
         "posting_cancelled": "cancelled",
     }
+
+    # 订单状态中文映射（标准格式 → 中文显示）
+    STATUS_DISPLAY_MAP = {
+        "awaiting_packaging": "等待打包",
+        "awaiting_deliver": "等待揽收",
+        "delivering": "配送中",
+        "delivered": "已妥投",
+        "cancelled": "已取消",
+        "awaiting_registration": "等待登记",
+        "sent_by_seller": "卖家已发货",
+        "on_hold": "暂停处理",
+    }
     
     def __init__(self, shop_id: int, webhook_secret: str):
         """
@@ -367,6 +379,8 @@ class OzonWebhookHandler:
                             "posting_number": posting_number,
                             "old_status": raw_status,
                             "new_status": new_status,
+                            "old_status_display": self.STATUS_DISPLAY_MAP.get(raw_status, raw_status),
+                            "new_status_display": self.STATUS_DISPLAY_MAP.get(new_status, new_status),
                             "timestamp": utcnow().isoformat()
                         }
                     }

@@ -164,7 +164,7 @@ class AuthService:
             stmt = select(User).where(
                 (User.username == email_or_username) |
                 (User.email == email_or_username)
-            ).options(selectinload(User.primary_shop))
+            ).options(selectinload(User.primary_shop), selectinload(User.shops))
             
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
@@ -231,6 +231,7 @@ class AuthService:
                 "permissions": user.permissions,
                 "is_active": user.is_active,
                 "primary_shop_id": user.primary_shop_id,
+                "shop_ids": [shop.id for shop in user.shops] if user.shops else [],
                 "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
                 "created_at": user.created_at.isoformat(),
                 "updated_at": user.updated_at.isoformat()

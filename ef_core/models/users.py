@@ -146,7 +146,6 @@ class User(Base):
             "is_active": self.is_active,
             "parent_user_id": self.parent_user_id,
             "primary_shop_id": self.primary_shop_id,
-            "shop_ids": [shop.id for shop in self.shops] if self.shops else [],
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat()

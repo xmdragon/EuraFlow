@@ -188,7 +188,7 @@ async def get_current_user_flexible(
 
         # 获取用户
         user_id = payload.get("sub")
-        stmt = select(User).where(User.id == int(user_id))
+        stmt = select(User).where(User.id == int(user_id)).options(selectinload(User.shops))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -245,7 +245,7 @@ async def get_current_user(
 
         # 获取用户
         user_id = payload.get("sub")
-        stmt = select(User).where(User.id == int(user_id))
+        stmt = select(User).where(User.id == int(user_id)).options(selectinload(User.shops))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -510,9 +510,9 @@ async def create_user(
         new_user.shops = list(shops)
 
     await session.commit()
-    await session.refresh(new_user)
+    await session.refresh(new_user, attribute_names=["shops"])
 
-    return UserResponse(**new_user.to_dict())
+    return UserResponse(**{**new_user.to_dict(), "shop_ids": [shop.id for shop in new_user.shops]})
 
 
 @router.get("/users", response_model=list[UserResponse])
@@ -534,15 +534,16 @@ async def list_users(
                 User.id == current_user.id,  # 包含管理员自己
                 User.parent_user_id == current_user.id  # 包含所有子账号
             )
-        ).order_by(User.role.desc(), User.created_at)  # 按角色排序，admin在前
+        ).options(selectinload(User.shops)).order_by(User.role.desc(), User.created_at)  # 按角色排序，admin在前
     else:
         # 普通用户只能看到自己
-        stmt = select(User).where(User.id == current_user.id)
+        stmt = select(User).where(User.id == current_user.id).options(selectinload(User.shops))
 
     result = await session.execute(stmt)
     users = result.scalars().all()
 
-    return [UserResponse(**user.to_dict()) for user in users]
+    # 手动构建响应以包含 shop_ids
+    return [UserResponse(**{**user.to_dict(), "shop_ids": [shop.id for shop in user.shops]}) for user in users]
 
 
 @router.put("/users/{user_id}", response_model=UserResponse)
@@ -633,9 +634,9 @@ async def update_user(
             user.shops = list(shops)
 
     await session.commit()
-    await session.refresh(user)
+    await session.refresh(user, attribute_names=["shops"])
 
-    return UserResponse(**user.to_dict())
+    return UserResponse(**{**user.to_dict(), "shop_ids": [shop.id for shop in user.shops]})
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -728,9 +729,9 @@ async def update_profile(
         user.email = update_data.email
 
     await session.commit()
-    await session.refresh(user)
+    await session.refresh(user, attribute_names=["shops"])
 
-    return UserResponse(**user.to_dict())
+    return UserResponse(**{**user.to_dict(), "shop_ids": [shop.id for shop in user.shops]})
 
 
 @router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)

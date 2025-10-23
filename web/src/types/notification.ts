@@ -27,6 +27,8 @@ export interface PostingNotificationData {
   cancel_reason?: string;
   old_status?: string;
   new_status?: string;
+  old_status_display?: string;  // 旧状态中文显示
+  new_status_display?: string;  // 新状态中文显示
   delivered_at?: string;
   timestamp: string;
 }

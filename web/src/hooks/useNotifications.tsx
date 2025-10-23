@@ -142,10 +142,13 @@ export const useNotifications = (shopId: number | null) => {
     (data: PostingNotificationData) => {
       const key = `posting-status-${data.posting_number}-${data.timestamp}`;
 
+      // 优先使用中文状态，如果没有则使用英文状态
+      const statusDisplay = data.new_status_display || data.new_status || '未知';
+
       notification.info({
         key,
         message: '订单状态变更',
-        description: `订单 ${data.posting_number}\n新状态: ${data.new_status || '未知'}`,
+        description: `订单 ${data.posting_number}\n新状态: ${statusDisplay}`,
         icon: <InfoCircleOutlined style={{ color: '#1890ff' }} />,
         placement: 'bottomRight',
         duration: 6,
