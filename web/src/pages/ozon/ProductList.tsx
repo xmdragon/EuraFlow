@@ -75,6 +75,7 @@ import ImagePreview from '@/components/ImagePreview';
 import PageTitle from '@/components/PageTitle';
 import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
+import ProductStatusTabs from '@/components/ozon/product/ProductStatusTabs';
 import './ProductList.css';
 import styles from './ProductList.module.scss';
 
@@ -1329,70 +1330,14 @@ const ProductList: React.FC = () => {
         </Form>
 
         {/* 商品状态标签 */}
-        <Tabs
-          activeKey={filterValues.status || 'on_sale'}
-          onChange={(key) => {
+        <ProductStatusTabs
+          stats={globalStats?.products}
+          activeStatus={filterValues.status || 'on_sale'}
+          onStatusChange={(key) => {
             filterForm.setFieldsValue({ status: key });
             setFilterValues({ ...filterValues, status: key });
             setCurrentPage(1);
           }}
-          style={{ marginTop: 16 }}
-          items={[
-            {
-              key: 'on_sale',
-              label: (
-                <span>
-                  <CheckCircleOutlined />
-                  销售中 ({globalStats?.products?.on_sale || 0})
-                </span>
-              ),
-            },
-            {
-              key: 'ready_to_sell',
-              label: (
-                <span>
-                  <ClockCircleOutlined />
-                  准备销售 ({globalStats?.products?.ready_to_sell || 0})
-                </span>
-              ),
-            },
-            {
-              key: 'error',
-              label: (
-                <span>
-                  <CloseCircleOutlined />
-                  错误 ({globalStats?.products?.error || 0})
-                </span>
-              ),
-            },
-            {
-              key: 'pending_modification',
-              label: (
-                <span>
-                  <WarningOutlined />
-                  待修改 ({globalStats?.products?.pending_modification || 0})
-                </span>
-              ),
-            },
-            {
-              key: 'inactive',
-              label: (
-                <span>
-                  <InfoCircleOutlined />
-                  已下架 ({globalStats?.products?.inactive || 0})
-                </span>
-              ),
-            },
-            {
-              key: 'archived',
-              label: (
-                <span>
-                  <FileOutlined />
-                  已归档 ({globalStats?.products?.archived || 0})
-                </span>
-              ),
-            },
-          ]}
         />
       </Card>
 
