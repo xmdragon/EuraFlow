@@ -60,6 +60,8 @@ import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/n
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import PrintErrorModal from '@/components/ozon/order/PrintErrorModal';
+import ShipModal from '@/components/ozon/order/ShipModal';
 import PageTitle from '@/components/PageTitle';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import styles from './OrderList.module.scss';
@@ -933,84 +935,6 @@ const OrderList: React.FC = () => {
     cancelled: 0,
   };
 
-  // 错误展示Modal
-  const PrintErrorModal = () => (
-    <Modal
-      title="打印结果"
-      open={printErrorModalVisible}
-      onCancel={() => setPrintErrorModalVisible(false)}
-      footer={[
-        <Button key="close" onClick={() => setPrintErrorModalVisible(false)}>
-          关闭
-        </Button>,
-        printSuccessPostings.length > 0 && (
-          <Button
-            key="retry-failed"
-            type="primary"
-            onClick={() => {
-              // 移除失败的，保留成功的，重新选择
-              const failedNumbers = printErrors.map(e => e.posting_number);
-              setSelectedPostingNumbers(selectedPostingNumbers.filter(pn => !failedNumbers.includes(pn)));
-              setPrintErrorModalVisible(false);
-              notifyInfo('提示', '已移除失败的订单，可重新选择并打印');
-            }}
-          >
-            移除失败订单继续
-          </Button>
-        )
-      ]}
-      width={700}
-    >
-      <Space direction="vertical" style={{ width: '100%' }}>
-        {/* 成功统计 */}
-        {printSuccessPostings.length > 0 && (
-          <Alert
-            message={`成功打印 ${printSuccessPostings.length} 个订单`}
-            type="success"
-            showIcon
-          />
-        )}
-
-        {/* 失败列表 */}
-        {printErrors.length > 0 && (
-          <>
-            <Alert
-              message={`失败 ${printErrors.length} 个订单`}
-              description="以下订单打印失败，请根据提示操作"
-              type="error"
-              showIcon
-            />
-
-            <Table
-              dataSource={printErrors}
-              rowKey="posting_number"
-              pagination={false}
-              size="small"
-              columns={[
-                {
-                  title: '货件编号',
-                  dataIndex: 'posting_number',
-                  width: 180,
-                  render: (text) => <Text strong>{text}</Text>
-                },
-                {
-                  title: '错误原因',
-                  dataIndex: 'error',
-                  render: (text) => <Text type="danger">{text}</Text>
-                },
-                {
-                  title: '建议',
-                  dataIndex: 'suggestion',
-                  render: (text) => <Text type="secondary">{text}</Text>
-                }
-              ]}
-            />
-          </>
-        )}
-      </Space>
-    </Modal>
-  );
-
   return (
     <div>
       {/* 同步进度已改为右下角通知显示 */}
@@ -1211,67 +1135,22 @@ const OrderList: React.FC = () => {
       />
 
       {/* 发货弹窗 */}
-      <Modal
-        title={`发货 - ${selectedOrder?.order_id}`}
-        open={shipModalVisible}
+      <ShipModal
+        visible={shipModalVisible}
+        form={shipForm}
+        selectedOrder={selectedOrder}
+        selectedPosting={selectedPosting}
+        loading={shipOrderMutation.isPending}
+        onSubmit={(values) => {
+          if (!selectedPosting) return;
+          shipOrderMutation.mutate({
+            posting_number: selectedPosting.posting_number,
+            tracking_number: values.tracking_number,
+            carrier_code: values.carrier_code,
+          });
+        }}
         onCancel={() => setShipModalVisible(false)}
-        footer={null}
-        width={600}
-      >
-        <Form
-          form={shipForm}
-          layout="vertical"
-          onFinish={(values) => {
-            if (!selectedPosting) return;
-            shipOrderMutation.mutate({
-              posting_number: selectedPosting.posting_number,
-              tracking_number: values.tracking_number,
-              carrier_code: values.carrier_code,
-            });
-          }}
-        >
-          <Alert
-            message="发货信息"
-            description={`Posting号: ${selectedPosting?.posting_number}`}
-            type="info"
-            className={styles.alertMargin}
-          />
-
-          <Form.Item
-            name="tracking_number"
-            label="物流单号"
-            rules={[{ required: true, message: '请输入物流单号' }]}
-          >
-            <Input placeholder="请输入物流单号" />
-          </Form.Item>
-
-          <Form.Item
-            name="carrier_code"
-            label="物流公司"
-            rules={[{ required: true, message: '请选择物流公司' }]}
-          >
-            <Select placeholder="请选择物流公司">
-              <Option value="CDEK">CDEK</Option>
-              <Option value="BOXBERRY">Boxberry</Option>
-              <Option value="POCHTA">俄罗斯邮政</Option>
-              <Option value="DPD">DPD</Option>
-              <Option value="OZON">Ozon物流</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={shipOrderMutation.isPending}>
-                确认发货
-              </Button>
-              <Button onClick={() => {
-                setShipModalVisible(false);
-                shipForm.resetFields();
-              }}>取消</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+      />
 
       {/* 进货价格历史弹窗 */}
       <PurchasePriceHistoryModal
@@ -1282,7 +1161,17 @@ const OrderList: React.FC = () => {
       />
 
       {/* 批量打印错误展示Modal */}
-      <PrintErrorModal />
+      <PrintErrorModal
+        visible={printErrorModalVisible}
+        onClose={() => setPrintErrorModalVisible(false)}
+        successPostings={printSuccessPostings}
+        errors={printErrors}
+        selectedPostingNumbers={selectedPostingNumbers}
+        onRemoveFailedAndContinue={(remaining) => {
+          setSelectedPostingNumbers(remaining);
+          notifyInfo('提示', '已移除失败的订单，可重新选择并打印');
+        }}
+      />
     </div>
   );
 };
