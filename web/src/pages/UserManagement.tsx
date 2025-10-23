@@ -91,7 +91,13 @@ const UserManagement: React.FC = () => {
   const fetchShops = async () => {
     try {
       const response = await axios.get('/api/ef/v1/ozon/shops');
-      setShops(response.data);
+      // API返回格式: { data: [...] }，且字段是 shop_name 而非 name
+      const shopsData = (response.data.data || []).map((shop: any) => ({
+        id: shop.id,
+        name: shop.shop_name,
+        platform: shop.platform,
+      }));
+      setShops(shopsData);
     } catch (error) {
       notifyError('获取失败', '获取店铺列表失败');
     }
