@@ -32,6 +32,7 @@ import {
   UpOutlined,
   DownOutlined,
   LinkOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -53,13 +54,14 @@ import {
 } from 'recharts';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
+import PageTitle from '@/components/PageTitle';
 import { formatRMB } from '../../utils/currency';
 import { optimizeOzonImageUrl } from '../../utils/ozonImageOptimizer';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
 import styles from './OrderReport.module.scss';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
 
 // 图表颜色配置
@@ -522,10 +524,11 @@ const OrderReport: React.FC = () => {
   // ===== 渲染 =====
 
   return (
-    <div>
-      <Card className={styles.mainCard}>
-        <Title level={4}>订单报表</Title>
+    <div className={styles.pageContainer}>
+      {/* 页面标题 */}
+      <PageTitle icon={<FileTextOutlined />} title="订单报表" />
 
+      <Card className={styles.mainCard}>
         {/* 筛选区域 */}
         <Row gutter={16} className={styles.filterRow} align="middle">
           <Col>

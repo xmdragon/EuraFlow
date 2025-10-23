@@ -42,6 +42,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import { usePermission } from '@/hooks/usePermission';
+import PageTitle from '@/components/PageTitle';
 import * as watermarkApi from '@/services/watermarkApi';
 import styles from './WatermarkManagement.module.scss';
 
@@ -451,7 +452,10 @@ const WatermarkManagement: React.FC = () => {
   ];
 
   return (
-    <div className="watermark-management">
+    <div className={styles.pageContainer}>
+      {/* 页面标题 */}
+      <PageTitle icon={<PictureOutlined />} title="水印管理" />
+
       {/* Cloudinary全局配置 */}
       <Card title="Cloudinary全局配置" className={styles.cloudinaryCard}>
         <Spin spinning={cloudinaryLoading}>

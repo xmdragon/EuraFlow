@@ -35,6 +35,7 @@ import moment from 'moment';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import ShopSelector from '@/components/ozon/ShopSelector';
+import PageTitle from '@/components/PageTitle';
 import styles from './ChatList.module.scss';
 
 const { Search } = Input;
@@ -210,7 +211,9 @@ const ChatList: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className={styles.pageContainer}>
+      <PageTitle icon={<MessageOutlined />} title="聊天管理" />
+
       {/* 店铺选择器 */}
       <Card className={styles.shopCard}>
         <ShopSelector
