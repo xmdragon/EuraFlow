@@ -1016,24 +1016,6 @@ const OrderList: React.FC = () => {
 
       {/* 搜索过滤 */}
       <Card className={styles.filterCard}>
-        <Row className={styles.filterRow}>
-          <Col flex="auto">
-            <Space size="large">
-              <span className={styles.shopLabel}>选择店铺:</span>
-              <ShopSelector
-                value={selectedShop}
-                onChange={(shopId) => {
-                  const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
-                  setSelectedShop(normalized);
-                  // 切换店铺时重置页码
-                  setCurrentPage(1);
-                }}
-                showAllOption={true}
-                className={styles.shopSelector}
-              />
-            </Space>
-          </Col>
-        </Row>
         <Form
           form={filterForm}
           layout="inline"
@@ -1042,6 +1024,19 @@ const OrderList: React.FC = () => {
             setCurrentPage(1); // 搜索时重置到第一页
           }}
         >
+          <Form.Item label="选择店铺">
+            <ShopSelector
+              value={selectedShop}
+              onChange={(shopId) => {
+                const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+                setSelectedShop(normalized);
+                // 切换店铺时重置页码
+                setCurrentPage(1);
+              }}
+              showAllOption={true}
+              className={styles.shopSelector}
+            />
+          </Form.Item>
           <Form.Item name="dateRange">
             <RangePicker />
           </Form.Item>
