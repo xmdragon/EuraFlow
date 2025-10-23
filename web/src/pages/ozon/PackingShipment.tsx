@@ -1410,7 +1410,11 @@ const PackingShipment: React.FC = () => {
   const handleOpenImagePreviewCallback = React.useCallback((url: string) => {
     setImageLoading(true);
     setImagePreviewVisible(true);
-    setPreviewImageUrl(url);
+    setPreviewImageUrl('');  // 先清空旧图
+    // 下一帧再设置新图URL，确保旧图已被清除
+    requestAnimationFrame(() => {
+      setPreviewImageUrl(url);
+    });
   }, []);
 
   const handleCloseImagePreview = React.useCallback(() => {
