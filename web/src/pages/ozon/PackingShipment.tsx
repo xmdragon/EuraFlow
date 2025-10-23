@@ -348,11 +348,10 @@ const OrderCardComponent = React.memo<OrderCardComponentProps>(({
   const deliveryMethod = posting.delivery_method_name || order.delivery_method || order.order_type || 'FBS';
   const shortDeliveryMethod = deliveryMethod.split('（')[0].split('(')[0].trim();
 
-  // 状态
+  // OZON 原生状态（始终使用）
   const status = statusConfig[posting.status] || statusConfig.pending;
-  const operationStatusObj = operationStatusConfig[posting.operation_status || ''] || null;
 
-  // 操作状态
+  // 操作状态（用于判断当前所在标签页，控制按钮显示）
   const currentStatus = posting.operation_status || operationStatus;
 
   // 是否选中
@@ -536,11 +535,11 @@ const OrderCardComponent = React.memo<OrderCardComponentProps>(({
           </Tooltip>
         </div>
 
-        {/* 状态 */}
+        {/* 状态（始终显示 OZON 原生状态） */}
         <div className={styles.infoRow}>
           <Text type="secondary" className={styles.label}>状态:</Text>
-          <Tag color={operationStatusObj?.color || status.color} className={styles.statusTag}>
-            {operationStatusObj?.text || status.text}
+          <Tag color={status.color} className={styles.statusTag}>
+            {status.text}
           </Tag>
         </div>
 
