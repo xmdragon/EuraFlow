@@ -257,8 +257,9 @@ const ChatDetail: React.FC = () => {
     <div>
       <PageTitle icon={<MessageOutlined />} title="聊天详情" />
 
-      {/* 返回按钮 */}
-      <Button
+      <div className={styles.pageContainer}>
+        {/* 返回按钮 */}
+        <Button
         icon={<ArrowLeftOutlined />}
         onClick={() => navigate('/dashboard/ozon/chats')}
         className={styles.backButton}
@@ -390,6 +391,7 @@ const ChatDetail: React.FC = () => {
           </>
         )}
       </Spin>
+      </div>
     </div>
   );
 };
