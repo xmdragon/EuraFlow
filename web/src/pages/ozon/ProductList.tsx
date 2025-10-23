@@ -76,6 +76,7 @@ import PageTitle from '@/components/PageTitle';
 import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
 import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
+import ProductToolbar from '@/components/ozon/product/ProductToolbar';
 import './ProductList.css';
 import styles from './ProductList.module.scss';
 
@@ -1311,65 +1312,21 @@ const ProductList: React.FC = () => {
 
       {/* 操作按钮 */}
       <Card className={styles.productListCard}>
-        <div className={styles.actionWrapper}>
-          <Space>
-            {canSync && (
-              <Button
-                type="primary"
-                icon={<SyncOutlined />}
-                onClick={() => handleSync(false)}
-                loading={syncProductsMutation.isPending}
-              >
-                增量同步
-              </Button>
-            )}
-            {canSync && (
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => handleSync(true)}
-                loading={syncProductsMutation.isPending}
-              >
-                全量同步
-              </Button>
-            )}
-            {canOperate && (
-              <Button
-                icon={<DollarOutlined />}
-                onClick={handleBatchPriceUpdate}
-                disabled={selectedRows.length === 0}
-              >
-                批量调价
-              </Button>
-            )}
-            {canOperate && (
-              <Button
-                icon={<ShoppingOutlined />}
-                onClick={handleBatchStockUpdate}
-                disabled={selectedRows.length === 0}
-              >
-                批量改库存
-              </Button>
-            )}
-            {canImport && (
-              <Button icon={<UploadOutlined />} onClick={handleImport}>
-                导入商品
-              </Button>
-            )}
-            {canExport && (
-              <Button icon={<DownloadOutlined />} onClick={handleExport}>
-                导出数据
-              </Button>
-            )}
-          </Space>
-          <Tooltip title="列显示设置">
-            <Button
-              icon={<SettingOutlined />}
-              onClick={() => setColumnConfigVisible(true)}
-            >
-              列设置
-            </Button>
-          </Tooltip>
-        </div>
+        <ProductToolbar
+          canSync={canSync}
+          canOperate={canOperate}
+          canImport={canImport}
+          canExport={canExport}
+          selectedRowsCount={selectedRows.length}
+          syncLoading={syncProductsMutation.isPending}
+          onIncrementalSync={() => handleSync(false)}
+          onFullSync={() => handleSync(true)}
+          onBatchPriceUpdate={handleBatchPriceUpdate}
+          onBatchStockUpdate={handleBatchStockUpdate}
+          onImport={handleImport}
+          onExport={handleExport}
+          onColumnSettings={() => setColumnConfigVisible(true)}
+        />
 
         {/* 商品表格 */}
         <Table
