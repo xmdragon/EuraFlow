@@ -36,6 +36,7 @@ import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
+import { usePermission } from '@/hooks/usePermission';
 import styles from './ChatList.module.scss';
 
 const { Search } = Input;
@@ -44,6 +45,7 @@ const { Text } = Typography;
 const ChatList: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { canOperate, canSync } = usePermission();
 
   const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -312,15 +314,17 @@ const ChatList: React.FC = () => {
                 </Select>
               </Space>
               <Space>
-                <Button
-                  icon={<SyncOutlined />}
-                  loading={syncMutation.isPending}
-                  disabled={selectedShopId === null && (shopsLoading || shops.length === 0)}
-                  onClick={handleSync}
-                  title={selectedShopId === null ? '将依次同步所有店铺的聊天' : '同步当前店铺的聊天'}
-                >
-                  {selectedShopId === null ? `同步所有店铺 (${shops.length})` : '同步聊天'}
-                </Button>
+                {canSync && (
+                  <Button
+                    icon={<SyncOutlined />}
+                    loading={syncMutation.isPending}
+                    disabled={selectedShopId === null && (shopsLoading || shops.length === 0)}
+                    onClick={handleSync}
+                    title={selectedShopId === null ? '将依次同步所有店铺的聊天' : '同步当前店铺的聊天'}
+                  >
+                    {selectedShopId === null ? `同步所有店铺 (${shops.length})` : '同步聊天'}
+                  </Button>
+                )}
               </Space>
             </Space>
           </Card>
@@ -345,7 +349,7 @@ const ChatList: React.FC = () => {
                       className={`${styles.chatListItem} ${chat.unread_count > 0 ? styles.unread : ''}`}
                       onClick={() => handleChatClick(chat)}
                       actions={[
-                        chat.unread_count > 0 && (
+                        chat.unread_count > 0 && canOperate && (
                           <Button
                             type="link"
                             size="small"
