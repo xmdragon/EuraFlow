@@ -1,0 +1,17 @@
+@use '@/styles/variables' as *;
+@use '@/styles/mixins' as *;
+
+// ===== 店铺选择器容器 =====
+.shopSelectorContainer {
+  margin-bottom: 24px;
+}
+
+// ===== 店铺选择器 =====
+.shopSelector {
+  width: 200px;
+}
+
+// ===== 统计卡片行 =====
+.statsRow {
+  margin-bottom: 24px;
+}

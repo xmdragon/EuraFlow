@@ -85,7 +85,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
             value={selectedShop}
             onChange={onShopChange}
             showAllOption={false}
-            style={{ width: 200 }}
+            className={styles.shopSelector}
           />
         </Col>
 

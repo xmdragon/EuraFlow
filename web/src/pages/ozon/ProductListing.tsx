@@ -34,6 +34,7 @@ import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
+import styles from './ProductListing.module.scss';
 
 const { Option } = Select;
 
@@ -243,19 +244,19 @@ const ProductListing: React.FC = () => {
     <div>
       {/* 页面标题和店铺选择器 */}
       <PageTitle icon={<CloudUploadOutlined />} title="商品上架管理" />
-      <div style={{ marginBottom: 24 }}>
+      <div className={styles.shopSelectorContainer}>
         <ShopSelectorWithLabel
           showLabel={false}
           value={selectedShop}
           onChange={(shopId) => setSelectedShop(shopId as number)}
-          style={{ width: 200 }}
+          className={styles.shopSelector}
           showAllOption={false}
         />
       </div>
 
       {/* 统计卡片 */}
       {selectedShop && (
-        <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Row gutter={16} className={styles.statsRow}>
           <Col span={6}>
             <Card>
               <Statistic title="商品总数" value={stats.total} prefix={<CloudUploadOutlined />} />
