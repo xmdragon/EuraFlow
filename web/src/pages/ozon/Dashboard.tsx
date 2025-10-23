@@ -137,7 +137,7 @@ const OzonDashboard: React.FC = () => {
           <ShopSelector
             value={selectedShop}
             onChange={handleShopChange}
-            showAllOption={true}
+            showAllOption={false}
             className={styles.shopSelector}
           />
         </Col>

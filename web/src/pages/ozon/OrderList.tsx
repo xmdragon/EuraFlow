@@ -961,7 +961,7 @@ const OrderList: React.FC = () => {
                 // 切换店铺时重置页码
                 setCurrentPage(1);
               }}
-              showAllOption={true}
+              showAllOption={false}
               className={styles.shopSelector}
             />
           </Form.Item>

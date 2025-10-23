@@ -558,7 +558,7 @@ const OrderReport: React.FC = () => {
                 }}
                 placeholder="请选择店铺"
                 style={{ minWidth: 180 }}
-                showAllOption={true}
+                showAllOption={false}
               />
             </Space>
           </Col>
