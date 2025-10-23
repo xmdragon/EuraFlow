@@ -73,6 +73,7 @@ import { usePermission } from '@/hooks/usePermission';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import PageTitle from '@/components/PageTitle';
+import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import './ProductList.css';
 import styles from './ProductList.module.scss';
 
@@ -1483,63 +1484,14 @@ const ProductList: React.FC = () => {
       </Card>
 
       {/* 价格更新弹窗 */}
-      <Modal
-        title={selectedProduct ? `更新价格 - ${selectedProduct.sku}` : '批量更新价格'}
-        open={priceModalVisible}
+      <PriceEditModal
+        visible={priceModalVisible}
         onCancel={() => setPriceModalVisible(false)}
-        footer={null}
-        width={600}
-      >
-        <Form
-          layout="vertical"
-          onFinish={(values) => {
-            const updates = selectedProduct
-              ? [
-                  {
-                    sku: selectedProduct.sku,
-                    ...values,
-                  },
-                ]
-              : selectedRows.map((row) => ({
-                  sku: row.sku,
-                  ...values,
-                }));
-            updatePricesMutation.mutate(updates);
-          }}
-        >
-          <Form.Item name="price" label="售价" rules={[{ required: true, message: '请输入售价' }]}>
-            <InputNumber
-              style={{ width: '100%' }}
-              min={0}
-              formatter={getNumberFormatter(2)}
-              parser={getNumberParser()}
-              prefix={selectedProduct ? getCurrencySymbol(selectedProduct.currency_code) : (selectedRows.length > 0 ? getCurrencySymbol(selectedRows[0].currency_code) : '¥')}
-              placeholder="请输入售价"
-            />
-          </Form.Item>
-          <Form.Item name="old_price" label="原价">
-            <InputNumber
-              style={{ width: '100%' }}
-              min={0}
-              formatter={getNumberFormatter(2)}
-              parser={getNumberParser()}
-              prefix={selectedProduct ? getCurrencySymbol(selectedProduct.currency_code) : (selectedRows.length > 0 ? getCurrencySymbol(selectedRows[0].currency_code) : '¥')}
-              placeholder="可选，用于显示折扣"
-            />
-          </Form.Item>
-          <Form.Item name="reason" label="调价原因">
-            <Input.TextArea rows={2} placeholder="请输入调价原因" />
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={updatePricesMutation.isPending}>
-                确认更新
-              </Button>
-              <Button onClick={() => setPriceModalVisible(false)}>取消</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSubmit={(updates) => updatePricesMutation.mutate(updates)}
+        selectedProduct={selectedProduct}
+        selectedRows={selectedRows}
+        loading={updatePricesMutation.isPending}
+      />
 
       {/* 库存更新弹窗 */}
       <Modal
