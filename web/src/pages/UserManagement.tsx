@@ -425,6 +425,12 @@ const UserManagement: React.FC = () => {
                   name="shop_ids"
                   label="关联店铺"
                   tooltip={isAdmin ? 'admin角色自动关联所有店铺' : '选择用户可访问的店铺'}
+                  rules={[
+                    {
+                      required: !isAdmin,
+                      message: '非管理员角色必须选择至少一个店铺',
+                    },
+                  ]}
                 >
                   <Select
                     mode="multiple"

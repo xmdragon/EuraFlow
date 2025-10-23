@@ -73,6 +73,25 @@ class ProductSelectionItem(Base):
     availability_percent = Column(Numeric(5, 2), comment="商品可用性(%)")
     ad_cost_share = Column(Numeric(5, 2), comment="广告费用份额(%)")
 
+    # 营销分析字段（上品帮新增）
+    card_views = Column(Integer, nullable=True, comment="商品卡片浏览量")
+    card_add_to_cart_rate = Column(Numeric(5, 2), nullable=True, comment="商品卡片加购率(%)")
+    search_views = Column(Integer, nullable=True, comment="搜索和目录浏览量")
+    search_add_to_cart_rate = Column(Numeric(5, 2), nullable=True, comment="搜索和目录加购率(%)")
+    click_through_rate = Column(Numeric(5, 2), nullable=True, comment="点击率(%)")
+    promo_days = Column(Integer, nullable=True, comment="参与促销天数")
+    promo_discount_percent = Column(Numeric(5, 2), nullable=True, comment="参与促销的折扣(%)")
+    promo_conversion_rate = Column(Numeric(5, 2), nullable=True, comment="促销活动的转化率(%)")
+    paid_promo_days = Column(Integer, nullable=True, comment="付费推广天数")
+    return_cancel_rate = Column(Numeric(5, 2), nullable=True, comment="退货取消率(%)")
+
+    # 基础字段（上品帮新增）
+    category_path = Column(String(500), nullable=True, index=True, comment="类目路径")
+    avg_price = Column(Numeric(18, 2), nullable=True, comment="平均价格(RUB)")
+    listing_date = Column(DateTime(timezone=True), nullable=True, comment="上架时间")
+    listing_days = Column(Integer, nullable=True, comment="上架天数")
+    seller_mode = Column(String(20), nullable=True, comment="发货模式(FBS/FBO)")
+
     # 商品创建日期（在平台上）
     product_created_date = Column(DateTime(timezone=True), comment="商品创建日期")
 

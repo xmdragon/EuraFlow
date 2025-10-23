@@ -1,5 +1,5 @@
 import type { PageDataParser, ProductData } from './base';
-import { cleanNumber, cleanPercent, normalizeBrand } from './base';
+import { cleanNumber, normalizeBrand } from './base';
 
 /**
  * 上品帮数据解析器
@@ -217,7 +217,7 @@ export class ShangpinbangParser implements PageDataParser {
   }
 
   /**
-   * 从上品帮注入的DOM中提取数据
+   * 从上品帮注入的DOM中提取数据（新结构化格式）
    */
   private extractBangData(element: HTMLElement): Partial<ProductData> {
     const bangElement = element.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
@@ -225,144 +225,229 @@ export class ShangpinbangParser implements PageDataParser {
       return {};
     }
 
-    const bangText = bangElement.textContent || '';
-
-    // 检查是否有实际内容
-    if (!bangText.trim() || bangText.length < 10) {
+    // 提取所有 li 元素中的数据
+    const listItems = bangElement.querySelectorAll<HTMLElement>('li .text-class');
+    if (!listItems || listItems.length === 0) {
       return {};
     }
 
     const bangData: Partial<ProductData> = {};
 
-    // 提取品牌
-    const firstLine = bangText.split(/[rF]/)[0].trim();
-    if (firstLine && !firstLine.includes('：') && !firstLine.includes('%') && firstLine.length < 50) {
-      bangData.brand = firstLine;
-    } else {
-      const brandMatch = bangText.match(/品牌[：:]\s*([^r\n]+?)(?:rFBS|FBP|$)/);
-      if (brandMatch) {
-        bangData.brand = brandMatch[1].trim();
+    listItems.forEach(item => {
+      const labelElement = item.querySelector('span');
+      const valueElement = item.querySelector('b');
+
+      if (!labelElement || !valueElement) {
+        return;
       }
-    }
 
-    // 提取佣金率
-    bangData.rfbs_commission_mid = this.extractCommissionFromText(bangText, 'rFBS', '1501~5000');
-    bangData.rfbs_commission_low = this.extractCommissionFromText(bangText, 'rFBS', '<=1500');
-    bangData.rfbs_commission_high = this.extractCommissionFromText(bangText, 'rFBS', '>5000');
-    bangData.fbp_commission_mid = this.extractCommissionFromText(bangText, 'FBP', '1501~5000');
-    bangData.fbp_commission_low = this.extractCommissionFromText(bangText, 'FBP', '<=1500');
-    bangData.fbp_commission_high = this.extractCommissionFromText(bangText, 'FBP', '>5000');
+      const label = labelElement.textContent?.trim() || '';
+      const value = valueElement.textContent?.trim() || '';
 
-    // 提取销售数据
-    const monthSalesMatch = bangText.match(/月销量[：:]\s*(\d+(?:\.\d+)?)\s*件/);
-    if (monthSalesMatch) {
-      bangData.monthly_sales_volume = cleanNumber(monthSalesMatch[1]);
-    }
-
-    const monthRevenueMatch = bangText.match(/月销售额[：:]\s*([\d.]+)\s*万?\s*[₽￥]/);
-    if (monthRevenueMatch) {
-      let value = parseFloat(monthRevenueMatch[1]);
-      // 如果包含"万"，需要转换
-      if (bangText.match(/万\s*[₽￥]/)) {
-        value = value * 10000;
+      if (!label || !value || value === '无数据' || value === '-') {
+        return;
       }
-      bangData.monthly_sales_revenue = value;
-    }
 
-    const daySalesMatch = bangText.match(/日销量[：:]\s*(\d+(?:\.\d+)?)\s*件/);
-    if (daySalesMatch) {
-      bangData.daily_sales_volume = cleanNumber(daySalesMatch[1]);
-    }
-
-    const dayRevenueMatch = bangText.match(/日销售额[：:]\s*([\d.]+)\s*[₽￥]/);
-    if (dayRevenueMatch) {
-      bangData.daily_sales_revenue = cleanNumber(dayRevenueMatch[1]);
-    }
-
-    // 提取其他数据
-    bangData.sales_dynamic_percent = this.extractPercentFromText(bangText, '销售动态');
-    bangData.conversion_rate = this.extractPercentFromText(bangText, '成交率');
-    bangData.availability_percent = this.extractPercentFromText(bangText, '商品可用性');
-    bangData.ad_cost_share = this.extractPercentFromText(bangText, '广告费用份额');
-
-    // 提取物流数据
-    bangData.package_weight = this.extractNumberFromText(bangText, '包装重量', 'g');
-    bangData.package_volume = this.extractNumberFromText(bangText, '商品体积', '升');
-    bangData.package_length = this.extractNumberFromText(bangText, '包装长', 'mm');
-    bangData.package_width = this.extractNumberFromText(bangText, '包装宽', 'mm');
-    bangData.package_height = this.extractNumberFromText(bangText, '包装高', 'mm');
-
-    // 提取卖家类型
-    const sellerMatch = bangText.match(/卖家类型[：:]\s*([^\n]+)/);
-    if (sellerMatch) {
-      bangData.seller_type = sellerMatch[1].trim();
-    }
-
-    // 提取跟卖者数量
-    const competitorMatch = bangText.match(/跟卖者数量[：:]\s*(\d+)/);
-    if (competitorMatch) {
-      bangData.competitor_count = cleanNumber(competitorMatch[1]);
-    }
-
-    // 提取跟卖最低价
-    const competitorPriceMatch = bangText.match(/最低跟卖价[：:]\s*([\d.]+)\s*[₽￥]/);
-    if (competitorPriceMatch) {
-      bangData.competitor_min_price = cleanNumber(competitorPriceMatch[1]);
-    }
-
-    // 提取商品创建日期
-    const dateMatch = bangText.match(/商品创建日期[：:]\s*(\d{4}-\d{2}-\d{2})/);
-    if (dateMatch) {
-      try {
-        bangData.product_created_date = new Date(dateMatch[1]);
-      } catch {
-        // 日期解析失败，忽略
-      }
-    }
+      // 根据标签名分发到具体字段
+      this.parseFieldByLabel(label, value, bangData);
+    });
 
     return bangData;
   }
 
   /**
-   * 从文本中提取佣金率
+   * 根据标签名解析字段值
    */
-  private extractCommissionFromText(text: string, type: 'rFBS' | 'FBP', range: string): number | undefined {
-    // 支持₽和￥，支持中文全角括号（）和半角括号()
-    const pattern = new RegExp(`${type}佣金[（(]${range}[₽￥][）)][：:]\\s*(\\d+(?:\\.\\d+)?)\\s*%`);
-    const match = text.match(pattern);
+  private parseFieldByLabel(label: string, value: string, data: Partial<ProductData>): void {
+    // 移除标签中的冒号和空格
+    const cleanLabel = label.replace(/[：:]/g, '').trim();
 
-    if (match) {
-      return cleanPercent(match[1]);
+    switch (cleanLabel) {
+      // 基础信息
+      case '类目':
+        data.category_path = value;
+        break;
+      case '品牌':
+        data.brand = value;
+        break;
+      case 'SKU':
+        data.product_id = value;
+        break;
+
+      // 销售数据
+      case '月销量':
+        data.monthly_sales_volume = this.parseNumber(value);
+        break;
+      case '月销售额':
+        data.monthly_sales_revenue = this.parsePrice(value);
+        break;
+      case '日销量':
+        data.daily_sales_volume = this.parseNumber(value);
+        break;
+      case '日销售额':
+        data.daily_sales_revenue = this.parsePrice(value);
+        break;
+      case '月销售动态':
+      case '销售动态':
+        data.sales_dynamic_percent = this.parsePercent(value);
+        break;
+
+      // 营销分析字段（新增）
+      case '商品卡片浏览量':
+        data.card_views = this.parseNumber(value);
+        break;
+      case '商品卡片加购率':
+        data.card_add_to_cart_rate = this.parsePercent(value);
+        break;
+      case '搜索和目录浏览量':
+        data.search_views = this.parseNumber(value);
+        break;
+      case '搜索和目录加购率':
+        data.search_add_to_cart_rate = this.parsePercent(value);
+        break;
+      case '点击率':
+        data.click_through_rate = this.parsePercent(value);
+        break;
+      case '参与促销天数':
+        data.promo_days = this.parseDays(value);
+        break;
+      case '参与促销的折扣':
+        data.promo_discount_percent = this.parsePercent(value);
+        break;
+      case '促销活动的转化率':
+        data.promo_conversion_rate = this.parsePercent(value);
+        break;
+      case '付费推广天数':
+        data.paid_promo_days = this.parseDays(value);
+        break;
+      case '成交率':
+        data.conversion_rate = this.parsePercent(value);
+        break;
+      case '退货取消率':
+        data.return_cancel_rate = this.parsePercent(value);
+        break;
+
+      // 价格
+      case '平均价格':
+        data.avg_price = this.parsePrice(value);
+        break;
+
+      // 广告
+      case '广告份额':
+      case '广告费用份额':
+        data.ad_cost_share = this.parsePercent(value);
+        break;
+
+      // 物流信息
+      case '包装重量':
+        data.package_weight = this.parseNumber(value);
+        break;
+      case '长宽高(mm)':
+        this.parseDimensions(value, data);
+        break;
+      case '发货模式':
+        data.seller_mode = value;
+        data.seller_type = value; // 同时设置 seller_type 保持兼容
+        break;
+
+      // 跟卖信息
+      case '跟卖者':
+        data.competitor_count = this.parseCompetitorCount(value);
+        break;
+      case '跟卖最低价':
+        data.competitor_min_price = this.parsePrice(value);
+        break;
+
+      // 日期
+      case '上架时间':
+        this.parseListingDate(value, data);
+        break;
     }
-
-    return undefined;
   }
 
   /**
-   * 从文本中提取百分比
+   * 解析数字（支持空格、逗号分隔）
    */
-  private extractPercentFromText(text: string, label: string): number | undefined {
-    const pattern = new RegExp(`${label}[：(（]?\\s*(\\d+(?:\\.\\d+)?)\\s*%`);
-    const match = text.match(pattern);
-
-    if (match) {
-      return cleanPercent(match[1]);
-    }
-
-    return undefined;
+  private parseNumber(value: string): number | undefined {
+    const cleaned = value.replace(/[^\d.]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? undefined : num;
   }
 
   /**
-   * 从文本中提取数字（带单位）
+   * 解析价格（支持"万"单位）
    */
-  private extractNumberFromText(text: string, label: string, unit: string): number | undefined {
-    const pattern = new RegExp(`${label}[：(（]?\\s*(\\d+(?:\\.\\d+)?)\\s*${unit}`);
-    const match = text.match(pattern);
+  private parsePrice(value: string): number | undefined {
+    // 移除货币符号
+    const cleaned = value.replace(/[₽￥\s]/g, '');
 
-    if (match) {
-      return cleanNumber(match[1]);
+    // 检查是否包含"万"
+    const hasWan = value.includes('万');
+    const numStr = cleaned.replace(/万/g, '');
+
+    const num = parseFloat(numStr);
+    if (isNaN(num)) return undefined;
+
+    return hasWan ? num * 10000 : num;
+  }
+
+  /**
+   * 解析百分比
+   */
+  private parsePercent(value: string): number | undefined {
+    const cleaned = value.replace(/[%\s]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? undefined : num;
+  }
+
+  /**
+   * 解析天数（从"8天"中提取数字）
+   */
+  private parseDays(value: string): number | undefined {
+    const match = value.match(/(\d+)/);
+    if (!match) return undefined;
+    return parseInt(match[1]);
+  }
+
+  /**
+   * 解析尺寸（从"420* 365 * 370"中提取三个数字）
+   */
+  private parseDimensions(value: string, data: Partial<ProductData>): void {
+    const parts = value.split('*').map(p => p.trim());
+    if (parts.length >= 3) {
+      data.package_length = this.parseNumber(parts[0]);
+      data.package_width = this.parseNumber(parts[1]);
+      data.package_height = this.parseNumber(parts[2]);
+    }
+  }
+
+  /**
+   * 解析跟卖者数量（从"等8个卖家"中提取数字）
+   */
+  private parseCompetitorCount(value: string): number | undefined {
+    const match = value.match(/等(\d+)个/);
+    if (!match) return undefined;
+    return parseInt(match[1]);
+  }
+
+  /**
+   * 解析上架时间（从"2022-08-17 (1163天)"中提取日期和天数）
+   */
+  private parseListingDate(value: string, data: Partial<ProductData>): void {
+    // 提取日期
+    const dateMatch = value.match(/(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      try {
+        data.listing_date = new Date(dateMatch[1]);
+      } catch {
+        // 忽略解析失败
+      }
     }
 
-    return undefined;
+    // 提取天数
+    const daysMatch = value.match(/\((\d+)天\)/);
+    if (daysMatch) {
+      data.listing_days = parseInt(daysMatch[1]);
+    }
   }
 }

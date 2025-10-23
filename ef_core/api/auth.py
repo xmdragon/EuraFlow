@@ -479,6 +479,16 @@ async def create_user(
         permissions=user_data.permissions
     )
 
+    # 验证：非admin角色必须指定至少一个店铺
+    if user_data.role != "admin" and (not user_data.shop_ids or len(user_data.shop_ids) == 0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "SHOP_REQUIRED",
+                "message": "非管理员角色必须选择至少一个店铺"
+            }
+        )
+
     session.add(new_user)
     await session.flush()  # 先flush获取用户ID
 
@@ -637,21 +647,21 @@ async def delete_user(
     session: AsyncSession = Depends(get_async_session)
 ):
     """
-    禁用用户（仅admin）
+    删除用户（仅admin）
 
-    - 软删除，将is_active设为False
-    - 不真正删除用户数据
+    - 真正从数据库删除用户及其关联数据
+    - 级联删除：user_shops关联、api_keys等
     """
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "INSUFFICIENT_PERMISSIONS",
-                "message": "只有管理员可以禁用用户"
+                "message": "只有管理员可以删除用户"
             }
         )
 
-    # 获取要禁用的用户
+    # 获取要删除的用户
     stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
@@ -665,8 +675,8 @@ async def delete_user(
             }
         )
 
-    # 禁用用户
-    user.is_active = False
+    # 从数据库删除用户（级联删除会自动处理关联表）
+    await session.delete(user)
     await session.commit()
 
     return None
