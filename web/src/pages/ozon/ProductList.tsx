@@ -74,6 +74,7 @@ import ShopSelector from '@/components/ozon/ShopSelector';
 import ImagePreview from '@/components/ImagePreview';
 import PageTitle from '@/components/PageTitle';
 import PriceEditModal from '@/components/ozon/product/PriceEditModal';
+import StockEditModal from '@/components/ozon/product/StockEditModal';
 import './ProductList.css';
 import styles from './ProductList.module.scss';
 
@@ -1494,53 +1495,14 @@ const ProductList: React.FC = () => {
       />
 
       {/* 库存更新弹窗 */}
-      <Modal
-        title={selectedProduct ? `更新库存 - ${selectedProduct.sku}` : '批量更新库存'}
-        open={stockModalVisible}
+      <StockEditModal
+        visible={stockModalVisible}
         onCancel={() => setStockModalVisible(false)}
-        footer={null}
-        width={500}
-      >
-        <Form
-          layout="vertical"
-          onFinish={(values) => {
-            const updates = selectedProduct
-              ? [
-                  {
-                    sku: selectedProduct.sku,
-                    ...values,
-                  },
-                ]
-              : selectedRows.map((row) => ({
-                  sku: row.sku,
-                  ...values,
-                }));
-            updateStocksMutation.mutate(updates);
-          }}
-        >
-          <Form.Item
-            name="stock"
-            label="库存数量"
-            rules={[{ required: true, message: '请输入库存数量' }]}
-          >
-            <InputNumber style={{ width: '100%' }} min={0} placeholder="请输入库存数量" />
-          </Form.Item>
-          <Form.Item name="warehouse_id" label="仓库">
-            <Select placeholder="选择仓库">
-              <Option value={1}>主仓库</Option>
-              <Option value={2}>备用仓库</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={updateStocksMutation.isPending}>
-                确认更新
-              </Button>
-              <Button onClick={() => setStockModalVisible(false)}>取消</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSubmit={(updates) => updateStocksMutation.mutate(updates)}
+        selectedProduct={selectedProduct}
+        selectedRows={selectedRows}
+        loading={updateStocksMutation.isPending}
+      />
 
       {/* 商品编辑弹窗 */}
       <Modal
