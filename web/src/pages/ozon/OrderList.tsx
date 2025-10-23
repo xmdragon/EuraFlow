@@ -55,6 +55,7 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
+import { usePermission } from '@/hooks/usePermission';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
@@ -81,6 +82,7 @@ interface OrderItemRow {
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency, symbol: userSymbol } = useCurrency();
+  const { canOperate, canSync, canExport } = usePermission();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -728,23 +730,25 @@ const OrderList: React.FC = () => {
                   <span>-</span>
                 )}
               </div>
-              <div>
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<SyncOutlined spin={syncSingleOrderMutation.isPending} />}
-                  loading={syncSingleOrderMutation.isPending}
-                  onClick={() => {
-                    syncSingleOrderMutation.mutate({
-                      postingNumber: posting.posting_number,
-                      shopId: row.order.shop_id
-                    });
-                  }}
-                  style={{ padding: 0, height: 'auto' }}
-                >
-                  同步
-                </Button>
-              </div>
+              {canSync && (
+                <div>
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<SyncOutlined spin={syncSingleOrderMutation.isPending} />}
+                    loading={syncSingleOrderMutation.isPending}
+                    onClick={() => {
+                      syncSingleOrderMutation.mutate({
+                        postingNumber: posting.posting_number,
+                        shopId: row.order.shop_id
+                      });
+                    }}
+                    style={{ padding: 0, height: 'auto' }}
+                  >
+                    同步
+                  </Button>
+                </div>
+              )}
             </div>
           ),
           props: {
@@ -1106,40 +1110,50 @@ const OrderList: React.FC = () => {
 
         {/* 操作按钮 */}
         <Space className={styles.actionSpace}>
-          <Button
-            type="primary"
-            icon={<SyncOutlined />}
-            onClick={() => handleSync(false)}
-            loading={syncOrdersMutation.isPending}
-            disabled={!selectedShop}
-          >
-            增量同步
-          </Button>
-          <Button
-            icon={<SyncOutlined />}
-            onClick={() => handleSync(true)}
-            loading={syncOrdersMutation.isPending}
-            disabled={!selectedShop}
-          >
-            全量同步
-          </Button>
-          <Button
-            icon={<TruckOutlined />}
-            onClick={handleBatchShip}
-            disabled={selectedOrders.length === 0}
-          >
-            批量发货
-          </Button>
-          <Button
-            type="primary"
-            icon={<PrinterOutlined />}
-            onClick={handleBatchPrint}
-            disabled={selectedPostingNumbers.length === 0}
-            loading={isPrinting}
-          >
-            打印标签 ({selectedPostingNumbers.length}/20)
-          </Button>
-          <Button icon={<DownloadOutlined />}>导出订单</Button>
+          {canSync && (
+            <Button
+              type="primary"
+              icon={<SyncOutlined />}
+              onClick={() => handleSync(false)}
+              loading={syncOrdersMutation.isPending}
+              disabled={!selectedShop}
+            >
+              增量同步
+            </Button>
+          )}
+          {canSync && (
+            <Button
+              icon={<SyncOutlined />}
+              onClick={() => handleSync(true)}
+              loading={syncOrdersMutation.isPending}
+              disabled={!selectedShop}
+            >
+              全量同步
+            </Button>
+          )}
+          {canOperate && (
+            <Button
+              icon={<TruckOutlined />}
+              onClick={handleBatchShip}
+              disabled={selectedOrders.length === 0}
+            >
+              批量发货
+            </Button>
+          )}
+          {canOperate && (
+            <Button
+              type="primary"
+              icon={<PrinterOutlined />}
+              onClick={handleBatchPrint}
+              disabled={selectedPostingNumbers.length === 0}
+              loading={isPrinting}
+            >
+              打印标签 ({selectedPostingNumbers.length}/20)
+            </Button>
+          )}
+          {canExport && (
+            <Button icon={<DownloadOutlined />}>导出订单</Button>
+          )}
         </Space>
 
         {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}

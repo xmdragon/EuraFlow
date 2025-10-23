@@ -58,6 +58,7 @@ import React, { useState, useEffect } from 'react';
 import * as ozonApi from '@/services/ozonApi';
 import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
+import { usePermission } from '@/hooks/usePermission';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
@@ -289,6 +290,7 @@ interface OrderCardComponentProps {
   onSubmitTracking: (posting: ozonApi.PostingWithOrder) => void;
   onDiscardOrder: (postingNumber: string) => void;
   onCheckboxChange: (postingNumber: string, checked: boolean) => void;
+  canOperate: boolean;
 }
 
 // 订单卡片组件 - 使用 React.memo 优化渲染
@@ -312,6 +314,7 @@ const OrderCardComponent = React.memo<OrderCardComponentProps>(({
   onSubmitTracking,
   onDiscardOrder,
   onCheckboxChange,
+  canOperate,
 }) => {
   const { posting, product, order } = card;
   const currency = order.currency_code || userCurrency || 'CNY';
@@ -560,54 +563,56 @@ const OrderCardComponent = React.memo<OrderCardComponentProps>(({
         </div>
 
         {/* 操作按钮 */}
-        <div className={styles.actionButtons}>
-          {currentStatus === 'awaiting_stock' && (
-            <Space size="small">
-              <Button type="primary" size="small" onClick={() => onPrepareStock(posting)}>
-                备货
-              </Button>
-              <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
-                废弃
-              </Button>
-            </Space>
-          )}
-          {currentStatus === 'allocating' && (
-            <Space size="small">
-              <Button type="default" size="small" onClick={() => onUpdateBusinessInfo(posting)}>
-                备注
-              </Button>
-              <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
-                废弃
-              </Button>
-            </Space>
-          )}
-          {currentStatus === 'allocated' && (
-            <Space size="small">
-              <Button type="primary" size="small" onClick={() => onSubmitTracking(posting)}>
-                国内单号
-              </Button>
-              <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
-                废弃
-              </Button>
-            </Space>
-          )}
-          {currentStatus === 'tracking_confirmed' && (
-            <Space size="small">
-              <Tag color="success">已完成</Tag>
-              <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
-                废弃
-              </Button>
-            </Space>
-          )}
-          {currentStatus === 'printed' && (
-            <Space size="small">
-              <Tag color="success">已打印</Tag>
-              <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
-                废弃
-              </Button>
-            </Space>
-          )}
-        </div>
+        {canOperate && (
+          <div className={styles.actionButtons}>
+            {currentStatus === 'awaiting_stock' && (
+              <Space size="small">
+                <Button type="primary" size="small" onClick={() => onPrepareStock(posting)}>
+                  备货
+                </Button>
+                <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'allocating' && (
+              <Space size="small">
+                <Button type="default" size="small" onClick={() => onUpdateBusinessInfo(posting)}>
+                  备注
+                </Button>
+                <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'allocated' && (
+              <Space size="small">
+                <Button type="primary" size="small" onClick={() => onSubmitTracking(posting)}>
+                  国内单号
+                </Button>
+                <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'tracking_confirmed' && (
+              <Space size="small">
+                <Tag color="success">已完成</Tag>
+                <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+            {currentStatus === 'printed' && (
+              <Space size="small">
+                <Tag color="success">已打印</Tag>
+                <Button type="default" size="small" onClick={() => onDiscardOrder(posting.posting_number)} danger>
+                  废弃
+                </Button>
+              </Space>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -626,6 +631,7 @@ OrderCardComponent.displayName = 'OrderCardComponent';
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency, symbol: userSymbol } = useCurrency();
+  const { canOperate, canSync } = usePermission();
 
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
@@ -2437,29 +2443,31 @@ const PackingShipment: React.FC = () => {
                   )}
 
                   {/* 操作按钮 */}
-                  <div style={{ marginTop: 16, textAlign: 'center' }}>
-                    <Space size="large">
-                      <Button
-                        type="primary"
-                        size="large"
-                        icon={<PrinterOutlined />}
-                        loading={isPrinting}
-                        onClick={() => handlePrintSingleLabel(scanResult.posting_number)}
-                        disabled={scanResult.status !== 'awaiting_deliver'}
-                      >
-                        打印标签
-                      </Button>
-                      <Button
-                        type="default"
-                        size="large"
-                        icon={<CheckCircleOutlined />}
-                        onClick={() => handleMarkPrinted(scanResult.posting_number)}
-                        disabled={scanResult.operation_status === 'printed' || scanResult.status !== 'awaiting_deliver'}
-                      >
-                        {scanResult.operation_status === 'printed' ? '已打印' : '标记已打印'}
-                      </Button>
-                    </Space>
-                  </div>
+                  {canOperate && (
+                    <div style={{ marginTop: 16, textAlign: 'center' }}>
+                      <Space size="large">
+                        <Button
+                          type="primary"
+                          size="large"
+                          icon={<PrinterOutlined />}
+                          loading={isPrinting}
+                          onClick={() => handlePrintSingleLabel(scanResult.posting_number)}
+                          disabled={scanResult.status !== 'awaiting_deliver'}
+                        >
+                          打印标签
+                        </Button>
+                        <Button
+                          type="default"
+                          size="large"
+                          icon={<CheckCircleOutlined />}
+                          onClick={() => handleMarkPrinted(scanResult.posting_number)}
+                          disabled={scanResult.operation_status === 'printed' || scanResult.status !== 'awaiting_deliver'}
+                        >
+                          {scanResult.operation_status === 'printed' ? '已打印' : '标记已打印'}
+                        </Button>
+                      </Space>
+                    </div>
+                  )}
                 </Card>
               )}
             </Space>
@@ -2470,7 +2478,7 @@ const PackingShipment: React.FC = () => {
             {/* 批量操作按钮 */}
             <div className={styles.batchActions}>
               {/* 批量同步按钮 - 只在"分配中"标签显示 */}
-              {operationStatus === 'allocating' && (
+              {canSync && operationStatus === 'allocating' && (
                 <Button
                   type="primary"
                   icon={<SyncOutlined spin={isBatchSyncing} />}
@@ -2484,7 +2492,7 @@ const PackingShipment: React.FC = () => {
               )}
 
               {/* 批量打印按钮 - 只在"已分配"及之后的标签显示 */}
-              {operationStatus !== 'awaiting_stock' && operationStatus !== 'allocating' && (
+              {canOperate && operationStatus !== 'awaiting_stock' && operationStatus !== 'allocating' && (
                 <Button
                   type="primary"
                   icon={<PrinterOutlined />}
@@ -2531,6 +2539,7 @@ const PackingShipment: React.FC = () => {
                       onSubmitTracking={handleSubmitTrackingCallback}
                       onDiscardOrder={handleDiscardOrderCallback}
                       onCheckboxChange={handleCheckboxChangeCallback}
+                      canOperate={canOperate}
                     />
                   ))}
                 </div>
