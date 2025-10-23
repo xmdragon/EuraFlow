@@ -361,13 +361,6 @@ const ApiKeys: React.FC = () => {
         onCancel={() => setKeyModalVisible(false)}
         footer={[
           <Button
-            key="copy"
-            icon={<CopyOutlined />}
-            onClick={() => newKeyData && copyToClipboard(newKeyData.key)}
-          >
-            复制
-          </Button>,
-          <Button
             key="close"
             type="primary"
             onClick={() => setKeyModalVisible(false)}
