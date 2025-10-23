@@ -10,6 +10,7 @@ interface UseWebSocketOptions {
   url: string;
   token: string | null;
   shopIds?: number[];
+  enabled?: boolean;  // 新增：是否启用连接
   onMessage?: (message: WebSocketNotification) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
@@ -22,6 +23,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     url,
     token,
     shopIds = [],
+    enabled = true,  // 默认启用
     onMessage,
     onConnected,
     onDisconnected,
@@ -34,6 +36,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);  // 新增：cleanup延迟定时器
 
   // 使用 ref 保存回调函数，避免它们的变化导致重连
   const onMessageRef = useRef(onMessage);
@@ -162,16 +165,40 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     }
   }, []);
 
+  // 主要连接管理逻辑
   useEffect(() => {
-    if (token) {
+    // 清除之前的cleanup定时器（如果组件重新渲染）
+    if (cleanupTimerRef.current) {
+      clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = null;
+    }
+
+    // 只有enabled=true且有token时才连接
+    if (enabled && token) {
+      // 如果已有连接但token变了，先断开再重连
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        disconnect();
+      }
       connect();
+    } else {
+      // enabled=false或无token时断开连接
+      disconnect();
     }
 
     return () => {
-      disconnect();
+      // 延迟断开：避免因组件重新渲染导致不必要的断开
+      // 如果enabled=false，立即断开；否则延迟100ms
+      if (!enabled) {
+        disconnect();
+      } else {
+        cleanupTimerRef.current = setTimeout(() => {
+          // 100ms后再检查，如果此时仍需要断开则执行
+          disconnect();
+        }, 100);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [enabled, token]);
 
   return {
     isConnected,

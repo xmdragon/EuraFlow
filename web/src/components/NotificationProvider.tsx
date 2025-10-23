@@ -4,21 +4,23 @@
 import React, { useEffect, useState } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useNotifications } from '@/hooks/useNotifications';
+import type { User } from '@/types/auth';
 
 interface NotificationProviderProps {
   children: React.ReactNode;
+  user: User | null;
 }
 
-const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
+const NotificationProvider: React.FC<NotificationProviderProps> = ({ children, user }) => {
   const [token, setToken] = useState<string | null>(null);
   const [shopIds, setShopIds] = useState<number[]>([]);
 
-  // 从localStorage获取token和当前店铺
+  // 从localStorage获取token
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
     setToken(accessToken);
 
-    // 监听店铺变化（可选）
+    // 监听storage变化（跨标签页token同步）
     const handleStorageChange = () => {
       const newToken = localStorage.getItem('access_token');
       setToken(newToken);
@@ -31,10 +33,14 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
   const { handleWebSocketMessage } = useNotifications(shopIds[0] || null);
 
   // 建立WebSocket连接
+  // 只有用户登录且有token时才启用连接
+  const enabled = !!(user && token);
+
   const { isConnected, connectionError } = useWebSocket({
     url: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/ef/v1/notifications/ws`,
     token,
     shopIds,
+    enabled,  // 新增：控制是否建立连接
     onMessage: handleWebSocketMessage,
     onConnected: () => {
       console.log('通知系统已连接');

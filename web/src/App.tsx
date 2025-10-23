@@ -19,19 +19,20 @@ function App() {
     );
   }
 
-  const appContent = (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-      <Route
-        path="/dashboard/*"
-        element={user ? <Dashboard /> : <Navigate to="/login" replace />}
-      />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+  // 始终渲染NotificationProvider，避免组件卸载导致WebSocket断开
+  // NotificationProvider内部会根据user状态决定是否建立连接
+  return (
+    <NotificationProvider user={user}>
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route
+          path="/dashboard/*"
+          element={user ? <Dashboard /> : <Navigate to="/login" replace />}
+        />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </NotificationProvider>
   );
-
-  // 只有在用户登录后才启用通知系统
-  return user ? <NotificationProvider>{appContent}</NotificationProvider> : appContent;
 }
 
 export default App;
