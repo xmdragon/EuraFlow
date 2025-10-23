@@ -1236,7 +1236,7 @@ const PackingShipment: React.FC = () => {
         return {
           children: (
             <Space direction="vertical" size="small">
-              {currentStatus === 'awaiting_stock' && (
+              {canOperate && currentStatus === 'awaiting_stock' && (
                 <>
                   <Button type="primary" size="small" block onClick={handlePrepareStock}>
                     备货
@@ -1246,7 +1246,7 @@ const PackingShipment: React.FC = () => {
                   </Button>
                 </>
               )}
-              {currentStatus === 'allocating' && (
+              {canOperate && currentStatus === 'allocating' && (
                 <>
                   <Button type="default" size="small" block onClick={handleUpdateBusinessInfo}>
                     备注
@@ -1256,7 +1256,7 @@ const PackingShipment: React.FC = () => {
                   </Button>
                 </>
               )}
-              {currentStatus === 'allocated' && (
+              {canOperate && currentStatus === 'allocated' && (
                 <>
                   <Button type="primary" size="small" block onClick={handleSubmitTracking}>
                     国内单号
@@ -1269,9 +1269,11 @@ const PackingShipment: React.FC = () => {
               {currentStatus === 'tracking_confirmed' && (
                 <>
                   <Tag color="success">已完成</Tag>
-                  <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
-                    废弃
-                  </Button>
+                  {canOperate && (
+                    <Button type="default" size="small" block onClick={handleDiscardOrder} danger>
+                      废弃
+                    </Button>
+                  )}
                 </>
               )}
             </Space>
