@@ -194,14 +194,99 @@ def require_permission(permission: str):
         async def wrapper(request: Request, *args, **kwargs):
             # 获取认证中间件实例（简化实现）
             auth_middleware = AuthMiddleware(None)
-            
+
             if not auth_middleware.check_permission(request, permission):
                 raise ForbiddenError(
                     code="INSUFFICIENT_PERMISSIONS",
                     detail=f"Required permission: {permission}"
                 )
-            
+
             return await func(request, *args, **kwargs)
-        
+
         return wrapper
     return decorator
+
+
+def check_role(user, required_role: str) -> bool:
+    """检查用户角色是否满足要求
+
+    Args:
+        user: 用户对象
+        required_role: 要求的角色 (operator, admin)
+
+    Returns:
+        bool: 是否满足角色要求
+
+    角色权限层级：
+    - admin > operator > viewer
+    - admin 可以执行所有操作
+    - operator 可以修改数据
+    - viewer 只能查看数据
+    """
+    if not user:
+        return False
+
+    # admin 拥有最高权限
+    if user.role == "admin":
+        return True
+
+    # 如果要求 operator 角色
+    if required_role == "operator":
+        return user.role in ["operator", "admin"]
+
+    # 如果要求 admin 角色
+    if required_role == "admin":
+        return user.role == "admin"
+
+    return False
+
+
+def require_role(required_role: str = "operator"):
+    """
+    创建角色检查依赖函数，用于FastAPI路由的权限控制
+
+    Usage:
+        from ef_core.api.auth import get_current_user_flexible
+        from ef_core.middleware.auth import require_role
+
+        @router.post("/products")
+        async def create_product(
+            current_user: User = Depends(require_role("operator"))
+        ):
+            # 只有 operator 和 admin 可以访问
+            pass
+
+    Args:
+        required_role: 要求的最低角色 (operator 或 admin)
+
+    Returns:
+        依赖函数，用于FastAPI的Depends()
+    """
+    from ef_core.api.auth import get_current_user_flexible
+    from fastapi import Depends
+
+    async def _check_role(user=Depends(get_current_user_flexible)):
+        """内部角色检查函数"""
+        if not user:
+            raise ForbiddenError(
+                code="AUTHENTICATION_REQUIRED",
+                detail="需要登录才能执行此操作"
+            )
+
+        if not check_role(user, required_role):
+            role_names = {
+                "admin": "管理员",
+                "operator": "操作员",
+                "viewer": "查看员"
+            }
+            current_role_name = role_names.get(user.role, user.role)
+            required_role_name = role_names.get(required_role, required_role)
+
+            raise ForbiddenError(
+                code="INSUFFICIENT_PERMISSIONS",
+                detail=f"您的角色为{current_role_name}，无权执行此操作。需要{required_role_name}或更高权限。"
+            )
+
+        return user
+
+    return _check_role

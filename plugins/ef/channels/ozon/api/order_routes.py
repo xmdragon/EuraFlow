@@ -9,6 +9,8 @@ from decimal import Decimal
 import logging
 
 from ef_core.database import get_async_session
+from ef_core.models.users import User
+from ef_core.middleware.auth import require_role
 from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking
 from ..utils.datetime_utils import utcnow, parse_date
 from sqlalchemy import delete
@@ -226,10 +228,11 @@ async def get_orders(
 async def update_order_extra_info(
     posting_number: str,
     extra_info: Dict[str, Any] = Body(...),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    更新货件额外信息（进货价格、国内运单号、材料费用、备注）
+    更新货件额外信息（进货价格、国内运单号、材料费用、备注）（需要操作员权限）
     注意：这些字段是 posting 维度的数据，存储在 ozon_postings 表
     """
     from decimal import Decimal
@@ -419,11 +422,11 @@ async def get_order_detail(
 async def sync_orders(
     shop_id: int = Body(...),
     mode: str = Body("incremental", description="同步模式: full-全量同步, incremental-增量同步"),
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    同步订单数据
+    同步订单数据（需要操作员权限）
     - full: 全量同步，获取店铺所有历史订单
     - incremental: 增量同步，获取最近7天的订单更新
     """
@@ -473,10 +476,11 @@ async def sync_orders(
 async def sync_single_order(
     posting_number: str,
     shop_id: int = Query(..., description="店铺ID"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    同步单个订单
+    同步单个订单（需要操作员权限）
     通过posting_number从OZON API拉取最新的订单数据并更新到数据库
     """
     from ..api.client import OzonAPIClient

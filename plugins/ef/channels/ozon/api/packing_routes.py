@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 import logging
 
 from ef_core.database import get_async_session
+from ef_core.models.users import User
+from ef_core.middleware.auth import require_role
 from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop, OzonDomesticTracking, OzonShipmentPackage
 from ..utils.datetime_utils import utcnow
 
@@ -59,10 +61,11 @@ class SubmitDomesticTrackingDTO(BaseModel):
 async def prepare_stock(
     posting_number: str,
     request: PrepareStockDTO,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    备货操作：保存业务信息 + 可选同步到 OZON
+    备货操作：保存业务信息 + 可选同步到 OZON（需要操作员权限）
 
     操作流程：
     1. 保存进货价格、采购平台、备注
@@ -91,10 +94,11 @@ async def prepare_stock(
 async def update_posting_business_info(
     posting_number: str,
     request: UpdateBusinessInfoDTO,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    更新业务信息（不改变操作状态）
+    更新业务信息（不改变操作状态）（需要操作员权限）
 
     用于"分配中"状态下修改进货价格、采购平台、备注等字段
     """
@@ -119,10 +123,11 @@ async def update_posting_business_info(
 async def submit_domestic_tracking(
     posting_number: str,
     request: SubmitDomesticTrackingDTO,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    填写国内物流单号 + 同步跨境巴士（支持多单号）
+    填写国内物流单号 + 同步跨境巴士（支持多单号）（需要操作员权限）
 
     操作流程：
     1. 保存国内物流单号列表（支持多个）和备注
@@ -587,10 +592,11 @@ async def get_product_purchase_price_history(
 @router.post("/orders/prepare")
 async def prepare_order(
     posting_number: str = Body(..., description="发货单号"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    提交备货请求（FBS订单备货流程）
+    提交备货请求（FBS订单备货流程）（需要操作员权限）
 
     流程说明:
     1. 更新posting的operation_time为当前时间
@@ -722,10 +728,11 @@ async def prepare_order(
 @router.post("/packing/postings/{posting_number}/discard")
 async def discard_posting(
     posting_number: str,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    异步废弃订单（立即返回，后台同步到跨境84）
+    异步废弃订单（立即返回，后台同步到跨境84）（需要操作员权限）
 
     流程说明:
     1. 验证 posting 是否存在
@@ -770,10 +777,11 @@ class BatchPrintRequest(BaseModel):
 async def batch_print_labels(
     request: Request,
     body: BatchPrintRequest,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    批量打印快递面单（最多20个）
+    批量打印快递面单（最多20个）（需要操作员权限）
 
     调试日志：记录接收到的请求
 
@@ -1287,10 +1295,11 @@ async def search_posting_by_tracking(
 @router.post("/packing/postings/{posting_number}/mark-printed")
 async def mark_posting_printed(
     posting_number: str,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    将货件标记为"已打印"状态
+    将货件标记为"已打印"状态（需要操作员权限）
 
     条件检查：
     - posting 必须存在
@@ -1349,10 +1358,11 @@ async def mark_posting_printed(
 @router.post("/postings/{posting_number}/sync-material-cost")
 async def sync_material_cost(
     posting_number: str,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    从跨境巴士同步单个发货单的打包费用
+    从跨境巴士同步单个发货单的打包费用（需要操作员权限）
 
     同步流程：
     1. 调用跨境巴士API获取订单信息
@@ -1387,10 +1397,11 @@ async def sync_material_cost(
 @router.post("/postings/{posting_number}/sync-finance")
 async def sync_finance(
     posting_number: str,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    从 OZON 同步单个发货单的财务费用
+    从 OZON 同步单个发货单的财务费用（需要操作员权限）
 
     同步流程：
     1. 调用 OZON Finance API 获取财务交易记录

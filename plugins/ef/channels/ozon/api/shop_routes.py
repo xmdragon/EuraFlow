@@ -12,6 +12,7 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
+from ef_core.middleware.auth import require_role
 from ..models import OzonShop, OzonProduct, OzonOrder
 from ..utils.datetime_utils import utcnow
 
@@ -99,9 +100,9 @@ async def get_shops(
 async def create_shop(
     shop_data: ShopCreateDTO,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(get_current_user_flexible)
+    current_user: User = Depends(require_role("operator"))
 ):
-    """创建新的 Ozon 店铺"""
+    """创建新的 Ozon 店铺（需要操作员权限）"""
     new_shop = OzonShop(
         shop_name=shop_data.name,  # 使用前端的name字段
         platform=shop_data.platform,
@@ -134,10 +135,10 @@ async def create_shop(
 async def update_shop(
     shop_id: int,
     shop_data: ShopUpdateDTO,
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """更新 Ozon 店铺配置"""
+    """更新 Ozon 店铺配置（需要操作员权限）"""
     # 查找店铺
     result = await db.execute(
         select(OzonShop).where(OzonShop.id == shop_id)
@@ -179,10 +180,10 @@ async def update_shop(
 @router.delete("/shops/{shop_id}")
 async def delete_shop(
     shop_id: int,
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """删除 Ozon 店铺"""
+    """删除 Ozon 店铺（需要操作员权限）"""
     result = await db.execute(
         select(OzonShop).where(OzonShop.id == shop_id)
     )
@@ -200,10 +201,10 @@ async def delete_shop(
 @router.post("/shops/{shop_id}/test-connection")
 async def test_connection(
     shop_id: int,
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """测试店铺 API 连接"""
+    """测试店铺 API 连接（需要操作员权限）"""
     # 获取店铺信息
     result = await db.execute(
         select(OzonShop).where(OzonShop.id == shop_id)
@@ -296,9 +297,10 @@ async def get_webhook_config(
 async def configure_webhook(
     shop_id: int,
     webhook_config: Dict[str, Any] = Body(...),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """配置店铺 Webhook"""
+    """配置店铺 Webhook（需要操作员权限）"""
     import secrets
     import os
 
@@ -358,9 +360,10 @@ async def configure_webhook(
 @router.post("/shops/{shop_id}/webhook/test")
 async def test_webhook(
     shop_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """测试 Webhook 配置"""
+    """测试 Webhook 配置（需要操作员权限）"""
     import json
     import hmac
     import hashlib
@@ -453,9 +456,10 @@ async def test_webhook(
 @router.delete("/shops/{shop_id}/webhook")
 async def delete_webhook_config(
     shop_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """删除店铺 Webhook 配置"""
+    """删除店铺 Webhook 配置（需要操作员权限）"""
     # 获取店铺信息
     result = await db.execute(
         select(OzonShop).where(OzonShop.id == shop_id)
@@ -486,10 +490,10 @@ async def trigger_sync(
     sync_type: str = Query("all", description="Sync type: all, products, orders"),
     orders_mode: str = Query("incremental", description="Orders sync mode: full, incremental"),
     products_mode: str = Query("incremental", description="Products sync mode: full, incremental"),
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """触发店铺同步"""
+    """触发店铺同步（需要操作员权限）"""
     import uuid
     import asyncio
     from ..services import OzonSyncService
@@ -558,10 +562,11 @@ async def trigger_sync(
 @router.post("/shops/{shop_id}/sync-warehouses")
 async def sync_warehouses(
     shop_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    同步店铺仓库信息
+    同步店铺仓库信息（需要操作员权限）
 
     从OZON API获取FBS/rFBS仓库列表并同步到数据库。
     """
@@ -696,10 +701,11 @@ async def sync_warehouses(
 
 @router.post("/shops/sync-all-warehouses")
 async def sync_all_warehouses(
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    批量同步所有店铺的仓库信息
+    批量同步所有店铺的仓库信息（需要操作员权限）
 
     遍历所有活跃店铺，调用OZON API获取仓库列表并同步到数据库。
     """

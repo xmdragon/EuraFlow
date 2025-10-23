@@ -10,6 +10,8 @@ import logging
 import asyncio
 
 from ef_core.database import get_async_session
+from ef_core.models.users import User
+from ef_core.middleware.auth import require_role
 from ..models import OzonShop
 from ..api.client import OzonAPIClient
 from ..services.catalog_service import CatalogService
@@ -306,10 +308,11 @@ async def search_dictionary_values(
 @router.post("/listings/categories/sync")
 async def sync_category_tree(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    同步类目树
+    同步类目树（需要操作员权限）
 
     从OZON拉取类目数据到本地数据库
     """
@@ -361,10 +364,11 @@ async def sync_category_tree(
 @router.post("/listings/products/import")
 async def import_product(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    导入商品到OZON（完整上架流程）
+    导入商品到OZON（完整上架流程）（需要操作员权限）
 
     支持两种模式：
     - NEW_CARD: 创建新商品卡片
@@ -433,10 +437,11 @@ async def get_listing_status(
 async def update_product_price(
     offer_id: str,
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    更新商品价格
+    更新商品价格（需要操作员权限）
 
     可以更新售价、原价、最低价等
     """
@@ -481,10 +486,11 @@ async def update_product_price(
 async def update_product_stock(
     offer_id: str,
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    更新商品库存
+    更新商品库存（需要操作员权限）
 
     更新指定仓库的库存数量
     """
@@ -527,10 +533,11 @@ async def update_product_stock(
 async def import_product_images(
     offer_id: str,
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    导入商品图片
+    导入商品图片（需要操作员权限）
 
     从Cloudinary URL导入图片到OZON
     """
@@ -674,10 +681,11 @@ async def get_product_import_logs(
 @router.post("/listings/products/create")
 async def create_product(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    创建商品记录到数据库
+    创建商品记录到数据库（需要操作员权限）
 
     将商品基础信息保存到ozon_products表，后续可进行上架操作
     """
@@ -767,10 +775,11 @@ async def create_product(
 @router.post("/listings/media/upload")
 async def upload_media(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """
-    上传图片到Cloudinary
+    上传图片到Cloudinary（需要操作员权限）
 
     支持Base64和URL两种方式上传
     """

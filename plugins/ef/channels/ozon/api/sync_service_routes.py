@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
 from ef_core.tasks.scheduler import get_scheduler
+from ef_core.models.users import User
+from ef_core.middleware.auth import require_role
 from ..models.sync_service import SyncService, SyncServiceLog
 
 logger = logging.getLogger(__name__)
@@ -128,9 +130,10 @@ async def list_sync_services(
 @router.post("", response_model=SyncServiceResponse)
 async def create_sync_service(
     data: SyncServiceCreate,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """创建同步服务"""
+    """创建同步服务（需要操作员权限）"""
     # 检查service_key是否已存在
     existing = await db.execute(
         select(SyncService).where(SyncService.service_key == data.service_key)
@@ -192,9 +195,10 @@ async def create_sync_service(
 async def update_sync_service(
     service_id: int,
     data: SyncServiceUpdate,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """更新同步服务配置"""
+    """更新同步服务配置（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -262,9 +266,10 @@ async def update_sync_service(
 @router.delete("/{service_id}")
 async def delete_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """删除同步服务"""
+    """删除同步服务（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -292,9 +297,10 @@ async def delete_sync_service(
 @router.post("/{service_id}/trigger")
 async def trigger_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """手动触发同步服务"""
+    """手动触发同步服务（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -322,7 +328,8 @@ async def trigger_sync_service(
 @router.post("/{service_id}/toggle")
 async def toggle_sync_service(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
     """切换同步服务开关"""
     # 查找服务
@@ -463,9 +470,10 @@ async def get_sync_service_stats(
 @router.post("/{service_id}/reset-stats")
 async def reset_sync_service_stats(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """重置同步服务统计数据"""
+    """重置同步服务统计数据（需要操作员权限）"""
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -497,9 +505,10 @@ async def reset_sync_service_stats(
 @router.delete("/{service_id}/logs")
 async def clear_sync_service_logs(
     service_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """清空同步服务运行日志"""
+    """清空同步服务运行日志（需要操作员权限）"""
     from sqlalchemy import delete
 
     # 查找服务

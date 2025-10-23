@@ -10,6 +10,8 @@ from decimal import Decimal
 import logging
 
 from ef_core.database import get_async_session
+from ef_core.models.users import User
+from ef_core.middleware.auth import require_role
 from ..models import OzonProduct, OzonShop
 
 router = APIRouter(tags=["ozon-products"])
@@ -232,10 +234,10 @@ async def get_products(
 @router.post("/products/sync")
 async def sync_products(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """同步商品数据"""
+    """同步商品数据（需要操作员权限）"""
     full_sync = request.get("full_sync", False)
     shop_id = request.get("shop_id")  # 必须明确指定店铺ID
     if not shop_id:
@@ -437,10 +439,10 @@ async def sync_products(
 @router.post("/products/prices")
 async def update_prices(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """批量更新商品价格"""
+    """批量更新商品价格（需要操作员权限）"""
     updates = request.get("updates", [])
     shop_id = request.get("shop_id")  # 必须明确指定店铺ID
     if not shop_id:
@@ -550,10 +552,10 @@ async def update_prices(
 @router.post("/products/stocks")
 async def update_stocks(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
-    # current_user: User = Depends(get_current_user)  # Временно отключено для разработки
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """批量更新商品库存"""
+    """批量更新商品库存（需要操作员权限）"""
     updates = request.get("updates", [])
     shop_id = request.get("shop_id")  # 必须明确指定店铺ID
     if not shop_id:
@@ -663,9 +665,10 @@ async def update_stocks(
 @router.post("/products/{product_id}/sync")
 async def sync_single_product(
     product_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """同步单个商品"""
+    """同步单个商品（需要操作员权限）"""
     # 获取商品信息
     result = await db.execute(
         select(OzonProduct).where(OzonProduct.id == product_id)
@@ -742,9 +745,10 @@ async def sync_single_product(
 async def update_product(
     product_id: int,
     product_data: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """更新商品信息"""
+    """更新商品信息（需要操作员权限）"""
     # 获取商品
     result = await db.execute(
         select(OzonProduct).where(OzonProduct.id == product_id)
@@ -799,9 +803,10 @@ async def update_product(
 @router.post("/products/{product_id}/archive")
 async def archive_product(
     product_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """归档商品"""
+    """归档商品（需要操作员权限）"""
     # 获取商品
     result = await db.execute(
         select(OzonProduct).where(OzonProduct.id == product_id)
@@ -834,9 +839,10 @@ async def archive_product(
 @router.delete("/products/{product_id}")
 async def delete_product(
     product_id: int,
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """删除商品"""
+    """删除商品（需要操作员权限）"""
     # 获取商品
     result = await db.execute(
         select(OzonProduct).where(OzonProduct.id == product_id)
@@ -866,9 +872,10 @@ async def delete_product(
 @router.post("/products/export")
 async def export_products(
     request: Dict[str, Any] = {},
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """导出商品数据为CSV"""
+    """导出商品数据为CSV（需要操作员权限）"""
     import csv
     import io
     from fastapi.responses import StreamingResponse
@@ -922,9 +929,10 @@ async def export_products(
 @router.post("/products/import")
 async def import_products(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
 ):
-    """导入商品数据"""
+    """导入商品数据（需要操作员权限）"""
     import csv
     import io
     import base64
