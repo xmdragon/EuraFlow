@@ -43,9 +43,10 @@ import {
 import * as exchangeRateApi from '../services/exchangeRateApi';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import { usePermission } from '@/hooks/usePermission';
+import PageTitle from '@/components/PageTitle';
 import styles from './ExchangeRateManagement.module.scss';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 
 const ExchangeRateManagement: React.FC = () => {
   const [configForm] = Form.useForm();
@@ -211,29 +212,28 @@ const ExchangeRateManagement: React.FC = () => {
   };
 
   return (
-    <div className={styles.pageContainer}>
-      <Row className={styles.titleRow} align="middle" justify="space-between">
-        <Col>
-          <Title level={2} className={styles.pageTitle}>
-            汇率管理
-          </Title>
-        </Col>
-        {canOperate && (
-          <Col>
-            <Button
-              type="primary"
-              icon={<ReloadOutlined />}
-              onClick={handleManualRefresh}
-              loading={refreshMutation.isPending}
-              disabled={!config?.configured}
-            >
-              手动刷新汇率
-            </Button>
-          </Col>
-        )}
-      </Row>
+    <div>
+      <PageTitle icon={<DollarOutlined />} title="汇率管理" />
 
-      <Row gutter={[16, 16]}>
+      <div className={styles.pageContainer}>
+        <div className={styles.content}>
+        {canOperate && (
+          <Row className={styles.titleRow} align="middle" justify="flex-end">
+            <Col>
+              <Button
+                type="primary"
+                icon={<ReloadOutlined />}
+                onClick={handleManualRefresh}
+                loading={refreshMutation.isPending}
+                disabled={!config?.configured}
+              >
+                手动刷新汇率
+              </Button>
+            </Col>
+          </Row>
+        )}
+
+        <Row gutter={[16, 16]}>
         {/* API 配置卡片 */}
         <Col xs={24} lg={12}>
           <Card
@@ -503,6 +503,8 @@ const ExchangeRateManagement: React.FC = () => {
           </Card>
         </Col>
       </Row>
+        </div>
+      </div>
     </div>
   );
 };
