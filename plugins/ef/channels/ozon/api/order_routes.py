@@ -111,9 +111,9 @@ async def get_orders(
         OzonOrder, OzonPosting.order_id == OzonOrder.id
     )
 
-    # 应用相同的过滤条件
-    if shop_id:
-        count_query = count_query.where(OzonPosting.shop_id == shop_id)
+    # 应用权限过滤条件（与主查询一致）
+    if shop_filter is not True:
+        count_query = count_query.where(shop_filter)
     if status:
         count_query = count_query.where(OzonOrder.status == status)
     if operation_status:
@@ -145,14 +145,15 @@ async def get_orders(
     total = total_result.scalar()
 
     # 计算全局统计（所有状态，不受当前status筛选影响）
-    # 只按shop_id筛选，包含所有状态的统计
+    # 应用权限过滤，包含所有状态的统计
     # 使用 OzonPosting.status（OZON原生状态）而不是 OzonOrder.status（系统映射状态）
     stats_query = select(
         OzonPosting.status,
         func.count(OzonPosting.id).label('count')
     )
-    if shop_id:
-        stats_query = stats_query.where(OzonPosting.shop_id == shop_id)
+    # 应用权限过滤
+    if shop_filter is not True:
+        stats_query = stats_query.where(shop_filter)
     stats_query = stats_query.group_by(OzonPosting.status)
 
     stats_result = await db.execute(stats_query)
@@ -162,8 +163,9 @@ async def get_orders(
     # 统计 posting 数量，与其他状态标签保持一致
     discarded_query = select(func.count(OzonPosting.id))
     discarded_query = discarded_query.where(OzonPosting.operation_status == 'cancelled')
-    if shop_id:
-        discarded_query = discarded_query.where(OzonPosting.shop_id == shop_id)
+    # 应用权限过滤
+    if shop_filter is not True:
+        discarded_query = discarded_query.where(shop_filter)
 
     discarded_result = await db.execute(discarded_query)
     discarded_count = discarded_result.scalar() or 0

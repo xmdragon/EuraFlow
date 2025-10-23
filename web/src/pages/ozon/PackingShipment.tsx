@@ -68,6 +68,7 @@ import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import PageTitle from '@/components/PageTitle';
 import ExtraInfoForm from '@/components/ozon/packing/ExtraInfoForm';
+import PackingSearchBar from '@/components/ozon/packing/PackingSearchBar';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import styles from './PackingShipment.module.scss';
 
@@ -1956,91 +1957,16 @@ const PackingShipment: React.FC = () => {
 
       {/* 搜索过滤（扫描单号标签时隐藏） */}
       {operationStatus !== 'scan' && (
-        <Card className={styles.filterCard}>
-          <Row gutter={16} align="middle">
-            {/* 左侧：店铺选择器 */}
-            <Col flex="300px">
-              <Space size="middle">
-                <span className={styles.shopLabel}>选择店铺:</span>
-                <ShopSelector
-                  value={selectedShop}
-                  onChange={(shopId) => {
-                    const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
-                    setSelectedShop(normalized);
-                    // 切换店铺时会自动重新加载（queryKey改变）
-                  }}
-                  showAllOption={true}
-                  style={{ width: 200 }}
-                />
-              </Space>
-            </Col>
-
-            {/* 右侧：搜索框 */}
-            <Col flex="auto">
-              <Form
-                form={filterForm}
-                layout="inline"
-                onFinish={(values) => {
-                  const searchValue = values.search_text?.trim();
-
-                  if (!searchValue) {
-                    setSearchParams({});
-                    return;
-                  }
-
-                  // 智能识别搜索类型
-                  let params: any = {};
-
-                  // 规则1: SKU - 10位数字
-                  if (/^\d{10}$/.test(searchValue)) {
-                    params.sku = searchValue;
-                  }
-                  // 规则2: 货件编号 - 包含数字和"-"
-                  else if (/\d/.test(searchValue) && searchValue.includes('-')) {
-                    params.posting_number = searchValue;
-                  }
-                  // 规则3: 追踪号码 - 字母开头+中间数字+字母结尾
-                  else if (/^[A-Za-z]+\d+[A-Za-z]+$/.test(searchValue)) {
-                    params.tracking_number = searchValue;
-                  }
-                  // 规则4: 国内单号 - 纯数字或字母开头+数字
-                  else if (/^\d+$/.test(searchValue) || /^[A-Za-z]+\d+$/.test(searchValue)) {
-                    params.domestic_tracking_number = searchValue;
-                  }
-                  // 其他情况默认按货件编号搜索
-                  else {
-                    params.posting_number = searchValue;
-                  }
-
-                  setSearchParams(params);
-                }}
-              >
-                <Form.Item name="search_text">
-                  <Input
-                    placeholder="输入SKU/货件编号/追踪号码/国内单号"
-                    prefix={<SearchOutlined />}
-                    style={{ width: 320 }}
-                  />
-                </Form.Item>
-                <Form.Item>
-                  <Space>
-                    <Button type="primary" htmlType="submit">
-                      查询
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        filterForm.resetFields();
-                        setSearchParams({});
-                      }}
-                    >
-                      重置
-                    </Button>
-                  </Space>
-                </Form.Item>
-              </Form>
-            </Col>
-          </Row>
-        </Card>
+        <PackingSearchBar
+          form={filterForm}
+          selectedShop={selectedShop}
+          onShopChange={(shopId) => {
+            const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+            setSelectedShop(normalized);
+            // 切换店铺时会自动重新加载（queryKey改变）
+          }}
+          onSearchParamsChange={setSearchParams}
+        />
       )}
 
       {/* 打包发货列表 */}
