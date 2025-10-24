@@ -12,7 +12,7 @@ interface UseWebSocketOptions {
   token: string | null;
   shopIds?: number[];
   enabled?: boolean; // 新增：是否启用连接
-  onMessage?: (message: WebSocketNotification) => void;
+  onMessage?: (notification: WebSocketNotification) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   autoReconnect?: boolean;

@@ -15,7 +15,7 @@ export interface ShopSelectorWithLabelProps {
   /** 当前选中的店铺ID */
   value?: number | number[] | null;
   /** 店铺改变回调 */
-  onChange?: (shopId: number | number[] | null) => void;
+  onChange?: (value: number | number[] | null) => void;
   /** 是否显示"全部店铺"选项，默认 true */
   showAllOption?: boolean;
   /** 自定义样式 */
