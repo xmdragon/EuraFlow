@@ -2,10 +2,13 @@
 
 .container {
   // Tab内容容器
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .card {
   margin-bottom: $spacing-lg;
+  max-width: 100%;
 
   &:last-child {
     margin-bottom: 0;

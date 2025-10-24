@@ -47,6 +47,13 @@ except ImportError as e:
     logger.warning(f"Could not import kuajing84 routes: {e}")
 
 try:
+    from .translation_routes import router as translation_router
+    router.include_router(translation_router)
+    logger.info("✓ Loaded translation_routes")
+except ImportError as e:
+    logger.warning(f"Could not import translation routes: {e}")
+
+try:
     from .sync_service_routes import router as sync_service_router
     router.include_router(sync_service_router)
 except ImportError as e:

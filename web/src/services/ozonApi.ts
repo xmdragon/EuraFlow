@@ -724,6 +724,7 @@ export interface OzonChatMessage {
   sender_name?: string;
   content?: string;
   content_data?: unknown;
+  data_cn?: string; // 中文翻译
   is_read: boolean;
   is_deleted: boolean;
   is_edited: boolean;
@@ -798,11 +799,19 @@ export const sendChatMessage = async (
 export const sendChatFile = async (
   shopId: number,
   chatId: string,
-  fileUrl: string,
+  base64Content: string,
   fileName: string
 ): Promise<any> => {
+  // 验证文件大小（base64解码后）
+  // base64编码后大小约为原始大小的4/3，所以用3/4还原
+  const sizeInBytes = (base64Content.length * 3) / 4;
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  if (sizeInBytes > maxSize) {
+    throw new Error('文件大小不能超过10MB');
+  }
+
   const response = await apiClient.post(`/ozon/chats/${shopId}/${chatId}/files`, {
-    file_url: fileUrl,
+    base64_content: base64Content,
     file_name: fileName,
   });
   return response.data.data;

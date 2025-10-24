@@ -39,8 +39,9 @@ class OzonChatMessage(Base):
     sender_name = Column(String(200))  # 发送者姓名
 
     # 消息内容
-    content = Column(Text)  # 文本消息内容
+    content = Column(Text)  # 文本消息内容（俄语）
     content_data = Column(JSONB)  # 富文本/附件等额外数据
+    data_cn = Column(Text)  # 中文翻译
 
     # 状态
     is_read = Column(Boolean, default=False)  # 是否已读

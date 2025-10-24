@@ -8,6 +8,7 @@ import {
   TruckOutlined,
   ReloadOutlined,
   LineChartOutlined,
+  TranslationOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,6 +25,7 @@ import {
   Switch,
   Spin,
   Segmented,
+  Tabs,
 } from "antd";
 import React, { useEffect, useState } from "react";
 import {
@@ -42,6 +44,7 @@ import { usePermission } from "@/hooks/usePermission";
 import * as exchangeRateApi from "@/services/exchangeRateApi";
 import * as ozonApi from "@/services/ozonApi";
 import * as watermarkApi from "@/services/watermarkApi";
+import * as translationApi from "@/services/translationApi";
 import type { FormValues } from "@/types/common";
 import { notifySuccess, notifyError, notifyInfo } from "@/utils/notification";
 
@@ -51,6 +54,7 @@ const ThirdPartyServicesTab: React.FC = () => {
   const [cloudinaryForm] = Form.useForm();
   const [kuajing84Form] = Form.useForm();
   const [exchangeRateForm] = Form.useForm();
+  const [translationForm] = Form.useForm();
   const [timeRange, setTimeRange] = useState<"today" | "week" | "month">(
     "today",
   );
@@ -223,392 +227,538 @@ const ThirdPartyServicesTab: React.FC = () => {
     },
   });
 
+  // ========== 阿里云翻译配置 ==========
+  const { data: translationConfig } = useQuery({
+    queryKey: ["translation", "config"],
+    queryFn: translationApi.getTranslationConfig,
+  });
+
+  const saveTranslationMutation = useMutation({
+    mutationFn: (values: FormValues) =>
+      translationApi.saveTranslationConfig(
+        values as unknown as translationApi.TranslationConfigRequest
+      ),
+    onSuccess: () => {
+      notifySuccess("保存成功", "阿里云翻译配置已保存");
+      queryClient.invalidateQueries({ queryKey: ["translation"] });
+      translationForm.setFieldsValue({ access_key_secret: "" });
+    },
+    onError: (error: Error) => {
+      notifyError("保存失败", `保存失败: ${error.message}`);
+    },
+  });
+
+  const testTranslationMutation = useMutation({
+    mutationFn: () => translationApi.testTranslationConnection(),
+    onSuccess: () => {
+      notifySuccess("测试成功", "阿里云翻译连接测试成功");
+    },
+    onError: (error: Error) => {
+      notifyError("测试失败", `测试失败: ${error.message}`);
+    },
+  });
+
+  useEffect(() => {
+    if (translationConfig) {
+      translationForm.setFieldsValue({
+        access_key_id: translationConfig.access_key_id || "",
+        region_id: translationConfig.region_id || "cn-hangzhou",
+        enabled: translationConfig.enabled || false,
+      });
+    }
+  }, [translationConfig, translationForm]);
+
   return (
     <div className={styles.container}>
-      {/* Cloudinary配置 */}
-      <Card
-        title={
-          <>
-            <PictureOutlined /> Cloudinary图床配置
-          </>
-        }
-        className={styles.card}
-      >
-        <Alert
-          message="Cloudinary用于存储和处理水印图片"
-          description="免费额度：25 GB存储，25 GB带宽"
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-
-        <Spin spinning={cloudinaryLoading}>
-          <Form
-            form={cloudinaryForm}
-            layout="vertical"
-            onFinish={(values) => saveCloudinaryMutation.mutate(values)}
-          >
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="cloud_name"
-                  label="Cloud Name"
-                  rules={[{ required: true, message: "请输入Cloud Name" }]}
-                >
-                  <Input placeholder="your-cloud-name" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="api_key"
-                  label="API Key"
-                  rules={[{ required: true, message: "请输入API Key" }]}
-                  id="cloudinary_api_key"
-                >
-                  <Input placeholder="123456789012345" />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="api_secret"
-                  label="API Secret"
-                  rules={[
-                    {
-                      required: !cloudinaryConfig,
-                      message: "请输入API Secret",
-                    },
-                  ]}
-                >
-                  <Input.Password placeholder="保存后不显示" />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item
-                  name="folder_prefix"
-                  label="文件夹前缀"
-                  initialValue="euraflow"
-                >
-                  <Input />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item
-                  name="auto_cleanup_days"
-                  label="自动清理天数"
-                  initialValue={30}
-                >
-                  <InputNumber
-                    min={1}
-                    max={365}
-                    controls={false}
-                    style={{ width: "100%" }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            {cloudinaryConfig && (
-              <Row gutter={16} style={{ marginTop: 16 }}>
-                <Col span={8}>
-                  <Statistic
-                    title="存储使用"
-                    value={
-                      (cloudinaryConfig.storage_used_bytes || 0) / 1024 / 1024
-                    }
-                    precision={2}
-                    suffix="MB"
-                  />
-                </Col>
-                <Col span={8}>
-                  <Statistic
-                    title="带宽使用"
-                    value={
-                      (cloudinaryConfig.bandwidth_used_bytes || 0) / 1024 / 1024
-                    }
-                    precision={2}
-                    suffix="MB"
-                  />
-                </Col>
-              </Row>
-            )}
-
-            {canOperate && (
-              <Form.Item style={{ marginTop: 16 }}>
-                <Space>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={saveCloudinaryMutation.isPending}
-                  >
-                    保存配置
-                  </Button>
-                  <Button
-                    onClick={() => testCloudinaryMutation.mutate()}
-                    loading={testCloudinaryMutation.isPending}
-                  >
-                    测试连接
-                  </Button>
-                </Space>
-              </Form.Item>
-            )}
-          </Form>
-        </Spin>
-      </Card>
-
-      {/* 跨境巴士配置 */}
-      <Card
-        title={
-          <>
-            <TruckOutlined /> 跨境巴士配置
-          </>
-        }
-        className={styles.card}
-      >
-        <Alert
-          message="跨境巴士用于订单物流同步"
-          description="启用后，打包发货页面可以将已填写国内物流单号的订单同步到跨境巴士平台"
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-
-        <Spin spinning={kuajing84Loading}>
-          <Form
-            form={kuajing84Form}
-            layout="vertical"
-            onFinish={(values) => saveKuajing84Mutation.mutate(values)}
-          >
-            <Form.Item
-              name="enabled"
-              label="启用跨境巴士同步"
-              valuePropName="checked"
-            >
-              <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-            </Form.Item>
-
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="username"
-                  label="用户名"
-                  rules={[{ required: true, message: "请输入用户名" }]}
-                >
-                  <Input placeholder="请输入跨境巴士用户名" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="password"
-                  label="密码"
-                  rules={[{ required: true, message: "请输入密码" }]}
-                >
-                  <Input.Password placeholder="请输入跨境巴士密码" />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            {canOperate && (
-              <Form.Item>
-                <Space>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={saveKuajing84Mutation.isPending}
-                  >
-                    保存配置
-                  </Button>
-                  <Button
-                    onClick={() => testKuajing84Mutation.mutate()}
-                    loading={testKuajing84Mutation.isPending}
-                  >
-                    测试连接
-                  </Button>
-                </Space>
-              </Form.Item>
-            )}
-          </Form>
-        </Spin>
-      </Card>
-
-      {/* 汇率API配置 */}
-      <Card
-        title={
-          <>
-            <DollarOutlined /> 汇率API配置
-          </>
-        }
-        className={styles.card}
-      >
-        <Alert
-          message="汇率API用于实时获取人民币→卢布汇率"
-          description="免费账户每月1500次请求，系统每30分钟自动刷新一次"
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-
-        {exchangeRateConfig?.configured && (
-          <Alert
-            message={`API已配置 | 服务商: ${exchangeRateConfig.api_provider} | 状态: ${exchangeRateConfig.is_enabled ? "启用" : "禁用"}`}
-            type="success"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        )}
-
-        <Form
-          form={exchangeRateForm}
-          layout="vertical"
-          onFinish={(values) => {
-            configExchangeRateMutation.mutate({
-              api_key: values.api_key,
-              api_provider: "exchangerate-api",
-              base_currency: "CNY",
-              is_enabled: true,
-            });
-          }}
-        >
-          <Form.Item
-            name="api_key"
-            label="API Key"
-            rules={[{ required: true, message: "请输入API Key" }]}
-            id="exchange_rate_api_key"
-          >
-            <Input.Password placeholder="请输入exchangerate-api.com的API Key" />
-          </Form.Item>
-
-          {canOperate && (
-            <Form.Item>
-              <Space>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={configExchangeRateMutation.isPending}
-                >
-                  保存配置
-                </Button>
-                <Button
-                  onClick={() => refreshRateMutation.mutate()}
-                  loading={refreshRateMutation.isPending}
-                  disabled={!exchangeRateConfig?.configured}
-                  icon={<ReloadOutlined />}
-                >
-                  手动刷新汇率
-                </Button>
-              </Space>
-            </Form.Item>
-          )}
-        </Form>
-
-        {exchangeRateConfig?.configured && (
-          <>
-            <Row gutter={16} style={{ marginTop: 24 }}>
-              <Col span={12}>
-                {rateLoading ? (
-                  <Spin />
-                ) : currentRate ? (
-                  <Statistic
-                    title="当前汇率：人民币 (CNY) → 卢布 (RUB)"
-                    value={parseFloat(currentRate.rate)}
-                    precision={6}
-                    valueStyle={{ color: "#3f8600" }}
-                    suffix={
-                      <span style={{ fontSize: 14 }}>
-                        {currentRate.cached && "(缓存)"}
-                      </span>
-                    }
-                  />
-                ) : (
-                  <Alert message="无法获取汇率数据" type="warning" showIcon />
-                )}
-              </Col>
-            </Row>
-
-            {/* 汇率趋势图 */}
-            <div style={{ marginTop: 24 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 16,
-                }}
-              >
-                <Space>
-                  <LineChartOutlined />
-                  <span style={{ fontWeight: 500 }}>汇率趋势</span>
-                </Space>
-                <Segmented
-                  options={[
-                    { label: "今日", value: "today" },
-                    { label: "本周", value: "week" },
-                    { label: "本月", value: "month" },
-                  ]}
-                  value={timeRange}
-                  onChange={(value) =>
-                    setTimeRange(value as "today" | "week" | "month")
-                  }
-                />
-              </div>
-
-              {historyLoading ? (
-                <div style={{ textAlign: "center", padding: "40px 0" }}>
-                  <Spin />
-                </div>
-              ) : history?.data && history.data.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={history.data}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" tickFormatter={formatXAxis} />
-                    <YAxis tickFormatter={(value) => value.toFixed(4)} />
-                    <Tooltip
-                      formatter={(value) => [`${value.toFixed(6)}`, "汇率"]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="rate"
-                      stroke="#1890ff"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
+      <Tabs
+        defaultActiveKey="cloudinary"
+        items={[
+          {
+            key: "cloudinary",
+            label: (
+              <>
+                <PictureOutlined /> Cloudinary图床
+              </>
+            ),
+            children: (
+              <Card className={styles.card}>
                 <Alert
-                  message="暂无历史数据"
-                  description="系统会在后台自动获取汇率数据，请稍后查看"
+                  message="Cloudinary用于存储和处理水印图片"
+                  description="免费额度：25 GB存储，25 GB带宽"
                   type="info"
                   showIcon
+                  style={{ marginBottom: 16 }}
                 />
-              )}
-            </div>
-          </>
-        )}
 
-        <Alert
-          message="提示"
-          description={
-            <div>
-              <p>
-                1. 前往{" "}
-                <a
-                  href="https://www.exchangerate-api.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Spin spinning={cloudinaryLoading}>
+                  <Form
+                    form={cloudinaryForm}
+                    layout="vertical"
+                    onFinish={(values) => saveCloudinaryMutation.mutate(values)}
+                  >
+                    <Form.Item
+                      name="cloud_name"
+                      label="Cloud Name"
+                      rules={[{ required: true, message: "请输入Cloud Name" }]}
+                    >
+                      <Input placeholder="your-cloud-name" style={{ width: 200 }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="api_key"
+                      label="API Key"
+                      rules={[{ required: true, message: "请输入API Key" }]}
+                    >
+                      <Input id="cloudinary_api_key" placeholder="123456789012345" style={{ width: 200 }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="api_secret"
+                      label="API Secret"
+                      rules={[
+                        {
+                          required: !cloudinaryConfig,
+                          message: "请输入API Secret",
+                        },
+                      ]}
+                    >
+                      <Input.Password placeholder="保存后不显示" style={{ width: 200 }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="folder_prefix"
+                      label="文件夹前缀"
+                      initialValue="euraflow"
+                    >
+                      <Input style={{ width: 200 }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="auto_cleanup_days"
+                      label="自动清理天数"
+                      initialValue={30}
+                    >
+                      <InputNumber
+                        min={1}
+                        max={365}
+                        controls={false}
+                        style={{ width: 200 }}
+                      />
+                    </Form.Item>
+
+                    {cloudinaryConfig && (
+                      <Row gutter={16} style={{ marginTop: 16 }}>
+                        <Col span={8}>
+                          <Statistic
+                            title="存储使用"
+                            value={
+                              (cloudinaryConfig.storage_used_bytes || 0) / 1024 / 1024
+                            }
+                            precision={2}
+                            suffix="MB"
+                          />
+                        </Col>
+                        <Col span={8}>
+                          <Statistic
+                            title="带宽使用"
+                            value={
+                              (cloudinaryConfig.bandwidth_used_bytes || 0) / 1024 / 1024
+                            }
+                            precision={2}
+                            suffix="MB"
+                          />
+                        </Col>
+                      </Row>
+                    )}
+
+                    {canOperate && (
+                      <Form.Item style={{ marginTop: 16 }}>
+                        <Space>
+                          <Button
+                            type="primary"
+                            htmlType="submit"
+                            loading={saveCloudinaryMutation.isPending}
+                          >
+                            保存配置
+                          </Button>
+                          <Button
+                            onClick={() => testCloudinaryMutation.mutate()}
+                            loading={testCloudinaryMutation.isPending}
+                          >
+                            测试连接
+                          </Button>
+                        </Space>
+                      </Form.Item>
+                    )}
+                  </Form>
+                </Spin>
+              </Card>
+            ),
+          },
+          {
+            key: "kuajing84",
+            label: (
+              <>
+                <TruckOutlined /> 跨境巴士
+              </>
+            ),
+            children: (
+              <Card className={styles.card}>
+                <Alert
+                  message="跨境巴士用于订单物流同步"
+                  description="启用后，打包发货页面可以将已填写国内物流单号的订单同步到跨境巴士平台"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+
+                <Spin spinning={kuajing84Loading}>
+                  <Form
+                    form={kuajing84Form}
+                    layout="vertical"
+                    onFinish={(values) => saveKuajing84Mutation.mutate(values)}
+                  >
+                    <Form.Item
+                      name="enabled"
+                      label="启用跨境巴士同步"
+                      valuePropName="checked"
+                    >
+                      <Switch checkedChildren="启用" unCheckedChildren="禁用" />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="username"
+                      label="用户名"
+                      rules={[{ required: true, message: "请输入用户名" }]}
+                    >
+                      <Input placeholder="请输入跨境巴士用户名" style={{ width: 200 }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="password"
+                      label="密码"
+                      rules={[{ required: true, message: "请输入密码" }]}
+                    >
+                      <Input.Password placeholder="请输入跨境巴士密码" style={{ width: 200 }} />
+                    </Form.Item>
+
+                    {canOperate && (
+                      <Form.Item>
+                        <Space>
+                          <Button
+                            type="primary"
+                            htmlType="submit"
+                            loading={saveKuajing84Mutation.isPending}
+                          >
+                            保存配置
+                          </Button>
+                          <Button
+                            onClick={() => testKuajing84Mutation.mutate()}
+                            loading={testKuajing84Mutation.isPending}
+                          >
+                            测试连接
+                          </Button>
+                        </Space>
+                      </Form.Item>
+                    )}
+                  </Form>
+                </Spin>
+              </Card>
+            ),
+          },
+          {
+            key: "exchange-rate",
+            label: (
+              <>
+                <DollarOutlined /> 汇率API
+              </>
+            ),
+            children: (
+              <Card className={styles.card}>
+                <Alert
+                  message="汇率API用于实时获取人民币→卢布汇率"
+                  description="免费账户每月1500次请求，系统每30分钟自动刷新一次"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+
+                {exchangeRateConfig?.configured && (
+                  <Alert
+                    message={`API已配置 | 服务商: ${exchangeRateConfig.api_provider} | 状态: ${exchangeRateConfig.is_enabled ? "启用" : "禁用"}`}
+                    type="success"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                  />
+                )}
+
+                <Form
+                  form={exchangeRateForm}
+                  layout="vertical"
+                  onFinish={(values) => {
+                    configExchangeRateMutation.mutate({
+                      api_key: values.api_key,
+                      api_provider: "exchangerate-api",
+                      base_currency: "CNY",
+                      is_enabled: true,
+                    });
+                  }}
                 >
-                  exchangerate-api.com
-                </a>{" "}
-                注册获取免费API Key
-              </p>
-              <p>2. 配置后系统会自动同步汇率数据</p>
-            </div>
-          }
-          type="info"
-          style={{ marginTop: 16 }}
-        />
-      </Card>
+                  <Form.Item
+                    name="api_key"
+                    label="API Key"
+                    rules={[{ required: true, message: "请输入API Key" }]}
+                  >
+                    <Input.Password id="exchange_rate_api_key" placeholder="请输入exchangerate-api.com的API Key" style={{ width: 200 }} />
+                  </Form.Item>
+
+                  {canOperate && (
+                    <Form.Item>
+                      <Space>
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          loading={configExchangeRateMutation.isPending}
+                        >
+                          保存配置
+                        </Button>
+                        <Button
+                          onClick={() => refreshRateMutation.mutate()}
+                          loading={refreshRateMutation.isPending}
+                          disabled={!exchangeRateConfig?.configured}
+                          icon={<ReloadOutlined />}
+                        >
+                          手动刷新汇率
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                  )}
+                </Form>
+
+                {exchangeRateConfig?.configured && (
+                  <>
+                    <Row gutter={16} style={{ marginTop: 24 }}>
+                      <Col span={12}>
+                        {rateLoading ? (
+                          <Spin />
+                        ) : currentRate ? (
+                          <Statistic
+                            title="当前汇率：人民币 (CNY) → 卢布 (RUB)"
+                            value={parseFloat(currentRate.rate)}
+                            precision={6}
+                            valueStyle={{ color: "#3f8600" }}
+                            suffix={
+                              <span style={{ fontSize: 14 }}>
+                                {currentRate.cached && "(缓存)"}
+                              </span>
+                            }
+                          />
+                        ) : (
+                          <Alert message="无法获取汇率数据" type="warning" showIcon />
+                        )}
+                      </Col>
+                    </Row>
+
+                    {/* 汇率趋势图 */}
+                    <div style={{ marginTop: 24 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 16,
+                        }}
+                      >
+                        <Space>
+                          <LineChartOutlined />
+                          <span style={{ fontWeight: 500 }}>汇率趋势</span>
+                        </Space>
+                        <Segmented
+                          options={[
+                            { label: "今日", value: "today" },
+                            { label: "本周", value: "week" },
+                            { label: "本月", value: "month" },
+                          ]}
+                          value={timeRange}
+                          onChange={(value) =>
+                            setTimeRange(value as "today" | "week" | "month")
+                          }
+                        />
+                      </div>
+
+                      {historyLoading ? (
+                        <div style={{ textAlign: "center", padding: "40px 0" }}>
+                          <Spin />
+                        </div>
+                      ) : history?.data && history.data.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={300}>
+                          <LineChart data={history.data}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="time" tickFormatter={formatXAxis} />
+                            <YAxis tickFormatter={(value) => value.toFixed(4)} />
+                            <Tooltip
+                              formatter={(value) => [`${value.toFixed(6)}`, "汇率"]}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="rate"
+                              stroke="#1890ff"
+                              strokeWidth={2}
+                              dot={false}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <Alert
+                          message="暂无历史数据"
+                          description="系统会在后台自动获取汇率数据，请稍后查看"
+                          type="info"
+                          showIcon
+                        />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <Alert
+                  message="提示"
+                  description={
+                    <div>
+                      <p>
+                        1. 前往{" "}
+                        <a
+                          href="https://www.exchangerate-api.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          exchangerate-api.com
+                        </a>{" "}
+                        注册获取免费API Key
+                      </p>
+                      <p>2. 配置后系统会自动同步汇率数据</p>
+                    </div>
+                  }
+                  type="info"
+                  style={{ marginTop: 16 }}
+                />
+              </Card>
+            ),
+          },
+          {
+            key: "translation",
+            label: (
+              <>
+                <TranslationOutlined /> 阿里云翻译
+              </>
+            ),
+            children: (
+              <Card className={styles.card}>
+                <Alert
+                  message="阿里云机器翻译用于聊天消息自动翻译"
+                  description="中文消息自动翻译成俄语发送，俄语消息懒加载翻译成中文显示"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+
+                {translationConfig && (
+                  <Alert
+                    message={`翻译服务${translationConfig.enabled ? "已启用" : "已禁用"} | 区域: ${translationConfig.region_id}`}
+                    type={translationConfig.enabled ? "success" : "warning"}
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                  />
+                )}
+
+                <Form
+                  form={translationForm}
+                  layout="vertical"
+                  onFinish={(values) => saveTranslationMutation.mutate(values)}
+                >
+                  <Form.Item
+                    name="enabled"
+                    label="启用翻译服务"
+                    valuePropName="checked"
+                  >
+                    <Switch checkedChildren="启用" unCheckedChildren="禁用" />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="access_key_id"
+                    label="AccessKey ID"
+                    rules={[{ required: true, message: "请输入AccessKey ID" }]}
+                  >
+                    <Input placeholder="请输入阿里云AccessKey ID" style={{ width: 200 }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="access_key_secret"
+                    label="AccessKey Secret"
+                    rules={[
+                      {
+                        required: !translationConfig,
+                        message: "请输入AccessKey Secret",
+                      },
+                    ]}
+                  >
+                    <Input.Password placeholder="保存后不显示" style={{ width: 200 }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="region_id"
+                    label="区域ID"
+                    initialValue="cn-hangzhou"
+                  >
+                    <Input placeholder="cn-hangzhou" style={{ width: 200 }} />
+                  </Form.Item>
+
+                  {canOperate && (
+                    <Form.Item>
+                      <Space>
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          loading={saveTranslationMutation.isPending}
+                        >
+                          保存配置
+                        </Button>
+                        <Button
+                          onClick={() => testTranslationMutation.mutate()}
+                          loading={testTranslationMutation.isPending}
+                        >
+                          测试连接
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                  )}
+                </Form>
+
+                <Alert
+                  message="提示"
+                  description={
+                    <div>
+                      <p>
+                        1. 前往{" "}
+                        <a
+                          href="https://www.aliyun.com/product/ai/base_alimt"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          阿里云机器翻译控制台
+                        </a>{" "}
+                        获取AccessKey
+                      </p>
+                      <p>2. 配置后聊天消息将自动翻译</p>
+                    </div>
+                  }
+                  type="info"
+                  style={{ marginTop: 16 }}
+                />
+              </Card>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 };

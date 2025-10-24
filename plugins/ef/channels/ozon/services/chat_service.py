@@ -224,7 +224,7 @@ class OzonChatService:
 
         Args:
             chat_id: 聊天ID
-            content: 消息内容
+            content: 消息内容（中文或俄语）
             api_client: OZON API客户端
 
         Returns:
@@ -242,15 +242,47 @@ class OzonChatService:
             if not chat:
                 raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
 
-        # 调用OZON API发送消息
-        result = await api_client.send_chat_message(chat_id, content)
+        # 检测语言并翻译（如果是中文或英文等非俄语内容）
+        original_content = None
+        russian_content = content
+
+        # 检测是否包含中文或英文等非俄语字符（需要翻译）
+        has_chinese = any('\u4e00' <= char <= '\u9fff' for char in content)
+        has_english = any('a' <= char.lower() <= 'z' for char in content)
+
+        if has_chinese or has_english:
+            # 内容包含中文或英文，需要翻译
+            original_content = content
+            logger.info(f"检测到非俄语消息（中文/英文），准备翻译: {content[:50]}...")
+
+            try:
+                from .aliyun_translation_service import AliyunTranslationService
+                translation_service = AliyunTranslationService()
+                # 使用 auto 自动检测源语言（支持中文、英文等）
+                translated = await translation_service.translate_text(content, 'auto', 'ru')
+
+                if translated:
+                    russian_content = translated
+                    logger.info(f"翻译成功: {russian_content[:50]}...")
+                else:
+                    logger.warning("翻译失败，使用原文发送")
+            except Exception as e:
+                logger.error(f"翻译服务调用失败: {e}", exc_info=True)
+                # 翻译失败，使用原文发送
+
+        # 调用OZON API发送消息（俄语）
+        result = await api_client.send_chat_message(chat_id, russian_content)
+
+        # 如果有原始内容（中文/英文），在结果中返回（前端可以用于显示）
+        if original_content:
+            result['original_content'] = original_content
 
         return result
 
     async def send_file(
         self,
         chat_id: str,
-        file_url: str,
+        base64_content: str,
         file_name: str,
         api_client: OzonAPIClient
     ) -> Dict[str, Any]:
@@ -258,13 +290,18 @@ class OzonChatService:
 
         Args:
             chat_id: 聊天ID
-            file_url: 文件URL
-            file_name: 文件名
+            base64_content: base64编码的文件内容
+            file_name: 文件名（含扩展名）
             api_client: OZON API客户端
 
         Returns:
             发送结果
+
+        Raises:
+            ValueError: 聊天不存在、文件大小超限、文件类型不支持
         """
+        import base64
+
         # 验证聊天是否属于此店铺
         async with self.db_manager.get_session() as session:
             stmt = select(OzonChat).where(
@@ -277,8 +314,35 @@ class OzonChatService:
             if not chat:
                 raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
 
+        # 验证文件大小（base64解码后）
+        try:
+            # 移除可能的data URL前缀 (data:image/png;base64,)
+            if ',' in base64_content and base64_content.startswith('data:'):
+                base64_content = base64_content.split(',', 1)[1]
+
+            # 计算实际文件大小（base64编码后大约增加33%）
+            file_size = len(base64_content) * 3 // 4
+            max_size = 10 * 1024 * 1024  # 10MB
+            if file_size > max_size:
+                raise ValueError(f"File size {file_size} bytes exceeds maximum {max_size} bytes (10MB)")
+        except Exception as e:
+            logger.error(f"Failed to validate file size: {e}")
+            raise ValueError(f"Invalid base64 content: {e}")
+
+        # 验证文件类型（通过扩展名）
+        allowed_extensions = {
+            '.jpg', '.jpeg', '.png', '.gif',  # 图片
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx'  # 文档
+        }
+        file_ext = file_name[file_name.rfind('.'):].lower() if '.' in file_name else ''
+        if file_ext not in allowed_extensions:
+            raise ValueError(
+                f"File type '{file_ext}' not supported. "
+                f"Allowed types: {', '.join(sorted(allowed_extensions))}"
+            )
+
         # 调用OZON API发送文件
-        result = await api_client.send_chat_file(chat_id, file_url, file_name)
+        result = await api_client.send_chat_file(chat_id, base64_content, file_name)
 
         return result
 
@@ -711,6 +775,7 @@ class OzonChatService:
             "sender_name": message.sender_name,
             "content": message.content,
             "content_data": message.content_data,
+            "data_cn": message.data_cn,  # 中文翻译
             "is_read": message.is_read,
             "is_deleted": message.is_deleted,
             "is_edited": message.is_edited,
