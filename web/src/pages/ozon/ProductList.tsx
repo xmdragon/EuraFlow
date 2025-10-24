@@ -415,15 +415,17 @@ const ProductList: React.FC = () => {
       configId: number;
       analyzeMode?: 'individual' | 'fast';
       positionOverrides?: Record<string, Record<string, string>>;
-    }) =>
-      watermarkApi.applyWatermarkBatch(
-        selectedShop!,
+    }) => {
+      if (!selectedShop) throw new Error('请先选择店铺');
+      return watermarkApi.applyWatermarkBatch(
+        selectedShop,
         productIds,
         configId,
         false,
         analyzeMode,
         positionOverrides
-      ), // 强制使用异步模式
+      ); // 强制使用异步模式
+    },
     onSuccess: (data) => {
       loggers.product.debug('Watermark batch response:', data);
 
@@ -452,8 +454,10 @@ const ProductList: React.FC = () => {
 
   // 还原原图
   const restoreOriginalMutation = useMutation({
-    mutationFn: (productIds: number[]) =>
-      watermarkApi.restoreOriginalBatch(selectedShop!, productIds),
+    mutationFn: (productIds: number[]) => {
+      if (!selectedShop) throw new Error('请先选择店铺');
+      return watermarkApi.restoreOriginalBatch(selectedShop, productIds);
+    },
     onSuccess: (data) => {
       notifySuccess('原图还原已启动', `原图还原已启动，任务ID: ${data.batch_id}`);
       setSelectedRows([]);
@@ -466,6 +470,11 @@ const ProductList: React.FC = () => {
 
   // 轮询水印任务状态
   const pollWatermarkTasks = async (batchId: string) => {
+    if (!selectedShop) {
+      loggers.product.error('Cannot poll watermark tasks: no shop selected');
+      return;
+    }
+
     loggers.product.debug('Starting to poll watermark tasks for batch:', batchId);
     let completed = 0;
     let failed = 0;
@@ -478,7 +487,7 @@ const ProductList: React.FC = () => {
 
       try {
         const tasks = await watermarkApi.getTasks({
-          shop_id: selectedShop!,
+          shop_id: selectedShop,
           batch_id: batchId,
         });
         loggers.product.debug('Tasks received:', tasks);
@@ -1725,12 +1734,16 @@ const ProductList: React.FC = () => {
               notifyWarning('操作失败', '请选择水印配置');
               return;
             }
+            if (!selectedShop) {
+              notifyWarning('操作失败', '请先选择店铺');
+              return;
+            }
             // 进入预览步骤
             setPreviewLoading(true);
             try {
               const productIds = selectedRows.slice(0, 10).map((p) => p.id); // 最多预览10个
               const result = await watermarkApi.previewWatermarkBatch(
-                selectedShop!,
+                selectedShop,
                 productIds,
                 selectedWatermarkConfig,
                 watermarkAnalyzeMode === 'individual' // 根据选择的模式决定是否单独分析
@@ -1748,6 +1761,11 @@ const ProductList: React.FC = () => {
             }
           } else {
             // 确认应用水印
+            if (!selectedWatermarkConfig) {
+              notifyWarning('操作失败', '请选择水印配置');
+              return;
+            }
+
             const productIds = selectedRows.map((p) => p.id);
 
             // 构建每张图片的独立配置映射
@@ -1779,7 +1797,7 @@ const ProductList: React.FC = () => {
 
             applyWatermarkMutation.mutate({
               productIds,
-              configId: selectedWatermarkConfig!,
+              configId: selectedWatermarkConfig,
               analyzeMode: watermarkAnalyzeMode,
               positionOverrides:
                 Object.keys(imageOverrides).length > 0 ? imageOverrides : undefined,

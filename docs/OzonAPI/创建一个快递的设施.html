@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建一个快递的设施 - OZON API</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .api-container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #333;
+            margin-top: 20px;
+        }
+        .http-verb {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .http-verb.post { background-color: #49cc90; color: white; }
+        .http-verb.get { background-color: #61affe; color: white; }
+        .http-verb.put { background-color: #fca130; color: white; }
+        .http-verb.delete { background-color: #f93e3e; color: white; }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="api-container">
+        <a href="index.html" class="back-link">← 返回索引</a>
+        <div class="sc-eCImvq bqPRPL" data-section-id="operation/PolygonAPI_CreatePolygon" id="operation/PolygonAPI_CreatePolygon"><div class="sc-iCfLBT sc-igXhDE BvbdQ gmkQBx"><div class="sc-hKwCoD hLDWMv"><h2 class="sc-pVTma kHCdop"><a aria-label="operation/PolygonAPI_CreatePolygon" class="sc-crHlIS wziUf" href="#operation/PolygonAPI_CreatePolygon"></a>创建一个快递的设施 </h2><div class="sc-caiKgP kFJBeh" data-tabs="true"><div class="sc-djWQLY hgMiQj"><span class="sc-gUQueJ sc-fyrnIy hkWakt ikOLpJ http-verb post" type="post">post</span><div class="sc-gIBoTZ gNSSYl">/v1/polygon/create</div><button class="sc-iWVLQz gljuNE CopyButton" style="display:inline-block"><div class="sc-gSQGeZ iOAir"><svg class="sc-nVjpj jzhAMS copy-icon" fill="#005BFF" height="20" viewbox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M13 2.06632e-06C14.6569 2.06632e-06 16 1.34315 16 3V4.00001L17 4.00001C18.6569 4.00001 20 5.34315 20 7.00001V17C20 18.6569 18.6569 20 17 20H7C5.34315 20 4 18.6568 4 17V16H3C1.34315 16 0 14.6569 0 13L2.06632e-06 3C2.06632e-06 1.34315 1.34315 0 3.00001 0L13 2.06632e-06ZM18 7.00001C18 6.44772 17.5523 6.00001 17 6.00001L16 6.00001V13C16 14.6569 14.6569 16 13 16H9.00279C8.45051 16 8 15.5523 8 15C8 14.4477 8.44772 14 9 14H13C13.5523 14 14 13.5523 14 13L14 3C14 2.44772 13.5523 2 13 2L2.98633 2C2.43405 2 1.98633 2.44772 1.98633 3L1.98633 13C1.98633 13.5523 2.43405 14 2.98633 14L5 14C5.55229 14 6 14.4477 6 15V17C6 17.5523 6.44772 18 7 18L17 18C17.5523 18 18 17.5523 18 17V7.00001Z" fill="#005BFF"></path></svg></div></button></div><ul class="header-tabs" role="tablist"><li aria-controls="react-tabs-963" aria-disabled="false" aria-selected="true" class="react-tabs__tab react-tabs__tab--selected" id="react-tabs-962" role="tab" tabindex="0">描述和范例</li><li aria-controls="react-tabs-965" aria-disabled="false" aria-selected="false" class="react-tabs__tab" data-console="true" id="react-tabs-964" role="tab">控制台</li></ul><div class="sc-iUKrWq jveETg"></div><div aria-labelledby="react-tabs-962" class="react-tabs__tab-panel react-tabs__tab-panel--selected" id="react-tabs-963" role="tabpanel"><div class="sc-gHjzJe gXUWqC"><div class="sc-itWPVd izulXG"><div class="sc-JEigz hGmbED"><div class="sc-efQUeY sc-hUpaWb drGeTT bqvRGd"><p>你可以为快递方式添加一个设施。</p>
+<p>通过在<a href="https://geojson.io%EF%BC%8C%E8%8E%B7%E5%8F%96%E5%85%B6%E5%9D%90%E6%A0%87%E6%9D%A5%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E8%AE%BE%E6%96%BD%EF%BC%9A%E5%9C%A8%E5%9C%B0%E5%9B%BE%E4%B8%8A%E8%87%B3%E5%B0%91%E6%A0%87%E8%AE%B03%E4%B8%AA%E7%82%B9%EF%BC%8C%E5%B9%B6%E7%94%A8%E7%BA%BF%E8%BF%9E%E6%8E%A5%E8%B5%B7%E6%9D%A5%E3%80%82">https://geojson.io，获取其坐标来创建一个设施：在地图上至少标记3个点，并用线连接起来。</a></p>
+</div></div><div><h5 class="sc-iqsfdx cxpqVC">header Parameters</h5><table class="sc-hGPAah ifOjxi"><tbody><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="Client-Id"><span class="sc-ieebsP daiJzN"></span><span>Client-Id</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>用户识别号。</p>
+</div></div></div></td></tr><tr class="last undefined"><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="Api-Key"><span class="sc-ieebsP daiJzN"></span><span>Api-Key</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>API-密钥。</p>
+</div></div></div></td></tr></tbody></table></div><h5 class="sc-iqsfdx cxpqVC">Request Body schema: <span class="sc-jcFkyM Ceuhc">application/json</span></h5><div class="sc-efQUeY sc-hUpaWb drGeTT bqvRGd"></div><table class="sc-hGPAah ifOjxi"><tbody><tr class="last undefined"><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="coordinates"><span class="sc-ieebsP daiJzN"></span><span>coordinates</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>快递设施的坐标，格式为 <code>[[[lat long]]]</code>。</p>
+</div></div></div></td></tr></tbody></table><div><h3 class="sc-eWfWgB jwdikc">回复</h3><div><button aria-expanded="true" class="sc-gjNGvZ gOeBLq success"><svg aria-hidden="true" class="sc-egiSv bvgmxy" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">200</strong><span class="sc-jgrIVw iQntvV"><p>设施已创建</p>
+</span></button><div class="sc-fmcixO cOuJRo"><h5 class="sc-iqsfdx cxpqVC">Response Schema: <span class="sc-jcFkyM Ceuhc">application/json</span></h5><table class="sc-hGPAah ifOjxi"><tbody><tr class="last expanded"><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="polygon_id"><span class="sc-ieebsP daiJzN"></span><span>polygon_id</span></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">integer</span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG"> &lt;int64&gt; </span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>设施识别号。</p>
+</div></div></div></td></tr></tbody></table></div></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">400</strong><span class="sc-jgrIVw iQntvV"><p>参数有误</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">403</strong><span class="sc-jgrIVw iQntvV"><p>拒绝访问</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">404</strong><span class="sc-jgrIVw iQntvV"><p>回答未找到</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">409</strong><span class="sc-jgrIVw iQntvV"><p>请求冲突</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">500</strong><span class="sc-jgrIVw iQntvV"><p>服务器内部故障</p>
+</span></button></div></div></div><div class="sc-dcgxYM htkieq"><div class="react-tabs__wrapper"><h3 class="sc-kDThTU sc-bUbQrF bEgexd IKvQw">请求范例</h3><div class="sc-caiKgP kFJBeh" data-tabs="true"><ul class="react-tabs__tab-list sf-hidden" hidden="" role="tablist"></ul><div aria-labelledby="react-tabs-966" class="react-tabs__tab-panel react-tabs__tab-panel--selected" id="react-tabs-967" role="tabpanel"><div class="react-tabs__code"><div class="sc-jOxuqd bFFLUS"><span class="sc-ZOsLE eOBxKR">Content type</span><div class="sc-jIkYaL fawIiG">application/json</div></div><div><div class="sc-ehCIER dHVnGP"><div class="sc-efQUeY drGeTT sc-faUofl eUDvTR"><div class="redoc-json"><code><button aria-label="collapse" class="collapser sf-hidden"></button><span class="token punctuation">{</span><span class="ellipsis sf-hidden"></span><ul class="obj collapsible"><li><div class="hoverable"><span class="property token string">"coordinates"</span>: <span class="token string">"[[[30.149574279785153,59.86550435303646],[30.21205902099609,59.846884387977326],[30.255661010742184,59.86240174913176],[30.149574279785153,59.86550435303646]]]"</span></div></li></ul><span class="token punctuation">}</span></code></div></div><div class="sc-cTApHj ifSJrm"><button class="CopyButton" style="display:inline-block"><div class="sc-gSQGeZ iOAir"><div class="sc-lcequs gYrNUP"><svg class="sc-nVjpj jzhAMS copy-icon" fill="#005BFF" height="20" viewbox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M13 2.06632e-06C14.6569 2.06632e-06 16 1.34315 16 3V4.00001L17 4.00001C18.6569 4.00001 20 5.34315 20 7.00001V17C20 18.6569 18.6569 20 17 20H7C5.34315 20 4 18.6568 4 17V16H3C1.34315 16 0 14.6569 0 13L2.06632e-06 3C2.06632e-06 1.34315 1.34315 0 3.00001 0L13 2.06632e-06ZM18 7.00001C18 6.44772 17.5523 6.00001 17 6.00001L16 6.00001V13C16 14.6569 14.6569 16 13 16H9.00279C8.45051 16 8 15.5523 8 15C8 14.4477 8.44772 14 9 14H13C13.5523 14 14 13.5523 14 13L14 3C14 2.44772 13.5523 2 13 2L2.98633 2C2.43405 2 1.98633 2.44772 1.98633 3L1.98633 13C1.98633 13.5523 2.43405 14 2.98633 14L5 14C5.55229 14 6 14.4477 6 15V17C6 17.5523 6.44772 18 7 18L17 18C17.5523 18 18 17.5523 18 17V7.00001Z" fill="#005BFF"></path></svg><div class="sc-gGCCur bYEXBF">复制</div></div></div></button><svg class="sc-hiwReK iFZavI svg-links expand-icon" fill="none" height="14" viewbox="0 0 8 14" width="8" xmlns="http://www.w3.org/2000/svg"><path d="M4 0L0 5H8L4 0Z" fill="none"></path><path d="M4 14L0 9H8L4 14Z" fill="none"></path></svg><button style="margin-left:16px">收回全部</button></div></div></div></div></div></div></div><div class="react-tabs__wrapper"><h3 class="sc-kDThTU sc-tAEdG bEgexd jEMWuD">回复范例</h3><div class="sc-caiKgP kFJBeh" data-tabs="true"><ul class="react-tabs__tab-list" role="tablist"><li aria-controls="react-tabs-969" aria-disabled="false" aria-selected="true" class="tab-success react-tabs__tab--selected" id="react-tabs-968" role="tab" tabindex="0">200</li><li aria-controls="react-tabs-971" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-970" role="tab">400</li><li aria-controls="react-tabs-973" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-972" role="tab">403</li><li aria-controls="react-tabs-975" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-974" role="tab">404</li><li aria-controls="react-tabs-977" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-976" role="tab">409</li><li aria-controls="react-tabs-979" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-978" role="tab">500</li></ul><div aria-labelledby="react-tabs-968" class="react-tabs__tab-panel react-tabs__tab-panel--selected" id="react-tabs-969" role="tabpanel"><div class="react-tabs__code"><div class="sc-jOxuqd bFFLUS"><span class="sc-ZOsLE eOBxKR">Content type</span><div class="sc-jIkYaL fawIiG">application/json</div></div><div><div class="sc-ehCIER dHVnGP"><div class="sc-efQUeY drGeTT sc-faUofl eUDvTR"><div class="redoc-json"><code><button aria-label="collapse" class="collapser sf-hidden"></button><span class="token punctuation">{</span><span class="ellipsis sf-hidden"></span><ul class="obj collapsible"><li><div class="hoverable"><span class="property token string">"polygonId"</span>: <span class="token string">"1323"</span></div></li></ul><span class="token punctuation">}</span></code></div></div><div class="sc-cTApHj ifSJrm"><button class="CopyButton" style="display:inline-block"><div class="sc-gSQGeZ iOAir"><div class="sc-lcequs gYrNUP"><svg class="sc-nVjpj jzhAMS copy-icon" fill="#005BFF" height="20" viewbox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M13 2.06632e-06C14.6569 2.06632e-06 16 1.34315 16 3V4.00001L17 4.00001C18.6569 4.00001 20 5.34315 20 7.00001V17C20 18.6569 18.6569 20 17 20H7C5.34315 20 4 18.6568 4 17V16H3C1.34315 16 0 14.6569 0 13L2.06632e-06 3C2.06632e-06 1.34315 1.34315 0 3.00001 0L13 2.06632e-06ZM18 7.00001C18 6.44772 17.5523 6.00001 17 6.00001L16 6.00001V13C16 14.6569 14.6569 16 13 16H9.00279C8.45051 16 8 15.5523 8 15C8 14.4477 8.44772 14 9 14H13C13.5523 14 14 13.5523 14 13L14 3C14 2.44772 13.5523 2 13 2L2.98633 2C2.43405 2 1.98633 2.44772 1.98633 3L1.98633 13C1.98633 13.5523 2.43405 14 2.98633 14L5 14C5.55229 14 6 14.4477 6 15V17C6 17.5523 6.44772 18 7 18L17 18C17.5523 18 18 17.5523 18 17V7.00001Z" fill="#005BFF"></path></svg><div class="sc-gGCCur bYEXBF">复制</div></div></div></button><svg class="sc-hiwReK iFZavI svg-links expand-icon" fill="none" height="14" viewbox="0 0 8 14" width="8" xmlns="http://www.w3.org/2000/svg"><path d="M4 0L0 5H8L4 0Z" fill="none"></path><path d="M4 14L0 9H8L4 14Z" fill="none"></path></svg><button style="margin-left:16px">收回全部</button></div></div></div></div></div><div aria-labelledby="react-tabs-970" class="react-tabs__tab-panel" id="react-tabs-971" role="tabpanel"></div><div aria-labelledby="react-tabs-972" class="react-tabs__tab-panel" id="react-tabs-973" role="tabpanel"></div><div aria-labelledby="react-tabs-974" class="react-tabs__tab-panel" id="react-tabs-975" role="tabpanel"></div><div aria-labelledby="react-tabs-976" class="react-tabs__tab-panel" id="react-tabs-977" role="tabpanel"></div><div aria-labelledby="react-tabs-978" class="react-tabs__tab-panel" id="react-tabs-979" role="tabpanel"></div></div></div></div></div></div><div aria-labelledby="react-tabs-964" class="react-tabs__tab-panel" id="react-tabs-965" role="tabpanel"></div></div></div></div></div>
+    </div>
+</body>
+</html>

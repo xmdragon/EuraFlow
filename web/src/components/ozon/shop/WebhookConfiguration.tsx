@@ -50,7 +50,10 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
   // 获取webhook配置
   const { data: webhookData, refetch: refetchWebhookConfig } = useQuery({
     queryKey: ['ozon', 'webhook-config', selectedShop?.id],
-    queryFn: () => ozonApi.getWebhookConfig(selectedShop!.id),
+    queryFn: () => {
+      if (!selectedShop?.id) throw new Error('未选择店铺');
+      return ozonApi.getWebhookConfig(selectedShop.id);
+    },
     enabled: !!selectedShop?.id,
     staleTime: 30 * 1000,
   });
@@ -58,7 +61,8 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
   // 配置webhook
   const configureWebhookMutation = useMutation({
     mutationFn: async (config: any) => {
-      return ozonApi.configureWebhook(selectedShop!.id, config);
+      if (!selectedShop?.id) throw new Error('未选择店铺');
+      return ozonApi.configureWebhook(selectedShop.id, config);
     },
     onSuccess: (data) => {
       notifySuccess('配置成功', 'Webhook配置成功');
@@ -109,7 +113,8 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
   // 测试webhook
   const testWebhookMutation = useMutation({
     mutationFn: async () => {
-      return ozonApi.testWebhook(selectedShop!.id);
+      if (!selectedShop?.id) throw new Error('未选择店铺');
+      return ozonApi.testWebhook(selectedShop.id);
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -126,7 +131,8 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
   // 删除webhook配置
   const deleteWebhookMutation = useMutation({
     mutationFn: async () => {
-      return ozonApi.deleteWebhookConfig(selectedShop!.id);
+      if (!selectedShop?.id) throw new Error('未选择店铺');
+      return ozonApi.deleteWebhookConfig(selectedShop.id);
     },
     onSuccess: () => {
       notifySuccess('删除成功', 'Webhook配置已删除');

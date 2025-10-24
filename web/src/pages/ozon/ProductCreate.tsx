@@ -149,13 +149,17 @@ const ProductCreate: React.FC = () => {
 
   // 处理图片上传
   const handleImageUpload = async (file: File): Promise<string> => {
+    if (!selectedShop) {
+      return Promise.reject(new Error('请先选择店铺'));
+    }
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = async () => {
         try {
           const base64 = reader.result as string;
           const result = await uploadImageMutation.mutateAsync({
-            shop_id: selectedShop!,
+            shop_id: selectedShop,
             type: 'base64',
             data: base64,
             folder: 'products',

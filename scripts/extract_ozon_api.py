@@ -188,11 +188,11 @@ def extract_all_apis():
     print("🎨 提取样式...")
     base_styles = extract_styles(soup)
 
-    # 查找所有operation类型的API
+    # 查找所有operation类型的API - 直接通过 div id 查找
     print("🔎 查找所有API操作...")
-    operation_items = soup.find_all('li', {'data-item-id': re.compile(r'^operation/')})
+    operation_divs = soup.find_all('div', id=re.compile(r'^operation/'))
 
-    print(f"✅ 找到 {len(operation_items)} 个API操作\n")
+    print(f"✅ 找到 {len(operation_divs)} 个API操作\n")
 
     # 创建输出目录
     output_path = Path(OUTPUT_DIR)
@@ -203,22 +203,26 @@ def extract_all_apis():
     success_count = 0
     filename_counter = {}
 
-    for i, item in enumerate(operation_items, 1):
-        # 提取元数据
-        metadata = extract_api_metadata(item)
-        if not metadata:
-            continue
+    for i, div in enumerate(operation_divs, 1):
+        operation_id = div.get('id')
 
-        operation_id = metadata['operation_id']
-        api_name = metadata['name']
-        method = metadata['method']
-        path = metadata['path']
+        # 从 div 中提取标题和路径
+        h2_tag = div.find('h2')
+        api_name = h2_tag.get_text(strip=True) if h2_tag else operation_id
 
-        print(f"[{i}/{len(operation_items)}] {api_name}")
+        # 提取 HTTP 方法
+        http_verb = div.find('span', class_=re.compile('http-verb'))
+        method = http_verb.get_text(strip=True).upper() if http_verb else 'POST'
+
+        # 提取路径
+        path_div = div.find('div', class_=re.compile('sc-gIBoTZ'))
+        path = path_div.get_text(strip=True) if path_div else ''
+
+        print(f"[{i}/{len(operation_divs)}] {api_name}")
         print(f"    {method} {path}")
 
-        # 提取HTML内容
-        html_content = extract_api_section(soup, operation_id)
+        # 使用 div 本身作为 HTML 内容
+        html_content = str(div)
 
         if html_content:
             # 生成文件名
@@ -257,7 +261,7 @@ def extract_all_apis():
 
     print(f"\n{'='*60}")
     print(f"✅ 提取完成！")
-    print(f"   成功: {success_count}/{len(operation_items)}")
+    print(f"   成功: {success_count}/{len(operation_divs)}")
     print(f"   输出目录: {OUTPUT_DIR}")
     print(f"{'='*60}\n")
 

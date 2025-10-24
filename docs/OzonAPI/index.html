@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OZON Seller API 文档索引</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        .search-box {
+            margin: 20px 0;
+            padding: 10px;
+            width: 100%;
+            max-width: 500px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .api-list {
+            list-style: none;
+            padding: 0;
+        }
+        .api-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .api-item:hover {
+            background: #e9ecef;
+        }
+        .api-item a {
+            text-decoration: none;
+            color: #333;
+            display: block;
+        }
+        .api-name {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .api-path {
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+            color: #666;
+        }
+        .http-method {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .method-post { background-color: #49cc90; color: white; }
+        .method-get { background-color: #61affe; color: white; }
+        .method-put { background-color: #fca130; color: white; }
+        .method-delete { background-color: #f93e3e; color: white; }
+        .stats {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OZON Seller API 文档索引</h1>
+        <div class="stats">
+            <strong>📊 统计信息：</strong> 共 160 个API接口
+        </div>
+
+        <input type="text" class="search-box" id="searchBox" placeholder="搜索API名称或路径..." onkeyup="searchAPI()">
+
+        <div id="apiContent">
+        <h2>actions</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="从活动中删除商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        从活动中删除商品
+                    </div>
+                    <div class="api-path">/v1/actions/products/deactivate</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="参与 活动的商品列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        参与 活动的商品列表
+                    </div>
+                    <div class="api-path">/v1/actions/products</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="取消折扣申请.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        取消折扣申请
+                    </div>
+                    <div class="api-path">/v1/actions/discounts-task/decline</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="可用的促销商品清单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        可用的促销商品清单
+                    </div>
+                    <div class="api-path">/v1/actions/candidates</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="同意折扣申请.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        同意折扣申请
+                    </div>
+                    <div class="api-path">/v1/actions/discounts-task/approve</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="在促销活动中增加一个商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        在促销活动中增加一个商品
+                    </div>
+                    <div class="api-path">/v1/actions/products/activate</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="活动清单.html">
+                    <div class="api-name">
+                        <span class="http-method method-get">GET</span>
+                        活动清单
+                    </div>
+                    <div class="api-path">/v1/actions</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="申请折扣列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        申请折扣列表
+                    </div>
+                    <div class="api-path">/v1/actions/discounts-task/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>analytics</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="分析数据.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        分析数据
+                    </div>
+                    <div class="api-path">/v1/analytics/data</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="有关特定商品查询的信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        有关特定商品查询的信息
+                    </div>
+                    <div class="api-path">/v1/analytics/product-queries/details</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取商品搜索查询信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取商品搜索查询信息
+                    </div>
+                    <div class="api-path">/v1/analytics/product-queries</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取平均配送时间的分析数据.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取平均配送时间的分析数据
+                    </div>
+                    <div class="api-path">/v1/analytics/average-delivery-time</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取平均配送时间的总体分析.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取平均配送时间的总体分析
+                    </div>
+                    <div class="api-path">/v1/analytics/average-delivery-time/summary</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取平均配送时间的详细分析.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取平均配送时间的详细分析
+                    </div>
+                    <div class="api-path">/v1/analytics/average-delivery-time/details</div>
+                </a>
+            </li>
+        </ul>
+        <h2>barcode</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="为商品绑定条形码.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        为商品绑定条形码
+                    </div>
+                    <div class="api-path">/v1/barcode/add</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="创建商品条形码.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建商品条形码
+                    </div>
+                    <div class="api-path">/v1/barcode/generate</div>
+                </a>
+            </li>
+        </ul>
+        <h2>carriage</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="创建通行证.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建通行证
+                    </div>
+                    <div class="api-path">/v1/carriage/pass/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="删除通行证.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        删除通行证
+                    </div>
+                    <div class="api-path">/v1/carriage/pass/delete</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="发运删除.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        发运删除
+                    </div>
+                    <div class="api-path">/v1/carriage/cancel</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="发运组成商品更改.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        发运组成商品更改
+                    </div>
+                    <div class="api-path">/v1/carriage/set-postings</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新通行证.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新通行证
+                    </div>
+                    <div class="api-path">/v1/carriage/pass/update</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="运输信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        运输信息
+                    </div>
+                    <div class="api-path">/v1/carriage/get</div>
+                </a>
+            </li>
+        </ul>
+        <h2>chat</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="创建新聊天.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建新聊天
+                    </div>
+                    <div class="api-path">/v1/chat/start</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="发送信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        发送信息
+                    </div>
+                    <div class="api-path">/v1/chat/send/message</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="发送文件.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        发送文件
+                    </div>
+                    <div class="api-path">/v1/chat/send/file</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将信息标记为已读.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将信息标记为已读
+                    </div>
+                    <div class="api-path">/v2/chat/read</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="聊天历史记录.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        聊天历史记录
+                    </div>
+                    <div class="api-path">/v3/chat/history</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="聊天历史记录_1.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        聊天历史记录
+                    </div>
+                    <div class="api-path">/v2/chat/history</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="聊天清单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        聊天清单
+                    </div>
+                    <div class="api-path">/v3/chat/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="聊天清单_1.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        聊天清单
+                    </div>
+                    <div class="api-path">/v2/chat/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>conditional-cancellation</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="拒绝 rFBS 取消申请.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        拒绝 rFBS 取消申请
+                    </div>
+                    <div class="api-path">/v2/conditional-cancellation/reject</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="确认 rFBS 取消申请.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        确认 rFBS 取消申请
+                    </div>
+                    <div class="api-path">/v2/conditional-cancellation/approve</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取 rFBS 取消申请列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取 rFBS 取消申请列表
+                    </div>
+                    <div class="api-path">/v2/conditional-cancellation/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>delivery-method</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="仓库物流方式清单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        仓库物流方式清单
+                    </div>
+                    <div class="api-path">/v1/delivery-method/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>description-category</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="商品类别和类型的树形图.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        商品类别和类型的树形图
+                    </div>
+                    <div class="api-path">/v1/description-category/tree</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="根据属性的参考值进行搜索.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        根据属性的参考值进行搜索
+                    </div>
+                    <div class="api-path">/v1/description-category/attribute/values/search</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="特征值指南.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        特征值指南
+                    </div>
+                    <div class="api-path">/v1/description-category/attribute/values</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="类别特征列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        类别特征列表
+                    </div>
+                    <div class="api-path">/v1/description-category/attribute</div>
+                </a>
+            </li>
+        </ul>
+        <h2>fbs</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="Обновить данные экземпляров.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        Обновить данные экземпляров
+                    </div>
+                    <div class="api-path">/v1/fbs/posting/product/exemplar/update</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将状态改为“由卖家发送”.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将状态改为“由卖家发送”
+                    </div>
+                    <div class="api-path">/v2/fbs/posting/sent-by-seller</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将状态改成“已送达”.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将状态改成“已送达”
+                    </div>
+                    <div class="api-path">/v2/fbs/posting/delivered</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将状态改成“运输中”.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将状态改成“运输中”
+                    </div>
+                    <div class="api-path">/v2/fbs/posting/delivering</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="标志代码验证.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        标志代码验证
+                    </div>
+                    <div class="api-path">/v4/fbs/posting/product/exemplar/validate</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="标志代码验证_1.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        标志代码验证
+                    </div>
+                    <div class="api-path">/v5/fbs/posting/product/exemplar/validate</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="检查并保存份数数据.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        检查并保存份数数据
+                    </div>
+                    <div class="api-path">/v4/fbs/posting/product/exemplar/set</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="检查并保存份数数据_1.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        检查并保存份数数据
+                    </div>
+                    <div class="api-path">/v6/fbs/posting/product/exemplar/set</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="检查并保存份数数据 (第5方案).html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        检查并保存份数数据 (第5方案)
+                    </div>
+                    <div class="api-path">/v5/fbs/posting/product/exemplar/set</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="添加跟踪号.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        添加跟踪号
+                    </div>
+                    <div class="api-path">/v2/fbs/posting/tracking-number/set</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="状态改为“最后一英里”.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        状态改为“最后一英里”
+                    </div>
+                    <div class="api-path">/v2/fbs/posting/last-mile</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取商品实例信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取商品实例信息
+                    </div>
+                    <div class="api-path">/v5/fbs/posting/product/exemplar/create-or-get</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取已创建样件数据.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取已创建样件数据
+                    </div>
+                    <div class="api-path">/v6/fbs/posting/product/exemplar/create-or-get</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取样件添加状态.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取样件添加状态
+                    </div>
+                    <div class="api-path">/v4/fbs/posting/product/exemplar/status</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取样件添加状态_1.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取样件添加状态
+                    </div>
+                    <div class="api-path">/v5/fbs/posting/product/exemplar/status</div>
+                </a>
+            </li>
+        </ul>
+        <h2>finance</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="交易清单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        交易清单
+                    </div>
+                    <div class="api-path">/v3/finance/transaction/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="商品销售报告 （第2版）.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        商品销售报告 （第2版）
+                    </div>
+                    <div class="api-path">/v2/finance/realization</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="按订单细分的商品销售报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        按订单细分的商品销售报告
+                    </div>
+                    <div class="api-path">/v1/finance/realization/posting</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="每日商品销售报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        每日商品销售报告
+                    </div>
+                    <div class="api-path">/v1/finance/realization/by-day</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="清单数目.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        清单数目
+                    </div>
+                    <div class="api-path">/v3/finance/transaction/totals</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="财务报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        财务报告
+                    </div>
+                    <div class="api-path">/v1/finance/cash-flow-statement/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="赔偿报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        赔偿报告
+                    </div>
+                    <div class="api-path">/v1/finance/compensation</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="赔偿返还报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        赔偿返还报告
+                    </div>
+                    <div class="api-path">/v1/finance/decompensation</div>
+                </a>
+            </li>
+        </ul>
+        <h2>pass</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="通行证列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        通行证列表
+                    </div>
+                    <div class="api-path">/v1/pass/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>polygon</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="创建一个快递的设施.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建一个快递的设施
+                    </div>
+                    <div class="api-path">/v1/polygon/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将快递方式与快递设施联系起来.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将快递方式与快递设施联系起来
+                    </div>
+                    <div class="api-path">/v1/polygon/bind</div>
+                </a>
+            </li>
+        </ul>
+        <h2>posting</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="为货件中的称重商品添加重量.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        为货件中的称重商品添加重量
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/product/change</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="取消某些商品发货.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        取消某些商品发货
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/product/cancel</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="取消货运.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        取消货运
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/cancel</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="可供运输的列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        可供运输的列表
+                    </div>
+                    <div class="api-path">/v1/posting/carriage-available/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="可用产地名单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        可用产地名单
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/product/country/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将订单拆分为不带备货的货件.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将订单拆分为不带备货的货件
+                    </div>
+                    <div class="api-path">/v1/posting/fbs/split</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="打印标签.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        打印标签
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/package-label</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="按条形码获取有关货件的信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        按条形码获取有关货件的信息
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/get-by-barcode</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="按照ID获取货件信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        按照ID获取货件信息
+                    </div>
+                    <div class="api-path">/v3/posting/fbs/get</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="搜集订单 (第4方案).html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        搜集订单 (第4方案)
+                    </div>
+                    <div class="api-path">/v4/posting/fbs/ship</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="未处理货件列表 （第三 版）.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        未处理货件列表 （第三 版）
+                    </div>
+                    <div class="api-path">/v3/posting/fbs/unfulfilled/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="添加商品产地信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        添加商品产地信息
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/product/country/set</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="确认货件发运日期.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        确认货件发运日期
+                    </div>
+                    <div class="api-path">/v1/posting/cutoff/set</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="货件列表（第三版）.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        货件列表（第三版）
+                    </div>
+                    <div class="api-path">/v3/posting/fbs/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="货件取消原因.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        货件取消原因
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/cancel-reason/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="货件的部分装配 (第4方案).html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        货件的部分装配 (第4方案)
+                    </div>
+                    <div class="api-path">/v4/posting/fbs/ship/package</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="货件装运.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        货件装运
+                    </div>
+                    <div class="api-path">/v2/posting/fbs/awaiting-delivery</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="货运取消原因.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        货运取消原因
+                    </div>
+                    <div class="api-path">/v1/posting/fbs/cancel-reason</div>
+                </a>
+            </li>
+        </ul>
+        <h2>pricing-strategy</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="从策略中删除商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        从策略中删除商品
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/products/delete</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="创建策略.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建策略
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="删除策略.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        删除策略
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/delete</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将商品添加到策略.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将商品添加到策略
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/products/add</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更改策略状态.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更改策略状态
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/status</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新策略.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新策略
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/update</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="竞争对手  的商品价格.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        竞争对手  的商品价格
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/product/info</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="竞争对手名单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        竞争对手名单
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/competitors/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="策略ID列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        策略ID列表
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/strategy-ids-by-product-ids</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="策略中的商品列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        策略中的商品列表
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/products/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="策略信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        策略信息
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/info</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="策略列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        策略列表
+                    </div>
+                    <div class="api-path">/v1/pricing-strategy/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>product</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="上传或更新商品图片.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        上传或更新商品图片
+                    </div>
+                    <div class="api-path">/v1/product/pictures/import</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="为打折商品设置折扣.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        为打折商品设置折扣
+                    </div>
+                    <div class="api-path">/v1/product/update/discount</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="从卖家的系统中改变商品货号.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        从卖家的系统中改变商品货号
+                    </div>
+                    <div class="api-path">/v1/product/update/offer-id</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="从档案中还原商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        从档案中还原商品
+                    </div>
+                    <div class="api-path">/v1/product/unarchive</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="体积重量特征不正确的商品列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        体积重量特征不正确的商品列表
+                    </div>
+                    <div class="api-path">/v1/product/info/wrong-volume</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="关于卖家库存余额的信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        关于卖家库存余额的信息
+                    </div>
+                    <div class="api-path">/v1/product/info/stocks-by-warehouse/fbs</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="关于商品数量的信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        关于商品数量的信息
+                    </div>
+                    <div class="api-path">/v4/product/info/stocks</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="创建或更新商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建或更新商品
+                    </div>
+                    <div class="api-path">/v3/product/import</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="品列表的.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        品列表的
+                    </div>
+                    <div class="api-path">/v3/product/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="品类限制、商品的创建和更新.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        品类限制、商品的创建和更新
+                    </div>
+                    <div class="api-path">/v4/product/info/limit</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将商品归档.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将商品归档
+                    </div>
+                    <div class="api-path">/v1/product/archive</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="按SKU获得商品的内容排名.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        按SKU获得商品的内容排名
+                    </div>
+                    <div class="api-path">/v1/product/rating-by-sku</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新价格.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新价格
+                    </div>
+                    <div class="api-path">/v1/product/import/prices</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新商品特征.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新商品特征
+                    </div>
+                    <div class="api-path">/v1/product/attributes/update</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="最低价格时效性计时器更新.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        最低价格时效性计时器更新
+                    </div>
+                    <div class="api-path">/v1/product/action/timer/update</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="查询商品添加或更新状态.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        查询商品添加或更新状态
+                    </div>
+                    <div class="api-path">/v1/product/import/info</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="根据标识符获取商品信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        根据标识符获取商品信息
+                    </div>
+                    <div class="api-path">/v3/product/info/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取商品价格信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取商品价格信息
+                    </div>
+                    <div class="api-path">/v5/product/info/prices</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取商品图片.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取商品图片
+                    </div>
+                    <div class="api-path">/v2/product/pictures/info</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取商品特征描述_1.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取商品特征描述
+                    </div>
+                    <div class="api-path">/v4/product/info/attributes</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取商品详细信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取商品详细信息
+                    </div>
+                    <div class="api-path">/v1/product/info/description</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取已设置计时器状态.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取已设置计时器状态
+                    </div>
+                    <div class="api-path">/v1/product/action/timer/status</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取相关SKU.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取相关SKU
+                    </div>
+                    <div class="api-path">/v1/product/related-sku/get</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="订阅该商品的用户数.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        订阅该商品的用户数
+                    </div>
+                    <div class="api-path">/v1/product/info/subscription</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="通过SKU创建商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        通过SKU创建商品
+                    </div>
+                    <div class="api-path">/v1/product/import-by-sku</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="通过减价商品的SKU查找减价商品和主商品的信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        通过减价商品的SKU查找减价商品和主商品的信息
+                    </div>
+                    <div class="api-path">/v1/product/info/discounted</div>
+                </a>
+            </li>
+        </ul>
+        <h2>products</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="从存档删除没有SKU的商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        从存档删除没有SKU的商品
+                    </div>
+                    <div class="api-path">/v2/products/delete</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新库存商品的数量.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新库存商品的数量
+                    </div>
+                    <div class="api-path">/v2/products/stocks</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取商品特征描述.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取商品特征描述
+                    </div>
+                    <div class="api-path">/v3/products/info/attributes</div>
+                </a>
+            </li>
+        </ul>
+        <h2>report</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="关于FBS仓库库存报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        关于FBS仓库库存报告
+                    </div>
+                    <div class="api-path">/v1/report/warehouse/stock</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="减价商品报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        减价商品报告
+                    </div>
+                    <div class="api-path">/v1/report/discounted/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="发货报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        发货报告
+                    </div>
+                    <div class="api-path">/v1/report/postings/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="商品报告.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        商品报告
+                    </div>
+                    <div class="api-path">/v1/report/products/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="报告信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        报告信息
+                    </div>
+                    <div class="api-path">/v1/report/info</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="报告清单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        报告清单
+                    </div>
+                    <div class="api-path">/v1/report/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>return</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="创建退货通行证.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建退货通行证
+                    </div>
+                    <div class="api-path">/v1/return/pass/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="删除退货通行证.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        删除退货通行证
+                    </div>
+                    <div class="api-path">/v1/return/pass/delete</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新退货通行证.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新退货通行证
+                    </div>
+                    <div class="api-path">/v1/return/pass/update</div>
+                </a>
+            </li>
+        </ul>
+        <h2>returns</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="FBO和FBS退货信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        FBO和FBS退货信息
+                    </div>
+                    <div class="api-path">/v1/returns/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="FBS退货数量.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        FBS退货数量
+                    </div>
+                    <div class="api-path">/v1/returns/company/fbs/info</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="传递 rFBS 退货的可用操作.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        传递 rFBS 退货的可用操作
+                    </div>
+                    <div class="api-path">/v1/returns/rfbs/action/set</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="向买家退款.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        向买家退款
+                    </div>
+                    <div class="api-path">/v2/returns/rfbs/return-money</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="批准退货申请.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        批准退货申请
+                    </div>
+                    <div class="api-path">/v2/returns/rfbs/verify</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="拒绝退货申请.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        拒绝退货申请
+                    </div>
+                    <div class="api-path">/v2/returns/rfbs/reject</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="确认收到待检查商品.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        确认收到待检查商品
+                    </div>
+                    <div class="api-path">/v2/returns/rfbs/receive-return</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="退货申请信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        退货申请信息
+                    </div>
+                    <div class="api-path">/v2/returns/rfbs/get</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="退货申请列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        退货申请列表
+                    </div>
+                    <div class="api-path">/v2/returns/rfbs/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="退还部分商品金额.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        退还部分商品金额
+                    </div>
+                    <div class="api-path">/v2/returns/rfbs/compensate</div>
+                </a>
+            </li>
+        </ul>
+        <h2>review</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="删除对评价的评论.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        删除对评价的评论
+                    </div>
+                    <div class="api-path">/v1/review/comment/delete</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="对评价留下评论.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        对评价留下评论
+                    </div>
+                    <div class="api-path">/v1/review/comment/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更改评价状态.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更改评价状态
+                    </div>
+                    <div class="api-path">/v1/review/change-status</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="根据状态统计的评价数量.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        根据状态统计的评价数量
+                    </div>
+                    <div class="api-path">/v1/review/count</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取评价信息.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取评价信息
+                    </div>
+                    <div class="api-path">/v1/review/info</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取评价列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取评价列表
+                    </div>
+                    <div class="api-path">/v1/review/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="评价的评论列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        评价的评论列表
+                    </div>
+                    <div class="api-path">/v1/review/comment/list</div>
+                </a>
+            </li>
+        </ul>
+        <h2>roles</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="使用API密钥获取角色和方式列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        使用API密钥获取角色和方式列表
+                    </div>
+                    <div class="api-path">/v1/roles</div>
+                </a>
+            </li>
+        </ul>
+        <h2>warehouse</h2>
+        <ul class="api-list">
+            <li class="api-item">
+                <a href="仓库列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        仓库列表
+                    </div>
+                    <div class="api-path">/v2/warehouse/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="仓库清单.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        仓库清单
+                    </div>
+                    <div class="api-path">/v1/warehouse/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="创建仓库.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        创建仓库
+                    </div>
+                    <div class="api-path">/v1/warehouse/fbs/create</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将仓库归档.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将仓库归档
+                    </div>
+                    <div class="api-path">/v1/warehouse/archive</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="将仓库解除归档.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        将仓库解除归档
+                    </div>
+                    <div class="api-path">/v1/warehouse/unarchive</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新仓库.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新仓库
+                    </div>
+                    <div class="api-path">/v1/warehouse/fbs/update</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="更新头程物流.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        更新头程物流
+                    </div>
+                    <div class="api-path">/v1/warehouse/fbs/first-mile/update</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取操作状态.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取操作状态
+                    </div>
+                    <div class="api-path">/v1/warehouse/operation/status</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取用于修改仓库信息的揽收点列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取用于修改仓库信息的揽收点列表
+                    </div>
+                    <div class="api-path">/v1/warehouse/fbs/update/drop-off/list</div>
+                </a>
+            </li>
+            <li class="api-item">
+                <a href="获取用于创建仓库的揽收点列表.html">
+                    <div class="api-name">
+                        <span class="http-method method-post">POST</span>
+                        获取用于创建仓库的揽收点列表
+                    </div>
+                    <div class="api-path">/v1/warehouse/fbs/create/drop-off/list</div>
+                </a>
+            </li>
+        </ul>
+        </div>
+    </div>
+
+    <script>
+        function searchAPI() {
+            const input = document.getElementById('searchBox');
+            const filter = input.value.toLowerCase();
+            const items = document.getElementsByClassName('api-item');
+
+            for (let i = 0; i < items.length; i++) {
+                const text = items[i].textContent || items[i].innerText;
+                if (text.toLowerCase().indexOf(filter) > -1) {
+                    items[i].style.display = '';
+                } else {
+                    items[i].style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

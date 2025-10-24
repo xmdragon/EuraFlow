@@ -101,35 +101,22 @@ const Dashboard: React.FC = () => {
       label: 'Ozon管理',
       children: [
         {
-          key: 'ozon-dashboard',
-          icon: <DashboardOutlined />,
-          label: '概览',
-          onClick: () => navigate('/dashboard/ozon'),
-        },
-        {
           key: 'ozon-selection',
           icon: <FilterOutlined />,
           label: '选品助手',
           onClick: () => navigate('/dashboard/ozon/selection'),
         },
         {
-          key: 'ozon-products',
+          key: 'ozon-products-list',
           icon: <ShoppingOutlined />,
-          label: '商品管理',
-          children: [
-            {
-              key: 'ozon-products-list',
-              icon: <ShoppingOutlined />,
-              label: '商品列表',
-              onClick: () => navigate('/dashboard/ozon/products'),
-            },
-            {
-              key: 'ozon-listing',
-              icon: <CloudUploadOutlined />,
-              label: '商品上架',
-              onClick: () => navigate('/dashboard/ozon/listing'),
-            },
-          ],
+          label: '商品列表',
+          onClick: () => navigate('/dashboard/ozon/products'),
+        },
+        {
+          key: 'ozon-listing',
+          icon: <CloudUploadOutlined />,
+          label: '商品上架',
+          onClick: () => navigate('/dashboard/ozon/listing'),
         },
         {
           key: 'ozon-orders',
@@ -246,9 +233,6 @@ const Dashboard: React.FC = () => {
   // 根据路径获取展开的子菜单
   const getOpenKeys = () => {
     const path = location.pathname;
-    if (path.includes('/ozon/products') || path.includes('/ozon/listing')) {
-      return ['ozon', 'ozon-products'];
-    }
     if (path.includes('/ozon')) return ['ozon'];
     if (path.includes('/system')) return ['system'];
     return [];

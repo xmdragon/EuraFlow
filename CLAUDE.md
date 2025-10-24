@@ -234,15 +234,9 @@ logger.info('订单同步开始', extra={'order_id': order_id})
 ---
 
 ## 17) OZON API 文档
-- **详细文档目录**：`@docs/ozon-api-detailed/`（219个详细API文档）⭐️ 推荐使用
-  - 完整内容：参数表格、请求/响应示例、错误码说明
-  - 标准格式：接口信息、描述、请求参数、请求示例、响应结构、响应示例、错误码
-  - README：`@docs/ozon-api-detailed/README.md`
-- **简化文档目录**：`@docs/ozon-api/`（220个基础API文档）
-  - 基础信息：API路径和基本结构
-  - 索引文件：`@docs/ozon-api/index.md`
-- **文件命名规则**：`{method}_{path}.md`，例如 `post_v3_product_list.md`
-- **查询方式**：直接读取 `@docs/ozon-api-detailed/post_v3_product_list.md`
+- **文档目录**：`docs/OzonAPI/`
+- **索引页面**：`docs/OzonAPI/index.html`
+- **原始文档**：`docs/OzonSellerAPI.html`
 
 ---
 

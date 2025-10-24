@@ -510,9 +510,9 @@ const ProductSelection: React.FC = () => {
             <div>
               <p>总行数: {result.total_rows}</p>
               <p>成功: {result.success_rows} 条</p>
-              {result.updated_rows! > 0 && <p>更新: {result.updated_rows} 条</p>}
-              {result.skipped_rows! > 0 && <p>跳过: {result.skipped_rows} 条</p>}
-              {result.failed_rows! > 0 && <p>失败: {result.failed_rows} 条</p>}
+              {(result.updated_rows ?? 0) > 0 && <p>更新: {result.updated_rows} 条</p>}
+              {(result.skipped_rows ?? 0) > 0 && <p>跳过: {result.skipped_rows} 条</p>}
+              {(result.failed_rows ?? 0) > 0 && <p>失败: {result.failed_rows} 条</p>}
               <p>耗时: {result.duration} 秒</p>
             </div>
           ),
@@ -592,9 +592,9 @@ const ProductSelection: React.FC = () => {
             <div>
               <p>总行数: {result.total_rows}</p>
               <p>成功: {result.success_rows} 条</p>
-              {result.updated_rows! > 0 && <p>更新: {result.updated_rows} 条</p>}
-              {result.skipped_rows! > 0 && <p>跳过: {result.skipped_rows} 条</p>}
-              {result.failed_rows! > 0 && <p>失败: {result.failed_rows} 条</p>}
+              {(result.updated_rows ?? 0) > 0 && <p>更新: {result.updated_rows} 条</p>}
+              {(result.skipped_rows ?? 0) > 0 && <p>跳过: {result.skipped_rows} 条</p>}
+              {(result.failed_rows ?? 0) > 0 && <p>失败: {result.failed_rows} 条</p>}
               <p>耗时: {result.duration} 秒</p>
             </div>
           ),

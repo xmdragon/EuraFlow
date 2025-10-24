@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分析数据 - OZON API</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .api-container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #333;
+            margin-top: 20px;
+        }
+        .http-verb {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .http-verb.post { background-color: #49cc90; color: white; }
+        .http-verb.get { background-color: #61affe; color: white; }
+        .http-verb.put { background-color: #fca130; color: white; }
+        .http-verb.delete { background-color: #f93e3e; color: white; }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="api-container">
+        <a href="index.html" class="back-link">← 返回索引</a>
+        <div class="sc-eCImvq bqPRPL" data-section-id="operation/AnalyticsAPI_AnalyticsGetData" id="operation/AnalyticsAPI_AnalyticsGetData"><div class="sc-iCfLBT sc-igXhDE BvbdQ gmkQBx"><div class="sc-hKwCoD hLDWMv"><h2 class="sc-pVTma kHCdop"><a aria-label="operation/AnalyticsAPI_AnalyticsGetData" class="sc-crHlIS wziUf" href="#operation/AnalyticsAPI_AnalyticsGetData"></a>分析数据 </h2><div class="sc-caiKgP kFJBeh" data-tabs="true"><div class="sc-djWQLY hgMiQj"><span class="sc-gUQueJ sc-fyrnIy hkWakt ikOLpJ http-verb post" type="post">post</span><div class="sc-gIBoTZ gNSSYl">/v1/analytics/data</div><button class="sc-iWVLQz gljuNE CopyButton" style="display:inline-block"><div class="sc-gSQGeZ iOAir"><svg class="sc-nVjpj jzhAMS copy-icon" fill="#005BFF" height="20" viewbox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M13 2.06632e-06C14.6569 2.06632e-06 16 1.34315 16 3V4.00001L17 4.00001C18.6569 4.00001 20 5.34315 20 7.00001V17C20 18.6569 18.6569 20 17 20H7C5.34315 20 4 18.6568 4 17V16H3C1.34315 16 0 14.6569 0 13L2.06632e-06 3C2.06632e-06 1.34315 1.34315 0 3.00001 0L13 2.06632e-06ZM18 7.00001C18 6.44772 17.5523 6.00001 17 6.00001L16 6.00001V13C16 14.6569 14.6569 16 13 16H9.00279C8.45051 16 8 15.5523 8 15C8 14.4477 8.44772 14 9 14H13C13.5523 14 14 13.5523 14 13L14 3C14 2.44772 13.5523 2 13 2L2.98633 2C2.43405 2 1.98633 2.44772 1.98633 3L1.98633 13C1.98633 13.5523 2.43405 14 2.98633 14L5 14C5.55229 14 6 14.4477 6 15V17C6 17.5523 6.44772 18 7 18L17 18C17.5523 18 18 17.5523 18 17V7.00001Z" fill="#005BFF"></path></svg></div></button></div><ul class="header-tabs" role="tablist"><li aria-controls="react-tabs-2149" aria-disabled="false" aria-selected="true" class="react-tabs__tab react-tabs__tab--selected" id="react-tabs-2148" role="tab" tabindex="0">描述和范例</li><li aria-controls="react-tabs-2151" aria-disabled="false" aria-selected="false" class="react-tabs__tab" data-console="true" id="react-tabs-2150" role="tab">控制台</li></ul><div class="sc-iUKrWq jveETg"></div><div aria-labelledby="react-tabs-2148" class="react-tabs__tab-panel react-tabs__tab-panel--selected" id="react-tabs-2149" role="tabpanel"><div class="sc-gHjzJe gXUWqC"><div class="sc-itWPVd izulXG"><div class="sc-JEigz hGmbED"><div class="sc-efQUeY sc-hUpaWb drGeTT bqvRGd"><p>适用于订阅了 <a href="https://seller-edu.ozon.ru/seller-rating/about-rating/subscription-premium-plus">Premium Plus</a> 的卖家。</p>
+<p>请指定需要计算的时间段和指标。响应将包含按<code>dimensions</code>参数分组的分析。 </p>
+<p>从一个卖家账号每分钟可以发送1次请求。
+与个人中心中的<strong>分析→图表</strong>部分相符。</p>
+</div></div><div><h5 class="sc-iqsfdx cxpqVC">header Parameters</h5><table class="sc-hGPAah ifOjxi"><tbody><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="Client-Id"><span class="sc-ieebsP daiJzN"></span><span>Client-Id</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>用户识别号。</p>
+</div></div></div></td></tr><tr class="last undefined"><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="Api-Key"><span class="sc-ieebsP daiJzN"></span><span>Api-Key</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>API-密钥。</p>
+</div></div></div></td></tr></tbody></table></div><h5 class="sc-iqsfdx cxpqVC">Request Body schema: <span class="sc-jcFkyM Ceuhc">application/json</span></h5><div class="sc-efQUeY sc-hUpaWb drGeTT bqvRGd"></div><table class="sc-hGPAah ifOjxi"><tbody><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="date_from"><span class="sc-ieebsP daiJzN"></span><span>date_from</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>数据将出现在报告中的日期。</p>
+<p>若您没有Premium订阅，请指定过去三个月内的日期。</p>
+</div></div></div></td></tr><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="date_to"><span class="sc-ieebsP daiJzN"></span><span>date_to</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>数据将出现在报告中的截止日期。</p>
+</div></div></div></td></tr><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="dimension"><span class="sc-ieebsP daiJzN"></span><span>dimension</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo">Array of </span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">strings</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>报告中的分组数据。</p>
+<p>所有卖家可用的分组方法：</p>
+<ul>
+<li><code>unknownDimension</code> — 未知商品标识符，</li>
+<li><code>sku</code> — 商品标识符，</li>
+<li><code>spu</code> — 商品标识符，</li>
+<li><code>day</code> — 日，</li>
+<li><code>week</code> — 星期，</li>
+<li><code>month</code> — 月。</li>
+</ul>
+<p>只有Premium订阅卖家才能使用的分组方法：</p>
+<ul>
+<li><code>year</code> — 年</li>
+<li><code>category1</code> — 一级类别，</li>
+<li><code>category2</code> — 二级类别，</li>
+<li><code>category3</code> — 三级类别，</li>
+<li><code>category4</code> — 四级类别，</li>
+<li><code>brand</code> — 品牌，</li>
+<li><code>modelID</code> — 型号。</li>
+</ul>
+</div></div></div></td></tr><tr><td class="sc-hBURRC sc-fFehDp sc-bTfYlY eCopLE iFubFu TlvHM" kind="field" title="filters"><span class="sc-ieebsP daiJzN"></span><button aria-label="expand properties"><span>filters</span><svg aria-hidden="true" class="sc-egiSv gkvVFD" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg></button></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo">Array of </span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">objects</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>过滤器。</p>
+</div></div></div></td></tr><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="limit"><span class="sc-ieebsP daiJzN"></span><span>limit</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">integer</span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG"> &lt;int64&gt; </span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>响应的值个数：</p>
+<ul>
+<li>最大值 — 1000，</li>
+<li>最小值 — 1.</li>
+</ul>
+</div></div></div></td></tr><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="metrics"><span class="sc-ieebsP daiJzN"></span><span>metrics</span><div class="sc-jUotMc sc-jQrCkL fookfc bsiCAs"> required </div></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo">Array of </span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">strings</span></div><div><span class="sc-kHOZQx gKOKkl">Items Enum:</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"unknown_metric"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"hits_view_search"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"hits_view_pdp"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"hits_view"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"hits_tocart_search"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"hits_tocart_pdp"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"hits_tocart"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"session_view_search"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"session_view_pdp"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"session_view"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"conv_tocart_search"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"conv_tocart_pdp"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"conv_tocart"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"revenue"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"returns"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"cancellations"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"ordered_units"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"delivered_units"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"adv_view_pdp"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"adv_view_search_category"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"adv_view_all"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"adv_sum_all"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"position_category"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"postings"</span> <span class="sc-kHOZQx sc-gsNhcj gKOKkl WMNsn">"postings_premium"</span> </div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>最多指定14个指标。如有更多，您将收到 <code>InvalidArgument</code>的错误。</p>
+<p>生成报告所依据的指标列表。</p>
+<p>所有卖家可用的指标：</p>
+<ul>
+<li><code>revenue</code> — 订购的金额，</li>
+<li><code>ordered_units</code> — 订购的商品。</li>
+</ul>
+<p>仅对Premium订阅卖家可用的指标：</p>
+<ul>
+<li><code>unknown_metric</code> — 未知指标。</li>
+<li><code>hits_view_search</code> — 在搜索和类别中的指标。</li>
+<li><code>hits_view_pdp</code> — 商品卡片上的指标。</li>
+<li><code>hits_view</code> — 总展示次数。</li>
+<li><code>hits_tocart_search</code> — 从搜索或类别添加到购物车。</li>
+<li><code>hits_tocart_pdp</code> — 从商品卡片添加到购物车。</li>
+<li><code>hits_tocart</code> — 添加到购物车的总数。</li>
+<li><code>session_view_search</code> — 带有在搜索结果或目录中展示的会话。计算在搜索结果或目录中有浏览的唯一身份访问者。</li>
+<li><code>session_view_pdp</code> — 在商品卡片上显示的会话。计算查看过商品卡片的唯一身份访问者。</li>
+<li><code>session_view</code> — 所有会话。计算唯一身份访问者。</li>
+<li><code>conv_tocart_search</code> — 从商品卡片转换到购物车。</li>
+<li><code>conv_tocart_pdp</code> — 从商品卡片转换到购物车的总转化率。</li>
+<li><code>conv_tocart</code> — 购物车总转化率。</li>
+<li><code>returns</code> — 退货。</li>
+<li><code>cancellations</code> — 取消的商品。</li>
+<li><code>delivered_units</code> — 交付的商品。</li>
+<li><code>position_category</code> — 在搜索和类别中的的位置。</li>
+</ul>
+</div></div></div></td></tr><tr><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="offset"><span class="sc-ieebsP daiJzN"></span><span>offset</span></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">integer</span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG"> &lt;int64&gt; </span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>响应中要跳过的元素数字。例如，如果 <code>offset = 10</code>, 那么答案将从找到的第11个元素开始。</p>
+</div></div></div></td></tr><tr class="last undefined"><td class="sc-hBURRC sc-fFehDp sc-bTfYlY eCopLE iFubFu TlvHM" kind="field" title="sort"><span class="sc-ieebsP daiJzN"></span><button aria-label="expand properties"><span>sort</span><svg aria-hidden="true" class="sc-egiSv gkvVFD" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg></button></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo">Array of </span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">objects</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>报告排列设置。</p>
+</div></div></div></td></tr></tbody></table><div><h3 class="sc-eWfWgB jwdikc">回复</h3><div><button aria-expanded="true" class="sc-gjNGvZ gOeBLq success"><svg aria-hidden="true" class="sc-egiSv bvgmxy" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">200</strong><span class="sc-jgrIVw iQntvV"><p>数据分析</p>
+</span></button><div class="sc-fmcixO cOuJRo"><h5 class="sc-iqsfdx cxpqVC">Response Schema: <span class="sc-jcFkyM Ceuhc">application/json</span></h5><table class="sc-hGPAah ifOjxi"><tbody><tr class="expanded"><td class="sc-hBURRC sc-fFehDp sc-bTfYlY eCopLE iFubFu TlvHM" kind="field" title="result"><span class="sc-ieebsP daiJzN"></span><button aria-label="expand properties"><span>result</span><svg aria-hidden="true" class="sc-egiSv jzfkIJ" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg></button></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">object</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>查询结果。</p>
+</div></div></div></td></tr><tr><td class="sc-hBURRC sc-fotPbf eCopLE duBHuL" colspan="2"><div class="sc-dJjZJu eYiUqL"><table class="sc-hGPAah ifOjxi"><tbody><tr><td class="sc-hBURRC sc-fFehDp sc-bTfYlY eCopLE iFubFu TlvHM" kind="field" title="data"><span class="sc-ieebsP daiJzN"></span><button aria-label="expand properties"><span>data</span><svg aria-hidden="true" class="sc-egiSv gkvVFD" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg></button></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo">Array of </span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">objects</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>数据组。</p>
+</div></div></div></td></tr><tr class="last undefined"><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="totals"><span class="sc-ieebsP daiJzN"></span><span>totals</span></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo">Array of </span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">numbers</span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG"> &lt;double&gt; </span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>指标总计和平均值。</p>
+</div></div></div></td></tr></tbody></table></div></td></tr><tr class="last undefined"><td class="sc-hBURRC sc-fFehDp eCopLE iFubFu" kind="field" title="timestamp"><span class="sc-ieebsP daiJzN"></span><span>timestamp</span></td><td class="sc-bkkfTU hqfTTS"><div><div style="line-height:1"><span class="sc-kHOZQx sc-hOGjNT gKOKkl jFqyPo"></span><span class="sc-kHOZQx sc-dtMiey gKOKkl fSXOaG">string</span></div> <div style="font-size:0.875rem"><div class="sc-efQUeY sc-hUpaWb drGeTT bIeDKn"><p>报告创建时间。</p>
+</div></div></div></td></tr></tbody></table></div></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">400</strong><span class="sc-jgrIVw iQntvV"><p>参数错误</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">403</strong><span class="sc-jgrIVw iQntvV"><p>拒绝访问</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">404</strong><span class="sc-jgrIVw iQntvV"><p>未找到答案</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">409</strong><span class="sc-jgrIVw iQntvV"><p>请求冲突</p>
+</span></button></div><div><button class="sc-gjNGvZ hUQnRV error"><svg aria-hidden="true" class="sc-egiSv djsjGE" version="1.1" viewbox="0 0 24 24" x="0" xmlns="http://www.w3.org/2000/svg" y="0"><polygon points="17.3 8.3 12 13.6 6.7 8.3 5.3 9.7 12 16.4 18.7 9.7 "></polygon></svg><strong class="sc-iqVVwt dWaGix">500</strong><span class="sc-jgrIVw iQntvV"><p>内部服务器错误</p>
+</span></button></div></div></div><div class="sc-dcgxYM htkieq"><div class="react-tabs__wrapper"><h3 class="sc-kDThTU sc-bUbQrF bEgexd IKvQw">请求范例</h3><div class="sc-caiKgP kFJBeh" data-tabs="true"><ul class="react-tabs__tab-list sf-hidden" hidden="" role="tablist"></ul><div aria-labelledby="react-tabs-2152" class="react-tabs__tab-panel react-tabs__tab-panel--selected" id="react-tabs-2153" role="tabpanel"><div class="react-tabs__code"><div class="sc-jOxuqd bFFLUS"><span class="sc-ZOsLE eOBxKR">Content type</span><div class="sc-jIkYaL fawIiG">application/json</div></div><div><div class="sc-ehCIER dHVnGP"><div class="sc-efQUeY drGeTT sc-faUofl eUDvTR"><div class="redoc-json"><code><button aria-label="collapse" class="collapser sf-hidden"></button><span class="token punctuation">{</span><span class="ellipsis sf-hidden"></span><ul class="obj collapsible"><li><div class="hoverable"><span class="property token string">"date_from"</span>: <span class="token string">"2020-09-01"</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"date_to"</span>: <span class="token string">"2021-10-15"</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"metrics"</span>: <button aria-label="collapse" class="collapser"></button><span class="token punctuation">[</span><span class="ellipsis sf-hidden"></span><ul class="array collapsible"><li><div class="hoverable collapsed"><span class="token string">"hits_view_search"</span></div></li></ul><span class="token punctuation">]</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"dimension"</span>: <button aria-label="collapse" class="collapser"></button><span class="token punctuation">[</span><span class="ellipsis sf-hidden"></span><ul class="array collapsible"><li><div class="hoverable collapsed"><span class="token string">"sku"</span>,</div></li><li><div class="hoverable collapsed"><span class="token string">"day"</span></div></li></ul><span class="token punctuation">]</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"filters"</span>: <span class="token punctuation">[ ]</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"sort"</span>: <button aria-label="collapse" class="collapser"></button><span class="token punctuation">[</span><span class="ellipsis sf-hidden"></span><ul class="array collapsible"><li><div class="hoverable"><button aria-label="collapse" class="collapser"></button><span class="token punctuation">{</span><span class="ellipsis sf-hidden"></span><ul class="obj collapsible"><li><div class="hoverable collapsed"><span class="property token string">"key"</span>: <span class="token string">"hits_view_search"</span><span class="token punctuation">,</span></div></li><li><div class="hoverable collapsed"><span class="property token string">"order"</span>: <span class="token string">"DESC"</span></div></li></ul><span class="token punctuation">}</span></div></li></ul><span class="token punctuation">]</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"limit"</span>: <span class="token number">1000</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"offset"</span>: <span class="token number">0</span></div></li></ul><span class="token punctuation">}</span></code></div></div><div class="sc-cTApHj ifSJrm"><button class="CopyButton" style="display:inline-block"><div class="sc-gSQGeZ iOAir"><div class="sc-lcequs gYrNUP"><svg class="sc-nVjpj jzhAMS copy-icon" fill="#005BFF" height="20" viewbox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M13 2.06632e-06C14.6569 2.06632e-06 16 1.34315 16 3V4.00001L17 4.00001C18.6569 4.00001 20 5.34315 20 7.00001V17C20 18.6569 18.6569 20 17 20H7C5.34315 20 4 18.6568 4 17V16H3C1.34315 16 0 14.6569 0 13L2.06632e-06 3C2.06632e-06 1.34315 1.34315 0 3.00001 0L13 2.06632e-06ZM18 7.00001C18 6.44772 17.5523 6.00001 17 6.00001L16 6.00001V13C16 14.6569 14.6569 16 13 16H9.00279C8.45051 16 8 15.5523 8 15C8 14.4477 8.44772 14 9 14H13C13.5523 14 14 13.5523 14 13L14 3C14 2.44772 13.5523 2 13 2L2.98633 2C2.43405 2 1.98633 2.44772 1.98633 3L1.98633 13C1.98633 13.5523 2.43405 14 2.98633 14L5 14C5.55229 14 6 14.4477 6 15V17C6 17.5523 6.44772 18 7 18L17 18C17.5523 18 18 17.5523 18 17V7.00001Z" fill="#005BFF"></path></svg><div class="sc-gGCCur bYEXBF">复制</div></div></div></button><svg class="sc-hiwReK iFZavI svg-links expand-icon" fill="none" height="14" viewbox="0 0 8 14" width="8" xmlns="http://www.w3.org/2000/svg"><path d="M4 0L0 5H8L4 0Z" fill="none"></path><path d="M4 14L0 9H8L4 14Z" fill="none"></path></svg><button style="margin-left:16px">收回全部</button></div></div></div></div></div></div></div><div class="react-tabs__wrapper"><h3 class="sc-kDThTU sc-tAEdG bEgexd jEMWuD">回复范例</h3><div class="sc-caiKgP kFJBeh" data-tabs="true"><ul class="react-tabs__tab-list" role="tablist"><li aria-controls="react-tabs-2155" aria-disabled="false" aria-selected="true" class="tab-success react-tabs__tab--selected" id="react-tabs-2154" role="tab" tabindex="0">200</li><li aria-controls="react-tabs-2157" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-2156" role="tab">400</li><li aria-controls="react-tabs-2159" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-2158" role="tab">403</li><li aria-controls="react-tabs-2161" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-2160" role="tab">404</li><li aria-controls="react-tabs-2163" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-2162" role="tab">409</li><li aria-controls="react-tabs-2165" aria-disabled="false" aria-selected="false" class="tab-error" id="react-tabs-2164" role="tab">500</li></ul><div aria-labelledby="react-tabs-2154" class="react-tabs__tab-panel react-tabs__tab-panel--selected" id="react-tabs-2155" role="tabpanel"><div class="react-tabs__code"><div class="sc-jOxuqd bFFLUS"><span class="sc-ZOsLE eOBxKR">Content type</span><div class="sc-jIkYaL fawIiG">application/json</div></div><div><div class="sc-ehCIER dHVnGP"><div class="sc-efQUeY drGeTT sc-faUofl eUDvTR"><div class="redoc-json"><code><button aria-label="collapse" class="collapser sf-hidden"></button><span class="token punctuation">{</span><span class="ellipsis sf-hidden"></span><ul class="obj collapsible"><li><div class="hoverable"><span class="property token string">"result"</span>: <button aria-label="collapse" class="collapser"></button><span class="token punctuation">{</span><span class="ellipsis sf-hidden"></span><ul class="obj collapsible"><li><div class="hoverable collapsed"><span class="property token string">"data"</span>: <span class="token punctuation">[ ]</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"totals"</span>: <button aria-label="collapse" class="collapser"></button><span class="token punctuation">[</span><span class="ellipsis sf-hidden"></span><ul class="array collapsible"><li><div class="hoverable collapsed"><span class="token number">0</span></div></li></ul><span class="token punctuation">]</span></div></li></ul><span class="token punctuation">}</span><span class="token punctuation">,</span></div></li><li><div class="hoverable"><span class="property token string">"timestamp"</span>: <span class="token string">"2021-11-25 15:19:21"</span></div></li></ul><span class="token punctuation">}</span></code></div></div><div class="sc-cTApHj ifSJrm"><button class="CopyButton" style="display:inline-block"><div class="sc-gSQGeZ iOAir"><div class="sc-lcequs gYrNUP"><svg class="sc-nVjpj jzhAMS copy-icon" fill="#005BFF" height="20" viewbox="0 0 20 20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M13 2.06632e-06C14.6569 2.06632e-06 16 1.34315 16 3V4.00001L17 4.00001C18.6569 4.00001 20 5.34315 20 7.00001V17C20 18.6569 18.6569 20 17 20H7C5.34315 20 4 18.6568 4 17V16H3C1.34315 16 0 14.6569 0 13L2.06632e-06 3C2.06632e-06 1.34315 1.34315 0 3.00001 0L13 2.06632e-06ZM18 7.00001C18 6.44772 17.5523 6.00001 17 6.00001L16 6.00001V13C16 14.6569 14.6569 16 13 16H9.00279C8.45051 16 8 15.5523 8 15C8 14.4477 8.44772 14 9 14H13C13.5523 14 14 13.5523 14 13L14 3C14 2.44772 13.5523 2 13 2L2.98633 2C2.43405 2 1.98633 2.44772 1.98633 3L1.98633 13C1.98633 13.5523 2.43405 14 2.98633 14L5 14C5.55229 14 6 14.4477 6 15V17C6 17.5523 6.44772 18 7 18L17 18C17.5523 18 18 17.5523 18 17V7.00001Z" fill="#005BFF"></path></svg><div class="sc-gGCCur bYEXBF">复制</div></div></div></button><svg class="sc-hiwReK iFZavI svg-links expand-icon" fill="none" height="14" viewbox="0 0 8 14" width="8" xmlns="http://www.w3.org/2000/svg"><path d="M4 0L0 5H8L4 0Z" fill="none"></path><path d="M4 14L0 9H8L4 14Z" fill="none"></path></svg><button style="margin-left:16px">收回全部</button></div></div></div></div></div><div aria-labelledby="react-tabs-2156" class="react-tabs__tab-panel" id="react-tabs-2157" role="tabpanel"></div><div aria-labelledby="react-tabs-2158" class="react-tabs__tab-panel" id="react-tabs-2159" role="tabpanel"></div><div aria-labelledby="react-tabs-2160" class="react-tabs__tab-panel" id="react-tabs-2161" role="tabpanel"></div><div aria-labelledby="react-tabs-2162" class="react-tabs__tab-panel" id="react-tabs-2163" role="tabpanel"></div><div aria-labelledby="react-tabs-2164" class="react-tabs__tab-panel" id="react-tabs-2165" role="tabpanel"></div></div></div></div></div></div><div aria-labelledby="react-tabs-2150" class="react-tabs__tab-panel" id="react-tabs-2151" role="tabpanel"></div></div></div></div></div>
+    </div>
+</body>
+</html>
