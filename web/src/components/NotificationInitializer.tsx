@@ -13,7 +13,6 @@ const NotificationInitializer: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     setGlobalNotification(notification);
-    console.log('[NotificationInitializer] Global notification instance initialized');
   }, [notification]);
 
   return <>{children}</>;

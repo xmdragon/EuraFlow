@@ -35,7 +35,6 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children, u
   useEffect(() => {
     if (user?.shop_ids) {
       setShopIds(user.shop_ids);
-      console.log('WebSocket subscribing to shops:', user.shop_ids);
     } else {
       setShopIds([]);
     }
@@ -54,10 +53,10 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children, u
     enabled, // 新增：控制是否建立连接
     onMessage: handleWebSocketMessage,
     onConnected: () => {
-      console.log('通知系统已连接');
+      // WebSocket 已连接
     },
     onDisconnected: () => {
-      console.log('通知系统已断开');
+      // WebSocket 已断开
     },
     autoReconnect: true,
     reconnectDelay: 5000,

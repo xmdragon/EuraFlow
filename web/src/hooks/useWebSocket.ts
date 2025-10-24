@@ -67,7 +67,6 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
         setIsConnected(true);
         setConnectionError(null);
         onConnectedRef.current?.();

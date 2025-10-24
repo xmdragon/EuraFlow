@@ -205,7 +205,7 @@ export const useNotifications = (shopId: number | null) => {
     (message: WebSocketNotification) => {
       switch (message.type) {
         case 'connected':
-          console.log('WebSocket connected successfully');
+          // WebSocket 连接成功
           break;
 
         case 'chat.new_message':

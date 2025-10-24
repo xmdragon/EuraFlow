@@ -14,7 +14,6 @@ let globalNotificationInstance: NotificationInstance | null = null;
  */
 export const setGlobalNotification = (instance: NotificationInstance) => {
   globalNotificationInstance = instance;
-  console.log('[GlobalNotification] Instance initialized');
 };
 
 /**
