@@ -30,16 +30,14 @@ async def setup(hooks) -> None:
     from .backup_service import DatabaseBackupService
     backup_service = DatabaseBackupService()
 
-    # 注册备份服务
-    # 时间：UTC 17:00 和 05:00（北京时间 01:00 和 13:00）
+    # 注册备份服务handler
+    # 调度配置：建议在前端配置为 cron: "0 17,5 * * *" (UTC 17:00和05:00 = 北京时间 01:00和13:00)
     registry.register(
-        service_key="database_backup_daily",
+        service_key="database_backup",
         handler=backup_service.backup_database,
-        name="数据库自动备份",
-        description="每天北京时间1点和13点自动备份PostgreSQL数据库到backups目录",
+        name="数据库备份",
+        description="备份PostgreSQL数据库到backups目录（建议配置为每天北京时间01:00和13:00执行，cron表达式: 0 17,5 * * *）",
         plugin="ef.system.database_backup",
-        service_type="cron",
-        schedule_config="0 17,5 * * *",  # UTC时间
         config_schema={
             "type": "object",
             "properties": {
@@ -53,8 +51,8 @@ async def setup(hooks) -> None:
     )
 
     print("✓ Registered database backup sync service handler")
-    print(f"  - Service: database_backup_daily")
-    print(f"  - Schedule: 0 17,5 * * * (UTC) = 01:00,13:00 (Beijing)")
+    print(f"  - Service: database_backup")
+    print(f"  - Recommended schedule: cron='0 17,5 * * *' (UTC) = 01:00,13:00 (Beijing)")
 
 
 async def teardown() -> None:
