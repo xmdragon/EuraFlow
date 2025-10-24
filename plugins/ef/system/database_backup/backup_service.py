@@ -17,12 +17,15 @@ class DatabaseBackupService:
 
     def __init__(self):
         """初始化备份服务"""
-        # 从环境变量读取数据库配置
-        self.db_host = os.getenv("EF__DATABASE__HOST", "localhost")
-        self.db_port = os.getenv("EF__DATABASE__PORT", "5432")
-        self.db_name = os.getenv("EF__DATABASE__NAME", "euraflow")
-        self.db_user = os.getenv("EF__DATABASE__USER", "euraflow")
-        self.db_password = os.getenv("EF__DATABASE__PASSWORD", "")
+        # 直接使用项目配置类，确保配置一致性
+        from ef_core.config import get_settings
+        settings = get_settings()
+
+        self.db_host = settings.db_host
+        self.db_port = settings.db_port
+        self.db_name = settings.db_name
+        self.db_user = settings.db_user
+        self.db_password = settings.db_password
 
         # 备份目录（项目根目录/backups）
         project_root = Path(__file__).parent.parent.parent.parent.parent.parent
