@@ -327,9 +327,17 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
             <Text type="secondary" className={styles.label}>
               状态:
             </Text>
-            <Tag color={status.color} className={styles.statusTag}>
-              {status.text}
-            </Tag>
+            {order.order_notes ? (
+              <Tooltip title={order.order_notes} placement="top">
+                <Tag color={status.color} className={styles.statusTag}>
+                  {status.text}
+                </Tag>
+              </Tooltip>
+            ) : (
+              <Tag color={status.color} className={styles.statusTag}>
+                {status.text}
+              </Tag>
+            )}
           </div>
 
           {/* 下单 */}

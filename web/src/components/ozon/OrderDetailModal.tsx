@@ -381,17 +381,19 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       : '-'}
                   </Descriptions.Item>
                 </Descriptions>
+                <OrderNotesSection />
               ),
             },
             {
               label: '商品明细',
               key: '2',
               children: (
-                <Table
-                  dataSource={selectedOrder.items}
-                  rowKey="sku"
-                  pagination={false}
-                  columns={[
+                <>
+                  <Table
+                    dataSource={selectedOrder.items}
+                    rowKey="sku"
+                    pagination={false}
+                    columns={[
                     {
                       title: '图片',
                       dataIndex: 'sku',
@@ -465,13 +467,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         formatPriceWithFallback(amount, selectedOrder?.currency_code, userCurrency),
                     },
                   ]}
-                />
+                  />
+                  <OrderNotesSection />
+                </>
               ),
             },
             {
               label: '物流信息',
               key: '3',
-              children: selectedOrder.postings?.map((posting) => (
+              children: (
+                <>
+                  {selectedOrder.postings?.map((posting) => (
                 <Card key={posting.id} className={styles.postingCard}>
                   <Descriptions bordered size="small" column={1} labelStyle={{ width: '120px' }}>
                     <Descriptions.Item label="Posting号">
@@ -546,7 +552,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     </Descriptions.Item>
                   </Descriptions>
                 </Card>
-              )),
+                  ))}
+                  <OrderNotesSection />
+                </>
+              ),
             },
             {
               label: '财务信息',
@@ -600,7 +609,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="进货金额">
-                      {isDelivered && isEditingPurchasePrice && canOperate ? (
+                      {canEdit && isEditingPurchasePrice && canOperate ? (
                         <Space>
                           <InputNumber
                             value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
@@ -640,7 +649,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                 )
                               : '-'}
                           </Text>
-                          {isDelivered && canOperate && (
+                          {canEdit && canOperate && (
                             <Button
                               type="link"
                               size="small"
@@ -648,6 +657,57 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                               onClick={() => {
                                 setEditPurchasePrice(selectedPosting?.purchase_price || '');
                                 setIsEditingPurchasePrice(true);
+                              }}
+                            >
+                              编辑
+                            </Button>
+                          )}
+                        </Space>
+                      )}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="采购平台">
+                      {canEdit && isEditingSourcePlatform && canOperate ? (
+                        <Space>
+                          <Select
+                            value={editSourcePlatform}
+                            onChange={(value) => setEditSourcePlatform(value)}
+                            placeholder="请选择采购平台"
+                            style={{ width: 150 }}
+                            options={[
+                              { label: '1688', value: '1688' },
+                              { label: '拼多多', value: '拼多多' },
+                              { label: '咸鱼', value: '咸鱼' },
+                              { label: '淘宝', value: '淘宝' },
+                            ]}
+                          />
+                          <Button
+                            type="primary"
+                            size="small"
+                            icon={<SaveOutlined />}
+                            loading={saving}
+                            onClick={handleSaveSourcePlatform}
+                          >
+                            保存
+                          </Button>
+                          <Button
+                            size="small"
+                            icon={<CloseOutlined />}
+                            onClick={() => setIsEditingSourcePlatform(false)}
+                          >
+                            取消
+                          </Button>
+                        </Space>
+                      ) : (
+                        <Space>
+                          <Text>{selectedPosting?.source_platform || '-'}</Text>
+                          {canEdit && canOperate && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EditOutlined />}
+                              onClick={() => {
+                                setEditSourcePlatform(selectedPosting?.source_platform || '');
+                                setIsEditingSourcePlatform(true);
                               }}
                             >
                               编辑
@@ -799,6 +859,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                   </Descriptions>
+                  <OrderNotesSection />
                 );
               })(),
             },
