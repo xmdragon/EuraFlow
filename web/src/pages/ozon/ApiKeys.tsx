@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /**
  * API Key管理页面
  */
@@ -41,7 +42,7 @@ import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
 
 const ApiKeys: React.FC = () => {
@@ -89,7 +90,7 @@ const ApiKeys: React.FC = () => {
   };
 
   // 删除API Key
-  const handleDelete = async (keyId: number, name: string) => {
+  const handleDelete = async (keyId: number, _name: string) => {
     try {
       await deleteAPIKey(keyId);
       loadKeys();
@@ -100,7 +101,7 @@ const ApiKeys: React.FC = () => {
   };
 
   // 重新生成API Key
-  const handleRegenerate = async (keyId: number, name: string) => {
+  const handleRegenerate = async (keyId: number, _name: string) => {
     try {
       const result = await regenerateAPIKey(keyId);
       setNewKeyData({ key: result.key, name: result.name });
@@ -113,18 +114,6 @@ const ApiKeys: React.FC = () => {
         '重新生成失败: ' + (error.response?.data?.message || error.message)
       );
     }
-  };
-
-  // 复制到剪贴板
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(
-      () => {
-        notifySuccess('复制成功', '已复制到剪贴板');
-      },
-      () => {
-        notifyError('复制失败', '复制失败');
-      }
-    );
   };
 
   // 格式化日期
@@ -183,7 +172,7 @@ const ApiKeys: React.FC = () => {
       title: '过期时间',
       dataIndex: 'expires_at',
       key: 'expires_at',
-      render: (date: string | null, record: APIKey) => {
+      render: (date: string | null, _record: APIKey) => {
         if (!date) return <Text type="secondary">永不过期</Text>;
         return <Text type={isExpired(date) ? 'danger' : undefined}>{formatDate(date)}</Text>;
       },

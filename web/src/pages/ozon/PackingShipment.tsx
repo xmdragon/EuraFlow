@@ -25,7 +25,6 @@ import {
   Select,
   Tag,
   Modal,
-  DatePicker,
   Tooltip,
   Descriptions,
   Tabs,
@@ -35,7 +34,6 @@ import {
   Progress,
   Avatar,
   Table,
-  Checkbox,
   Spin,
   notification,
 } from 'antd';
@@ -53,7 +51,6 @@ import OrderCardComponent, { type OrderCard } from '@/components/ozon/packing/Or
 import PackingSearchBar from '@/components/ozon/packing/PackingSearchBar';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
-import ShopSelector from '@/components/ozon/ShopSelector';
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
@@ -61,7 +58,6 @@ import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
-const { RangePicker } = DatePicker;
 const { Option } = Select;
 const { confirm } = Modal;
 const { Text } = Typography;
@@ -102,13 +98,13 @@ const PackingShipment: React.FC = () => {
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
-  const [isUpdatingExtraInfo, setIsUpdatingExtraInfo] = useState(false);
+  const [_isUpdatingExtraInfo, _setIsUpdatingExtraInfo] = useState(false);
 
   // 操作状态Tab（4个状态：等待备货、分配中、已分配、单号确认）
   const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
 
   // 追踪用户访问过的标签（用于按需加载统计数据）
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['awaiting_stock']));
+  const [_visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['awaiting_stock']));
 
   // 操作弹窗状态
   const [prepareStockModalVisible, setPrepareStockModalVisible] = useState(false);
@@ -502,7 +498,7 @@ const PackingShipment: React.FC = () => {
   };
 
   // 将 PostingWithOrder 数组转换为 OrderItemRow 数组（每个商品一行）
-  const orderItemRows = React.useMemo<OrderItemRow[]>(() => {
+  const _orderItemRows = React.useMemo<OrderItemRow[]>(() => {
     const rows: OrderItemRow[] = [];
 
     postingsData.forEach((posting) => {
@@ -592,7 +588,7 @@ const PackingShipment: React.FC = () => {
   const offerIdImageMap = accumulatedImageMap;
 
   // 获取订单项的图片
-  const getOrderItemImage = (order: ozonApi.Order): string => {
+  const _getOrderItemImage = (order: ozonApi.Order): string => {
     if (!order.items || order.items.length === 0) {
       return '';
     }
@@ -615,7 +611,7 @@ const PackingShipment: React.FC = () => {
     if (!text) return '-';
 
     // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    const match = text.match(/^(.+?)[\\(（](.+?)[\\)）]$/);
     if (!match) return text;
 
     const mainPart = match[1].trim();
@@ -660,7 +656,7 @@ const PackingShipment: React.FC = () => {
     if (!text) return '-';
 
     // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    const match = text.match(/^(.+?)[\\(（](.+?)[\\)）]$/);
     if (!match) return text;
 
     const mainPart = match[1].trim();
@@ -787,7 +783,7 @@ const PackingShipment: React.FC = () => {
   });
 
   // 同步到跨境巴士
-  const syncToKuajing84Mutation = useMutation({
+  const _syncToKuajing84Mutation = useMutation({
     mutationFn: ({
       ozonOrderId,
       postingNumber,
@@ -1018,7 +1014,7 @@ const PackingShipment: React.FC = () => {
   );
 
   // 表格列定义（商品维度 - 4列布局）
-  const columns: any[] = [
+  const _columns: any[] = [
     // 第一列：商品图片（160x160固定容器，可点击打开OZON商品页）
     {
       title: '商品图片',
@@ -1415,13 +1411,13 @@ const PackingShipment: React.FC = () => {
     setDetailModalVisible(true);
   };
 
-  const handleShip = (postingWithOrder: ozonApi.PostingWithOrder) => {
+  const _handleShip = (postingWithOrder: ozonApi.PostingWithOrder) => {
     setSelectedOrder(postingWithOrder.order);
     setSelectedPosting(postingWithOrder);
     setShipModalVisible(true);
   };
 
-  const handleCancel = (postingWithOrder: ozonApi.PostingWithOrder) => {
+  const _handleCancel = (postingWithOrder: ozonApi.PostingWithOrder) => {
     confirm({
       title: '确认取消订单？',
       content: `订单号: ${postingWithOrder.order.order_number || postingWithOrder.order.order_id}，货件号: ${postingWithOrder.posting_number}`,
@@ -1434,7 +1430,7 @@ const PackingShipment: React.FC = () => {
     });
   };
 
-  const handleSync = (fullSync: boolean) => {
+  const _handleSync = (fullSync: boolean) => {
     if (!selectedShop) {
       notifyWarning('同步失败', '请先选择店铺');
       return;
@@ -1513,7 +1509,7 @@ const PackingShipment: React.FC = () => {
     }
   };
 
-  const handleBatchShip = () => {
+  const _handleBatchShip = () => {
     if (selectedOrders.length === 0) {
       notifyWarning('发货失败', '请先选择订单');
       return;
@@ -1599,7 +1595,7 @@ const PackingShipment: React.FC = () => {
   };
 
   // 统计数据 - 使用API返回的全局统计数据
-  const stats = ordersData?.stats || {
+  const _stats = ordersData?.stats || {
     total: 0,
     awaiting_packaging: 0,
     awaiting_deliver: 0,

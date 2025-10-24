@@ -3,14 +3,10 @@
  */
 import {
   UploadOutlined,
-  CloudUploadOutlined,
   DeleteOutlined,
   EyeOutlined,
   ReloadOutlined,
   SettingOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  InfoCircleOutlined,
   PictureOutlined,
   SyncOutlined,
   CloudOutlined,
@@ -33,12 +29,10 @@ import {
   Tag,
   Row,
   Col,
-  Statistic,
   Divider,
   Spin,
   Image,
 } from 'antd';
-import type { UploadFile } from 'antd/es/upload/interface';
 import React, { useState, useEffect } from 'react';
 
 import styles from './WatermarkManagement.module.scss';
@@ -67,13 +61,12 @@ const WatermarkManagement: React.FC = () => {
   const [editForm] = Form.useForm();
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [previewImage, setPreviewImage] = useState('');
   const [selectedWatermark, setSelectedWatermark] = useState<watermarkApi.WatermarkConfig | null>(
     null
   );
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
-  const [resourcesPage, setResourcesPage] = useState(0);
+  const [resourcesPage] = useState(0);
 
   // ============ Cloudinary配置查询（全局配置） ============
   const {

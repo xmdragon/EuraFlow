@@ -13,6 +13,7 @@ import {
   ShoppingCartOutlined,
   FileTextOutlined,
   CopyOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -20,7 +21,6 @@ import {
   Space,
   Card,
   Input,
-  Select,
   Tag,
   Modal,
   DatePicker,
@@ -86,8 +86,6 @@ const OrderList: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [activeTab, setActiveTab] = useState('awaiting_packaging');
-  const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<any>(null);
 
   // 进货价格历史弹窗状态
   const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
@@ -391,7 +389,7 @@ const OrderList: React.FC = () => {
   }, [ordersData]);
 
   // 获取订单项的图片
-  const getOrderItemImage = (order: ozonApi.Order): string => {
+  const _getOrderItemImage = (order: ozonApi.Order): string => {
     if (!order.items || order.items.length === 0) {
       return '';
     }
@@ -414,7 +412,7 @@ const OrderList: React.FC = () => {
     if (!text) return '-';
 
     // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    const match = text.match(/^(.+?)[\\(（](.+?)[\\)）]$/);
     if (!match) return text;
 
     const mainPart = match[1].trim();
@@ -459,7 +457,7 @@ const OrderList: React.FC = () => {
     if (!text) return '-';
 
     // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    const match = text.match(/^(.+?)[\\(（](.+?)[\\)）]$/);
     if (!match) return text;
 
     const mainPart = match[1].trim();
@@ -909,13 +907,13 @@ const OrderList: React.FC = () => {
     setDetailModalVisible(true);
   };
 
-  const handleShip = (postingWithOrder: ozonApi.PostingWithOrder) => {
+  const _handleShip = (postingWithOrder: ozonApi.PostingWithOrder) => {
     setSelectedOrder(postingWithOrder.order);
     setSelectedPosting(postingWithOrder);
     setShipModalVisible(true);
   };
 
-  const handleCancel = (postingWithOrder: ozonApi.PostingWithOrder) => {
+  const _handleCancel = (postingWithOrder: ozonApi.PostingWithOrder) => {
     confirm({
       title: '确认取消订单？',
       content: `订单号: ${postingWithOrder.order.order_number || postingWithOrder.order.order_id}，货件号: ${postingWithOrder.posting_number}`,

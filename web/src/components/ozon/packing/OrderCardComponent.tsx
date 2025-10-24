@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 /**
  * 打包发货订单卡片组件
  */
@@ -31,17 +32,17 @@ export interface OrderCardComponentProps {
   userCurrency: string;
   statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }>;
   operationStatus: string;
-  formatPrice: (priceValue: any) => string;
-  formatDeliveryMethodText: (deliveryMethod: string | undefined) => React.ReactNode;
-  onCopy: (textToCopy: string | undefined, copyLabel: string) => void;
-  onShowDetail: (orderData: ozonApi.Order, postingData: ozonApi.Posting) => void;
-  onOpenImagePreview: (imageUrl: string) => void;
-  onOpenPriceHistory: (productSku: string, productTitle: string) => void;
-  onPrepareStock: (postingData: ozonApi.PostingWithOrder) => void;
-  onUpdateBusinessInfo: (postingData: ozonApi.PostingWithOrder) => void;
-  onSubmitTracking: (postingData: ozonApi.PostingWithOrder) => void;
-  onDiscardOrder: (posting: string) => void;
-  onCheckboxChange: (posting: string, isChecked: boolean) => void;
+  formatPrice: (_priceValue: any) => string;
+  formatDeliveryMethodText: (_deliveryMethod: string | undefined) => React.ReactNode;
+  onCopy: (_textToCopy: string | undefined, _copyLabel: string) => void;
+  onShowDetail: (_orderData: ozonApi.Order, _postingData: ozonApi.Posting) => void;
+  onOpenImagePreview: (_imageUrl: string) => void;
+  onOpenPriceHistory: (_productSku: string, _productTitle: string) => void;
+  onPrepareStock: (_postingData: ozonApi.PostingWithOrder) => void;
+  onUpdateBusinessInfo: (_postingData: ozonApi.PostingWithOrder) => void;
+  onSubmitTracking: (_postingData: ozonApi.PostingWithOrder) => void;
+  onDiscardOrder: (_posting: string) => void;
+  onCheckboxChange: (_posting: string, _isChecked: boolean) => void;
   canOperate: boolean;
 }
 
