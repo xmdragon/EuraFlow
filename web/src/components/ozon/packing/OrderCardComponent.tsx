@@ -117,12 +117,13 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     const isSelected = selectedPostingNumbers.includes(posting.posting_number);
 
     return (
-      <Card
-        key={card.key}
-        hoverable
-        size="small"
-        className={styles.orderCard}
-        cover={
+      <Tooltip title={order.order_notes || null} placement="top">
+        <Card
+          key={card.key}
+          hoverable
+          size="small"
+          className={styles.orderCard}
+          cover={
           <div className={styles.orderCover}>
             {/* 复选框 - 左上角 */}
             {posting.status === 'awaiting_deliver' && (
@@ -327,17 +328,9 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
             <Text type="secondary" className={styles.label}>
               状态:
             </Text>
-            {order.order_notes ? (
-              <Tooltip title={order.order_notes} placement="top">
-                <Tag color={status.color} className={styles.statusTag}>
-                  {status.text}
-                </Tag>
-              </Tooltip>
-            ) : (
-              <Tag color={status.color} className={styles.statusTag}>
-                {status.text}
-              </Tag>
-            )}
+            <Tag color={status.color} className={styles.statusTag}>
+              {status.text}
+            </Tag>
           </div>
 
           {/* 下单 */}
@@ -438,6 +431,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
           )}
         </div>
       </Card>
+      </Tooltip>
     );
   },
   (prevProps, nextProps) => {
