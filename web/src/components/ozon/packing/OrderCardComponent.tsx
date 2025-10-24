@@ -31,6 +31,7 @@ export interface OrderCardComponentProps {
   selectedPostingNumbers: string[];
   userCurrency: string;
   statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }>;
+  operationStatusConfig: Record<string, { color: string; text: string }>;
   operationStatus: string;
   formatPrice: (price: string | number) => string;
   formatDeliveryMethodText: (method: string | undefined) => React.ReactNode;
@@ -72,6 +73,10 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     const { posting, product, order } = card;
     const currency = order.currency_code || userCurrency || 'CNY';
     const symbol = getCurrencySymbol(currency);
+
+    // 解析商品索引,判断是否是第一个商品
+    const productIndex = parseInt(card.key.split('_').pop() || '0', 10);
+    const isFirstProduct = productIndex === 0;
 
     // 获取店铺名称
     const shopName = shopNameMap[order.shop_id] || `店铺${order.shop_id}`;
@@ -236,15 +241,17 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 进价:
               </Text>
-              {purchasePrice && parseFloat(purchasePrice) > 0 ? (
-                <span className={styles.price}>
-                  {symbol} {formatPrice(purchasePrice)}
-                </span>
-              ) : (
-                <Text type="secondary" className={styles.value}>
-                  -
-                </Text>
-              )}
+              {isFirstProduct ? (
+                purchasePrice && parseFloat(purchasePrice) > 0 ? (
+                  <span className={styles.price}>
+                    {symbol} {formatPrice(purchasePrice)}
+                  </span>
+                ) : (
+                  <Text type="secondary" className={styles.value}>
+                    -
+                  </Text>
+                )
+              ) : null}
             </div>
 
             {/* 平台 */}
@@ -252,7 +259,9 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 平台:
               </Text>
-              <Text className={styles.value}>{sourcePlatform || '-'}</Text>
+              {isFirstProduct ? (
+                <Text className={styles.value}>{sourcePlatform || '-'}</Text>
+              ) : null}
             </div>
 
             {/* 货件 */}
@@ -260,13 +269,17 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 货件:
               </Text>
-              <a onClick={() => onShowDetail(order, posting)} className={styles.link}>
-                {posting.posting_number}
-              </a>
-              <CopyOutlined
-                className={styles.copyIcon}
-                onClick={() => onCopy(posting.posting_number, '货件编号')}
-              />
+              {isFirstProduct ? (
+                <>
+                  <a onClick={() => onShowDetail(order, posting)} className={styles.link}>
+                    {posting.posting_number}
+                  </a>
+                  <CopyOutlined
+                    className={styles.copyIcon}
+                    onClick={() => onCopy(posting.posting_number, '货件编号')}
+                  />
+                </>
+              ) : null}
             </div>
 
             {/* 追踪 */}
@@ -274,19 +287,21 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 追踪:
               </Text>
-              {trackingNumber ? (
-                <>
-                  <span className={styles.value}>{trackingNumber}</span>
-                  <CopyOutlined
-                    className={styles.copyIcon}
-                    onClick={() => onCopy(trackingNumber, '追踪号码')}
-                  />
-                </>
-              ) : (
-                <Text type="secondary" className={styles.value}>
-                  -
-                </Text>
-              )}
+              {isFirstProduct ? (
+                trackingNumber ? (
+                  <>
+                    <span className={styles.value}>{trackingNumber}</span>
+                    <CopyOutlined
+                      className={styles.copyIcon}
+                      onClick={() => onCopy(trackingNumber, '追踪号码')}
+                    />
+                  </>
+                ) : (
+                  <Text type="secondary" className={styles.value}>
+                    -
+                  </Text>
+                )
+              ) : null}
             </div>
 
             {/* 国内 */}
@@ -294,23 +309,25 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 国内:
               </Text>
-              {domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
-                <div style={{ flex: 1 }}>
-                  {domesticTrackingNumbers.map((number, index) => (
-                    <div key={index}>
-                      <span className={styles.value}>{number}</span>
-                      <CopyOutlined
-                        className={styles.copyIcon}
-                        onClick={() => onCopy(number, '国内单号')}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <Text type="secondary" className={styles.value}>
-                  -
-                </Text>
-              )}
+              {isFirstProduct ? (
+                domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
+                  <div style={{ flex: 1 }}>
+                    {domesticTrackingNumbers.map((number, index) => (
+                      <div key={index}>
+                        <span className={styles.value}>{number}</span>
+                        <CopyOutlined
+                          className={styles.copyIcon}
+                          onClick={() => onCopy(number, '国内单号')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Text type="secondary" className={styles.value}>
+                    -
+                  </Text>
+                )
+              ) : null}
             </div>
 
             {/* 配送 */}
@@ -318,12 +335,14 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 配送:
               </Text>
-              <Tooltip
-                title={formatDeliveryMethodText(deliveryMethod)}
-                overlayInnerStyle={{ color: '#fff' }}
-              >
-                <span className={styles.value}>{shortDeliveryMethod}</span>
-              </Tooltip>
+              {isFirstProduct ? (
+                <Tooltip
+                  title={formatDeliveryMethodText(deliveryMethod)}
+                  overlayInnerStyle={{ color: '#fff' }}
+                >
+                  <span className={styles.value}>{shortDeliveryMethod}</span>
+                </Tooltip>
+              ) : null}
             </div>
 
             {/* 状态（始终显示 OZON 原生状态） */}
@@ -331,9 +350,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 状态:
               </Text>
-              <Tag color={status.color} className={styles.statusTag}>
-                {status.text}
-              </Tag>
+              {isFirstProduct ? (
+                <Tag color={status.color} className={styles.statusTag}>
+                  {status.text}
+                </Tag>
+              ) : null}
             </div>
 
             {/* 下单 */}
@@ -341,9 +362,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 下单:
               </Text>
-              <Text className={styles.value}>
-                {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
-              </Text>
+              {isFirstProduct ? (
+                <Text className={styles.value}>
+                  {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
+                </Text>
+              ) : null}
             </div>
 
             {/* 截止 */}
@@ -351,88 +374,113 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               <Text type="secondary" className={styles.label}>
                 截止:
               </Text>
-              <span className={styles.deadline}>
-                {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
-              </span>
+              {isFirstProduct ? (
+                <span className={styles.deadline}>
+                  {posting.shipment_date
+                    ? moment(posting.shipment_date).format('MM-DD HH:mm')
+                    : '-'}
+                </span>
+              ) : null}
             </div>
 
-            {/* 操作按钮 */}
+            {/* 操作按钮或主单号链接 */}
             {canOperate && (
               <div className={styles.actionButtons}>
-                {currentStatus === 'awaiting_stock' && (
-                  <Space size="small">
-                    <Button type="primary" size="small" onClick={() => onPrepareStock(posting)}>
-                      备货
-                    </Button>
-                    <Button
-                      type="default"
-                      size="small"
-                      onClick={() => onDiscardOrder(posting.posting_number)}
-                      danger
-                    >
-                      废弃
-                    </Button>
-                  </Space>
-                )}
-                {currentStatus === 'allocating' && (
-                  <Space size="small">
-                    <Button
-                      type="default"
-                      size="small"
-                      onClick={() => onUpdateBusinessInfo(posting)}
-                    >
-                      备注
-                    </Button>
-                    <Button
-                      type="default"
-                      size="small"
-                      onClick={() => onDiscardOrder(posting.posting_number)}
-                      danger
-                    >
-                      废弃
-                    </Button>
-                  </Space>
-                )}
-                {currentStatus === 'allocated' && (
-                  <Space size="small">
-                    <Button type="primary" size="small" onClick={() => onSubmitTracking(posting)}>
-                      国内单号
-                    </Button>
-                    <Button
-                      type="default"
-                      size="small"
-                      onClick={() => onDiscardOrder(posting.posting_number)}
-                      danger
-                    >
-                      废弃
-                    </Button>
-                  </Space>
-                )}
-                {currentStatus === 'tracking_confirmed' && (
-                  <Space size="small">
-                    <Tag color="success">已完成</Tag>
-                    <Button
-                      type="default"
-                      size="small"
-                      onClick={() => onDiscardOrder(posting.posting_number)}
-                      danger
-                    >
-                      废弃
-                    </Button>
-                  </Space>
-                )}
-                {currentStatus === 'printed' && (
-                  <Space size="small">
-                    <Tag color="success">已打印</Tag>
-                    <Button
-                      type="default"
-                      size="small"
-                      onClick={() => onDiscardOrder(posting.posting_number)}
-                      danger
-                    >
-                      废弃
-                    </Button>
-                  </Space>
+                {isFirstProduct ? (
+                  <>
+                    {currentStatus === 'awaiting_stock' && (
+                      <Space size="small">
+                        <Button type="primary" size="small" onClick={() => onPrepareStock(posting)}>
+                          备货
+                        </Button>
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          danger
+                        >
+                          废弃
+                        </Button>
+                      </Space>
+                    )}
+                    {currentStatus === 'allocating' && (
+                      <Space size="small">
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={() => onUpdateBusinessInfo(posting)}
+                        >
+                          备注
+                        </Button>
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          danger
+                        >
+                          废弃
+                        </Button>
+                      </Space>
+                    )}
+                    {currentStatus === 'allocated' && (
+                      <Space size="small">
+                        <Button
+                          type="primary"
+                          size="small"
+                          onClick={() => onSubmitTracking(posting)}
+                        >
+                          国内单号
+                        </Button>
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          danger
+                        >
+                          废弃
+                        </Button>
+                      </Space>
+                    )}
+                    {currentStatus === 'tracking_confirmed' && (
+                      <Space size="small">
+                        <Tag color="success">已完成</Tag>
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          danger
+                        >
+                          废弃
+                        </Button>
+                      </Space>
+                    )}
+                    {currentStatus === 'printed' && (
+                      <Space size="small">
+                        <Tag color="success">已打印</Tag>
+                        <Button
+                          type="default"
+                          size="small"
+                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          danger
+                        >
+                          废弃
+                        </Button>
+                      </Space>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                    <Space size="small">
+                      <Text type="secondary">主单号:</Text>
+                      <a onClick={() => onShowDetail(order, posting)} className={styles.link}>
+                        {posting.posting_number}
+                      </a>
+                      <CopyOutlined
+                        style={{ cursor: 'pointer', color: '#1890ff' }}
+                        onClick={() => onCopy(posting.posting_number, '主单号')}
+                      />
+                    </Space>
+                  </div>
                 )}
               </div>
             )}
