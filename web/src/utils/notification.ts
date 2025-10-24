@@ -3,32 +3,38 @@
  * 统一的通知系统，右下角弹出,5秒后自动消失
  *
  * ⚠️ Ant Design 5.x 注意事项：
- * - 需要在 main.tsx 中包装 <App> 组件才能正常工作
- * - 已在 main.tsx 添加 <AntApp> 包装器
+ * - 需要在 App.tsx 中初始化全局notification实例
+ * - 使用 App.useApp() 获取notification并调用 setGlobalNotification()
  */
-import { notification } from 'antd';
 import type { ArgsProps } from 'antd/es/notification';
+import { getGlobalNotification } from './globalNotification';
 
-// 全局配置
-notification.config({
-  placement: 'bottomRight',
-  duration: 5, // 5秒后自动消失
-  maxCount: 3, // 最多同时显示3个通知
-  top: 50, // 距离顶部的距离
-  getContainer: () => document.body, // 明确指定挂载到 body
-});
+/**
+ * 获取notification实例
+ * 如果未初始化，返回null并在控制台警告
+ */
+const getNotification = () => {
+  const instance = getGlobalNotification();
+  if (!instance) {
+    console.error('[Notification] Instance not initialized. Please call setGlobalNotification() in App.tsx');
+  }
+  return instance;
+};
 
 /**
  * 成功通知
  */
 export const notifySuccess = (message: string, description?: string) => {
   console.log('[Notification] Success:', message, description);
-  notification.success({
-    message,
-    description,
-    placement: 'bottomRight',
-    duration: 5,
-  });
+  const notification = getNotification();
+  if (notification) {
+    notification.success({
+      message,
+      description,
+      placement: 'bottomRight',
+      duration: 5,
+    });
+  }
 };
 
 /**
@@ -36,12 +42,15 @@ export const notifySuccess = (message: string, description?: string) => {
  */
 export const notifyError = (message: string, description?: string) => {
   console.log('[Notification] Error:', message, description);
-  notification.error({
-    message,
-    description,
-    placement: 'bottomRight',
-    duration: 5,
-  });
+  const notification = getNotification();
+  if (notification) {
+    notification.error({
+      message,
+      description,
+      placement: 'bottomRight',
+      duration: 5,
+    });
+  }
 };
 
 /**
@@ -49,12 +58,15 @@ export const notifyError = (message: string, description?: string) => {
  */
 export const notifyWarning = (message: string, description?: string) => {
   console.log('[Notification] Warning:', message, description);
-  notification.warning({
-    message,
-    description,
-    placement: 'bottomRight',
-    duration: 5,
-  });
+  const notification = getNotification();
+  if (notification) {
+    notification.warning({
+      message,
+      description,
+      placement: 'bottomRight',
+      duration: 5,
+    });
+  }
 };
 
 /**
@@ -62,12 +74,15 @@ export const notifyWarning = (message: string, description?: string) => {
  */
 export const notifyInfo = (message: string, description?: string) => {
   console.log('[Notification] Info:', message, description);
-  notification.info({
-    message,
-    description,
-    placement: 'bottomRight',
-    duration: 5,
-  });
+  const notification = getNotification();
+  if (notification) {
+    notification.info({
+      message,
+      description,
+      placement: 'bottomRight',
+      duration: 5,
+    });
+  }
 };
 
 /**
@@ -75,11 +90,14 @@ export const notifyInfo = (message: string, description?: string) => {
  */
 export const notify = (config: ArgsProps) => {
   console.log('[Notification] Custom:', config);
-  notification.open({
-    ...config,
-    placement: config.placement || 'bottomRight',
-    duration: config.duration !== undefined ? config.duration : 5,
-  });
+  const notification = getNotification();
+  if (notification) {
+    notification.open({
+      ...config,
+      placement: config.placement || 'bottomRight',
+      duration: config.duration !== undefined ? config.duration : 5,
+    });
+  }
 };
 
 export default {
