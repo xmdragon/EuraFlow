@@ -1,0 +1,27 @@
+{
+  "name": "ef.system.database_backup",
+  "version": "1.0.0",
+  "enabled": true,
+  "capabilities": [
+    "database.backup",
+    "database.restore",
+    "system.maintenance"
+  ],
+  "required_services": [],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "max_backups": {
+        "type": "integer",
+        "description": "保留的最大备份数量",
+        "default": 30
+      },
+      "backup_dir": {
+        "type": "string",
+        "description": "备份目录路径",
+        "default": "backups"
+      }
+    },
+    "required": []
+  }
+}

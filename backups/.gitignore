@@ -1,0 +1,8 @@
+# 忽略所有备份文件
+*.sql
+*.sql.gz
+*.dump
+*.backup
+
+# 但保留此目录
+!.gitignore
