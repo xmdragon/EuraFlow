@@ -602,7 +602,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     : null;
 
                 return (
-                  <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
+                  <>
+                    <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
                     <Descriptions.Item label="订单金额">
                       {formatPriceWithFallback(
                         selectedOrder.total_price || selectedOrder.total_amount,
@@ -861,7 +862,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                   </Descriptions>
-                  {renderOrderNotesSection()}
+                    {renderOrderNotesSection()}
+                  </>
                 );
               })(),
             },
