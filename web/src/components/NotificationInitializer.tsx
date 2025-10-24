@@ -4,7 +4,7 @@
  * 用于在 AntApp 内部获取 notification 实例并全局共享
  */
 import { App } from 'antd';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 import { setGlobalNotification } from '@/utils/globalNotification';
 

@@ -22,6 +22,8 @@ import {
   Button,
   InputNumber,
   Space,
+  Select,
+  Input,
 } from 'antd';
 import moment from 'moment';
 import React, { useState } from 'react';
@@ -35,6 +37,7 @@ import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification'
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 interface OrderDetailModalProps {
   visible: boolean;
@@ -62,11 +65,22 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   // 权限检查
   const { canOperate, canSync } = usePermission();
 
+  // 可编辑状态判断：从"分配中"状态开始允许编辑
+  const canEdit =
+    selectedPosting?.operation_status &&
+    ['allocating', 'allocated', 'tracking_confirmed', 'printed'].includes(
+      selectedPosting.operation_status
+    );
+
   // 编辑状态管理
   const [isEditingPurchasePrice, setIsEditingPurchasePrice] = useState(false);
   const [isEditingMaterialCost, setIsEditingMaterialCost] = useState(false);
+  const [isEditingSourcePlatform, setIsEditingSourcePlatform] = useState(false);
+  const [isEditingOrderNotes, setIsEditingOrderNotes] = useState(false);
   const [editPurchasePrice, setEditPurchasePrice] = useState<string>('');
   const [editMaterialCost, setEditMaterialCost] = useState<string>('');
+  const [editSourcePlatform, setEditSourcePlatform] = useState<string>('');
+  const [editOrderNotes, setEditOrderNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   // 同步状态管理
@@ -174,6 +188,108 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       setSyncingFinance(false);
     }
   };
+
+  // 保存采购平台
+  const handleSaveSourcePlatform = async () => {
+    if (!selectedPosting?.posting_number) return;
+
+    try {
+      setSaving(true);
+      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+        source_platform: editSourcePlatform,
+      });
+      notifySuccess('更新成功', '采购平台已更新');
+      setIsEditingSourcePlatform(false);
+      onUpdate?.(); // 触发父组件刷新
+    } catch (error: any) {
+      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
+      if (error.response?.status === 403) {
+        return;
+      }
+      notifyError('更新失败', error?.response?.data?.detail || '更新失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 保存订单备注
+  const handleSaveOrderNotes = async () => {
+    if (!selectedPosting?.posting_number) return;
+
+    try {
+      setSaving(true);
+      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+        order_notes: editOrderNotes,
+      });
+      notifySuccess('更新成功', '订单备注已更新');
+      setIsEditingOrderNotes(false);
+      onUpdate?.(); // 触发父组件刷新
+    } catch (error: any) {
+      // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
+      if (error.response?.status === 403) {
+        return;
+      }
+      notifyError('更新失败', error?.response?.data?.detail || '更新失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 订单备注组件（可复用）
+  const OrderNotesSection: React.FC = () => (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
+      <div style={{ marginBottom: 8 }}>
+        <Text strong>订单备注</Text>
+      </div>
+      {canEdit && isEditingOrderNotes && canOperate ? (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <TextArea
+            value={editOrderNotes}
+            onChange={(e) => setEditOrderNotes(e.target.value)}
+            placeholder="请输入订单备注"
+            rows={3}
+            maxLength={500}
+            showCount
+          />
+          <Space>
+            <Button
+              type="primary"
+              size="small"
+              icon={<SaveOutlined />}
+              loading={saving}
+              onClick={handleSaveOrderNotes}
+            >
+              保存
+            </Button>
+            <Button
+              size="small"
+              icon={<CloseOutlined />}
+              onClick={() => setIsEditingOrderNotes(false)}
+            >
+              取消
+            </Button>
+          </Space>
+        </Space>
+      ) : (
+        <Space>
+          <Text>{selectedOrder?.order_notes || '-'}</Text>
+          {canEdit && canOperate && (
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => {
+                setEditOrderNotes(selectedOrder?.order_notes || '');
+                setIsEditingOrderNotes(true);
+              }}
+            >
+              编辑
+            </Button>
+          )}
+        </Space>
+      )}
+    </div>
+  );
 
   return (
     <Modal
@@ -431,20 +547,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </Descriptions>
                 </Card>
               )),
-            },
-            {
-              label: '额外信息',
-              key: '4',
-              children: (
-                <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
-                  <Descriptions.Item label="采购平台">
-                    {selectedPosting?.source_platform || '-'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="订单备注">
-                    {selectedOrder.order_notes || '-'}
-                  </Descriptions.Item>
-                </Descriptions>
-              ),
             },
             {
               label: '财务信息',
