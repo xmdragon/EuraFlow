@@ -1,16 +1,23 @@
 // ==UserScript==
 // @name         OZON真实售价计算器
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  在OZON商品页面显示计算后的真实售价（支持动态更新）
 // @author       EuraFlow
 // @match        https://www.ozon.ru/product/*
 // @grant        none
-// @run-at       document-idle
+// @run-at       document-end
 // ==/UserScript==
 
 (function () {
   "use strict";
+
+  // 立即输出日志，确认脚本已加载
+  console.log("========================================");
+  console.log("[OZON真实售价] 脚本已加载！版本 1.0.1");
+  console.log("[OZON真实售价] 当前URL:", window.location.href);
+  console.log("[OZON真实售价] 页面状态:", document.readyState);
+  console.log("========================================");
 
   // ========== 配置常量 ==========
   const CONFIG = {
@@ -110,35 +117,52 @@
       currency: null,
     };
 
+    console.log("[OZON真实售价] 开始查找价格元素...");
+
     // 查找价格组件
     const priceWidget = document.querySelector(CONFIG.SELECTORS.priceWidget);
     if (!priceWidget) {
+      console.warn(
+        "[OZON真实售价] 未找到价格组件:",
+        CONFIG.SELECTORS.priceWidget
+      );
       return result;
     }
+    console.log("[OZON真实售价] ✓ 找到价格组件");
 
     // 查找绿标价（Ozon Card 价格）
     const greenPriceContainer = priceWidget.querySelector(
       CONFIG.SELECTORS.greenPriceContainer
     );
     if (greenPriceContainer) {
+      console.log("[OZON真实售价] ✓ 找到绿标价容器");
       const greenPriceElement = greenPriceContainer.querySelector(
         CONFIG.SELECTORS.greenPriceText
       );
       if (greenPriceElement) {
+        console.log(
+          "[OZON真实售价] ✓ 找到绿标价元素，文本:",
+          greenPriceElement.textContent
+        );
         const parsed = parsePrice(greenPriceElement.textContent);
         result.greenPrice = parsed.value;
         result.currency = parsed.currency;
+        console.log("[OZON真实售价] 解析绿标价:", parsed);
       }
+    } else {
+      console.log("[OZON真实售价] 未找到绿标价容器（可能是单价格商品）");
     }
 
     // 查找黑标价（常规价格）
     // 尝试查找多价格情况（tsHeadline500Medium）
+    console.log("[OZON真实售价] 尝试查找黑标价（多价格情况）...");
     let blackPriceElement = priceWidget.querySelector(
       CONFIG.SELECTORS.blackPriceText500
     );
 
     // 如果没找到，尝试单价格情况（tsHeadline600Large）
     if (!blackPriceElement) {
+      console.log("[OZON真实售价] 未找到多价格，尝试单价格情况...");
       // 需要排除绿标价区域，找到 pdp_bf9 容器外的黑标价
       blackPriceElement = priceWidget.querySelector(
         CONFIG.SELECTORS.blackPriceText600
@@ -150,19 +174,28 @@
         greenPriceContainer &&
         greenPriceContainer.contains(blackPriceElement)
       ) {
+        console.log("[OZON真实售价] 找到的是绿标价，跳过");
         blackPriceElement = null;
       }
     }
 
     if (blackPriceElement) {
+      console.log(
+        "[OZON真实售价] ✓ 找到黑标价元素，文本:",
+        blackPriceElement.textContent
+      );
       const parsed = parsePrice(blackPriceElement.textContent);
       result.blackPrice = parsed.value;
+      console.log("[OZON真实售价] 解析黑标价:", parsed);
       // 如果之前没有货币，更新货币
       if (!result.currency) {
         result.currency = parsed.currency;
       }
+    } else {
+      console.warn("[OZON真实售价] 未找到黑标价元素");
     }
 
+    console.log("[OZON真实售价] 价格查找完成:", result);
     return result;
   }
 
@@ -286,26 +319,46 @@
    * 主执行函数
    */
   function calculateAndDisplay() {
-    // 查找价格
-    const { greenPrice, blackPrice, currency } = findPrices();
+    try {
+      console.log("[OZON真实售价] ========== 开始计算 ==========");
 
-    console.log("[OZON真实售价] 价格信息:", {
-      greenPrice,
-      blackPrice,
-      currency,
-    });
+      // 查找价格
+      console.log("[OZON真实售价] 正在查找价格元素...");
+      const { greenPrice, blackPrice, currency } = findPrices();
 
-    // 计算真实售价
-    const { price, message } = calculateRealPrice(
-      greenPrice,
-      blackPrice,
-      currency
-    );
+      console.log("[OZON真实售价] 价格信息:", {
+        greenPrice,
+        blackPrice,
+        currency,
+      });
 
-    console.log("[OZON真实售价] 计算结果:", { price, message });
+      // 如果没有找到任何价格，静默失败
+      if (blackPrice === null && greenPrice === null) {
+        console.warn(
+          "[OZON真实售价] 未找到任何价格信息，可能页面还未加载完成"
+        );
+        return;
+      }
 
-    // 注入或更新显示
-    injectOrUpdateDisplay(message);
+      // 计算真实售价
+      console.log("[OZON真实售价] 正在计算真实售价...");
+      const { price, message } = calculateRealPrice(
+        greenPrice,
+        blackPrice,
+        currency
+      );
+
+      console.log("[OZON真实售价] 计算结果:", { price, message });
+
+      // 注入或更新显示
+      console.log("[OZON真实售价] 正在注入显示元素...");
+      injectOrUpdateDisplay(message);
+
+      console.log("[OZON真实售价] ========== 计算完成 ==========");
+    } catch (error) {
+      console.error("[OZON真实售价] calculateAndDisplay 出错:", error);
+      console.error("[OZON真实售价] 错误堆栈:", error.stack);
+    }
   }
 
   /**
@@ -356,23 +409,41 @@
    * 初始化脚本
    */
   function init() {
-    console.log("[OZON真实售价] 脚本初始化...");
+    try {
+      console.log("[OZON真实售价] 脚本初始化...");
 
-    // 等待页面完全加载
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => {
+      // 等待页面完全加载
+      if (document.readyState === "loading") {
+        console.log("[OZON真实售价] 页面正在加载，等待 DOMContentLoaded 事件...");
+        document.addEventListener("DOMContentLoaded", () => {
+          console.log("[OZON真实售价] DOMContentLoaded 事件触发");
+          try {
+            calculateAndDisplay();
+            setupDynamicListener();
+          } catch (error) {
+            console.error("[OZON真实售价] DOMContentLoaded 执行出错:", error);
+          }
+        });
+      } else {
+        // 页面已加载，直接执行
+        console.log("[OZON真实售价] 页面已加载，立即执行...");
         calculateAndDisplay();
         setupDynamicListener();
-      });
-    } else {
-      // 页面已加载，直接执行
-      calculateAndDisplay();
-      setupDynamicListener();
-    }
+      }
 
-    console.log("[OZON真实售价] 脚本已启动");
+      console.log("[OZON真实售价] 脚本已启动");
+    } catch (error) {
+      console.error("[OZON真实售价] 初始化出错:", error);
+      console.error("[OZON真实售价] 错误堆栈:", error.stack);
+    }
   }
 
   // ========== 启动脚本 ==========
-  init();
+  try {
+    console.log("[OZON真实售价] 开始执行 init()...");
+    init();
+  } catch (error) {
+    console.error("[OZON真实售价] 脚本启动失败:", error);
+    console.error("[OZON真实售价] 错误堆栈:", error.stack);
+  }
 })();
