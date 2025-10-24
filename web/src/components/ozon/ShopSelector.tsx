@@ -11,7 +11,7 @@ const { Option } = Select;
 
 interface ShopSelectorProps {
   value?: number | number[] | null;
-  onChange?: (value: number | number[] | null) => void;
+  onChange?: (number | number[] | null) => void;
   showAllOption?: boolean;
   style?: React.CSSProperties;
   className?: string;
