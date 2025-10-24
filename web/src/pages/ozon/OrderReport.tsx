@@ -4,9 +4,7 @@
  * 支持Posting级别展示、双Tab（订单明细+订单汇总）、图表分析
  */
 import {
-  DollarOutlined,
   ShoppingCartOutlined,
-  PercentageOutlined,
   RiseOutlined,
   CopyOutlined,
   UpOutlined,
@@ -29,7 +27,6 @@ import {
   Tabs,
   Avatar,
   Popover,
-  Pagination,
   Space,
   Modal,
   Descriptions,
@@ -53,7 +50,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { formatRMB } from '../../utils/currency';
 import { optimizeOzonImageUrl } from '../../utils/ozonImageOptimizer';
 
 import styles from './OrderReport.module.scss';

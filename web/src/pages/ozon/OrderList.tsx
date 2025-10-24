@@ -6,17 +6,12 @@ import {
   SyncOutlined,
   PrinterOutlined,
   TruckOutlined,
-  DownloadOutlined,
   SearchOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ShoppingCartOutlined,
-  PhoneOutlined,
-  EnvironmentOutlined,
   FileTextOutlined,
-  MoreOutlined,
-  SendOutlined,
   CopyOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,36 +19,26 @@ import {
   Button,
   Space,
   Card,
-  Row,
-  Col,
-  Statistic,
   Input,
   Select,
   Tag,
   Modal,
   DatePicker,
   Tooltip,
-  Badge,
-  Descriptions,
   Tabs,
   Form,
-  Alert,
-  Dropdown,
   Typography,
   Progress,
   Avatar,
-  Flex,
   Table,
-  InputNumber,
-  Divider,
   Pagination,
   notification,
 } from 'antd';
 import moment from 'moment';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 import { useCurrency } from '../../hooks/useCurrency';
-import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
+import { formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 
 import styles from './OrderList.module.scss';
 
@@ -69,7 +54,6 @@ import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/n
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { RangePicker } = DatePicker;
-const { Option } = Select;
 const { confirm } = Modal;
 const { Text } = Typography;
 
@@ -86,7 +70,7 @@ interface OrderItemRow {
 
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
-  const { currency: userCurrency, symbol: userSymbol } = useCurrency();
+  const { currency: userCurrency } = useCurrency();
   const { canOperate, canSync, canExport } = usePermission();
 
   // 状态管理

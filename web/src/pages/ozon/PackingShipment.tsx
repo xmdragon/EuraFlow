@@ -6,17 +6,12 @@ import {
   SyncOutlined,
   PrinterOutlined,
   TruckOutlined,
-  DownloadOutlined,
   SearchOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ShoppingCartOutlined,
-  PhoneOutlined,
-  EnvironmentOutlined,
   FileTextOutlined,
-  MoreOutlined,
-  SendOutlined,
   CopyOutlined,
   LinkOutlined,
   CloseOutlined,
@@ -26,28 +21,20 @@ import {
   Button,
   Space,
   Card,
-  Row,
-  Col,
-  Statistic,
   Input,
   Select,
   Tag,
   Modal,
   DatePicker,
   Tooltip,
-  Badge,
   Descriptions,
   Tabs,
   Form,
   Alert,
-  Dropdown,
   Typography,
   Progress,
   Avatar,
-  Flex,
   Table,
-  InputNumber,
-  Divider,
   Checkbox,
   Spin,
   notification,
@@ -56,13 +43,12 @@ import moment from 'moment';
 import React, { useState, useEffect } from 'react';
 
 import { useCurrency } from '../../hooks/useCurrency';
-import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
+import { formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 
 import styles from './PackingShipment.module.scss';
 
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
-import ExtraInfoForm from '@/components/ozon/packing/ExtraInfoForm';
 import OrderCardComponent, { type OrderCard } from '@/components/ozon/packing/OrderCardComponent';
 import PackingSearchBar from '@/components/ozon/packing/PackingSearchBar';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
@@ -92,7 +78,7 @@ interface OrderItemRow {
 }
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
-  const { currency: userCurrency, symbol: userSymbol } = useCurrency();
+  const { currency: userCurrency } = useCurrency();
   const { canOperate, canSync } = usePermission();
 
   // 状态管理 - 分页和滚动加载

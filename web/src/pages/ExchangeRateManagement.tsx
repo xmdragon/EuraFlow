@@ -28,7 +28,7 @@ import {
   Spin,
   Alert,
 } from 'antd';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   LineChart,
   Line,
@@ -57,9 +57,6 @@ const ExchangeRateManagement: React.FC = () => {
   // 货币转换状态
   const [cnyAmount, setCnyAmount] = useState<string>('');
   const [rubAmount, setRubAmount] = useState<string>('');
-  const [convertDirection, setConvertDirection] = useState<'cny_to_rub' | 'rub_to_cny'>(
-    'cny_to_rub'
-  );
 
   // 趋势图时间范围
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
@@ -71,11 +68,7 @@ const ExchangeRateManagement: React.FC = () => {
   });
 
   // 获取当前汇率
-  const {
-    data: currentRate,
-    isLoading: rateLoading,
-    refetch: refetchRate,
-  } = useQuery({
+  const { data: currentRate, isLoading: rateLoading } = useQuery({
     queryKey: ['exchange-rate', 'current'],
     queryFn: () => exchangeRateApi.getExchangeRate('CNY', 'RUB'),
     enabled: config?.configured === true,

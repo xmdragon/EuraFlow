@@ -3,29 +3,17 @@
  * Ozon 商品列表页面
  */
 import {
-  ReloadOutlined,
   UploadOutlined,
-  DownloadOutlined,
   EditOutlined,
   DeleteOutlined,
   SyncOutlined,
   DollarOutlined,
   ShoppingOutlined,
   SettingOutlined,
-  ExclamationCircleOutlined,
   SearchOutlined,
   FileImageOutlined,
-  PictureOutlined,
-  RollbackOutlined,
   EllipsisOutlined,
   LinkOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined,
-  WarningOutlined,
-  InfoCircleOutlined,
-  FileOutlined,
-  PlusOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,14 +23,12 @@ import {
   Card,
   Row,
   Col,
-  Statistic,
   Input,
   Select,
   Tag,
   Dropdown,
   Modal,
   Tooltip,
-  Badge,
   Switch,
   InputNumber,
   Form,
@@ -63,7 +49,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
-  formatRuble,
   calculateMargin,
   formatPriceWithCurrency,
   getCurrencySymbol,

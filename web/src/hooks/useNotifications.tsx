@@ -55,7 +55,7 @@ export const useNotifications = (shopId: number | null) => {
         audio.play().catch(() => {
           // 忽略自动播放被阻止的错误
         });
-      } catch (error) {
+      } catch {
         // 忽略音效错误
       }
     },
@@ -127,7 +127,7 @@ export const useNotifications = (shopId: number | null) => {
         audio.play().catch(() => {
           // 忽略自动播放被阻止的错误
         });
-      } catch (error) {
+      } catch {
         // 忽略音效错误
       }
 

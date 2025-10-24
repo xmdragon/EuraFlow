@@ -17,7 +17,7 @@ export interface Product {
 export interface PriceEditModalProps {
   visible: boolean;
   onCancel: () => void;
-  onSubmit: (updates: any[]) => void;
+  onSubmit: (data: any[]) => void;
   selectedProduct?: Product | null;
   selectedRows?: Product[];
   loading?: boolean;

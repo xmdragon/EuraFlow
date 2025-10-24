@@ -30,19 +30,18 @@ export interface OrderCardComponentProps {
   selectedPostingNumbers: string[];
   userCurrency: string;
   statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }>;
-  operationStatusConfig: Record<string, { color: string; text: string }>;
   operationStatus: string;
-  formatPrice: (price: any) => string;
-  formatDeliveryMethodText: (method: string | undefined) => React.ReactNode;
-  onCopy: (text: string | undefined, label: string) => void;
-  onShowDetail: (order: ozonApi.Order, posting: ozonApi.Posting) => void;
-  onOpenImagePreview: (url: string) => void;
-  onOpenPriceHistory: (sku: string, productName: string) => void;
-  onPrepareStock: (posting: ozonApi.PostingWithOrder) => void;
-  onUpdateBusinessInfo: (posting: ozonApi.PostingWithOrder) => void;
-  onSubmitTracking: (posting: ozonApi.PostingWithOrder) => void;
-  onDiscardOrder: (postingNumber: string) => void;
-  onCheckboxChange: (postingNumber: string, checked: boolean) => void;
+  formatPrice: (priceValue: any) => string;
+  formatDeliveryMethodText: (deliveryMethod: string | undefined) => React.ReactNode;
+  onCopy: (textToCopy: string | undefined, copyLabel: string) => void;
+  onShowDetail: (orderData: ozonApi.Order, postingData: ozonApi.Posting) => void;
+  onOpenImagePreview: (imageUrl: string) => void;
+  onOpenPriceHistory: (productSku: string, productTitle: string) => void;
+  onPrepareStock: (postingData: ozonApi.PostingWithOrder) => void;
+  onUpdateBusinessInfo: (postingData: ozonApi.PostingWithOrder) => void;
+  onSubmitTracking: (postingData: ozonApi.PostingWithOrder) => void;
+  onDiscardOrder: (posting: string) => void;
+  onCheckboxChange: (posting: string, isChecked: boolean) => void;
   canOperate: boolean;
 }
 
@@ -55,7 +54,6 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     selectedPostingNumbers,
     userCurrency,
     statusConfig,
-    operationStatusConfig,
     operationStatus,
     formatPrice,
     formatDeliveryMethodText,
@@ -124,313 +122,321 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
           size="small"
           className={styles.orderCard}
           cover={
-          <div className={styles.orderCover}>
-            {/* 复选框 - 左上角 */}
-            {posting.status === 'awaiting_deliver' && (
-              <Checkbox
-                className={styles.orderCheckbox}
-                checked={isSelected}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  onCheckboxChange(posting.posting_number, e.target.checked);
-                }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-
-            {/* 商品图片 */}
-            {imageUrl ? (
-              <>
-                <img
-                  src={imageUrl}
-                  alt={product?.name || product?.sku || '商品图片'}
-                  className={styles.orderImage}
-                  onClick={() => onOpenImagePreview(optimizeOzonImageUrl(imageUrl, 800))}
+            <div className={styles.orderCover}>
+              {/* 复选框 - 左上角 */}
+              {posting.status === 'awaiting_deliver' && (
+                <Checkbox
+                  className={styles.orderCheckbox}
+                  checked={isSelected}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onCheckboxChange(posting.posting_number, e.target.checked);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                 />
-                {ozonProductUrl && (
-                  <Tooltip title="打开OZON链接" color="#000" overlayInnerStyle={{ color: '#fff' }}>
-                    <div
-                      className={styles.linkIconOverlay}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
-                      }}
-                    >
-                      <LinkOutlined />
-                    </div>
-                  </Tooltip>
-                )}
-              </>
-            ) : (
-              <Avatar
-                size={160}
-                icon={<ShoppingCartOutlined />}
-                shape="square"
-                className={styles.orderImagePlaceholder}
-              />
-            )}
-          </div>
-        }
-      >
-        <div className={styles.orderCardBody}>
-          {/* 店铺 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              店铺:
-            </Text>
-            <Tooltip title={shopName}>
-              <span className={styles.value}>{shopName}</span>
-            </Tooltip>
-          </div>
+              )}
 
-          {/* SKU */}
-          {product?.sku && (
-            <div className={styles.skuRow}>
+              {/* 商品图片 */}
+              {imageUrl ? (
+                <>
+                  <img
+                    src={imageUrl}
+                    alt={product?.name || product?.sku || '商品图片'}
+                    className={styles.orderImage}
+                    onClick={() => onOpenImagePreview(optimizeOzonImageUrl(imageUrl, 800))}
+                  />
+                  {ozonProductUrl && (
+                    <Tooltip
+                      title="打开OZON链接"
+                      color="#000"
+                      overlayInnerStyle={{ color: '#fff' }}
+                    >
+                      <div
+                        className={styles.linkIconOverlay}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        <LinkOutlined />
+                      </div>
+                    </Tooltip>
+                  )}
+                </>
+              ) : (
+                <Avatar
+                  size={160}
+                  icon={<ShoppingCartOutlined />}
+                  shape="square"
+                  className={styles.orderImagePlaceholder}
+                />
+              )}
+            </div>
+          }
+        >
+          <div className={styles.orderCardBody}>
+            {/* 店铺 */}
+            <div className={styles.infoRow}>
               <Text type="secondary" className={styles.label}>
-                SKU:
+                店铺:
               </Text>
-              <a
-                onClick={() => onOpenPriceHistory(product.sku, product.name || '')}
-                className={styles.link}
-              >
-                {product.sku}
+              <Tooltip title={shopName}>
+                <span className={styles.value}>{shopName}</span>
+              </Tooltip>
+            </div>
+
+            {/* SKU */}
+            {product?.sku && (
+              <div className={styles.skuRow}>
+                <Text type="secondary" className={styles.label}>
+                  SKU:
+                </Text>
+                <a
+                  onClick={() => onOpenPriceHistory(product.sku, product.name || '')}
+                  className={styles.link}
+                >
+                  {product.sku}
+                </a>
+                <CopyOutlined
+                  className={styles.copyIcon}
+                  onClick={() => onCopy(product.sku, 'SKU')}
+                />
+              </div>
+            )}
+
+            {/* 数量 */}
+            {product && (
+              <div className={styles.infoRow}>
+                <Text type="secondary" className={styles.label}>
+                  数量:
+                </Text>
+                <Text
+                  className={(product.quantity || 1) > 1 ? styles.quantityHighlight : styles.value}
+                >
+                  X {product.quantity || 1}
+                </Text>
+              </div>
+            )}
+
+            {/* 单价 */}
+            {product && (
+              <div className={styles.infoRow}>
+                <Text type="secondary" className={styles.label}>
+                  单价:
+                </Text>
+                <span className={styles.price}>
+                  {symbol} {formatPrice(product.price || 0)}
+                </span>
+              </div>
+            )}
+
+            {/* 进价 */}
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>
+                进价:
+              </Text>
+              {purchasePrice && parseFloat(purchasePrice) > 0 ? (
+                <span className={styles.price}>
+                  {symbol} {formatPrice(purchasePrice)}
+                </span>
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
+            </div>
+
+            {/* 平台 */}
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>
+                平台:
+              </Text>
+              <Text className={styles.value}>{sourcePlatform || '-'}</Text>
+            </div>
+
+            {/* 货件 */}
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>
+                货件:
+              </Text>
+              <a onClick={() => onShowDetail(order, posting)} className={styles.link}>
+                {posting.posting_number}
               </a>
               <CopyOutlined
                 className={styles.copyIcon}
-                onClick={() => onCopy(product.sku, 'SKU')}
+                onClick={() => onCopy(posting.posting_number, '货件编号')}
               />
             </div>
-          )}
 
-          {/* 数量 */}
-          {product && (
+            {/* 追踪 */}
             <div className={styles.infoRow}>
               <Text type="secondary" className={styles.label}>
-                数量:
+                追踪:
               </Text>
-              <Text
-                className={(product.quantity || 1) > 1 ? styles.quantityHighlight : styles.value}
+              {trackingNumber ? (
+                <>
+                  <span className={styles.value}>{trackingNumber}</span>
+                  <CopyOutlined
+                    className={styles.copyIcon}
+                    onClick={() => onCopy(trackingNumber, '追踪号码')}
+                  />
+                </>
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
+            </div>
+
+            {/* 国内 */}
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>
+                国内:
+              </Text>
+              {domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
+                <div style={{ flex: 1 }}>
+                  {domesticTrackingNumbers.map((number, index) => (
+                    <div key={index}>
+                      <span className={styles.value}>{number}</span>
+                      <CopyOutlined
+                        className={styles.copyIcon}
+                        onClick={() => onCopy(number, '国内单号')}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
+            </div>
+
+            {/* 配送 */}
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>
+                配送:
+              </Text>
+              <Tooltip
+                title={formatDeliveryMethodText(deliveryMethod)}
+                overlayInnerStyle={{ color: '#fff' }}
               >
-                X {product.quantity || 1}
-              </Text>
+                <span className={styles.value}>{shortDeliveryMethod}</span>
+              </Tooltip>
             </div>
-          )}
 
-          {/* 单价 */}
-          {product && (
+            {/* 状态（始终显示 OZON 原生状态） */}
             <div className={styles.infoRow}>
               <Text type="secondary" className={styles.label}>
-                单价:
+                状态:
               </Text>
-              <span className={styles.price}>
-                {symbol} {formatPrice(product.price || 0)}
+              <Tag color={status.color} className={styles.statusTag}>
+                {status.text}
+              </Tag>
+            </div>
+
+            {/* 下单 */}
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>
+                下单:
+              </Text>
+              <Text className={styles.value}>
+                {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
+              </Text>
+            </div>
+
+            {/* 截止 */}
+            <div className={styles.infoRow}>
+              <Text type="secondary" className={styles.label}>
+                截止:
+              </Text>
+              <span className={styles.deadline}>
+                {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
               </span>
             </div>
-          )}
 
-          {/* 进价 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              进价:
-            </Text>
-            {purchasePrice && parseFloat(purchasePrice) > 0 ? (
-              <span className={styles.price}>
-                {symbol} {formatPrice(purchasePrice)}
-              </span>
-            ) : (
-              <Text type="secondary" className={styles.value}>
-                -
-              </Text>
-            )}
-          </div>
-
-          {/* 平台 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              平台:
-            </Text>
-            <Text className={styles.value}>{sourcePlatform || '-'}</Text>
-          </div>
-
-          {/* 货件 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              货件:
-            </Text>
-            <a onClick={() => onShowDetail(order, posting)} className={styles.link}>
-              {posting.posting_number}
-            </a>
-            <CopyOutlined
-              className={styles.copyIcon}
-              onClick={() => onCopy(posting.posting_number, '货件编号')}
-            />
-          </div>
-
-          {/* 追踪 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              追踪:
-            </Text>
-            {trackingNumber ? (
-              <>
-                <span className={styles.value}>{trackingNumber}</span>
-                <CopyOutlined
-                  className={styles.copyIcon}
-                  onClick={() => onCopy(trackingNumber, '追踪号码')}
-                />
-              </>
-            ) : (
-              <Text type="secondary" className={styles.value}>
-                -
-              </Text>
-            )}
-          </div>
-
-          {/* 国内 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              国内:
-            </Text>
-            {domesticTrackingNumbers && domesticTrackingNumbers.length > 0 ? (
-              <div style={{ flex: 1 }}>
-                {domesticTrackingNumbers.map((number, index) => (
-                  <div key={index}>
-                    <span className={styles.value}>{number}</span>
-                    <CopyOutlined
-                      className={styles.copyIcon}
-                      onClick={() => onCopy(number, '国内单号')}
-                    />
-                  </div>
-                ))}
+            {/* 操作按钮 */}
+            {canOperate && (
+              <div className={styles.actionButtons}>
+                {currentStatus === 'awaiting_stock' && (
+                  <Space size="small">
+                    <Button type="primary" size="small" onClick={() => onPrepareStock(posting)}>
+                      备货
+                    </Button>
+                    <Button
+                      type="default"
+                      size="small"
+                      onClick={() => onDiscardOrder(posting.posting_number)}
+                      danger
+                    >
+                      废弃
+                    </Button>
+                  </Space>
+                )}
+                {currentStatus === 'allocating' && (
+                  <Space size="small">
+                    <Button
+                      type="default"
+                      size="small"
+                      onClick={() => onUpdateBusinessInfo(posting)}
+                    >
+                      备注
+                    </Button>
+                    <Button
+                      type="default"
+                      size="small"
+                      onClick={() => onDiscardOrder(posting.posting_number)}
+                      danger
+                    >
+                      废弃
+                    </Button>
+                  </Space>
+                )}
+                {currentStatus === 'allocated' && (
+                  <Space size="small">
+                    <Button type="primary" size="small" onClick={() => onSubmitTracking(posting)}>
+                      国内单号
+                    </Button>
+                    <Button
+                      type="default"
+                      size="small"
+                      onClick={() => onDiscardOrder(posting.posting_number)}
+                      danger
+                    >
+                      废弃
+                    </Button>
+                  </Space>
+                )}
+                {currentStatus === 'tracking_confirmed' && (
+                  <Space size="small">
+                    <Tag color="success">已完成</Tag>
+                    <Button
+                      type="default"
+                      size="small"
+                      onClick={() => onDiscardOrder(posting.posting_number)}
+                      danger
+                    >
+                      废弃
+                    </Button>
+                  </Space>
+                )}
+                {currentStatus === 'printed' && (
+                  <Space size="small">
+                    <Tag color="success">已打印</Tag>
+                    <Button
+                      type="default"
+                      size="small"
+                      onClick={() => onDiscardOrder(posting.posting_number)}
+                      danger
+                    >
+                      废弃
+                    </Button>
+                  </Space>
+                )}
               </div>
-            ) : (
-              <Text type="secondary" className={styles.value}>
-                -
-              </Text>
             )}
           </div>
-
-          {/* 配送 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              配送:
-            </Text>
-            <Tooltip
-              title={formatDeliveryMethodText(deliveryMethod)}
-              overlayInnerStyle={{ color: '#fff' }}
-            >
-              <span className={styles.value}>{shortDeliveryMethod}</span>
-            </Tooltip>
-          </div>
-
-          {/* 状态（始终显示 OZON 原生状态） */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              状态:
-            </Text>
-            <Tag color={status.color} className={styles.statusTag}>
-              {status.text}
-            </Tag>
-          </div>
-
-          {/* 下单 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              下单:
-            </Text>
-            <Text className={styles.value}>
-              {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
-            </Text>
-          </div>
-
-          {/* 截止 */}
-          <div className={styles.infoRow}>
-            <Text type="secondary" className={styles.label}>
-              截止:
-            </Text>
-            <span className={styles.deadline}>
-              {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
-            </span>
-          </div>
-
-          {/* 操作按钮 */}
-          {canOperate && (
-            <div className={styles.actionButtons}>
-              {currentStatus === 'awaiting_stock' && (
-                <Space size="small">
-                  <Button type="primary" size="small" onClick={() => onPrepareStock(posting)}>
-                    备货
-                  </Button>
-                  <Button
-                    type="default"
-                    size="small"
-                    onClick={() => onDiscardOrder(posting.posting_number)}
-                    danger
-                  >
-                    废弃
-                  </Button>
-                </Space>
-              )}
-              {currentStatus === 'allocating' && (
-                <Space size="small">
-                  <Button type="default" size="small" onClick={() => onUpdateBusinessInfo(posting)}>
-                    备注
-                  </Button>
-                  <Button
-                    type="default"
-                    size="small"
-                    onClick={() => onDiscardOrder(posting.posting_number)}
-                    danger
-                  >
-                    废弃
-                  </Button>
-                </Space>
-              )}
-              {currentStatus === 'allocated' && (
-                <Space size="small">
-                  <Button type="primary" size="small" onClick={() => onSubmitTracking(posting)}>
-                    国内单号
-                  </Button>
-                  <Button
-                    type="default"
-                    size="small"
-                    onClick={() => onDiscardOrder(posting.posting_number)}
-                    danger
-                  >
-                    废弃
-                  </Button>
-                </Space>
-              )}
-              {currentStatus === 'tracking_confirmed' && (
-                <Space size="small">
-                  <Tag color="success">已完成</Tag>
-                  <Button
-                    type="default"
-                    size="small"
-                    onClick={() => onDiscardOrder(posting.posting_number)}
-                    danger
-                  >
-                    废弃
-                  </Button>
-                </Space>
-              )}
-              {currentStatus === 'printed' && (
-                <Space size="small">
-                  <Tag color="success">已打印</Tag>
-                  <Button
-                    type="default"
-                    size="small"
-                    onClick={() => onDiscardOrder(posting.posting_number)}
-                    danger
-                  >
-                    废弃
-                  </Button>
-                </Space>
-              )}
-            </div>
-          )}
-        </div>
-      </Card>
+        </Card>
       </Tooltip>
     );
   },
@@ -450,7 +456,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
 
     // 如果任何相关 props 变化，返回 false 以触发重新渲染
     return !cardChanged && !otherPropsChanged;
-  },
+  }
 );
 
 OrderCardComponent.displayName = 'OrderCardComponent';

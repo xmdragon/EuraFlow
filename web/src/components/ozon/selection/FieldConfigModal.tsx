@@ -41,8 +41,8 @@ export const defaultFieldConfig: FieldConfig = {
 export interface FieldConfigModalProps {
   visible: boolean;
   fieldConfig: FieldConfig;
-  onFieldConfigChange: (config: FieldConfig) => void;
-  onSave: (config: FieldConfig) => void;
+  onFieldConfigChange: (newConfig: FieldConfig) => void;
+  onSave: (configToSave: FieldConfig) => void;
   onReset: () => void;
   onCancel: () => void;
 }

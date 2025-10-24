@@ -51,7 +51,6 @@ const ProductCreate: React.FC = () => {
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [categoryTree, setCategoryTree] = useState<CategoryOption[]>([]);
-  const [categoryLoading, setCategoryLoading] = useState(false);
   const [hasCategoryData, setHasCategoryData] = useState(false);
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
