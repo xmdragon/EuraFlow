@@ -4,7 +4,6 @@
 import {
   PlusOutlined,
   DeleteOutlined,
-  CopyOutlined,
   ReloadOutlined,
   KeyOutlined,
   SafetyOutlined,
@@ -24,7 +23,6 @@ import {
   Popconfirm,
   Tooltip,
   Empty,
-  Spin,
 } from 'antd';
 import React, { useState, useEffect } from 'react';
 

@@ -25,7 +25,6 @@ import {
   Statistic,
   InputNumber,
   Segmented,
-  Switch,
   Spin,
   Alert,
 } from 'antd';

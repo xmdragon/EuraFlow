@@ -235,8 +235,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
   };
 
-  // 订单备注组件（可复用）
-  const OrderNotesSection: React.FC = () => (
+  // 订单备注区域渲染函数
+  const renderOrderNotesSection = () => (
     <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
       <div style={{ marginBottom: 8 }}>
         <Text strong>订单备注</Text>
@@ -307,81 +307,83 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               label: '基本信息',
               key: '1',
               children: (
-                <Descriptions bordered column={2} labelStyle={{ width: '120px' }}>
-                  <Descriptions.Item label="Ozon订单号">
-                    {selectedOrder.ozon_order_id || selectedOrder.order_id}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="状态">
-                    <Tag
-                      color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}
-                    >
-                      {statusConfig[selectedPosting?.status || selectedOrder.status]?.text}
-                    </Tag>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="总金额">
-                    {formatPriceWithFallback(
-                      selectedOrder.total_price || selectedOrder.total_amount,
-                      selectedOrder.currency_code,
-                      userCurrency
-                    )}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="进货价格">
-                    {selectedOrder.purchase_price
-                      ? formatPriceWithFallback(
-                          selectedOrder.purchase_price,
-                          selectedOrder.currency_code,
-                          userCurrency
-                        )
-                      : '-'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="国内单号">
-                    {selectedPosting?.domestic_tracking_numbers &&
-                    selectedPosting.domestic_tracking_numbers.length > 0 ? (
-                      <div>
-                        {selectedPosting.domestic_tracking_numbers.map((number, index) => (
-                          <div
-                            key={index}
-                            style={{
-                              marginBottom:
-                                index < selectedPosting.domestic_tracking_numbers.length - 1
-                                  ? '4px'
-                                  : 0,
-                            }}
-                          >
-                            <Space>
-                              <span>{number}</span>
-                              <CopyOutlined
-                                style={{
-                                  cursor: 'pointer',
-                                  color: '#1890ff',
-                                }}
-                                onClick={() => handleCopy(number, '国内单号')}
-                              />
-                            </Space>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      '-'
-                    )}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="国际单号">
-                    {selectedPosting?.posting_number || selectedOrder.posting_number || '-'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="下单时间">
-                    {selectedOrder.ordered_at
-                      ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')
-                      : selectedOrder.created_at
-                        ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss')
+                <>
+                  <Descriptions bordered column={2} labelStyle={{ width: '120px' }}>
+                    <Descriptions.Item label="Ozon订单号">
+                      {selectedOrder.ozon_order_id || selectedOrder.order_id}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="状态">
+                      <Tag
+                        color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}
+                      >
+                        {statusConfig[selectedPosting?.status || selectedOrder.status]?.text}
+                      </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="总金额">
+                      {formatPriceWithFallback(
+                        selectedOrder.total_price || selectedOrder.total_amount,
+                        selectedOrder.currency_code,
+                        userCurrency
+                      )}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="进货价格">
+                      {selectedOrder.purchase_price
+                        ? formatPriceWithFallback(
+                            selectedOrder.purchase_price,
+                            selectedOrder.currency_code,
+                            userCurrency
+                          )
                         : '-'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="发货截止">
-                    {selectedPosting?.shipment_date
-                      ? moment(selectedPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss')
-                      : '-'}
-                  </Descriptions.Item>
-                </Descriptions>
-                <OrderNotesSection />
+                    </Descriptions.Item>
+                    <Descriptions.Item label="国内单号">
+                      {selectedPosting?.domestic_tracking_numbers &&
+                      selectedPosting.domestic_tracking_numbers.length > 0 ? (
+                        <div>
+                          {selectedPosting.domestic_tracking_numbers.map((number, index) => (
+                            <div
+                              key={index}
+                              style={{
+                                marginBottom:
+                                  index < selectedPosting.domestic_tracking_numbers.length - 1
+                                    ? '4px'
+                                    : 0,
+                              }}
+                            >
+                              <Space>
+                                <span>{number}</span>
+                                <CopyOutlined
+                                  style={{
+                                    cursor: 'pointer',
+                                    color: '#1890ff',
+                                  }}
+                                  onClick={() => handleCopy(number, '国内单号')}
+                                />
+                              </Space>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        '-'
+                      )}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="国际单号">
+                      {selectedPosting?.posting_number || selectedOrder.posting_number || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="下单时间">
+                      {selectedOrder.ordered_at
+                        ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')
+                        : selectedOrder.created_at
+                          ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss')
+                          : '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="发货截止">
+                      {selectedPosting?.shipment_date
+                        ? moment(selectedPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss')
+                        : '-'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                  {renderOrderNotesSection()}
+                </>
               ),
             },
             {
@@ -468,7 +470,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     },
                   ]}
                   />
-                  <OrderNotesSection />
+                  {renderOrderNotesSection()}
                 </>
               ),
             },
@@ -553,7 +555,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </Descriptions>
                 </Card>
                   ))}
-                  <OrderNotesSection />
+                  {renderOrderNotesSection()}
                 </>
               ),
             },
@@ -859,7 +861,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                   </Descriptions>
-                  <OrderNotesSection />
+                  {renderOrderNotesSection()}
                 );
               })(),
             },
