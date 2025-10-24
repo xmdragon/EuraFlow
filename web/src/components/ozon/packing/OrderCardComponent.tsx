@@ -471,13 +471,13 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                 ) : (
                   <div style={{ textAlign: 'center', padding: '8px 0' }}>
                     <Space size="small">
-                      <Text type="secondary">主单号:</Text>
+                      <Text type="secondary">单号:</Text>
                       <a onClick={() => onShowDetail(order, posting)} className={styles.link}>
                         {posting.posting_number}
                       </a>
                       <CopyOutlined
                         style={{ cursor: 'pointer', color: '#1890ff' }}
-                        onClick={() => onCopy(posting.posting_number, '主单号')}
+                        onClick={() => onCopy(posting.posting_number, '单号')}
                       />
                     </Space>
                   </div>
