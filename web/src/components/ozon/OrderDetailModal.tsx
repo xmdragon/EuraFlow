@@ -333,9 +333,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       {localOrder.ozon_order_id || localOrder.order_id}
                     </Descriptions.Item>
                     <Descriptions.Item label="状态">
-                      <Tag
-                        color={statusConfig[localPosting?.status || localOrder.status]?.color}
-                      >
+                      <Tag color={statusConfig[localPosting?.status || localOrder.status]?.color}>
                         {statusConfig[localPosting?.status || localOrder.status]?.text}
                       </Tag>
                     </Descriptions.Item>
@@ -416,79 +414,84 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     rowKey="sku"
                     pagination={false}
                     columns={[
-                    {
-                      title: '图片',
-                      dataIndex: 'sku',
-                      key: 'image',
-                      width: 80,
-                      render: (sku, record) => {
-                        const rawImageUrl =
-                          record.image ||
-                          (record.offer_id && offerIdImageMap[record.offer_id]
-                            ? offerIdImageMap[record.offer_id]
-                            : undefined);
-                        const imageUrl = optimizeOzonImageUrl(rawImageUrl, 60);
-                        return imageUrl ? (
-                          <Avatar
-                            src={imageUrl}
-                            size={60}
-                            shape="square"
-                            className={styles.productImage}
-                          />
-                        ) : (
-                          <Avatar
-                            icon={<ShoppingCartOutlined />}
-                            size={60}
-                            shape="square"
-                            className={styles.productImagePlaceholder}
-                          />
-                        );
-                      },
-                    },
-                    { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 120 },
-                    {
-                      title: '商品名称',
-                      dataIndex: 'name',
-                      key: 'name',
-                      render: (name, record) => {
-                        if (record.sku) {
-                          return (
-                            <a
-                              href={`https://www.ozon.ru/product/${record.sku}/`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={styles.link}
-                            >
-                              {name || record.sku}
-                            </a>
+                      {
+                        title: '图片',
+                        dataIndex: 'sku',
+                        key: 'image',
+                        width: 80,
+                        render: (sku, record) => {
+                          const rawImageUrl =
+                            record.image ||
+                            (record.offer_id && offerIdImageMap[record.offer_id]
+                              ? offerIdImageMap[record.offer_id]
+                              : undefined);
+                          const imageUrl = optimizeOzonImageUrl(rawImageUrl, 60);
+                          return imageUrl ? (
+                            <Avatar
+                              src={imageUrl}
+                              size={60}
+                              shape="square"
+                              className={styles.productImage}
+                            />
+                          ) : (
+                            <Avatar
+                              icon={<ShoppingCartOutlined />}
+                              size={60}
+                              shape="square"
+                              className={styles.productImagePlaceholder}
+                            />
                           );
-                        }
-                        return name || record.sku;
+                        },
                       },
-                    },
-                    {
-                      title: '数量',
-                      dataIndex: 'quantity',
-                      key: 'quantity',
-                      width: 80,
-                    },
-                    {
-                      title: '单价',
-                      dataIndex: 'price',
-                      key: 'price',
-                      width: 100,
-                      render: (price) =>
-                        formatPriceWithFallback(price, localOrder?.currency_code, userCurrency),
-                    },
-                    {
-                      title: '小计',
-                      dataIndex: 'total_amount',
-                      key: 'total_amount',
-                      width: 100,
-                      render: (amount) =>
-                        formatPriceWithFallback(amount, localOrder?.currency_code, userCurrency),
-                    },
-                  ]}
+                      {
+                        title: 'SKU',
+                        dataIndex: 'sku',
+                        key: 'sku',
+                        width: 120,
+                      },
+                      {
+                        title: '商品名称',
+                        dataIndex: 'name',
+                        key: 'name',
+                        render: (name, record) => {
+                          if (record.sku) {
+                            return (
+                              <a
+                                href={`https://www.ozon.ru/product/${record.sku}/`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.link}
+                              >
+                                {name || record.sku}
+                              </a>
+                            );
+                          }
+                          return name || record.sku;
+                        },
+                      },
+                      {
+                        title: '数量',
+                        dataIndex: 'quantity',
+                        key: 'quantity',
+                        width: 80,
+                      },
+                      {
+                        title: '单价',
+                        dataIndex: 'price',
+                        key: 'price',
+                        width: 100,
+                        render: (price) =>
+                          formatPriceWithFallback(price, localOrder?.currency_code, userCurrency),
+                      },
+                      {
+                        title: '小计',
+                        dataIndex: 'total_amount',
+                        key: 'total_amount',
+                        width: 100,
+                        render: (amount) =>
+                          formatPriceWithFallback(amount, localOrder?.currency_code, userCurrency),
+                      },
+                    ]}
                   />
                   {renderOrderNotesSection()}
                 </>
@@ -500,80 +503,87 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               children: (
                 <>
                   {localOrder.postings?.map((posting) => (
-                <Card key={posting.id} className={styles.postingCard}>
-                  <Descriptions bordered size="small" column={1} labelStyle={{ width: '120px' }}>
-                    <Descriptions.Item label="Posting号">
-                      {posting.posting_number}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="状态">
-                      {statusConfig[posting.status]?.text || posting.status}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="仓库">
-                      {posting.warehouse_name || '-'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="订单类型">
-                      {localOrder.order_type || 'FBS'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="配送方式">
-                      {formatDeliveryMethodTextWhite(posting.delivery_method_name)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="国内单号">
-                      {posting.domestic_tracking_numbers &&
-                      posting.domestic_tracking_numbers.length > 0 ? (
-                        <div>
-                          {posting.domestic_tracking_numbers.map((number, index) => (
-                            <div
-                              key={index}
-                              style={{
-                                marginBottom:
-                                  index < posting.domestic_tracking_numbers.length - 1 ? '4px' : 0,
-                              }}
-                            >
-                              <Space>
-                                <span>{number}</span>
-                                <CopyOutlined
+                    <Card key={posting.id} className={styles.postingCard}>
+                      <Descriptions
+                        bordered
+                        size="small"
+                        column={1}
+                        labelStyle={{ width: '120px' }}
+                      >
+                        <Descriptions.Item label="Posting号">
+                          {posting.posting_number}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="状态">
+                          {statusConfig[posting.status]?.text || posting.status}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="仓库">
+                          {posting.warehouse_name || '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="订单类型">
+                          {localOrder.order_type || 'FBS'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="配送方式">
+                          {formatDeliveryMethodTextWhite(posting.delivery_method_name)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="国内单号">
+                          {posting.domestic_tracking_numbers &&
+                          posting.domestic_tracking_numbers.length > 0 ? (
+                            <div>
+                              {posting.domestic_tracking_numbers.map((number, index) => (
+                                <div
+                                  key={index}
                                   style={{
-                                    cursor: 'pointer',
-                                    color: '#1890ff',
+                                    marginBottom:
+                                      index < posting.domestic_tracking_numbers.length - 1
+                                        ? '4px'
+                                        : 0,
                                   }}
-                                  onClick={() => handleCopy(number, '国内单号')}
-                                />
-                              </Space>
+                                >
+                                  <Space>
+                                    <span>{number}</span>
+                                    <CopyOutlined
+                                      style={{
+                                        cursor: 'pointer',
+                                        color: '#1890ff',
+                                      }}
+                                      onClick={() => handleCopy(number, '国内单号')}
+                                    />
+                                  </Space>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="国际单号">
-                      {posting.packages && posting.packages.length > 0 ? (
-                        <div>
-                          {posting.packages.map((pkg, index) => (
-                            <div key={pkg.id || index} style={{ marginBottom: 4 }}>
-                              {pkg.tracking_number || '-'}
-                              {pkg.carrier_name && (
-                                <Text type="secondary"> ({pkg.carrier_name})</Text>
-                              )}
+                          ) : (
+                            '-'
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="国际单号">
+                          {posting.packages && posting.packages.length > 0 ? (
+                            <div>
+                              {posting.packages.map((pkg, index) => (
+                                <div key={pkg.id || index} style={{ marginBottom: 4 }}>
+                                  {pkg.tracking_number || '-'}
+                                  {pkg.carrier_name && (
+                                    <Text type="secondary"> ({pkg.carrier_name})</Text>
+                                  )}
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="发货时间">
-                      {posting.shipped_at
-                        ? moment(posting.shipped_at).format('YYYY-MM-DD HH:mm')
-                        : '-'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="送达时间">
-                      {posting.delivered_at
-                        ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm')
-                        : '-'}
-                    </Descriptions.Item>
-                  </Descriptions>
-                </Card>
+                          ) : (
+                            '-'
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="发货时间">
+                          {posting.shipped_at
+                            ? moment(posting.shipped_at).format('YYYY-MM-DD HH:mm')
+                            : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="送达时间">
+                          {posting.delivered_at
+                            ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm')
+                            : '-'}
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </Card>
                   ))}
                   {renderOrderNotesSection()}
                 </>
@@ -624,199 +634,127 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 return (
                   <>
                     <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
-                    <Descriptions.Item label="订单金额">
-                      {formatPriceWithFallback(
-                        localOrder.total_price || localOrder.total_amount,
-                        localOrder.currency_code,
-                        userCurrency
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="进货金额">
-                      {canEdit && isEditingPurchasePrice && canOperate ? (
-                        <Space>
-                          <InputNumber
-                            value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
-                            onChange={(value) => setEditPurchasePrice(value?.toString() || '')}
-                            placeholder="请输入进货金额"
-                            min={0}
-                            formatter={getNumberFormatter(2)}
-                            parser={getNumberParser()}
-                            style={{ width: 150 }}
-                            controls={false}
-                          />
-                          <Button
-                            type="primary"
-                            size="small"
-                            icon={<SaveOutlined />}
-                            loading={saving}
-                            onClick={handleSavePurchasePrice}
-                          >
-                            保存
-                          </Button>
-                          <Button
-                            size="small"
-                            icon={<CloseOutlined />}
-                            onClick={() => setIsEditingPurchasePrice(false)}
-                          >
-                            取消
-                          </Button>
-                        </Space>
-                      ) : (
-                        <Space>
-                          <Text>
-                            {localPosting?.purchase_price
-                              ? formatPriceWithFallback(
-                                  localPosting.purchase_price,
-                                  localOrder.currency_code,
-                                  userCurrency
-                                )
-                              : '-'}
-                          </Text>
-                          {canEdit && canOperate && (
-                            <Button
-                              type="link"
-                              size="small"
-                              icon={<EditOutlined />}
-                              onClick={() => {
-                                setEditPurchasePrice(localPosting?.purchase_price || '');
-                                setIsEditingPurchasePrice(true);
-                              }}
-                            >
-                              编辑
-                            </Button>
-                          )}
-                        </Space>
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="采购平台">
-                      {canEdit && isEditingSourcePlatform && canOperate ? (
-                        <Space>
-                          <Select
-                            value={editSourcePlatform}
-                            onChange={(value) => setEditSourcePlatform(value)}
-                            placeholder="请选择采购平台"
-                            style={{ width: 150 }}
-                            options={[
-                              { label: '1688', value: '1688' },
-                              { label: '拼多多', value: '拼多多' },
-                              { label: '咸鱼', value: '咸鱼' },
-                              { label: '淘宝', value: '淘宝' },
-                            ]}
-                          />
-                          <Button
-                            type="primary"
-                            size="small"
-                            icon={<SaveOutlined />}
-                            loading={saving}
-                            onClick={handleSaveSourcePlatform}
-                          >
-                            保存
-                          </Button>
-                          <Button
-                            size="small"
-                            icon={<CloseOutlined />}
-                            onClick={() => setIsEditingSourcePlatform(false)}
-                          >
-                            取消
-                          </Button>
-                        </Space>
-                      ) : (
-                        <Space>
-                          <Text>{localPosting?.source_platform || '-'}</Text>
-                          {canEdit && canOperate && (
-                            <Button
-                              type="link"
-                              size="small"
-                              icon={<EditOutlined />}
-                              onClick={() => {
-                                setEditSourcePlatform(localPosting?.source_platform || '');
-                                setIsEditingSourcePlatform(true);
-                              }}
-                            >
-                              编辑
-                            </Button>
-                          )}
-                        </Space>
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Ozon佣金">
-                      <Space>
-                        <Text>
-                          {localPosting?.ozon_commission_cny
-                            ? formatPriceWithFallback(
-                                localPosting.ozon_commission_cny,
-                                localOrder.currency_code,
-                                userCurrency
-                              )
-                            : '-'}
-                        </Text>
-                        {isDelivered && canSync && (
-                          <Button
-                            type="link"
-                            size="small"
-                            icon={<SyncOutlined spin={syncingFinance} />}
-                            loading={syncingFinance}
-                            onClick={handleSyncFinance}
-                          >
-                            同步
-                          </Button>
+                      <Descriptions.Item label="订单金额">
+                        {formatPriceWithFallback(
+                          localOrder.total_price || localOrder.total_amount,
+                          localOrder.currency_code,
+                          userCurrency
                         )}
-                      </Space>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="国际物流">
-                      {localPosting?.international_logistics_fee_cny
-                        ? formatPriceWithFallback(
-                            localPosting.international_logistics_fee_cny,
-                            localOrder.currency_code,
-                            userCurrency
-                          )
-                        : '-'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="尾程派送">
-                      {localPosting?.last_mile_delivery_fee_cny
-                        ? formatPriceWithFallback(
-                            localPosting.last_mile_delivery_fee_cny,
-                            localOrder.currency_code,
-                            userCurrency
-                          )
-                        : '-'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="打包费用">
-                      {isDelivered && isEditingMaterialCost && canOperate ? (
-                        <Space>
-                          <InputNumber
-                            value={editMaterialCost ? parseFloat(editMaterialCost) : undefined}
-                            onChange={(value) => setEditMaterialCost(value?.toString() || '')}
-                            placeholder="请输入打包费用"
-                            min={0}
-                            formatter={getNumberFormatter(2)}
-                            parser={getNumberParser()}
-                            style={{ width: 150 }}
-                            controls={false}
-                          />
-                          <Button
-                            type="primary"
-                            size="small"
-                            icon={<SaveOutlined />}
-                            loading={saving}
-                            onClick={handleSaveMaterialCost}
-                          >
-                            保存
-                          </Button>
-                          <Button
-                            size="small"
-                            icon={<CloseOutlined />}
-                            onClick={() => setIsEditingMaterialCost(false)}
-                          >
-                            取消
-                          </Button>
-                        </Space>
-                      ) : (
+                      </Descriptions.Item>
+                      <Descriptions.Item label="进货金额">
+                        {canEdit && isEditingPurchasePrice && canOperate ? (
+                          <Space>
+                            <InputNumber
+                              value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
+                              onChange={(value) => setEditPurchasePrice(value?.toString() || '')}
+                              placeholder="请输入进货金额"
+                              min={0}
+                              formatter={getNumberFormatter(2)}
+                              parser={getNumberParser()}
+                              style={{ width: 150 }}
+                              controls={false}
+                            />
+                            <Button
+                              type="primary"
+                              size="small"
+                              icon={<SaveOutlined />}
+                              loading={saving}
+                              onClick={handleSavePurchasePrice}
+                            >
+                              保存
+                            </Button>
+                            <Button
+                              size="small"
+                              icon={<CloseOutlined />}
+                              onClick={() => setIsEditingPurchasePrice(false)}
+                            >
+                              取消
+                            </Button>
+                          </Space>
+                        ) : (
+                          <Space>
+                            <Text>
+                              {localPosting?.purchase_price
+                                ? formatPriceWithFallback(
+                                    localPosting.purchase_price,
+                                    localOrder.currency_code,
+                                    userCurrency
+                                  )
+                                : '-'}
+                            </Text>
+                            {canEdit && canOperate && (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => {
+                                  setEditPurchasePrice(localPosting?.purchase_price || '');
+                                  setIsEditingPurchasePrice(true);
+                                }}
+                              >
+                                编辑
+                              </Button>
+                            )}
+                          </Space>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="采购平台">
+                        {canEdit && isEditingSourcePlatform && canOperate ? (
+                          <Space>
+                            <Select
+                              value={editSourcePlatform}
+                              onChange={(value) => setEditSourcePlatform(value)}
+                              placeholder="请选择采购平台"
+                              style={{ width: 150 }}
+                              options={[
+                                { label: '1688', value: '1688' },
+                                { label: '拼多多', value: '拼多多' },
+                                { label: '咸鱼', value: '咸鱼' },
+                                { label: '淘宝', value: '淘宝' },
+                              ]}
+                            />
+                            <Button
+                              type="primary"
+                              size="small"
+                              icon={<SaveOutlined />}
+                              loading={saving}
+                              onClick={handleSaveSourcePlatform}
+                            >
+                              保存
+                            </Button>
+                            <Button
+                              size="small"
+                              icon={<CloseOutlined />}
+                              onClick={() => setIsEditingSourcePlatform(false)}
+                            >
+                              取消
+                            </Button>
+                          </Space>
+                        ) : (
+                          <Space>
+                            <Text>{localPosting?.source_platform || '-'}</Text>
+                            {canEdit && canOperate && (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => {
+                                  setEditSourcePlatform(localPosting?.source_platform || '');
+                                  setIsEditingSourcePlatform(true);
+                                }}
+                              >
+                                编辑
+                              </Button>
+                            )}
+                          </Space>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Ozon佣金">
                         <Space>
                           <Text>
-                            {localPosting?.material_cost
+                            {localPosting?.ozon_commission_cny
                               ? formatPriceWithFallback(
-                                  localPosting.material_cost,
+                                  localPosting.ozon_commission_cny,
                                   localOrder.currency_code,
                                   userCurrency
                                 )
@@ -826,62 +764,134 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                             <Button
                               type="link"
                               size="small"
-                              icon={<SyncOutlined spin={syncingMaterialCost} />}
-                              loading={syncingMaterialCost}
-                              onClick={handleSyncMaterialCost}
+                              icon={<SyncOutlined spin={syncingFinance} />}
+                              loading={syncingFinance}
+                              onClick={handleSyncFinance}
                             >
                               同步
                             </Button>
                           )}
-                          {isDelivered && canOperate && (
-                            <Button
-                              type="link"
-                              size="small"
-                              icon={<EditOutlined />}
-                              onClick={() => {
-                                setEditMaterialCost(localPosting?.material_cost || '');
-                                setIsEditingMaterialCost(true);
-                              }}
-                            >
-                              编辑
-                            </Button>
-                          )}
                         </Space>
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="利润金额">
-                      {profitAmount !== null ? (
-                        <Text
-                          strong
-                          style={{
-                            color: profitAmount >= 0 ? '#52c41a' : '#ff4d4f',
-                          }}
-                        >
-                          {formatPriceWithFallback(
-                            profitAmount.toString(),
-                            localOrder.currency_code,
-                            userCurrency
-                          )}
-                        </Text>
-                      ) : (
-                        '-'
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="利润比率">
-                      {profitRate !== null ? (
-                        <Text
-                          strong
-                          style={{
-                            color: parseFloat(profitRate) >= 0 ? '#52c41a' : '#ff4d4f',
-                          }}
-                        >
-                          {profitRate}%
-                        </Text>
-                      ) : (
-                        '-'
-                      )}
-                    </Descriptions.Item>
-                  </Descriptions>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="国际物流">
+                        {localPosting?.international_logistics_fee_cny
+                          ? formatPriceWithFallback(
+                              localPosting.international_logistics_fee_cny,
+                              localOrder.currency_code,
+                              userCurrency
+                            )
+                          : '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="尾程派送">
+                        {localPosting?.last_mile_delivery_fee_cny
+                          ? formatPriceWithFallback(
+                              localPosting.last_mile_delivery_fee_cny,
+                              localOrder.currency_code,
+                              userCurrency
+                            )
+                          : '-'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="打包费用">
+                        {isDelivered && isEditingMaterialCost && canOperate ? (
+                          <Space>
+                            <InputNumber
+                              value={editMaterialCost ? parseFloat(editMaterialCost) : undefined}
+                              onChange={(value) => setEditMaterialCost(value?.toString() || '')}
+                              placeholder="请输入打包费用"
+                              min={0}
+                              formatter={getNumberFormatter(2)}
+                              parser={getNumberParser()}
+                              style={{ width: 150 }}
+                              controls={false}
+                            />
+                            <Button
+                              type="primary"
+                              size="small"
+                              icon={<SaveOutlined />}
+                              loading={saving}
+                              onClick={handleSaveMaterialCost}
+                            >
+                              保存
+                            </Button>
+                            <Button
+                              size="small"
+                              icon={<CloseOutlined />}
+                              onClick={() => setIsEditingMaterialCost(false)}
+                            >
+                              取消
+                            </Button>
+                          </Space>
+                        ) : (
+                          <Space>
+                            <Text>
+                              {localPosting?.material_cost
+                                ? formatPriceWithFallback(
+                                    localPosting.material_cost,
+                                    localOrder.currency_code,
+                                    userCurrency
+                                  )
+                                : '-'}
+                            </Text>
+                            {isDelivered && canSync && (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<SyncOutlined spin={syncingMaterialCost} />}
+                                loading={syncingMaterialCost}
+                                onClick={handleSyncMaterialCost}
+                              >
+                                同步
+                              </Button>
+                            )}
+                            {isDelivered && canOperate && (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => {
+                                  setEditMaterialCost(localPosting?.material_cost || '');
+                                  setIsEditingMaterialCost(true);
+                                }}
+                              >
+                                编辑
+                              </Button>
+                            )}
+                          </Space>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="利润金额">
+                        {profitAmount !== null ? (
+                          <Text
+                            strong
+                            style={{
+                              color: profitAmount >= 0 ? '#52c41a' : '#ff4d4f',
+                            }}
+                          >
+                            {formatPriceWithFallback(
+                              profitAmount.toString(),
+                              localOrder.currency_code,
+                              userCurrency
+                            )}
+                          </Text>
+                        ) : (
+                          '-'
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="利润比率">
+                        {profitRate !== null ? (
+                          <Text
+                            strong
+                            style={{
+                              color: parseFloat(profitRate) >= 0 ? '#52c41a' : '#ff4d4f',
+                            }}
+                          >
+                            {profitRate}%
+                          </Text>
+                        ) : (
+                          '-'
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
                     {renderOrderNotesSection()}
                   </>
                 );

@@ -17,17 +17,7 @@ import {
   CloudUploadOutlined,
   AppstoreOutlined,
 } from '@ant-design/icons';
-import {
-  Layout,
-  Menu,
-  Avatar,
-  Dropdown,
-  Typography,
-  Card,
-  Row,
-  Col,
-  Spin,
-} from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Typography, Card, Row, Col, Spin } from 'antd';
 import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
