@@ -60,7 +60,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
       // 关闭弹窗并重置表单
       handleClose();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       const errorMsg = error.response?.data?.message || error.message || '更新失败';
       notifyError('更新失败', errorMsg);
     },

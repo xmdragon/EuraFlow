@@ -9,6 +9,8 @@ import * as ozonApi from '@/services/ozonApi';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
+import type { FormValues } from '@/types/common';
+
 export const Kuajing84Configuration: React.FC = () => {
   const [configForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -25,7 +27,7 @@ export const Kuajing84Configuration: React.FC = () => {
   });
 
   const saveConfigMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: FormValues) => {
       return ozonApi.saveKuajing84Config({
         username: values.username,
         password: values.password,
@@ -37,7 +39,7 @@ export const Kuajing84Configuration: React.FC = () => {
       refetchConfig();
       configForm.setFieldsValue({ password: '' });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('保存失败', `保存失败: ${error.message}`);
     },
   });
@@ -63,7 +65,7 @@ export const Kuajing84Configuration: React.FC = () => {
       setTestingConnection(true);
       await ozonApi.testKuajing84Connection();
       notifySuccess('测试成功', '跨境巴士连接测试成功');
-    } catch (error: any) {
+    } catch (error) {
       notifyError('测试失败', `连接测试失败: ${error.message}`);
     } finally {
       setTestingConnection(false);

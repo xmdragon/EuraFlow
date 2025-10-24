@@ -48,6 +48,8 @@ import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
+import type { FormValues } from '@/types/common';
+
 const { Text, Paragraph, Title } = Typography;
 const { confirm } = Modal;
 
@@ -108,7 +110,7 @@ const ShopSettings: React.FC = () => {
 
   // 添加店铺
   const addShopMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: FormValues) => {
       return ozonApi.createShop({
         name: values.shop_name,
         shop_name_cn: values.shop_name_cn,
@@ -125,14 +127,14 @@ const ShopSettings: React.FC = () => {
       // 自动选择新添加的店铺
       setSelectedShop(data);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('添加失败', `添加失败: ${error.message}`);
     },
   });
 
   // 保存店铺配置
   const saveShopMutation = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: FormValues) => {
       if (!selectedShop) {
         throw new Error('请先选择要编辑的店铺');
       }
@@ -189,7 +191,7 @@ const ShopSettings: React.FC = () => {
         notifyInfo('提示', 'API Key 已安全保存（出于安全考虑不显示真实值）');
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('保存失败', `保存失败: ${error.message}`);
     },
   });
@@ -214,7 +216,7 @@ const ShopSettings: React.FC = () => {
       }
       setTestingConnection(false);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('测试失败', `连接测试失败: ${error.message}`);
       setTestingConnection(false);
     },
@@ -236,7 +238,7 @@ const ShopSettings: React.FC = () => {
         notifyWarning('同步失败', data.message || '同步失败');
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.response?.data?.detail || error.message}`);
     },
   });
@@ -267,7 +269,7 @@ const ShopSettings: React.FC = () => {
     }
   }, [selectedShop, form]);
 
-  const handleSave = (values: any) => {
+  const handleSave = (values: FormValues) => {
     if (!selectedShop) return;
 
     // Pass the values directly to the mutation
@@ -300,7 +302,7 @@ const ShopSettings: React.FC = () => {
           if (selectedShop?.id === shop.id) {
             setSelectedShop(null);
           }
-        } catch (error: any) {
+        } catch (error) {
           notifyError('删除失败', `删除失败: ${error.message}`);
         }
       },

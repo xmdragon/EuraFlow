@@ -14,6 +14,8 @@ import { getCurrencySymbol } from '@/utils/currency';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
+import type { FormValues } from '@/types/common';
+
 const { Option } = Select;
 
 export interface ExtraInfoFormProps {
@@ -24,7 +26,7 @@ export interface ExtraInfoFormProps {
   /** 设置更新加载状态 */
   setIsUpdatingExtraInfo: (_isLoading: boolean) => void;
   /** 同步到跨境巴士的 mutation */
-  syncToKuajing84Mutation: any;
+  syncToKuajing84Mutation: unknown;
   /** 是否有操作权限 */
   canOperate: boolean;
 }
@@ -62,7 +64,7 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
     }
   }, [selectedOrder, selectedPosting, form]);
 
-  const handleFinish = async (values: any) => {
+  const handleFinish = async (values: FormValues) => {
     try {
       setIsUpdatingExtraInfo(true);
 
@@ -77,7 +79,7 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
 
       // 刷新列表
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-    } catch (error: any) {
+    } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
         return;

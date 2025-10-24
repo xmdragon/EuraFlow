@@ -1,12 +1,12 @@
 /* eslint-disable no-unused-vars */
 /**
- * API Key管理页面
+ * API Key管理Tab
+ * 从 pages/ozon/ApiKeys.tsx 迁移而来
  */
 import {
   PlusOutlined,
   DeleteOutlined,
   ReloadOutlined,
-  KeyOutlined,
   SafetyOutlined,
 } from '@ant-design/icons';
 import {
@@ -34,18 +34,17 @@ import {
   regenerateAPIKey,
   APIKey,
   CreateAPIKeyRequest,
-} from '../../services/apiKeyService';
+} from '@/services/apiKeyService';
 
-import styles from './ApiKeys.module.scss';
+import styles from './ApiKeysTab.module.scss';
 
-import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text } = Typography;
 const { Option } = Select;
 
-const ApiKeys: React.FC = () => {
+const ApiKeysTab: React.FC = () => {
   const { canOperate } = usePermission();
   const [keys, setKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -224,22 +223,10 @@ const ApiKeys: React.FC = () => {
   ];
 
   return (
-    <div>
-      {/* 标题和操作 */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <PageTitle icon={<KeyOutlined />} title="API密钥管理" />
-          <div style={{ paddingLeft: 24, marginTop: -8 }}>
-            <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
-          </div>
-        </div>
+    <div className={styles.container}>
+      {/* 顶部说明和操作 */}
+      <div className={styles.header}>
+        <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
         {canOperate && (
           <Button
             type="primary"
@@ -392,4 +379,4 @@ const ApiKeys: React.FC = () => {
   );
 };
 
-export default ApiKeys;
+export default ApiKeysTab;

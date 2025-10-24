@@ -92,7 +92,7 @@ const ChatDetail: React.FC = () => {
       refetchMessages();
       notifySuccess('发送成功', '消息发送成功');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('发送失败', `发送失败: ${error.message}`);
     },
   });
@@ -109,7 +109,7 @@ const ChatDetail: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['chats'] });
       queryClient.invalidateQueries({ queryKey: ['chatStats'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('操作失败', `操作失败: ${error.message}`);
     },
   });
@@ -125,7 +125,7 @@ const ChatDetail: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['chatDetail'] });
       queryClient.invalidateQueries({ queryKey: ['chats'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('操作失败', `操作失败: ${error.message}`);
     },
   });
@@ -170,7 +170,7 @@ const ChatDetail: React.FC = () => {
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
-  const getChatDisplayName = (chatData: any) => {
+  const getChatDisplayName = (chatData: unknown) => {
     // 如果有客户名称且不是旧数据的"未知客户"，直接显示
     if (chatData.customer_name && chatData.customer_name !== '未知客户') {
       return chatData.customer_name;

@@ -47,6 +47,8 @@ import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
+import type { FormValues } from '@/types/common';
+
 const { Text, Paragraph } = Typography;
 
 const ExchangeRateManagement: React.FC = () => {
@@ -90,7 +92,7 @@ const ExchangeRateManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['exchange-rate'] });
       configForm.resetFields();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('配置失败', `配置失败: ${error.response?.data?.error?.detail || error.message}`);
     },
   });
@@ -105,7 +107,7 @@ const ExchangeRateManagement: React.FC = () => {
         notifyError('连接失败', `连接失败: ${data.message}`);
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('测试失败', `测试失败: ${error.response?.data?.error?.detail || error.message}`);
     },
   });
@@ -121,7 +123,7 @@ const ExchangeRateManagement: React.FC = () => {
         notifyWarning('刷新提示', data.message);
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('刷新失败', `刷新失败: ${error.response?.data?.error?.detail || error.message}`);
     },
   });
@@ -132,7 +134,7 @@ const ExchangeRateManagement: React.FC = () => {
   });
 
   // 配置表单提交
-  const handleConfigSubmit = (values: any) => {
+  const handleConfigSubmit = (values: FormValues) => {
     configMutation.mutate({
       api_key: values.api_key,
       api_provider: 'exchangerate-api',
@@ -175,7 +177,7 @@ const ExchangeRateManagement: React.FC = () => {
       } else {
         setCnyAmount(result.converted_amount);
       }
-    } catch (error: any) {
+    } catch (error) {
       notifyError('转换失败', `转换失败: ${error.response?.data?.error?.detail || error.message}`);
     }
   };
@@ -474,7 +476,7 @@ const ExchangeRateManagement: React.FC = () => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="time" tickFormatter={formatXAxis} />
                         <YAxis tickFormatter={(value) => value.toFixed(4)} />
-                        <Tooltip formatter={(value: any) => [`${value.toFixed(6)}`, '汇率']} />
+                        <Tooltip formatter={(value) => [`${value.toFixed(6)}`, '汇率']} />
                         <Line
                           type="monotone"
                           dataKey="rate"

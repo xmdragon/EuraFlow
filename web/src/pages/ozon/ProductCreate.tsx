@@ -24,6 +24,8 @@ import * as ozonApi from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
+import type { FormValues } from '@/types/common';
+
 // 类目选项接口
 interface CategoryOption {
   value: number;
@@ -70,7 +72,7 @@ const ProductCreate: React.FC = () => {
         notifyError('创建失败', data.error || '创建失败');
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('创建失败', `创建失败: ${error.message}`);
     },
   });
@@ -109,7 +111,7 @@ const ProductCreate: React.FC = () => {
         notifyError('同步失败', `同步失败: ${data.error || '未知错误'}`);
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
@@ -170,7 +172,7 @@ const ProductCreate: React.FC = () => {
           } else {
             reject(new Error(result.error || '上传失败'));
           }
-        } catch (error: any) {
+        } catch (error) {
           reject(error);
         }
       };
@@ -180,7 +182,7 @@ const ProductCreate: React.FC = () => {
   };
 
   // 提交商品表单
-  const handleProductSubmit = async (values: any) => {
+  const handleProductSubmit = async (values: FormValues) => {
     if (!selectedShop) {
       notifyError('操作失败', '请先选择店铺');
       return;
@@ -215,7 +217,7 @@ const ProductCreate: React.FC = () => {
         dimension_unit: 'mm',
         weight_unit: 'g',
       });
-    } catch (error: any) {
+    } catch (error) {
       notifyError('操作失败', `操作失败: ${error.message}`);
     }
   };
@@ -266,7 +268,7 @@ const ProductCreate: React.FC = () => {
       title: '操作',
       key: 'action',
       width: 100,
-      render: (_: any, record: ProductVariant) => (
+      render: (_, record: ProductVariant) => (
         <Space size="small">
           <Button type="link" size="small" icon={<EditOutlined />}>
             编辑

@@ -195,7 +195,7 @@ const PackingShipment: React.FC = () => {
   const shopNameMap = React.useMemo(() => {
     const map: Record<number, string> = {};
     if (shopsData?.data) {
-      shopsData.data.forEach((shop: any) => {
+      shopsData.data.forEach((shop) => {
         map[shop.id] = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
       });
     }
@@ -310,7 +310,7 @@ const PackingShipment: React.FC = () => {
     queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, pageSize],
     queryFn: () => {
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
-      const queryParams: any = {
+      const queryParams = {
         shop_id: selectedShop,
         ...searchParams, // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
       };
@@ -353,9 +353,9 @@ const PackingShipment: React.FC = () => {
       }
 
       // 从订单项中提取图片作为备用
-      ordersData.data.forEach((order: any) => {
+      ordersData.data.forEach((order) => {
         if (order.items) {
-          order.items.forEach((item: any) => {
+          order.items.forEach((item) => {
             if (item.offer_id && item.image && !newImageMap[item.offer_id]) {
               newImageMap[item.offer_id] = item.image;
             }
@@ -532,7 +532,7 @@ const PackingShipment: React.FC = () => {
   }, [postingsData]);
 
   // 使用统一的货币格式化函数（移除货币符号）
-  const formatPrice = (price: any): string => {
+  const formatPrice = (price: string | number): string => {
     // 移除所有可能的货币符号
     return formatPriceWithFallback(price, null, userCurrency)
       .replace(/^[¥₽$€£]/g, '')
@@ -656,7 +656,7 @@ const PackingShipment: React.FC = () => {
         message: '正在启动同步...',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
@@ -700,7 +700,7 @@ const PackingShipment: React.FC = () => {
       shipForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('发货失败', `发货失败: ${error.message}`);
     },
   });
@@ -713,7 +713,7 @@ const PackingShipment: React.FC = () => {
       notifySuccess('订单已取消', '订单已成功取消');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('取消失败', `取消失败: ${error.message}`);
     },
   });
@@ -729,13 +729,13 @@ const PackingShipment: React.FC = () => {
       // 从当前列表中移除该posting
       setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('废弃失败', `废弃失败: ${error.response?.data?.message || error.message}`);
     },
   });
 
   // 异步执行批量同步（后台任务）
-  const executeBatchSync = async (postings: any[]) => {
+  const executeBatchSync = async (postings: unknown[]) => {
     const notificationKey = 'batch-sync';
     let successCount = 0;
     let failedCount = 0;
@@ -978,7 +978,7 @@ const PackingShipment: React.FC = () => {
           window.open(result.pdf_url, '_blank');
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       // 全部失败
       if (error.response?.status === 422) {
         // EuraFlow统一错误格式：error.response.data.error.detail
@@ -1025,7 +1025,7 @@ const PackingShipment: React.FC = () => {
         setScanResult(null);
         setScanError('未找到对应的订单');
       }
-    } catch (error: any) {
+    } catch (error) {
       setScanResult(null);
       setScanError(`查询失败: ${error.response?.data?.error?.title || error.message}`);
     } finally {
@@ -1052,7 +1052,7 @@ const PackingShipment: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       // 从当前列表中移除该posting
       setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
-    } catch (error: any) {
+    } catch (error) {
       notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
     }
   };
@@ -1070,7 +1070,7 @@ const PackingShipment: React.FC = () => {
       } else {
         notifyError('打印失败', '打印失败');
       }
-    } catch (error: any) {
+    } catch (error) {
       notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
     } finally {
       setIsPrinting(false);

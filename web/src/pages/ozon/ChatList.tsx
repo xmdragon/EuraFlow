@@ -65,7 +65,7 @@ const ChatList: React.FC = () => {
   const shops = shopsData?.data || [];
 
   // 构建shop_ids字符串（逗号分隔）
-  const shopIdsString = shops.map((s: any) => s.id).join(',');
+  const shopIdsString = shops.map((s) => s.id).join(',');
 
   // 获取聊天统计
   const { data: statsData } = useQuery({
@@ -90,7 +90,7 @@ const ChatList: React.FC = () => {
       currentPage,
     ],
     queryFn: async () => {
-      const params: any = {
+      const params = {
         limit: pageSize,
         offset: (currentPage - 1) * pageSize,
       };
@@ -137,7 +137,7 @@ const ChatList: React.FC = () => {
               shop_name: displayName,
               ...result,
             });
-          } catch (error: any) {
+          } catch (error) {
             results.push({
               shop_id: shop.id,
               shop_name: displayName,
@@ -170,7 +170,7 @@ const ChatList: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['chats'] });
       queryClient.invalidateQueries({ queryKey: ['chatStats'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
@@ -185,7 +185,7 @@ const ChatList: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['chats'] });
       queryClient.invalidateQueries({ queryKey: ['chatStats'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('操作失败', `操作失败: ${error.message}`);
     },
   });

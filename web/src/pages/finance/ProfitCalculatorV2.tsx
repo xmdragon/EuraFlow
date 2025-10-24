@@ -24,6 +24,8 @@ import ScenarioCard from './ScenarioCard';
 
 import { getExchangeRate } from '@/services/exchangeRateApi';
 
+import type { FormValues } from '@/types/common';
+
 const { Title, Text } = Typography;
 
 interface CalculationInputData {
@@ -71,7 +73,7 @@ const ProfitCalculatorV2: React.FC = () => {
   }, [primaryScenario]);
 
   // 处理表单值变化
-  const handleFormChange = (changedValues: any) => {
+  const handleFormChange = (changedValues: Partial<FormValues>) => {
     setInputData((prev) => ({
       ...prev,
       ...changedValues,

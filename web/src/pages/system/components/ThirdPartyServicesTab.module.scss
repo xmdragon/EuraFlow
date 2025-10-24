@@ -1,0 +1,13 @@
+@use '@/styles/variables' as *;
+
+.container {
+  // Tab内容容器
+}
+
+.card {
+  margin-bottom: $spacing-lg;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}

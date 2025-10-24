@@ -26,6 +26,8 @@ import {
 } from './ozonUniShippingData';
 import styles from './ShippingDetailCalculator.module.scss';
 
+import type { FormValues } from '@/types/common';
+
 const { Text } = Typography;
 
 interface CalculationData {
@@ -136,7 +138,7 @@ const ShippingDetailCalculator: React.FC = () => {
   }, [calculationData, activeKey]);
 
   // 处理表单值变化
-  const handleFormChange = (changedValues: any) => {
+  const handleFormChange = (changedValues: Partial<FormValues>) => {
     setCalculationData((prev) => ({
       ...prev,
       ...changedValues,

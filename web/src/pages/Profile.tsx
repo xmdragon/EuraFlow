@@ -37,7 +37,7 @@ const Profile: React.FC = () => {
       });
       notifySuccess('修改成功', '密码已修改成功');
       passwordForm.resetFields();
-    } catch (error: any) {
+    } catch (error) {
       const errorMsg = error.response?.data?.detail?.message || '修改密码失败';
       notifyError('修改失败', errorMsg);
     } finally {

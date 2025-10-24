@@ -60,7 +60,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
 
   // 配置webhook
   const configureWebhookMutation = useMutation({
-    mutationFn: async (config: any) => {
+    mutationFn: async (config: unknown) => {
       if (!selectedShop?.id) throw new Error('未选择店铺');
       return ozonApi.configureWebhook(selectedShop.id, config);
     },
@@ -105,7 +105,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
         ),
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('配置失败', `配置失败: ${error.message}`);
     },
   });
@@ -123,7 +123,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
         notifyError('测试失败', `Webhook测试失败: ${data.message}`);
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('测试失败', `测试失败: ${error.message}`);
     },
   });
@@ -138,7 +138,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
       notifySuccess('删除成功', 'Webhook配置已删除');
       refetchWebhookConfig();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('删除失败', `删除失败: ${error.message}`);
     },
   });
@@ -151,7 +151,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
     try {
       const response = await ozonApi.getWebhookEvents(selectedShop.id);
       setWebhookEvents(response.events || []);
-    } catch (error: any) {
+    } catch (error) {
       notifyError('获取失败', `获取事件失败: ${error.message}`);
     } finally {
       setLoading(false);
@@ -360,7 +360,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
               width: 100,
               render: (status) => {
                 // 状态中文映射
-                const statusMap: Record<string, { text: string; badgeStatus: any }> = {
+                const statusMap: Record<string, { text: string; badgeStatus: 'success' | 'processing' | 'default' | 'error' | 'warning' }> = {
                   processed: { text: '已处理', badgeStatus: 'success' },
                   failed: { text: '失败', badgeStatus: 'error' },
                   processing: { text: '处理中', badgeStatus: 'processing' },

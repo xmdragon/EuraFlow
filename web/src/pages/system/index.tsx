@@ -7,6 +7,7 @@ import { Routes, Route } from 'react-router-dom';
 
 // 路由懒加载
 const SyncServices = lazy(() => import('./SyncServices'));
+const SystemConfiguration = lazy(() => import('./SystemConfiguration'));
 
 // 加载中组件
 const PageLoading = () => (
@@ -27,6 +28,7 @@ const SystemManagement: React.FC = () => {
     <Suspense fallback={<PageLoading />}>
       <Routes>
         <Route path="sync-services" element={<SyncServices />} />
+        <Route path="configuration" element={<SystemConfiguration />} />
       </Routes>
     </Suspense>
   );

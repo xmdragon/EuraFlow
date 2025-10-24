@@ -38,11 +38,12 @@ import React, { useState, useEffect } from 'react';
 
 import styles from './WatermarkManagement.module.scss';
 
-import CloudinaryConfigCard from '@/components/ozon/watermark/CloudinaryConfigCard';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import * as watermarkApi from '@/services/watermarkApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
+
+import type { FormValues } from '@/types/common';
 
 const { Option } = Select;
 
@@ -57,7 +58,6 @@ const WatermarkManagement: React.FC = () => {
   const _queryClient = useQueryClient();
   const { canOperate } = usePermission();
   const [activeTab, setActiveTab] = useState('watermarks');
-  const [cloudinaryForm] = Form.useForm();
   const [watermarkForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
@@ -68,16 +68,6 @@ const WatermarkManagement: React.FC = () => {
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [resourcesPage] = useState(0);
-
-  // ============ Cloudinary配置查询（全局配置） ============
-  const {
-    data: cloudinaryConfig,
-    isLoading: cloudinaryLoading,
-    refetch: refetchCloudinary,
-  } = useQuery({
-    queryKey: ['cloudinaryConfig'],
-    queryFn: () => watermarkApi.getCloudinaryConfig(),
-  });
 
   // ============ 水印配置查询 ============
   const {
@@ -112,52 +102,9 @@ const WatermarkManagement: React.FC = () => {
     enabled: activeTab === 'resources',
   });
 
-  // ============ Cloudinary配置保存（全局配置） ============
-  const saveCloudinaryMutation = useMutation({
-    mutationFn: (values: any) => watermarkApi.createCloudinaryConfig(values),
-    onSuccess: () => {
-      notifySuccess('配置已保存', 'Cloudinary配置保存成功');
-      refetchCloudinary();
-    },
-    onError: (error: any) => {
-      notifyError('保存失败', `保存失败: ${error.message}`);
-    },
-  });
-
-  // ============ Cloudinary连接测试（全局配置） ============
-  const testCloudinaryMutation = useMutation({
-    mutationFn: () => watermarkApi.testCloudinaryConnection(),
-    onSuccess: (data) => {
-      if (data.success) {
-        notifySuccess('连接测试成功', '连接测试成功');
-        Modal.info({
-          title: 'Cloudinary连接信息',
-          content: (
-            <div>
-              <p>Cloud Name: {data.cloud_name}</p>
-              {data.quota_usage_percent && <p>配额使用: {data.quota_usage_percent.toFixed(2)}%</p>}
-              {data.usage && (
-                <>
-                  <p>存储使用: {(data.usage.storage_used_bytes / 1024 / 1024).toFixed(2)} MB</p>
-                  <p>带宽使用: {(data.usage.bandwidth_used_bytes / 1024 / 1024).toFixed(2)} MB</p>
-                </>
-              )}
-            </div>
-          ),
-        });
-      } else {
-        notifyError('连接测试失败', `连接测试失败: ${data.error}`);
-      }
-      refetchCloudinary();
-    },
-    onError: (error: any) => {
-      notifyError('测试失败', `测试失败: ${error.message}`);
-    },
-  });
-
   // ============ 水印配置创建 ============
   const createWatermarkMutation = useMutation({
-    mutationFn: (values: any) => {
+    mutationFn: (values: FormValues) => {
       const { watermarkFile, ...options } = values;
       const payload = {
         ...options,
@@ -172,21 +119,21 @@ const WatermarkManagement: React.FC = () => {
       watermarkForm.resetFields();
       refetchWatermarks();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('创建失败', `创建失败: ${error.message}`);
     },
   });
 
   // ============ 水印配置更新 ============
   const updateWatermarkMutation = useMutation({
-    mutationFn: ({ configId, options }: { configId: number; options: any }) =>
+    mutationFn: ({ configId, options }: { configId: number; options: unknown }) =>
       watermarkApi.updateWatermarkConfig(configId, options),
     onSuccess: () => {
       notifySuccess('更新成功', '水印配置更新成功');
       setEditModalVisible(false);
       refetchWatermarks();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('更新失败', `更新失败: ${error.message}`);
     },
   });
@@ -198,7 +145,7 @@ const WatermarkManagement: React.FC = () => {
       notifySuccess('删除成功', '水印配置删除成功');
       refetchWatermarks();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('删除失败', `删除失败: ${error.message}`);
     },
   });
@@ -221,7 +168,7 @@ const WatermarkManagement: React.FC = () => {
         notifyError('清理失败', `清理失败: ${data.error}`);
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('清理失败', `清理失败: ${error.message}`);
     },
   });
@@ -234,22 +181,10 @@ const WatermarkManagement: React.FC = () => {
       setSelectedResources([]);
       refetchResources();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('删除失败', `删除失败: ${error.message}`);
     },
   });
-
-  // 设置Cloudinary表单初始值
-  useEffect(() => {
-    if (cloudinaryConfig) {
-      cloudinaryForm.setFieldsValue({
-        cloud_name: cloudinaryConfig.cloud_name,
-        api_key: cloudinaryConfig.api_key,
-        folder_prefix: cloudinaryConfig.folder_prefix,
-        auto_cleanup_days: cloudinaryConfig.auto_cleanup_days,
-      });
-    }
-  }, [cloudinaryConfig, cloudinaryForm]);
 
   // 水印位置选项
   const positionOptions = [
@@ -353,7 +288,7 @@ const WatermarkManagement: React.FC = () => {
           {
             title: '操作',
             key: 'actions',
-            render: (_: any, record: watermarkApi.WatermarkConfig) => (
+            render: (_, record: watermarkApi.WatermarkConfig) => (
               <Space>
                 <Button
                   size="small"
@@ -462,18 +397,7 @@ const WatermarkManagement: React.FC = () => {
       <PageTitle icon={<PictureOutlined />} title="水印管理" />
 
       <div className={styles.contentContainer}>
-        {/* Cloudinary全局配置 */}
-        <CloudinaryConfigCard
-          cloudinaryConfig={cloudinaryConfig}
-          cloudinaryLoading={cloudinaryLoading}
-          cloudinaryForm={cloudinaryForm}
-          canOperate={canOperate}
-          saveCloudinaryMutation={saveCloudinaryMutation}
-          testCloudinaryMutation={testCloudinaryMutation}
-          cleanupResourcesMutation={cleanupResourcesMutation}
-        />
-
-        {/* 水印管理（全局配置） */}
+        {/* 水印管理 */}
         <Card title="水印管理">
           <Tabs
             activeKey={activeTab}

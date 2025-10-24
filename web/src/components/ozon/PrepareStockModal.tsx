@@ -17,7 +17,7 @@ interface PrepareStockModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
-  posting?: any; // 传入完整的posting对象，用于加载原有值
+  posting?: unknown; // 传入完整的posting对象，用于加载原有值
   onSuccess?: () => void; // 操作成功后的回调
 }
 
@@ -64,7 +64,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       // 关闭弹窗并重置表单
       handleClose();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       const errorMsg = error.response?.data?.message || error.message || '备货操作失败';
       notifyError('操作失败', errorMsg);
     },

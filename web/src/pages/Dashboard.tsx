@@ -27,7 +27,6 @@ const OzonManagement = lazy(() => import('./ozon'));
 const SystemManagement = lazy(() => import('./system'));
 const Profile = lazy(() => import('./Profile'));
 const UserManagement = lazy(() => import('./UserManagement'));
-const ExchangeRateManagement = lazy(() => import('./ExchangeRateManagement'));
 
 import styles from './Dashboard.module.scss';
 
@@ -154,18 +153,6 @@ const Dashboard: React.FC = () => {
           label: '水印管理',
           onClick: () => navigate('/dashboard/ozon/watermark'),
         },
-        {
-          key: 'ozon-api-keys',
-          icon: <KeyOutlined />,
-          label: 'API密钥',
-          onClick: () => navigate('/dashboard/ozon/api-keys'),
-        },
-        {
-          key: 'ozon-settings',
-          icon: <SettingOutlined />,
-          label: '店铺设置',
-          onClick: () => navigate('/dashboard/ozon/settings'),
-        },
       ],
     },
     {
@@ -173,12 +160,6 @@ const Dashboard: React.FC = () => {
       icon: <CalculatorOutlined />,
       label: '财务计算',
       onClick: () => navigate('/dashboard/finance'),
-    },
-    {
-      key: 'exchange-rate',
-      icon: <DollarOutlined />,
-      label: '汇率管理',
-      onClick: () => navigate('/dashboard/exchange-rate'),
     },
     {
       key: 'system',
@@ -190,6 +171,12 @@ const Dashboard: React.FC = () => {
           icon: <SyncOutlined />,
           label: '后台服务',
           onClick: () => navigate('/dashboard/system/sync-services'),
+        },
+        {
+          key: 'system-configuration',
+          icon: <SettingOutlined />,
+          label: '系统配置',
+          onClick: () => navigate('/dashboard/system/configuration'),
         },
       ],
     },
@@ -218,14 +205,11 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/finance-transactions')) return 'ozon-finance-transactions';
     if (path.includes('/ozon/chat')) return 'ozon-chats';
     if (path.includes('/ozon/watermark')) return 'ozon-watermark';
-    if (path.includes('/ozon/api-keys')) return 'ozon-api-keys';
-    if (path.includes('/ozon/settings')) return 'ozon-settings';
+    if (path.includes('/system/configuration')) return 'system-configuration';
     if (path.includes('/system/sync-services')) return 'system-sync-services';
     if (path.includes('/finance')) return 'finance';
-    if (path.includes('/exchange-rate')) return 'exchange-rate';
     if (path.includes('/users')) return 'users';
     if (path.includes('/profile')) return 'profile';
-    if (path.includes('/settings')) return 'settings';
     return 'dashboard';
   };
 
@@ -315,7 +299,6 @@ const Dashboard: React.FC = () => {
               <Route path="/ozon/*" element={<OzonManagement />} />
               <Route path="/system/*" element={<SystemManagement />} />
               <Route path="/finance" element={<FinanceCalculator />} />
-              <Route path="/exchange-rate" element={<ExchangeRateManagement />} />
               <Route path="/profile" element={<Profile />} />
               {user?.role === 'admin' && <Route path="/users" element={<UserManagement />} />}
             </Routes>

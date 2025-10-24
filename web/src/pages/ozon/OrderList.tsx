@@ -130,7 +130,7 @@ const OrderList: React.FC = () => {
   const shopNameMap = React.useMemo(() => {
     const map: Record<number, string> = {};
     if (shopsData?.data) {
-      shopsData.data.forEach((shop: any) => {
+      shopsData.data.forEach((shop) => {
         map[shop.id] = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
       });
     }
@@ -237,7 +237,7 @@ const OrderList: React.FC = () => {
       const dateRange = searchParams.dateRange;
 
       // "discarded" 标签使用 operation_status='cancelled' 过滤
-      const queryParams: any = {
+      const queryParams = {
         ...searchParams,
         shop_id: selectedShop,
         date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
@@ -357,7 +357,7 @@ const OrderList: React.FC = () => {
   }, [postingsData]);
 
   // 使用统一的货币格式化函数（移除货币符号）
-  const formatPrice = (price: any): string => {
+  const formatPrice = (price: string | number): string => {
     // 移除所有可能的货币符号
     return formatPriceWithFallback(price, null, userCurrency)
       .replace(/^[¥₽$€£]/g, '')
@@ -375,9 +375,9 @@ const OrderList: React.FC = () => {
 
     // 同时从订单项中提取图片（作为备用）
     if (ordersData?.data) {
-      ordersData.data.forEach((order: any) => {
+      ordersData.data.forEach((order) => {
         if (order.items) {
-          order.items.forEach((item: any) => {
+          order.items.forEach((item) => {
             if (item.offer_id && item.image && !map[item.offer_id]) {
               map[item.offer_id] = item.image;
             }
@@ -557,7 +557,7 @@ const OrderList: React.FC = () => {
       pollOrderSyncStatus(data.task_id);
       // 不再使用 setSyncTaskId 和 setSyncStatus
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
@@ -573,7 +573,7 @@ const OrderList: React.FC = () => {
       shipForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('发货失败', `发货失败: ${error.message}`);
     },
   });
@@ -586,7 +586,7 @@ const OrderList: React.FC = () => {
       notifySuccess('订单已取消', '订单已成功取消');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('取消失败', `取消失败: ${error.message}`);
     },
   });
@@ -600,20 +600,20 @@ const OrderList: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
       refetch();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
 
   // 表格列定义（商品维度 - 4列布局）
-  const columns: any[] = [
+  const columns = [
     // 第一列：商品图片（160x160固定容器，可点击打开OZON商品页）
     {
       title: '商品图片',
       key: 'product_image',
       width: 180,
       // fixed: 'left' as const, // 移除fixed，避免与rowSelection冲突
-      render: (_: any, row: OrderItemRow) => {
+      render: (_, row: OrderItemRow) => {
         const item = row.item;
         const rawImageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
         const imageUrl = optimizeOzonImageUrl(rawImageUrl, 160);
@@ -656,7 +656,7 @@ const OrderList: React.FC = () => {
       title: '商品信息',
       key: 'product_info',
       width: '25%',
-      render: (_: any, row: OrderItemRow) => {
+      render: (_, row: OrderItemRow) => {
         const item = row.item;
         const order = row.order;
         const currency = order.currency_code || userCurrency || 'CNY';
@@ -735,7 +735,7 @@ const OrderList: React.FC = () => {
       title: '物流信息',
       key: 'logistics_info',
       width: '30%',
-      render: (_: any, row: OrderItemRow) => {
+      render: (_, row: OrderItemRow) => {
         // 非第一行返回 null（使用 rowSpan）
         if (!row.isFirstItem) return null;
 
@@ -829,7 +829,7 @@ const OrderList: React.FC = () => {
     {
       title: '订单信息',
       key: 'order_info',
-      render: (_: any, row: OrderItemRow) => {
+      render: (_, row: OrderItemRow) => {
         // 非第一行返回 null（使用 rowSpan）
         if (!row.isFirstItem) return null;
 
@@ -952,7 +952,7 @@ const OrderList: React.FC = () => {
           window.open(result.pdf_url, '_blank');
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       // 全部失败
       if (error.response?.status === 422) {
         // EuraFlow统一错误格式：error.response.data.error.detail

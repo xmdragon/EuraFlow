@@ -148,7 +148,7 @@ export interface Product {
   ozon_visibility_details?: {
     has_price?: boolean;
     has_stock?: boolean;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   visibility: boolean;
   is_archived: boolean;
@@ -171,11 +171,11 @@ export interface Product {
   type_id?: number;
   color_image?: string;
   primary_image?: string;
-  ozon_attributes?: any;
-  complex_attributes?: any;
-  model_info?: any;
-  pdf_list?: any[];
-  attributes_with_defaults?: any[];
+  ozon_attributes?: unknown;
+  complex_attributes?: unknown;
+  model_info?: unknown;
+  pdf_list?: unknown[];
+  attributes_with_defaults?: unknown[];
   ozon_archived?: boolean;
   ozon_has_fbo_stocks?: boolean;
   ozon_has_fbs_stocks?: boolean;
@@ -228,7 +228,7 @@ export const getProducts = async (
   pageSize: number = 20,
   filter?: ProductFilter
 ) => {
-  const params: any = {
+  const params = {
     page: page,
     page_size: pageSize,
     ...filter,
@@ -270,7 +270,7 @@ export const syncProducts = async (shopId?: number | null, fullSync: boolean = f
 
 // 批量更新价格
 export const updatePrices = async (updates: PriceUpdate[], shopId?: number) => {
-  const data: any = { updates };
+  const data = { updates };
   if (shopId) {
     data.shop_id = shopId;
   }
@@ -280,7 +280,7 @@ export const updatePrices = async (updates: PriceUpdate[], shopId?: number) => {
 
 // 批量更新库存
 export const updateStocks = async (updates: StockUpdate[], shopId?: number) => {
-  const data: any = { updates };
+  const data = { updates };
   if (shopId) {
     data.shop_id = shopId;
   }
@@ -429,7 +429,7 @@ export interface ShipmentRequest {
 
 // 获取订单列表
 export const getOrders = async (page: number = 1, pageSize: number = 50, filter?: OrderFilter) => {
-  const params: any = {
+  const params = {
     offset: (page - 1) * pageSize,
     limit: pageSize,
     ...filter,
@@ -548,7 +548,7 @@ export interface Statistics {
 
 // 获取统计数据
 export const getStatistics = async (shopId?: number | null) => {
-  const params: any = {};
+  const params = {};
   if (shopId) {
     params.shop_id = shopId;
   }
@@ -593,7 +593,7 @@ export const getSyncTaskStatus = async (taskId: string) => {
 
 // 订单详情API
 export const getOrderDetail = async (postingNumber: string, shopId?: number) => {
-  const params: any = {};
+  const params = {};
   if (shopId) {
     params.shop_id = shopId;
   }
@@ -671,7 +671,7 @@ export const getWebhookEvents = async (
   limit: number;
   offset: number;
 }> => {
-  const params: any = {
+  const params = {
     shop_id: shopId,
     limit,
     offset,
@@ -723,7 +723,7 @@ export interface OzonChatMessage {
   sender_id?: string;
   sender_name?: string;
   content?: string;
-  content_data?: any;
+  content_data?: unknown;
   is_read: boolean;
   is_deleted: boolean;
   is_edited: boolean;
@@ -943,7 +943,7 @@ export const getKuajing84Config = async (): Promise<{
 export const testKuajing84Connection = async (): Promise<{
   success: boolean;
   message: string;
-  data?: any;
+  data?: unknown;
 }> => {
   const response = await apiClient.post('/ozon/kuajing84/test-connection');
   return response.data;
@@ -969,7 +969,7 @@ export const getKuajing84SyncLogs = async (
   status?: string,
   limit: number = 50
 ): Promise<{ success: boolean; data: Kuajing84SyncLog[] }> => {
-  const params: any = { limit };
+  const params = { limit };
   if (status) {
     params.status = status;
   }
@@ -1017,7 +1017,7 @@ export const getPackingOrders = async (
     ozon_status?: string; // OZON原生状态，支持逗号分隔（如：awaiting_packaging,awaiting_deliver）
   }
 ) => {
-  const requestParams: any = {
+  const requestParams = {
     offset: (page - 1) * pageSize,
     limit: pageSize,
     ...params,
@@ -1049,7 +1049,7 @@ export const getPackingStats = async (params?: {
     printed: number;
   };
 }> => {
-  const requestParams: any = { ...params };
+  const requestParams = { ...params };
   // 如果shop_id为null（全部店铺），不传递该参数
   if (requestParams.shop_id === null) {
     delete requestParams.shop_id;
@@ -1210,7 +1210,7 @@ export interface ProductImportLog {
   ozon_sku?: number;
   error_code?: string;
   error_message?: string;
-  errors?: any;
+  errors?: unknown;
   retry_count: number;
   created_at?: string;
   updated_at?: string;
@@ -1390,7 +1390,7 @@ export interface CreateProductRequest {
   barcode?: string;
   category_id?: number;
   images?: string[];
-  attributes?: any[];
+  attributes?: unknown[];
   height?: number;
   width?: number;
   depth?: number;
@@ -1574,7 +1574,7 @@ export const getFinanceTransactionsSummary = async (
   dateTo?: string,
   transactionType?: string
 ): Promise<FinanceTransactionsSummary> => {
-  const params: any = { shop_id: shopId };
+  const params = { shop_id: shopId };
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
   if (transactionType) params.transaction_type = transactionType;

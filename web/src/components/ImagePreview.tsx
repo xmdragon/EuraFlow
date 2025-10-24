@@ -55,6 +55,21 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     }
   }, [visible, initialIndex]);
 
+  // 导航函数 - 必须在使用它们的 useEffect 之前定义
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+      setLoading(true);
+    }
+  }, [currentIndex]);
+
+  const handleNext = useCallback(() => {
+    if (currentIndex < images.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setLoading(true);
+    }
+  }, [currentIndex, images.length]);
+
   // 键盘事件处理
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -90,20 +105,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     window.addEventListener('wheel', handleWheel, { passive: false });
     return () => window.removeEventListener('wheel', handleWheel);
   }, [visible]);
-
-  const handlePrevious = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-      setLoading(true);
-    }
-  }, [currentIndex]);
-
-  const handleNext = useCallback(() => {
-    if (currentIndex < images.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setLoading(true);
-    }
-  }, [currentIndex, images.length]);
 
   const handleZoomIn = () => {
     setScale((prev) => Math.min(prev + 0.2, 3));

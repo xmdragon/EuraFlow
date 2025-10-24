@@ -45,7 +45,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       // 立即关闭弹窗，等待 WebSocket 推送结果通知
       handleClose();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       const errorMsg = error.response?.data?.message || error.message || '提交失败';
       notifyError('国内单号提交失败', errorMsg);
     },

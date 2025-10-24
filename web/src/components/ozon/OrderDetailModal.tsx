@@ -127,7 +127,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       // 立即更新本地显示
       setLocalPosting({ ...localPosting, purchase_price: editPurchasePrice });
       onUpdate?.(); // 触发父组件刷新
-    } catch (error: any) {
+    } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
         return;
@@ -152,7 +152,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       // 立即更新本地显示
       setLocalPosting({ ...localPosting, material_cost: editMaterialCost });
       onUpdate?.(); // 触发父组件刷新
-    } catch (error: any) {
+    } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
         return;
@@ -172,7 +172,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       await ozonApi.syncMaterialCost(localPosting.posting_number);
       notifySuccess('同步成功', '打包费用同步成功');
       onUpdate?.(); // 触发父组件刷新
-    } catch (error: any) {
+    } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
         return;
@@ -192,7 +192,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       await ozonApi.syncFinance(localPosting.posting_number);
       notifySuccess('同步成功', '财务费用同步成功');
       onUpdate?.(); // 触发父组件刷新
-    } catch (error: any) {
+    } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
         return;
@@ -217,7 +217,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       // 立即更新本地显示
       setLocalPosting({ ...localPosting, source_platform: editSourcePlatform });
       onUpdate?.(); // 触发父组件刷新
-    } catch (error: any) {
+    } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
         return;
@@ -244,7 +244,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         setLocalOrder({ ...localOrder, order_notes: editOrderNotes });
       }
       onUpdate?.(); // 触发父组件刷新
-    } catch (error: any) {
+    } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
         return;

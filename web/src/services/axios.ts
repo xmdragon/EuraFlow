@@ -40,7 +40,7 @@ const processQueue = (_error: unknown, _token: string | null = null) => {
 /**
  * 检查是否是认证相关错误
  */
-const isAuthenticationError = (error: any): boolean => {
+const isAuthenticationError = (error: unknown): boolean => {
   const status = error.response?.status;
 
   // 401是认证错误（未登录或token过期）
@@ -75,7 +75,7 @@ const isAuthenticationError = (error: any): boolean => {
 /**
  * 处理权限不足错误（403）
  */
-const handlePermissionDenied = (error: any) => {
+const handlePermissionDenied = (error: unknown) => {
   // 使用动态导入避免循环依赖
   import('antd')
     .then(({ message: antdMessage }) => {

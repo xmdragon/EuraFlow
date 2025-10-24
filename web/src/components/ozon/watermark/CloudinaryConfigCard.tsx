@@ -22,13 +22,13 @@ import React from 'react';
 import styles from '../../../pages/ozon/WatermarkManagement.module.scss';
 
 export interface CloudinaryConfigCardProps {
-  cloudinaryConfig: any;
+  cloudinaryConfig: unknown;
   cloudinaryLoading: boolean;
   cloudinaryForm: FormInstance;
   canOperate: boolean;
-  saveCloudinaryMutation: any;
-  testCloudinaryMutation: any;
-  cleanupResourcesMutation: any;
+  saveCloudinaryMutation: unknown;
+  testCloudinaryMutation: unknown;
+  cleanupResourcesMutation: unknown;
 }
 
 export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({

@@ -48,6 +48,8 @@ import axios from '@/services/axios';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
+import type { FormValues } from '@/types/common';
+
 const { TextArea } = Input;
 
 interface SyncService {
@@ -134,7 +136,7 @@ const SyncServices = () => {
     try {
       const response = await axios.get('/api/ef/v1/sync-services');
       setServices(response.data || []);
-    } catch (error: any) {
+    } catch (error) {
       notifyError('加载失败', error.response?.data?.error?.detail || '加载服务列表失败');
     } finally {
       setLoading(false);
@@ -146,7 +148,7 @@ const SyncServices = () => {
     try {
       const response = await axios.get('/api/ef/v1/sync-services/handlers');
       setHandlers(response.data || []);
-    } catch (error: any) {
+    } catch (error) {
       logger.error('加载Handler列表失败:', error);
     }
   };
@@ -157,7 +159,7 @@ const SyncServices = () => {
       await axios.post(`/api/ef/v1/sync-services/${service.id}/toggle`);
       notifySuccess('操作成功', `服务已${service.is_enabled ? '禁用' : '启用'}`);
       loadServices();
-    } catch (error: any) {
+    } catch (error) {
       notifyError('操作失败', error.response?.data?.error?.detail || '操作失败');
     }
   };
@@ -168,7 +170,7 @@ const SyncServices = () => {
       await axios.post(`/api/ef/v1/sync-services/${service.id}/trigger`);
       notifySuccess('触发成功', '服务已触发，正在后台执行');
       setTimeout(loadServices, 3000);
-    } catch (error: any) {
+    } catch (error) {
       notifyError('触发失败', error.response?.data?.error?.detail || '触发失败');
     }
   };
@@ -181,7 +183,7 @@ const SyncServices = () => {
     try {
       const response = await axios.get(`/api/ef/v1/sync-services/${service.id}/logs`);
       setLogs(response.data || []);
-    } catch (error: any) {
+    } catch (error) {
       notifyError('加载失败', error.response?.data?.error?.detail || '加载日志失败');
     } finally {
       setLogsLoading(false);
@@ -196,7 +198,7 @@ const SyncServices = () => {
     try {
       const response = await axios.get(`/api/ef/v1/sync-services/${service.id}/stats`);
       setStats(response.data || null);
-    } catch (error: any) {
+    } catch (error) {
       notifyError('加载失败', error.response?.data?.error?.detail || '加载统计失败');
     } finally {
       setStatsLoading(false);
@@ -221,7 +223,7 @@ const SyncServices = () => {
   };
 
   // 提交编辑
-  const handleEditSubmit = async (values: any) => {
+  const handleEditSubmit = async (values: FormValues) => {
     if (!selectedService) return;
 
     try {
@@ -239,7 +241,7 @@ const SyncServices = () => {
       setEditModalVisible(false);
       editForm.resetFields();
       loadServices();
-    } catch (error: any) {
+    } catch (error) {
       notifyError('更新失败', error.response?.data?.detail || '更新失败');
     }
   };
@@ -251,7 +253,7 @@ const SyncServices = () => {
   };
 
   // 提交添加
-  const handleAddSubmit = async (values: any) => {
+  const handleAddSubmit = async (values: FormValues) => {
     try {
       // 如果是 interval 类型，确保 schedule_config 是字符串
       const payload = {
@@ -267,7 +269,7 @@ const SyncServices = () => {
       setAddModalVisible(false);
       addForm.resetFields();
       loadServices();
-    } catch (error: any) {
+    } catch (error) {
       notifyError('添加失败', error.response?.data?.detail || '添加失败');
     }
   };
@@ -282,7 +284,7 @@ const SyncServices = () => {
       if (logsModalVisible && selectedService?.id === service.id) {
         viewLogs(service);
       }
-    } catch (error: any) {
+    } catch (error) {
       notifyError('清空失败', error.response?.data?.detail || '清空日志失败');
     }
   };
@@ -296,7 +298,7 @@ const SyncServices = () => {
       if (statsModalVisible && selectedService?.id === service.id) {
         viewStats(service); // 刷新统计数据
       }
-    } catch (error: any) {
+    } catch (error) {
       notifyError('重置失败', error.response?.data?.error?.detail || '重置统计失败');
     }
   };

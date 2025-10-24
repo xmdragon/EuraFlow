@@ -9,16 +9,18 @@ import React from 'react';
 import { getCurrencySymbol } from '@/utils/currency';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 
+import type { FormValues } from '@/types/common';
+
 export interface Product {
   sku: string;
   currency_code?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface PriceEditModalProps {
   visible: boolean;
   onCancel: () => void;
-  onSubmit: (_data: any[]) => void;
+  onSubmit: (_data: unknown[]) => void;
   selectedProduct?: Product | null;
   selectedRows?: Product[];
   loading?: boolean;
@@ -34,7 +36,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
 }) => {
   const [form] = Form.useForm();
 
-  const handleFinish = (values: any) => {
+  const handleFinish = (values: FormValues) => {
     const updates = selectedProduct
       ? [
           {

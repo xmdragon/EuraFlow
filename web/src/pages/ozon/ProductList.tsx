@@ -233,7 +233,7 @@ const ProductList: React.FC = () => {
       const result = await ozonApi.getProducts(currentPage, pageSize, params);
 
       // 调试：检查SKU 3001670275的数据
-      const targetProduct = result.data?.find((p: any) => p.sku === '3001670275');
+      const targetProduct = result.data?.find((p) => p.sku === '3001670275');
       if (targetProduct) {
         loggers.product.debug('🔍 找到SKU 3001670275，API返回的数据:', targetProduct);
         loggers.product.debug(
@@ -337,7 +337,7 @@ const ProductList: React.FC = () => {
       pollProductSyncStatus(data.task_id);
       // 不再使用 setSyncTaskId 和 setSyncStatus
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
@@ -351,7 +351,7 @@ const ProductList: React.FC = () => {
       setPriceModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('更新失败', `价格更新失败: ${error.message}`);
     },
   });
@@ -447,7 +447,7 @@ const ProductList: React.FC = () => {
       setWatermarkModalVisible(false);
       setSelectedRows([]);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('水印应用失败', `水印应用失败: ${error.message}`);
     },
   });
@@ -463,7 +463,7 @@ const ProductList: React.FC = () => {
       setSelectedRows([]);
       queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('原图还原失败', `原图还原失败: ${error.message}`);
     },
   });
@@ -522,7 +522,7 @@ const ProductList: React.FC = () => {
           queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
           setWatermarkBatchId(null);
         }
-      } catch (error: any) {
+      } catch (error) {
         loggers.product.error('Failed to poll watermark tasks:', error);
 
         // 如果连续失败3次，停止轮询
@@ -559,7 +559,7 @@ const ProductList: React.FC = () => {
   // 已移除旧的 useEffect 轮询逻辑，改为异步后台任务
 
   // 处理图片点击
-  const handleImageClick = (product: any, images: string[], index: number = 0) => {
+  const handleImageClick = (product: ozonApi.Product, images: string[], index: number = 0) => {
     setCurrentPreviewProduct(product);
     setPreviewImages(images);
     setPreviewIndex(index);
@@ -575,7 +575,7 @@ const ProductList: React.FC = () => {
       setStockModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('更新失败', `库存更新失败: ${error.message}`);
     },
   });
@@ -1135,7 +1135,7 @@ const ProductList: React.FC = () => {
           } else {
             notifyError('同步失败', result.message || '商品同步失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           notifyError('同步失败', `同步失败: ${error.message}`);
         }
       },
@@ -1163,7 +1163,7 @@ const ProductList: React.FC = () => {
           } else {
             notifyError('归档失败', result.message || '商品归档失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           notifyError('归档失败', `归档失败: ${error.message}`);
         }
       },
@@ -1192,7 +1192,7 @@ const ProductList: React.FC = () => {
           } else {
             notifyError('删除失败', result.message || '商品删除失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           notifyError('删除失败', `删除失败: ${error.message}`);
         }
       },
@@ -1200,14 +1200,15 @@ const ProductList: React.FC = () => {
   };
 
   // 计算大预览图上的水印样式
-  const getPreviewWatermarkStyle = (position: string | undefined, config: any) => {
+  const getPreviewWatermarkStyle = (position: string | undefined, config: unknown) => {
     if (!position || !config) return {};
 
-    const scale = config.scale_ratio || 0.1;
-    const opacity = config.opacity || 0.8;
-    const margin = config.margin_pixels || 20;
+    const configObj = config as { scale_ratio?: number; opacity?: number; margin_pixels?: number };
+    const scale = configObj.scale_ratio || 0.1;
+    const opacity = configObj.opacity || 0.8;
+    const margin = configObj.margin_pixels || 20;
 
-    const styles: any = {
+    const styles: React.CSSProperties = {
       opacity: opacity,
       width: `${scale * 100}%`,
       maxWidth: '200px', // 限制最大尺寸
@@ -1266,7 +1267,7 @@ const ProductList: React.FC = () => {
       if (preview.product_id === productId) {
         return {
           ...preview,
-          images: preview.images?.map((img: any, idx: number) => {
+          images: preview.images?.map((img, idx: number) => {
             if ((img.image_index || idx) === imageIndex) {
               // 这里可以触发重新生成预览，暂时只更新位置标记
               return {
@@ -1495,7 +1496,7 @@ const ProductList: React.FC = () => {
                 } else {
                   notifyError('更新失败', result.message || '商品信息更新失败');
                 }
-              } catch (error: any) {
+              } catch (error) {
                 notifyError('更新失败', `更新失败: ${error.message}`);
               }
             }}
@@ -1674,7 +1675,7 @@ const ProductList: React.FC = () => {
                   } else {
                     notifyError('导入失败', result.message || '商品导入失败');
                   }
-                } catch (error: any) {
+                } catch (error) {
                   notifyError('导入失败', `导入失败: ${error.message}`);
                 }
               };
@@ -1769,7 +1770,7 @@ const ProductList: React.FC = () => {
             const productIds = selectedRows.map((p) => p.id);
 
             // 构建每张图片的独立配置映射
-            const imageOverrides: any = {};
+            const imageOverrides: Record<string, unknown> = {};
             imageWatermarkSettings.forEach((settings, key) => {
               const [productId, imageIndex] = key.split('_');
               if (!imageOverrides[productId]) {

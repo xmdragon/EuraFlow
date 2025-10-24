@@ -113,8 +113,8 @@ export async function testCloudinaryConnection() {
   const response = await axios.post<{
     success: boolean;
     cloud_name?: string;
-    usage?: any;
-    limits?: any;
+    usage?: unknown;
+    limits?: unknown;
     quota_usage_percent?: number;
     error?: string;
     tested_at: string;
@@ -219,7 +219,7 @@ export async function previewWatermark(
   const response = await axios.post<{
     success: boolean;
     preview_image: string;
-    metadata: any;
+    metadata: unknown;
   }>('/api/ef/v1/ozon/watermark/preview', {
     image_url: imageUrl,
     watermark_config_id: watermarkConfigId,
@@ -247,7 +247,7 @@ export async function previewWatermarkBatch(
       original_image?: string;
       preview_image?: string;
       suggested_position?: string;
-      metadata?: any;
+      metadata?: unknown;
       error?: string;
     }>;
     watermark_config: {

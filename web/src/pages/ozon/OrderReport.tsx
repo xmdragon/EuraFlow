@@ -798,7 +798,7 @@ const OrderReport: React.FC = () => {
                                     ))}
                                   </Pie>
                                   <RechartsTooltip
-                                    formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`}
+                                    formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
                                   />
                                   <Legend />
                                 </PieChart>
@@ -823,7 +823,7 @@ const OrderReport: React.FC = () => {
                                     ))}
                                   </Pie>
                                   <RechartsTooltip
-                                    formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`}
+                                    formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
                                   />
                                   <Legend />
                                 </PieChart>
@@ -857,7 +857,7 @@ const OrderReport: React.FC = () => {
                                     ))}
                                   </Pie>
                                   <RechartsTooltip
-                                    formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`}
+                                    formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
                                   />
                                   <Legend />
                                 </PieChart>
@@ -891,7 +891,7 @@ const OrderReport: React.FC = () => {
                                   <XAxis dataKey="month" />
                                   <YAxis />
                                   <RechartsTooltip
-                                    formatter={(value: any) => `¥${value.toFixed(2)}`}
+                                    formatter={(value) => `¥${value.toFixed(2)}`}
                                   />
                                   <Legend />
                                   <Bar dataKey="sales" fill="#1890ff" name="销售额" />
@@ -915,7 +915,7 @@ const OrderReport: React.FC = () => {
                                 <XAxis dataKey="date" />
                                 <YAxis />
                                 <RechartsTooltip
-                                  formatter={(value: any) => `¥${parseFloat(value).toFixed(2)}`}
+                                  formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
                                 />
                                 <Legend />
                                 <Line
@@ -962,7 +962,7 @@ const OrderReport: React.FC = () => {
                                   <XAxis dataKey="month" />
                                   <YAxis />
                                   <RechartsTooltip
-                                    formatter={(value: any) => `¥${value.toFixed(2)}`}
+                                    formatter={(value) => `¥${value.toFixed(2)}`}
                                   />
                                   <Legend />
                                   <Bar dataKey="sales" fill="#1890ff" name="销售额" />

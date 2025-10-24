@@ -31,6 +31,8 @@ import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
+import type { FormValues } from '@/types/common';
+
 const { Option } = Select;
 
 interface User {
@@ -76,7 +78,7 @@ const UserManagement: React.FC = () => {
     try {
       const response = await axios.get('/api/ef/v1/ozon/shops');
       // API返回格式: { data: [...] }，显示格式：俄文 [中文]
-      const shopsData = (response.data.data || []).map((shop: any) => ({
+      const shopsData = (response.data.data || []).map((shop) => ({
         id: shop.id,
         name: shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : ''),
         platform: shop.platform,
@@ -107,7 +109,7 @@ const UserManagement: React.FC = () => {
   }
 
   // 创建/更新用户
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: FormValues) => {
     try {
       // 处理shop_ids：如果是admin角色，传入所有店铺ID
       const shopIds =
@@ -133,7 +135,7 @@ const UserManagement: React.FC = () => {
       setModalVisible(false);
       form.resetFields();
       fetchUsers();
-    } catch (error: any) {
+    } catch (error) {
       // 获取具体的错误信息
       let errorMsg = '操作失败';
 
@@ -164,7 +166,7 @@ const UserManagement: React.FC = () => {
       });
       notifySuccess('操作成功', user.is_active ? '用户已停用' : '用户已启用');
       fetchUsers();
-    } catch (error: any) {
+    } catch (error) {
       // 获取具体的错误信息
       let errorMsg = '操作失败';
       if (error.response?.data?.detail) {
@@ -184,7 +186,7 @@ const UserManagement: React.FC = () => {
       await axios.delete(`/api/ef/v1/auth/users/${userId}`);
       notifySuccess('删除成功', '用户已删除');
       fetchUsers();
-    } catch (error: any) {
+    } catch (error) {
       // 获取具体的错误信息
       let errorMsg = '删除失败';
       if (error.response?.data?.detail) {
@@ -263,7 +265,7 @@ const UserManagement: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: User) => {
+      render: (_, record: User) => {
         // 管理员自己不能编辑或删除
         const isCurrentAdmin = record.id === currentUser?.id;
 

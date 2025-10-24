@@ -11,6 +11,8 @@ import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 
+import type { FormValues } from '@/types/common';
+
 export interface SearchParams {
   sku?: string;
   posting_number?: string;
@@ -38,7 +40,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
   onShopChange,
   onSearchParamsChange,
 }) => {
-  const handleSearch = (values: any) => {
+  const handleSearch = (values: FormValues) => {
     const searchValue = values.search_text?.trim();
 
     if (!searchValue) {

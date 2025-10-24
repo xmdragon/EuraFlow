@@ -72,6 +72,8 @@ import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
+import type { FormValues } from '@/types/common';
+
 const { Option } = Select;
 const { Text, Link, Paragraph, Title } = Typography;
 
@@ -377,7 +379,7 @@ const ProductSelection: React.FC = () => {
         notifyError('清空失败', data.error || '清空数据失败');
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('清空失败', '清空数据失败: ' + error.message);
     },
   });
@@ -407,7 +409,7 @@ const ProductSelection: React.FC = () => {
   };
 
   // 处理搜索
-  const handleSearch = (values: any) => {
+  const handleSearch = (values: FormValues) => {
     const params: api.ProductSearchParams = {};
 
     if (values.brand) params.brand = values.brand;
@@ -495,7 +497,7 @@ const ProductSelection: React.FC = () => {
       } else {
         notifyError('标记失败', '标记失败');
       }
-    } catch (error: any) {
+    } catch (error) {
       notifyError('标记失败', '标记失败: ' + error.message);
     } finally {
       setMarkingAsRead(false);
@@ -503,7 +505,7 @@ const ProductSelection: React.FC = () => {
   };
 
   // 处理文件上传 - 直接导入，不预览
-  const handleBeforeUpload = async (file: any) => {
+  const handleBeforeUpload = async (file: File) => {
     setFileList([file]);
 
     // 直接执行导入
@@ -539,7 +541,7 @@ const ProductSelection: React.FC = () => {
           });
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       notifyError('导入失败', '导入失败: ' + error.message);
     } finally {
       setImportLoading(false);
@@ -567,7 +569,7 @@ const ProductSelection: React.FC = () => {
       const response = await api.getProductDetail(product.product_id);
       if (response.success && response.data.images.length > 0) {
         // 提取图片URL数组
-        const imageUrls = response.data.images.map((img: any) => img.url);
+        const imageUrls = response.data.images.map((img) => img.url);
         setSelectedProductImages(imageUrls);
       } else {
         // 如果没有图片，关闭Modal并提示
@@ -616,7 +618,7 @@ const ProductSelection: React.FC = () => {
       } else {
         notifyError('导入失败', result.error || '导入失败');
       }
-    } catch (error: any) {
+    } catch (error) {
       notifyError('导入失败', '导入失败: ' + error.message);
     } finally {
       setImportLoading(false);

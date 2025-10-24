@@ -111,7 +111,7 @@ const ProductListing: React.FC = () => {
         notifyError('上架失败', `上架失败: ${data.error || '未知错误'}`);
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       notifyError('上架失败', `上架失败: ${error.message}`);
     },
   });
@@ -210,7 +210,7 @@ const ProductListing: React.FC = () => {
       key: 'actions',
       width: 200,
       fixed: 'right',
-      render: (_: any, record: ozonApi.Product) => (
+      render: (_, record: ozonApi.Product) => (
         <Space size="small">
           <Tooltip title="查看上架状态">
             <Button

@@ -32,7 +32,7 @@ export interface OrderCardComponentProps {
   userCurrency: string;
   statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }>;
   operationStatus: string;
-  formatPrice: (price: any) => string;
+  formatPrice: (price: string | number) => string;
   formatDeliveryMethodText: (method: string | undefined) => React.ReactNode;
   onCopy: (text: string | undefined, label: string) => void;
   onShowDetail: (order: ozonApi.Order, posting: ozonApi.Posting) => void;
@@ -79,7 +79,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     // 获取商品图片
     let rawImageUrl = product?.image || (product?.offer_id && offerIdImageMap[product.offer_id]);
     if (!rawImageUrl && product?.sku && order.items) {
-      const matchedItem = order.items.find((item: any) => item.sku === product.sku);
+      const matchedItem = order.items.find((item) => item.sku === product.sku);
       if (matchedItem) {
         rawImageUrl =
           matchedItem.image || (matchedItem.offer_id && offerIdImageMap[matchedItem.offer_id]);

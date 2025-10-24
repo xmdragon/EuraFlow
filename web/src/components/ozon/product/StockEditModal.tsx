@@ -6,17 +6,19 @@
 import { Modal, Form, InputNumber, Select, Button, Space } from 'antd';
 import React from 'react';
 
+import type { FormValues } from '@/types/common';
+
 const { Option } = Select;
 
 export interface Product {
   sku: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface StockEditModalProps {
   visible: boolean;
   onCancel: () => void;
-  onSubmit: (_data: any[]) => void;
+  onSubmit: (_data: unknown[]) => void;
   selectedProduct?: Product | null;
   selectedRows?: Product[];
   loading?: boolean;
@@ -32,7 +34,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
 }) => {
   const [form] = Form.useForm();
 
-  const handleFinish = (values: any) => {
+  const handleFinish = (values: FormValues) => {
     const updates = selectedProduct
       ? [
           {

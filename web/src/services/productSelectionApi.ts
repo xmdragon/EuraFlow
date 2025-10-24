@@ -98,7 +98,7 @@ export interface PreviewResponse {
   success: boolean;
   total_rows?: number;
   columns?: string[];
-  preview?: any[];
+  preview?: unknown[];
   column_mapping?: Record<string, string>;
   error?: string;
   missing_columns?: string[];
