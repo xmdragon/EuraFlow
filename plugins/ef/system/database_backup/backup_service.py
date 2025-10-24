@@ -59,10 +59,10 @@ class DatabaseBackupService:
             # 使用 gzip 压缩以节省空间
             pg_dump_cmd = [
                 "pg_dump",
-                "-h", self.db_host,
-                "-p", self.db_port,
-                "-U", self.db_user,
-                "-d", self.db_name,
+                "-h", str(self.db_host),
+                "-p", str(self.db_port),  # 转换为字符串
+                "-U", str(self.db_user),
+                "-d", str(self.db_name),
                 "--format=custom",  # 使用自定义格式（支持压缩和并行恢复）
                 "--compress=9",      # 最高压缩级别
                 "-f", str(backup_path)
