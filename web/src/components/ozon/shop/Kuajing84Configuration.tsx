@@ -6,8 +6,8 @@ import { Card, Form, Input, Switch, Button, Space, Alert, Spin } from 'antd';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
-import { notifySuccess, notifyError } from '@/utils/notification';
 import { logger } from '@/utils/logger';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 export const Kuajing84Configuration: React.FC = () => {
   const [configForm] = Form.useForm();

@@ -11,7 +11,7 @@ import {
   RollbackOutlined,
 } from '@ant-design/icons';
 import { Modal, Button, Space, Spin } from 'antd';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import styles from './ImagePreview.module.scss';
 
@@ -75,7 +75,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [visible, currentIndex, images.length]);
+  }, [visible, currentIndex, images.length, handlePrevious, handleNext, onClose]);
 
   // 鼠标滚轮缩放
   useEffect(() => {
@@ -91,19 +91,19 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     return () => window.removeEventListener('wheel', handleWheel);
   }, [visible]);
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       setLoading(true);
     }
-  };
+  }, [currentIndex]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentIndex < images.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setLoading(true);
     }
-  };
+  }, [currentIndex, images.length]);
 
   const handleZoomIn = () => {
     setScale((prev) => Math.min(prev + 0.2, 3));

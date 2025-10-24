@@ -6,7 +6,6 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // 路由懒加载
-const Dashboard = lazy(() => import('./Dashboard'));
 const OrderList = lazy(() => import('./OrderList'));
 const PackingShipment = lazy(() => import('./PackingShipment'));
 const OrderReport = lazy(() => import('./OrderReport'));
@@ -39,7 +38,6 @@ const OzonManagement: React.FC = () => {
   return (
     <Suspense fallback={<PageLoading />}>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
         <Route path="selection" element={<ProductSelection />} />
         <Route path="products" element={<ProductList />} />
         <Route path="products/create" element={<ProductCreate />} />

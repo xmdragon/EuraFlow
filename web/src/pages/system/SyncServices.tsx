@@ -45,8 +45,8 @@ import 'react-js-cron/dist/styles.css';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import axios from '@/services/axios';
-import { notifySuccess, notifyError } from '@/utils/notification';
 import { logger } from '@/utils/logger';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { TextArea } = Input;
 

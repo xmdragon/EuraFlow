@@ -31,7 +31,7 @@ const PRESET_OPTIONS = [
 export default function CronEditor({ value, onChange }: CronEditorProps) {
   // 判断当前值是否在预设列表中
   const isPreset = PRESET_OPTIONS.some((opt) => opt.value === value);
-  const [mode, setMode] = useState<string>(isPreset ? (value || '__custom__') : '__custom__');
+  const [mode, setMode] = useState<string>(isPreset ? value || '__custom__' : '__custom__');
   const [customValue, setCustomValue] = useState<string>(
     isPreset ? '0 * * * *' : value || '0 * * * *'
   );

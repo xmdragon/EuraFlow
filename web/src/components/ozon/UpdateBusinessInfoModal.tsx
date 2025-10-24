@@ -7,8 +7,8 @@ import { Modal, Form, Input, Select, InputNumber } from 'antd';
 import React, { useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
-import { notifySuccess, notifyError } from '@/utils/notification';
 import { logger } from '@/utils/logger';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Option } = Select;
 const { TextArea } = Input;

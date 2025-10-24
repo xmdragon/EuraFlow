@@ -7,9 +7,10 @@
  * - 使用 App.useApp() 获取notification并调用 setGlobalNotification()
  */
 import type { ArgsProps } from 'antd/es/notification';
-import { logger } from '@/utils/logger';
 
 import { getGlobalNotification } from './globalNotification';
+
+import { logger } from '@/utils/logger';
 
 /**
  * 获取notification实例

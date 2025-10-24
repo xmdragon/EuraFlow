@@ -261,7 +261,6 @@ export const useNotifications = (shopId: number | null) => {
       }
     },
     [
-      shopId,
       handleChatNotification,
       handleKuajing84SyncNotification,
       handlePostingCreated,

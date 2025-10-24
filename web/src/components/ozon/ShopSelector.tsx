@@ -2,7 +2,7 @@
 import { ShopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Select, Space, Spin } from 'antd';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 
 import * as ozonApi from '../../services/ozonApi';
 
@@ -42,7 +42,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });
 
-  const shops = shopsData?.data || [];
+  const shops = useMemo(() => shopsData?.data || [], [shopsData?.data]);
 
   useEffect(() => {
     // 避免不必要的状态更新

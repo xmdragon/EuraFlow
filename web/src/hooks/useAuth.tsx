@@ -2,8 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 import authService from '@/services/authService';
-import { logger } from '@/utils/logger';
 import type { AuthContextValue, LoginRequest, User } from '@/types/auth';
+import { logger } from '@/utils/logger';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 

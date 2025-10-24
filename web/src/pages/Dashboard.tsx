@@ -220,7 +220,6 @@ const Dashboard: React.FC = () => {
     if (path.includes('/ozon/watermark')) return 'ozon-watermark';
     if (path.includes('/ozon/api-keys')) return 'ozon-api-keys';
     if (path.includes('/ozon/settings')) return 'ozon-settings';
-    if (path.includes('/ozon')) return 'ozon-dashboard';
     if (path.includes('/system/sync-services')) return 'system-sync-services';
     if (path.includes('/finance')) return 'finance';
     if (path.includes('/exchange-rate')) return 'exchange-rate';
