@@ -34,16 +34,15 @@ import {
   Spin,
   Image,
 } from 'antd';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 import styles from './WatermarkManagement.module.scss';
 
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import * as watermarkApi from '@/services/watermarkApi';
-import { notifySuccess, notifyError } from '@/utils/notification';
-
 import type { FormValues } from '@/types/common';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Option } = Select;
 
@@ -151,7 +150,7 @@ const WatermarkManagement: React.FC = () => {
   });
 
   // ============ 资源清理 ============
-  const cleanupResourcesMutation = useMutation({
+  const _cleanupResourcesMutation = useMutation({
     mutationFn: ({ days, dryRun }: { days: number; dryRun: boolean }) =>
       watermarkApi.cleanupOldResources(days, dryRun),
     onSuccess: (data) => {

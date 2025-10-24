@@ -8,8 +8,8 @@ import {
   TruckOutlined,
   ReloadOutlined,
   LineChartOutlined,
-} from '@ant-design/icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+} from "@ant-design/icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   Form,
@@ -24,8 +24,8 @@ import {
   Switch,
   Spin,
   Segmented,
-} from 'antd';
-import React, { useEffect, useState } from 'react';
+} from "antd";
+import React, { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -34,17 +34,16 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-} from 'recharts';
+} from "recharts";
 
-import styles from './ThirdPartyServicesTab.module.scss';
+import styles from "./ThirdPartyServicesTab.module.scss";
 
-import { usePermission } from '@/hooks/usePermission';
-import * as exchangeRateApi from '@/services/exchangeRateApi';
-import * as ozonApi from '@/services/ozonApi';
-import * as watermarkApi from '@/services/watermarkApi';
-import { notifySuccess, notifyError, notifyInfo } from '@/utils/notification';
-
-import type { FormValues } from '@/types/common';
+import { usePermission } from "@/hooks/usePermission";
+import * as exchangeRateApi from "@/services/exchangeRateApi";
+import * as ozonApi from "@/services/ozonApi";
+import * as watermarkApi from "@/services/watermarkApi";
+import type { FormValues } from "@/types/common";
+import { notifySuccess, notifyError, notifyInfo } from "@/utils/notification";
 
 const ThirdPartyServicesTab: React.FC = () => {
   const queryClient = useQueryClient();
@@ -52,34 +51,41 @@ const ThirdPartyServicesTab: React.FC = () => {
   const [cloudinaryForm] = Form.useForm();
   const [kuajing84Form] = Form.useForm();
   const [exchangeRateForm] = Form.useForm();
-  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
+  const [timeRange, setTimeRange] = useState<"today" | "week" | "month">(
+    "today",
+  );
   const [cloudinaryEnabled, setCloudinaryEnabled] = useState(false);
 
   // ========== Cloudinary 配置（异步加载）==========
   const { data: cloudinaryConfig, isLoading: cloudinaryLoading } = useQuery({
-    queryKey: ['ozon', 'cloudinary-config'],
+    queryKey: ["ozon", "cloudinary-config"],
     queryFn: () => watermarkApi.getCloudinaryConfig(),
     enabled: cloudinaryEnabled, // 仅在需要时加载
   });
 
   const saveCloudinaryMutation = useMutation({
-    mutationFn: (values: FormValues) => watermarkApi.createCloudinaryConfig(values),
+    mutationFn: (values: FormValues) =>
+      watermarkApi.createCloudinaryConfig(
+        values as unknown as watermarkApi.CloudinaryConfig,
+      ),
     onSuccess: () => {
-      notifySuccess('保存成功', 'Cloudinary配置已保存');
-      queryClient.invalidateQueries({ queryKey: ['ozon', 'cloudinary-config'] });
+      notifySuccess("保存成功", "Cloudinary配置已保存");
+      queryClient.invalidateQueries({
+        queryKey: ["ozon", "cloudinary-config"],
+      });
     },
     onError: (error: Error) => {
-      notifyError('保存失败', `保存失败: ${error.message}`);
+      notifyError("保存失败", `保存失败: ${error.message}`);
     },
   });
 
   const testCloudinaryMutation = useMutation({
     mutationFn: () => watermarkApi.testCloudinaryConnection(),
     onSuccess: () => {
-      notifySuccess('测试成功', 'Cloudinary连接测试成功');
+      notifySuccess("测试成功", "Cloudinary连接测试成功");
     },
     onError: (error: Error) => {
-      notifyError('测试失败', `测试失败: ${error.message}`);
+      notifyError("测试失败", `测试失败: ${error.message}`);
     },
   });
 
@@ -94,9 +100,9 @@ const ThirdPartyServicesTab: React.FC = () => {
   useEffect(() => {
     if (cloudinaryConfig) {
       cloudinaryForm.setFieldsValue({
-        cloud_name: cloudinaryConfig.cloud_name || '',
-        api_key: cloudinaryConfig.api_key || '',
-        folder_prefix: cloudinaryConfig.folder_prefix || 'euraflow',
+        cloud_name: cloudinaryConfig.cloud_name || "",
+        api_key: cloudinaryConfig.api_key || "",
+        folder_prefix: cloudinaryConfig.folder_prefix || "euraflow",
         auto_cleanup_days: cloudinaryConfig.auto_cleanup_days || 30,
       });
     }
@@ -104,34 +110,36 @@ const ThirdPartyServicesTab: React.FC = () => {
 
   // ========== 跨境巴士配置 ==========
   const { data: kuajing84Config, isLoading: kuajing84Loading } = useQuery({
-    queryKey: ['ozon', 'kuajing84-global-config'],
+    queryKey: ["ozon", "kuajing84-global-config"],
     queryFn: () => ozonApi.getKuajing84Config(),
   });
 
   const saveKuajing84Mutation = useMutation({
     mutationFn: (values: FormValues) =>
       ozonApi.saveKuajing84Config({
-        username: values.username,
-        password: values.password,
-        enabled: values.enabled || false,
+        username: values.username as string,
+        password: values.password as string,
+        enabled: (values.enabled as boolean) || false,
       }),
     onSuccess: () => {
-      notifySuccess('保存成功', '跨境巴士配置已保存');
-      queryClient.invalidateQueries({ queryKey: ['ozon', 'kuajing84-global-config'] });
-      kuajing84Form.setFieldsValue({ password: '' });
+      notifySuccess("保存成功", "跨境巴士配置已保存");
+      queryClient.invalidateQueries({
+        queryKey: ["ozon", "kuajing84-global-config"],
+      });
+      kuajing84Form.setFieldsValue({ password: "" });
     },
     onError: (error: Error) => {
-      notifyError('保存失败', `保存失败: ${error.message}`);
+      notifyError("保存失败", `保存失败: ${error.message}`);
     },
   });
 
   const testKuajing84Mutation = useMutation({
     mutationFn: () => ozonApi.testKuajing84Connection(),
     onSuccess: () => {
-      notifySuccess('测试成功', '跨境巴士连接测试成功');
+      notifySuccess("测试成功", "跨境巴士连接测试成功");
     },
     onError: (error: Error) => {
-      notifyError('测试失败', `测试失败: ${error.message}`);
+      notifyError("测试失败", `测试失败: ${error.message}`);
     },
   });
 
@@ -139,44 +147,45 @@ const ThirdPartyServicesTab: React.FC = () => {
     if (kuajing84Config?.data) {
       kuajing84Form.setFieldsValue({
         enabled: kuajing84Config.data.enabled || false,
-        username: kuajing84Config.data.username || '',
-        password: '',
+        username: kuajing84Config.data.username || "",
+        password: "",
       });
     }
   }, [kuajing84Config, kuajing84Form]);
 
   // ========== 汇率配置 ==========
   const { data: exchangeRateConfig } = useQuery({
-    queryKey: ['exchange-rate', 'config'],
+    queryKey: ["exchange-rate", "config"],
     queryFn: exchangeRateApi.getExchangeRateConfig,
   });
 
   const { data: currentRate, isLoading: rateLoading } = useQuery({
-    queryKey: ['exchange-rate', 'current'],
-    queryFn: () => exchangeRateApi.getExchangeRate('CNY', 'RUB'),
+    queryKey: ["exchange-rate", "current"],
+    queryFn: () => exchangeRateApi.getExchangeRate("CNY", "RUB"),
     enabled: exchangeRateConfig?.configured === true,
     refetchInterval: 60000,
   });
 
   // 获取汇率历史
   const { data: history, isLoading: historyLoading } = useQuery({
-    queryKey: ['exchange-rate', 'history', timeRange],
-    queryFn: () => exchangeRateApi.getExchangeRateHistory('CNY', 'RUB', timeRange),
+    queryKey: ["exchange-rate", "history", timeRange],
+    queryFn: () =>
+      exchangeRateApi.getExchangeRateHistory("CNY", "RUB", timeRange),
     enabled: exchangeRateConfig?.configured === true,
   });
 
   // X轴格式化函数
   const formatXAxis = (text: string) => {
     const date = new Date(text);
-    if (timeRange === 'today') {
-      return date.toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
+    if (timeRange === "today") {
+      return date.toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
       });
     } else {
-      return date.toLocaleDateString('zh-CN', {
-        month: '2-digit',
-        day: '2-digit',
+      return date.toLocaleDateString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
       });
     }
   };
@@ -184,34 +193,47 @@ const ThirdPartyServicesTab: React.FC = () => {
   const configExchangeRateMutation = useMutation({
     mutationFn: exchangeRateApi.configureExchangeRateApi,
     onSuccess: () => {
-      notifySuccess('配置成功', '汇率API配置成功');
-      queryClient.invalidateQueries({ queryKey: ['exchange-rate'] });
+      notifySuccess("配置成功", "汇率API配置成功");
+      queryClient.invalidateQueries({ queryKey: ["exchange-rate"] });
       exchangeRateForm.resetFields();
     },
-    onError: (error: Error) => {
-      notifyError('配置失败', `配置失败: ${error.response?.data?.error?.detail || error.message}`);
+    onError: (error: any) => {
+      notifyError(
+        "配置失败",
+        `配置失败: ${error.response?.data?.error?.detail || error.message}`,
+      );
     },
   });
 
   const refreshRateMutation = useMutation({
     mutationFn: exchangeRateApi.refreshExchangeRate,
     onSuccess: (data) => {
-      if (data.status === 'success') {
-        notifySuccess('刷新成功', data.message);
-        queryClient.invalidateQueries({ queryKey: ['exchange-rate'] });
+      if (data.status === "success") {
+        notifySuccess("刷新成功", data.message);
+        queryClient.invalidateQueries({ queryKey: ["exchange-rate"] });
       } else {
-        notifyInfo('刷新提示', data.message);
+        notifyInfo("刷新提示", data.message);
       }
     },
-    onError: (error: Error) => {
-      notifyError('刷新失败', `刷新失败: ${error.response?.data?.error?.detail || error.message}`);
+    onError: (error: any) => {
+      notifyError(
+        "刷新失败",
+        `刷新失败: ${error.response?.data?.error?.detail || error.message}`,
+      );
     },
   });
 
   return (
     <div className={styles.container}>
       {/* Cloudinary配置 */}
-      <Card title={<><PictureOutlined /> Cloudinary图床配置</>} className={styles.card}>
+      <Card
+        title={
+          <>
+            <PictureOutlined /> Cloudinary图床配置
+          </>
+        }
+        className={styles.card}
+      >
         <Alert
           message="Cloudinary用于存储和处理水印图片"
           description="免费额度：25 GB存储，25 GB带宽"
@@ -221,19 +243,28 @@ const ThirdPartyServicesTab: React.FC = () => {
         />
 
         <Spin spinning={cloudinaryLoading}>
-          <Form form={cloudinaryForm} layout="vertical" onFinish={(values) => saveCloudinaryMutation.mutate(values)}>
+          <Form
+            form={cloudinaryForm}
+            layout="vertical"
+            onFinish={(values) => saveCloudinaryMutation.mutate(values)}
+          >
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
                   name="cloud_name"
                   label="Cloud Name"
-                  rules={[{ required: true, message: '请输入Cloud Name' }]}
+                  rules={[{ required: true, message: "请输入Cloud Name" }]}
                 >
                   <Input placeholder="your-cloud-name" />
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="api_key" label="API Key" rules={[{ required: true, message: '请输入API Key' }]}                >
+                <Form.Item
+                  name="api_key"
+                  label="API Key"
+                  rules={[{ required: true, message: "请输入API Key" }]}
+                  id="cloudinary_api_key"
+                >
                   <Input placeholder="123456789012345" />
                 </Form.Item>
               </Col>
@@ -243,19 +274,37 @@ const ThirdPartyServicesTab: React.FC = () => {
                 <Form.Item
                   name="api_secret"
                   label="API Secret"
-                  rules={[{ required: !cloudinaryConfig, message: '请输入API Secret' }]}
+                  rules={[
+                    {
+                      required: !cloudinaryConfig,
+                      message: "请输入API Secret",
+                    },
+                  ]}
                 >
                   <Input.Password placeholder="保存后不显示" />
                 </Form.Item>
               </Col>
               <Col span={6}>
-                <Form.Item name="folder_prefix" label="文件夹前缀" initialValue="euraflow">
+                <Form.Item
+                  name="folder_prefix"
+                  label="文件夹前缀"
+                  initialValue="euraflow"
+                >
                   <Input />
                 </Form.Item>
               </Col>
               <Col span={6}>
-                <Form.Item name="auto_cleanup_days" label="自动清理天数" initialValue={30}>
-                  <InputNumber min={1} max={365} controls={false} style={{ width: '100%' }} />
+                <Form.Item
+                  name="auto_cleanup_days"
+                  label="自动清理天数"
+                  initialValue={30}
+                >
+                  <InputNumber
+                    min={1}
+                    max={365}
+                    controls={false}
+                    style={{ width: "100%" }}
+                  />
                 </Form.Item>
               </Col>
             </Row>
@@ -265,7 +314,9 @@ const ThirdPartyServicesTab: React.FC = () => {
                 <Col span={8}>
                   <Statistic
                     title="存储使用"
-                    value={(cloudinaryConfig.storage_used_bytes || 0) / 1024 / 1024}
+                    value={
+                      (cloudinaryConfig.storage_used_bytes || 0) / 1024 / 1024
+                    }
                     precision={2}
                     suffix="MB"
                   />
@@ -273,7 +324,9 @@ const ThirdPartyServicesTab: React.FC = () => {
                 <Col span={8}>
                   <Statistic
                     title="带宽使用"
-                    value={(cloudinaryConfig.bandwidth_used_bytes || 0) / 1024 / 1024}
+                    value={
+                      (cloudinaryConfig.bandwidth_used_bytes || 0) / 1024 / 1024
+                    }
                     precision={2}
                     suffix="MB"
                   />
@@ -284,10 +337,17 @@ const ThirdPartyServicesTab: React.FC = () => {
             {canOperate && (
               <Form.Item style={{ marginTop: 16 }}>
                 <Space>
-                  <Button type="primary" htmlType="submit" loading={saveCloudinaryMutation.isPending}>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={saveCloudinaryMutation.isPending}
+                  >
                     保存配置
                   </Button>
-                  <Button onClick={() => testCloudinaryMutation.mutate()} loading={testCloudinaryMutation.isPending}>
+                  <Button
+                    onClick={() => testCloudinaryMutation.mutate()}
+                    loading={testCloudinaryMutation.isPending}
+                  >
                     测试连接
                   </Button>
                 </Space>
@@ -298,7 +358,14 @@ const ThirdPartyServicesTab: React.FC = () => {
       </Card>
 
       {/* 跨境巴士配置 */}
-      <Card title={<><TruckOutlined /> 跨境巴士配置</>} className={styles.card}>
+      <Card
+        title={
+          <>
+            <TruckOutlined /> 跨境巴士配置
+          </>
+        }
+        className={styles.card}
+      >
         <Alert
           message="跨境巴士用于订单物流同步"
           description="启用后，打包发货页面可以将已填写国内物流单号的订单同步到跨境巴士平台"
@@ -308,19 +375,35 @@ const ThirdPartyServicesTab: React.FC = () => {
         />
 
         <Spin spinning={kuajing84Loading}>
-          <Form form={kuajing84Form} layout="vertical" onFinish={(values) => saveKuajing84Mutation.mutate(values)}>
-            <Form.Item name="enabled" label="启用跨境巴士同步" valuePropName="checked">
+          <Form
+            form={kuajing84Form}
+            layout="vertical"
+            onFinish={(values) => saveKuajing84Mutation.mutate(values)}
+          >
+            <Form.Item
+              name="enabled"
+              label="启用跨境巴士同步"
+              valuePropName="checked"
+            >
               <Switch checkedChildren="启用" unCheckedChildren="禁用" />
             </Form.Item>
 
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
+                <Form.Item
+                  name="username"
+                  label="用户名"
+                  rules={[{ required: true, message: "请输入用户名" }]}
+                >
                   <Input placeholder="请输入跨境巴士用户名" />
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
+                <Form.Item
+                  name="password"
+                  label="密码"
+                  rules={[{ required: true, message: "请输入密码" }]}
+                >
                   <Input.Password placeholder="请输入跨境巴士密码" />
                 </Form.Item>
               </Col>
@@ -329,10 +412,17 @@ const ThirdPartyServicesTab: React.FC = () => {
             {canOperate && (
               <Form.Item>
                 <Space>
-                  <Button type="primary" htmlType="submit" loading={saveKuajing84Mutation.isPending}>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={saveKuajing84Mutation.isPending}
+                  >
                     保存配置
                   </Button>
-                  <Button onClick={() => testKuajing84Mutation.mutate()} loading={testKuajing84Mutation.isPending}>
+                  <Button
+                    onClick={() => testKuajing84Mutation.mutate()}
+                    loading={testKuajing84Mutation.isPending}
+                  >
                     测试连接
                   </Button>
                 </Space>
@@ -343,7 +433,14 @@ const ThirdPartyServicesTab: React.FC = () => {
       </Card>
 
       {/* 汇率API配置 */}
-      <Card title={<><DollarOutlined /> 汇率API配置</>} className={styles.card}>
+      <Card
+        title={
+          <>
+            <DollarOutlined /> 汇率API配置
+          </>
+        }
+        className={styles.card}
+      >
         <Alert
           message="汇率API用于实时获取人民币→卢布汇率"
           description="免费账户每月1500次请求，系统每30分钟自动刷新一次"
@@ -354,7 +451,7 @@ const ThirdPartyServicesTab: React.FC = () => {
 
         {exchangeRateConfig?.configured && (
           <Alert
-            message={`API已配置 | 服务商: ${exchangeRateConfig.api_provider} | 状态: ${exchangeRateConfig.is_enabled ? '启用' : '禁用'}`}
+            message={`API已配置 | 服务商: ${exchangeRateConfig.api_provider} | 状态: ${exchangeRateConfig.is_enabled ? "启用" : "禁用"}`}
             type="success"
             showIcon
             style={{ marginBottom: 16 }}
@@ -367,20 +464,29 @@ const ThirdPartyServicesTab: React.FC = () => {
           onFinish={(values) => {
             configExchangeRateMutation.mutate({
               api_key: values.api_key,
-              api_provider: 'exchangerate-api',
-              base_currency: 'CNY',
+              api_provider: "exchangerate-api",
+              base_currency: "CNY",
               is_enabled: true,
             });
           }}
         >
-          <Form.Item name="api_key" label="API Key" rules={[{ required: true, message: '请输入API Key' }]}>
+          <Form.Item
+            name="api_key"
+            label="API Key"
+            rules={[{ required: true, message: "请输入API Key" }]}
+            id="exchange_rate_api_key"
+          >
             <Input.Password placeholder="请输入exchangerate-api.com的API Key" />
           </Form.Item>
 
           {canOperate && (
             <Form.Item>
               <Space>
-                <Button type="primary" htmlType="submit" loading={configExchangeRateMutation.isPending}>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={configExchangeRateMutation.isPending}
+                >
                   保存配置
                 </Button>
                 <Button
@@ -407,8 +513,12 @@ const ThirdPartyServicesTab: React.FC = () => {
                     title="当前汇率：人民币 (CNY) → 卢布 (RUB)"
                     value={parseFloat(currentRate.rate)}
                     precision={6}
-                    valueStyle={{ color: '#3f8600' }}
-                    suffix={<span style={{ fontSize: 14 }}>{currentRate.cached && '(缓存)'}</span>}
+                    valueStyle={{ color: "#3f8600" }}
+                    suffix={
+                      <span style={{ fontSize: 14 }}>
+                        {currentRate.cached && "(缓存)"}
+                      </span>
+                    }
                   />
                 ) : (
                   <Alert message="无法获取汇率数据" type="warning" showIcon />
@@ -418,24 +528,33 @@ const ThirdPartyServicesTab: React.FC = () => {
 
             {/* 汇率趋势图 */}
             <div style={{ marginTop: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
                 <Space>
                   <LineChartOutlined />
                   <span style={{ fontWeight: 500 }}>汇率趋势</span>
                 </Space>
                 <Segmented
                   options={[
-                    { label: '今日', value: 'today' },
-                    { label: '本周', value: 'week' },
-                    { label: '本月', value: 'month' },
+                    { label: "今日", value: "today" },
+                    { label: "本周", value: "week" },
+                    { label: "本月", value: "month" },
                   ]}
                   value={timeRange}
-                  onChange={(value) => setTimeRange(value as 'today' | 'week' | 'month')}
+                  onChange={(value) =>
+                    setTimeRange(value as "today" | "week" | "month")
+                  }
                 />
               </div>
 
               {historyLoading ? (
-                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div style={{ textAlign: "center", padding: "40px 0" }}>
                   <Spin />
                 </div>
               ) : history?.data && history.data.length > 0 ? (
@@ -444,7 +563,9 @@ const ThirdPartyServicesTab: React.FC = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="time" tickFormatter={formatXAxis} />
                     <YAxis tickFormatter={(value) => value.toFixed(4)} />
-                    <Tooltip formatter={(value) => [`${value.toFixed(6)}`, '汇率']} />
+                    <Tooltip
+                      formatter={(value) => [`${value.toFixed(6)}`, "汇率"]}
+                    />
                     <Line
                       type="monotone"
                       dataKey="rate"
@@ -471,10 +592,14 @@ const ThirdPartyServicesTab: React.FC = () => {
           description={
             <div>
               <p>
-                1. 前往{' '}
-                <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer">
+                1. 前往{" "}
+                <a
+                  href="https://www.exchangerate-api.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   exchangerate-api.com
-                </a>{' '}
+                </a>{" "}
                 注册获取免费API Key
               </p>
               <p>2. 配置后系统会自动同步汇率数据</p>
