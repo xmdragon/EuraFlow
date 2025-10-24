@@ -251,7 +251,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                     -
                   </Text>
                 )
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 平台 */}
@@ -261,7 +265,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               </Text>
               {isFirstProduct ? (
                 <Text className={styles.value}>{sourcePlatform || '-'}</Text>
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 货件 */}
@@ -279,7 +287,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                     onClick={() => onCopy(posting.posting_number, '货件编号')}
                   />
                 </>
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 追踪 */}
@@ -301,7 +313,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                     -
                   </Text>
                 )
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 国内 */}
@@ -327,7 +343,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                     -
                   </Text>
                 )
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 配送 */}
@@ -342,7 +362,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                 >
                   <span className={styles.value}>{shortDeliveryMethod}</span>
                 </Tooltip>
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 状态（始终显示 OZON 原生状态） */}
@@ -354,7 +378,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                 <Tag color={status.color} className={styles.statusTag}>
                   {status.text}
                 </Tag>
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 下单 */}
@@ -366,7 +394,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                 <Text className={styles.value}>
                   {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
                 </Text>
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 截止 */}
@@ -380,7 +412,11 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                     ? moment(posting.shipment_date).format('MM-DD HH:mm')
                     : '-'}
                 </span>
-              ) : null}
+              ) : (
+                <Text type="secondary" className={styles.value}>
+                  -
+                </Text>
+              )}
             </div>
 
             {/* 操作按钮或主单号链接 */}
