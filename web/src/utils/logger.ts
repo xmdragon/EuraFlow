@@ -119,6 +119,7 @@ export const loggers = {
  * 向后兼容的控制台方法（仅用于迁移期间）
  * @deprecated 请使用 logger.debug/info/warn/error
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 可变参数需要接受任意类型，与 console.log 兼容
 export const devLog = (...args: any[]) => {
   logger.debug(...args);
 };

@@ -41,6 +41,7 @@ import styles from './ThirdPartyServicesTab.module.scss';
 import { usePermission } from '@/hooks/usePermission';
 import * as exchangeRateApi from '@/services/exchangeRateApi';
 import * as ozonApi from '@/services/ozonApi';
+import * as watermarkApi from '@/services/watermarkApi';
 import { notifySuccess, notifyError, notifyInfo } from '@/utils/notification';
 
 import type { FormValues } from '@/types/common';
@@ -57,12 +58,12 @@ const ThirdPartyServicesTab: React.FC = () => {
   // ========== Cloudinary 配置（异步加载）==========
   const { data: cloudinaryConfig, isLoading: cloudinaryLoading } = useQuery({
     queryKey: ['ozon', 'cloudinary-config'],
-    queryFn: () => ozonApi.getCloudinaryConfig(),
+    queryFn: () => watermarkApi.getCloudinaryConfig(),
     enabled: cloudinaryEnabled, // 仅在需要时加载
   });
 
   const saveCloudinaryMutation = useMutation({
-    mutationFn: (values: FormValues) => ozonApi.saveCloudinaryConfig(values),
+    mutationFn: (values: FormValues) => watermarkApi.createCloudinaryConfig(values),
     onSuccess: () => {
       notifySuccess('保存成功', 'Cloudinary配置已保存');
       queryClient.invalidateQueries({ queryKey: ['ozon', 'cloudinary-config'] });
@@ -73,7 +74,7 @@ const ThirdPartyServicesTab: React.FC = () => {
   });
 
   const testCloudinaryMutation = useMutation({
-    mutationFn: () => ozonApi.testCloudinaryConnection(),
+    mutationFn: () => watermarkApi.testCloudinaryConnection(),
     onSuccess: () => {
       notifySuccess('测试成功', 'Cloudinary连接测试成功');
     },
@@ -82,13 +83,21 @@ const ThirdPartyServicesTab: React.FC = () => {
     },
   });
 
+  // 组件挂载后异步加载Cloudinary配置（避免阻塞页面初始渲染）
   useEffect(() => {
-    if (cloudinaryConfig?.data) {
+    const timer = setTimeout(() => {
+      setCloudinaryEnabled(true);
+    }, 100); // 延迟100ms，让页面先完成初始渲染
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (cloudinaryConfig) {
       cloudinaryForm.setFieldsValue({
-        cloud_name: cloudinaryConfig.data.cloud_name || '',
-        api_key: cloudinaryConfig.data.api_key || '',
-        folder_prefix: cloudinaryConfig.data.folder_prefix || 'euraflow',
-        auto_cleanup_days: cloudinaryConfig.data.auto_cleanup_days || 30,
+        cloud_name: cloudinaryConfig.cloud_name || '',
+        api_key: cloudinaryConfig.api_key || '',
+        folder_prefix: cloudinaryConfig.folder_prefix || 'euraflow',
+        auto_cleanup_days: cloudinaryConfig.auto_cleanup_days || 30,
       });
     }
   }, [cloudinaryConfig, cloudinaryForm]);
@@ -234,7 +243,7 @@ const ThirdPartyServicesTab: React.FC = () => {
                 <Form.Item
                   name="api_secret"
                   label="API Secret"
-                  rules={[{ required: !cloudinaryConfig?.data, message: '请输入API Secret' }]}
+                  rules={[{ required: !cloudinaryConfig, message: '请输入API Secret' }]}
                 >
                   <Input.Password placeholder="保存后不显示" />
                 </Form.Item>
@@ -251,12 +260,12 @@ const ThirdPartyServicesTab: React.FC = () => {
               </Col>
             </Row>
 
-            {cloudinaryConfig?.data && (
+            {cloudinaryConfig && (
               <Row gutter={16} style={{ marginTop: 16 }}>
                 <Col span={8}>
                   <Statistic
                     title="存储使用"
-                    value={(cloudinaryConfig.data.storage_used_bytes || 0) / 1024 / 1024}
+                    value={(cloudinaryConfig.storage_used_bytes || 0) / 1024 / 1024}
                     precision={2}
                     suffix="MB"
                   />
@@ -264,7 +273,7 @@ const ThirdPartyServicesTab: React.FC = () => {
                 <Col span={8}>
                   <Statistic
                     title="带宽使用"
-                    value={(cloudinaryConfig.data.bandwidth_used_bytes || 0) / 1024 / 1024}
+                    value={(cloudinaryConfig.bandwidth_used_bytes || 0) / 1024 / 1024}
                     precision={2}
                     suffix="MB"
                   />

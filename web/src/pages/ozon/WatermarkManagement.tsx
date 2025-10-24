@@ -112,7 +112,7 @@ const WatermarkManagement: React.FC = () => {
       };
       // watermarkFile现在是一个fileList数组，取第一个文件
       const file = watermarkFile?.[0]?.originFileObj || watermarkFile?.[0];
-      return watermarkApi.createWatermarkConfig(values.name, file, payload);
+      return watermarkApi.createWatermarkConfig(values.name as string, file, payload);
     },
     onSuccess: () => {
       notifySuccess('创建成功', '水印配置创建成功');
