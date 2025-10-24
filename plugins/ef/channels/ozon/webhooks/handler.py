@@ -1204,17 +1204,57 @@ class OzonWebhookHandler:
         payload: Dict[str, Any],
         webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
-        """处理新聊天消息事件 (TYPE_NEW_MESSAGE)"""
+        """处理新聊天消息事件 (TYPE_NEW_MESSAGE)
+
+        OZON API格式:
+        {
+            "message_type": "TYPE_NEW_MESSAGE",
+            "chat_id": "b646d975-0c9c-4872-9f41-8b1e57181063",
+            "chat_type": "Buyer_Seller",  # 或 "Seller_Support", "Seller_Notification"
+            "message_id": "3000000000817031942",
+            "created_at": "2022-07-18T20:58:04.528Z",
+            "user": {
+                "id": "115568",
+                "type": "Customer"  # 或 "Support", "NotificationUser"
+            },
+            "data": ["消息文本（Markdown格式）"],
+            "seller_id": "7"
+        }
+        """
         # 打印完整payload以便调试
         logger.info(f"Chat message webhook payload: {payload}")
 
         chat_id = payload.get("chat_id")
         message_id = payload.get("message_id")
-        message_type = payload.get("type", "text")  # text/image/file等
-        sender_type = payload.get("sender_type", "user")  # user/support/seller
-        content = payload.get("text", "")  # 消息文本内容
 
-        logger.info(f"New chat message: chat_id={chat_id}, message_id={message_id}, type={message_type}, content_length={len(content) if content else 0}")
+        # 从data数组中获取消息内容（OZON格式）
+        data_array = payload.get("data", [])
+        content = data_array[0] if data_array and len(data_array) > 0 else ""
+
+        # 从user对象中提取发送者信息
+        user = payload.get("user", {})
+        sender_id = user.get("id")
+        sender_type_raw = user.get("type", "Customer")
+
+        # 规范化sender_type和sender_name
+        # OZON文档: Customer(买家), Support(客服), NotificationUser(Ozon通知)
+        if sender_type_raw == "Customer":
+            sender_type = "user"
+            sender_name = "买家"
+        elif sender_type_raw == "Support":
+            sender_type = "support"
+            sender_name = "Ozon客服"
+        elif sender_type_raw == "NotificationUser":
+            sender_type = "support"
+            sender_name = "Ozon通知"
+        else:
+            sender_type = "user"
+            sender_name = sender_type_raw
+            logger.warning(f"Unknown sender_type: {sender_type_raw}, defaulting to 'user'")
+
+        message_type = "text"  # OZON webhook暂时只支持文本消息
+
+        logger.info(f"New chat message: chat_id={chat_id}, message_id={message_id}, sender_type={sender_type}, content_length={len(content) if content else 0}")
 
         from ..models.chat import OzonChat, OzonChatMessage
 
@@ -1230,15 +1270,27 @@ class OzonWebhookHandler:
             chat = await session.scalar(stmt)
 
             if not chat:
+                # 规范化chat_type
+                # OZON格式: Buyer_Seller, Seller_Support, Seller_Notification
+                chat_type_raw = payload.get("chat_type", "")
+                if chat_type_raw == "Buyer_Seller":
+                    chat_type = "BUYER_SELLER"
+                elif chat_type_raw == "Seller_Support":
+                    chat_type = "SELLER_SUPPORT"
+                elif chat_type_raw == "Seller_Notification":
+                    chat_type = "SELLER_NOTIFICATION"
+                else:
+                    chat_type = chat_type_raw or "UNSPECIFIED"
+
                 # 创建新的聊天会话（处理并发竞争）
                 try:
                     chat = OzonChat(
                         shop_id=self.shop_id,
                         chat_id=chat_id,
-                        chat_type=payload.get("chat_type", "general"),
+                        chat_type=chat_type,
                         status="open",
-                        customer_id=payload.get("customer_id"),
-                        customer_name=payload.get("customer_name"),
+                        customer_id=sender_id if sender_type == "user" else None,
+                        customer_name=sender_name if sender_type == "user" else None,
                         order_number=payload.get("order_number"),
                         message_count=0,
                         unread_count=0
@@ -1264,10 +1316,10 @@ class OzonWebhookHandler:
                 message_id=message_id,
                 message_type=message_type,
                 sender_type=sender_type,
-                sender_id=payload.get("sender_id"),
-                sender_name=payload.get("sender_name"),
+                sender_id=sender_id,
+                sender_name=sender_name,
                 content=content,
-                content_data=payload.get("content_data"),
+                content_data=data_array,  # 保存完整的data数组
                 order_number=payload.get("order_number"),
                 is_read=False,
                 extra_data=payload
