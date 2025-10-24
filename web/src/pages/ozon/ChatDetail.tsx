@@ -7,7 +7,6 @@ import {
   ArrowLeftOutlined,
   ShoppingOutlined,
   CheckOutlined,
-  CloseOutlined,
   SyncOutlined,
   MessageOutlined,
 } from '@ant-design/icons';
@@ -23,7 +22,6 @@ import {
   Spin,
   Empty,
   Descriptions,
-  Modal,
   Badge,
 } from 'antd';
 import moment from 'moment';
@@ -114,22 +112,6 @@ const ChatDetail: React.FC = () => {
     },
   });
 
-  // 关闭聊天
-  const closeChatMutation = useMutation({
-    mutationFn: () => {
-      if (!shopId || !chatId) throw new Error('缺少参数');
-      return ozonApi.closeChat(Number(shopId), chatId);
-    },
-    onSuccess: () => {
-      notifySuccess('操作成功', '聊天已关闭');
-      queryClient.invalidateQueries({ queryKey: ['chatDetail'] });
-      queryClient.invalidateQueries({ queryKey: ['chats'] });
-    },
-    onError: (error: Error) => {
-      notifyError('操作失败', `操作失败: ${error.message}`);
-    },
-  });
-
   // 滚动到底部
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -149,16 +131,6 @@ const ChatDetail: React.FC = () => {
 
   const handleMarkAsRead = () => {
     markAsReadMutation.mutate();
-  };
-
-  const handleCloseChat = () => {
-    Modal.confirm({
-      title: '确认关闭聊天',
-      content: '关闭后将无法继续发送消息，确定要关闭吗？',
-      onOk: () => {
-        closeChatMutation.mutate();
-      },
-    });
   };
 
   const getStatusTag = (status: string) => {
@@ -314,16 +286,6 @@ const ChatDetail: React.FC = () => {
                         loading={markAsReadMutation.isPending}
                       >
                         标记已读
-                      </Button>
-                    )}
-                    {chatData.status === 'open' && (
-                      <Button
-                        icon={<CloseOutlined />}
-                        danger
-                        onClick={handleCloseChat}
-                        loading={closeChatMutation.isPending}
-                      >
-                        关闭聊天
                       </Button>
                     )}
                     <Button icon={<SyncOutlined />} onClick={() => refetchMessages()}>

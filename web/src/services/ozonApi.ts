@@ -814,12 +814,6 @@ export const markChatAsRead = async (shopId: number, chatId: string): Promise<an
   return response.data.data;
 };
 
-// 关闭聊天
-export const closeChat = async (shopId: number, chatId: string): Promise<any> => {
-  const response = await apiClient.post(`/ozon/chats/${shopId}/${chatId}/close`);
-  return response.data.data;
-};
-
 // 同步聊天数据
 export const syncChats = async (shopId: number, chatIdList?: string[]): Promise<any> => {
   const response = await apiClient.post(`/ozon/chats/${shopId}/sync`, chatIdList || null);

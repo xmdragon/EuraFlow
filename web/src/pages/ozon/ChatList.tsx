@@ -30,8 +30,9 @@ import {
   Empty,
 } from 'antd';
 import moment from 'moment';
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import styles from './ChatList.module.scss';
 
@@ -48,13 +49,28 @@ const ChatList: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canSync } = usePermission();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
+  // 从URL参数中读取店铺ID
+  const shopIdParam = searchParams.get('shopId');
+  const [selectedShopId, setSelectedShopId] = useState<number | null>(
+    shopIdParam ? Number(shopIdParam) : null
+  );
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [unreadFilter, setUnreadFilter] = useState<string>('all');
   const [searchText, setSearchText] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 20;
+
+  // 当URL参数变化时更新选中的店铺
+  useEffect(() => {
+    const shopIdParam = searchParams.get('shopId');
+    if (shopIdParam) {
+      setSelectedShopId(Number(shopIdParam));
+    } else {
+      setSelectedShopId(null);
+    }
+  }, [searchParams]);
 
   // 获取店铺列表
   const { data: shopsData, isLoading: shopsLoading } = useQuery({
@@ -244,6 +260,13 @@ const ChatList: React.FC = () => {
               const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : shopId;
               setSelectedShopId(normalized);
               setCurrentPage(1);
+              // 更新URL参数以保持店铺选择状态
+              if (normalized === null) {
+                searchParams.delete('shopId');
+              } else {
+                searchParams.set('shopId', String(normalized));
+              }
+              setSearchParams(searchParams);
             }}
             showAllOption={true}
           />
@@ -410,7 +433,11 @@ const ChatList: React.FC = () => {
                       description={
                         <div>
                           <div className={styles.chatMessage}>
-                            {chat.last_message_preview || '暂无消息'}
+                            {chat.last_message_preview ? (
+                              <ReactMarkdown>{chat.last_message_preview}</ReactMarkdown>
+                            ) : (
+                              '暂无消息'
+                            )}
                           </div>
                           <Space size="small">
                             <Text type="secondary" className={styles.chatMeta}>

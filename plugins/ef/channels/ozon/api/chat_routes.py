@@ -524,52 +524,6 @@ async def mark_chat_as_read(
         )
 
 
-@router.post("/{shop_id}/{chat_id}/close")
-async def close_chat(
-    shop_id: int,
-    chat_id: str,
-    user: User = Depends(get_current_user)
-):
-    """关闭聊天
-
-    Args:
-        shop_id: 店铺ID
-        chat_id: 聊天ID
-
-    Returns:
-        {
-            "ok": true,
-            "data": {...}
-        }
-    """
-    try:
-        service = OzonChatService(shop_id)
-        result = await service.close_chat(chat_id)
-        return {"ok": True, "data": result}
-    except ValueError as e:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "type": "about:blank",
-                "title": "Chat Not Found",
-                "status": 404,
-                "detail": str(e),
-                "code": "CHAT_NOT_FOUND"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "type": "about:blank",
-                "title": "Internal Server Error",
-                "status": 500,
-                "detail": str(e),
-                "code": "INTERNAL_ERROR"
-            }
-        )
-
-
 @router.post("/{shop_id}/sync")
 async def sync_chats(
     shop_id: int,

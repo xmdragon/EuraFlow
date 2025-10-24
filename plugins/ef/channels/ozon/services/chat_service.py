@@ -368,39 +368,6 @@ class OzonChatService:
 
         return result
 
-    async def close_chat(self, chat_id: str) -> Dict[str, Any]:
-        """关闭聊天
-
-        Args:
-            chat_id: 聊天ID
-
-        Returns:
-            操作结果
-        """
-        async with self.db_manager.get_session() as session:
-            stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
-            )
-            chat = await session.scalar(stmt)
-
-            if not chat:
-                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
-
-            chat.status = "closed"
-            chat.is_closed = True
-            chat.closed_at = utcnow()
-
-            await session.commit()
-
-            return {
-                "chat_id": chat_id,
-                "status": "closed",
-                "closed_at": chat.closed_at.isoformat()
-            }
-
     async def _sync_chat_messages(
         self,
         chat_id: str,
