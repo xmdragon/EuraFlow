@@ -10,7 +10,7 @@ import {
   InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { notification } from 'antd';
+import { App } from 'antd';
 import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,6 +25,7 @@ import { loggers } from '@/utils/logger';
 export const useNotifications = (shopId: number | null) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { notification } = App.useApp();
 
   const handleChatNotification = useCallback(
     (data: ChatNotificationData, chatId: string) => {
@@ -60,7 +61,7 @@ export const useNotifications = (shopId: number | null) => {
         // 忽略音效错误
       }
     },
-    [shopId, navigate]
+    [shopId, navigate, notification]
   );
 
   const handleKuajing84SyncNotification = useCallback(
@@ -99,7 +100,7 @@ export const useNotifications = (shopId: number | null) => {
         },
       });
     },
-    [queryClient]
+    [queryClient, notification]
   );
 
   const handlePostingCreated = useCallback(
@@ -136,7 +137,7 @@ export const useNotifications = (shopId: number | null) => {
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
     },
-    [shopId, navigate, queryClient]
+    [shopId, navigate, queryClient, notification]
   );
 
   const handlePostingCancelled = useCallback(
@@ -156,7 +157,7 @@ export const useNotifications = (shopId: number | null) => {
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
     },
-    [queryClient]
+    [queryClient, notification]
   );
 
   const handlePostingStatusChanged = useCallback(
@@ -179,7 +180,7 @@ export const useNotifications = (shopId: number | null) => {
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
     },
-    [queryClient]
+    [queryClient, notification]
   );
 
   const handlePostingDelivered = useCallback(
@@ -199,7 +200,7 @@ export const useNotifications = (shopId: number | null) => {
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
     },
-    [queryClient]
+    [queryClient, notification]
   );
 
   const handleWebSocketMessage = useCallback(

@@ -428,7 +428,7 @@ const PackingShipment: React.FC = () => {
       setHasMoreData(hasMore);
       setIsLoadingMore(false);
     }
-  }, [ordersData?.data]); // 只依赖数据变化
+  }, [ordersData, pageSize]); // 依赖 ordersData 对象和 pageSize
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
@@ -689,7 +689,7 @@ const PackingShipment: React.FC = () => {
     }, 2000); // 每2秒检查一次
 
     return () => clearInterval(interval);
-  }, [syncTaskId, syncStatus?.status, queryClient]);
+  }, [syncTaskId, syncStatus?.status, queryClient, resetAndRefresh]);
 
   // 发货
   const shipOrderMutation = useMutation({

@@ -37,6 +37,61 @@ interface CalculationData {
   deliveryType: 'pickup' | 'delivery'; // 自提点/送货上门
 }
 
+// 获取可用的标签页列表（纯函数，移到组件外部）
+const getAvailableTabs = (
+  weight: number,
+  value: number,
+  sumDim: number,
+  maxDim: number
+): string[] => {
+  return OZON_UNI_DATA.filter((category) => {
+    return category.services.some((service) => {
+      const availability = checkServiceAvailable(service, weight, value, sumDim, maxDim);
+      return availability.available;
+    });
+  }).map((category) => category.id);
+};
+
+// 根据重量自动选择合适的标签页（纯函数，移到组件外部）
+const getActiveTabByWeight = (
+  weight: number,
+  value: number,
+  sumDim: number,
+  maxDim: number
+): string => {
+  const availableTabs = getAvailableTabs(weight, value, sumDim, maxDim);
+
+  if (availableTabs.length === 0) {
+    return 'extra-small'; // 默认返回第一个
+  }
+
+  // 按优先级尝试选择最合适的可用标签页
+  const priorities = [
+    // UNI Extra Small: 1g-500g
+    weight >= 1 && weight <= 500 ? 'extra-small' : null,
+    // UNI Budget: 501g-25kg (只适用于501g以上，价值≤1500卢布)
+    weight >= 501 && weight <= 25000 && value <= 1500 ? 'budget' : null,
+    // UNI Small: 1g-2kg (价值1500-7000卢布)
+    weight >= 1 && weight <= 2000 && value > 1500 && value <= 7000 ? 'small' : null,
+    // UNI Big: 2.001kg-25kg (价值1501-7000卢布)
+    weight >= 2001 && weight <= 25000 && value > 1500 && value <= 7000 ? 'big' : null,
+    // UNI Premium Small: 1g-5kg (高客单价>7000)
+    weight >= 1 && weight <= 5000 && value > 7000 ? 'premium-small' : null,
+    // UNI Premium Big: 5.001kg-25kg (高客单价>7000)
+    weight >= 5001 && weight <= 25000 && value > 7000 ? 'premium-big' : null,
+  ].filter(Boolean);
+
+  // 从优先级列表中找到第一个可用的标签页
+  for (const priority of priorities) {
+    if (priority && availableTabs.includes(priority)) {
+      return priority;
+    }
+  }
+
+  // 如果没有匹配的优先级，返回第一个可用的标签页
+  return availableTabs[0];
+};
+
 const ShippingDetailCalculator: React.FC = () => {
   const [form] = Form.useForm();
   const [calculationData, setCalculationData] = useState<CalculationData>({
@@ -53,61 +108,6 @@ const ShippingDetailCalculator: React.FC = () => {
   const [sumDimension, setSumDimension] = useState(0);
   const [maxDimension, setMaxDimension] = useState(0);
   const [activeKey, setActiveKey] = useState<string>('extra-small');
-
-  // 获取可用的标签页列表
-  const getAvailableTabs = (
-    weight: number,
-    value: number,
-    sumDim: number,
-    maxDim: number
-  ): string[] => {
-    return OZON_UNI_DATA.filter((category) => {
-      return category.services.some((service) => {
-        const availability = checkServiceAvailable(service, weight, value, sumDim, maxDim);
-        return availability.available;
-      });
-    }).map((category) => category.id);
-  };
-
-  // 根据重量自动选择合适的标签页（从可用标签页中选择）
-  const getActiveTabByWeight = (
-    weight: number,
-    value: number,
-    sumDim: number,
-    maxDim: number
-  ): string => {
-    const availableTabs = getAvailableTabs(weight, value, sumDim, maxDim);
-
-    if (availableTabs.length === 0) {
-      return 'extra-small'; // 默认返回第一个
-    }
-
-    // 按优先级尝试选择最合适的可用标签页
-    const priorities = [
-      // UNI Extra Small: 1g-500g
-      weight >= 1 && weight <= 500 ? 'extra-small' : null,
-      // UNI Budget: 501g-25kg (只适用于501g以上，价值≤1500卢布)
-      weight >= 501 && weight <= 25000 && value <= 1500 ? 'budget' : null,
-      // UNI Small: 1g-2kg (价值1500-7000卢布)
-      weight >= 1 && weight <= 2000 && value > 1500 && value <= 7000 ? 'small' : null,
-      // UNI Big: 2.001kg-25kg (价值1501-7000卢布)
-      weight >= 2001 && weight <= 25000 && value > 1500 && value <= 7000 ? 'big' : null,
-      // UNI Premium Small: 1g-5kg (高客单价>7000)
-      weight >= 1 && weight <= 5000 && value > 7000 ? 'premium-small' : null,
-      // UNI Premium Big: 5.001kg-25kg (高客单价>7000)
-      weight >= 5001 && weight <= 25000 && value > 7000 ? 'premium-big' : null,
-    ].filter(Boolean);
-
-    // 从优先级列表中找到第一个可用的标签页
-    for (const priority of priorities) {
-      if (priority && availableTabs.includes(priority)) {
-        return priority;
-      }
-    }
-
-    // 如果没有匹配的优先级，返回第一个可用的标签页
-    return availableTabs[0];
-  };
 
   // 计算体积重量和尺寸
   useEffect(() => {
@@ -133,7 +133,7 @@ const ShippingDetailCalculator: React.FC = () => {
         setActiveKey(newActiveKey);
       }
     }
-  }, [calculationData]);
+  }, [calculationData, activeKey]);
 
   // 处理表单值变化
   const handleFormChange = (changedValues: any) => {

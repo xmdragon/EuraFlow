@@ -79,7 +79,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
 
     const platformFee = price * platformRate;
     return price - cost - shipping - platformFee - packingFee;
-  }, [sharedInputData?.cost, sharedInputData?.price, shipping, packingFee, platformRate]);
+  }, [sharedInputData, shipping, packingFee, platformRate]);
 
   // 计算利润率（小数形式，如0.22表示22%）
   const profitRate = useMemo(() => {

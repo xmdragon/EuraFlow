@@ -195,7 +195,8 @@ const ProductSelection: React.FC = () => {
         setSearchParams((prev) => ({ ...prev, ...restoredParams }));
       }
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 仅在挂载时运行一次，form 实例在组件生命周期内稳定
 
   // 查询品牌列表
   const { data: brandsData } = useQuery({
@@ -272,23 +273,29 @@ const ProductSelection: React.FC = () => {
   // 当收到新数据时，累积到 allProducts
   useEffect(() => {
     if (productsData?.data?.items) {
+      let totalLoaded = 0;
+
       if (currentPage === 1) {
         // 第一页，替换数据
         setAllProducts(productsData.data.items);
+        totalLoaded = productsData.data.items.length;
       } else {
         // 后续页，追加数据
-        setAllProducts((prev) => [...prev, ...productsData.data.items]);
+        setAllProducts((prev) => {
+          const newProducts = [...prev, ...productsData.data.items];
+          totalLoaded = newProducts.length;
+          return newProducts;
+        });
       }
 
-      // 检查是否还有更多数据
-      const totalLoaded =
-        currentPage === 1
-          ? productsData.data.items.length
-          : allProducts.length + productsData.data.items.length;
-      setHasMoreData(totalLoaded < productsData.data.total);
-      setIsLoadingMore(false);
+      // 使用 setTimeout 确保在 setAllProducts 完成后检查是否还有更多数据
+      setTimeout(() => {
+        setHasMoreData(totalLoaded < productsData.data.total);
+        setIsLoadingMore(false);
+      }, 0);
     }
-  }, [productsData?.data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productsData?.data]); // currentPage 用于条件判断，不需要作为依赖
 
   // 滚动监听：滚动到80%加载下一页（pageSize为初始值的一半）
   useEffect(() => {
