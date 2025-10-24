@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         OZON真实售价计算器
 // @namespace    http://tampermonkey.net/
-// @version      1.0.1
+// @version      1.0.2
 // @description  在OZON商品页面显示计算后的真实售价（支持动态更新）
 // @author       EuraFlow
 // @match        https://www.ozon.ru/product/*
+// @match        https://*.ozon.ru/product/*
+// @include      /^https?://.*\.ozon\.ru/product/.*/
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
@@ -14,7 +16,7 @@
 
   // 立即输出日志，确认脚本已加载
   console.log("========================================");
-  console.log("[OZON真实售价] 脚本已加载！版本 1.0.1");
+  console.log("[OZON真实售价] 脚本已加载！版本 1.0.2");
   console.log("[OZON真实售价] 当前URL:", window.location.href);
   console.log("[OZON真实售价] 页面状态:", document.readyState);
   console.log("========================================");
