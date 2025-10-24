@@ -296,7 +296,8 @@ class OzonChatService:
         Returns:
             操作结果
         """
-        # 验证聊天是否属于此店铺
+        # 验证聊天是否属于此店铺，并获取最后一条消息ID
+        last_message_id = None
         async with self.db_manager.get_session() as session:
             stmt = select(OzonChat).where(
                 and_(
@@ -308,8 +309,31 @@ class OzonChatService:
             if not chat:
                 raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
 
+            # 获取最后一条消息的ID（按创建时间倒序）
+            msg_stmt = (
+                select(OzonChatMessage.message_id)
+                .where(
+                    and_(
+                        OzonChatMessage.shop_id == self.shop_id,
+                        OzonChatMessage.chat_id == chat_id,
+                        OzonChatMessage.is_deleted == False
+                    )
+                )
+                .order_by(desc(OzonChatMessage.created_at))
+                .limit(1)
+            )
+            last_msg_id = await session.scalar(msg_stmt)
+            if last_msg_id:
+                # 将字符串消息ID转换为整数（OZON API要求整数）
+                try:
+                    last_message_id = int(last_msg_id)
+                except (ValueError, TypeError):
+                    logger.warning(f"Cannot convert message_id '{last_msg_id}' to int for chat {chat_id}")
+                    last_message_id = None
+
         # 调用OZON API标记已读
-        result = await api_client.mark_chat_as_read(chat_id)
+        # 传递最后一条消息ID，将该消息及其之前的所有消息标记为已读
+        result = await api_client.mark_chat_as_read(chat_id, from_message_id=last_message_id)
 
         # 更新本地数据库
         async with self.db_manager.get_session() as session:
@@ -321,7 +345,8 @@ class OzonChatService:
             )
             chat = await session.scalar(stmt)
             if chat:
-                chat.unread_count = 0
+                # 从API响应中获取未读数量
+                chat.unread_count = result.get("unread_count", 0)
 
                 # 标记所有未读消息为已读
                 msg_stmt = select(OzonChatMessage).where(

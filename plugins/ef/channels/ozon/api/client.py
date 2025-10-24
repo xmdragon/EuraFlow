@@ -1370,20 +1370,29 @@ class OzonAPIClient:
 
     async def mark_chat_as_read(
         self,
-        chat_id: str
+        chat_id: str,
+        from_message_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         标记聊天为已读
 
+        将指定消息及其之前的所有消息标记为已读。
+        如果不提供from_message_id，则标记所有消息为已读。
+
         Args:
             chat_id: 聊天ID
+            from_message_id: 消息ID（将该消息及其之前的消息标记为已读）
 
         Returns:
-            操作结果
+            操作结果，包含 unread_count（未读消息数量）
         """
         data = {
             "chat_id": chat_id
         }
+
+        # 如果提供了消息ID，添加到请求中
+        if from_message_id is not None:
+            data["from_message_id"] = from_message_id
 
         return await self._request(
             "POST",
