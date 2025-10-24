@@ -441,14 +441,22 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     );
   },
   (prevProps, nextProps) => {
-    // 自定义比较函数 - 只在关键 props 变化时重新渲染
-    return (
-      prevProps.card.key === nextProps.card.key &&
-      prevProps.selectedPostingNumbers === nextProps.selectedPostingNumbers &&
-      prevProps.offerIdImageMap === nextProps.offerIdImageMap &&
-      prevProps.shopNameMap === nextProps.shopNameMap
-    );
-  }
+    // 自定义比较函数 - 检查所有关键 props 变化
+    // 添加 order.order_notes 的检查以支持 tooltip 更新
+    const cardChanged =
+      prevProps.card.key !== nextProps.card.key ||
+      prevProps.card.order.order_notes !== nextProps.card.order.order_notes ||
+      prevProps.card.posting.source_platform !== nextProps.card.posting.source_platform ||
+      prevProps.card.posting.purchase_price !== nextProps.card.posting.purchase_price;
+
+    const otherPropsChanged =
+      prevProps.selectedPostingNumbers !== nextProps.selectedPostingNumbers ||
+      prevProps.offerIdImageMap !== nextProps.offerIdImageMap ||
+      prevProps.shopNameMap !== nextProps.shopNameMap;
+
+    // 如果任何相关 props 变化，返回 false 以触发重新渲染
+    return !cardChanged && !otherPropsChanged;
+  },
 );
 
 OrderCardComponent.displayName = 'OrderCardComponent';
