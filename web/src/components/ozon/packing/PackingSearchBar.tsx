@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 /**
  * 打包发货搜索栏组件
  * 支持智能识别SKU/货件编号/追踪号码/国内单号

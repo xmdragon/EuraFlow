@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 /**
  * 打印错误结果展示Modal
  * 展示批量打印标签时的成功/失败结果

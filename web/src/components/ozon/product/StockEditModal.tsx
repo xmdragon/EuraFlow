@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 /**
  * 库存编辑模态框组件
  * 支持单个商品或批量商品的库存更新
