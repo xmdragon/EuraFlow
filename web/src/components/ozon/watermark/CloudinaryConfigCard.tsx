@@ -21,14 +21,32 @@ import React from 'react';
 
 import styles from '../../../pages/ozon/WatermarkManagement.module.scss';
 
+interface CloudinaryConfigData {
+  last_test_success?: boolean;
+  storage_used_bytes?: number;
+  bandwidth_used_bytes?: number;
+  cloud_name?: string;
+  api_key?: string;
+  folder_prefix?: string;
+  auto_cleanup_days?: number;
+}
+
 export interface CloudinaryConfigCardProps {
-  cloudinaryConfig: unknown;
+  cloudinaryConfig: { data?: CloudinaryConfigData } | undefined;
   cloudinaryLoading: boolean;
   cloudinaryForm: FormInstance;
   canOperate: boolean;
-  saveCloudinaryMutation: unknown;
-  testCloudinaryMutation: unknown;
-  cleanupResourcesMutation: unknown;
+  saveCloudinaryMutation: {
+    mutate: (values: unknown) => void;
+    isPending: boolean;
+  };
+  testCloudinaryMutation: {
+    mutate: () => void;
+    isPending: boolean;
+  };
+  cleanupResourcesMutation: {
+    mutate: (params: { days: number; dryRun: boolean }) => void;
+  };
 }
 
 export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
@@ -73,7 +91,7 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
               <Form.Item
                 name="api_secret"
                 label="API Secret"
-                rules={[{ required: !cloudinaryConfig, message: '请输入API Secret' }]}
+                rules={[{ required: !cloudinaryConfig?.data, message: '请输入API Secret' }]}
               >
                 <Input.Password placeholder="保存后不显示" />
               </Form.Item>
@@ -104,16 +122,16 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
           )}
         </Form>
 
-        {cloudinaryConfig && (
+        {cloudinaryConfig?.data && (
           <div className={styles.configStatus}>
             <Divider orientation="left">配置状态</Divider>
             <Row gutter={16}>
               <Col span={6}>
                 <Statistic
                   title="连接状态"
-                  value={cloudinaryConfig.last_test_success ? '正常' : '异常'}
+                  value={cloudinaryConfig.data.last_test_success ? '正常' : '异常'}
                   prefix={
-                    cloudinaryConfig.last_test_success ? (
+                    cloudinaryConfig.data.last_test_success ? (
                       <CheckCircleOutlined className={styles.statusSuccess} />
                     ) : (
                       <CloseCircleOutlined className={styles.statusError} />
@@ -124,7 +142,7 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
               <Col span={6}>
                 <Statistic
                   title="存储使用"
-                  value={(cloudinaryConfig.storage_used_bytes || 0) / 1024 / 1024}
+                  value={(cloudinaryConfig.data.storage_used_bytes || 0) / 1024 / 1024}
                   precision={2}
                   suffix="MB"
                 />
@@ -132,7 +150,7 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
               <Col span={6}>
                 <Statistic
                   title="带宽使用"
-                  value={(cloudinaryConfig.bandwidth_used_bytes || 0) / 1024 / 1024}
+                  value={(cloudinaryConfig.data.bandwidth_used_bytes || 0) / 1024 / 1024}
                   precision={2}
                   suffix="MB"
                 />
