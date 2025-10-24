@@ -35,12 +35,9 @@ import {
   Progress,
   Alert,
   Upload,
-  Image,
   Divider,
-  Radio,
   Popover,
   Avatar,
-  Tabs,
   notification,
   message,
 } from 'antd';
@@ -48,11 +45,7 @@ import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import {
-  calculateMargin,
-  formatPriceWithCurrency,
-  getCurrencySymbol,
-} from '../../utils/currency';
+import { formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
 
 import styles from './ProductList.module.scss';
 
@@ -61,7 +54,6 @@ import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
 import ProductToolbar from '@/components/ozon/product/ProductToolbar';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
-import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
@@ -99,8 +91,6 @@ const ProductList: React.FC = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
-  const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({
     status: 'on_sale',
   });
@@ -142,9 +132,7 @@ const ProductList: React.FC = () => {
   const [watermarkStep, setWatermarkStep] = useState<'select' | 'preview'>('select');
   const [watermarkPreviews, setWatermarkPreviews] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [watermarkAnalyzeMode, setWatermarkAnalyzeMode] = useState<'individual' | 'fast'>(
-    'individual'
-  );
+  const [watermarkAnalyzeMode] = useState<'individual' | 'fast'>('individual');
   // 手动选择的水印位置 Map<productId_imageIndex, position>
   const [manualPositions, setManualPositions] = useState<Map<string, string>>(new Map());
   // 每张图片的独立水印设置 Map<productId_imageIndex, {watermarkId, position}>

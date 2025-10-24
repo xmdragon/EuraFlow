@@ -7,13 +7,10 @@ import {
   ReloadOutlined,
   DownloadOutlined,
   ShoppingOutlined,
-  DollarOutlined,
-  FieldTimeOutlined,
   StarOutlined,
   FileExcelOutlined,
   HistoryOutlined,
   FilterOutlined,
-  SyncOutlined,
   DeleteOutlined,
   BookOutlined,
   CheckCircleOutlined,
@@ -21,7 +18,6 @@ import {
   LinkOutlined,
   CodeOutlined,
   RocketOutlined,
-  PlusOutlined,
   SettingOutlined,
   LoadingOutlined,
 } from '@ant-design/icons';
@@ -33,7 +29,6 @@ import {
   Button,
   Upload,
   Form,
-  Input,
   InputNumber,
   Select,
   Space,
@@ -42,13 +37,10 @@ import {
   Spin,
   Empty,
   Tag,
-  Progress,
   Modal,
   Table,
   Typography,
   Divider,
-  Badge,
-  Statistic,
   Tabs,
   Steps,
   Timeline,
@@ -84,7 +76,7 @@ const { Text, Link, Paragraph, Title } = Typography;
 const ProductSelection: React.FC = () => {
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
-  const { currency: userCurrency, symbol: userSymbol } = useCurrency();
+  const { symbol: userSymbol } = useCurrency();
 
   // 状态管理
   const [activeTab, setActiveTab] = useState('search');
@@ -167,7 +159,8 @@ const ProductSelection: React.FC = () => {
       try {
         const parsed = JSON.parse(savedFilters);
         // 排除batch_id和is_read，这两个由URL参数或默认值控制
-        const { batch_id: _, is_read: __, ...filters } = parsed;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { batch_id, is_read, ...filters } = parsed;
         restoredParams = filters;
 
         // 恢复表单字段
@@ -187,13 +180,13 @@ const ProductSelection: React.FC = () => {
 
     if (batchId) {
       // 从批次链接进来，显示该批次所有商品
-      setSearchParams((prev) => ({
+      setSearchParams({
         ...restoredParams,
         batch_id: parseInt(batchId),
-      }));
+      });
     } else if (isReadParam === null || isReadParam === 'false') {
       // 默认或明确指定只显示未读商品
-      setSearchParams((prev) => ({ ...restoredParams, is_read: false }));
+      setSearchParams({ ...restoredParams, is_read: false });
     } else {
       // 仅应用恢复的筛选条件（如果有）
       if (Object.keys(restoredParams).length > 0) {
