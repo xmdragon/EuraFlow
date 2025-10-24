@@ -15,20 +15,17 @@ import {
   SyncOutlined,
   DollarOutlined,
   CloudUploadOutlined,
-  PlusOutlined,
   AppstoreOutlined,
 } from '@ant-design/icons';
 import {
   Layout,
   Menu,
-  Button,
   Avatar,
   Dropdown,
   Typography,
   Card,
   Row,
   Col,
-  Space,
   Spin,
 } from 'antd';
 import React, { Suspense, lazy, useState, useEffect } from 'react';

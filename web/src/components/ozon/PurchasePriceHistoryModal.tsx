@@ -3,7 +3,7 @@
  * 显示指定SKU的最近10次进货价格记录
  */
 import { useQuery } from '@tanstack/react-query';
-import { Modal, Table, Typography, Empty, Spin, Tag, message } from 'antd';
+import { Modal, Table, Typography, Empty, Spin, Tag } from 'antd';
 import moment from 'moment';
 import React from 'react';
 
