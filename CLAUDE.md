@@ -593,24 +593,78 @@ ef_ozon_shipments_push_fail_total (counter)
 ---
 
 ## 17) OZON API 文档
-- **原始文档**：`@docs/OzonSellerAPI.html` （2.4MB 完整HTML文档）
-- **简化文档目录**：`@docs/ozon-api/` （220个基础API文档）
-  - 基础信息提取，包含API路径和基本结构
-  - 索引文件：`@docs/ozon-api/index.md`
-- **详细文档目录**：`@docs/ozon-api-detailed/` （219个详细API文档）⭐️ **推荐使用**
-  - **完整内容**：每个API包含详细的参数表格、请求/响应示例、错误码说明
-  - **标准格式**：接口信息、描述、请求参数、请求示例、响应结构、响应示例、错误码
-  - **README文件**：`@docs/ozon-api-detailed/README.md` 包含使用说明
-- **文件命名规则**：`{method}_{path}.md`，例如 `post_v3_product_list.md`
-- **查询方式**：
-  1. **推荐**：直接读取详细文档 `@docs/ozon-api-detailed/post_v3_product_list.md`
-  2. 浏览索引：`@docs/ozon-api/index.md` 按功能分组
-  3. 查看说明：`@docs/ozon-api-detailed/README.md`
-- **文档特点**：
-  - ✅ 包含完整的请求参数表格（类型、必需性、描述）
-  - ✅ JSON请求/响应示例
-  - ✅ 详细的响应字段结构说明
-  - ✅ 通用错误码参考
+
+### 文档位置
+- **原始文档**：`/mnt/e/pics/ozon.api.html` （3.6MB 完整HTML文档，原始来源）
+- **API文档目录**：`@docs/OzonAPI/` ⭐️ **推荐使用**
+  - **166个API文档**：从原始HTML提取的完整Markdown文档
+  - **索引文件**：`@docs/OzonAPI/README.md` - 按功能分组的API列表
+  - **提取脚本**：`scripts/extract_ozon_api.py` - 可重新提取或更新文档
+
+### 文件命名规则
+- **基础命名**：使用中文API名称，例如 `创建或更新商品.md`
+- **版本区分**：同名API自动添加版本号后缀
+  - `获取商品特征描述.md` → v3版本 (`/v3/products/info/attributes`)
+  - `获取商品特征描述_v4.md` → v4版本 (`/v4/product/info/attributes`)
+- **去重策略**：优先使用版本号，无版本号时使用序号后缀
+
+### 查询方式
+
+**方式1：通过索引查找（推荐）**
+```bash
+# 查看完整API列表（按功能分组）
+cat @docs/OzonAPI/README.md
+
+# 搜索特定功能
+grep "商品" @docs/OzonAPI/README.md
+```
+
+**方式2：通过文件名直接读取**
+```bash
+# 读取特定API文档
+cat @docs/OzonAPI/创建或更新商品.md
+
+# 查看不同版本的API
+cat @docs/OzonAPI/获取商品特征描述.md      # v3版本
+cat @docs/OzonAPI/获取商品特征描述_v4.md   # v4版本
+```
+
+**方式3：通过路径搜索**
+```bash
+# 搜索包含特定路径的API
+grep -r "/v3/product/import" @docs/OzonAPI/
+
+# 搜索特定HTTP方法
+grep "POST /v1/product" @docs/OzonAPI/README.md
+```
+
+**方式4：重新提取文档**
+```bash
+# 如果原始HTML更新，可重新提取
+python scripts/extract_ozon_api.py
+```
+
+### 文档结构
+每个API文档包含以下标准章节：
+1. **接口信息**：HTTP方法、API路径、操作ID
+2. **描述**：API功能说明
+3. **请求参数**：Header参数、请求体结构
+4. **请求示例**：JSON格式的请求示例
+5. **响应**：响应结构、响应示例（200/error）
+
+### 文档特点
+- ✅ **中文命名**：文件名使用中文API名称，易于查找
+- ✅ **版本区分**：同名API通过版本号后缀区分（v3/v4等）
+- ✅ **完整内容**：包含请求参数表格、请求/响应示例
+- ✅ **按功能分组**：索引文件按product/order/warehouse等功能分类
+- ✅ **易于维护**：脚本可重新提取，保持文档与原始HTML同步
+
+### 常用API快速查找
+- 商品管理：`@docs/OzonAPI/创建或更新商品.md`
+- 订单查询：`@docs/OzonAPI/搜集订单 (第4方案).md`
+- 库存更新：`@docs/OzonAPI/更新库存商品的数量.md`
+- 价格更新：`@docs/OzonAPI/更新价格.md`
+- 货件操作：`@docs/OzonAPI/货件装运.md`
 
 ---
 
