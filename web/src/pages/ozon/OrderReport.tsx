@@ -11,8 +11,8 @@ import {
   DownOutlined,
   LinkOutlined,
   FileTextOutlined,
-} from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+} from "@ant-design/icons";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   Row,
@@ -30,10 +30,11 @@ import {
   Space,
   Modal,
   Descriptions,
-} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
-import React, { useState, useEffect, useMemo } from 'react';
+  Input,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import dayjs from "dayjs";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   PieChart,
   Pie,
@@ -48,32 +49,32 @@ import {
   Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts';
+} from "recharts";
 
-import { optimizeOzonImageUrl } from '../../utils/ozonImageOptimizer';
+import { optimizeOzonImageUrl } from "../../utils/ozonImageOptimizer";
 
-import styles from './OrderReport.module.scss';
+import styles from "./OrderReport.module.scss";
 
-import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
-import PageTitle from '@/components/PageTitle';
-import * as ozonApi from '@/services/ozonApi';
-import { notifySuccess, notifyError } from '@/utils/notification';
+import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
+import PageTitle from "@/components/PageTitle";
+import * as ozonApi from "@/services/ozonApi";
+import { notifySuccess, notifyError } from "@/utils/notification";
 
 const { Text } = Typography;
 const { Option } = Select;
 
 // 图表颜色配置
 const COLORS = [
-  '#0088FE',
-  '#00C49F',
-  '#FFBB28',
-  '#FF8042',
-  '#8884D8',
-  '#82CA9D',
-  '#FFC658',
-  '#FF6B6B',
-  '#4ECDC4',
-  '#45B7D1',
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#8884D8",
+  "#82CA9D",
+  "#FFC658",
+  "#FF6B6B",
+  "#4ECDC4",
+  "#45B7D1",
 ];
 
 // ===== 类型定义 =====
@@ -157,11 +158,14 @@ interface ReportSummary {
 const OrderReport: React.FC = () => {
   // ===== 状态管理 =====
   const [selectedMonth, setSelectedMonth] = useState(
-    dayjs().subtract(1, 'month').format('YYYY-MM')
+    dayjs().subtract(1, "month").format("YYYY-MM"),
   );
   const [selectedShop, setSelectedShop] = useState<number | null>(null); // null表示"全部"
-  const [statusFilter, setStatusFilter] = useState<'delivered' | 'placed'>('delivered');
-  const [activeTab, setActiveTab] = useState<string>('details');
+  const [statusFilter, setStatusFilter] = useState<"delivered" | "placed">(
+    "delivered",
+  );
+  const [postingNumber, setPostingNumber] = useState<string>(""); // posting_number筛选
+  const [activeTab, setActiveTab] = useState<string>("details");
 
   // 分页状态（用于无限滚动）
   const [page, setPage] = useState(1);
@@ -171,11 +175,12 @@ const OrderReport: React.FC = () => {
 
   // 排序状态
   const [sortBy, setSortBy] = useState<string | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // 详情Modal状态
   const [postingDetailVisible, setPostingDetailVisible] = useState(false);
-  const [selectedPosting, setSelectedPosting] = useState<PostingReportItem | null>(null);
+  const [selectedPosting, setSelectedPosting] =
+    useState<PostingReportItem | null>(null);
 
   // ===== 数据查询 =====
 
@@ -187,17 +192,19 @@ const OrderReport: React.FC = () => {
     isFetching,
   } = useQuery({
     queryKey: [
-      'ozonPostingReport',
+      "ozonPostingReport",
       selectedMonth,
       selectedShop,
       statusFilter,
+      postingNumber,
       page,
       pageSize,
       sortBy,
       sortOrder,
     ],
     queryFn: async () => {
-      const shopIds = selectedShop !== null ? selectedShop.toString() : undefined;
+      const shopIds =
+        selectedShop !== null ? selectedShop.toString() : undefined;
       return await ozonApi.getPostingReport(
         selectedMonth,
         shopIds,
@@ -205,21 +212,23 @@ const OrderReport: React.FC = () => {
         page,
         pageSize,
         sortBy,
-        sortOrder
+        sortOrder,
+        postingNumber || undefined,
       );
     },
-    enabled: activeTab === 'details',
+    enabled: activeTab === "details",
     retry: 1,
     staleTime: 2 * 60 * 1000, // 2分钟缓存
   });
 
   // 监听页面滚动以实现无限滚动
   useEffect(() => {
-    if (activeTab !== 'details') return;
+    if (activeTab !== "details") return;
 
     const handleScroll = () => {
       // 检测滚动到底部（留300px缓冲区）
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollTop =
+        window.pageYOffset || document.documentElement.scrollTop;
       const scrollHeight = document.documentElement.scrollHeight;
       const clientHeight = window.innerHeight;
 
@@ -230,8 +239,8 @@ const OrderReport: React.FC = () => {
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [activeTab, isFetching, hasMore]);
 
   // 当数据返回时，累积到allLoadedData
@@ -255,12 +264,17 @@ const OrderReport: React.FC = () => {
     isLoading: isLoadingSummary,
     refetch: refetchSummary,
   } = useQuery<ReportSummary>({
-    queryKey: ['ozonReportSummary', selectedMonth, selectedShop, statusFilter],
+    queryKey: ["ozonReportSummary", selectedMonth, selectedShop, statusFilter],
     queryFn: async () => {
-      const shopIds = selectedShop !== null ? selectedShop.toString() : undefined;
-      return await ozonApi.getReportSummary(selectedMonth, shopIds, statusFilter);
+      const shopIds =
+        selectedShop !== null ? selectedShop.toString() : undefined;
+      return await ozonApi.getReportSummary(
+        selectedMonth,
+        shopIds,
+        statusFilter,
+      );
     },
-    enabled: activeTab === 'summary',
+    enabled: activeTab === "summary",
     retry: 1,
     staleTime: 2 * 60 * 1000,
   });
@@ -272,10 +286,10 @@ const OrderReport: React.FC = () => {
     const options = [];
     const now = dayjs();
     for (let i = 0; i < 12; i++) {
-      const month = now.subtract(i, 'month');
+      const month = now.subtract(i, "month");
       options.push({
-        label: month.format('YYYY年MM月'),
-        value: month.format('YYYY-MM'),
+        label: month.format("YYYY年MM月"),
+        value: month.format("YYYY-MM"),
       });
     }
     return options;
@@ -286,17 +300,17 @@ const OrderReport: React.FC = () => {
     navigator.clipboard
       .writeText(text)
       .then(() => {
-        notifySuccess('复制成功', '已复制到剪贴板');
+        notifySuccess("复制成功", "已复制到剪贴板");
       })
       .catch(() => {
-        notifyError('复制失败', '复制失败，请重试');
+        notifyError("复制失败", "复制失败，请重试");
       });
   };
 
   // 打开OZON商品链接
   const openProductLink = (sku: string) => {
     const url = `https://www.ozon.ru/product/${sku}/`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   // 打开货件详情Modal
@@ -336,14 +350,17 @@ const OrderReport: React.FC = () => {
   const detailColumns: ColumnsType<PostingItemRow> = [
     // 1. 图片列
     {
-      title: '图片',
+      title: "图片",
       width: 80,
       render: (_, row) => {
         const imageUrl80 = optimizeOzonImageUrl(row.product.image_url, 80);
         const imageUrl160 = optimizeOzonImageUrl(row.product.image_url, 160);
 
         return (
-          <Popover content={<img src={imageUrl160} width={160} alt="商品预览" />} trigger="hover">
+          <Popover
+            content={<img src={imageUrl160} width={160} alt="商品预览" />}
+            trigger="hover"
+          >
             <Avatar src={imageUrl80} size={80} shape="square" />
           </Popover>
         );
@@ -351,7 +368,7 @@ const OrderReport: React.FC = () => {
     },
     // 2. 商品信息列（3行垂直布局）
     {
-      title: '商品信息',
+      title: "商品信息",
       render: (_, row) => (
         <div className={styles.productInfo}>
           <div className={styles.shopName}>{row.posting.shop_name}</div>
@@ -359,16 +376,21 @@ const OrderReport: React.FC = () => {
             <Text
               ellipsis={{
                 tooltip:
-                  row.product.name && row.product.name.length > 50 ? row.product.name : undefined,
+                  row.product.name && row.product.name.length > 50
+                    ? row.product.name
+                    : undefined,
               }}
             >
               {row.product.name && row.product.name.length > 50
-                ? row.product.name.substring(0, 50) + '...'
-                : row.product.name || '-'}
+                ? row.product.name.substring(0, 50) + "..."
+                : row.product.name || "-"}
             </Text>
           </div>
           <div className={styles.skuContainer}>
-            <span className={styles.skuLink} onClick={() => openProductLink(row.product.sku)}>
+            <span
+              className={styles.skuLink}
+              onClick={() => openProductLink(row.product.sku)}
+            >
               {row.product.sku} <LinkOutlined />
             </span>
             <CopyOutlined
@@ -384,14 +406,16 @@ const OrderReport: React.FC = () => {
     },
     // 3. 货件编号（rowSpan，包含日期）
     {
-      title: '货件编号',
-      width: '12%',
+      title: "货件编号",
+      width: "12%",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
           children: (
             <div className={styles.postingInfo}>
-              <div className={styles.date}>{dayjs(row.posting.created_at).format('MM-DD')}</div>
+              <div className={styles.date}>
+                {dayjs(row.posting.created_at).format("MM-DD")}
+              </div>
               <div className={styles.postingNumberContainer}>
                 <span
                   className={styles.postingNumberLink}
@@ -415,9 +439,9 @@ const OrderReport: React.FC = () => {
     },
     // 4. 订单金额（rowSpan）
     {
-      title: '订单金额',
-      width: '8%',
-      align: 'right',
+      title: "订单金额",
+      width: "8%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
@@ -428,77 +452,77 @@ const OrderReport: React.FC = () => {
     },
     // 5. 进货金额（rowSpan）
     {
-      title: '进货金额',
-      width: '8%',
-      align: 'right',
+      title: "进货金额",
+      width: "8%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
-          children: row.posting.purchase_price || '-',
+          children: row.posting.purchase_price || "-",
           props: { rowSpan: row.itemCount },
         };
       },
     },
     // 6. Ozon佣金（rowSpan）
     {
-      title: 'Ozon佣金',
-      width: '8%',
-      align: 'right',
+      title: "Ozon佣金",
+      width: "8%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
-          children: row.posting.ozon_commission_cny || '-',
+          children: row.posting.ozon_commission_cny || "-",
           props: { rowSpan: row.itemCount },
         };
       },
     },
     // 7. 国际物流（rowSpan）
     {
-      title: '国际物流',
-      width: '8%',
-      align: 'right',
+      title: "国际物流",
+      width: "8%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
-          children: row.posting.international_logistics_fee_cny || '-',
+          children: row.posting.international_logistics_fee_cny || "-",
           props: { rowSpan: row.itemCount },
         };
       },
     },
     // 8. 尾程派送（rowSpan）
     {
-      title: '尾程派送',
-      width: '8%',
-      align: 'right',
+      title: "尾程派送",
+      width: "8%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
-          children: row.posting.last_mile_delivery_fee_cny || '-',
+          children: row.posting.last_mile_delivery_fee_cny || "-",
           props: { rowSpan: row.itemCount },
         };
       },
     },
     // 9. 打包费用（rowSpan）
     {
-      title: '打包费用',
-      width: '8%',
-      align: 'right',
+      title: "打包费用",
+      width: "8%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         return {
-          children: row.posting.material_cost || '-',
+          children: row.posting.material_cost || "-",
           props: { rowSpan: row.itemCount },
         };
       },
     },
     // 10. 利润金额（rowSpan）
     {
-      title: '利润金额',
-      width: '8%',
-      align: 'right',
+      title: "利润金额",
+      width: "8%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
-        const profit = parseFloat(row.posting.profit || '0');
+        const profit = parseFloat(row.posting.profit || "0");
         return {
           children: (
             <span
@@ -518,19 +542,19 @@ const OrderReport: React.FC = () => {
           <span>利润比率</span>
           <span className={styles.sortIcons}>
             <UpOutlined
-              className={`${styles.sortIcon} ${sortBy === 'profit_rate' && sortOrder === 'asc' ? styles.active : ''}`}
+              className={`${styles.sortIcon} ${sortBy === "profit_rate" && sortOrder === "asc" ? styles.active : ""}`}
               onClick={() => {
-                setSortBy('profit_rate');
-                setSortOrder('asc');
+                setSortBy("profit_rate");
+                setSortOrder("asc");
                 setPage(1);
                 setAllLoadedData([]);
               }}
             />
             <DownOutlined
-              className={`${styles.sortIcon} ${sortBy === 'profit_rate' && sortOrder === 'desc' ? styles.active : ''}`}
+              className={`${styles.sortIcon} ${sortBy === "profit_rate" && sortOrder === "desc" ? styles.active : ""}`}
               onClick={() => {
-                setSortBy('profit_rate');
-                setSortOrder('desc');
+                setSortBy("profit_rate");
+                setSortOrder("desc");
                 setPage(1);
                 setAllLoadedData([]);
               }}
@@ -538,8 +562,8 @@ const OrderReport: React.FC = () => {
           </span>
         </div>
       ),
-      width: '10%',
-      align: 'right',
+      width: "10%",
+      align: "right",
       render: (_, row) => {
         if (!row.isFirstItem) return null;
         const profitRate = row.posting.profit_rate;
@@ -615,12 +639,31 @@ const OrderReport: React.FC = () => {
               </Space>
             </Col>
             <Col>
+              <Space>
+                <span>物流单号：</span>
+                <Input
+                  value={postingNumber}
+                  onChange={(e) => setPostingNumber(e.target.value)}
+                  placeholder="输入物流单号"
+                  style={{ width: 200 }}
+                  allowClear
+                  onPressEnter={() => {
+                    setPage(1);
+                    setAllLoadedData([]);
+                    if (activeTab === "details") {
+                      refetchPostings();
+                    }
+                  }}
+                />
+              </Space>
+            </Col>
+            <Col>
               <Button
                 type="primary"
                 onClick={() => {
                   setPage(1);
                   setAllLoadedData([]);
-                  if (activeTab === 'details') {
+                  if (activeTab === "details") {
                     refetchPostings();
                   } else {
                     refetchSummary();
@@ -643,23 +686,26 @@ const OrderReport: React.FC = () => {
             className={styles.reportTabs}
           >
             {/* 订单明细Tab */}
-            <Tabs.TabPane tab={`订单明细 (${postingReportData?.total || 0})`} key="details">
+            <Tabs.TabPane
+              tab={`订单明细 (${postingReportData?.total || 0})`}
+              key="details"
+            >
               <Spin spinning={isLoadingPostings}>
                 <Table
                   dataSource={postingItemRows}
                   columns={detailColumns}
                   rowKey="key"
                   pagination={false}
-                  scroll={{ x: 'max-content' }}
+                  scroll={{ x: "max-content" }}
                   loading={false}
                 />
                 {/* 加载更多提示 */}
                 {isFetching && (
                   <div
                     style={{
-                      textAlign: 'center',
-                      padding: '12px',
-                      color: '#666',
+                      textAlign: "center",
+                      padding: "12px",
+                      color: "#666",
                     }}
                   >
                     加载中...
@@ -668,9 +714,9 @@ const OrderReport: React.FC = () => {
                 {!hasMore && allLoadedData.length > 0 && (
                   <div
                     style={{
-                      textAlign: 'center',
-                      padding: '12px',
-                      color: '#999',
+                      textAlign: "center",
+                      padding: "12px",
+                      color: "#999",
                     }}
                   >
                     已加载全部数据
@@ -693,7 +739,7 @@ const OrderReport: React.FC = () => {
                             value={summaryData.statistics.total_sales}
                             prefix="¥"
                             precision={2}
-                            valueStyle={{ color: '#1890ff' }}
+                            valueStyle={{ color: "#1890ff" }}
                           />
                         </Card>
                       </Col>
@@ -704,7 +750,7 @@ const OrderReport: React.FC = () => {
                             value={summaryData.statistics.total_purchase}
                             prefix="¥"
                             precision={2}
-                            valueStyle={{ color: '#faad14' }}
+                            valueStyle={{ color: "#faad14" }}
                           />
                         </Card>
                       </Col>
@@ -715,7 +761,7 @@ const OrderReport: React.FC = () => {
                             value={summaryData.statistics.total_cost}
                             prefix="¥"
                             precision={2}
-                            valueStyle={{ color: '#ff7875' }}
+                            valueStyle={{ color: "#ff7875" }}
                           />
                         </Card>
                       </Col>
@@ -730,9 +776,11 @@ const OrderReport: React.FC = () => {
                             precision={2}
                             valueStyle={{
                               color:
-                                parseFloat(summaryData.statistics.total_profit) >= 0
-                                  ? '#52c41a'
-                                  : '#ff4d4f',
+                                parseFloat(
+                                  summaryData.statistics.total_profit,
+                                ) >= 0
+                                  ? "#52c41a"
+                                  : "#ff4d4f",
                             }}
                           />
                         </Card>
@@ -747,11 +795,15 @@ const OrderReport: React.FC = () => {
                             suffix="%"
                             precision={2}
                             prefix={
-                              summaryData.statistics.profit_rate >= 0 ? <RiseOutlined /> : null
+                              summaryData.statistics.profit_rate >= 0 ? (
+                                <RiseOutlined />
+                              ) : null
                             }
                             valueStyle={{
                               color:
-                                summaryData.statistics.profit_rate >= 0 ? '#52c41a' : '#ff4d4f',
+                                summaryData.statistics.profit_rate >= 0
+                                  ? "#52c41a"
+                                  : "#ff4d4f",
                             }}
                           />
                         </Card>
@@ -774,7 +826,11 @@ const OrderReport: React.FC = () => {
                       {/* 饼图：成本分解（单店铺）或店铺销售（多店铺） */}
                       <Col span={12}>
                         <Card
-                          title={selectedShop !== null ? '销售额分解' : '店铺销售占比'}
+                          title={
+                            selectedShop !== null
+                              ? "销售额分解"
+                              : "店铺销售占比"
+                          }
                           className={styles.chartCard}
                         >
                           <div className={styles.chartContainer}>
@@ -788,17 +844,23 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label={(entry) => `${Math.round(entry.percent * 100)}%`}
+                                    label={(entry) =>
+                                      `${Math.round(entry.percent * 100)}%`
+                                    }
                                   >
-                                    {summaryData.cost_breakdown.map((entry, index) => (
-                                      <Cell
-                                        key={`cell-${index}`}
-                                        fill={COLORS[index % COLORS.length]}
-                                      />
-                                    ))}
+                                    {summaryData.cost_breakdown.map(
+                                      (entry, index) => (
+                                        <Cell
+                                          key={`cell-${index}`}
+                                          fill={COLORS[index % COLORS.length]}
+                                        />
+                                      ),
+                                    )}
                                   </Pie>
                                   <RechartsTooltip
-                                    formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
+                                    formatter={(value) =>
+                                      `¥${parseFloat(value).toFixed(2)}`
+                                    }
                                   />
                                   <Legend />
                                 </PieChart>
@@ -813,17 +875,23 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label={(entry) => `${Math.round(entry.percent * 100)}%`}
+                                    label={(entry) =>
+                                      `${Math.round(entry.percent * 100)}%`
+                                    }
                                   >
-                                    {summaryData.shop_breakdown.map((entry, index) => (
-                                      <Cell
-                                        key={`cell-${index}`}
-                                        fill={COLORS[index % COLORS.length]}
-                                      />
-                                    ))}
+                                    {summaryData.shop_breakdown.map(
+                                      (entry, index) => (
+                                        <Cell
+                                          key={`cell-${index}`}
+                                          fill={COLORS[index % COLORS.length]}
+                                        />
+                                      ),
+                                    )}
                                   </Pie>
                                   <RechartsTooltip
-                                    formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
+                                    formatter={(value) =>
+                                      `¥${parseFloat(value).toFixed(2)}`
+                                    }
                                   />
                                   <Legend />
                                 </PieChart>
@@ -836,7 +904,10 @@ const OrderReport: React.FC = () => {
                       {/* 饼图：店铺利润占比（仅多店铺/全部） */}
                       {selectedShop === null && (
                         <Col span={12}>
-                          <Card title="店铺利润占比" className={styles.chartCard}>
+                          <Card
+                            title="店铺利润占比"
+                            className={styles.chartCard}
+                          >
                             <div className={styles.chartContainer}>
                               <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
@@ -847,17 +918,23 @@ const OrderReport: React.FC = () => {
                                     cx="50%"
                                     cy="50%"
                                     outerRadius={80}
-                                    label={(entry) => `${Math.round(entry.percent * 100)}%`}
+                                    label={(entry) =>
+                                      `${Math.round(entry.percent * 100)}%`
+                                    }
                                   >
-                                    {summaryData.shop_breakdown.map((entry, index) => (
-                                      <Cell
-                                        key={`cell-${index}`}
-                                        fill={COLORS[index % COLORS.length]}
-                                      />
-                                    ))}
+                                    {summaryData.shop_breakdown.map(
+                                      (entry, index) => (
+                                        <Cell
+                                          key={`cell-${index}`}
+                                          fill={COLORS[index % COLORS.length]}
+                                        />
+                                      ),
+                                    )}
                                   </Pie>
                                   <RechartsTooltip
-                                    formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
+                                    formatter={(value) =>
+                                      `¥${parseFloat(value).toFixed(2)}`
+                                    }
                                   />
                                   <Legend />
                                 </PieChart>
@@ -876,14 +953,22 @@ const OrderReport: React.FC = () => {
                                 <BarChart
                                   data={[
                                     {
-                                      month: '上月',
-                                      sales: parseFloat(summaryData.previous_month.total_sales),
-                                      profit: parseFloat(summaryData.previous_month.total_profit),
+                                      month: "上月",
+                                      sales: parseFloat(
+                                        summaryData.previous_month.total_sales,
+                                      ),
+                                      profit: parseFloat(
+                                        summaryData.previous_month.total_profit,
+                                      ),
                                     },
                                     {
-                                      month: '本月',
-                                      sales: parseFloat(summaryData.statistics.total_sales),
-                                      profit: parseFloat(summaryData.statistics.total_profit),
+                                      month: "本月",
+                                      sales: parseFloat(
+                                        summaryData.statistics.total_sales,
+                                      ),
+                                      profit: parseFloat(
+                                        summaryData.statistics.total_profit,
+                                      ),
                                     },
                                   ]}
                                 >
@@ -891,11 +976,21 @@ const OrderReport: React.FC = () => {
                                   <XAxis dataKey="month" />
                                   <YAxis />
                                   <RechartsTooltip
-                                    formatter={(value) => `¥${value.toFixed(2)}`}
+                                    formatter={(value) =>
+                                      `¥${value.toFixed(2)}`
+                                    }
                                   />
                                   <Legend />
-                                  <Bar dataKey="sales" fill="#1890ff" name="销售额" />
-                                  <Bar dataKey="profit" fill="#52c41a" name="利润" />
+                                  <Bar
+                                    dataKey="sales"
+                                    fill="#1890ff"
+                                    name="销售额"
+                                  />
+                                  <Bar
+                                    dataKey="profit"
+                                    fill="#52c41a"
+                                    name="利润"
+                                  />
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
@@ -915,7 +1010,9 @@ const OrderReport: React.FC = () => {
                                 <XAxis dataKey="date" />
                                 <YAxis />
                                 <RechartsTooltip
-                                  formatter={(value) => `¥${parseFloat(value).toFixed(2)}`}
+                                  formatter={(value) =>
+                                    `¥${parseFloat(value).toFixed(2)}`
+                                  }
                                 />
                                 <Legend />
                                 <Line
@@ -947,14 +1044,22 @@ const OrderReport: React.FC = () => {
                                 <BarChart
                                   data={[
                                     {
-                                      month: '上月',
-                                      sales: parseFloat(summaryData.previous_month.total_sales),
-                                      profit: parseFloat(summaryData.previous_month.total_profit),
+                                      month: "上月",
+                                      sales: parseFloat(
+                                        summaryData.previous_month.total_sales,
+                                      ),
+                                      profit: parseFloat(
+                                        summaryData.previous_month.total_profit,
+                                      ),
                                     },
                                     {
-                                      month: '本月',
-                                      sales: parseFloat(summaryData.statistics.total_sales),
-                                      profit: parseFloat(summaryData.statistics.total_profit),
+                                      month: "本月",
+                                      sales: parseFloat(
+                                        summaryData.statistics.total_sales,
+                                      ),
+                                      profit: parseFloat(
+                                        summaryData.statistics.total_profit,
+                                      ),
                                     },
                                   ]}
                                 >
@@ -962,11 +1067,21 @@ const OrderReport: React.FC = () => {
                                   <XAxis dataKey="month" />
                                   <YAxis />
                                   <RechartsTooltip
-                                    formatter={(value) => `¥${value.toFixed(2)}`}
+                                    formatter={(value) =>
+                                      `¥${value.toFixed(2)}`
+                                    }
                                   />
                                   <Legend />
-                                  <Bar dataKey="sales" fill="#1890ff" name="销售额" />
-                                  <Bar dataKey="profit" fill="#52c41a" name="利润" />
+                                  <Bar
+                                    dataKey="sales"
+                                    fill="#1890ff"
+                                    name="销售额"
+                                  />
+                                  <Bar
+                                    dataKey="profit"
+                                    fill="#52c41a"
+                                    name="利润"
+                                  />
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
@@ -983,13 +1098,16 @@ const OrderReport: React.FC = () => {
                         rowKey="offer_id"
                         columns={[
                           {
-                            title: '图片',
+                            title: "图片",
                             width: 80,
                             render: (_, record) => (
                               <Popover
                                 content={
                                   <img
-                                    src={optimizeOzonImageUrl(record.image_url, 160)}
+                                    src={optimizeOzonImageUrl(
+                                      record.image_url,
+                                      160,
+                                    )}
                                     width={160}
                                     alt="商品预览"
                                   />
@@ -997,7 +1115,10 @@ const OrderReport: React.FC = () => {
                                 trigger="hover"
                               >
                                 <Avatar
-                                  src={optimizeOzonImageUrl(record.image_url, 60)}
+                                  src={optimizeOzonImageUrl(
+                                    record.image_url,
+                                    60,
+                                  )}
                                   size={60}
                                   shape="square"
                                 />
@@ -1005,16 +1126,18 @@ const OrderReport: React.FC = () => {
                             ),
                           },
                           {
-                            title: '商品信息',
+                            title: "商品信息",
                             render: (_, record) => (
                               <div
                                 style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '4px',
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "4px",
                                 }}
                               >
-                                <div style={{ fontWeight: 500 }}>{record.name}</div>
+                                <div style={{ fontWeight: 500 }}>
+                                  {record.name}
+                                </div>
                                 <div className={styles.skuContainer}>
                                   <span
                                     className={styles.skuLink}
@@ -1034,29 +1157,30 @@ const OrderReport: React.FC = () => {
                             ),
                           },
                           {
-                            title: '销售额',
-                            dataIndex: 'sales',
+                            title: "销售额",
+                            dataIndex: "sales",
                             width: 120,
-                            align: 'right',
-                            render: (value) => `¥${parseFloat(value).toFixed(2)}`,
+                            align: "right",
+                            render: (value) =>
+                              `¥${parseFloat(value).toFixed(2)}`,
                           },
                           {
-                            title: '销量',
-                            dataIndex: 'quantity',
+                            title: "销量",
+                            dataIndex: "quantity",
                             width: 80,
-                            align: 'right',
+                            align: "right",
                           },
                           {
-                            title: '利润',
-                            dataIndex: 'profit',
+                            title: "利润",
+                            dataIndex: "profit",
                             width: 120,
-                            align: 'right',
+                            align: "right",
                             render: (value) => {
                               const profit = parseFloat(value);
                               return (
                                 <span
                                   style={{
-                                    color: profit >= 0 ? '#52c41a' : '#ff4d4f',
+                                    color: profit >= 0 ? "#52c41a" : "#ff4d4f",
                                   }}
                                 >
                                   ¥{profit.toFixed(2)}
@@ -1076,13 +1200,16 @@ const OrderReport: React.FC = () => {
                         rowKey="offer_id"
                         columns={[
                           {
-                            title: '图片',
+                            title: "图片",
                             width: 80,
                             render: (_, record) => (
                               <Popover
                                 content={
                                   <img
-                                    src={optimizeOzonImageUrl(record.image_url, 160)}
+                                    src={optimizeOzonImageUrl(
+                                      record.image_url,
+                                      160,
+                                    )}
                                     width={160}
                                     alt="商品预览"
                                   />
@@ -1090,7 +1217,10 @@ const OrderReport: React.FC = () => {
                                 trigger="hover"
                               >
                                 <Avatar
-                                  src={optimizeOzonImageUrl(record.image_url, 60)}
+                                  src={optimizeOzonImageUrl(
+                                    record.image_url,
+                                    60,
+                                  )}
                                   size={60}
                                   shape="square"
                                 />
@@ -1098,16 +1228,18 @@ const OrderReport: React.FC = () => {
                             ),
                           },
                           {
-                            title: '商品信息',
+                            title: "商品信息",
                             render: (_, record) => (
                               <div
                                 style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '4px',
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "4px",
                                 }}
                               >
-                                <div style={{ fontWeight: 500 }}>{record.name}</div>
+                                <div style={{ fontWeight: 500 }}>
+                                  {record.name}
+                                </div>
                                 <div className={styles.skuContainer}>
                                   <span
                                     className={styles.skuLink}
@@ -1127,29 +1259,30 @@ const OrderReport: React.FC = () => {
                             ),
                           },
                           {
-                            title: '销售额',
-                            dataIndex: 'sales',
+                            title: "销售额",
+                            dataIndex: "sales",
                             width: 120,
-                            align: 'right',
-                            render: (value) => `¥${parseFloat(value).toFixed(2)}`,
+                            align: "right",
+                            render: (value) =>
+                              `¥${parseFloat(value).toFixed(2)}`,
                           },
                           {
-                            title: '销量',
-                            dataIndex: 'quantity',
+                            title: "销量",
+                            dataIndex: "quantity",
                             width: 80,
-                            align: 'right',
+                            align: "right",
                           },
                           {
-                            title: '利润',
-                            dataIndex: 'profit',
+                            title: "利润",
+                            dataIndex: "profit",
                             width: 120,
-                            align: 'right',
+                            align: "right",
                             render: (value) => {
                               const profit = parseFloat(value);
                               return (
                                 <span
                                   style={{
-                                    color: profit >= 0 ? '#52c41a' : '#ff4d4f',
+                                    color: profit >= 0 ? "#52c41a" : "#ff4d4f",
                                   }}
                                 >
                                   ¥{profit.toFixed(2)}
@@ -1170,7 +1303,11 @@ const OrderReport: React.FC = () => {
 
       {/* 货件详情Modal */}
       <Modal
-        title={selectedPosting ? `订单详情 - ${selectedPosting.posting_number}` : '订单详情'}
+        title={
+          selectedPosting
+            ? `订单详情 - ${selectedPosting.posting_number}`
+            : "订单详情"
+        }
         open={postingDetailVisible}
         onCancel={() => setPostingDetailVisible(false)}
         footer={null}
@@ -1182,36 +1319,38 @@ const OrderReport: React.FC = () => {
               {selectedPosting.shop_name}
             </Descriptions.Item>
             <Descriptions.Item label="订单状态">
-              {selectedPosting.status === 'awaiting_packaging' && '等待备货'}
-              {selectedPosting.status === 'awaiting_deliver' && '等待发货'}
-              {selectedPosting.status === 'delivering' && '运输中'}
-              {selectedPosting.status === 'delivered' && '已签收'}
-              {selectedPosting.status === 'cancelled' && '已取消'}
+              {selectedPosting.status === "awaiting_packaging" && "等待备货"}
+              {selectedPosting.status === "awaiting_deliver" && "等待发货"}
+              {selectedPosting.status === "delivering" && "运输中"}
+              {selectedPosting.status === "delivered" && "已签收"}
+              {selectedPosting.status === "cancelled" && "已取消"}
             </Descriptions.Item>
             <Descriptions.Item label="订单时间">
-              {dayjs(selectedPosting.in_process_at || selectedPosting.created_at).format(
-                'YYYY-MM-DD HH:mm:ss'
-              )}
+              {dayjs(
+                selectedPosting.in_process_at || selectedPosting.created_at,
+              ).format("YYYY-MM-DD HH:mm:ss")}
             </Descriptions.Item>
-            <Descriptions.Item label="订单金额">{selectedPosting.order_amount}</Descriptions.Item>
+            <Descriptions.Item label="订单金额">
+              {selectedPosting.order_amount}
+            </Descriptions.Item>
             <Descriptions.Item label="进货价格">
-              {selectedPosting.purchase_price || '-'}
+              {selectedPosting.purchase_price || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Ozon佣金">
-              {selectedPosting.ozon_commission_cny || '-'}
+              {selectedPosting.ozon_commission_cny || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="国际物流费">
-              {selectedPosting.international_logistics_fee_cny || '-'}
+              {selectedPosting.international_logistics_fee_cny || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="尾程派送费">
-              {selectedPosting.last_mile_delivery_fee_cny || '-'}
+              {selectedPosting.last_mile_delivery_fee_cny || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="打包费用">
-              {selectedPosting.material_cost || '-'}
+              {selectedPosting.material_cost || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="利润金额">
               <span
-                className={`${styles.profitCell} ${parseFloat(selectedPosting.profit || '0') >= 0 ? styles.positive : styles.negative}`}
+                className={`${styles.profitCell} ${parseFloat(selectedPosting.profit || "0") >= 0 ? styles.positive : styles.negative}`}
               >
                 {selectedPosting.profit}
               </span>
