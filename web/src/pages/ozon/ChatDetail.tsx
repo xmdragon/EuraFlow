@@ -283,6 +283,11 @@ const ChatDetail: React.FC = () => {
             />
           </Card>
         )}
+        {!isChatError && !chatLoading && !chatData && (
+          <Card>
+            <Empty description="未找到聊天记录" />
+          </Card>
+        )}
         {!isChatError && chatData && (
           <>
             {/* 聊天信息卡片 */}
