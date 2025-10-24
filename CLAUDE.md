@@ -248,6 +248,161 @@
 - **样式分离**：**禁止在 TypeScript/React 组件中使用 inline style**（`style={{...}}`）；所有样式必须写入对应的 `.module.scss` 文件中，使用 `className={styles.xxx}` 引用。
 - 命名：表/索引/约束按 `CODESTYLE.md`；事件 `ef.{domain}.{object}.{verb}`。
 
+### ESLint 编码规范（前端代码质量要求）
+
+#### 自动格式化（在提交时强制执行）
+- **Prettier**：统一代码格式（缩进、引号、分号、换行等）
+- **执行时机**：pre-commit 钩子自动运行，手动执行 `npx prettier --write "src/**/*.{ts,tsx}"`
+- **作用**：消除格式争议，保持代码风格一致
+
+#### Import 顺序规范（`import/order`）
+导入语句必须按以下顺序组织，组之间用空行分隔：
+1. **第三方库**：React、Ant Design、TanStack Query 等外部依赖
+2. **Alias 导入**：`@/` 开头的项目内部模块
+3. **相对路径**：`./` 或 `../` 开头的本地文件
+4. **样式文件**：`.css`、`.scss` 等样式导入放在最后
+
+**正确示例**：
+```typescript
+// 1. 第三方库
+import React, { useState } from 'react';
+import { Button, Modal } from 'antd';
+import { useQuery } from '@tanstack/react-query';
+
+// 2. Alias 导入
+import { notifySuccess } from '@/utils/notification';
+import * as ozonApi from '@/services/ozonApi';
+
+// 3. 相对路径
+import ProductCard from './ProductCard';
+import { formatPrice } from '../utils';
+
+// 4. 样式
+import styles from './ProductList.module.scss';
+```
+
+#### Console 语句规范（`no-console`）
+- **禁止**：`console.log()`、`console.debug()`、`console.info()` - 调试日志不应出现在生产代码
+- **允许**：`console.warn()`、`console.error()` - 警告和错误日志
+- **删除原则**：
+  - 开发调试用的 `console.log` → 删除
+  - 关键错误信息的 `console.error` → 保留，但优先使用统一通知系统
+  - 临时调试需要 → 提交前必须删除
+
+**正确做法**：
+```typescript
+// ❌ 错误：调试日志
+console.log('User data:', userData);
+
+// ✅ 正确：使用统一通知系统
+notifySuccess('操作成功', '数据已保存');
+
+// ✅ 允许：关键错误记录
+console.error('[Critical] API initialization failed:', error);
+```
+
+#### 未使用变量规范（`no-unused-vars` / `@typescript-eslint/no-unused-vars`）
+- **规则**：所有声明的变量、参数、导入必须被使用
+- **允许的例外**：以下划线 `_` 开头的变量（明确标记为"故意不使用"）
+
+**正确示例**：
+```typescript
+// ❌ 错误：未使用的变量
+const handleClick = (event, data) => {
+  // 只使用了 event，data 未使用
+  event.preventDefault();
+};
+
+// ✅ 正确：用下划线标记未使用的参数
+const handleClick = (event, _data) => {
+  event.preventDefault();
+};
+
+// ✅ 更好：使用解构语法明确需要的字段
+const { name, age } = userData; // 如果 name 和 age 都被使用
+```
+
+#### 转义字符规范（`no-useless-escape`）
+- **规则**：正则表达式中禁止不必要的转义字符
+- **常见错误**：在字符类 `[]` 或正则中转义不需要转义的字符
+
+**正确示例**：
+```typescript
+// ❌ 错误：斜杠在正则中不需要转义
+const regex = /(\\/s3\\/multimedia-[^\\/]+\\/)/;
+
+// ✅ 正确：直接使用斜杠
+const regex = /(\/s3\/multimedia-[^/]+\/)/;
+```
+
+#### TypeScript 类型安全（`@typescript-eslint/no-explicit-any`）
+- **规则**：避免使用 `any` 类型，使用具体类型或泛型
+- **严重性**：Warning（警告）- 不阻塞提交，但应逐步修复
+- **优先级**：低（现有代码可保留，新代码应避免）
+
+**正确做法**：
+```typescript
+// ❌ 避免：使用 any
+const handleData = (data: any) => { ... };
+
+// ✅ 推荐：使用具体类型
+interface Product {
+  id: number;
+  name: string;
+}
+const handleData = (data: Product) => { ... };
+
+// ✅ 推荐：使用泛型
+const handleData = <T extends { id: number }>(data: T) => { ... };
+```
+
+#### Alert 使用规范（`no-alert`）
+- **规则**：禁止使用原生 `alert()`、`confirm()`、`prompt()`
+- **替代方案**：使用 Ant Design 的 `Modal.confirm()`、`message`、`notification`
+
+**正确做法**：
+```typescript
+// ❌ 错误：使用原生 alert
+alert('操作成功');
+if (confirm('确认删除？')) { ... }
+
+// ✅ 正确：使用 Ant Design 组件
+import { Modal, message } from 'antd';
+message.success('操作成功');
+Modal.confirm({
+  title: '确认删除？',
+  onOk: () => { ... }
+});
+```
+
+#### React Hooks 规范（`react-hooks/exhaustive-deps`）
+- **规则**：`useEffect`、`useCallback`、`useMemo` 的依赖数组必须完整
+- **目的**：避免闭包陷阱和状态不同步问题
+- **处理方式**：
+  1. 添加缺失的依赖
+  2. 使用 `useCallback` 包裹频繁变化的函数
+  3. 明确忽略：`// eslint-disable-next-line react-hooks/exhaustive-deps`
+
+#### 自动修复流程
+```bash
+# 1. 格式化代码
+npx prettier --write "src/**/*.{ts,tsx}"
+
+# 2. 自动修复 ESLint 错误
+npx eslint src --ext .ts,.tsx --fix
+
+# 3. 检查剩余问题
+npx eslint src --ext .ts,.tsx
+```
+
+#### 代码审查检查点
+- [ ] 无 `console.log` 调试语句
+- [ ] Import 顺序正确（第三方 → Alias → 相对路径 → 样式）
+- [ ] 无未使用的变量（除了 `_` 开头的参数）
+- [ ] 无不必要的正则转义
+- [ ] 关键代码无 `any` 类型
+- [ ] 使用 Ant Design 组件替代原生 alert/confirm
+
 ---
 
 ## 9) 测试与验收

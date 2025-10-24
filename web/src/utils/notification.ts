@@ -28,7 +28,6 @@ const getNotification = () => {
  * 成功通知
  */
 export const notifySuccess = (message: string, description?: string) => {
-  console.log('[Notification] Success:', message, description);
   const notification = getNotification();
   if (notification) {
     notification.success({
@@ -44,7 +43,6 @@ export const notifySuccess = (message: string, description?: string) => {
  * 错误通知
  */
 export const notifyError = (message: string, description?: string) => {
-  console.log('[Notification] Error:', message, description);
   const notification = getNotification();
   if (notification) {
     notification.error({
@@ -60,7 +58,6 @@ export const notifyError = (message: string, description?: string) => {
  * 警告通知
  */
 export const notifyWarning = (message: string, description?: string) => {
-  console.log('[Notification] Warning:', message, description);
   const notification = getNotification();
   if (notification) {
     notification.warning({
@@ -76,7 +73,6 @@ export const notifyWarning = (message: string, description?: string) => {
  * 信息通知
  */
 export const notifyInfo = (message: string, description?: string) => {
-  console.log('[Notification] Info:', message, description);
   const notification = getNotification();
   if (notification) {
     notification.info({
@@ -92,7 +88,6 @@ export const notifyInfo = (message: string, description?: string) => {
  * 自定义通知
  */
 export const notify = (config: ArgsProps) => {
-  console.log('[Notification] Custom:', config);
   const notification = getNotification();
   if (notification) {
     notification.open({

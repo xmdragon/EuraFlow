@@ -32,7 +32,7 @@ export function optimizeOzonImageUrl(url: string | undefined, targetWidth: numbe
 
   // 匹配 s3/multimedia-* 后面的部分，插入 /wc{width}/
   // 支持各种multimedia路径格式：multimedia-1-m, multimedia-r, multimedia-*, 等
-  const optimized = cleanUrl.replace(/(\/s3\/multimedia-[^\/]+\/)/, `$1wc${targetWidth}/`);
+  const optimized = cleanUrl.replace(/(\/s3\/multimedia-[^/]+\/)/, `$1wc${targetWidth}/`);
 
   // 如果成功替换（URL发生变化），返回优化后的URL；否则返回原URL
   return optimized !== cleanUrl ? optimized : url;
