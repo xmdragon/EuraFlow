@@ -13,8 +13,6 @@ const NotificationInitializer: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     setGlobalNotification(notification);
-    // 暴露到 window 以便调试和测试
-    (window as any).__notification = notification;
   }, [notification]);
 
   return <>{children}</>;
