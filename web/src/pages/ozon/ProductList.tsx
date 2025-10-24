@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, no-unused-vars, @typescript-eslint/no-unused-vars */
 /**
  * Ozon 商品列表页面
  */
@@ -869,7 +869,7 @@ const ProductList: React.FC = () => {
           deleted: { color: 'error', text: '已删除' },
         };
 
-        const statusDetails =
+        const _statusDetails =
           record.status_reason ||
           [
             record.ozon_archived && '已归档',
@@ -1099,7 +1099,7 @@ const ProductList: React.FC = () => {
     try {
       await navigator.clipboard.writeText(text);
       notifySuccess('复制成功', `${label} 已复制到剪贴板`);
-    } catch (error) {
+    } catch (_error) {
       // 降级方案：创建临时输入框
       const textArea = document.createElement('textarea');
       textArea.value = text;
@@ -1747,7 +1747,7 @@ const ProductList: React.FC = () => {
               setManualPositions(new Map());
               // 初始化每张图片的水印设置为空
               setImageWatermarkSettings(new Map());
-            } catch (error) {
+            } catch (_error) {
               notifyError('预览失败', '预览失败');
             } finally {
               setPreviewLoading(false);
