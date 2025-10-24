@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -22,16 +22,18 @@ ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ConfigProvider locale={zhCN}>
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </BrowserRouter>
+        <AntApp>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </BrowserRouter>
+        </AntApp>
       </ConfigProvider>
     </QueryClientProvider>
   </React.StrictMode>
