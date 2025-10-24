@@ -34,8 +34,9 @@ class DatabaseBackupService:
         # 确保备份目录存在
         self.backup_dir.mkdir(exist_ok=True)
 
-        # 保留最近的备份数量
-        self.max_backups = int(os.getenv("EF__BACKUP__MAX_BACKUPS", "30"))
+        # 保留最近7天的备份（默认每天2次，7天=14个备份文件）
+        self.retention_days = 7
+        self.max_backups = int(os.getenv("EF__BACKUP__MAX_BACKUPS", str(self.retention_days * 2)))
 
     async def backup_database(self, config: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -144,26 +145,29 @@ class DatabaseBackupService:
             }
 
     def _cleanup_old_backups(self):
-        """清理旧的备份文件，只保留最近的N个"""
+        """清理超过7天的旧备份文件"""
         try:
-            # 获取所有备份文件（按修改时间排序）
-            backup_files = sorted(
-                self.backup_dir.glob("euraflow_backup_*.sql.gz"),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True  # 最新的在前面
-            )
+            import time
 
-            # 删除超过保留数量的旧备份
-            if len(backup_files) > self.max_backups:
-                files_to_delete = backup_files[self.max_backups:]
-                for file_path in files_to_delete:
-                    logger.info(f"删除旧备份: {file_path.name}")
+            # 计算7天前的时间戳
+            cutoff_time = time.time() - (self.retention_days * 24 * 60 * 60)
+
+            # 获取所有备份文件
+            backup_files = list(self.backup_dir.glob("euraflow_backup_*.sql.gz"))
+
+            # 找出超过7天的文件
+            deleted_count = 0
+            for file_path in backup_files:
+                file_mtime = file_path.stat().st_mtime
+                if file_mtime < cutoff_time:
+                    logger.info(f"删除超过{self.retention_days}天的备份: {file_path.name}")
                     file_path.unlink()
+                    deleted_count += 1
 
-                logger.info(
-                    f"清理完成，删除了 {len(files_to_delete)} 个旧备份，"
-                    f"保留最近的 {self.max_backups} 个"
-                )
+            if deleted_count > 0:
+                logger.info(f"清理完成，删除了 {deleted_count} 个超过{self.retention_days}天的旧备份")
+            else:
+                logger.debug(f"无需清理，所有备份都在{self.retention_days}天内")
 
         except Exception as e:
             logger.error(f"清理旧备份失败: {str(e)}", exc_info=True)
