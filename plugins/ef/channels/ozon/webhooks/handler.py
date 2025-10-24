@@ -1205,13 +1205,16 @@ class OzonWebhookHandler:
         webhook_event: OzonWebhookEvent
     ) -> Dict[str, Any]:
         """处理新聊天消息事件 (TYPE_NEW_MESSAGE)"""
+        # 打印完整payload以便调试
+        logger.info(f"Chat message webhook payload: {payload}")
+
         chat_id = payload.get("chat_id")
         message_id = payload.get("message_id")
         message_type = payload.get("type", "text")  # text/image/file等
         sender_type = payload.get("sender_type", "user")  # user/support/seller
         content = payload.get("text", "")  # 消息文本内容
 
-        logger.info(f"New chat message: chat_id={chat_id}, message_id={message_id}, type={message_type}")
+        logger.info(f"New chat message: chat_id={chat_id}, message_id={message_id}, type={message_type}, content_length={len(content) if content else 0}")
 
         from ..models.chat import OzonChat, OzonChatMessage
 
