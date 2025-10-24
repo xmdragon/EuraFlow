@@ -48,13 +48,6 @@ interface Shop {
   platform: string;
 }
 
-interface CreateUserData {
-  username: string;
-  password: string;
-  role: string;
-  is_active: boolean;
-}
-
 const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);

@@ -49,7 +49,7 @@ const PageLoading = () => (
   </div>
 );
 
-const { Header, Sider, Content } = Layout;
+const { Sider, Content } = Layout;
 const { Title } = Typography;
 
 const Dashboard: React.FC = () => {
