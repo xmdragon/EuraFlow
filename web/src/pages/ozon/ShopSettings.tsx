@@ -8,17 +8,13 @@ import {
   ApiOutlined,
   SaveOutlined,
   ReloadOutlined,
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
   SettingOutlined,
   SyncOutlined,
   ClockCircleOutlined,
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  ShoppingOutlined,
   TruckOutlined,
-  SendOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -36,7 +32,6 @@ import {
   Typography,
   Row,
   Col,
-  Statistic,
   Badge,
   Modal,
   Table,
@@ -49,7 +44,6 @@ import React, { useState, useEffect } from 'react';
 import styles from './ShopSettings.module.scss';
 
 import Kuajing84Configuration from '@/components/ozon/shop/Kuajing84Configuration';
-import WebhookConfiguration from '@/components/ozon/shop/WebhookConfiguration';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
