@@ -410,20 +410,6 @@ async def async_discard_order(
                         # 发送 WebSocket 通知
                         await _send_websocket_notification(db, sync_log, "failed", error_msg)
 
-        except Exception as e:
-            logger.error(f"跨境84登录失败: {e}")
-            error_msg = f"登录失败: {str(e)}"
-            sync_log.sync_status = "failed"
-            sync_log.error_message = error_msg
-            sync_log.attempts += 1
-            await db.commit()
-
-            # 发送 WebSocket 通知
-            await _send_websocket_notification(db, sync_log, "failed", error_msg)
-        finally:
-            # 确保关闭client释放资源
-            await client.close()
-
     except Exception as e:
         logger.error(f"异步废弃订单任务异常: sync_log_id={sync_log_id}, error={e}")
         import traceback
