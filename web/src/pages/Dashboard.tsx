@@ -161,27 +161,27 @@ const Dashboard: React.FC = () => {
       label: '财务计算',
       onClick: () => navigate('/dashboard/finance'),
     },
-    {
-      key: 'system',
-      icon: <AppstoreOutlined />,
-      label: '系统管理',
-      children: [
-        {
-          key: 'system-sync-services',
-          icon: <SyncOutlined />,
-          label: '后台服务',
-          onClick: () => navigate('/dashboard/system/sync-services'),
-        },
-        {
-          key: 'system-configuration',
-          icon: <SettingOutlined />,
-          label: '系统配置',
-          onClick: () => navigate('/dashboard/system/configuration'),
-        },
-      ],
-    },
     ...(user?.role === 'admin'
       ? [
+          {
+            key: 'system',
+            icon: <AppstoreOutlined />,
+            label: '系统管理',
+            children: [
+              {
+                key: 'system-sync-services',
+                icon: <SyncOutlined />,
+                label: '后台服务',
+                onClick: () => navigate('/dashboard/system/sync-services'),
+              },
+              {
+                key: 'system-configuration',
+                icon: <SettingOutlined />,
+                label: '系统配置',
+                onClick: () => navigate('/dashboard/system/configuration'),
+              },
+            ],
+          },
           {
             key: 'users',
             icon: <UserOutlined />,
@@ -297,10 +297,14 @@ const Dashboard: React.FC = () => {
                 }
               />
               <Route path="/ozon/*" element={<OzonManagement />} />
-              <Route path="/system/*" element={<SystemManagement />} />
               <Route path="/finance" element={<FinanceCalculator />} />
               <Route path="/profile" element={<Profile />} />
-              {user?.role === 'admin' && <Route path="/users" element={<UserManagement />} />}
+              {user?.role === 'admin' && (
+                <>
+                  <Route path="/system/*" element={<SystemManagement />} />
+                  <Route path="/users" element={<UserManagement />} />
+                </>
+              )}
             </Routes>
           </Suspense>
         </Content>
