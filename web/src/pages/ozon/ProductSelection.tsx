@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 /**
  * 选品助手页面
  */

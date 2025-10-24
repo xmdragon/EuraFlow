@@ -78,16 +78,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [queryClient]);
 
   const login = async (credentials: LoginRequest) => {
-    try {
-      const response = await authService.login(credentials);
-      setUser(response.user);
+    const response = await authService.login(credentials);
+    setUser(response.user);
 
-      // Invalidate and refetch user data
-      await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-    } catch (error) {
-      // Login failed
-      throw error;
-    }
+    // Invalidate and refetch user data
+    await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
   };
 
   const logout = async () => {

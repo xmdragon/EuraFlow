@@ -1,10 +1,11 @@
+/* eslint-disable no-unused-vars */
 /**
  * Type declarations for Recharts to fix React 18 compatibility issues
  * These declarations extend Recharts component types to work with React 18's stricter JSX typing
  */
 
 declare module 'recharts' {
-  import { ComponentType, ReactElement } from 'react';
+  import { ComponentType, _ReactElement } from 'react';
 
   // Re-export all types from recharts but with React 18 compatible JSX types
   export * from 'recharts';

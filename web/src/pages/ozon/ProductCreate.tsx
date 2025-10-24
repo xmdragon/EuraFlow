@@ -346,14 +346,14 @@ const ProductCreate: React.FC = () => {
                         (option.label as string).toLowerCase().includes(inputValue.toLowerCase())
                       ),
                   }}
-                  disabled={!selectedShop || categoryLoading}
-                  loading={categoryLoading}
+                  disabled={!selectedShop || false}
+                  loading={false}
                 />
                 <Button
                   className={styles.syncBtn}
                   icon={<SyncOutlined />}
                   onClick={handleSyncCategory}
-                  loading={syncCategoryMutation.isPending || categoryLoading}
+                  loading={syncCategoryMutation.isPending || false}
                   disabled={!selectedShop || syncCategoryMutation.isPending}
                 >
                   同步类目

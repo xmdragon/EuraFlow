@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /**
  * OZON 聊天列表页面
  */
@@ -77,7 +78,7 @@ const ChatList: React.FC = () => {
   const {
     data: chatsData,
     isLoading,
-    refetch: refetchChats,
+    refetch: _refetchChats,
   } = useQuery({
     queryKey: [
       'chats',

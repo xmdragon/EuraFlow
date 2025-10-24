@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars, no-undef */
 /* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 /**
  * 跨境巴士同步状态轮询 Hook

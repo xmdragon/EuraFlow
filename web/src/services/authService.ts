@@ -97,17 +97,12 @@ class AuthService {
   }
 
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    try {
-      const response = await axios.post<LoginResponse>(`${API_BASE_URL}/auth/login`, credentials);
-      const { access_token, refresh_token } = response.data;
+    const response = await axios.post<LoginResponse>(`${API_BASE_URL}/auth/login`, credentials);
+    const { access_token, refresh_token } = response.data;
 
-      this.setTokens(access_token, refresh_token);
+    this.setTokens(access_token, refresh_token);
 
-      return response.data;
-    } catch (error) {
-      // Login failed
-      throw error;
-    }
+    return response.data;
   }
 
   async refresh(): Promise<void> {
