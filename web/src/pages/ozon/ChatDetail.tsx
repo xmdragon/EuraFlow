@@ -52,13 +52,14 @@ const ChatDetail: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 获取聊天详情
-  const { data: chatData, isLoading: chatLoading } = useQuery({
+  const { data: chatData, isLoading: chatLoading, error: chatError, isError: isChatError } = useQuery({
     queryKey: ['chatDetail', shopId, chatId],
     queryFn: () => {
       if (!shopId || !chatId) throw new Error('缺少参数');
       return ozonApi.getChatDetail(Number(shopId), chatId);
     },
     enabled: !!shopId && !!chatId,
+    retry: 1, // 只重试一次
   });
 
   // 获取消息列表
@@ -268,7 +269,21 @@ const ChatDetail: React.FC = () => {
       </Button>
 
       <Spin spinning={chatLoading}>
-        {chatData && (
+        {isChatError && (
+          <Card>
+            <Empty
+              description={
+                <div>
+                  <p>加载聊天详情失败</p>
+                  <p className={styles.errorDetail}>
+                    {chatError instanceof Error ? chatError.message : '未知错误'}
+                  </p>
+                </div>
+              }
+            />
+          </Card>
+        )}
+        {!isChatError && chatData && (
           <>
             {/* 聊天信息卡片 */}
             <Card className={styles.chatInfoCard}>
