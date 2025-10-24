@@ -50,7 +50,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
     mutationFn: (data: ozonApi.UpdateBusinessInfoRequest) => {
       return ozonApi.updatePostingBusinessInfo(postingNumber, data);
     },
-    onSuccess: (_response) => {
+    onSuccess: () => {
       notifySuccess('更新成功', '业务信息更新成功');
       // 调用父组件的更新回调
       onUpdate?.();

@@ -32,7 +32,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
     mutationFn: (data: ozonApi.SubmitDomesticTrackingRequest) => {
       return ozonApi.submitDomesticTracking(postingNumber, data);
     },
-    onSuccess: (_response) => {
+    onSuccess: () => {
       // 提交成功，后台会通过 WebSocket 推送同步结果
       notifySuccess('国内单号已保存', '正在后台同步到跨境巴士，稍后将收到通知');
       // 刷新计数查询

@@ -65,11 +65,21 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   // 权限检查
   const { canOperate, canSync } = usePermission();
 
+  // 本地状态存储订单和posting数据，用于立即更新显示
+  const [localOrder, setLocalOrder] = useState(selectedOrder);
+  const [localPosting, setLocalPosting] = useState(selectedPosting);
+
+  // 当props变化时更新本地状态
+  React.useEffect(() => {
+    setLocalOrder(selectedOrder);
+    setLocalPosting(selectedPosting);
+  }, [selectedOrder, selectedPosting]);
+
   // 可编辑状态判断：从"分配中"状态开始允许编辑
   const canEdit =
-    selectedPosting?.operation_status &&
+    localPosting?.operation_status &&
     ['allocating', 'allocated', 'tracking_confirmed', 'printed'].includes(
-      selectedPosting.operation_status
+      localPosting.operation_status
     );
 
   // 编辑状态管理
@@ -105,15 +115,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // 保存进货金额
   const handleSavePurchasePrice = async () => {
-    if (!selectedPosting?.posting_number) return;
+    if (!localPosting?.posting_number) return;
 
     try {
       setSaving(true);
-      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+      await ozonApi.updatePostingBusinessInfo(localPosting.posting_number, {
         purchase_price: editPurchasePrice,
       });
       notifySuccess('更新成功', '进货金额已更新');
       setIsEditingPurchasePrice(false);
+      // 立即更新本地显示
+      setLocalPosting({ ...localPosting, purchase_price: editPurchasePrice });
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
@@ -128,15 +140,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // 保存打包费用
   const handleSaveMaterialCost = async () => {
-    if (!selectedPosting?.posting_number) return;
+    if (!localPosting?.posting_number) return;
 
     try {
       setSaving(true);
-      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+      await ozonApi.updatePostingBusinessInfo(localPosting.posting_number, {
         material_cost: editMaterialCost,
       });
       notifySuccess('更新成功', '打包费用已更新');
       setIsEditingMaterialCost(false);
+      // 立即更新本地显示
+      setLocalPosting({ ...localPosting, material_cost: editMaterialCost });
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
@@ -151,11 +165,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // 同步打包费用
   const handleSyncMaterialCost = async () => {
-    if (!selectedPosting?.posting_number) return;
+    if (!localPosting?.posting_number) return;
 
     try {
       setSyncingMaterialCost(true);
-      await ozonApi.syncMaterialCost(selectedPosting.posting_number);
+      await ozonApi.syncMaterialCost(localPosting.posting_number);
       notifySuccess('同步成功', '打包费用同步成功');
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
@@ -171,11 +185,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // 同步财务费用
   const handleSyncFinance = async () => {
-    if (!selectedPosting?.posting_number) return;
+    if (!localPosting?.posting_number) return;
 
     try {
       setSyncingFinance(true);
-      await ozonApi.syncFinance(selectedPosting.posting_number);
+      await ozonApi.syncFinance(localPosting.posting_number);
       notifySuccess('同步成功', '财务费用同步成功');
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
@@ -191,15 +205,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // 保存采购平台
   const handleSaveSourcePlatform = async () => {
-    if (!selectedPosting?.posting_number) return;
+    if (!localPosting?.posting_number) return;
 
     try {
       setSaving(true);
-      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+      await ozonApi.updatePostingBusinessInfo(localPosting.posting_number, {
         source_platform: editSourcePlatform,
       });
       notifySuccess('更新成功', '采购平台已更新');
       setIsEditingSourcePlatform(false);
+      // 立即更新本地显示
+      setLocalPosting({ ...localPosting, source_platform: editSourcePlatform });
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
@@ -214,15 +230,19 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // 保存订单备注
   const handleSaveOrderNotes = async () => {
-    if (!selectedPosting?.posting_number) return;
+    if (!localPosting?.posting_number) return;
 
     try {
       setSaving(true);
-      await ozonApi.updatePostingBusinessInfo(selectedPosting.posting_number, {
+      await ozonApi.updatePostingBusinessInfo(localPosting.posting_number, {
         order_notes: editOrderNotes,
       });
       notifySuccess('更新成功', '订单备注已更新');
       setIsEditingOrderNotes(false);
+      // 立即更新本地显示
+      if (localOrder) {
+        setLocalOrder({ ...localOrder, order_notes: editOrderNotes });
+      }
       onUpdate?.(); // 触发父组件刷新
     } catch (error: any) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
@@ -272,14 +292,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </Space>
       ) : (
         <Space>
-          <Text>{selectedOrder?.order_notes || '-'}</Text>
+          <Text>{localOrder?.order_notes || '-'}</Text>
           {canEdit && canOperate && (
             <Button
               type="link"
               size="small"
               icon={<EditOutlined />}
               onClick={() => {
-                setEditOrderNotes(selectedOrder?.order_notes || '');
+                setEditOrderNotes(localOrder?.order_notes || '');
                 setIsEditingOrderNotes(true);
               }}
             >
@@ -293,13 +313,13 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   return (
     <Modal
-      title={`订单详情 - ${selectedPosting?.posting_number || selectedOrder?.order_id}`}
+      title={`订单详情 - ${localPosting?.posting_number || localOrder?.order_id}`}
       open={visible}
       onCancel={onCancel}
       footer={null}
       width={900}
     >
-      {selectedOrder && (
+      {localOrder && (
         <Tabs
           defaultActiveKey="1"
           items={[
@@ -310,41 +330,41 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 <>
                   <Descriptions bordered column={2} labelStyle={{ width: '120px' }}>
                     <Descriptions.Item label="Ozon订单号">
-                      {selectedOrder.ozon_order_id || selectedOrder.order_id}
+                      {localOrder.ozon_order_id || localOrder.order_id}
                     </Descriptions.Item>
                     <Descriptions.Item label="状态">
                       <Tag
-                        color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}
+                        color={statusConfig[localPosting?.status || localOrder.status]?.color}
                       >
-                        {statusConfig[selectedPosting?.status || selectedOrder.status]?.text}
+                        {statusConfig[localPosting?.status || localOrder.status]?.text}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="总金额">
                       {formatPriceWithFallback(
-                        selectedOrder.total_price || selectedOrder.total_amount,
-                        selectedOrder.currency_code,
+                        localOrder.total_price || localOrder.total_amount,
+                        localOrder.currency_code,
                         userCurrency
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="进货价格">
-                      {selectedOrder.purchase_price
+                      {localOrder.purchase_price
                         ? formatPriceWithFallback(
-                            selectedOrder.purchase_price,
-                            selectedOrder.currency_code,
+                            localOrder.purchase_price,
+                            localOrder.currency_code,
                             userCurrency
                           )
                         : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="国内单号">
-                      {selectedPosting?.domestic_tracking_numbers &&
-                      selectedPosting.domestic_tracking_numbers.length > 0 ? (
+                      {localPosting?.domestic_tracking_numbers &&
+                      localPosting.domestic_tracking_numbers.length > 0 ? (
                         <div>
-                          {selectedPosting.domestic_tracking_numbers.map((number, index) => (
+                          {localPosting.domestic_tracking_numbers.map((number, index) => (
                             <div
                               key={index}
                               style={{
                                 marginBottom:
-                                  index < selectedPosting.domestic_tracking_numbers.length - 1
+                                  index < localPosting.domestic_tracking_numbers.length - 1
                                     ? '4px'
                                     : 0,
                               }}
@@ -367,18 +387,18 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="国际单号">
-                      {selectedPosting?.posting_number || selectedOrder.posting_number || '-'}
+                      {localPosting?.posting_number || localOrder.posting_number || '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="下单时间">
-                      {selectedOrder.ordered_at
-                        ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')
-                        : selectedOrder.created_at
-                          ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss')
+                      {localOrder.ordered_at
+                        ? moment(localOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')
+                        : localOrder.created_at
+                          ? moment(localOrder.created_at).format('YYYY-MM-DD HH:mm:ss')
                           : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="发货截止">
-                      {selectedPosting?.shipment_date
-                        ? moment(selectedPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss')
+                      {localPosting?.shipment_date
+                        ? moment(localPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss')
                         : '-'}
                     </Descriptions.Item>
                   </Descriptions>
@@ -392,7 +412,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               children: (
                 <>
                   <Table
-                    dataSource={selectedOrder.items}
+                    dataSource={localOrder.items}
                     rowKey="sku"
                     pagination={false}
                     columns={[
@@ -458,7 +478,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       key: 'price',
                       width: 100,
                       render: (price) =>
-                        formatPriceWithFallback(price, selectedOrder?.currency_code, userCurrency),
+                        formatPriceWithFallback(price, localOrder?.currency_code, userCurrency),
                     },
                     {
                       title: '小计',
@@ -466,7 +486,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       key: 'total_amount',
                       width: 100,
                       render: (amount) =>
-                        formatPriceWithFallback(amount, selectedOrder?.currency_code, userCurrency),
+                        formatPriceWithFallback(amount, localOrder?.currency_code, userCurrency),
                     },
                   ]}
                   />
@@ -479,7 +499,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               key: '3',
               children: (
                 <>
-                  {selectedOrder.postings?.map((posting) => (
+                  {localOrder.postings?.map((posting) => (
                 <Card key={posting.id} className={styles.postingCard}>
                   <Descriptions bordered size="small" column={1} labelStyle={{ width: '120px' }}>
                     <Descriptions.Item label="Posting号">
@@ -492,7 +512,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       {posting.warehouse_name || '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="订单类型">
-                      {selectedOrder.order_type || 'FBS'}
+                      {localOrder.order_type || 'FBS'}
                     </Descriptions.Item>
                     <Descriptions.Item label="配送方式">
                       {formatDeliveryMethodTextWhite(posting.delivery_method_name)}
@@ -564,23 +584,23 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               key: '5',
               children: (() => {
                 // 检查订单状态是否为"已签收"
-                const isDelivered = selectedPosting?.status === 'delivered';
+                const isDelivered = localPosting?.status === 'delivered';
 
                 // 计算订单金额（商品总价）
                 const orderAmount = parseFloat(
-                  selectedOrder.total_price || selectedOrder.total_amount || '0'
+                  localOrder.total_price || localOrder.total_amount || '0'
                 );
 
                 // 获取各项费用
-                const purchasePrice = parseFloat(selectedPosting?.purchase_price || '0');
-                const ozonCommission = parseFloat(selectedPosting?.ozon_commission_cny || '0');
+                const purchasePrice = parseFloat(localPosting?.purchase_price || '0');
+                const ozonCommission = parseFloat(localPosting?.ozon_commission_cny || '0');
                 const internationalLogistics = parseFloat(
-                  selectedPosting?.international_logistics_fee_cny || '0'
+                  localPosting?.international_logistics_fee_cny || '0'
                 );
                 const lastMileDelivery = parseFloat(
-                  selectedPosting?.last_mile_delivery_fee_cny || '0'
+                  localPosting?.last_mile_delivery_fee_cny || '0'
                 );
-                const packingFee = parseFloat(selectedPosting?.material_cost || '0');
+                const packingFee = parseFloat(localPosting?.material_cost || '0');
 
                 // 只有在已签收状态下且有进货金额和Ozon佣金时才计算利润
                 const shouldCalculateProfit =
@@ -606,8 +626,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
                     <Descriptions.Item label="订单金额">
                       {formatPriceWithFallback(
-                        selectedOrder.total_price || selectedOrder.total_amount,
-                        selectedOrder.currency_code,
+                        localOrder.total_price || localOrder.total_amount,
+                        localOrder.currency_code,
                         userCurrency
                       )}
                     </Descriptions.Item>
@@ -644,10 +664,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       ) : (
                         <Space>
                           <Text>
-                            {selectedPosting?.purchase_price
+                            {localPosting?.purchase_price
                               ? formatPriceWithFallback(
-                                  selectedPosting.purchase_price,
-                                  selectedOrder.currency_code,
+                                  localPosting.purchase_price,
+                                  localOrder.currency_code,
                                   userCurrency
                                 )
                               : '-'}
@@ -658,7 +678,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                               size="small"
                               icon={<EditOutlined />}
                               onClick={() => {
-                                setEditPurchasePrice(selectedPosting?.purchase_price || '');
+                                setEditPurchasePrice(localPosting?.purchase_price || '');
                                 setIsEditingPurchasePrice(true);
                               }}
                             >
@@ -702,14 +722,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         </Space>
                       ) : (
                         <Space>
-                          <Text>{selectedPosting?.source_platform || '-'}</Text>
+                          <Text>{localPosting?.source_platform || '-'}</Text>
                           {canEdit && canOperate && (
                             <Button
                               type="link"
                               size="small"
                               icon={<EditOutlined />}
                               onClick={() => {
-                                setEditSourcePlatform(selectedPosting?.source_platform || '');
+                                setEditSourcePlatform(localPosting?.source_platform || '');
                                 setIsEditingSourcePlatform(true);
                               }}
                             >
@@ -722,10 +742,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <Descriptions.Item label="Ozon佣金">
                       <Space>
                         <Text>
-                          {selectedPosting?.ozon_commission_cny
+                          {localPosting?.ozon_commission_cny
                             ? formatPriceWithFallback(
-                                selectedPosting.ozon_commission_cny,
-                                selectedOrder.currency_code,
+                                localPosting.ozon_commission_cny,
+                                localOrder.currency_code,
                                 userCurrency
                               )
                             : '-'}
@@ -744,19 +764,19 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       </Space>
                     </Descriptions.Item>
                     <Descriptions.Item label="国际物流">
-                      {selectedPosting?.international_logistics_fee_cny
+                      {localPosting?.international_logistics_fee_cny
                         ? formatPriceWithFallback(
-                            selectedPosting.international_logistics_fee_cny,
-                            selectedOrder.currency_code,
+                            localPosting.international_logistics_fee_cny,
+                            localOrder.currency_code,
                             userCurrency
                           )
                         : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="尾程派送">
-                      {selectedPosting?.last_mile_delivery_fee_cny
+                      {localPosting?.last_mile_delivery_fee_cny
                         ? formatPriceWithFallback(
-                            selectedPosting.last_mile_delivery_fee_cny,
-                            selectedOrder.currency_code,
+                            localPosting.last_mile_delivery_fee_cny,
+                            localOrder.currency_code,
                             userCurrency
                           )
                         : '-'}
@@ -794,10 +814,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       ) : (
                         <Space>
                           <Text>
-                            {selectedPosting?.material_cost
+                            {localPosting?.material_cost
                               ? formatPriceWithFallback(
-                                  selectedPosting.material_cost,
-                                  selectedOrder.currency_code,
+                                  localPosting.material_cost,
+                                  localOrder.currency_code,
                                   userCurrency
                                 )
                               : '-'}
@@ -819,7 +839,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                               size="small"
                               icon={<EditOutlined />}
                               onClick={() => {
-                                setEditMaterialCost(selectedPosting?.material_cost || '');
+                                setEditMaterialCost(localPosting?.material_cost || '');
                                 setIsEditingMaterialCost(true);
                               }}
                             >
@@ -839,7 +859,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         >
                           {formatPriceWithFallback(
                             profitAmount.toString(),
-                            selectedOrder.currency_code,
+                            localOrder.currency_code,
                             userCurrency
                           )}
                         </Text>

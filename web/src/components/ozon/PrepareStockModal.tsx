@@ -52,7 +52,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
     mutationFn: (data: ozonApi.PrepareStockRequest) => {
       return ozonApi.prepareStock(postingNumber, data);
     },
-    onSuccess: (_response) => {
+    onSuccess: () => {
       notifySuccess('操作成功', '备货操作成功');
       // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
