@@ -12,7 +12,7 @@ export const Kuajing84Configuration: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
 
-  const { data: configData, refetch: refetchConfig } = useQuery({
+  const { data: configData, refetch: refetchConfig, isLoading: configLoading } = useQuery({
     queryKey: ['ozon', 'kuajing84-global-config'],
     queryFn: () => ozonApi.getKuajing84Config(),
     staleTime: 30 * 1000,
@@ -55,10 +55,7 @@ export const Kuajing84Configuration: React.FC = () => {
       }
 
       setTestingConnection(true);
-      await ozonApi.testKuajing84Connection({
-        username: values.username,
-        password: values.password,
-      });
+      await ozonApi.testKuajing84Connection();
       notifySuccess('测试成功', '跨境巴士连接测试成功');
     } catch (error: any) {
       notifyError('测试失败', `连接测试失败: ${error.message}`);
@@ -89,7 +86,7 @@ export const Kuajing84Configuration: React.FC = () => {
         style={{ marginBottom: 16 }}
       />
 
-      <Spin spinning={configData?.loading || loading}>
+      <Spin spinning={configLoading || loading}>
         <Form form={configForm} layout="vertical" onFinish={handleSave}>
           <Form.Item name="enabled" label="启用跨境巴士同步" valuePropName="checked">
             <Switch checkedChildren="启用" unCheckedChildren="禁用" />

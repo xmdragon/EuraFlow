@@ -302,10 +302,10 @@ async def get_packing_orders(
     if tracking_number:
         # 在packages数组中查找tracking_number
         query = query.join(
-            OzonPackage,
-            OzonPackage.posting_id == OzonPosting.id
+            OzonShipmentPackage,
+            OzonShipmentPackage.posting_id == OzonPosting.id
         ).where(
-            OzonPackage.tracking_number == tracking_number.strip()
+            OzonShipmentPackage.tracking_number == tracking_number.strip()
         )
 
     # 搜索条件：国内单号搜索（在domestic_trackings中查找）
@@ -406,10 +406,10 @@ async def get_packing_orders(
     if tracking_number:
         # OZON追踪号码搜索（count查询也需要应用）
         count_query = count_query.join(
-            OzonPackage,
-            OzonPackage.posting_id == OzonPosting.id
+            OzonShipmentPackage,
+            OzonShipmentPackage.posting_id == OzonPosting.id
         ).where(
-            OzonPackage.tracking_number == tracking_number.strip()
+            OzonShipmentPackage.tracking_number == tracking_number.strip()
         )
     if domestic_tracking_number:
         # 国内单号搜索（count查询也需要应用）

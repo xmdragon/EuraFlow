@@ -186,7 +186,7 @@ class Kuajing84MaterialCostSyncService:
                                     tracking_number=result["logistics_order"],
                                     created_at=datetime.now(timezone.utc)
                                 )
-                                db.add(new_tracking)
+                                session.add(new_tracking)
                                 logger.info(
                                     f"Added domestic tracking number for posting {posting.id}, "
                                     f"tracking_number={result['logistics_order']}"

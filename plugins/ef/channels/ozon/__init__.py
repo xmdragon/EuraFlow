@@ -4,7 +4,7 @@ EuraFlow Ozon Channel Plugin
 """
 import asyncio
 from typing import Optional, Dict, Any
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from fastapi import APIRouter
 
 # 插件版本

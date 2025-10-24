@@ -218,7 +218,7 @@ const ExchangeRateManagement: React.FC = () => {
       <div className={styles.pageContainer}>
         <div className={styles.contentContainer}>
           {canOperate && (
-            <Row className={styles.titleRow} align="middle" justify="flex-end">
+            <Row className={styles.titleRow} align="middle" justify="end">
             <Col>
               <Button
                 type="primary"
