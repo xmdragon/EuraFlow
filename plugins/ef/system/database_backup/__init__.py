@@ -23,8 +23,8 @@ async def setup(hooks) -> None:
     print(f"Version: {__version__}")
 
     # 获取同步服务注册器
-    from ef_core.services.sync_service_registry import SyncServiceRegistry
-    registry = SyncServiceRegistry()
+    from plugins.ef.system.sync_service.services.handler_registry import get_registry
+    registry = get_registry()
 
     # 导入备份服务
     from .backup_service import DatabaseBackupService
