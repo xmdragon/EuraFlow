@@ -84,7 +84,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
             label="选择店铺"
             value={selectedShop}
             onChange={onShopChange}
-            showAllOption={false}
+            showAllOption={true}
             className={styles.shopSelector}
           />
         </Col>

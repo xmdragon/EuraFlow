@@ -246,7 +246,7 @@ const FinanceTransactions: React.FC = () => {
                 setSelectedShop(value as number | null);
                 setCurrentPage(1);
               }}
-              showAllOption={false}
+              showAllOption={true}
             />
           </Col>
           <Col>

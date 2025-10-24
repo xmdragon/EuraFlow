@@ -227,7 +227,7 @@ const ChatList: React.FC = () => {
             setSelectedShopId(normalized);
             setCurrentPage(1);
           }}
-          showAllOption={false}
+          showAllOption={true}
         />
       </Card>
 

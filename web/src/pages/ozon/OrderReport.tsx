@@ -558,7 +558,7 @@ const OrderReport: React.FC = () => {
               }}
               placeholder="请选择店铺"
               className={styles.shopSelector}
-              showAllOption={false}
+              showAllOption={true}
             />
           </Col>
           <Col>

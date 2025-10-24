@@ -246,7 +246,7 @@ const ProductListing: React.FC = () => {
       <PageTitle icon={<CloudUploadOutlined />} title="商品上架管理" />
       <div className={styles.shopSelectorContainer}>
         <ShopSelectorWithLabel
-          showLabel={false}
+          label="选择店铺"
           value={selectedShop}
           onChange={(shopId) => setSelectedShop(shopId as number)}
           className={styles.shopSelector}
