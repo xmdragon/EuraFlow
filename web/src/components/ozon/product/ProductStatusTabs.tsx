@@ -28,7 +28,7 @@ export interface ProductStatusTabsProps {
   /** 当前激活的状态 */
   activeStatus: string;
   /** 状态改变时的回调 */
-  onStatusChange: (newStatus: string) => void;
+  onStatusChange: (_newStatus: string) => void;
 }
 
 /**

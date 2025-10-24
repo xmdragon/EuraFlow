@@ -23,9 +23,9 @@ export interface PackingSearchBarProps {
   /** 当前选中的店铺ID */
   selectedShop: number | null;
   /** 店铺改变回调 */
-  onShopChange: (value: number | null) => void;
+  onShopChange: (_value: number | null) => void;
   /** 搜索参数改变回调 */
-  onSearchParamsChange: (searchParams: SearchParams) => void;
+  onSearchParamsChange: (_searchParams: SearchParams) => void;
 }
 
 /**

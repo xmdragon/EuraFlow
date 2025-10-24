@@ -738,6 +738,12 @@ const OrderList: React.FC = () => {
                 {symbol} {formatPrice(item.price || 0)}
               </span>
             </div>
+            <div>
+              <Text type="secondary">金额: </Text>
+              <span className={styles.price}>
+                {symbol} {formatPrice((item.price || 0) * (item.quantity || 1))}
+              </span>
+            </div>
           </div>
         );
       },

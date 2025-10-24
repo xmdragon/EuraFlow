@@ -15,7 +15,7 @@ import {
 } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 
-import { matchScenario, matchAllScenarios } from '../ozon/profitCalculator';
+import { _matchScenario, matchAllScenarios } from '../ozon/profitCalculator';
 
 import { SCENARIOS } from './constants';
 import styles from './ProfitCalculatorV2.module.scss';

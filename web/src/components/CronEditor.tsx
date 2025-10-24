@@ -11,7 +11,7 @@ const { Text } = Typography;
 
 interface CronEditorProps {
   value?: string;
-  onChange?: (value: string) => void;
+  onChange?: (_value: string) => void;
 }
 
 // 预设的Cron表达式选项

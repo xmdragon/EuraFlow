@@ -20,7 +20,7 @@ export interface ExtraInfoFormProps {
   /** 选中的货件 */
   selectedPosting: ozonApi.Posting | null;
   /** 设置更新加载状态 */
-  setIsUpdatingExtraInfo: (isLoading: boolean) => void;
+  setIsUpdatingExtraInfo: (_isLoading: boolean) => void;
   /** 同步到跨境巴士的 mutation */
   syncToKuajing84Mutation: any;
   /** 是否有操作权限 */

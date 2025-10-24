@@ -53,7 +53,7 @@ const OPACITY_MAX: number = 1;
 const OPACITY_STEP: number = 0.1;
 
 const WatermarkManagement: React.FC = () => {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const { canOperate } = usePermission();
   const [activeTab, setActiveTab] = useState('watermarks');
   const [cloudinaryForm] = Form.useForm();

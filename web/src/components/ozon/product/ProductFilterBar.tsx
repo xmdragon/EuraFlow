@@ -25,15 +25,15 @@ export interface ProductFilterBarProps {
   /** 当前选中的店铺ID */
   selectedShop: number | null;
   /** 店铺改变时的回调 */
-  onShopChange: (value: number | null) => void;
+  onShopChange: (_value: number | null) => void;
   /** 过滤值 */
   filterValues: FilterValues;
   /** 过滤提交处理 */
-  onFilter: (filters: FilterValues) => void;
+  onFilter: (_filters: FilterValues) => void;
   /** 重置处理 */
   onReset: () => void;
   /** 状态改变回调 */
-  onStatusChange: (newStatus: string) => void;
+  onStatusChange: (_newStatus: string) => void;
   /** 新建商品回调 */
   onCreateProduct: () => void;
   /** 全局统计数据 */

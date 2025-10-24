@@ -23,7 +23,7 @@ export interface ShipModalProps {
   /** 发货loading状态 */
   loading: boolean;
   /** 发货提交回调 */
-  onSubmit: (data: { tracking_number: string; carrier_code: string }) => void;
+  onSubmit: (_data: { tracking_number: string; carrier_code: string }) => void;
   /** 取消回调 */
   onCancel: () => void;
 }

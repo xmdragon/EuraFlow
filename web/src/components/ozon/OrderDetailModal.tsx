@@ -338,11 +338,16 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="总金额">
-                      {formatPriceWithFallback(
-                        localOrder.total_price || localOrder.total_amount,
-                        localOrder.currency_code,
-                        userCurrency
-                      )}
+                      {(() => {
+                        const calculatedTotal = (localOrder.items || []).reduce((sum, item) => {
+                          return sum + (parseFloat(item.price || '0') * (item.quantity || 1));
+                        }, 0);
+                        return formatPriceWithFallback(
+                          calculatedTotal.toString(),
+                          localOrder.currency_code,
+                          userCurrency
+                        );
+                      })()}
                     </Descriptions.Item>
                     <Descriptions.Item label="进货价格">
                       {localOrder.purchase_price
@@ -410,7 +415,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               children: (
                 <>
                   <Table
-                    dataSource={localOrder.items}
+                    dataSource={
+                      localPosting?.products && localPosting.products.length > 0
+                        ? localPosting.products
+                        : localOrder.items || []
+                    }
                     rowKey="sku"
                     pagination={false}
                     columns={[

@@ -25,7 +25,7 @@ export interface PrintErrorModalProps {
   /** 当前选中的货件编号列表 */
   selectedPostingNumbers: string[];
   /** 移除失败订单后的回调 */
-  onRemoveFailedAndContinue: (postings: string[]) => void;
+  onRemoveFailedAndContinue: (_postings: string[]) => void;
 }
 
 /**

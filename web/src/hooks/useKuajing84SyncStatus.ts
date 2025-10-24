@@ -26,9 +26,9 @@ interface UseKuajing84SyncStatusOptions {
   /** 最大轮询次数，默认 15 次（30秒） */
   maxAttempts?: number;
   /** 同步成功后的回调 */
-  onSuccess?: (status: Kuajing84SyncStatus) => void;
+  onSuccess?: (_status: Kuajing84SyncStatus) => void;
   /** 同步失败后的回调 */
-  onFailure?: (status: Kuajing84SyncStatus) => void;
+  onFailure?: (_status: Kuajing84SyncStatus) => void;
   /** 轮询超时后的回调 */
   onTimeout?: () => void;
 }
