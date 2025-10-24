@@ -27,13 +27,17 @@
 - ❌ 缺失可观测性（关键路径必须有指标/日志/Trace）
 - ❌ 危险数据库操作（禁止 DROP/TRUNCATE/DELETE FROM 无 WHERE）
 
+### 项目焦点
+优先面向 **Ozon 渠道插件** `ef.channels.ozon`，同时覆盖整个微内核+插件生态系统。
+
 ---
 
 ## 1) 项目技术栈
-- **后端**：Python 3.12、FastAPI、SQLAlchemy 2.x（async）、Alembic
+- **后端**：Python 3.12、FastAPI、SQLAlchemy 2.x（prefer async）、Alembic、任务运行时（Celery/自研）
 - **前端**：TypeScript/React、Vite、TanStack Query、Tailwind
 - **数据**：PostgreSQL、Redis
 - **观测**：JSON 日志、Prometheus 指标（`ef_*`）、OpenTelemetry Trace
+- **配置**：环境变量前缀 `EF__*`；配置中心/KV 渲染
 
 ---
 
@@ -45,6 +49,8 @@
 - **金额**：**Decimal**（18,4），禁止 `float` 参与计算与存储
 - **错误模型**：RFC7807 Problem Details，HTTP 错误不返回堆栈
 - **边界**：禁止跨目录 import 私有实现，仅使用公开 Hook/Service
+
+> 若因历史代码不满足，先给出"最小整改方案"，再实现需求。
 
 ---
 
@@ -76,6 +82,7 @@
 - **时间用本地时区** → 数据库用 UTC；生成ID/临时文件可用 `now()`
 - **越界 import** → 仅使用公开 Hook/Service
 - **新增外部依赖** → 先提交方案与风险评估
+- **数据库直连耦合** → 通过仓储/服务层；避免在路由中写 SQL
 - **异步阻塞** → 使用异步客户端/线程池包装
 - **无超时/无限重试** → 外部 API 默认超时（10s）与指数退避（≤5 次）
 - **漏指标/日志脱敏** → JSON 日志脱敏电话/邮箱/地址；指标按 `ef_*` 命名
@@ -97,7 +104,7 @@
 ## 7) API 约定速查
 - 统一响应：`{ ok, data?, error? }`；错误为 Problem Details
 - 分页：cursor 优先；返回 `{ items, next_cursor }`
-- 幂等：`Idempotency-Key` 头
+- 幂等：`Idempotency-Key` 头；库存/价格幂等键参见 SRS §7
 - 速率：响应含 `X-Rate-Limit-Remaining`
 
 ---
