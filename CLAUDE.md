@@ -220,6 +220,7 @@
 - **异步阻塞**（在 async 中做阻塞 I/O）→ 使用异步客户端/线程池包装。
 - **无超时/无限重试** → 外部 API 默认超时（10s）与指数退避（≤5 次）。
 - **漏指标/日志脱敏** → JSON 日志脱敏电话/邮箱/地址；指标按 `ef_*` 命名。
+- **使用 console.log/debug/info** → **禁止**直接使用 `console.log/debug/info`；前端必须使用 `loglevel` 日志库（`import { loggers } from '@/utils/logger'`）；后端使用 Python `logging` 模块；仅在错误处理时允许 `console.error/warn`。
 - **幂等缺失** → 写操作支持 `Idempotency-Key`（或业务幂等键）。
 - **样式硬编码** → **禁止** `style={{...}}`；样式统一写入 `.module.scss` 文件。
 
@@ -246,6 +247,16 @@
 - Python：`mypy --strict`、`ruff`、`black 120 cols`；分层：路由 → 服务 → 仓储；事务粒度清晰。
 - TypeScript：`strict: true`；React 组件大写、Hook 以 `use*`；错误边界/空态齐全。
 - **样式分离**：**禁止在 TypeScript/React 组件中使用 inline style**（`style={{...}}`）；所有样式必须写入对应的 `.module.scss` 文件中，使用 `className={styles.xxx}` 引用。
+- **日志规范**：
+  - **前端（TypeScript/React）**：使用 `loglevel` 日志库，导入 `import { loggers } from '@/utils/logger'`
+    - 使用预定义模块日志器：`loggers.auth.info()`, `loggers.product.debug()`, `loggers.notification.warn()` 等
+    - 日志级别：`trace` < `debug` < `info` < `warn` < `error` < `silent`
+    - 环境控制：开发环境默认 `debug`，生产环境默认 `warn`（通过 `VITE_LOG_LEVEL` 配置）
+    - **禁止使用**：`console.log()`, `console.debug()`, `console.info()`；仅允许 `console.error()` 和 `console.warn()` 用于错误处理
+  - **后端（Python）**：使用标准 `logging` 模块
+    - 使用模块级 logger：`logger = logging.getLogger(__name__)`
+    - 日志级别：`DEBUG` < `INFO` < `WARNING` < `ERROR` < `CRITICAL`
+    - **禁止使用**：`print()` 语句（除临时调试外）
 - 命名：表/索引/约束按 `CODESTYLE.md`；事件 `ef.{domain}.{object}.{verb}`。
 
 ### ESLint 编码规范（前端代码质量要求）
@@ -581,6 +592,40 @@ class PriceItem(BaseModel):
 ```
 ef_ozon_orders_pull_latency_ms (histogram)
 ef_ozon_shipments_push_fail_total (counter)
+```
+
+**日志使用（前端 TypeScript/React）**
+```typescript
+// 导入日志器
+import { loggers } from '@/utils/logger';
+
+// 使用预定义模块日志器
+loggers.auth.info('用户登录成功', { userId: 123 });
+loggers.product.debug('商品数据:', productData);
+loggers.notification.warn('通知发送失败', { error });
+
+// 创建自定义日志器
+import { createLogger } from '@/utils/logger';
+const myLogger = createLogger('my-module');
+myLogger.info('自定义日志');
+
+// 环境配置（.env 文件）
+// VITE_LOG_LEVEL=debug  # 开发环境
+// VITE_LOG_LEVEL=warn   # 生产环境
+```
+
+**日志使用（后端 Python）**
+```python
+import logging
+
+# 模块级日志器
+logger = logging.getLogger(__name__)
+
+# 使用日志
+logger.info('订单同步开始', extra={'order_id': order_id})
+logger.debug('API 响应数据: %s', response_data)
+logger.warning('库存不足', extra={'sku': sku, 'available': stock})
+logger.error('同步失败', exc_info=True)
 ```
 
 ---
