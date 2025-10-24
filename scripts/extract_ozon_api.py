@@ -1,32 +1,22 @@
 #!/usr/bin/env python3
 """
-OZON API文档提取工具
-从HTML文档中提取所有API接口并转换为Markdown格式
+OZON API文档提取工具（HTML版本）
+从原始HTML文档中提取每个API操作的完整HTML片段
 """
 
 import os
 import re
-import json
 from pathlib import Path
 from bs4 import BeautifulSoup
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # 配置
-HTML_FILE = "/mnt/e/pics/ozon.api.html"
+HTML_FILE = "docs/OzonSellerAPI.html"
 OUTPUT_DIR = "docs/OzonAPI"
-
-
-def extract_version_from_path(path: str) -> str:
-    """从API路径中提取版本号"""
-    match = re.search(r'/v(\d+)/', path)
-    if match:
-        return f"v{match.group(1)}"
-    return ""
 
 
 def sanitize_filename(name: str) -> str:
     """清理文件名中的非法字符"""
-    # 替换或删除非法字符
     name = name.replace('/', '_')
     name = name.replace('\\', '_')
     name = name.replace('?', '')
@@ -36,281 +26,152 @@ def sanitize_filename(name: str) -> str:
     name = name.replace('>', '')
     name = name.replace('|', '-')
     name = name.replace('"', '')
-    # 限制长度
     if len(name) > 100:
         name = name[:100]
     return name.strip()
 
 
-def extract_text(element) -> str:
-    """提取元素的纯文本内容"""
-    if element is None:
-        return ""
-    return element.get_text(strip=True)
+def extract_styles(soup: BeautifulSoup) -> str:
+    """提取页面的CSS样式"""
+    styles = []
+
+    # 提取所有style标签
+    for style_tag in soup.find_all('style'):
+        styles.append(style_tag.string or '')
+
+    # 提取link标签引用的CSS（内联显示）
+    # 注意：实际CSS文件内容无法获取，这里只是标记
+
+    return '\n'.join(styles)
 
 
-def extract_table_to_markdown(table) -> str:
-    """将HTML表格转换为Markdown表格"""
-    if table is None:
-        return ""
-
-    rows = table.find_all('tr')
-    if not rows:
-        return ""
-
-    markdown = []
-
-    for i, row in enumerate(rows):
-        cells = row.find_all(['td', 'th'])
-        if not cells:
-            continue
-
-        # 提取单元格内容
-        cell_contents = []
-        for cell in cells:
-            # 每个td可能包含多个子元素，需要分别提取
-            # 查找参数名
-            param_name_span = cell.find('span', class_='sc-ieebsP')
-            if param_name_span:
-                # 这是参数名列
-                param_name = extract_text(param_name_span.find_next_sibling('span'))
-            else:
-                param_name = None
-
-            # 查找required标记
-            required_div = cell.find('div', class_=re.compile('sc-jUotMc'))
-            if required_div:
-                required = extract_text(required_div).strip()
-            else:
-                required = None
-
-            # 如果有参数名和required，组合它们
-            if param_name and required:
-                cell_contents.append(param_name)
-                cell_contents.append(required)
-            elif param_name:
-                cell_contents.append(param_name)
-            else:
-                # 普通单元格，查找类型和描述
-                type_span = cell.find('span', class_=re.compile('sc-kHOZQx.*sc-dtMiey|sc-hOGjNT'))
-                description_div = cell.find('div', class_=re.compile('sc-efQUeY.*sc-hUpaWb'))
-
-                if type_span or description_div:
-                    # 类型
-                    if type_span:
-                        cell_type = extract_text(type_span)
-                        cell_contents.append(cell_type)
-
-                    # 描述
-                    if description_div:
-                        desc = extract_text(description_div)
-                        if desc:
-                            cell_contents.append(desc)
-                else:
-                    # 作为普通单元格处理
-                    text = extract_text(cell)
-                    if text:
-                        # 转义Markdown特殊字符
-                        text = text.replace('|', '\\|')
-                        cell_contents.append(text)
-
-        # 如果没有提取到内容，跳过这一行
-        if not cell_contents:
-            continue
-
-        # 构建Markdown行
-        markdown.append('| ' + ' | '.join(cell_contents) + ' |')
-
-        # 第一行后添加分隔符
-        if i == 0:
-            markdown.append('|' + '|'.join(['---' for _ in cell_contents]) + '|')
-
-    return '\n'.join(markdown)
-
-
-def extract_json_from_code(element) -> str:
-    """从代码元素中提取JSON"""
-    if element is None:
-        return ""
-
-    # 查找JSON代码块
-    code = element.find('code')
-    if code:
-        # 提取文本并清理
-        text = code.get_text()
-        # 尝试格式化JSON
-        try:
-            # 移除可能的HTML实体
-            text = text.strip()
-            # 如果是有效JSON,格式化它
-            parsed = json.loads(text)
-            return json.dumps(parsed, indent=2, ensure_ascii=False)
-        except:
-            # 如果不是有效JSON,返回原始文本
-            return text
-
-    return extract_text(element)
+def create_html_template(title: str, content: str, base_styles: str) -> str:
+    """创建完整的HTML文档"""
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - OZON API</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .api-container {{
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }}
+        th {{
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }}
+        code {{
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }}
+        pre {{
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }}
+        h1, h2, h3, h4, h5, h6 {{
+            color: #333;
+            margin-top: 20px;
+        }}
+        .http-verb {{
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 8px;
+        }}
+        .http-verb.post {{ background-color: #49cc90; color: white; }}
+        .http-verb.get {{ background-color: #61affe; color: white; }}
+        .http-verb.put {{ background-color: #fca130; color: white; }}
+        .http-verb.delete {{ background-color: #f93e3e; color: white; }}
+        .back-link {{
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #007bff;
+            text-decoration: none;
+        }}
+        .back-link:hover {{
+            text-decoration: underline;
+        }}
+    </style>
+</head>
+<body>
+    <div class="api-container">
+        <a href="index.html" class="back-link">← 返回索引</a>
+        {content}
+    </div>
+</body>
+</html>
+"""
 
 
-def extract_api_info(soup: BeautifulSoup, operation_id: str) -> Optional[Dict]:
-    """提取单个API的详细信息"""
-
+def extract_api_section(soup: BeautifulSoup, operation_id: str) -> Optional[str]:
+    """提取单个API的HTML内容"""
     # 查找API详情div
     detail_div = soup.find('div', {'id': operation_id})
     if not detail_div:
-        print(f"  ⚠️  未找到详情: {operation_id}")
         return None
 
-    api_info = {
+    # 返回该div的完整HTML
+    return str(detail_div)
+
+
+def extract_api_metadata(nav_item) -> Dict:
+    """从导航项中提取API元数据"""
+    operation_id = nav_item.get('data-item-id')
+
+    # 提取API名称
+    label = nav_item.find('label', {'type': 'operation'})
+    if not label:
+        return None
+
+    # 提取中文名称
+    name_div = label.find('div', class_=re.compile('sc-fXEqXD'))
+    api_name = name_div.get_text(strip=True) if name_div else operation_id
+
+    # 提取HTTP方法
+    method_span = label.find('span', class_=re.compile('operation-type'))
+    method = method_span.get_text(strip=True).upper() if method_span else 'POST'
+
+    # 提取路径
+    path_div = label.find('div', class_=re.compile('sc-FNZbm'))
+    path = path_div.get_text(strip=True) if path_div else ''
+
+    return {
         'operation_id': operation_id,
-        'title': '',
-        'method': '',
-        'path': '',
-        'description': '',
-        'header_params': '',
-        'request_body': '',
-        'request_example': '',
-        'responses': []
+        'name': api_name,
+        'method': method,
+        'path': path
     }
-
-    # 提取标题
-    h2 = detail_div.find('h2')
-    if h2:
-        api_info['title'] = extract_text(h2)
-
-    # 提取HTTP方法和路径
-    http_verb = detail_div.find('span', class_=re.compile('http-verb'))
-    if http_verb:
-        api_info['method'] = extract_text(http_verb).upper()
-
-    path_div = detail_div.find('div', class_=re.compile('sc-gIBoTZ|gNSSYl'))
-    if path_div:
-        api_info['path'] = extract_text(path_div)
-
-    # 提取描述
-    desc_p = detail_div.find('p')
-    if desc_p:
-        api_info['description'] = extract_text(desc_p)
-
-    # 提取Header参数
-    header_section = detail_div.find('h5', string=re.compile('header Parameters'))
-    if header_section:
-        table = header_section.find_next('table')
-        if table:
-            api_info['header_params'] = extract_table_to_markdown(table)
-
-    # 提取请求体
-    request_body_section = detail_div.find('h5', string=re.compile('Request Body schema'))
-    if request_body_section:
-        # 查找请求体表格
-        table = request_body_section.find_next('table')
-        if table:
-            api_info['request_body'] = extract_table_to_markdown(table)
-
-    # 提取请求示例
-    request_example_h3 = detail_div.find('h3', string=re.compile('请求范例'))
-    if request_example_h3:
-        example_div = request_example_h3.find_next('div', class_=re.compile('redoc-json'))
-        if example_div:
-            api_info['request_example'] = extract_json_from_code(example_div)
-
-    # 提取响应
-    response_example_h3 = detail_div.find('h3', string=re.compile('回复范例'))
-    if response_example_h3:
-        # 查找所有响应标签页
-        tab_panels = response_example_h3.find_next_siblings('div', class_=re.compile('react-tabs__tab-panel'))
-        for panel in tab_panels:
-            response_div = panel.find('div', class_=re.compile('redoc-json'))
-            if response_div:
-                response_code = extract_json_from_code(response_div)
-                # 尝试从标签中获取状态码
-                tab_list = response_example_h3.find_previous('ul', class_=re.compile('react-tabs__tab-list'))
-                status_code = "200"
-                if tab_list:
-                    tabs = tab_list.find_all('li', class_=re.compile('tab-'))
-                    if tabs:
-                        status_code = extract_text(tabs[0])
-
-                api_info['responses'].append({
-                    'status': status_code,
-                    'example': response_code
-                })
-                break
-
-    # 提取响应结构
-    response_section = detail_div.find('h5', string=re.compile('Response Schema'))
-    if response_section:
-        table = response_section.find_next('table')
-        if table:
-            api_info['response_schema'] = extract_table_to_markdown(table)
-        else:
-            api_info['response_schema'] = ''
-
-    return api_info
-
-
-def format_markdown(api_info: Dict) -> str:
-    """将API信息格式化为Markdown"""
-
-    md = []
-
-    # 标题
-    md.append(f"# {api_info['title']}\n")
-
-    # 接口信息
-    md.append("## 接口信息\n")
-    md.append(f"- **HTTP方法**: `{api_info['method']}`")
-    md.append(f"- **API路径**: `{api_info['path']}`")
-    md.append(f"- **操作ID**: `{api_info['operation_id']}`\n")
-
-    # 描述
-    if api_info['description']:
-        md.append("## 描述\n")
-        md.append(f"{api_info['description']}\n")
-
-    # Header参数
-    if api_info['header_params']:
-        md.append("## 请求参数\n")
-        md.append("### Header参数\n")
-        md.append(api_info['header_params'])
-        md.append("")
-
-    # 请求体
-    if api_info.get('request_body'):
-        md.append("### 请求体结构\n")
-        md.append(api_info['request_body'])
-        md.append("")
-
-    # 请求示例
-    if api_info['request_example']:
-        md.append("## 请求示例\n")
-        md.append("```json")
-        md.append(api_info['request_example'])
-        md.append("```\n")
-
-    # 响应
-    md.append("## 响应\n")
-
-    # 响应结构
-    if api_info.get('response_schema'):
-        md.append("### 响应结构\n")
-        md.append(api_info['response_schema'])
-        md.append("")
-
-    # 响应示例
-    if api_info['responses']:
-        for response in api_info['responses']:
-            md.append(f"### {response['status']} 响应示例\n")
-            md.append("```json")
-            md.append(response['example'])
-            md.append("```\n")
-
-    return '\n'.join(md)
 
 
 def extract_all_apis():
     """提取所有API文档"""
-
     print(f"📖 读取HTML文件: {HTML_FILE}")
 
     # 读取HTML文件
@@ -322,6 +183,10 @@ def extract_all_apis():
     # 解析HTML
     print("🔍 解析HTML文档...")
     soup = BeautifulSoup(html_content, 'lxml')
+
+    # 提取基础样式
+    print("🎨 提取样式...")
+    base_styles = extract_styles(soup)
 
     # 查找所有operation类型的API
     print("🔎 查找所有API操作...")
@@ -336,69 +201,45 @@ def extract_all_apis():
     # 提取每个API
     api_list = []
     success_count = 0
-    filename_counter = {}  # 跟踪文件名使用情况
+    filename_counter = {}
 
     for i, item in enumerate(operation_items, 1):
-        operation_id = item.get('data-item-id')
-
-        # 提取API名称
-        label = item.find('label', {'type': 'operation'})
-        if not label:
+        # 提取元数据
+        metadata = extract_api_metadata(item)
+        if not metadata:
             continue
 
-        # 提取中文名称
-        name_div = label.find('div', class_=re.compile('sc-fXEqXD'))
-        api_name = extract_text(name_div) if name_div else operation_id
-
-        # 提取HTTP方法
-        method_span = label.find('span', class_=re.compile('operation-type'))
-        method = extract_text(method_span).upper() if method_span else 'POST'
-
-        # 提取路径
-        path_div = label.find('div', class_=re.compile('sc-FNZbm'))
-        path = extract_text(path_div) if path_div else ''
+        operation_id = metadata['operation_id']
+        api_name = metadata['name']
+        method = metadata['method']
+        path = metadata['path']
 
         print(f"[{i}/{len(operation_items)}] {api_name}")
         print(f"    {method} {path}")
 
-        # 提取详细信息
-        api_info = extract_api_info(soup, operation_id)
+        # 提取HTML内容
+        html_content = extract_api_section(soup, operation_id)
 
-        if api_info:
-            # 补充基本信息
-            api_info['title'] = api_name
-            api_info['method'] = method
-            api_info['path'] = path
-
-            # 生成Markdown
-            markdown = format_markdown(api_info)
-
-            # 生成文件名（带版本号去重）
+        if html_content:
+            # 生成文件名
             base_filename = sanitize_filename(api_name)
-
-            # 提取版本号
-            version = extract_version_from_path(path)
 
             # 检查文件名是否已存在
             if base_filename in filename_counter:
-                # 如果有版本号，添加到文件名
-                if version:
-                    filename = f"{base_filename}_{version}.md"
-                    print(f"    ⚠️  文件名重复，添加版本号: {version}")
-                else:
-                    # 没有版本号，使用计数器
-                    count = filename_counter[base_filename]
-                    filename_counter[base_filename] += 1
-                    filename = f"{base_filename}_{count}.md"
-                    print(f"    ⚠️  文件名重复，添加序号: {count}")
+                count = filename_counter[base_filename]
+                filename_counter[base_filename] += 1
+                filename = f"{base_filename}_{count}.html"
+                print(f"    ⚠️  文件名重复，添加序号: {count}")
             else:
-                filename = base_filename + '.md'
+                filename = base_filename + '.html'
                 filename_counter[base_filename] = 1
 
-            filepath = output_path / filename
+            # 创建完整HTML文档
+            full_html = create_html_template(api_name, html_content, base_styles)
 
+            filepath = output_path / filename
             with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(markdown)
+                f.write(full_html)
 
             print(f"    ✅ 已保存: {filename}\n")
 
@@ -407,8 +248,7 @@ def extract_all_apis():
                 'method': method,
                 'path': path,
                 'filename': filename,
-                'operation_id': operation_id,
-                'version': version
+                'operation_id': operation_id
             })
 
             success_count += 1
@@ -425,24 +265,16 @@ def extract_all_apis():
 
 
 def generate_index(api_list: List[Dict]):
-    """生成索引文件"""
-
-    print("📝 生成索引文件...")
-
-    md = []
-    md.append("# OZON Seller API 文档\n")
-    md.append(f"共 {len(api_list)} 个API接口\n")
-    md.append("## API列表\n")
+    """生成索引HTML页面"""
+    print("📝 生成索引页面...")
 
     # 按功能分组
     grouped = {}
     for api in api_list:
         # 根据路径前缀分组
         path_parts = api['path'].split('/')
-        if len(path_parts) >= 2:
-            group = path_parts[1]  # 例如 v1, v2, v3
-            if len(path_parts) >= 3:
-                group = path_parts[2]  # 例如 product, order
+        if len(path_parts) >= 3:
+            group = path_parts[2]  # 例如 product, order, finance
         else:
             group = "其他"
 
@@ -450,24 +282,163 @@ def generate_index(api_list: List[Dict]):
             grouped[group] = []
         grouped[group].append(api)
 
+    # 构建HTML
+    html = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OZON Seller API 文档索引</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        .search-box {
+            margin: 20px 0;
+            padding: 10px;
+            width: 100%;
+            max-width: 500px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .api-list {
+            list-style: none;
+            padding: 0;
+        }
+        .api-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .api-item:hover {
+            background: #e9ecef;
+        }
+        .api-item a {
+            text-decoration: none;
+            color: #333;
+            display: block;
+        }
+        .api-name {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .api-path {
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+            color: #666;
+        }
+        .http-method {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .method-post { background-color: #49cc90; color: white; }
+        .method-get { background-color: #61affe; color: white; }
+        .method-put { background-color: #fca130; color: white; }
+        .method-delete { background-color: #f93e3e; color: white; }
+        .stats {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OZON Seller API 文档索引</h1>
+        <div class="stats">
+            <strong>📊 统计信息：</strong> 共 """ + str(len(api_list)) + """ 个API接口
+        </div>
+
+        <input type="text" class="search-box" id="searchBox" placeholder="搜索API名称或路径..." onkeyup="searchAPI()">
+
+        <div id="apiContent">
+"""
+
     # 输出分组
     for group in sorted(grouped.keys()):
-        md.append(f"### {group}\n")
+        html += f'        <h2>{group}</h2>\n'
+        html += '        <ul class="api-list">\n'
+
         for api in sorted(grouped[group], key=lambda x: x['name']):
-            md.append(f"- [{api['name']}](./{api['filename']}) - `{api['method']} {api['path']}`")
-        md.append("")
+            method_class = f"method-{api['method'].lower()}"
+            html += f'''            <li class="api-item">
+                <a href="{api['filename']}">
+                    <div class="api-name">
+                        <span class="http-method {method_class}">{api['method']}</span>
+                        {api['name']}
+                    </div>
+                    <div class="api-path">{api['path']}</div>
+                </a>
+            </li>
+'''
+
+        html += '        </ul>\n'
+
+    html += """        </div>
+    </div>
+
+    <script>
+        function searchAPI() {
+            const input = document.getElementById('searchBox');
+            const filter = input.value.toLowerCase();
+            const items = document.getElementsByClassName('api-item');
+
+            for (let i = 0; i < items.length; i++) {
+                const text = items[i].textContent || items[i].innerText;
+                if (text.toLowerCase().indexOf(filter) > -1) {
+                    items[i].style.display = '';
+                } else {
+                    items[i].style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+"""
 
     # 保存索引
-    index_path = Path(OUTPUT_DIR) / 'README.md'
+    index_path = Path(OUTPUT_DIR) / 'index.html'
     with open(index_path, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(md))
+        f.write(html)
 
     print(f"✅ 索引文件已生成: {index_path}\n")
 
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🚀 OZON API 文档提取工具")
+    print("🚀 OZON API 文档提取工具（HTML版本）")
     print("="*60 + "\n")
 
     api_list = extract_all_apis()
@@ -476,3 +447,4 @@ if __name__ == '__main__':
         generate_index(api_list)
 
     print("🎉 全部完成！\n")
+    print("💡 打开 docs/OzonAPI/index.html 查看文档索引\n")

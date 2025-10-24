@@ -68,6 +68,7 @@ import PageTitle from '@/components/PageTitle';
 import { getExchangeRate } from '@/services/exchangeRateApi';
 import * as api from '@/services/productSelectionApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
@@ -175,7 +176,7 @@ const ProductSelection: React.FC = () => {
           form.setFieldsValue(parsed);
         }
       } catch (e) {
-        console.error('恢复筛选条件失败:', e);
+        logger.error('恢复筛选条件失败:', e);
       }
     }
 
@@ -570,7 +571,7 @@ const ProductSelection: React.FC = () => {
       // 出错时关闭Modal并提示
       setImageModalVisible(false);
       notifyError('获取失败', '获取商品图片失败');
-      console.error('获取商品图片失败:', error);
+      logger.error('获取商品图片失败:', error);
     }
   };
 

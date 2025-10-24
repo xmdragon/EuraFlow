@@ -4,6 +4,8 @@ EuraFlow 同步服务系统插件
 统一管理所有后台同步服务的配置、调度和日志
 """
 from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter
 
 # 插件版本
@@ -24,36 +26,36 @@ def get_router() -> Optional[APIRouter]:
         import sys
         import traceback
 
-        print(f"════════ SYNC SERVICE ROUTER IMPORT ERROR ════════")
-        print(f"Error: {e}")
-        print("Full traceback:")
+        logger.info(f"════════ SYNC SERVICE ROUTER IMPORT ERROR ════════")
+        logger.info(f"Error: {e}")
+        logger.info("Full traceback:")
         traceback.print_exc()
-        print(f"═══════════════════════════════════════════════════")
+        logger.info(f"═══════════════════════════════════════════════════")
 
         if 'plugins.ef.system.sync_service.api.routes' in sys.modules:
             try:
                 from .api.routes import router
-                print("✓ Successfully recovered router from sys.modules")
+                logger.info("✓ Successfully recovered router from sys.modules")
                 return router
             except Exception as recovery_error:
-                print(f"✗ Failed to recover router: {recovery_error}")
+                logger.info(f"✗ Failed to recover router: {recovery_error}")
 
         return None
     except Exception as e:
         import traceback
-        print(f"════════ SYNC SERVICE ROUTER UNEXPECTED ERROR ════════")
-        print(f"Error: {e}")
+        logger.info(f"════════ SYNC SERVICE ROUTER UNEXPECTED ERROR ════════")
+        logger.info(f"Error: {e}")
         traceback.print_exc()
-        print(f"═════════════════════════════════════════════════════")
+        logger.info(f"═════════════════════════════════════════════════════")
         return None
 
 
 async def setup(hooks) -> None:
     """插件初始化函数"""
-    print("Sync service management plugin initialized")
-    print(f"Version: {__version__}")
+    logger.info("Sync service management plugin initialized")
+    logger.info(f"Version: {__version__}")
 
 
 async def teardown() -> None:
     """插件清理函数"""
-    print("Sync service management plugin shutting down...")
+    logger.info("Sync service management plugin shutting down...")

@@ -50,6 +50,7 @@ import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
+import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
@@ -538,7 +539,7 @@ const OrderList: React.FC = () => {
           });
         }
       } catch (error) {
-        console.error('Failed to fetch sync status:', error);
+        logger.error('Failed to fetch sync status:', error);
       }
     }
   };

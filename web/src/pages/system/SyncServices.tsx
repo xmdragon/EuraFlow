@@ -46,6 +46,7 @@ import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { logger } from '@/utils/logger';
 
 const { TextArea } = Input;
 
@@ -146,7 +147,7 @@ const SyncServices = () => {
       const response = await axios.get('/api/ef/v1/sync-services/handlers');
       setHandlers(response.data || []);
     } catch (error: any) {
-      console.error('加载Handler列表失败:', error);
+      logger.error('加载Handler列表失败:', error);
     }
   };
 

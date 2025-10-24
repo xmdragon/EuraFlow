@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 import authService from '@/services/authService';
+import { logger } from '@/utils/logger';
 import type { AuthContextValue, LoginRequest, User } from '@/types/auth';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -52,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // 如果剩余时间小于1小时且大于0，则刷新token
         if (timeUntilExpiry < 60 * 60 * 1000 && timeUntilExpiry > 0) {
-          console.log('Token即将过期，自动刷新中...', {
+          logger.debug('Token即将过期，自动刷新中...', {
             expiresAt: new Date(expiresAt).toISOString(),
             remainingMinutes: Math.floor(timeUntilExpiry / 60000),
           });
@@ -60,10 +61,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await authService.refresh();
           await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
 
-          console.log('Token自动刷新成功');
+          logger.debug('Token自动刷新成功');
         }
       } catch (error) {
-        console.error('自动刷新Token失败:', error);
+        logger.error('自动刷新Token失败:', error);
         // 刷新失败不清除token，让用户继续使用直到真正过期
       }
     };

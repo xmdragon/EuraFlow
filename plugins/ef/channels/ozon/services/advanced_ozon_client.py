@@ -391,17 +391,17 @@ if __name__ == "__main__":
             data = await client.get_competitor_data(test_product_id)
 
             if data:
-                print(f"\n✓ Successfully retrieved competitor data:")
-                print(f"  Competitor count: {data['competitor_count']}")
-                print(f"  Minimum price: {data['competitor_min_price']}")
-                print(f"  Number of sellers found: {len(data['sellers'])}")
+                logger.info(f"\n✓ Successfully retrieved competitor data:")
+                logger.info(f"  Competitor count: {data['competitor_count']}")
+                logger.info(f"  Minimum price: {data['competitor_min_price']}")
+                logger.info(f"  Number of sellers found: {len(data['sellers'])}")
 
                 if data['sellers']:
-                    print("\n  First 3 sellers:")
+                    logger.info("\n  First 3 sellers:")
                     for seller in data['sellers'][:3]:
-                        print(f"    - {seller['seller']}: ¥{seller['price']}")
+                        logger.info(f"    - {seller['seller']}: ¥{seller['price']}")
             else:
-                print("✗ Failed to get competitor data")
+                logger.info("✗ Failed to get competitor data")
 
         finally:
             await client.close()

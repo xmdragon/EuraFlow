@@ -12,6 +12,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import * as ozonApi from '@/services/ozonApi';
 import { getCurrencySymbol } from '@/utils/currency';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { logger } from '@/utils/logger';
 
 const { Option } = Select;
 
@@ -184,7 +185,7 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
                     logisticsOrder: values.domestic_tracking_number,
                   });
                 } catch (error) {
-                  console.error('保存并同步失败:', error);
+                  logger.error('保存并同步失败:', error);
                 }
               }}
             >

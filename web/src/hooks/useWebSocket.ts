@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 import authService from '@/services/authService';
 import { WebSocketNotification, WebSocketMessage } from '@/types/notification';
+import { logger } from '@/utils/logger';
 import { notifyWarning } from '@/utils/notification';
 
 interface UseWebSocketOptions {
@@ -85,17 +86,17 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           const message: WebSocketNotification = JSON.parse(event.data);
           onMessageRef.current?.(message);
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
+          logger.error('Failed to parse WebSocket message:', error);
         }
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        logger.error('WebSocket error:', error);
         setConnectionError('Connection error');
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket disconnected', {
+        logger.debug('WebSocket disconnected', {
           code: event.code,
           reason: event.reason,
         });
@@ -117,7 +118,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           event.code === 4001;
 
         if (isAuthFailure) {
-          console.error('WebSocket closed due to authentication failure', {
+          logger.error('WebSocket closed due to authentication failure', {
             code: event.code,
             reason: event.reason,
           });
@@ -133,7 +134,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         }
 
         // 非认证失败的断开（如网络抖动、超时等）
-        console.log('WebSocket closed, will attempt reconnect', {
+        logger.debug('WebSocket closed, will attempt reconnect', {
           code: event.code,
           reason: event.reason,
         });
@@ -141,13 +142,13 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         // 自动重连（非认证失败的情况）
         if (autoReconnect) {
           reconnectTimerRef.current = setTimeout(() => {
-            console.log('Reconnecting WebSocket...');
+            logger.debug('Reconnecting WebSocket...');
             connect();
           }, reconnectDelay);
         }
       };
     } catch (error) {
-      console.error('Failed to create WebSocket:', error);
+      logger.error('Failed to create WebSocket:', error);
       setConnectionError('Failed to connect');
     }
   }, [url, token, shopIdsStr, autoReconnect, reconnectDelay]);

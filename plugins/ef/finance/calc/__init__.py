@@ -4,6 +4,8 @@ EuraFlow 财务计算插件
 """
 
 from typing import Any
+import logging
+logger = logging.getLogger(__name__)
 
 __version__ = "1.0.0"
 
@@ -16,7 +18,7 @@ async def setup(hooks: Any) -> None:
         hooks: 插件Hook API接口
     """
     # 插件启动时的初始化逻辑
-    print(f"Finance Calc Plugin v{__version__} initialized")
+    logger.info(f"Finance Calc Plugin v{__version__} initialized")
 
     # 注册定时任务：定期更新费率缓存
     await hooks.register_cron(

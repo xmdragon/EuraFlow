@@ -2,6 +2,8 @@
 OZON插件 - Handler注册（模块级别，import时自动执行）
 """
 from typing import Dict, Any
+import logging
+logger = logging.getLogger(__name__)
 
 
 def register_ozon_handlers():
@@ -43,7 +45,7 @@ def register_ozon_handlers():
                 }
             }
         )
-        print("✓ Registered kuajing84_material_cost sync service handler")
+        logger.info("✓ Registered kuajing84_material_cost sync service handler")
 
         # 2. 注册OZON财务费用同步服务
         finance_service = get_ozon_finance_sync_service()
@@ -55,7 +57,7 @@ def register_ozon_handlers():
             plugin="ef.channels.ozon",
             config_schema={}
         )
-        print("✓ Registered ozon_finance_sync service handler")
+        logger.info("✓ Registered ozon_finance_sync service handler")
 
         # 3. 注册OZON商品订单增量同步服务（封装）
         async def ozon_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -138,12 +140,12 @@ def register_ozon_handlers():
                 }
             }
         )
-        print("✓ Registered ozon_sync_incremental service handler")
+        logger.info("✓ Registered ozon_sync_incremental service handler")
 
-        print(f"OZON plugin: Successfully registered 3 sync service handlers")
+        logger.info(f"OZON plugin: Successfully registered 3 sync service handlers")
 
     except Exception as e:
-        print(f"OZON plugin: Warning - Failed to register sync service handlers: {e}")
+        logger.info(f"OZON plugin: Warning - Failed to register sync service handlers: {e}")
         import traceback
         traceback.print_exc()
 

@@ -88,7 +88,7 @@ export function useKuajing84SyncStatus(
         onFailure?.(data);
       }
     } catch (err: any) {
-      console.error('查询同步状态失败:', err);
+      logger.error('查询同步状态失败:', err);
       setError(err.response?.data?.detail || err.message || '查询失败');
       setIsPolling(false);
     } finally {

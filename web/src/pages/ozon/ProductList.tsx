@@ -107,7 +107,7 @@ const ProductList: React.FC = () => {
       try {
         return JSON.parse(saved);
       } catch (e) {
-        console.error('Failed to parse visible columns config:', e);
+        loggers.product.error('Failed to parse visible columns config:', e);
       }
     }
     // 默认显示所有列
@@ -324,7 +324,7 @@ const ProductList: React.FC = () => {
           });
         }
       } catch (error) {
-        console.error('Failed to fetch sync status:', error);
+        loggers.product.error('Failed to fetch sync status:', error);
       }
     }
   };
@@ -370,7 +370,7 @@ const ProductList: React.FC = () => {
   // 记录水印配置加载错误（不影响页面显示）
   useEffect(() => {
     if (watermarkError) {
-      console.warn('水印配置加载失败，水印功能将不可用:', watermarkError);
+      loggers.product.warn('水印配置加载失败，水印功能将不可用:', watermarkError);
     }
   }, [watermarkError]);
 
@@ -514,7 +514,7 @@ const ProductList: React.FC = () => {
           setWatermarkBatchId(null);
         }
       } catch (error: any) {
-        console.error('Failed to poll watermark tasks:', error);
+        loggers.product.error('Failed to poll watermark tasks:', error);
 
         // 如果连续失败3次，停止轮询
         if (pollCount >= 3) {
@@ -1341,7 +1341,7 @@ const ProductList: React.FC = () => {
 
       notifySuccess('导出成功', `成功导出 ${csvData.length} 个商品的数据`);
     } catch (error) {
-      console.error('Export error:', error);
+      loggers.product.error('Export error:', error);
       notifyError('导出失败', '导出失败，请重试');
     }
   };
@@ -1997,7 +1997,7 @@ const ProductList: React.FC = () => {
                                         objectFit: 'contain',
                                       }}
                                       onError={(e) => {
-                                        console.error('原图加载失败:', img.original_url);
+                                        loggers.product.error('原图加载失败:', img.original_url);
                                         e.currentTarget.src =
                                           'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
                                       }}
@@ -2176,7 +2176,7 @@ const ProductList: React.FC = () => {
                                 objectFit: 'contain',
                               }}
                               onError={(e) => {
-                                console.error(
+                                loggers.product.error(
                                   '预览图片加载失败:',
                                   preview.preview_image?.substring(0, 50)
                                 );

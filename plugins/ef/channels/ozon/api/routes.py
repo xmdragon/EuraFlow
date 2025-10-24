@@ -28,10 +28,10 @@ try:
 except ImportError as e:
     import traceback
     import sys
-    print(f"════════ WEBHOOK IMPORT ERROR ════════", file=sys.stderr)
-    print(f"Error: {e}", file=sys.stderr)
-    print(f"Traceback:\n{traceback.format_exc()}", file=sys.stderr)
-    print(f"═════════════════════════════════════", file=sys.stderr)
+    logger.info(f"════════ WEBHOOK IMPORT ERROR ════════", file=sys.stderr)
+    logger.info(f"Error: {e}", file=sys.stderr)
+    logger.info(f"Traceback:\n{traceback.format_exc()}", file=sys.stderr)
+    logger.info(f"═════════════════════════════════════", file=sys.stderr)
     logger.warning(f"Could not import webhook routes: {e}")
 
 try:

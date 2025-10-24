@@ -1,6 +1,9 @@
 """
 汇率服务Handler注册
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def register_exchange_rate_handler():
@@ -21,10 +24,10 @@ def register_exchange_rate_handler():
             config_schema={}
         )
 
-        print("✓ Registered exchange_rate_refresh sync service handler")
+        logger.info("✓ Registered exchange_rate_refresh sync service handler")
 
     except Exception as e:
-        print(f"Warning - Failed to register exchange_rate handler: {e}")
+        logger.info(f"Warning - Failed to register exchange_rate handler: {e}")
         import traceback
         traceback.print_exc()
 

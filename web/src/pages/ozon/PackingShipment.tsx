@@ -54,6 +54,7 @@ import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
+import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
@@ -683,7 +684,7 @@ const PackingShipment: React.FC = () => {
           setSyncTaskId(null);
         }
       } catch (error) {
-        console.error('Failed to fetch sync status:', error);
+        logger.error('Failed to fetch sync status:', error);
       }
     }, 2000); // 每2秒检查一次
 
@@ -761,7 +762,7 @@ const PackingShipment: React.FC = () => {
         await ozonApi.syncSingleOrder(posting.posting_number, posting.order.shop_id);
         successCount++;
       } catch (error) {
-        console.error(`同步失败: ${posting.posting_number}`, error);
+        logger.error(`同步失败: ${posting.posting_number}`, error);
         failedCount++;
       }
 

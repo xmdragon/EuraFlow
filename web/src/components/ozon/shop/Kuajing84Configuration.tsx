@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { logger } from '@/utils/logger';
 
 export const Kuajing84Configuration: React.FC = () => {
   const [configForm] = Form.useForm();
@@ -75,7 +76,7 @@ export const Kuajing84Configuration: React.FC = () => {
       setLoading(true);
       saveConfigMutation.mutate(values);
     } catch (error) {
-      console.error('表单验证失败:', error);
+      logger.error('表单验证失败:', error);
     } finally {
       setLoading(false);
     }

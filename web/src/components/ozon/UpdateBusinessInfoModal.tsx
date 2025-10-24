@@ -8,6 +8,7 @@ import React, { useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { logger } from '@/utils/logger';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -82,7 +83,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
       };
       updateBusinessInfoMutation.mutate(data);
     } catch (error) {
-      console.error('Form validation failed:', error);
+      logger.error('Form validation failed:', error);
     }
   };
 

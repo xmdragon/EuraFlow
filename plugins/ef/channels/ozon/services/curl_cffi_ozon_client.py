@@ -277,28 +277,28 @@ if __name__ == "__main__":
 
     test_product_id = sys.argv[1] if len(sys.argv) > 1 else "1644052324"
 
-    print(f"\n{'='*60}")
-    print(f"Testing curl_cffi client for product {test_product_id}")
-    print(f"{'='*60}\n")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Testing curl_cffi client for product {test_product_id}")
+    logger.info(f"{'='*60}\n")
 
     client = CurlCffiOzonClient()
     result = client.get_competitor_data_sync(test_product_id)
 
     if result:
-        print(f"\n✅ SUCCESS! Found competitor data:")
-        print(f"  📊 Competitor count: {result['competitor_count']}")
-        print(f"  💰 Minimum price: ¥{result['competitor_min_price']:.2f}" if result['competitor_min_price'] else "  💰 Minimum price: N/A")
-        print(f"  👥 Sellers found: {len(result['sellers'])}")
+        logger.info(f"\n✅ SUCCESS! Found competitor data:")
+        logger.info(f"  📊 Competitor count: {result['competitor_count']}")
+        logger.info(f"  💰 Minimum price: ¥{result['competitor_min_price']:.2f}" if result['competitor_min_price'] else "  💰 Minimum price: N/A")
+        logger.info(f"  👥 Sellers found: {len(result['sellers'])}")
 
         if result['sellers']:
-            print(f"\n  First 3 sellers:")
+            logger.info(f"\n  First 3 sellers:")
             for i, seller in enumerate(result['sellers'][:3], 1):
                 price = seller.get('price', 'N/A')
                 if price != 'N/A':
                     price = f"¥{price:.2f}"
-                print(f"    {i}. {seller.get('seller', 'Unknown')}: {price}")
+                logger.info(f"    {i}. {seller.get('seller', 'Unknown')}: {price}")
     else:
-        print("\n❌ Failed to retrieve competitor data")
-        print("   The anti-bot protection is still blocking requests.")
+        logger.info("\n❌ Failed to retrieve competitor data")
+        logger.info("   The anti-bot protection is still blocking requests.")
 
-    print(f"\n{'='*60}")
+    logger.info(f"\n{'='*60}")

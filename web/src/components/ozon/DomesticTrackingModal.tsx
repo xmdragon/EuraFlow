@@ -8,6 +8,7 @@ import React from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { logger } from '@/utils/logger';
 
 const { TextArea } = Input;
 
@@ -76,7 +77,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       };
       submitTrackingMutation.mutate(data);
     } catch (error) {
-      console.error('Form validation failed:', error);
+      logger.error('Form validation failed:', error);
     }
   };
 

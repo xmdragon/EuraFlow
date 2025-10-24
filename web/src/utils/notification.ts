@@ -7,6 +7,7 @@
  * - 使用 App.useApp() 获取notification并调用 setGlobalNotification()
  */
 import type { ArgsProps } from 'antd/es/notification';
+import { logger } from '@/utils/logger';
 
 import { getGlobalNotification } from './globalNotification';
 
@@ -17,7 +18,7 @@ import { getGlobalNotification } from './globalNotification';
 const getNotification = () => {
   const instance = getGlobalNotification();
   if (!instance) {
-    console.error(
+    logger.error(
       '[Notification] Instance not initialized. Please call setGlobalNotification() in App.tsx'
     );
   }

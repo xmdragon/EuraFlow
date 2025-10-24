@@ -4,6 +4,8 @@ EuraFlow 数据库备份插件
 提供自动化数据库备份功能
 """
 from typing import Optional
+import logging
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter
 
 __version__ = "1.0.0"
@@ -19,8 +21,8 @@ async def setup(hooks) -> None:
     插件初始化函数
     注册数据库备份服务到同步服务管理系统
     """
-    print("Database backup plugin initializing...")
-    print(f"Version: {__version__}")
+    logger.info("Database backup plugin initializing...")
+    logger.info(f"Version: {__version__}")
 
     # 获取同步服务注册器
     from plugins.ef.system.sync_service.services.handler_registry import get_registry
@@ -50,11 +52,11 @@ async def setup(hooks) -> None:
         }
     )
 
-    print("✓ Registered database backup sync service handler")
-    print(f"  - Service: database_backup")
-    print(f"  - Recommended schedule: cron='0 17,5 * * *' (UTC) = 01:00,13:00 (Beijing)")
+    logger.info("✓ Registered database backup sync service handler")
+    logger.info(f"  - Service: database_backup")
+    logger.info(f"  - Recommended schedule: cron='0 17,5 * * *' (UTC) = 01:00,13:00 (Beijing)")
 
 
 async def teardown() -> None:
     """插件清理函数"""
-    print("Database backup plugin shutting down...")
+    logger.info("Database backup plugin shutting down...")

@@ -3,6 +3,8 @@ EuraFlow Ozon Channel Plugin
 面向 Ozon 平台的订单拉取、发货推送、库存同步等功能
 """
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 from typing import Optional, Dict, Any
 from datetime import datetime, UTC, timedelta
 from fastapi import APIRouter
@@ -26,27 +28,27 @@ def get_router() -> Optional[APIRouter]:
         import traceback
 
         # 打印详细错误信息便于调试
-        print(f"════════ OZON ROUTER IMPORT ERROR ════════")
-        print(f"Error: {e}")
-        print("Full traceback:")
+        logger.info(f"════════ OZON ROUTER IMPORT ERROR ════════")
+        logger.info(f"Error: {e}")
+        logger.info("Full traceback:")
         traceback.print_exc()
-        print(f"═══════════════════════════════════════════")
+        logger.info(f"═══════════════════════════════════════════")
 
         if 'plugins.ef.channels.ozon.api.routes' in sys.modules:
             try:
                 from .api.routes import router
-                print("✓ Successfully recovered router from sys.modules")
+                logger.info("✓ Successfully recovered router from sys.modules")
                 return router
             except Exception as recovery_error:
-                print(f"✗ Failed to recover router: {recovery_error}")
+                logger.info(f"✗ Failed to recover router: {recovery_error}")
 
         return None
     except Exception as e:
         import traceback
-        print(f"════════ OZON ROUTER UNEXPECTED ERROR ════════")
-        print(f"Error: {e}")
+        logger.info(f"════════ OZON ROUTER UNEXPECTED ERROR ════════")
+        logger.info(f"Error: {e}")
         traceback.print_exc()
-        print(f"═════════════════════════════════════════════")
+        logger.info(f"═════════════════════════════════════════════")
         return None
 
 
@@ -67,7 +69,7 @@ async def setup(hooks) -> None:
             shop = result.scalar_one_or_none()
 
             if not shop:
-                print("Warning: No active Ozon shop found, plugin running in standby mode")
+                logger.info("Warning: No active Ozon shop found, plugin running in standby mode")
                 # 仍然注册任务，但会在执行时检查配置
                 api_key = client_id = None
             else:
@@ -76,14 +78,14 @@ async def setup(hooks) -> None:
                 client_id = shop.client_id
 
                 if not api_key or not client_id:
-                    print(f"Warning: Shop {shop.shop_name} missing API credentials, plugin running in standby mode")
+                    logger.info(f"Warning: Shop {shop.shop_name} missing API credentials, plugin running in standby mode")
                     api_key = client_id = None
                 else:
-                    print(f"Ozon plugin initialized with shop: {shop.shop_name} (client_id: {client_id})")
+                    logger.info(f"Ozon plugin initialized with shop: {shop.shop_name} (client_id: {client_id})")
                     
     except Exception as e:
-        print(f"Error loading Ozon shop configuration: {e}")
-        print("Plugin running in standby mode")
+        logger.info(f"Error loading Ozon shop configuration: {e}")
+        logger.info("Plugin running in standby mode")
         api_key = client_id = None
     
     # 配置拉取间隔（可以从shop.config读取，默认5分钟）
@@ -148,7 +150,7 @@ async def setup(hooks) -> None:
                 }
             }
         )
-        print("✓ Registered kuajing84_material_cost sync service handler")
+        logger.info("✓ Registered kuajing84_material_cost sync service handler")
 
         # 2. 注册OZON财务费用同步服务
         from .services.ozon_finance_sync_service import get_ozon_finance_sync_service
@@ -161,7 +163,7 @@ async def setup(hooks) -> None:
             plugin="ef.channels.ozon",
             config_schema={}
         )
-        print("✓ Registered ozon_finance_sync service handler")
+        logger.info("✓ Registered ozon_finance_sync service handler")
 
         # 3. 注册OZON商品订单增量同步服务（封装）
         async def ozon_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -250,7 +252,7 @@ async def setup(hooks) -> None:
                 }
             }
         )
-        print("✓ Registered ozon_sync_incremental service handler")
+        logger.info("✓ Registered ozon_sync_incremental service handler")
 
         # 4. 注册OZON财务交易数据同步服务
         from .services.finance_transactions_sync_service import get_finance_transactions_sync_service
@@ -273,10 +275,10 @@ async def setup(hooks) -> None:
                 }
             }
         )
-        print("✓ Registered ozon_finance_transactions_daily service handler")
+        logger.info("✓ Registered ozon_finance_transactions_daily service handler")
 
     except Exception as e:
-        print(f"Warning: Failed to register sync service handlers: {e}")
+        logger.info(f"Warning: Failed to register sync service handlers: {e}")
         import traceback
         traceback.print_exc()
 
@@ -295,7 +297,7 @@ async def pull_orders_task() -> None:
         from decimal import Decimal
 
         current_time = datetime.now(UTC)
-        print(f"[{current_time.isoformat()}] Pulling orders from Ozon...")
+        logger.info(f"[{current_time.isoformat()}] Pulling orders from Ozon...")
 
         # 获取所有活跃店铺
         db_manager = get_db_manager()
@@ -379,15 +381,15 @@ async def pull_orders_task() -> None:
 
                         if new_orders > 0:
                             await db.commit()
-                            print(f"[{shop.shop_name}] Pulled {new_orders} new orders")
+                            logger.info(f"[{shop.shop_name}] Pulled {new_orders} new orders")
 
                     await client.close()
 
                 except Exception as e:
-                    print(f"Error pulling orders for shop {shop.shop_name}: {e}")
+                    logger.info(f"Error pulling orders for shop {shop.shop_name}: {e}")
 
     except Exception as e:
-        print(f"Error pulling orders: {e}")
+        logger.info(f"Error pulling orders: {e}")
 
 
 async def sync_inventory_task() -> None:
@@ -401,7 +403,7 @@ async def sync_inventory_task() -> None:
         from sqlalchemy import select
 
         current_time = datetime.now(UTC)
-        print(f"[{current_time.isoformat()}] Syncing inventory to Ozon...")
+        logger.info(f"[{current_time.isoformat()}] Syncing inventory to Ozon...")
 
         # 获取所有活跃店铺
         db_manager = get_db_manager()
@@ -455,17 +457,17 @@ async def sync_inventory_task() -> None:
                                     product.last_sync_at = current_time
 
                                 await db.commit()
-                                print(f"[{shop.shop_name}] Synced inventory for {len(stocks_data)} products")
+                                logger.info(f"[{shop.shop_name}] Synced inventory for {len(stocks_data)} products")
                             else:
-                                print(f"[{shop.shop_name}] Failed to sync inventory: {result}")
+                                logger.info(f"[{shop.shop_name}] Failed to sync inventory: {result}")
 
                     await client.close()
 
                 except Exception as e:
-                    print(f"Error syncing inventory for shop {shop.shop_name}: {e}")
+                    logger.info(f"Error syncing inventory for shop {shop.shop_name}: {e}")
 
     except Exception as e:
-        print(f"Error syncing inventory: {e}")
+        logger.info(f"Error syncing inventory: {e}")
 
 
 async def handle_shipment_request(payload: Dict[str, Any]) -> None:
@@ -486,10 +488,10 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
         carrier = payload.get("carrier", "OTHER")
 
         if not order_id or not tracking_number:
-            print("Invalid shipment request: missing order_id or tracking_number")
+            logger.info("Invalid shipment request: missing order_id or tracking_number")
             return
 
-        print(f"Processing shipment for order {order_id} with tracking {tracking_number}")
+        logger.info(f"Processing shipment for order {order_id} with tracking {tracking_number}")
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as db:
@@ -517,12 +519,12 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
                     order = order_result.scalar_one_or_none()
 
             if not order:
-                print(f"Order {order_id} not found in database")
+                logger.info(f"Order {order_id} not found in database")
                 return
 
             # 验证订单状态
             if order.status not in ["awaiting_packaging", "awaiting_deliver"]:
-                print(f"Order {order_id} is not ready for shipment. Status: {order.status}")
+                logger.info(f"Order {order_id} is not ready for shipment. Status: {order.status}")
                 return
 
             # 获取店铺信息
@@ -532,7 +534,7 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
             shop = shop_result.scalar_one_or_none()
 
             if not shop:
-                print(f"Shop {order.shop_id} not found")
+                logger.info(f"Shop {order.shop_id} not found")
                 return
 
             # 创建API客户端
@@ -567,14 +569,14 @@ async def handle_shipment_request(payload: Dict[str, Any]) -> None:
                 order.updated_at = datetime.now(UTC)
                 await db.commit()
 
-                print(f"Successfully shipped order {order_id}")
+                logger.info(f"Successfully shipped order {order_id}")
             else:
-                print(f"Failed to ship order {order_id}: {result}")
+                logger.info(f"Failed to ship order {order_id}: {result}")
 
             await client.close()
 
     except Exception as e:
-        print(f"Error handling shipment request: {e}")
+        logger.info(f"Error handling shipment request: {e}")
 
 
 async def handle_inventory_change(payload: Dict[str, Any]) -> None:
@@ -589,7 +591,7 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
         quantity = payload.get("quantity")
         
         if not sku:
-            print("Invalid inventory change: missing sku")
+            logger.info("Invalid inventory change: missing sku")
             return
         
         from ef_core.database import get_db_manager
@@ -597,7 +599,7 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
         from .api.client import OzonAPIClient
         from sqlalchemy import select
 
-        print(f"Processing inventory change for SKU {sku}: {quantity}")
+        logger.info(f"Processing inventory change for SKU {sku}: {quantity}")
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as db:
@@ -614,7 +616,7 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
             product = product_result.scalar_one_or_none()
 
             if not product:
-                print(f"Product with SKU {sku} not found")
+                logger.info(f"Product with SKU {sku} not found")
                 return
 
             # 获取店铺信息
@@ -624,7 +626,7 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
             shop = shop_result.scalar_one_or_none()
 
             if not shop:
-                print(f"Shop {shop_id} not found")
+                logger.info(f"Shop {shop_id} not found")
                 return
 
             # 创建API客户端
@@ -657,18 +659,18 @@ async def handle_inventory_change(payload: Dict[str, Any]) -> None:
                 product.last_sync_at = datetime.now(UTC)
                 await db.commit()
 
-                print(f"Successfully updated inventory for SKU {sku} to {available_stock}")
+                logger.info(f"Successfully updated inventory for SKU {sku} to {available_stock}")
             else:
                 # 记录同步失败
                 product.sync_status = "failed"
                 product.sync_error = str(result)
                 await db.commit()
-                print(f"Failed to update inventory for SKU {sku}: {result}")
+                logger.info(f"Failed to update inventory for SKU {sku}: {result}")
 
             await client.close()
         
     except Exception as e:
-        print(f"Error handling inventory change: {e}")
+        logger.info(f"Error handling inventory change: {e}")
 
 
 async def teardown() -> None:
@@ -676,7 +678,7 @@ async def teardown() -> None:
     插件清理函数（可选）
     在插件关闭时调用
     """
-    print("Ozon plugin shutting down...")
+    logger.info("Ozon plugin shutting down...")
 
     try:
         from ef_core.database import get_db_manager
@@ -700,7 +702,7 @@ async def teardown() -> None:
                 )
             )
             await db.commit()
-            print("Updated all shops sync status to stopped")
+            logger.info("Updated all shops sync status to stopped")
 
         # 取消所有待处理的异步任务
         pending_tasks = asyncio.all_tasks()
@@ -712,9 +714,9 @@ async def teardown() -> None:
                 except asyncio.CancelledError:
                     pass
 
-        print("Cancelled all pending tasks")
+        logger.info("Cancelled all pending tasks")
 
     except Exception as e:
-        print(f"Error during teardown: {e}")
+        logger.info(f"Error during teardown: {e}")
 
-    print("Ozon plugin shutdown complete")
+    logger.info("Ozon plugin shutdown complete")
