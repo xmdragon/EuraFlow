@@ -16,6 +16,14 @@ HTML_FILE = "/mnt/e/pics/ozon.api.html"
 OUTPUT_DIR = "docs/OzonAPI"
 
 
+def extract_version_from_path(path: str) -> str:
+    """从API路径中提取版本号"""
+    match = re.search(r'/v(\d+)/', path)
+    if match:
+        return f"v{match.group(1)}"
+    return ""
+
+
 def sanitize_filename(name: str) -> str:
     """清理文件名中的非法字符"""
     # 替换或删除非法字符
@@ -60,11 +68,55 @@ def extract_table_to_markdown(table) -> str:
         # 提取单元格内容
         cell_contents = []
         for cell in cells:
-            # 提取单元格中的文本
-            text = extract_text(cell)
-            # 转义Markdown特殊字符
-            text = text.replace('|', '\\|')
-            cell_contents.append(text)
+            # 每个td可能包含多个子元素，需要分别提取
+            # 查找参数名
+            param_name_span = cell.find('span', class_='sc-ieebsP')
+            if param_name_span:
+                # 这是参数名列
+                param_name = extract_text(param_name_span.find_next_sibling('span'))
+            else:
+                param_name = None
+
+            # 查找required标记
+            required_div = cell.find('div', class_=re.compile('sc-jUotMc'))
+            if required_div:
+                required = extract_text(required_div).strip()
+            else:
+                required = None
+
+            # 如果有参数名和required，组合它们
+            if param_name and required:
+                cell_contents.append(param_name)
+                cell_contents.append(required)
+            elif param_name:
+                cell_contents.append(param_name)
+            else:
+                # 普通单元格，查找类型和描述
+                type_span = cell.find('span', class_=re.compile('sc-kHOZQx.*sc-dtMiey|sc-hOGjNT'))
+                description_div = cell.find('div', class_=re.compile('sc-efQUeY.*sc-hUpaWb'))
+
+                if type_span or description_div:
+                    # 类型
+                    if type_span:
+                        cell_type = extract_text(type_span)
+                        cell_contents.append(cell_type)
+
+                    # 描述
+                    if description_div:
+                        desc = extract_text(description_div)
+                        if desc:
+                            cell_contents.append(desc)
+                else:
+                    # 作为普通单元格处理
+                    text = extract_text(cell)
+                    if text:
+                        # 转义Markdown特殊字符
+                        text = text.replace('|', '\\|')
+                        cell_contents.append(text)
+
+        # 如果没有提取到内容，跳过这一行
+        if not cell_contents:
+            continue
 
         # 构建Markdown行
         markdown.append('| ' + ' | '.join(cell_contents) + ' |')
@@ -284,6 +336,7 @@ def extract_all_apis():
     # 提取每个API
     api_list = []
     success_count = 0
+    filename_counter = {}  # 跟踪文件名使用情况
 
     for i, item in enumerate(operation_items, 1):
         operation_id = item.get('data-item-id')
@@ -320,8 +373,28 @@ def extract_all_apis():
             # 生成Markdown
             markdown = format_markdown(api_info)
 
-            # 保存文件
-            filename = sanitize_filename(api_name) + '.md'
+            # 生成文件名（带版本号去重）
+            base_filename = sanitize_filename(api_name)
+
+            # 提取版本号
+            version = extract_version_from_path(path)
+
+            # 检查文件名是否已存在
+            if base_filename in filename_counter:
+                # 如果有版本号，添加到文件名
+                if version:
+                    filename = f"{base_filename}_{version}.md"
+                    print(f"    ⚠️  文件名重复，添加版本号: {version}")
+                else:
+                    # 没有版本号，使用计数器
+                    count = filename_counter[base_filename]
+                    filename_counter[base_filename] += 1
+                    filename = f"{base_filename}_{count}.md"
+                    print(f"    ⚠️  文件名重复，添加序号: {count}")
+            else:
+                filename = base_filename + '.md'
+                filename_counter[base_filename] = 1
+
             filepath = output_path / filename
 
             with open(filepath, 'w', encoding='utf-8') as f:
@@ -334,7 +407,8 @@ def extract_all_apis():
                 'method': method,
                 'path': path,
                 'filename': filename,
-                'operation_id': operation_id
+                'operation_id': operation_id,
+                'version': version
             })
 
             success_count += 1

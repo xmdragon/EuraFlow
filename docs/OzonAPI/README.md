@@ -71,15 +71,15 @@
 - [将状态改成“已送达”](./将状态改成“已送达”.md) - `POST /v2/fbs/posting/delivered`
 - [将状态改成“运输中”](./将状态改成“运输中”.md) - `POST /v2/fbs/posting/delivering`
 - [标志代码验证](./标志代码验证.md) - `POST /v4/fbs/posting/product/exemplar/validate`
-- [标志代码验证](./标志代码验证.md) - `POST /v5/fbs/posting/product/exemplar/validate`
-- [检查并保存份数数据](./检查并保存份数数据.md) - `POST /v6/fbs/posting/product/exemplar/set`
+- [标志代码验证](./标志代码验证_v5.md) - `POST /v5/fbs/posting/product/exemplar/validate`
+- [检查并保存份数数据](./检查并保存份数数据_v6.md) - `POST /v6/fbs/posting/product/exemplar/set`
 - [检查并保存份数数据 (第5方案)](./检查并保存份数数据 (第5方案).md) - `POSTV5 /v5/fbs/posting/product/exemplar/set`
 - [添加跟踪号](./添加跟踪号.md) - `POST /v2/fbs/posting/tracking-number/set`
 - [状态改为“最后一英里”](./状态改为“最后一英里”.md) - `POST /v2/fbs/posting/last-mile`
 - [获取商品实例信息](./获取商品实例信息.md) - `POST /v5/fbs/posting/product/exemplar/create-or-get`
 - [获取已创建样件数据](./获取已创建样件数据.md) - `POST /v6/fbs/posting/product/exemplar/create-or-get`
 - [获取样件添加状态](./获取样件添加状态.md) - `POST /v4/fbs/posting/product/exemplar/status`
-- [获取样件添加状态](./获取样件添加状态.md) - `POST /v5/fbs/posting/product/exemplar/status`
+- [获取样件添加状态](./获取样件添加状态_v5.md) - `POST /v5/fbs/posting/product/exemplar/status`
 
 ### finance
 
@@ -159,7 +159,7 @@
 - [获取FBS和rFBS仓库库存信息](./获取FBS和rFBS仓库库存信息.md) - `POST /v1/product/info/warehouse/stocks`
 - [获取商品价格信息](./获取商品价格信息.md) - `POST /v5/product/info/prices`
 - [获取商品图片](./获取商品图片.md) - `POST /v2/product/pictures/info`
-- [获取商品特征描述](./获取商品特征描述.md) - `POST /v4/product/info/attributes`
+- [获取商品特征描述](./获取商品特征描述_v4.md) - `POST /v4/product/info/attributes`
 - [获取商品详细信息](./获取商品详细信息.md) - `POST /v1/product/info/description`
 - [获取已设置计时器状态](./获取已设置计时器状态.md) - `POST /v1/product/action/timer/status`
 - [获取相关SKU](./获取相关SKU.md) - `POST /v1/product/related-sku/get`
@@ -236,5 +236,5 @@
 ### 其他
 
 - [检查并保存份数数据](./检查并保存份数数据.md) - `POST `
-- [聊天历史记录](./聊天历史记录.md) - `POST `
-- [聊天清单](./聊天清单.md) - `POST `
+- [聊天历史记录](./聊天历史记录_1.md) - `POST `
+- [聊天清单](./聊天清单_1.md) - `POST `

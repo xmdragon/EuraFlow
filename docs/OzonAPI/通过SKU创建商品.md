@@ -16,9 +16,9 @@
 
 ### Header参数
 
-| Client-Idrequired | string用户识别号。 |
-|---|---|
-| Api-Keyrequired | stringAPI-密钥。 |
+| Client-Id | required |  | 用户识别号。 |
+|---|---|---|---|
+| Api-Key | required |  | API-密钥。 |
 
 ## 请求示例
 
