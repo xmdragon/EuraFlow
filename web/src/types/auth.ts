@@ -28,7 +28,7 @@ export interface LoginResponse {
 export interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (_credentials: LoginRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
   refreshUser: () => Promise<void>;

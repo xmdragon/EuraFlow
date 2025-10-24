@@ -32,17 +32,17 @@ export interface OrderCardComponentProps {
   userCurrency: string;
   statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }>;
   operationStatus: string;
-  formatPrice: (_priceValue: any) => string;
-  formatDeliveryMethodText: (_deliveryMethod: string | undefined) => React.ReactNode;
-  onCopy: (_textToCopy: string | undefined, _copyLabel: string) => void;
-  onShowDetail: (_orderData: ozonApi.Order, _postingData: ozonApi.Posting) => void;
-  onOpenImagePreview: (_imageUrl: string) => void;
-  onOpenPriceHistory: (_productSku: string, _productTitle: string) => void;
-  onPrepareStock: (_postingData: ozonApi.PostingWithOrder) => void;
-  onUpdateBusinessInfo: (_postingData: ozonApi.PostingWithOrder) => void;
-  onSubmitTracking: (_postingData: ozonApi.PostingWithOrder) => void;
-  onDiscardOrder: (_posting: string) => void;
-  onCheckboxChange: (_posting: string, _isChecked: boolean) => void;
+  formatPrice: (price: any) => string;
+  formatDeliveryMethodText: (method: string | undefined) => React.ReactNode;
+  onCopy: (text: string | undefined, label: string) => void;
+  onShowDetail: (order: ozonApi.Order, posting: ozonApi.Posting) => void;
+  onOpenImagePreview: (url: string) => void;
+  onOpenPriceHistory: (sku: string, productName: string) => void;
+  onPrepareStock: (posting: ozonApi.PostingWithOrder) => void;
+  onUpdateBusinessInfo: (posting: ozonApi.PostingWithOrder) => void;
+  onSubmitTracking: (posting: ozonApi.PostingWithOrder) => void;
+  onDiscardOrder: (postingNumber: string) => void;
+  onCheckboxChange: (postingNumber: string, checked: boolean) => void;
   canOperate: boolean;
 }
 

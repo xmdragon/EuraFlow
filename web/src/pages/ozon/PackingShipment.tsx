@@ -87,7 +87,6 @@ const PackingShipment: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
   const [accumulatedImageMap, setAccumulatedImageMap] = useState<Record<string, string>>({}); // 累积的图片映射
-  const [selectedOrders, _setSelectedOrders] = useState<ozonApi.Order[]>([]);
   // 始终默认为null（全部店铺），不从localStorage读取
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
@@ -98,13 +97,12 @@ const PackingShipment: React.FC = () => {
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
-  const [_isUpdatingExtraInfo, _setIsUpdatingExtraInfo] = useState(false);
 
   // 操作状态Tab（4个状态：等待备货、分配中、已分配、单号确认）
   const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
 
   // 追踪用户访问过的标签（用于按需加载统计数据）
-  const [_visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['awaiting_stock']));
+  const [, setVisitedTabs] = useState<Set<string>>(new Set(['awaiting_stock']));
 
   // 操作弹窗状态
   const [prepareStockModalVisible, setPrepareStockModalVisible] = useState(false);
@@ -1507,14 +1505,6 @@ const PackingShipment: React.FC = () => {
     } finally {
       setIsPrinting(false);
     }
-  };
-
-  const _handleBatchShip = () => {
-    if (selectedOrders.length === 0) {
-      notifyWarning('发货失败', '请先选择订单');
-      return;
-    }
-    notifyInfo('功能开发中', '批量发货功能开发中');
   };
 
   // 扫描单号查询

@@ -869,18 +869,6 @@ const ProductList: React.FC = () => {
           deleted: { color: 'error', text: '已删除' },
         };
 
-        const _statusDetails =
-          record.status_reason ||
-          [
-            record.ozon_archived && '已归档',
-            record.ozon_has_fbo_stocks && '有FBO库存',
-            record.ozon_has_fbs_stocks && '有FBS库存',
-            record.ozon_is_discounted && '促销中',
-          ]
-            .filter(Boolean)
-            .join(', ') ||
-          '状态正常';
-
         return (
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
             <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
@@ -1099,7 +1087,7 @@ const ProductList: React.FC = () => {
     try {
       await navigator.clipboard.writeText(text);
       notifySuccess('复制成功', `${label} 已复制到剪贴板`);
-    } catch (_error) {
+    } catch {
       // 降级方案：创建临时输入框
       const textArea = document.createElement('textarea');
       textArea.value = text;
@@ -1747,7 +1735,7 @@ const ProductList: React.FC = () => {
               setManualPositions(new Map());
               // 初始化每张图片的水印设置为空
               setImageWatermarkSettings(new Map());
-            } catch (_error) {
+            } catch {
               notifyError('预览失败', '预览失败');
             } finally {
               setPreviewLoading(false);

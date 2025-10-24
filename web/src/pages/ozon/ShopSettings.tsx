@@ -50,7 +50,6 @@ import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
 const { Text, Paragraph, Title } = Typography;
-const { Option: _Option } = Select;
 const { confirm } = Modal;
 
 interface Shop {

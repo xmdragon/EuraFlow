@@ -388,25 +388,6 @@ const OrderList: React.FC = () => {
     return map;
   }, [ordersData]);
 
-  // 获取订单项的图片
-  const _getOrderItemImage = (order: ozonApi.Order): string => {
-    if (!order.items || order.items.length === 0) {
-      return '';
-    }
-
-    // 优先使用订单项自带的图片，否则从映射中获取
-    const firstItem = order.items[0];
-    if (firstItem.image) {
-      return firstItem.image;
-    }
-    if (firstItem.offer_id && offerIdImageMap[firstItem.offer_id]) {
-      return offerIdImageMap[firstItem.offer_id];
-    }
-
-    // 如果没有找到，返回空字符串使用占位符
-    return '';
-  };
-
   // 格式化配送方式文本（用于tooltip显示 - 深色背景）
   const formatDeliveryMethodText = (text: string | undefined): React.ReactNode => {
     if (!text) return '-';
@@ -911,25 +892,6 @@ const OrderList: React.FC = () => {
     setSelectedOrder(order);
     setSelectedPosting(posting || null);
     setDetailModalVisible(true);
-  };
-
-  const _handleShip = (postingWithOrder: ozonApi.PostingWithOrder) => {
-    setSelectedOrder(postingWithOrder.order);
-    setSelectedPosting(postingWithOrder);
-    setShipModalVisible(true);
-  };
-
-  const _handleCancel = (postingWithOrder: ozonApi.PostingWithOrder) => {
-    confirm({
-      title: '确认取消订单？',
-      content: `订单号: ${postingWithOrder.order.order_number || postingWithOrder.order.order_id}，货件号: ${postingWithOrder.posting_number}`,
-      onOk: () => {
-        cancelOrderMutation.mutate({
-          postingNumber: postingWithOrder.posting_number,
-          reason: '卖家取消',
-        });
-      },
-    });
   };
 
   const handleSync = (fullSync: boolean) => {
