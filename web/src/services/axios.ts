@@ -63,10 +63,10 @@ const isAuthenticationError = (error: any): boolean => {
       'invalid signature',
       'decode',
       'not authenticated',
-      'login required'
+      'login required',
     ];
 
-    return authKeywords.some(keyword => errorMessage.includes(keyword));
+    return authKeywords.some((keyword) => errorMessage.includes(keyword));
   }
 
   return false;
@@ -77,13 +77,15 @@ const isAuthenticationError = (error: any): boolean => {
  */
 const handlePermissionDenied = (error: any) => {
   // 使用动态导入避免循环依赖
-  import('antd').then(({ message: antdMessage }) => {
-    const errorDetail = error.response?.data?.error?.detail || '您没有执行此操作的权限';
-    antdMessage.error(`权限不足: ${errorDetail}`);
-  }).catch(() => {
-    // 如果antd加载失败，使用原生alert
-    alert('权限不足：您没有执行此操作的权限');
-  });
+  import('antd')
+    .then(({ message: antdMessage }) => {
+      const errorDetail = error.response?.data?.error?.detail || '您没有执行此操作的权限';
+      antdMessage.error(`权限不足: ${errorDetail}`);
+    })
+    .catch(() => {
+      // 如果antd加载失败，使用原生alert
+      alert('权限不足：您没有执行此操作的权限');
+    });
 };
 
 /**
@@ -95,12 +97,14 @@ const handleAuthenticationFailure = (message: string = '登录已过期，请重
   // 避免在登录页重复跳转
   if (window.location.pathname !== '/login') {
     // 使用动态导入避免循环依赖
-    import('antd').then(({ message: antdMessage }) => {
-      antdMessage.warning(message);
-    }).catch(() => {
-      // 如果antd加载失败，使用原生alert
-      alert(message);
-    });
+    import('antd')
+      .then(({ message: antdMessage }) => {
+        antdMessage.warning(message);
+      })
+      .catch(() => {
+        // 如果antd加载失败，使用原生alert
+        alert(message);
+      });
 
     // 延迟跳转，让用户看到提示
     setTimeout(() => {
@@ -171,7 +175,6 @@ axios.interceptors.response.use(
           return Promise.reject(refreshError);
         }
       }
-
     }
 
     // 403错误是权限不足，不是认证错误

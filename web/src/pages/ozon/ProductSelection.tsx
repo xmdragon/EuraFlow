@@ -1,7 +1,31 @@
 /**
  * 选品助手页面
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import {
+  UploadOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+  DownloadOutlined,
+  ShoppingOutlined,
+  DollarOutlined,
+  FieldTimeOutlined,
+  StarOutlined,
+  FileExcelOutlined,
+  HistoryOutlined,
+  FilterOutlined,
+  SyncOutlined,
+  DeleteOutlined,
+  BookOutlined,
+  CheckCircleOutlined,
+  QuestionCircleOutlined,
+  LinkOutlined,
+  CodeOutlined,
+  RocketOutlined,
+  PlusOutlined,
+  SettingOutlined,
+  LoadingOutlined,
+} from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   Row,
@@ -33,44 +57,26 @@ import {
   Tooltip,
   Checkbox,
 } from 'antd';
-import dayjs from 'dayjs';
-import {
-  UploadOutlined,
-  SearchOutlined,
-  ReloadOutlined,
-  DownloadOutlined,
-  ShoppingOutlined,
-  DollarOutlined,
-  FieldTimeOutlined,
-  StarOutlined,
-  FileExcelOutlined,
-  HistoryOutlined,
-  FilterOutlined,
-  SyncOutlined,
-  DeleteOutlined,
-  BookOutlined,
-  CheckCircleOutlined,
-  QuestionCircleOutlined,
-  LinkOutlined,
-  CodeOutlined,
-  RocketOutlined,
-  PlusOutlined,
-  SettingOutlined,
-  LoadingOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import * as api from '@/services/productSelectionApi';
 import type { UploadFile } from 'antd/es/upload/interface';
-import ImagePreview from '@/components/ImagePreview';
-import PageTitle from '@/components/PageTitle';
-import FieldConfigModal, { type FieldConfig, defaultFieldConfig } from '@/components/ozon/selection/FieldConfigModal';
+import dayjs from 'dayjs';
+import React, { useState, useEffect, useMemo } from 'react';
+
 import { useCurrency } from '../../hooks/useCurrency';
-import { getExchangeRate } from '@/services/exchangeRateApi';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
-import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+
 import styles from './ProductSelection.module.scss';
 import { calculateMaxCost, formatMaxCost } from './profitCalculator';
+
+import ImagePreview from '@/components/ImagePreview';
+import FieldConfigModal, {
+  type FieldConfig,
+  defaultFieldConfig,
+} from '@/components/ozon/selection/FieldConfigModal';
+import PageTitle from '@/components/PageTitle';
+import { getExchangeRate } from '@/services/exchangeRateApi';
+import * as api from '@/services/productSelectionApi';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { Option } = Select;
 const { Text, Link, Paragraph, Title } = Typography;
@@ -84,7 +90,7 @@ const ProductSelection: React.FC = () => {
   const [activeTab, setActiveTab] = useState('search');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(24); // 初始值，会根据容器宽度动态调整
-  const [historyPage, setHistoryPage] = useState(1);  // 导入历史分页
+  const [historyPage, setHistoryPage] = useState(1); // 导入历史分页
   const [searchParams, setSearchParams] = useState<api.ProductSearchParams>({});
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -181,14 +187,17 @@ const ProductSelection: React.FC = () => {
 
     if (batchId) {
       // 从批次链接进来，显示该批次所有商品
-      setSearchParams(prev => ({ ...restoredParams, batch_id: parseInt(batchId) }));
+      setSearchParams((prev) => ({
+        ...restoredParams,
+        batch_id: parseInt(batchId),
+      }));
     } else if (isReadParam === null || isReadParam === 'false') {
       // 默认或明确指定只显示未读商品
-      setSearchParams(prev => ({ ...restoredParams, is_read: false }));
+      setSearchParams((prev) => ({ ...restoredParams, is_read: false }));
     } else {
       // 仅应用恢复的筛选条件（如果有）
       if (Object.keys(restoredParams).length > 0) {
-        setSearchParams(prev => ({ ...prev, ...restoredParams }));
+        setSearchParams((prev) => ({ ...prev, ...restoredParams }));
       }
     }
   }, []);
@@ -202,7 +211,7 @@ const ProductSelection: React.FC = () => {
   // 从当前商品列表提取品牌（动态更新）
   const currentBrands = useMemo(() => {
     if (allProducts.length > 0) {
-      const brands = new Set(allProducts.map(p => p.brand).filter(Boolean));
+      const brands = new Set(allProducts.map((p) => p.brand).filter(Boolean));
       return Array.from(brands).sort();
     }
     // 如果没有商品数据，使用全局品牌列表
@@ -210,13 +219,18 @@ const ProductSelection: React.FC = () => {
   }, [allProducts, brandsData]);
 
   // 查询商品列表
-  const { data: productsData, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    refetch: refetchProducts,
+  } = useQuery({
     queryKey: ['productSelectionProducts', searchParams, currentPage, pageSize],
-    queryFn: () => api.searchProducts({
-      ...searchParams,
-      page: currentPage,
-      page_size: pageSize,
-    }),
+    queryFn: () =>
+      api.searchProducts({
+        ...searchParams,
+        page: currentPage,
+        page_size: pageSize,
+      }),
     enabled: activeTab === 'search',
   });
 
@@ -231,7 +245,7 @@ const ProductSelection: React.FC = () => {
   const exchangeRate = exchangeRateData ? parseFloat((exchangeRateData as any).rate) : null;
 
   // 查询导入历史
-  const { data: historyData, refetch: refetchHistory} = useQuery({
+  const { data: historyData, refetch: refetchHistory } = useQuery({
     queryKey: ['productSelectionHistory', historyPage],
     queryFn: () => api.getImportHistory(historyPage, 10),
     enabled: activeTab === 'history',
@@ -268,13 +282,14 @@ const ProductSelection: React.FC = () => {
         setAllProducts(productsData.data.items);
       } else {
         // 后续页，追加数据
-        setAllProducts(prev => [...prev, ...productsData.data.items]);
+        setAllProducts((prev) => [...prev, ...productsData.data.items]);
       }
 
       // 检查是否还有更多数据
-      const totalLoaded = currentPage === 1
-        ? productsData.data.items.length
-        : allProducts.length + productsData.data.items.length;
+      const totalLoaded =
+        currentPage === 1
+          ? productsData.data.items.length
+          : allProducts.length + productsData.data.items.length;
       setHasMoreData(totalLoaded < productsData.data.total);
       setIsLoadingMore(false);
     }
@@ -295,7 +310,7 @@ const ProductSelection: React.FC = () => {
         // 设置pageSize为初始值的一半，但至少为1行，不超过100
         const loadMoreSize = Math.min(Math.max(Math.floor(initialPageSize / 2), itemsPerRow), 100);
         setPageSize(loadMoreSize);
-        setCurrentPage(prev => prev + 1);
+        setCurrentPage((prev) => prev + 1);
       }
     };
 
@@ -305,11 +320,15 @@ const ProductSelection: React.FC = () => {
 
   // 过滤可盈利商品：计算成本上限，过滤掉无法达到目标利润率的商品
   const profitableProducts = useMemo(() => {
-    return allProducts.filter(product => {
+    return allProducts.filter((product) => {
       // 价格单位：CNY分，÷100 = CNY元 = RMB元
       const currentPriceRMB = product.current_price / 100; // 分 → RMB
-      const competitorPriceRMB = product.competitor_min_price ? product.competitor_min_price / 100 : null;
-      const priceRMB = competitorPriceRMB ? Math.min(currentPriceRMB, competitorPriceRMB) : currentPriceRMB;
+      const competitorPriceRMB = product.competitor_min_price
+        ? product.competitor_min_price / 100
+        : null;
+      const priceRMB = competitorPriceRMB
+        ? Math.min(currentPriceRMB, competitorPriceRMB)
+        : currentPriceRMB;
 
       const weight = product.package_weight || 0;
 
@@ -367,9 +386,7 @@ const ProductSelection: React.FC = () => {
       title: '确认清空所有数据？',
       content: (
         <div>
-          <p className={styles.dangerText}>
-            ⚠️ 此操作将永久删除您账号下的所有选品数据，无法恢复！
-          </p>
+          <p className={styles.dangerText}>⚠️ 此操作将永久删除您账号下的所有选品数据，无法恢复！</p>
           <p>包括：</p>
           <ul>
             <li>所有商品选品记录</li>
@@ -397,8 +414,10 @@ const ProductSelection: React.FC = () => {
     if (values.weight_max) params.weight_max = values.weight_max;
     if (values.competitor_count_min) params.competitor_count_min = values.competitor_count_min;
     if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max;
-    if (values.competitor_min_price_min) params.competitor_min_price_min = values.competitor_min_price_min;
-    if (values.competitor_min_price_max) params.competitor_min_price_max = values.competitor_min_price_max;
+    if (values.competitor_min_price_min)
+      params.competitor_min_price_min = values.competitor_min_price_min;
+    if (values.competitor_min_price_max)
+      params.competitor_min_price_max = values.competitor_min_price_max;
     // 上架时间：搜索晚于该日期的商品
     if (values.listing_date) {
       params.created_at_start = values.listing_date.format('YYYY-MM-DD');
@@ -440,7 +459,7 @@ const ProductSelection: React.FC = () => {
 
   // 切换商品选择状态
   const toggleProductSelection = (productId: number) => {
-    setSelectedProductIds(prev => {
+    setSelectedProductIds((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(productId)) {
         newSet.delete(productId);
@@ -466,7 +485,7 @@ const ProductSelection: React.FC = () => {
 
         // 如果当前是"仅显示未读"模式，立即从列表中移除已标记的商品
         if (searchParams.is_read === false) {
-          setAllProducts(prev => prev.filter(p => !selectedProductIds.has(p.id)));
+          setAllProducts((prev) => prev.filter((p) => !selectedProductIds.has(p.id)));
         }
 
         setSelectedProductIds(new Set()); // 清空选择
@@ -488,7 +507,7 @@ const ProductSelection: React.FC = () => {
     // 直接执行导入
     setImportLoading(true);
     try {
-      const result = await api.importProducts(file, 'update');  // 默认使用更新策略
+      const result = await api.importProducts(file, 'update'); // 默认使用更新策略
       if (result.success) {
         notification.success({
           message: '导入完成',
@@ -502,12 +521,12 @@ const ProductSelection: React.FC = () => {
               <p>耗时: {result.duration} 秒</p>
             </div>
           ),
-          duration: 5,  // 5秒后自动消失
+          duration: 5, // 5秒后自动消失
         });
 
         setFileList([]);
         refetchProducts();
-        refetchHistory();  // 刷新历史记录
+        refetchHistory(); // 刷新历史记录
       } else {
         notifyError('导入失败', result.error || '导入失败');
         if (result.missing_columns) {
@@ -527,7 +546,6 @@ const ProductSelection: React.FC = () => {
 
     return false; // 阻止自动上传
   };
-
 
   // 显示跟卖者列表
   const showCompetitorsList = (product: api.ProductSelectionItem) => {
@@ -630,17 +648,20 @@ const ProductSelection: React.FC = () => {
   // 格式化日期显示
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).replace(/\//g, '-');
+    return new Date(dateStr)
+      .toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+      .replace(/\//g, '-');
   };
 
   // 下载用户脚本
   const handleDownloadScript = () => {
     // 创建一个虚拟链接触发下载，添加时间戳防止浏览器缓存
-    const scriptUrl = window.location.origin + `/scripts/ozon_product_selector.user.js?t=${Date.now()}`;
+    const scriptUrl =
+      window.location.origin + `/scripts/ozon_product_selector.user.js?t=${Date.now()}`;
     const link = document.createElement('a');
     link.href = scriptUrl;
     link.download = 'ozon_product_selector.user.js';
@@ -679,10 +700,7 @@ const ProductSelection: React.FC = () => {
         className={styles.productCard}
         cover={
           product.image_url ? (
-            <div
-              className={styles.productCover}
-              onClick={() => showProductImages(product)}
-            >
+            <div className={styles.productCover} onClick={() => showProductImages(product)}>
               {/* 复选框 - 左上角 */}
               <Checkbox
                 className={styles.productCheckbox}
@@ -732,18 +750,19 @@ const ProductSelection: React.FC = () => {
       >
         <div className={styles.productCardBody}>
           {/* 商品名称 - 始终显示 */}
-          <Paragraph ellipsis={{ rows: 2, tooltip: product.product_name_cn }} className={styles.productName}>
+          <Paragraph
+            ellipsis={{ rows: 2, tooltip: product.product_name_cn }}
+            className={styles.productName}
+          >
             {product.product_name_cn || product.product_name_ru}
           </Paragraph>
 
           {/* SKU - 可复制 */}
           <div className={styles.skuRow}>
-            <Text type="secondary" className={styles.skuLabel}>SKU: </Text>
-            <Text
-              copyable={{ text: product.product_id }}
-              className={styles.skuValue}
-              ellipsis
-            >
+            <Text type="secondary" className={styles.skuLabel}>
+              SKU:{' '}
+            </Text>
+            <Text copyable={{ text: product.product_id }} className={styles.skuValue} ellipsis>
               {product.product_id}
             </Text>
           </div>
@@ -752,12 +771,14 @@ const ProductSelection: React.FC = () => {
           <div className={styles.priceContainer}>
             <div className={styles.priceRow}>
               <Text strong className={styles.currentPrice}>
-                {userSymbol}{formatPrice(product.current_price)}
+                {userSymbol}
+                {formatPrice(product.current_price)}
               </Text>
               {fieldConfig.originalPrice && product.original_price && (
                 <>
                   <Text delete className={styles.originalPrice}>
-                    {userSymbol}{formatPrice(product.original_price)}
+                    {userSymbol}
+                    {formatPrice(product.original_price)}
                   </Text>
                   {discount > 0 && (
                     <Tag color="red" className={styles.discountTag}>
@@ -865,9 +886,13 @@ const ProductSelection: React.FC = () => {
                     onClick={() => showCompetitorsList(product)}
                   >
                     {product.competitor_count}
-                    {product.competitor_min_price !== null && product.competitor_min_price !== undefined && (
-                      <>（{userSymbol}{formatPrice(product.competitor_min_price)}）</>
-                    )}
+                    {product.competitor_min_price !== null &&
+                      product.competitor_min_price !== undefined && (
+                        <>
+                          （{userSymbol}
+                          {formatPrice(product.competitor_min_price)}）
+                        </>
+                      )}
                   </Text>
                 ) : (
                   <Text className={styles.placeholderText}>无跟卖</Text>
@@ -886,11 +911,17 @@ const ProductSelection: React.FC = () => {
                   {product.rating ? (
                     <>
                       <StarOutlined />
-                      <Text strong className={styles.ratingValue}>{product.rating}</Text>
-                      <Text type="secondary" className={styles.reviewCount}>({product.review_count})</Text>
+                      <Text strong className={styles.ratingValue}>
+                        {product.rating}
+                      </Text>
+                      <Text type="secondary" className={styles.reviewCount}>
+                        ({product.review_count})
+                      </Text>
                     </>
                   ) : (
-                    <Text type="secondary" style={{ fontSize: '11px' }}>-</Text>
+                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                      -
+                    </Text>
                   )}
                 </div>
               )}
@@ -907,15 +938,17 @@ const ProductSelection: React.FC = () => {
           {/* 成本上限计算 */}
           {(() => {
             // 价格单位：CNY分，÷100 = CNY元 = RMB元
-            const currentPriceRMB = product.current_price / 100;  // 分 → RMB
-            const competitorPriceRMB = product.competitor_min_price !== null && product.competitor_min_price !== undefined
-              ? product.competitor_min_price / 100
-              : null;
+            const currentPriceRMB = product.current_price / 100; // 分 → RMB
+            const competitorPriceRMB =
+              product.competitor_min_price !== null && product.competitor_min_price !== undefined
+                ? product.competitor_min_price / 100
+                : null;
 
             // 如果有跟卖价，取两者中较低的；否则取当前价
-            const priceRMB = competitorPriceRMB !== null
-              ? Math.min(currentPriceRMB, competitorPriceRMB)
-              : currentPriceRMB;
+            const priceRMB =
+              competitorPriceRMB !== null
+                ? Math.min(currentPriceRMB, competitorPriceRMB)
+                : currentPriceRMB;
 
             const weight = product.package_weight || 0;
 
@@ -927,16 +960,17 @@ const ProductSelection: React.FC = () => {
             };
 
             // 计算成本上限（RMB），传入汇率和佣金率数据
-            const maxCost = weight > 0 && priceRMB > 0
-              ? calculateMaxCost(
-                  priceRMB,
-                  weight,
-                  targetProfitRate / 100,
-                  packingFee,
-                  exchangeRate || undefined,
-                  commissionRates
-                )
-              : null;
+            const maxCost =
+              weight > 0 && priceRMB > 0
+                ? calculateMaxCost(
+                    priceRMB,
+                    weight,
+                    targetProfitRate / 100,
+                    packingFee,
+                    exchangeRate || undefined,
+                    commissionRates
+                  )
+                : null;
 
             // 根据成本上限值确定样式
             let costClassName = styles.maxCostRow;
@@ -964,867 +998,975 @@ const ProductSelection: React.FC = () => {
     <div>
       <PageTitle icon={<FilterOutlined />} title="选品助手" />
       <Card>
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={[
-          {
-            key: 'search',
-            label: <span><SearchOutlined /> 商品搜索</span>,
-            children: (
-              <>
-          {/* 搜索表单 */}
-          <Card className={styles.searchFormCard}>
-            <Form
-              form={form}
-              layout="inline"
-              onFinish={handleSearch}
-              initialValues={{ sort_by: 'created_asc' }}
-            >
-              <Row gutter={[16, 0]} wrap>
-                {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
-                <Col flex="auto" style={{ minWidth: '150px' }}>
-                  <Form.Item label="品牌" name="brand">
-                    <Select
-                      placeholder="品牌"
-                      allowClear
-                      showSearch
-                      style={{ width: '100%' }}
-                      filterOption={(input, option) =>
-                        String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'search',
+              label: (
+                <span>
+                  <SearchOutlined /> 商品搜索
+                </span>
+              ),
+              children: (
+                <>
+                  {/* 搜索表单 */}
+                  <Card className={styles.searchFormCard}>
+                    <Form
+                      form={form}
+                      layout="inline"
+                      onFinish={handleSearch}
+                      initialValues={{ sort_by: 'created_asc' }}
                     >
-                      {currentBrands.map((brand) => (
-                        <Option key={brand} value={brand}>
-                          {brand}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
+                      <Row gutter={[16, 0]} wrap>
+                        {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
+                        <Col flex="auto" style={{ minWidth: '150px' }}>
+                          <Form.Item label="品牌" name="brand">
+                            <Select
+                              placeholder="品牌"
+                              allowClear
+                              showSearch
+                              style={{ width: '100%' }}
+                              filterOption={(input, option) =>
+                                String(option?.value ?? '')
+                                  .toLowerCase()
+                                  .includes(input.toLowerCase())
+                              }
+                            >
+                              {currentBrands.map((brand) => (
+                                <Option key={brand} value={brand}>
+                                  {brand}
+                                </Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        </Col>
 
-                <Col>
-                  <Form.Item label="上架晚于" name="listing_date" style={{ marginBottom: 0 }}>
-                    <DatePicker
-                      style={{ width: '110px' }}
-                      format="YYYY-MM-DD"
-                      placeholder="选择日期"
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col flex="auto" style={{ minWidth: '150px' }}>
-                  <Form.Item label="排序" name="sort_by">
-                    <Select placeholder="最早导入" style={{ width: '100%' }}>
-                      <Option value="created_asc">最早导入</Option>
-                      <Option value="created_desc">最新导入</Option>
-                      <Option value="sales_desc">销量↓</Option>
-                      <Option value="sales_asc">销量↑</Option>
-                      <Option value="weight_asc">重量↑</Option>
-                      <Option value="price_asc">价格↑</Option>
-                      <Option value="price_desc">价格↓</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-
-                <Col>
-                  <Form.Item label="月销量" style={{ marginBottom: 0 }}>
-                    <Space.Compact>
-                      <Form.Item name="monthly_sales_min" noStyle>
-                        <InputNumber
-                          min={0}
-                          controls={false}
-                          style={{ width: '70px' }}
-                          placeholder="最小"
-                        />
-                      </Form.Item>
-                      <Form.Item name="monthly_sales_max" noStyle>
-                        <InputNumber
-                          min={0}
-                          controls={false}
-                          style={{ width: '70px' }}
-                          placeholder="最大"
-                        />
-                      </Form.Item>
-                    </Space.Compact>
-                  </Form.Item>
-                </Col>
-
-                <Col>
-                  <Form.Item label="重量≤" name="weight_max" style={{ marginBottom: 0 }}>
-                    <InputNumber
-                      min={0}
-                      controls={false}
-                      style={{ width: '70px' }}
-                      placeholder="g"
-                      suffix="g"
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col>
-                  <Form.Item label="跟卖者数量" style={{ marginBottom: 0 }}>
-                    <Space.Compact>
-                      <Form.Item name="competitor_count_min" noStyle>
-                        <InputNumber
-                          min={0}
-                          controls={false}
-                          style={{ width: '70px' }}
-                          placeholder="最小"
-                        />
-                      </Form.Item>
-                      <Form.Item name="competitor_count_max" noStyle>
-                        <InputNumber
-                          min={0}
-                          controls={false}
-                          style={{ width: '70px' }}
-                          placeholder="最大"
-                        />
-                      </Form.Item>
-                    </Space.Compact>
-                  </Form.Item>
-                </Col>
-
-                <Col>
-                  <Form.Item label="最低跟卖价" style={{ marginBottom: 0 }}>
-                    <Space.Compact>
-                      <Form.Item name="competitor_min_price_min" noStyle>
-                        <InputNumber
-                          min={0}
-                          controls={false}
-                          style={{ width: '70px' }}
-                          placeholder={`最小`}
-                        />
-                      </Form.Item>
-                      <Form.Item name="competitor_min_price_max" noStyle>
-                        <InputNumber
-                          min={0}
-                          controls={false}
-                          style={{ width: '70px' }}
-                          placeholder={`最大`}
-                        />
-                      </Form.Item>
-                    </Space.Compact>
-                  </Form.Item>
-                </Col>
-
-                {/* 成本计算参数（不参与搜索筛选） */}
-                <Col>
-                  <Space.Compact>
-                    <InputNumber
-                      value={targetProfitRate}
-                      onChange={(val) => setTargetProfitRate((val as number) || 20)}
-                      min={0}
-                      max={100}
-                      formatter={getNumberFormatter(2)}
-                      parser={getNumberParser()}
-                      controls={false}
-                      addonBefore="利润率"
-                      addonAfter="%"
-                      style={{ width: '150px' }}
-                    />
-                  </Space.Compact>
-                </Col>
-
-                <Col>
-                  <Space.Compact>
-                    <InputNumber
-                      value={packingFee}
-                      onChange={(val) => setPackingFee(val || 2)}
-                      min={0}
-                      precision={1}
-                      controls={false}
-                      addonBefore="打包费"
-                      addonAfter="RMB"
-                      style={{ width: '150px' }}
-                    />
-                  </Space.Compact>
-                </Col>
-
-                <Col span={24}>
-                  <Space>
-                    <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-                      搜索
-                    </Button>
-                    <Button onClick={handleReset} icon={<ReloadOutlined />}>
-                      重置
-                    </Button>
-                    <Checkbox
-                      checked={rememberFilters}
-                      onChange={(e) => setRememberFilters(e.target.checked)}
-                    >
-                      记住我的选择
-                    </Checkbox>
-                  </Space>
-                </Col>
-              </Row>
-            </Form>
-          </Card>
-
-          {/* 搜索结果统计和配置按钮 */}
-          {productsData?.data && (
-            <Row justify="space-between" align="middle" className={styles.searchStats}>
-              <Col>
-                <Space>
-                  <Text>已加载 <Text strong>{profitableProducts.length}</Text> / {productsData.data.total} 件商品</Text>
-                  {selectedProductIds.size > 0 && (
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined />}
-                      onClick={handleMarkAsRead}
-                      loading={markingAsRead}
-                    >
-                      已阅 ({selectedProductIds.size})
-                    </Button>
-                  )}
-                </Space>
-              </Col>
-              <Col>
-                <Tooltip title="配置字段">
-                  <Button
-                    icon={<SettingOutlined />}
-                    onClick={() => setFieldConfigVisible(true)}
-                  />
-                </Tooltip>
-              </Col>
-            </Row>
-          )}
-
-          {/* 商品列表 - CSS Grid布局 */}
-          <Spin spinning={productsLoading && currentPage === 1}>
-            {profitableProducts.length > 0 ? (
-              <>
-                <div className={styles.productGrid}>
-                  {profitableProducts.map((product) => (
-                    <div key={product.id}>
-                      {renderProductCard(product)}
-                    </div>
-                  ))}
-                </div>
-                {/* 加载更多提示 */}
-                {isLoadingMore && (
-                  <div className={styles.loadingMore}>
-                    <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
-                    <Text type="secondary" style={{ marginLeft: 12 }}>加载中...</Text>
-                  </div>
-                )}
-                {/* 已加载完所有数据 */}
-                {!hasMoreData && profitableProducts.length > 0 && (
-                  <div className={styles.loadingMore}>
-                    <Text type="secondary">已显示全部 {profitableProducts.length} 件商品</Text>
-                  </div>
-                )}
-              </>
-            ) : (
-              <Empty description="暂无商品数据" />
-            )}
-          </Spin>
-              </>
-            )
-          },
-          {
-            key: 'import',
-            label: <span><UploadOutlined /> 数据导入</span>,
-            children: (
-          <Card>
-            <Space direction="vertical" size="large" className={styles.fullWidthInput}>
-              <Alert
-                message="导入说明"
-                description={
-                  <div>
-                    <p>1. 支持 Excel (.xlsx) 和 CSV (.csv) 文件格式</p>
-                    <p>2. 文件需包含必要列：商品ID、商品名称等</p>
-                    <p>3. 系统会自动进行数据清洗和格式转换</p>
-                    <p>4. 导入策略：以"商品名称+商品ID"作为唯一标识，存在则更新，不存在则追加</p>
-                  </div>
-                }
-                type="info"
-                showIcon
-              />
-
-              <Upload.Dragger
-                fileList={fileList}
-                beforeUpload={handleBeforeUpload}
-                onRemove={() => setFileList([])}
-                accept=".csv,.xlsx,.xls"
-                maxCount={1}
-              >
-                <p className="ant-upload-drag-icon">
-                  <FileExcelOutlined className={styles.uploadIcon} />
-                </p>
-                <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-                <p className="ant-upload-hint">
-                  支持 Excel 和 CSV 文件，文件大小不超过 10MB
-                </p>
-              </Upload.Dragger>
-
-              <Divider />
-
-              <Alert
-                message="数据管理"
-                description="如需重新开始，可以清空所有当前账号的选品数据"
-                type="warning"
-                showIcon
-                action={
-                  <Button
-                    danger
-                    type="text"
-                    icon={<DeleteOutlined />}
-                    onClick={handleClearData}
-                    loading={clearDataMutation.isPending}
-                  >
-                    清空所有数据
-                  </Button>
-                }
-              />
-            </Space>
-          </Card>
-            )
-          },
-          {
-            key: 'history',
-            label: <span><HistoryOutlined /> 导入历史</span>,
-            children: (
-          <Table
-            dataSource={historyData?.data?.items}
-            rowKey="id"
-            pagination={{
-              current: historyPage,
-              pageSize: 10,
-              total: historyData?.data?.total,
-              onChange: (page) => setHistoryPage(page),
-            }}
-            columns={[
-              {
-                title: '文件名',
-                dataIndex: 'file_name',
-                key: 'file_name',
-              },
-              {
-                title: '批次链接',
-                dataIndex: 'id',
-                key: 'batch_link',
-                render: (id: number, record: api.ImportHistory) => (
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<LinkOutlined />}
-                    onClick={() => {
-                      // 切换到商品搜索标签并设置批次过滤
-                      setActiveTab('search');
-                      setSearchParams({ batch_id: id });
-                      setCurrentPage(1);
-                      setAllProducts([]);
-                      setHasMoreData(true);
-                      setPageSize(initialPageSize);
-                      // 更新URL
-                      window.history.pushState({}, '', `?batch_id=${id}`);
-                    }}
-                  >
-                    查看批次 #{id}
-                  </Button>
-                ),
-              },
-              {
-                title: '导入时间',
-                dataIndex: 'import_time',
-                key: 'import_time',
-                render: (time: string) => new Date(time).toLocaleString('zh-CN'),
-              },
-              {
-                title: '导入策略',
-                dataIndex: 'import_strategy',
-                key: 'import_strategy',
-                render: (strategy: string) => {
-                  const map: Record<string, string> = {
-                    skip: '跳过重复',
-                    update: '更新已有',
-                    append: '追加记录',
-                  };
-                  return map[strategy] || strategy;
-                },
-              },
-              {
-                title: '总行数',
-                dataIndex: 'total_rows',
-                key: 'total_rows',
-              },
-              {
-                title: '成功',
-                dataIndex: 'success_rows',
-                key: 'success_rows',
-                render: (val: number) => <Tag color="success">{val}</Tag>,
-              },
-              {
-                title: '更新',
-                dataIndex: 'updated_rows',
-                key: 'updated_rows',
-                render: (val: number) => val > 0 && <Tag color="blue">{val}</Tag>,
-              },
-              {
-                title: '跳过',
-                dataIndex: 'skipped_rows',
-                key: 'skipped_rows',
-                render: (val: number) => val > 0 && <Tag color="warning">{val}</Tag>,
-              },
-              {
-                title: '失败',
-                dataIndex: 'failed_rows',
-                key: 'failed_rows',
-                render: (val: number) => val > 0 && <Tag color="error">{val}</Tag>,
-              },
-              {
-                title: '耗时',
-                dataIndex: 'process_duration',
-                key: 'process_duration',
-                render: (val: number) => `${val}秒`,
-              },
-            ]}
-          />
-            )
-          },
-          {
-            key: 'guide',
-            label: <span><BookOutlined /> 使用指南</span>,
-            children: (
-              <Space direction="vertical" size="large" className={styles.fullWidthInput}>
-                {/* 工具介绍 */}
-                <Card>
-                  <Title level={4}>
-                    <RocketOutlined /> Ozon选品助手
-                  </Title>
-                  <Paragraph>
-                    智能采集Ozon商品数据的浏览器工具，支持<Text strong>上品帮</Text>和<Text strong>毛子ERP</Text>数据源融合，自动滚动、虚拟列表适配、自动上传到EuraFlow平台。
-                  </Paragraph>
-                  <Alert
-                    message="推荐使用浏览器扩展"
-                    description="浏览器扩展版本更稳定、功能更强大，支持智能数据融合，推荐优先使用。"
-                    type="success"
-                    showIcon
-                  />
-                </Card>
-
-                {/* 方式选择 */}
-                <Card>
-                  <Title level={4}>选择安装方式</Title>
-                  <Tabs
-                    defaultActiveKey="extension"
-                    items={[
-                      {
-                        key: 'extension',
-                        label: <span><RocketOutlined /> 方式一：浏览器扩展（推荐）</span>,
-                        children: (
-                          <Space direction="vertical" size="large" className={styles.fullWidthInput}>
-                            <Alert
-                              message="✨ 推荐使用"
-                              description="支持上品帮和毛子ERP数据融合，智能选择最优数据，更稳定、功能更强大。"
-                              type="success"
-                              showIcon
+                        <Col>
+                          <Form.Item
+                            label="上架晚于"
+                            name="listing_date"
+                            style={{ marginBottom: 0 }}
+                          >
+                            <DatePicker
+                              style={{ width: '110px' }}
+                              format="YYYY-MM-DD"
+                              placeholder="选择日期"
                             />
+                          </Form.Item>
+                        </Col>
 
-                            {/* 功能特性 */}
-                            <Card title="✨ 核心特性" size="small">
-                              <Row gutter={[16, 16]}>
-                                <Col span={12}>
-                                  <Alert
-                                    message="智能数据融合"
-                                    description="自动从上品帮和毛子ERP提取数据，数值取最大值，品牌优先毛子ERP"
-                                    type="info"
-                                    showIcon
-                                  />
-                                </Col>
-                                <Col span={12}>
-                                  <Alert
-                                    message="自适应降级"
-                                    description="仅一个工具可用时自动降级为单源模式，确保功能可用"
-                                    type="info"
-                                    showIcon
-                                  />
-                                </Col>
-                                <Col span={12}>
-                                  <Alert
-                                    message="虚拟滚动支持"
-                                    description="完全适配OZON的虚拟滚动机制，采集更稳定"
-                                    type="info"
-                                    showIcon
-                                  />
-                                </Col>
-                                <Col span={12}>
-                                  <Alert
-                                    message="自动上传"
-                                    description="采集完成后自动上传到EuraFlow，无需手动导出"
-                                    type="info"
-                                    showIcon
-                                  />
-                                </Col>
-                              </Row>
-                            </Card>
+                        <Col flex="auto" style={{ minWidth: '150px' }}>
+                          <Form.Item label="排序" name="sort_by">
+                            <Select placeholder="最早导入" style={{ width: '100%' }}>
+                              <Option value="created_asc">最早导入</Option>
+                              <Option value="created_desc">最新导入</Option>
+                              <Option value="sales_desc">销量↓</Option>
+                              <Option value="sales_asc">销量↑</Option>
+                              <Option value="weight_asc">重量↑</Option>
+                              <Option value="price_asc">价格↑</Option>
+                              <Option value="price_desc">价格↓</Option>
+                            </Select>
+                          </Form.Item>
+                        </Col>
 
-                            {/* 安装步骤 */}
-                            <Card title="📥 安装步骤" size="small">
-                              <Steps
-                                direction="vertical"
-                                current={-1}
-                                items={[
-                                  {
-                                    title: '下载扩展包',
-                                    description: (
-                                      <Space direction="vertical">
+                        <Col>
+                          <Form.Item label="月销量" style={{ marginBottom: 0 }}>
+                            <Space.Compact>
+                              <Form.Item name="monthly_sales_min" noStyle>
+                                <InputNumber
+                                  min={0}
+                                  controls={false}
+                                  style={{ width: '70px' }}
+                                  placeholder="最小"
+                                />
+                              </Form.Item>
+                              <Form.Item name="monthly_sales_max" noStyle>
+                                <InputNumber
+                                  min={0}
+                                  controls={false}
+                                  style={{ width: '70px' }}
+                                  placeholder="最大"
+                                />
+                              </Form.Item>
+                            </Space.Compact>
+                          </Form.Item>
+                        </Col>
+
+                        <Col>
+                          <Form.Item label="重量≤" name="weight_max" style={{ marginBottom: 0 }}>
+                            <InputNumber
+                              min={0}
+                              controls={false}
+                              style={{ width: '70px' }}
+                              placeholder="g"
+                              suffix="g"
+                            />
+                          </Form.Item>
+                        </Col>
+
+                        <Col>
+                          <Form.Item label="跟卖者数量" style={{ marginBottom: 0 }}>
+                            <Space.Compact>
+                              <Form.Item name="competitor_count_min" noStyle>
+                                <InputNumber
+                                  min={0}
+                                  controls={false}
+                                  style={{ width: '70px' }}
+                                  placeholder="最小"
+                                />
+                              </Form.Item>
+                              <Form.Item name="competitor_count_max" noStyle>
+                                <InputNumber
+                                  min={0}
+                                  controls={false}
+                                  style={{ width: '70px' }}
+                                  placeholder="最大"
+                                />
+                              </Form.Item>
+                            </Space.Compact>
+                          </Form.Item>
+                        </Col>
+
+                        <Col>
+                          <Form.Item label="最低跟卖价" style={{ marginBottom: 0 }}>
+                            <Space.Compact>
+                              <Form.Item name="competitor_min_price_min" noStyle>
+                                <InputNumber
+                                  min={0}
+                                  controls={false}
+                                  style={{ width: '70px' }}
+                                  placeholder={`最小`}
+                                />
+                              </Form.Item>
+                              <Form.Item name="competitor_min_price_max" noStyle>
+                                <InputNumber
+                                  min={0}
+                                  controls={false}
+                                  style={{ width: '70px' }}
+                                  placeholder={`最大`}
+                                />
+                              </Form.Item>
+                            </Space.Compact>
+                          </Form.Item>
+                        </Col>
+
+                        {/* 成本计算参数（不参与搜索筛选） */}
+                        <Col>
+                          <Space.Compact>
+                            <InputNumber
+                              value={targetProfitRate}
+                              onChange={(val) => setTargetProfitRate((val as number) || 20)}
+                              min={0}
+                              max={100}
+                              formatter={getNumberFormatter(2)}
+                              parser={getNumberParser()}
+                              controls={false}
+                              addonBefore="利润率"
+                              addonAfter="%"
+                              style={{ width: '150px' }}
+                            />
+                          </Space.Compact>
+                        </Col>
+
+                        <Col>
+                          <Space.Compact>
+                            <InputNumber
+                              value={packingFee}
+                              onChange={(val) => setPackingFee(val || 2)}
+                              min={0}
+                              precision={1}
+                              controls={false}
+                              addonBefore="打包费"
+                              addonAfter="RMB"
+                              style={{ width: '150px' }}
+                            />
+                          </Space.Compact>
+                        </Col>
+
+                        <Col span={24}>
+                          <Space>
+                            <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
+                              搜索
+                            </Button>
+                            <Button onClick={handleReset} icon={<ReloadOutlined />}>
+                              重置
+                            </Button>
+                            <Checkbox
+                              checked={rememberFilters}
+                              onChange={(e) => setRememberFilters(e.target.checked)}
+                            >
+                              记住我的选择
+                            </Checkbox>
+                          </Space>
+                        </Col>
+                      </Row>
+                    </Form>
+                  </Card>
+
+                  {/* 搜索结果统计和配置按钮 */}
+                  {productsData?.data && (
+                    <Row justify="space-between" align="middle" className={styles.searchStats}>
+                      <Col>
+                        <Space>
+                          <Text>
+                            已加载 <Text strong>{profitableProducts.length}</Text> /{' '}
+                            {productsData.data.total} 件商品
+                          </Text>
+                          {selectedProductIds.size > 0 && (
+                            <Button
+                              type="primary"
+                              icon={<CheckCircleOutlined />}
+                              onClick={handleMarkAsRead}
+                              loading={markingAsRead}
+                            >
+                              已阅 ({selectedProductIds.size})
+                            </Button>
+                          )}
+                        </Space>
+                      </Col>
+                      <Col>
+                        <Tooltip title="配置字段">
+                          <Button
+                            icon={<SettingOutlined />}
+                            onClick={() => setFieldConfigVisible(true)}
+                          />
+                        </Tooltip>
+                      </Col>
+                    </Row>
+                  )}
+
+                  {/* 商品列表 - CSS Grid布局 */}
+                  <Spin spinning={productsLoading && currentPage === 1}>
+                    {profitableProducts.length > 0 ? (
+                      <>
+                        <div className={styles.productGrid}>
+                          {profitableProducts.map((product) => (
+                            <div key={product.id}>{renderProductCard(product)}</div>
+                          ))}
+                        </div>
+                        {/* 加载更多提示 */}
+                        {isLoadingMore && (
+                          <div className={styles.loadingMore}>
+                            <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+                            <Text type="secondary" style={{ marginLeft: 12 }}>
+                              加载中...
+                            </Text>
+                          </div>
+                        )}
+                        {/* 已加载完所有数据 */}
+                        {!hasMoreData && profitableProducts.length > 0 && (
+                          <div className={styles.loadingMore}>
+                            <Text type="secondary">
+                              已显示全部 {profitableProducts.length} 件商品
+                            </Text>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <Empty description="暂无商品数据" />
+                    )}
+                  </Spin>
+                </>
+              ),
+            },
+            {
+              key: 'import',
+              label: (
+                <span>
+                  <UploadOutlined /> 数据导入
+                </span>
+              ),
+              children: (
+                <Card>
+                  <Space direction="vertical" size="large" className={styles.fullWidthInput}>
+                    <Alert
+                      message="导入说明"
+                      description={
+                        <div>
+                          <p>1. 支持 Excel (.xlsx) 和 CSV (.csv) 文件格式</p>
+                          <p>2. 文件需包含必要列：商品ID、商品名称等</p>
+                          <p>3. 系统会自动进行数据清洗和格式转换</p>
+                          <p>
+                            4. 导入策略：以"商品名称+商品ID"作为唯一标识，存在则更新，不存在则追加
+                          </p>
+                        </div>
+                      }
+                      type="info"
+                      showIcon
+                    />
+
+                    <Upload.Dragger
+                      fileList={fileList}
+                      beforeUpload={handleBeforeUpload}
+                      onRemove={() => setFileList([])}
+                      accept=".csv,.xlsx,.xls"
+                      maxCount={1}
+                    >
+                      <p className="ant-upload-drag-icon">
+                        <FileExcelOutlined className={styles.uploadIcon} />
+                      </p>
+                      <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+                      <p className="ant-upload-hint">支持 Excel 和 CSV 文件，文件大小不超过 10MB</p>
+                    </Upload.Dragger>
+
+                    <Divider />
+
+                    <Alert
+                      message="数据管理"
+                      description="如需重新开始，可以清空所有当前账号的选品数据"
+                      type="warning"
+                      showIcon
+                      action={
+                        <Button
+                          danger
+                          type="text"
+                          icon={<DeleteOutlined />}
+                          onClick={handleClearData}
+                          loading={clearDataMutation.isPending}
+                        >
+                          清空所有数据
+                        </Button>
+                      }
+                    />
+                  </Space>
+                </Card>
+              ),
+            },
+            {
+              key: 'history',
+              label: (
+                <span>
+                  <HistoryOutlined /> 导入历史
+                </span>
+              ),
+              children: (
+                <Table
+                  dataSource={historyData?.data?.items}
+                  rowKey="id"
+                  pagination={{
+                    current: historyPage,
+                    pageSize: 10,
+                    total: historyData?.data?.total,
+                    onChange: (page) => setHistoryPage(page),
+                  }}
+                  columns={[
+                    {
+                      title: '文件名',
+                      dataIndex: 'file_name',
+                      key: 'file_name',
+                    },
+                    {
+                      title: '批次链接',
+                      dataIndex: 'id',
+                      key: 'batch_link',
+                      render: (id: number, record: api.ImportHistory) => (
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<LinkOutlined />}
+                          onClick={() => {
+                            // 切换到商品搜索标签并设置批次过滤
+                            setActiveTab('search');
+                            setSearchParams({ batch_id: id });
+                            setCurrentPage(1);
+                            setAllProducts([]);
+                            setHasMoreData(true);
+                            setPageSize(initialPageSize);
+                            // 更新URL
+                            window.history.pushState({}, '', `?batch_id=${id}`);
+                          }}
+                        >
+                          查看批次 #{id}
+                        </Button>
+                      ),
+                    },
+                    {
+                      title: '导入时间',
+                      dataIndex: 'import_time',
+                      key: 'import_time',
+                      render: (time: string) => new Date(time).toLocaleString('zh-CN'),
+                    },
+                    {
+                      title: '导入策略',
+                      dataIndex: 'import_strategy',
+                      key: 'import_strategy',
+                      render: (strategy: string) => {
+                        const map: Record<string, string> = {
+                          skip: '跳过重复',
+                          update: '更新已有',
+                          append: '追加记录',
+                        };
+                        return map[strategy] || strategy;
+                      },
+                    },
+                    {
+                      title: '总行数',
+                      dataIndex: 'total_rows',
+                      key: 'total_rows',
+                    },
+                    {
+                      title: '成功',
+                      dataIndex: 'success_rows',
+                      key: 'success_rows',
+                      render: (val: number) => <Tag color="success">{val}</Tag>,
+                    },
+                    {
+                      title: '更新',
+                      dataIndex: 'updated_rows',
+                      key: 'updated_rows',
+                      render: (val: number) => val > 0 && <Tag color="blue">{val}</Tag>,
+                    },
+                    {
+                      title: '跳过',
+                      dataIndex: 'skipped_rows',
+                      key: 'skipped_rows',
+                      render: (val: number) => val > 0 && <Tag color="warning">{val}</Tag>,
+                    },
+                    {
+                      title: '失败',
+                      dataIndex: 'failed_rows',
+                      key: 'failed_rows',
+                      render: (val: number) => val > 0 && <Tag color="error">{val}</Tag>,
+                    },
+                    {
+                      title: '耗时',
+                      dataIndex: 'process_duration',
+                      key: 'process_duration',
+                      render: (val: number) => `${val}秒`,
+                    },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: 'guide',
+              label: (
+                <span>
+                  <BookOutlined /> 使用指南
+                </span>
+              ),
+              children: (
+                <Space direction="vertical" size="large" className={styles.fullWidthInput}>
+                  {/* 工具介绍 */}
+                  <Card>
+                    <Title level={4}>
+                      <RocketOutlined /> Ozon选品助手
+                    </Title>
+                    <Paragraph>
+                      智能采集Ozon商品数据的浏览器工具，支持
+                      <Text strong>上品帮</Text>和<Text strong>毛子ERP</Text>
+                      数据源融合，自动滚动、虚拟列表适配、自动上传到EuraFlow平台。
+                    </Paragraph>
+                    <Alert
+                      message="推荐使用浏览器扩展"
+                      description="浏览器扩展版本更稳定、功能更强大，支持智能数据融合，推荐优先使用。"
+                      type="success"
+                      showIcon
+                    />
+                  </Card>
+
+                  {/* 方式选择 */}
+                  <Card>
+                    <Title level={4}>选择安装方式</Title>
+                    <Tabs
+                      defaultActiveKey="extension"
+                      items={[
+                        {
+                          key: 'extension',
+                          label: (
+                            <span>
+                              <RocketOutlined /> 方式一：浏览器扩展（推荐）
+                            </span>
+                          ),
+                          children: (
+                            <Space
+                              direction="vertical"
+                              size="large"
+                              className={styles.fullWidthInput}
+                            >
+                              <Alert
+                                message="✨ 推荐使用"
+                                description="支持上品帮和毛子ERP数据融合，智能选择最优数据，更稳定、功能更强大。"
+                                type="success"
+                                showIcon
+                              />
+
+                              {/* 功能特性 */}
+                              <Card title="✨ 核心特性" size="small">
+                                <Row gutter={[16, 16]}>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="智能数据融合"
+                                      description="自动从上品帮和毛子ERP提取数据，数值取最大值，品牌优先毛子ERP"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="自适应降级"
+                                      description="仅一个工具可用时自动降级为单源模式，确保功能可用"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="虚拟滚动支持"
+                                      description="完全适配OZON的虚拟滚动机制，采集更稳定"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="自动上传"
+                                      description="采集完成后自动上传到EuraFlow，无需手动导出"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                </Row>
+                              </Card>
+
+                              {/* 安装步骤 */}
+                              <Card title="📥 安装步骤" size="small">
+                                <Steps
+                                  direction="vertical"
+                                  current={-1}
+                                  items={[
+                                    {
+                                      title: '下载扩展包',
+                                      description: (
+                                        <Space direction="vertical">
+                                          <Button
+                                            type="primary"
+                                            icon={<DownloadOutlined />}
+                                            href="/downloads/euraflow-ozon-selector-v1.0.0.zip"
+                                            download
+                                          >
+                                            下载 euraflow-ozon-selector-v1.0.0.zip
+                                          </Button>
+                                          <Text type="secondary">扩展包大小：约 63 KB</Text>
+                                        </Space>
+                                      ),
+                                    },
+                                    {
+                                      title: '解压文件',
+                                      description: '将下载的 .zip 文件解压到任意目录',
+                                    },
+                                    {
+                                      title: '加载扩展',
+                                      description: (
+                                        <div>
+                                          <Paragraph>1. 打开 Chrome/Edge 浏览器</Paragraph>
+                                          <Paragraph>
+                                            2. 访问 <Text code>chrome://extensions/</Text>
+                                            （Edge: <Text code>edge://extensions/</Text>）
+                                          </Paragraph>
+                                          <Paragraph>3. 开启右上角的"开发者模式"</Paragraph>
+                                          <Paragraph>4. 点击"加载已解压的扩展程序"</Paragraph>
+                                          <Paragraph>
+                                            5. 选择解压后的 <Text code>dist/</Text> 目录
+                                          </Paragraph>
+                                        </div>
+                                      ),
+                                    },
+                                    {
+                                      title: '配置API',
+                                      description: (
+                                        <div>
+                                          <Paragraph>点击扩展图标，配置API连接信息：</Paragraph>
+                                          <Paragraph>
+                                            <Text strong>API地址：</Text>
+                                            <Text code>{window.location.origin}</Text>
+                                          </Paragraph>
+                                          <Paragraph>
+                                            <Text strong>API Key：</Text>
+                                            <Link href="/dashboard/ozon/api-keys">前往获取 →</Link>
+                                          </Paragraph>
+                                        </div>
+                                      ),
+                                    },
+                                  ]}
+                                />
+                              </Card>
+
+                              {/* 使用方法 */}
+                              <Card title="🚀 使用方法" size="small">
+                                <Timeline
+                                  items={[
+                                    {
+                                      children: '访问 https://www.ozon.ru 并搜索商品',
+                                      color: 'blue',
+                                    },
+                                    {
+                                      children: '确保上品帮或毛子ERP插件已安装并工作',
+                                      color: 'blue',
+                                    },
+                                    {
+                                      children: '页面右上角会出现控制面板',
+                                      color: 'blue',
+                                    },
+                                    {
+                                      children: '设置目标采集数量（默认100）',
+                                      color: 'green',
+                                    },
+                                    {
+                                      children: '点击"开始采集"按钮',
+                                      color: 'green',
+                                    },
+                                    {
+                                      children: '等待自动采集完成',
+                                      color: 'green',
+                                    },
+                                    {
+                                      children: '数据自动上传到EuraFlow',
+                                      color: 'green',
+                                    },
+                                  ]}
+                                />
+                              </Card>
+                            </Space>
+                          ),
+                        },
+                        {
+                          key: 'userscript',
+                          label: (
+                            <span>
+                              <CodeOutlined /> 方式二：用户脚本（旧版）
+                            </span>
+                          ),
+                          children: (
+                            <Space
+                              direction="vertical"
+                              size="large"
+                              className={styles.fullWidthInput}
+                            >
+                              <Alert
+                                message="⚠️ 旧版本"
+                                description="仅支持上品帮数据源，功能较基础。推荐使用浏览器扩展版本。"
+                                type="warning"
+                                showIcon
+                              />
+
+                              <Card title="📥 安装步骤" size="small">
+                                <Steps
+                                  direction="vertical"
+                                  current={-1}
+                                  items={[
+                                    {
+                                      title: '安装Tampermonkey',
+                                      description: (
+                                        <Space wrap>
+                                          <Link
+                                            href="https://www.tampermonkey.net/"
+                                            target="_blank"
+                                          >
+                                            <Button type="link" icon={<LinkOutlined />}>
+                                              Chrome/Edge - Tampermonkey
+                                            </Button>
+                                          </Link>
+                                          <Link
+                                            href="https://addons.mozilla.org/zh-CN/firefox/addon/greasemonkey/"
+                                            target="_blank"
+                                          >
+                                            <Button type="link" icon={<LinkOutlined />}>
+                                              Firefox - Greasemonkey
+                                            </Button>
+                                          </Link>
+                                        </Space>
+                                      ),
+                                    },
+                                    {
+                                      title: '下载用户脚本',
+                                      description: (
                                         <Button
                                           type="primary"
                                           icon={<DownloadOutlined />}
-                                          href="/downloads/euraflow-ozon-selector-v1.0.0.zip"
-                                          download
+                                          onClick={handleDownloadScript}
                                         >
-                                          下载 euraflow-ozon-selector-v1.0.0.zip
+                                          下载 ozon_product_selector.user.js
                                         </Button>
-                                        <Text type="secondary">扩展包大小：约 63 KB</Text>
-                                      </Space>
-                                    ),
-                                  },
-                                  {
-                                    title: '解压文件',
-                                    description: '将下载的 .zip 文件解压到任意目录',
-                                  },
-                                  {
-                                    title: '加载扩展',
-                                    description: (
-                                      <div>
-                                        <Paragraph>1. 打开 Chrome/Edge 浏览器</Paragraph>
-                                        <Paragraph>2. 访问 <Text code>chrome://extensions/</Text>（Edge: <Text code>edge://extensions/</Text>）</Paragraph>
-                                        <Paragraph>3. 开启右上角的"开发者模式"</Paragraph>
-                                        <Paragraph>4. 点击"加载已解压的扩展程序"</Paragraph>
-                                        <Paragraph>5. 选择解压后的 <Text code>dist/</Text> 目录</Paragraph>
-                                      </div>
-                                    ),
-                                  },
-                                  {
-                                    title: '配置API',
-                                    description: (
-                                      <div>
-                                        <Paragraph>点击扩展图标，配置API连接信息：</Paragraph>
-                                        <Paragraph><Text strong>API地址：</Text><Text code>{window.location.origin}</Text></Paragraph>
-                                        <Paragraph><Text strong>API Key：</Text><Link href="/dashboard/ozon/api-keys">前往获取 →</Link></Paragraph>
-                                      </div>
-                                    ),
-                                  },
-                                ]}
-                              />
-                            </Card>
+                                      ),
+                                    },
+                                    {
+                                      title: '安装脚本',
+                                      description:
+                                        '将下载的 .user.js 文件拖拽到浏览器，Tampermonkey会自动识别',
+                                    },
+                                  ]}
+                                />
+                              </Card>
+                            </Space>
+                          ),
+                        },
+                      ]}
+                    />
+                  </Card>
 
-                            {/* 使用方法 */}
-                            <Card title="🚀 使用方法" size="small">
-                              <Timeline
-                                items={[
-                                  { children: '访问 https://www.ozon.ru 并搜索商品', color: 'blue' },
-                                  { children: '确保上品帮或毛子ERP插件已安装并工作', color: 'blue' },
-                                  { children: '页面右上角会出现控制面板', color: 'blue' },
-                                  { children: '设置目标采集数量（默认100）', color: 'green' },
-                                  { children: '点击"开始采集"按钮', color: 'green' },
-                                  { children: '等待自动采集完成', color: 'green' },
-                                  { children: '数据自动上传到EuraFlow', color: 'green' },
-                                ]}
-                              />
-                            </Card>
-                          </Space>
-                        ),
-                      },
-                      {
-                        key: 'userscript',
-                        label: <span><CodeOutlined /> 方式二：用户脚本（旧版）</span>,
-                        children: (
-                          <Space direction="vertical" size="large" className={styles.fullWidthInput}>
-                            <Alert
-                              message="⚠️ 旧版本"
-                              description="仅支持上品帮数据源，功能较基础。推荐使用浏览器扩展版本。"
-                              type="warning"
-                              showIcon
-                            />
+                  {/* 数据字段说明 */}
+                  <Card title="📊 采集字段说明">
+                    <Paragraph>
+                      选品助手会采集以下<Text strong>42个字段</Text>的商品数据：
+                    </Paragraph>
+                    <Row gutter={[8, 8]}>
+                      {[
+                        '商品ID',
+                        '商品名称',
+                        '商品链接',
+                        '商品图片',
+                        '品牌',
+                        '销售价格',
+                        '原价',
+                        '商品评分',
+                        '评价次数',
+                        'rFBS各档佣金',
+                        'FBP各档佣金',
+                        '月销量',
+                        '月销售额',
+                        '日销量',
+                        '日销售额',
+                        '包装重量',
+                        '包装尺寸',
+                        '商品体积',
+                        '跟卖者数量',
+                        '最低跟卖价',
+                        '成交率',
+                        '商品可用性',
+                        '广告费用份额',
+                        '配送时间',
+                        '卖家类型',
+                        '商品创建日期',
+                      ].map((field) => (
+                        <Col span={6} key={field}>
+                          <Tag color="blue">{field}</Tag>
+                        </Col>
+                      ))}
+                    </Row>
+                  </Card>
 
-                            <Card title="📥 安装步骤" size="small">
-                              <Steps
-                                direction="vertical"
-                                current={-1}
-                                items={[
-                                  {
-                                    title: '安装Tampermonkey',
-                                    description: (
-                                      <Space wrap>
-                                        <Link href="https://www.tampermonkey.net/" target="_blank">
-                                          <Button type="link" icon={<LinkOutlined />}>
-                                            Chrome/Edge - Tampermonkey
-                                          </Button>
-                                        </Link>
-                                        <Link href="https://addons.mozilla.org/zh-CN/firefox/addon/greasemonkey/" target="_blank">
-                                          <Button type="link" icon={<LinkOutlined />}>
-                                            Firefox - Greasemonkey
-                                          </Button>
-                                        </Link>
-                                      </Space>
-                                    ),
-                                  },
-                                  {
-                                    title: '下载用户脚本',
-                                    description: (
-                                      <Button
-                                        type="primary"
-                                        icon={<DownloadOutlined />}
-                                        onClick={handleDownloadScript}
-                                      >
-                                        下载 ozon_product_selector.user.js
-                                      </Button>
-                                    ),
-                                  },
-                                  {
-                                    title: '安装脚本',
-                                    description: '将下载的 .user.js 文件拖拽到浏览器，Tampermonkey会自动识别',
-                                  },
-                                ]}
-                              />
-                            </Card>
-                          </Space>
-                        ),
-                      },
-                    ]}
-                  />
-                </Card>
+                  {/* 常见问题 */}
+                  <Card title="❓ 常见问题">
+                    <Collapse
+                      items={[
+                        {
+                          key: 'faq-0',
+                          label: 'Q: 浏览器扩展和用户脚本有什么区别？',
+                          children: (
+                            <div>
+                              <Paragraph>
+                                <Text strong>浏览器扩展（推荐）：</Text>
+                              </Paragraph>
+                              <ul>
+                                <li>✅ 支持上品帮和毛子ERP数据融合，智能选择最优数据</li>
+                                <li>✅ 更稳定，无需依赖Tampermonkey</li>
+                                <li>✅ 功能更强大，适配性更好</li>
+                              </ul>
+                              <Paragraph>
+                                <Text strong>用户脚本（旧版）：</Text>
+                              </Paragraph>
+                              <ul>
+                                <li>仅支持上品帮数据源</li>
+                                <li>需要安装Tampermonkey</li>
+                                <li>功能较基础，推荐升级到扩展版本</li>
+                              </ul>
+                            </div>
+                          ),
+                        },
+                        {
+                          key: 'faq-1',
+                          label: 'Q: API连接测试失败？',
+                          children: (
+                            <div>
+                              <Paragraph>请检查以下几点：</Paragraph>
+                              <ul>
+                                <li>API地址是否正确（不要包含 /api 等路径）</li>
+                                <li>API Key是否有效（可在API Keys页面重新生成）</li>
+                                <li>网络是否通畅（检查VPN或代理设置）</li>
+                                <li>浏览器控制台是否有CORS错误</li>
+                              </ul>
+                            </div>
+                          ),
+                        },
+                        {
+                          key: 'faq-2',
+                          label: 'Q: 数据采集不完整或没有数据？',
+                          children: (
+                            <div>
+                              <Paragraph>请确认：</Paragraph>
+                              <ul>
+                                <li>
+                                  <Text strong>必须</Text>
+                                  安装上品帮或毛子ERP插件 - 扩展依赖这些工具提供的数据
+                                </li>
+                                <li>等待时间是否足够 - 默认滚动等待1秒，可在配置中调整</li>
+                                <li>检查浏览器控制台是否有错误信息</li>
+                                <li>确保在OZON商品列表页面使用（搜索结果或分类页面）</li>
+                              </ul>
+                            </div>
+                          ),
+                        },
+                        {
+                          key: 'faq-3',
+                          label: 'Q: 如何查看采集到的数据？',
+                          children: (
+                            <Paragraph>
+                              数据上传成功后，切换到"商品搜索"标签页即可查看和筛选导入的商品。
+                              您也可以在"导入历史"标签页查看每次导入的详细记录。
+                            </Paragraph>
+                          ),
+                        },
+                        {
+                          key: 'faq-4',
+                          label: 'Q: 扩展无法加载或报错？',
+                          children: (
+                            <div>
+                              <Paragraph>请尝试：</Paragraph>
+                              <ul>
+                                <li>确认已开启浏览器的"开发者模式"</li>
+                                <li>重新加载扩展：移除后重新添加</li>
+                                <li>检查是否选择了正确的dist/目录</li>
+                                <li>查看浏览器扩展管理页面的错误信息</li>
+                              </ul>
+                            </div>
+                          ),
+                        },
+                      ]}
+                    />
+                  </Card>
 
-                {/* 数据字段说明 */}
-                <Card title="📊 采集字段说明">
-                  <Paragraph>
-                    选品助手会采集以下<Text strong>42个字段</Text>的商品数据：
-                  </Paragraph>
-                  <Row gutter={[8, 8]}>
-                    {[
-                      '商品ID', '商品名称', '商品链接', '商品图片', '品牌',
-                      '销售价格', '原价', '商品评分', '评价次数',
-                      'rFBS各档佣金', 'FBP各档佣金',
-                      '月销量', '月销售额', '日销量', '日销售额',
-                      '包装重量', '包装尺寸', '商品体积',
-                      '跟卖者数量', '最低跟卖价',
-                      '成交率', '商品可用性', '广告费用份额',
-                      '配送时间', '卖家类型', '商品创建日期',
-                    ].map((field) => (
-                      <Col span={6} key={field}>
-                        <Tag color="blue">{field}</Tag>
-                      </Col>
-                    ))}
-                  </Row>
-                </Card>
-
-                {/* 常见问题 */}
-                <Card title="❓ 常见问题">
-                  <Collapse
-                    items={[
-                      {
-                        key: 'faq-0',
-                        label: 'Q: 浏览器扩展和用户脚本有什么区别？',
-                        children: (
-                          <div>
-                            <Paragraph><Text strong>浏览器扩展（推荐）：</Text></Paragraph>
-                            <ul>
-                              <li>✅ 支持上品帮和毛子ERP数据融合，智能选择最优数据</li>
-                              <li>✅ 更稳定，无需依赖Tampermonkey</li>
-                              <li>✅ 功能更强大，适配性更好</li>
-                            </ul>
-                            <Paragraph><Text strong>用户脚本（旧版）：</Text></Paragraph>
-                            <ul>
-                              <li>仅支持上品帮数据源</li>
-                              <li>需要安装Tampermonkey</li>
-                              <li>功能较基础，推荐升级到扩展版本</li>
-                            </ul>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'faq-1',
-                        label: 'Q: API连接测试失败？',
-                        children: (
-                          <div>
-                            <Paragraph>请检查以下几点：</Paragraph>
-                            <ul>
-                              <li>API地址是否正确（不要包含 /api 等路径）</li>
-                              <li>API Key是否有效（可在API Keys页面重新生成）</li>
-                              <li>网络是否通畅（检查VPN或代理设置）</li>
-                              <li>浏览器控制台是否有CORS错误</li>
-                            </ul>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'faq-2',
-                        label: 'Q: 数据采集不完整或没有数据？',
-                        children: (
-                          <div>
-                            <Paragraph>请确认：</Paragraph>
-                            <ul>
-                              <li><Text strong>必须</Text>安装上品帮或毛子ERP插件 - 扩展依赖这些工具提供的数据</li>
-                              <li>等待时间是否足够 - 默认滚动等待1秒，可在配置中调整</li>
-                              <li>检查浏览器控制台是否有错误信息</li>
-                              <li>确保在OZON商品列表页面使用（搜索结果或分类页面）</li>
-                            </ul>
-                          </div>
-                        ),
-                      },
-                      {
-                        key: 'faq-3',
-                        label: 'Q: 如何查看采集到的数据？',
-                        children: (
+                  {/* 技术支持 */}
+                  <Card>
+                    <Alert
+                      message="需要帮助？"
+                      description={
+                        <div>
                           <Paragraph>
-                            数据上传成功后，切换到"商品搜索"标签页即可查看和筛选导入的商品。
-                            您也可以在"导入历史"标签页查看每次导入的详细记录。
+                            如果遇到问题或需要技术支持，请联系管理员或查看项目文档。
                           </Paragraph>
-                        ),
-                      },
-                      {
-                        key: 'faq-4',
-                        label: 'Q: 扩展无法加载或报错？',
-                        children: (
-                          <div>
-                            <Paragraph>请尝试：</Paragraph>
-                            <ul>
-                              <li>确认已开启浏览器的"开发者模式"</li>
-                              <li>重新加载扩展：移除后重新添加</li>
-                              <li>检查是否选择了正确的dist/目录</li>
-                              <li>查看浏览器扩展管理页面的错误信息</li>
-                            </ul>
-                          </div>
-                        ),
-                      },
-                    ]}
-                  />
-                </Card>
+                          <Paragraph>
+                            <Text type="secondary">
+                              浏览器扩展版本：v1.0.0 | 用户脚本版本：v4.3 | 更新时间：2024-10-18
+                            </Text>
+                          </Paragraph>
+                        </div>
+                      }
+                      type="info"
+                      showIcon
+                      icon={<QuestionCircleOutlined />}
+                    />
+                  </Card>
+                </Space>
+              ),
+            },
+          ]}
+        />
 
-                {/* 技术支持 */}
-                <Card>
-                  <Alert
-                    message="需要帮助？"
-                    description={
-                      <div>
-                        <Paragraph>
-                          如果遇到问题或需要技术支持，请联系管理员或查看项目文档。
-                        </Paragraph>
-                        <Paragraph>
-                          <Text type="secondary">
-                            浏览器扩展版本：v1.0.0 | 用户脚本版本：v4.3 | 更新时间：2024-10-18
-                          </Text>
-                        </Paragraph>
-                      </div>
-                    }
-                    type="info"
-                    showIcon
-                    icon={<QuestionCircleOutlined />}
-                  />
-                </Card>
-              </Space>
-            )
-          }
-        ]}
-      />
-
-      {/* 跟卖者列表弹窗 */}
-      <Modal
-        title="跟卖者列表"
-        open={competitorModalVisible}
-        onCancel={() => setCompetitorModalVisible(false)}
-        footer={[
-          <Button key="close" onClick={() => setCompetitorModalVisible(false)}>
-            关闭
-          </Button>
-        ]}
-        width={600}
-      >
-        {selectedProductCompetitors && (
-          <div>
-            <div className={styles.competitorModalHeader}>
-              <Text strong>{selectedProductCompetitors.product_name_cn || selectedProductCompetitors.product_name_ru}</Text>
-            </div>
-            <Alert
-              message={`共发现 ${selectedProductCompetitors.competitor_count || 0} 个跟卖者`}
-              type="info"
-              className={styles.competitorModalAlert}
-            />
-            <div className={styles.competitorModalContent}>
-              {selectedProductCompetitors.competitor_min_price ? (
-                <>
-                  <Text type="secondary">跟卖者数据已从选品导入中获取</Text>
-                  <div className={styles.competitorMinPrice}>
-                    <Text>最低跟卖价: </Text>
-                    <Text strong className={styles.competitorMinPriceValue}>
-                      {userSymbol}{formatPrice(selectedProductCompetitors.competitor_min_price)}
-                    </Text>
-                  </div>
-                </>
-              ) : (
-                <Text type="secondary">暂无跟卖者价格数据</Text>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* 商品图片浏览 */}
-      <ImagePreview
-        images={selectedProductImages}
-        visible={imageModalVisible}
-        initialIndex={currentImageIndex}
-        onClose={() => setImageModalVisible(false)}
-      />
-
-      {/* 字段配置Modal */}
-      <FieldConfigModal
-        visible={fieldConfigVisible}
-        fieldConfig={fieldConfig}
-        onFieldConfigChange={setFieldConfig}
-        onSave={saveFieldConfig}
-        onReset={resetFieldConfig}
-        onCancel={() => setFieldConfigVisible(false)}
-      />
-
-      {/* 导入预览和确认弹窗 */}
-      <Modal
-        title="导入预览"
-        open={importModalVisible}
-        onOk={handleImport}
-        onCancel={() => {
-          setImportModalVisible(false);
-          setPreviewData(null);
-        }}
-        confirmLoading={importLoading}
-        width={800}
-      >
-        {previewData && (
-          <Space direction="vertical" size="middle" className={styles.fullWidthInput}>
-            <Alert
-              message={`文件包含 ${previewData.total_rows} 行数据`}
-              type="info"
-            />
-
+        {/* 跟卖者列表弹窗 */}
+        <Modal
+          title="跟卖者列表"
+          open={competitorModalVisible}
+          onCancel={() => setCompetitorModalVisible(false)}
+          footer={[
+            <Button key="close" onClick={() => setCompetitorModalVisible(false)}>
+              关闭
+            </Button>,
+          ]}
+          width={600}
+        >
+          {selectedProductCompetitors && (
             <div>
-              <Text strong>导入策略：</Text>
-              <Select
-                value={importStrategy}
-                onChange={setImportStrategy}
-                className={styles.importStrategySelector}
-              >
-                <Option value="skip">跳过重复记录</Option>
-                <Option value="update">更新已有记录</Option>
-                <Option value="append">追加为新记录</Option>
-              </Select>
-            </div>
-
-            <div>
-              <Text strong>数据预览（前5行）：</Text>
-              <div className={styles.dataPreview}>
-                <pre>
-                  {JSON.stringify(previewData.preview?.slice(0, 5), null, 2)}
-                </pre>
+              <div className={styles.competitorModalHeader}>
+                <Text strong>
+                  {selectedProductCompetitors.product_name_cn ||
+                    selectedProductCompetitors.product_name_ru}
+                </Text>
+              </div>
+              <Alert
+                message={`共发现 ${selectedProductCompetitors.competitor_count || 0} 个跟卖者`}
+                type="info"
+                className={styles.competitorModalAlert}
+              />
+              <div className={styles.competitorModalContent}>
+                {selectedProductCompetitors.competitor_min_price ? (
+                  <>
+                    <Text type="secondary">跟卖者数据已从选品导入中获取</Text>
+                    <div className={styles.competitorMinPrice}>
+                      <Text>最低跟卖价: </Text>
+                      <Text strong className={styles.competitorMinPriceValue}>
+                        {userSymbol}
+                        {formatPrice(selectedProductCompetitors.competitor_min_price)}
+                      </Text>
+                    </div>
+                  </>
+                ) : (
+                  <Text type="secondary">暂无跟卖者价格数据</Text>
+                )}
               </div>
             </div>
-          </Space>
-        )}
-      </Modal>
-    </Card>
+          )}
+        </Modal>
+
+        {/* 商品图片浏览 */}
+        <ImagePreview
+          images={selectedProductImages}
+          visible={imageModalVisible}
+          initialIndex={currentImageIndex}
+          onClose={() => setImageModalVisible(false)}
+        />
+
+        {/* 字段配置Modal */}
+        <FieldConfigModal
+          visible={fieldConfigVisible}
+          fieldConfig={fieldConfig}
+          onFieldConfigChange={setFieldConfig}
+          onSave={saveFieldConfig}
+          onReset={resetFieldConfig}
+          onCancel={() => setFieldConfigVisible(false)}
+        />
+
+        {/* 导入预览和确认弹窗 */}
+        <Modal
+          title="导入预览"
+          open={importModalVisible}
+          onOk={handleImport}
+          onCancel={() => {
+            setImportModalVisible(false);
+            setPreviewData(null);
+          }}
+          confirmLoading={importLoading}
+          width={800}
+        >
+          {previewData && (
+            <Space direction="vertical" size="middle" className={styles.fullWidthInput}>
+              <Alert message={`文件包含 ${previewData.total_rows} 行数据`} type="info" />
+
+              <div>
+                <Text strong>导入策略：</Text>
+                <Select
+                  value={importStrategy}
+                  onChange={setImportStrategy}
+                  className={styles.importStrategySelector}
+                >
+                  <Option value="skip">跳过重复记录</Option>
+                  <Option value="update">更新已有记录</Option>
+                  <Option value="append">追加为新记录</Option>
+                </Select>
+              </div>
+
+              <div>
+                <Text strong>数据预览（前5行）：</Text>
+                <div className={styles.dataPreview}>
+                  <pre>{JSON.stringify(previewData.preview?.slice(0, 5), null, 2)}</pre>
+                </div>
+              </div>
+            </Space>
+          )}
+        </Modal>
+      </Card>
     </div>
   );
 };

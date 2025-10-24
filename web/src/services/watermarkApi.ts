@@ -157,10 +157,7 @@ export async function createWatermarkConfig(
   formData.append('margin_pixels', (options?.margin_pixels || 20).toString());
   formData.append('positions', JSON.stringify(options?.positions || DEFAULT_POSITIONS));
 
-  const response = await axios.post<WatermarkConfig>(
-    '/api/ef/v1/ozon/watermark/configs',
-    formData
-  );
+  const response = await axios.post<WatermarkConfig>('/api/ef/v1/ozon/watermark/configs', formData);
   return response.data;
 }
 
@@ -168,9 +165,7 @@ export async function createWatermarkConfig(
  * 获取水印配置列表
  */
 export async function getWatermarkConfigs() {
-  const response = await axios.get<WatermarkConfig[]>(
-    '/api/ef/v1/ozon/watermark/configs'
-  );
+  const response = await axios.get<WatermarkConfig[]>('/api/ef/v1/ozon/watermark/configs');
   return response.data;
 }
 
@@ -207,9 +202,7 @@ export async function updateWatermarkConfig(
  * 删除水印配置
  */
 export async function deleteWatermarkConfig(configId: number) {
-  const response = await axios.delete(
-    `/api/ef/v1/ozon/watermark/configs/${configId}`
-  );
+  const response = await axios.delete(`/api/ef/v1/ozon/watermark/configs/${configId}`);
   return response.data;
 }
 
@@ -230,7 +223,7 @@ export async function previewWatermark(
   }>('/api/ef/v1/ozon/watermark/preview', {
     image_url: imageUrl,
     watermark_config_id: watermarkConfigId,
-    position
+    position,
   });
   return response.data;
 }
@@ -266,7 +259,7 @@ export async function previewWatermarkBatch(
     shop_id: shopId,
     product_ids: productIds,
     watermark_config_id: watermarkConfigId,
-    analyze_each: analyzeEach
+    analyze_each: analyzeEach,
   });
   return response.data;
 }
@@ -280,9 +273,9 @@ export async function applyWatermarkBatch(
   shopId: number,
   productIds: number[],
   watermarkConfigId: number,
-  syncMode: boolean = true,  // 默认使用同步模式
-  analyzeMode: 'individual' | 'fast' = 'individual',  // 默认使用精准模式
-  positionOverrides?: Record<string, Record<string, string>>  // 手动选择的位置 {productId: {imageIndex: position}}
+  syncMode: boolean = true, // 默认使用同步模式
+  analyzeMode: 'individual' | 'fast' = 'individual', // 默认使用精准模式
+  positionOverrides?: Record<string, Record<string, string>> // 手动选择的位置 {productId: {imageIndex: position}}
 ) {
   const response = await axios.post<{
     success: boolean;
@@ -296,7 +289,7 @@ export async function applyWatermarkBatch(
     shop_id: shopId,
     product_ids: productIds,
     watermark_config_id: watermarkConfigId,
-    position_overrides: positionOverrides
+    position_overrides: positionOverrides,
   });
   return response.data;
 }
@@ -304,10 +297,7 @@ export async function applyWatermarkBatch(
 /**
  * 批量还原原图
  */
-export async function restoreOriginalBatch(
-  shopId: number,
-  productIds: number[]
-) {
+export async function restoreOriginalBatch(shopId: number, productIds: number[]) {
   const response = await axios.post<{
     success: boolean;
     batch_id: string;
@@ -315,7 +305,7 @@ export async function restoreOriginalBatch(
     message: string;
   }>('/api/ef/v1/ozon/watermark/batch/restore', {
     shop_id: shopId,
-    product_ids: productIds
+    product_ids: productIds,
   });
   return response.data;
 }
@@ -326,31 +316,24 @@ export async function restoreOriginalBatch(
  * 获取任务状态
  */
 export async function getTaskStatus(taskId: string) {
-  const response = await axios.get<WatermarkTask>(
-    `/api/ef/v1/ozon/watermark/tasks/${taskId}`
-  );
+  const response = await axios.get<WatermarkTask>(`/api/ef/v1/ozon/watermark/tasks/${taskId}`);
   return response.data;
 }
 
 /**
  * 获取任务列表
  */
-export async function getTasks(
-  options?: {
-    shop_id?: number;
-    batch_id?: string;
-    status?: string;
-    limit?: number;
-  }
-) {
-  const response = await axios.get<WatermarkTask[]>(
-    '/api/ef/v1/ozon/watermark/tasks',
-    {
-      params: {
-        ...options,
-      },
-    }
-  );
+export async function getTasks(options?: {
+  shop_id?: number;
+  batch_id?: string;
+  status?: string;
+  limit?: number;
+}) {
+  const response = await axios.get<WatermarkTask[]>('/api/ef/v1/ozon/watermark/tasks', {
+    params: {
+      ...options,
+    },
+  });
   return response.data;
 }
 
@@ -359,10 +342,7 @@ export async function getTasks(
 /**
  * 清理过期资源
  */
-export async function cleanupOldResources(
-  days: number = 30,
-  dryRun: boolean = false
-) {
+export async function cleanupOldResources(days: number = 30, dryRun: boolean = false) {
   const response = await axios.delete<{
     success: boolean;
     deleted?: string[];
@@ -374,7 +354,7 @@ export async function cleanupOldResources(
     params: {
       days,
       dry_run: dryRun,
-    }
+    },
   });
   return response.data;
 }
@@ -384,13 +364,11 @@ export async function cleanupOldResources(
 /**
  * 列出Cloudinary资源
  */
-export async function listCloudinaryResources(
-  options?: {
-    folder?: string;
-    max_results?: number;
-    next_cursor?: string;
-  }
-) {
+export async function listCloudinaryResources(options?: {
+  folder?: string;
+  max_results?: number;
+  next_cursor?: string;
+}) {
   const response = await axios.get<CloudinaryResourcesResponse>(
     '/api/ef/v1/ozon/watermark/resources',
     {
@@ -398,7 +376,7 @@ export async function listCloudinaryResources(
         folder: options?.folder,
         max_results: options?.max_results || 50,
         next_cursor: options?.next_cursor,
-      }
+      },
     }
   );
   return response.data;
@@ -416,8 +394,8 @@ export async function deleteCloudinaryResources(publicIds: string[]) {
     total_requested: number;
   }>('/api/ef/v1/ozon/watermark/resources', {
     data: {
-      public_ids: publicIds
-    }
+      public_ids: publicIds,
+    },
   });
   return response.data;
 }

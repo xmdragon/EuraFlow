@@ -18,7 +18,19 @@ import {
   PlusOutlined,
   AppstoreOutlined,
 } from '@ant-design/icons';
-import { Layout, Menu, Button, Avatar, Dropdown, Typography, Card, Row, Col, Space, Spin } from 'antd';
+import {
+  Layout,
+  Menu,
+  Button,
+  Avatar,
+  Dropdown,
+  Typography,
+  Card,
+  Row,
+  Col,
+  Space,
+  Spin,
+} from 'antd';
 import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
@@ -30,14 +42,22 @@ const Profile = lazy(() => import('./Profile'));
 const UserManagement = lazy(() => import('./UserManagement'));
 const ExchangeRateManagement = lazy(() => import('./ExchangeRateManagement'));
 
+import styles from './Dashboard.module.scss';
+
+import PageTitle from '@/components/PageTitle';
 import { useAuth } from '@/hooks/useAuth';
 import type { User } from '@/types/auth';
-import PageTitle from '@/components/PageTitle';
-import styles from './Dashboard.module.scss';
 
 // 加载中组件
 const PageLoading = () => (
-  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '400px',
+    }}
+  >
     <Spin size="large" />
   </div>
 );
@@ -199,12 +219,16 @@ const Dashboard: React.FC = () => {
         },
       ],
     },
-    ...(user?.role === 'admin' ? [{
-      key: 'users',
-      icon: <UserOutlined />,
-      label: '用户管理',
-      onClick: () => navigate('/dashboard/users'),
-    }] : []),
+    ...(user?.role === 'admin'
+      ? [
+          {
+            key: 'users',
+            icon: <UserOutlined />,
+            label: '用户管理',
+            onClick: () => navigate('/dashboard/users'),
+          },
+        ]
+      : []),
   ];
 
   // 根据路径获取选中的菜单项
@@ -266,9 +290,18 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className={collapsed ? styles.userProfileCollapsed : styles.userProfile}>
-          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow trigger={['click']}>
+          <Dropdown
+            menu={{ items: userMenuItems }}
+            placement="bottomRight"
+            arrow
+            trigger={['click']}
+          >
             <div className={styles.userInfo}>
-              <Avatar className={styles.userAvatar} size={collapsed ? 36 : 40} icon={<UserOutlined />} />
+              <Avatar
+                className={styles.userAvatar}
+                size={collapsed ? 36 : 40}
+                icon={<UserOutlined />}
+              />
               {!collapsed && (
                 <div className={styles.userDetails}>
                   <p className={styles.username}>{user?.username || '未设置'}</p>
@@ -331,44 +364,44 @@ const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
 
       <Card>
         <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <Title level={2} style={{ marginBottom: 40 }}>
-              欢迎使用 EuraFlow 跨境电商管理平台
-            </Title>
+          <Title level={2} style={{ marginBottom: 40 }}>
+            欢迎使用 EuraFlow 跨境电商管理平台
+          </Title>
 
-            <Row gutter={[16, 24]} justify="center">
-              <Col xs={24} sm={12} md={8}>
-                <Card type="inner">
-                  <p style={{ marginBottom: 8, color: '#999' }}>账户角色</p>
-                  <p style={{ fontSize: 18, fontWeight: 'bold' }}>{user?.role || '未设置'}</p>
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} md={8}>
-                <Card type="inner">
-                  <p style={{ marginBottom: 8, color: '#999' }}>账户状态</p>
-                  <p
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 'bold',
-                      color: user?.is_active ? '#52c41a' : '#f5222d',
-                    }}
-                  >
-                    {user?.is_active ? '活跃' : '未激活'}
-                  </p>
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} md={8}>
-                <Card type="inner">
-                  <p style={{ marginBottom: 8, color: '#999' }}>最后登录</p>
-                  <p style={{ fontSize: 16, fontWeight: 'bold' }}>
-                    {user?.last_login_at
-                      ? new Date(user.last_login_at).toLocaleString('zh-CN')
-                      : '首次登录'}
-                  </p>
-                </Card>
-              </Col>
-            </Row>
-          </div>
-        </Card>
+          <Row gutter={[16, 24]} justify="center">
+            <Col xs={24} sm={12} md={8}>
+              <Card type="inner">
+                <p style={{ marginBottom: 8, color: '#999' }}>账户角色</p>
+                <p style={{ fontSize: 18, fontWeight: 'bold' }}>{user?.role || '未设置'}</p>
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={8}>
+              <Card type="inner">
+                <p style={{ marginBottom: 8, color: '#999' }}>账户状态</p>
+                <p
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 'bold',
+                    color: user?.is_active ? '#52c41a' : '#f5222d',
+                  }}
+                >
+                  {user?.is_active ? '活跃' : '未激活'}
+                </p>
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={8}>
+              <Card type="inner">
+                <p style={{ marginBottom: 8, color: '#999' }}>最后登录</p>
+                <p style={{ fontSize: 16, fontWeight: 'bold' }}>
+                  {user?.last_login_at
+                    ? new Date(user.last_login_at).toLocaleString('zh-CN')
+                    : '首次登录'}
+                </p>
+              </Card>
+            </Col>
+          </Row>
+        </div>
+      </Card>
     </div>
   );
 };

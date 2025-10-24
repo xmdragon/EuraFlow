@@ -27,14 +27,24 @@ export interface PostingNotificationData {
   cancel_reason?: string;
   old_status?: string;
   new_status?: string;
-  old_status_display?: string;  // 旧状态中文显示
-  new_status_display?: string;  // 新状态中文显示
+  old_status_display?: string; // 旧状态中文显示
+  new_status_display?: string; // 新状态中文显示
   delivered_at?: string;
   timestamp: string;
 }
 
 export interface WebSocketNotification {
-  type: 'connected' | 'ping' | 'pong' | 'chat.new_message' | 'chat.message_updated' | 'kuajing84.sync_completed' | 'posting.created' | 'posting.cancelled' | 'posting.status_changed' | 'posting.delivered';
+  type:
+    | 'connected'
+    | 'ping'
+    | 'pong'
+    | 'chat.new_message'
+    | 'chat.message_updated'
+    | 'kuajing84.sync_completed'
+    | 'posting.created'
+    | 'posting.cancelled'
+    | 'posting.status_changed'
+    | 'posting.delivered';
   shop_id?: number;
   chat_id?: string;
   data?: ChatNotificationData | Kuajing84SyncNotificationData | PostingNotificationData | any;

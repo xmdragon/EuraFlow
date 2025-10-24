@@ -1,9 +1,9 @@
-/* eslint-disable no-unused-vars */
 /**
  * Ozon API 服务
  * 处理与后端 Ozon 接口的通信
  */
 import axios from 'axios';
+
 import authService from './authService';
 
 const API_BASE = '/api/ef/v1';
@@ -197,15 +197,15 @@ export interface ProductFilter {
   title?: string;
   category_id?: number;
   sync_status?: string;
-  search?: string;  // 通用搜索
+  search?: string; // 通用搜索
   price_min?: number;
   price_max?: number;
   has_stock?: boolean;
   visibility?: string;
   archived?: boolean;
   brand?: string;
-  sort_by?: string;  // 排序字段
-  sort_order?: 'asc' | 'desc';  // 排序方向
+  sort_by?: string; // 排序字段
+  sort_order?: 'asc' | 'desc'; // 排序方向
 }
 
 export interface PriceUpdate {
@@ -262,7 +262,7 @@ export const syncProducts = async (shopId?: number | null, fullSync: boolean = f
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
     params: {
       sync_type: 'products',
-      products_mode: fullSync ? 'full' : 'incremental'
+      products_mode: fullSync ? 'full' : 'incremental',
     },
   });
   return response.data;
@@ -338,7 +338,7 @@ export interface Order {
   purchase_price?: string;
   /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string;
-  domestic_tracking_numbers?: string[];  // 国内物流单号列表（一对多关系）
+  domestic_tracking_numbers?: string[]; // 国内物流单号列表（一对多关系）
   material_cost?: string;
   source_platform?: string;
   order_notes?: string;
@@ -389,22 +389,22 @@ export interface Posting {
   delivered_at?: string;
   cancelled_at?: string;
   packages?: ShipmentPackage[];
-  products?: OrderItem[];  // 该 posting 的商品列表（从 raw_payload 提取）
+  products?: OrderItem[]; // 该 posting 的商品列表（从 raw_payload 提取）
   /** @deprecated 使用 domestic_tracking_numbers 代替 */
-  domestic_tracking_number?: string;  // 国内物流单号（常用字段，提升到 Posting）
-  domestic_tracking_numbers?: string[];  // 国内物流单号列表（一对多关系）
-  source_platform?: string;  // 采集平台（常用字段，提升到 Posting）
+  domestic_tracking_number?: string; // 国内物流单号（常用字段，提升到 Posting）
+  domestic_tracking_numbers?: string[]; // 国内物流单号列表（一对多关系）
+  source_platform?: string; // 采集平台（常用字段，提升到 Posting）
   // 财务字段
-  purchase_price?: string;  // 进货价格
-  material_cost?: string;  // 打包费用（物料成本）
-  last_mile_delivery_fee_cny?: string;  // 尾程派送费(CNY)
-  international_logistics_fee_cny?: string;  // 国际物流费(CNY)
-  ozon_commission_cny?: string;  // Ozon佣金(CNY)
+  purchase_price?: string; // 进货价格
+  material_cost?: string; // 打包费用（物料成本）
+  last_mile_delivery_fee_cny?: string; // 尾程派送费(CNY)
+  international_logistics_fee_cny?: string; // 国际物流费(CNY)
+  ozon_commission_cny?: string; // Ozon佣金(CNY)
 }
 
 // 货件与订单的组合类型（用于列表展示）
 export interface PostingWithOrder extends Posting {
-  order: Order;  // 关联的完整订单信息
+  order: Order; // 关联的完整订单信息
 }
 
 export interface OrderFilter {
@@ -449,11 +449,7 @@ export const getOrder = async (orderId: number) => {
 };
 
 // 同步订单
-export const syncOrders = async (
-  shopId?: number | null,
-  dateFrom?: string,
-  dateTo?: string
-) => {
+export const syncOrders = async (shopId?: number | null, dateFrom?: string, dateTo?: string) => {
   // 如果没有指定店铺，获取第一个店铺
   if (!shopId) {
     const shopsResponse = await apiClient.get('/ozon/shops');
@@ -470,7 +466,7 @@ export const syncOrders = async (
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
     params: {
       sync_type: 'orders',
-      orders_mode: mode
+      orders_mode: mode,
     },
   });
   return response.data;
@@ -483,20 +479,17 @@ export const syncOrdersDirect = async (
 ) => {
   const response = await apiClient.post('/ozon/orders/sync', {
     shop_id: shopId,
-    mode: mode
+    mode: mode,
   });
   return response.data;
 };
 
 // 同步单个订单
-export const syncSingleOrder = async (
-  postingNumber: string,
-  shopId: number
-) => {
+export const syncSingleOrder = async (postingNumber: string, shopId: number) => {
   const response = await apiClient.post(`/ozon/orders/${postingNumber}/sync`, null, {
     params: {
-      shop_id: shopId
-    }
+      shop_id: shopId,
+    },
   });
   return response.data;
 };
@@ -544,10 +537,10 @@ export interface Statistics {
     shipped: number;
     delivered: number;
     cancelled: number;
-    by_ozon_status: Record<string, number>;  // 按 OZON 状态分组的订单数
+    by_ozon_status: Record<string, number>; // 按 OZON 状态分组的订单数
   };
   revenue: {
-    yesterday: string;  // 改为昨日销售额
+    yesterday: string; // 改为昨日销售额
     week: string;
     month: string;
   };
@@ -604,7 +597,9 @@ export const getOrderDetail = async (postingNumber: string, shopId?: number) => 
   if (shopId) {
     params.shop_id = shopId;
   }
-  const response = await apiClient.get(`/ozon/orders/${postingNumber}`, { params });
+  const response = await apiClient.get(`/ozon/orders/${postingNumber}`, {
+    params,
+  });
   return response.data;
 };
 
@@ -644,7 +639,10 @@ export const getWebhookConfig = async (shopId: number): Promise<WebhookConfig> =
 };
 
 // 配置Webhook
-export const configureWebhook = async (shopId: number, config: { webhook_url: string; webhook_secret?: string }) => {
+export const configureWebhook = async (
+  shopId: number,
+  config: { webhook_url: string; webhook_secret?: string }
+) => {
   const response = await apiClient.post(`/ozon/shops/${shopId}/webhook`, config);
   return response.data;
 };
@@ -667,7 +665,12 @@ export const getWebhookEvents = async (
   status?: string,
   limit: number = 50,
   offset: number = 0
-): Promise<{ events: WebhookEvent[]; total: number; limit: number; offset: number }> => {
+): Promise<{
+  events: WebhookEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}> => {
   const params: any = {
     shop_id: shopId,
     limit,
@@ -691,7 +694,7 @@ export const retryWebhookEvent = async (eventId: string) => {
 
 export interface OzonChat {
   id: number;
-  shop_id: number;  // 聊天所属店铺ID
+  shop_id: number; // 聊天所属店铺ID
   chat_id: string;
   chat_type?: string;
   subject?: string;
@@ -708,7 +711,7 @@ export interface OzonChat {
   closed_at?: string;
   created_at: string;
   updated_at?: string;
-  shop_name?: string;  // 全部店铺模式下包含店铺名称
+  shop_name?: string; // 全部店铺模式下包含店铺名称
 }
 
 export interface OzonChatMessage {
@@ -747,9 +750,14 @@ export const getChats = async (
     order_number?: string;
     limit?: number;
     offset?: number;
-    shop_ids?: string;  // 全部店铺模式下传递的店铺ID列表
+    shop_ids?: string; // 全部店铺模式下传递的店铺ID列表
   }
-): Promise<{ items: OzonChat[]; total: number; limit: number; offset: number }> => {
+): Promise<{
+  items: OzonChat[];
+  total: number;
+  limit: number;
+  offset: number;
+}> => {
   // 如果shopId为null，使用全部店铺端点
   const url = shopId === null ? '/ozon/chats/all' : `/ozon/chats/${shopId}`;
   const response = await apiClient.get(url, { params });
@@ -823,7 +831,7 @@ export const getChatStats = async (shopId: number | null, shopIds?: string): Pro
   // 如果shopId为null，使用全部店铺端点
   if (shopId === null) {
     const response = await apiClient.get('/ozon/chats/all/stats', {
-      params: { shop_ids: shopIds }
+      params: { shop_ids: shopIds },
     });
     return response.data.data;
   } else {
@@ -859,7 +867,7 @@ export const getPostingReport = async (
     status_filter: statusFilter,
     page: page.toString(),
     page_size: pageSize.toString(),
-    sort_order: sortOrder
+    sort_order: sortOrder,
   });
   if (shopIds) {
     params.append('shop_ids', shopIds);
@@ -879,7 +887,7 @@ export const getReportSummary = async (
 ): Promise<any> => {
   const params = new URLSearchParams({
     month,
-    status_filter: statusFilter
+    status_filter: statusFilter,
   });
   if (shopIds) {
     params.append('shop_ids', shopIds);
@@ -922,19 +930,31 @@ export const saveKuajing84Config = async (config: Kuajing84ConfigRequest) => {
 };
 
 // 获取跨境巴士全局配置
-export const getKuajing84Config = async (): Promise<{ success: boolean; data?: Kuajing84Config; message?: string }> => {
+export const getKuajing84Config = async (): Promise<{
+  success: boolean;
+  data?: Kuajing84Config;
+  message?: string;
+}> => {
   const response = await apiClient.get('/ozon/kuajing84/config');
   return response.data;
 };
 
 // 测试跨境巴士连接
-export const testKuajing84Connection = async (): Promise<{ success: boolean; message: string; data?: any }> => {
+export const testKuajing84Connection = async (): Promise<{
+  success: boolean;
+  message: string;
+  data?: any;
+}> => {
   const response = await apiClient.post('/ozon/kuajing84/test-connection');
   return response.data;
 };
 
 // 同步物流单号到跨境巴士
-export const syncToKuajing84 = async (ozonOrderId: number, postingNumber: string, logisticsOrder: string) => {
+export const syncToKuajing84 = async (
+  ozonOrderId: number,
+  postingNumber: string,
+  logisticsOrder: string
+) => {
   const response = await apiClient.post('/ozon/kuajing84/sync', {
     ozon_order_id: ozonOrderId,
     posting_number: postingNumber,
@@ -944,12 +964,18 @@ export const syncToKuajing84 = async (ozonOrderId: number, postingNumber: string
 };
 
 // 获取跨境巴士同步日志
-export const getKuajing84SyncLogs = async (shopId: number, status?: string, limit: number = 50): Promise<{ success: boolean; data: Kuajing84SyncLog[] }> => {
+export const getKuajing84SyncLogs = async (
+  shopId: number,
+  status?: string,
+  limit: number = 50
+): Promise<{ success: boolean; data: Kuajing84SyncLog[] }> => {
   const params: any = { limit };
   if (status) {
     params.status = status;
   }
-  const response = await apiClient.get(`/ozon/kuajing84/logs/${shopId}`, { params });
+  const response = await apiClient.get(`/ozon/kuajing84/logs/${shopId}`, {
+    params,
+  });
   return response.data;
 };
 
@@ -959,7 +985,7 @@ export interface OrderExtraInfo {
   material_cost?: string;
   /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string;
-  domestic_tracking_numbers?: string[];  // 国内物流单号列表（一对多关系）
+  domestic_tracking_numbers?: string[]; // 国内物流单号列表（一对多关系）
   order_notes?: string;
   source_platform?: string;
 }
@@ -984,11 +1010,11 @@ export const getPackingOrders = async (
   params?: {
     shop_id?: number | null;
     posting_number?: string;
-    sku?: string;  // SKU搜索
-    tracking_number?: string;  // OZON追踪号码搜索
-    domestic_tracking_number?: string;  // 国内单号搜索
-    operation_status?: string;  // awaiting_stock/allocating/allocated/tracking_confirmed
-    ozon_status?: string;  // OZON原生状态，支持逗号分隔（如：awaiting_packaging,awaiting_deliver）
+    sku?: string; // SKU搜索
+    tracking_number?: string; // OZON追踪号码搜索
+    domestic_tracking_number?: string; // 国内单号搜索
+    operation_status?: string; // awaiting_stock/allocating/allocated/tracking_confirmed
+    ozon_status?: string; // OZON原生状态，支持逗号分隔（如：awaiting_packaging,awaiting_deliver）
   }
 ) => {
   const requestParams: any = {
@@ -1000,7 +1026,9 @@ export const getPackingOrders = async (
   if (requestParams.shop_id === null) {
     delete requestParams.shop_id;
   }
-  const response = await apiClient.get('/ozon/packing/orders', { params: requestParams });
+  const response = await apiClient.get('/ozon/packing/orders', {
+    params: requestParams,
+  });
   return response.data;
 };
 
@@ -1026,7 +1054,9 @@ export const getPackingStats = async (params?: {
   if (requestParams.shop_id === null) {
     delete requestParams.shop_id;
   }
-  const response = await apiClient.get('/ozon/packing/stats', { params: requestParams });
+  const response = await apiClient.get('/ozon/packing/stats', {
+    params: requestParams,
+  });
   return response.data;
 };
 
@@ -1034,33 +1064,30 @@ export const getPackingStats = async (params?: {
 
 // 备货操作请求参数
 export interface PrepareStockRequest {
-  purchase_price: string;  // 进货价格（必填）
-  source_platform?: string;  // 采购平台（可选：1688/拼多多/咸鱼/淘宝）
-  order_notes?: string;  // 订单备注（可选）
-  sync_to_ozon?: boolean;  // 是否同步到Ozon（可选，默认true）
+  purchase_price: string; // 进货价格（必填）
+  source_platform?: string; // 采购平台（可选：1688/拼多多/咸鱼/淘宝）
+  order_notes?: string; // 订单备注（可选）
+  sync_to_ozon?: boolean; // 是否同步到Ozon（可选，默认true）
 }
 
 // 更新业务信息请求参数
 export interface UpdateBusinessInfoRequest {
-  purchase_price?: string;  // 进货价格（可选）
-  material_cost?: string;  // 打包费用（可选）
-  source_platform?: string;  // 采购平台（可选）
-  order_notes?: string;  // 订单备注（可选）
+  purchase_price?: string; // 进货价格（可选）
+  material_cost?: string; // 打包费用（可选）
+  source_platform?: string; // 采购平台（可选）
+  order_notes?: string; // 订单备注（可选）
 }
 
 // 提交国内物流单号请求参数（支持多单号）
 export interface SubmitDomesticTrackingRequest {
-  domestic_tracking_numbers?: string[];  // 国内物流单号列表（推荐）
+  domestic_tracking_numbers?: string[]; // 国内物流单号列表（推荐）
   /** @deprecated 使用 domestic_tracking_numbers 代替 */
-  domestic_tracking_number?: string;  // [已废弃] 单个国内物流单号（兼容字段）
-  order_notes?: string;  // 订单备注（可选）
+  domestic_tracking_number?: string; // [已废弃] 单个国内物流单号（兼容字段）
+  order_notes?: string; // 订单备注（可选）
 }
 
 // 备货操作：保存业务信息 + 调用 OZON exemplar set API
-export const prepareStock = async (
-  postingNumber: string,
-  data: PrepareStockRequest
-) => {
+export const prepareStock = async (postingNumber: string, data: PrepareStockRequest) => {
   const response = await apiClient.post(`/ozon/postings/${postingNumber}/prepare`, data);
   return response.data;
 };
@@ -1106,7 +1133,7 @@ export const getProductPurchasePriceHistory = async (
   limit: number = 10
 ): Promise<PurchasePriceHistoryResponse> => {
   const response = await apiClient.get(`/ozon/products/${sku}/purchase-price-history`, {
-    params: { limit }
+    params: { limit },
   });
   return response.data;
 };
@@ -1192,7 +1219,7 @@ export interface ProductImportLog {
 // 获取类目树（三级联动）
 export const getCategoryTree = async (shopId: number) => {
   const response = await apiClient.get('/ozon/listings/categories/tree', {
-    params: { shop_id: shopId }
+    params: { shop_id: shopId },
   });
   return response.data;
 };
@@ -1205,7 +1232,7 @@ export const searchCategories = async (
   limit: number = 20
 ) => {
   const response = await apiClient.get('/ozon/listings/categories/search', {
-    params: { shop_id: shopId, query, only_leaf: onlyLeaf, limit }
+    params: { shop_id: shopId, query, only_leaf: onlyLeaf, limit },
   });
   return response.data;
 };
@@ -1217,7 +1244,7 @@ export const getCategoryAttributes = async (
   requiredOnly: boolean = false
 ) => {
   const response = await apiClient.get(`/ozon/listings/categories/${categoryId}/attributes`, {
-    params: { shop_id: shopId, required_only: requiredOnly }
+    params: { shop_id: shopId, required_only: requiredOnly },
   });
   return response.data;
 };
@@ -1230,7 +1257,7 @@ export const searchDictionaryValues = async (
   limit: number = 100
 ) => {
   const response = await apiClient.get(`/ozon/listings/attributes/${dictionaryId}/values`, {
-    params: { shop_id: shopId, query, limit }
+    params: { shop_id: shopId, query, limit },
   });
   return response.data;
 };
@@ -1244,7 +1271,7 @@ export const syncCategoryTree = async (
   const response = await apiClient.post('/ozon/listings/categories/sync', {
     shop_id: shopId,
     force_refresh: forceRefresh,
-    root_category_id: rootCategoryId
+    root_category_id: rootCategoryId,
   });
   return response.data;
 };
@@ -1260,7 +1287,7 @@ export const importProduct = async (
     shop_id: shopId,
     offer_id: offerId,
     mode,
-    auto_advance: autoAdvance
+    auto_advance: autoAdvance,
   });
   return response.data;
 };
@@ -1268,7 +1295,7 @@ export const importProduct = async (
 // 获取商品上架状态
 export const getListingStatus = async (shopId: number, offerId: string) => {
   const response = await apiClient.get(`/ozon/listings/products/${offerId}/status`, {
-    params: { shop_id: shopId }
+    params: { shop_id: shopId },
   });
   return response.data;
 };
@@ -1289,7 +1316,7 @@ export const updateListingPrice = async (
     old_price: oldPrice,
     min_price: minPrice,
     currency_code: currencyCode,
-    auto_action_enabled: autoActionEnabled
+    auto_action_enabled: autoActionEnabled,
   });
   return response.data;
 };
@@ -1306,7 +1333,7 @@ export const updateListingStock = async (
     shop_id: shopId,
     stock,
     warehouse_id: warehouseId,
-    product_id: productId
+    product_id: productId,
   });
   return response.data;
 };
@@ -1321,19 +1348,15 @@ export const importProductImages = async (
   const response = await apiClient.post(`/ozon/listings/products/${offerId}/images`, {
     shop_id: shopId,
     image_urls: imageUrls,
-    validate_properties: validateProperties
+    validate_properties: validateProperties,
   });
   return response.data;
 };
 
 // 获取图片导入状态
-export const getImagesStatus = async (
-  offerId: string,
-  shopId: number,
-  state?: string
-) => {
+export const getImagesStatus = async (offerId: string, shopId: number, state?: string) => {
   const response = await apiClient.get(`/ozon/listings/products/${offerId}/images/status`, {
-    params: { shop_id: shopId, state }
+    params: { shop_id: shopId, state },
   });
   return response.data;
 };
@@ -1346,7 +1369,7 @@ export const getProductImportLogs = async (
   limit: number = 50
 ) => {
   const response = await apiClient.get('/ozon/listings/logs/products', {
-    params: { shop_id: shopId, offer_id: offerId, state, limit }
+    params: { shop_id: shopId, offer_id: offerId, state, limit },
   });
   return response.data;
 };
@@ -1386,8 +1409,8 @@ export const createProduct = async (data: CreateProductRequest) => {
 export interface UploadMediaRequest {
   shop_id: number;
   type: 'base64' | 'url';
-  data?: string;  // For base64
-  url?: string;   // For URL
+  data?: string; // For base64
+  url?: string; // For URL
   public_id?: string;
   folder?: string;
 }
@@ -1424,19 +1447,14 @@ export interface BatchPrintResult {
  * @returns 批量打印结果，包含PDF URL和详细错误信息
  * @note shop_id自动从posting记录中获取，无需手动指定
  */
-export const batchPrintLabels = async (
-  postingNumbers: string[]
-): Promise<BatchPrintResult> => {
+export const batchPrintLabels = async (postingNumbers: string[]): Promise<BatchPrintResult> => {
   if (postingNumbers.length > 20) {
     throw new Error('最多支持同时打印20个标签');
   }
 
-  const response = await apiClient.post(
-    '/ozon/packing/postings/batch-print-labels',
-    {
-      posting_numbers: postingNumbers
-    }
-  );
+  const response = await apiClient.post('/ozon/packing/postings/batch-print-labels', {
+    posting_numbers: postingNumbers,
+  });
   return response.data;
 };
 
@@ -1447,7 +1465,7 @@ export const batchPrintLabels = async (
  */
 export const searchPostingByTracking = async (trackingNumber: string) => {
   const response = await apiClient.get('/ozon/packing/postings/search-by-tracking', {
-    params: { tracking_number: trackingNumber }
+    params: { tracking_number: trackingNumber },
   });
   return response.data;
 };
@@ -1541,7 +1559,9 @@ export interface FinanceTransactionsFilter {
 export const getFinanceTransactions = async (
   filter: FinanceTransactionsFilter
 ): Promise<FinanceTransactionsResponse> => {
-  const response = await apiClient.get('/ozon/finance/transactions', { params: filter });
+  const response = await apiClient.get('/ozon/finance/transactions', {
+    params: filter,
+  });
   return response.data;
 };
 
@@ -1559,6 +1579,8 @@ export const getFinanceTransactionsSummary = async (
   if (dateTo) params.date_to = dateTo;
   if (transactionType) params.transaction_type = transactionType;
 
-  const response = await apiClient.get('/ozon/finance/transactions/summary', { params });
+  const response = await apiClient.get('/ozon/finance/transactions/summary', {
+    params,
+  });
   return response.data;
 };

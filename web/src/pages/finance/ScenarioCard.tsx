@@ -1,13 +1,21 @@
 import { CalculatorOutlined } from '@ant-design/icons';
-import { Card, InputNumber, Space, Typography, Tooltip, Button, Tag, Alert, Row, Col, Divider } from 'antd';
+import {
+  Card,
+  InputNumber,
+  Space,
+  Typography,
+  Tooltip,
+  Button,
+  Tag,
+  Alert,
+  Row,
+  Col,
+  Divider,
+} from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 
 import { ScenarioConfig } from './constants';
-import {
-  calculateDefaultShipping,
-  formatPercentage,
-  formatMoney,
-} from './utils';
+import { calculateDefaultShipping, formatPercentage, formatMoney } from './utils';
 
 const { Text } = Typography;
 
@@ -29,11 +37,13 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
   scenario,
   sharedInputData,
   exchangeRate,
-  isMatched
+  isMatched,
 }) => {
   // 场景特定的费用（可以在当前场景调整）
   const [platformRate, setPlatformRate] = useState(scenario.defaultPlatformRate);
-  const [packingFee, setPackingFee] = useState<number | undefined>(sharedInputData?.packingFee || scenario.packingFee);
+  const [packingFee, setPackingFee] = useState<number | undefined>(
+    sharedInputData?.packingFee || scenario.packingFee
+  );
   const [shipping, setShipping] = useState<number | undefined>(undefined);
 
   // 同步打包费到共享输入数据
@@ -58,7 +68,12 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
   // 计算利润
   const profit = useMemo(() => {
     const { cost, price } = sharedInputData || {};
-    if (cost === undefined || price === undefined || shipping === undefined || packingFee === undefined) {
+    if (
+      cost === undefined ||
+      price === undefined ||
+      shipping === undefined ||
+      packingFee === undefined
+    ) {
       return undefined;
     }
 
@@ -68,7 +83,11 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
 
   // 计算利润率（小数形式，如0.22表示22%）
   const profitRate = useMemo(() => {
-    if (profit === undefined || sharedInputData?.price === undefined || sharedInputData.price === 0) {
+    if (
+      profit === undefined ||
+      sharedInputData?.price === undefined ||
+      sharedInputData.price === 0
+    ) {
       return undefined;
     }
     return profit / sharedInputData.price;
@@ -146,15 +165,13 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
       )}
 
       {/* 场景信息 */}
-      <Card
-        size="small"
-        title="场景条件"
-        style={{ marginBottom: 16 }}
-      >
+      <Card size="small" title="场景条件" style={{ marginBottom: 16 }}>
         <Space direction="vertical" size="small" style={{ width: '100%' }}>
           {scenario.transportMode && (
             <Row justify="space-between">
-              <Col><Text>运输方式：</Text></Col>
+              <Col>
+                <Text>运输方式：</Text>
+              </Col>
               <Col>
                 <Tag color={scenario.transportMode === 'land' ? 'green' : 'blue'}>
                   {scenario.transportMode === 'land' ? '陆运/纯陆' : '陆空'}
@@ -163,16 +180,30 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
             </Row>
           )}
           <Row justify="space-between">
-            <Col><Text>重量范围：</Text></Col>
-            <Col><Tag color="blue">{scenario.weightRange}</Tag></Col>
+            <Col>
+              <Text>重量范围：</Text>
+            </Col>
+            <Col>
+              <Tag color="blue">{scenario.weightRange}</Tag>
+            </Col>
           </Row>
           <Row justify="space-between">
-            <Col><Text>价格范围：</Text></Col>
-            <Col><Tag color="green">{getPriceRangeDisplay()}</Tag></Col>
+            <Col>
+              <Text>价格范围：</Text>
+            </Col>
+            <Col>
+              <Tag color="green">{getPriceRangeDisplay()}</Tag>
+            </Col>
           </Row>
           <Row justify="space-between">
-            <Col><Text>尺寸限制：</Text></Col>
-            <Col><Text type="secondary" style={{ fontSize: 12 }}>{scenario.dimensionLimit.description}</Text></Col>
+            <Col>
+              <Text>尺寸限制：</Text>
+            </Col>
+            <Col>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {scenario.dimensionLimit.description}
+              </Text>
+            </Col>
           </Row>
         </Space>
       </Card>
@@ -191,14 +222,22 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
         style={{ marginBottom: 16 }}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <Text>平台扣点:</Text>
             <InputNumber
               size="small"
               style={{ width: 120 }}
               suffix="%"
               value={platformRate ? platformRate * 100 : undefined}
-              onChange={(value) => setPlatformRate(value ? value / 100 : scenario.defaultPlatformRate)}
+              onChange={(value) =>
+                setPlatformRate(value ? value / 100 : scenario.defaultPlatformRate)
+              }
               min={0}
               max={100}
               precision={1}
@@ -206,7 +245,13 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <Space size={4}>
               <Text>运费:</Text>
               <Tooltip title={`公式: ${scenario.shipping.formula}`}>
@@ -231,7 +276,13 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <Text>打包费:</Text>
             <InputNumber
               size="small"
@@ -260,23 +311,47 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             {/* 成本明细 */}
             <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>成本明细：</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                成本明细：
+              </Text>
               <Space direction="vertical" style={{ width: '100%', marginTop: 8 }} size="small">
                 <Row justify="space-between">
-                  <Col><Text style={{ fontSize: 12 }}>采购成本：</Text></Col>
-                  <Col><Text style={{ fontSize: 12 }}>¥{sharedInputData.cost.toFixed(2)}</Text></Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>采购成本：</Text>
+                  </Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>¥{sharedInputData.cost.toFixed(2)}</Text>
+                  </Col>
                 </Row>
                 <Row justify="space-between">
-                  <Col><Text style={{ fontSize: 12 }}>运费：</Text></Col>
-                  <Col><Text style={{ fontSize: 12 }}>¥{shipping !== undefined ? shipping.toFixed(2) : '--'}</Text></Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>运费：</Text>
+                  </Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>
+                      ¥{shipping !== undefined ? shipping.toFixed(2) : '--'}
+                    </Text>
+                  </Col>
                 </Row>
                 <Row justify="space-between">
-                  <Col><Text style={{ fontSize: 12 }}>平台扣点：</Text></Col>
-                  <Col><Text style={{ fontSize: 12 }}>¥{((sharedInputData.price * platformRate)).toFixed(2)}</Text></Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>平台扣点：</Text>
+                  </Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>
+                      ¥{(sharedInputData.price * platformRate).toFixed(2)}
+                    </Text>
+                  </Col>
                 </Row>
                 <Row justify="space-between">
-                  <Col><Text style={{ fontSize: 12 }}>打包费：</Text></Col>
-                  <Col><Text style={{ fontSize: 12 }}>¥{packingFee !== undefined ? packingFee.toFixed(2) : '--'}</Text></Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>打包费：</Text>
+                  </Col>
+                  <Col>
+                    <Text style={{ fontSize: 12 }}>
+                      ¥{packingFee !== undefined ? packingFee.toFixed(2) : '--'}
+                    </Text>
+                  </Col>
                 </Row>
               </Space>
             </div>
@@ -286,7 +361,11 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
             {/* 利润结果 */}
             <Space direction="vertical" style={{ width: '100%' }} size="small">
               <Row justify="space-between" align="middle">
-                <Col><Text strong style={{ fontSize: 14 }}>💰 利润率:</Text></Col>
+                <Col>
+                  <Text strong style={{ fontSize: 14 }}>
+                    💰 利润率:
+                  </Text>
+                </Col>
                 <Col>
                   <Text strong style={{ color: profitColor, fontSize: 18 }}>
                     {formatPercentage(profitRate)}
@@ -294,7 +373,11 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
                 </Col>
               </Row>
               <Row justify="space-between" align="middle">
-                <Col><Text strong style={{ fontSize: 14 }}>💵 利润:</Text></Col>
+                <Col>
+                  <Text strong style={{ fontSize: 14 }}>
+                    💵 利润:
+                  </Text>
+                </Col>
                 <Col>
                   <Text strong style={{ color: profitColor, fontSize: 18 }}>
                     {formatMoney(profit)} RMB

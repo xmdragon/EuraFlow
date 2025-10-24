@@ -2,9 +2,10 @@
  * 国内物流单号弹窗组件（支持多单号）
  * 用于"已分配"状态，填写国内物流单号并同步到跨境巴士
  */
-import React from 'react';
-import { Modal, Form, Input, message, Select } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Modal, Form, Input, message, Select } from 'antd';
+import React from 'react';
+
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -90,11 +91,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       cancelText="取消"
       width={600}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        autoComplete="off"
-      >
+      <Form form={form} layout="vertical" autoComplete="off">
         <Form.Item
           name="domestic_tracking_numbers"
           label="国内物流单号"
@@ -124,16 +121,12 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
             mode="tags"
             placeholder="输入单号后按回车添加（支持多个，逗号/空格/换行分隔）"
             maxTagCount={10}
-            tokenSeparators={[',', '\n', ' ', '，']}  // 支持中英文逗号、换行、空格
+            tokenSeparators={[',', '\n', ' ', '，']} // 支持中英文逗号、换行、空格
             maxLength={200}
           />
         </Form.Item>
 
-        <Form.Item
-          name="order_notes"
-          label="订单备注"
-          tooltip="订单相关的备注信息（可选）"
-        >
+        <Form.Item name="order_notes" label="订单备注" tooltip="订单相关的备注信息（可选）">
           <TextArea
             placeholder="请输入订单备注"
             autoSize={{ minRows: 3, maxRows: 6 }}
@@ -143,11 +136,25 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
         </Form.Item>
       </Form>
 
-      <div style={{ marginTop: 16, padding: 12, background: '#f0f2f5', borderRadius: 4 }}>
+      <div
+        style={{
+          marginTop: 16,
+          padding: 12,
+          background: '#f0f2f5',
+          borderRadius: 4,
+        }}
+      >
         <p style={{ margin: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
           <strong>说明：</strong>
         </p>
-        <ul style={{ margin: '4px 0 0 20px', padding: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
+        <ul
+          style={{
+            margin: '4px 0 0 20px',
+            padding: 0,
+            fontSize: 12,
+            color: 'rgba(0, 0, 0, 0.65)',
+          }}
+        >
           <li>支持输入多个国内物流单号（一个订单可能从多个供应商采购）</li>
           <li>输入单号后按回车或逗号分隔即可添加</li>
           <li>提交后将在后台同步到跨境巴士，弹窗可以关闭，同步继续进行</li>

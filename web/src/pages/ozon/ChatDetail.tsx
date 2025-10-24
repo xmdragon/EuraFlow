@@ -1,7 +1,18 @@
 /**
  * OZON 聊天详情页面
  */
-import React, { useState, useEffect, useRef } from 'react';
+import {
+  UserOutlined,
+  SendOutlined,
+  ArrowLeftOutlined,
+  ShoppingOutlined,
+  ClockCircleOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  SyncOutlined,
+  MessageOutlined,
+} from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   List,
@@ -17,26 +28,16 @@ import {
   Modal,
   Badge,
 } from 'antd';
-import {
-  UserOutlined,
-  SendOutlined,
-  ArrowLeftOutlined,
-  ShoppingOutlined,
-  ClockCircleOutlined,
-  CheckOutlined,
-  CloseOutlined,
-  SyncOutlined,
-  MessageOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import moment from 'moment';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
-import * as ozonApi from '@/services/ozonApi';
-import PageTitle from '@/components/PageTitle';
 import styles from './ChatDetail.module.scss';
+
+import PageTitle from '@/components/PageTitle';
+import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
@@ -52,7 +53,12 @@ const ChatDetail: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 获取聊天详情
-  const { data: chatData, isLoading: chatLoading, error: chatError, isError: isChatError } = useQuery({
+  const {
+    data: chatData,
+    isLoading: chatLoading,
+    error: chatError,
+    isError: isChatError,
+  } = useQuery({
     queryKey: ['chatDetail', shopId, chatId],
     queryFn: () => {
       if (!shopId || !chatId) throw new Error('缺少参数');
@@ -236,9 +242,7 @@ const ChatDetail: React.FC = () => {
             >
               <Text type="secondary" className={styles.messageTime}>
                 {moment(msg.created_at).format('MM-DD HH:mm')}
-                {msg.is_read && (
-                  <CheckOutlined className={styles.readIcon} />
-                )}
+                {msg.is_read && <CheckOutlined className={styles.readIcon} />}
               </Text>
             </div>
           </div>
@@ -299,13 +303,10 @@ const ChatDetail: React.FC = () => {
                       {getChatDisplayName(chatData)}
                     </Title>
                     {/* 显示聊天类型标签（仅当没有客户名称或是旧数据时） */}
-                    {(!chatData.customer_name || chatData.customer_name === '未知客户') && chatData.chat_type === 'SELLER_SUPPORT' && (
-                      <Tag color="orange">客服咨询</Tag>
-                    )}
+                    {(!chatData.customer_name || chatData.customer_name === '未知客户') &&
+                      chatData.chat_type === 'SELLER_SUPPORT' && <Tag color="orange">客服咨询</Tag>}
                     {getStatusTag(chatData.status)}
-                    {chatData.unread_count > 0 && (
-                      <Badge count={chatData.unread_count} />
-                    )}
+                    {chatData.unread_count > 0 && <Badge count={chatData.unread_count} />}
                   </Space>
                   <Space>
                     {chatData.unread_count > 0 && (
@@ -327,10 +328,7 @@ const ChatDetail: React.FC = () => {
                         关闭聊天
                       </Button>
                     )}
-                    <Button
-                      icon={<SyncOutlined />}
-                      onClick={() => refetchMessages()}
-                    >
+                    <Button icon={<SyncOutlined />} onClick={() => refetchMessages()}>
                       刷新
                     </Button>
                   </Space>
@@ -343,12 +341,8 @@ const ChatDetail: React.FC = () => {
                       </Tag>
                     </Descriptions.Item>
                   )}
-                  <Descriptions.Item label="消息数">
-                    {chatData.message_count}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="未读数">
-                    {chatData.unread_count}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="消息数">{chatData.message_count}</Descriptions.Item>
+                  <Descriptions.Item label="未读数">{chatData.unread_count}</Descriptions.Item>
                   <Descriptions.Item label="最后消息时间">
                     {chatData.last_message_at
                       ? moment(chatData.last_message_at).format('YYYY-MM-DD HH:mm')
@@ -359,10 +353,7 @@ const ChatDetail: React.FC = () => {
             </Card>
 
             {/* 消息列表卡片 */}
-            <Card
-              title="消息记录"
-              className={styles.messageCard}
-            >
+            <Card title="消息记录" className={styles.messageCard}>
               <Spin spinning={messagesLoading}>
                 {messagesData?.items && messagesData.items.length > 0 ? (
                   <div>

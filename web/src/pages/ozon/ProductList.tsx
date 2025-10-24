@@ -61,24 +61,32 @@ import {
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 
-import * as ozonApi from '@/services/ozonApi';
-import * as watermarkApi from '@/services/watermarkApi';
-import { formatRuble, calculateMargin, formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
-import { generateOzonSlug } from '@/utils/ozon/productUtils';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import { usePermission } from '@/hooks/usePermission';
-import ShopSelector from '@/components/ozon/ShopSelector';
+import {
+  formatRuble,
+  calculateMargin,
+  formatPriceWithCurrency,
+  getCurrencySymbol,
+} from '../../utils/currency';
+
+import styles from './ProductList.module.scss';
+
 import ImagePreview from '@/components/ImagePreview';
-import PageTitle from '@/components/PageTitle';
 import PriceEditModal from '@/components/ozon/product/PriceEditModal';
-import StockEditModal from '@/components/ozon/product/StockEditModal';
 import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
 import ProductToolbar from '@/components/ozon/product/ProductToolbar';
+import StockEditModal from '@/components/ozon/product/StockEditModal';
+import ShopSelector from '@/components/ozon/ShopSelector';
+import PageTitle from '@/components/PageTitle';
+import { usePermission } from '@/hooks/usePermission';
+import * as ozonApi from '@/services/ozonApi';
+import * as watermarkApi from '@/services/watermarkApi';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { generateOzonSlug } from '@/utils/ozon/productUtils';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+
 import './ProductList.css';
-import styles from './ProductList.module.scss';
 
 const { Option } = Select;
 const { confirm } = Modal;
@@ -108,7 +116,9 @@ const ProductList: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
   const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
-  const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({ status: 'on_sale' });
+  const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({
+    status: 'on_sale',
+  });
 
   // 排序状态管理
   const [sortBy, setSortBy] = useState<string | null>(null);
@@ -147,11 +157,15 @@ const ProductList: React.FC = () => {
   const [watermarkStep, setWatermarkStep] = useState<'select' | 'preview'>('select');
   const [watermarkPreviews, setWatermarkPreviews] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [watermarkAnalyzeMode, setWatermarkAnalyzeMode] = useState<'individual' | 'fast'>('individual');
+  const [watermarkAnalyzeMode, setWatermarkAnalyzeMode] = useState<'individual' | 'fast'>(
+    'individual'
+  );
   // 手动选择的水印位置 Map<productId_imageIndex, position>
   const [manualPositions, setManualPositions] = useState<Map<string, string>>(new Map());
   // 每张图片的独立水印设置 Map<productId_imageIndex, {watermarkId, position}>
-  const [imageWatermarkSettings, setImageWatermarkSettings] = useState<Map<string, {watermarkId: number, position?: string}>>(new Map());
+  const [imageWatermarkSettings, setImageWatermarkSettings] = useState<
+    Map<string, { watermarkId: number; position?: string }>
+  >(new Map());
 
   // 图片预览状态
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -203,7 +217,13 @@ const ProductList: React.FC = () => {
         onClick={() => handleSort(field)}
       >
         <span>{title}</span>
-        <span style={{ display: 'inline-flex', flexDirection: 'column', fontSize: '10px' }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            flexDirection: 'column',
+            fontSize: '10px',
+          }}
+        >
           <span style={{ lineHeight: 1, color: isAsc ? '#1890ff' : '#bfbfbf' }}>▲</span>
           <span style={{ lineHeight: 1, color: isDesc ? '#1890ff' : '#bfbfbf' }}>▼</span>
         </span>
@@ -217,7 +237,15 @@ const ProductList: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['ozonProducts', currentPage, pageSize, selectedShop, filterValues, sortBy, sortOrder],
+    queryKey: [
+      'ozonProducts',
+      currentPage,
+      pageSize,
+      selectedShop,
+      filterValues,
+      sortBy,
+      sortOrder,
+    ],
     queryFn: async () => {
       const params: ozonApi.ProductFilter = {
         ...filterValues,
@@ -238,7 +266,7 @@ const ProductList: React.FC = () => {
         console.log('📦 尺寸字段:', {
           width: targetProduct.width,
           height: targetProduct.height,
-          depth: targetProduct.depth
+          depth: targetProduct.depth,
         });
       }
 
@@ -286,7 +314,7 @@ const ProductList: React.FC = () => {
     // 持续轮询状态
     while (!completed) {
       try {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 每2秒检查一次
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
         const result = await ozonApi.getSyncStatus(taskId);
         const status = result.data || result;
 
@@ -337,7 +365,8 @@ const ProductList: React.FC = () => {
 
   // 批量更新价格
   const updatePricesMutation = useMutation({
-    mutationFn: (updates: ozonApi.PriceUpdate[]) => ozonApi.updatePrices(updates, selectedShop || undefined),
+    mutationFn: (updates: ozonApi.PriceUpdate[]) =>
+      ozonApi.updatePrices(updates, selectedShop || undefined),
     onSuccess: () => {
       notifySuccess('更新成功', '价格更新成功');
       setPriceModalVisible(false);
@@ -380,7 +409,7 @@ const ProductList: React.FC = () => {
   // 预加载当前页所有商品的大图（160x160）
   useEffect(() => {
     if (productsData?.data && productsData.data.length > 0) {
-      productsData.data.forEach(product => {
+      productsData.data.forEach((product) => {
         if (product.images?.primary) {
           try {
             // 使用 document.createElement 替代 new Image() 避免打包问题
@@ -397,13 +426,25 @@ const ProductList: React.FC = () => {
 
   // 应用水印 - 默认使用异步模式
   const applyWatermarkMutation = useMutation({
-    mutationFn: ({ productIds, configId, analyzeMode = 'individual', positionOverrides }: {
-      productIds: number[],
-      configId: number,
-      analyzeMode?: 'individual' | 'fast',
-      positionOverrides?: Record<string, Record<string, string>>
+    mutationFn: ({
+      productIds,
+      configId,
+      analyzeMode = 'individual',
+      positionOverrides,
+    }: {
+      productIds: number[];
+      configId: number;
+      analyzeMode?: 'individual' | 'fast';
+      positionOverrides?: Record<string, Record<string, string>>;
     }) =>
-      watermarkApi.applyWatermarkBatch(selectedShop!, productIds, configId, false, analyzeMode, positionOverrides),  // 强制使用异步模式
+      watermarkApi.applyWatermarkBatch(
+        selectedShop!,
+        productIds,
+        configId,
+        false,
+        analyzeMode,
+        positionOverrides
+      ), // 强制使用异步模式
     onSuccess: (data) => {
       console.log('Watermark batch response:', data);
 
@@ -457,16 +498,21 @@ const ProductList: React.FC = () => {
       console.log(`Polling attempt ${pollCount} for batch ${batchId}`);
 
       try {
-        const tasks = await watermarkApi.getTasks({ shop_id: selectedShop!, batch_id: batchId });
+        const tasks = await watermarkApi.getTasks({
+          shop_id: selectedShop!,
+          batch_id: batchId,
+        });
         console.log('Tasks received:', tasks);
 
-        completed = tasks.filter(t => t.status === 'completed').length;
-        failed = tasks.filter(t => t.status === 'failed').length;
-        const processing = tasks.filter(t => t.status === 'processing').length;
-        const pending = tasks.filter(t => t.status === 'pending').length;
+        completed = tasks.filter((t) => t.status === 'completed').length;
+        failed = tasks.filter((t) => t.status === 'failed').length;
+        const processing = tasks.filter((t) => t.status === 'processing').length;
+        const pending = tasks.filter((t) => t.status === 'pending').length;
         const total = tasks.length;
 
-        console.log(`Status: ${completed} completed, ${failed} failed, ${processing} processing, ${pending} pending, total: ${total}`);
+        console.log(
+          `Status: ${completed} completed, ${failed} failed, ${processing} processing, ${pending} pending, total: ${total}`
+        );
 
         // 显示进度
         if (!hasShownProgress && (completed > 0 || processing > 0)) {
@@ -500,7 +546,7 @@ const ProductList: React.FC = () => {
             message: '任务状态查询失败',
             description: `无法获取水印处理进度：${error?.message || '网络错误'}。请刷新页面查看结果`,
             duration: 0, // 不自动关闭
-            placement: 'topRight'
+            placement: 'topRight',
           });
         }
       }
@@ -516,7 +562,7 @@ const ProductList: React.FC = () => {
           message: '任务超时',
           description: '水印处理时间过长，请稍后刷新页面查看结果',
           duration: 0, // 不自动关闭
-          placement: 'topRight'
+          placement: 'topRight',
         });
       }
     }, 300000);
@@ -534,7 +580,8 @@ const ProductList: React.FC = () => {
 
   // 批量更新库存
   const updateStocksMutation = useMutation({
-    mutationFn: (updates: ozonApi.StockUpdate[]) => ozonApi.updateStocks(updates, selectedShop || undefined),
+    mutationFn: (updates: ozonApi.StockUpdate[]) =>
+      ozonApi.updateStocks(updates, selectedShop || undefined),
     onSuccess: () => {
       notifySuccess('更新成功', '库存更新成功');
       setStockModalVisible(false);
@@ -579,7 +626,13 @@ const ProductList: React.FC = () => {
                 content={<img src={imageUrl160} width={160} alt={record.title} />}
                 trigger="hover"
               >
-                <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '80px',
+                    height: '80px',
+                  }}
+                >
                   <Avatar
                     src={imageUrl80}
                     size={80}
@@ -667,32 +720,51 @@ const ProductList: React.FC = () => {
       render: (_, record) => {
         const copyIcon = (
           <div style={{ position: 'relative', width: '12px', height: '12px' }}>
-            <div style={{
-              position: 'absolute',
-              top: '2px',
-              left: '2px',
-              width: '8px',
-              height: '8px',
-              border: '1px solid #666',
-              backgroundColor: 'white'
-            }} />
-            <div style={{
-              position: 'absolute',
-              top: '0px',
-              left: '0px',
-              width: '8px',
-              height: '8px',
-              border: '1px solid #666',
-              backgroundColor: 'white'
-            }} />
+            <div
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: '2px',
+                width: '8px',
+                height: '8px',
+                border: '1px solid #666',
+                backgroundColor: 'white',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: '0px',
+                left: '0px',
+                width: '8px',
+                height: '8px',
+                border: '1px solid #666',
+                backgroundColor: 'white',
+              }}
+            />
           </div>
         );
 
         return (
           <Space direction="vertical" size={4} style={{ width: '100%' }}>
             {/* 商品货号 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-              <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                width: '100%',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {record.offer_id}
               </span>
               <Button
@@ -705,8 +777,23 @@ const ProductList: React.FC = () => {
               />
             </div>
             {/* SKU */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-              <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                width: '100%',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {record.ozon_sku || '-'}
               </span>
               {record.ozon_sku && (
@@ -763,7 +850,13 @@ const ProductList: React.FC = () => {
             </span>
             {/* 划线价（如果有） */}
             {oldPrice && oldPrice > price && (
-              <span style={{ textDecoration: 'line-through', color: '#999', fontSize: 11 }}>
+              <span
+                style={{
+                  textDecoration: 'line-through',
+                  color: '#999',
+                  fontSize: 11,
+                }}
+              >
                 {formatPriceWithCurrency(oldPrice, record.currency_code)}
               </span>
             )}
@@ -803,12 +896,17 @@ const ProductList: React.FC = () => {
           deleted: { color: 'error', text: '已删除' },
         };
 
-        const statusDetails = record.status_reason || [
-          record.ozon_archived && '已归档',
-          record.ozon_has_fbo_stocks && '有FBO库存',
-          record.ozon_has_fbs_stocks && '有FBS库存',
-          record.ozon_is_discounted && '促销中',
-        ].filter(Boolean).join(', ') || '状态正常';
+        const statusDetails =
+          record.status_reason ||
+          [
+            record.ozon_archived && '已归档',
+            record.ozon_has_fbo_stocks && '有FBO库存',
+            record.ozon_has_fbs_stocks && '有FBS库存',
+            record.ozon_is_discounted && '促销中',
+          ]
+            .filter(Boolean)
+            .join(', ') ||
+          '状态正常';
 
         return (
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
@@ -933,7 +1031,6 @@ const ProductList: React.FC = () => {
     },
   ];
 
-
   // 根据visibleColumns过滤显示的列
   const columns = allColumns.filter((col) => {
     const key = col.key as string;
@@ -955,7 +1052,11 @@ const ProductList: React.FC = () => {
   const handleEdit = (product: ozonApi.Product) => {
     console.log('📝 编辑商品数据:', product);
     console.log('📏 重量字段值:', product.weight, '类型:', typeof product.weight);
-    console.log('📦 尺寸字段:', { width: product.width, height: product.height, depth: product.depth });
+    console.log('📦 尺寸字段:', {
+      width: product.width,
+      height: product.height,
+      depth: product.depth,
+    });
     setSelectedProduct(product);
     setEditModalVisible(true);
   };
@@ -1135,7 +1236,7 @@ const ProductList: React.FC = () => {
       width: `${scale * 100}%`,
       maxWidth: '200px', // 限制最大尺寸
       zIndex: 10,
-      transition: 'all 0.2s ease'
+      transition: 'all 0.2s ease',
     };
 
     // 根据位置设置对齐方式
@@ -1185,7 +1286,7 @@ const ProductList: React.FC = () => {
   // 处理手动选择位置变更
   const handlePositionChange = async (productId: number, imageIndex: number, position: string) => {
     // 找到对应的预览数据并更新
-    const updatedPreviews = watermarkPreviews.map(preview => {
+    const updatedPreviews = watermarkPreviews.map((preview) => {
       if (preview.product_id === productId) {
         return {
           ...preview,
@@ -1195,11 +1296,11 @@ const ProductList: React.FC = () => {
               return {
                 ...img,
                 suggested_position: position,
-                manual_position: position
+                manual_position: position,
               };
             }
             return img;
-          })
+          }),
         };
       }
       return preview;
@@ -1464,7 +1565,7 @@ const ProductList: React.FC = () => {
                     style={{ width: '100%' }}
                     min={0}
                     formatter={getNumberFormatter(2)}
-              parser={getNumberParser()}
+                    parser={getNumberParser()}
                     prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="请输入售价"
                   />
@@ -1476,7 +1577,7 @@ const ProductList: React.FC = () => {
                     style={{ width: '100%' }}
                     min={0}
                     formatter={getNumberFormatter(2)}
-              parser={getNumberParser()}
+                    parser={getNumberParser()}
                     prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="请输入原价"
                   />
@@ -1491,7 +1592,7 @@ const ProductList: React.FC = () => {
                     style={{ width: '100%' }}
                     min={0}
                     formatter={getNumberFormatter(2)}
-              parser={getNumberParser()}
+                    parser={getNumberParser()}
                     prefix={getCurrencySymbol(selectedProduct?.currency_code)}
                     placeholder="成本价"
                   />
@@ -1591,7 +1692,9 @@ const ProductList: React.FC = () => {
                         );
                       }, 1000);
                     }
-                    queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+                    queryClient.invalidateQueries({
+                      queryKey: ['ozonProducts'],
+                    });
                   } else {
                     notifyError('导入失败', result.message || '商品导入失败');
                   }
@@ -1658,7 +1761,7 @@ const ProductList: React.FC = () => {
             // 进入预览步骤
             setPreviewLoading(true);
             try {
-              const productIds = selectedRows.slice(0, 10).map(p => p.id); // 最多预览10个
+              const productIds = selectedRows.slice(0, 10).map((p) => p.id); // 最多预览10个
               const result = await watermarkApi.previewWatermarkBatch(
                 selectedShop!,
                 productIds,
@@ -1689,7 +1792,7 @@ const ProductList: React.FC = () => {
               }
               imageOverrides[productId][imageIndex] = {
                 watermark_config_id: settings.watermarkId,
-                position: settings.position
+                position: settings.position,
               };
             });
 
@@ -1702,7 +1805,7 @@ const ProductList: React.FC = () => {
                 }
                 imageOverrides[productId][imageIndex] = {
                   watermark_config_id: selectedWatermarkConfig,
-                  position: position
+                  position: position,
                 };
               });
             }
@@ -1711,7 +1814,8 @@ const ProductList: React.FC = () => {
               productIds,
               configId: selectedWatermarkConfig!,
               analyzeMode: watermarkAnalyzeMode,
-              positionOverrides: Object.keys(imageOverrides).length > 0 ? imageOverrides : undefined
+              positionOverrides:
+                Object.keys(imageOverrides).length > 0 ? imageOverrides : undefined,
             });
           }
         }}
@@ -1762,7 +1866,8 @@ const ProductList: React.FC = () => {
                     <span>{config.name}</span>
                     <Tag>{config.color_type}</Tag>
                     <span style={{ color: '#999', fontSize: 12 }}>
-                      {(config.scale_ratio * 100).toFixed(0)}% / {(config.opacity * 100).toFixed(0)}%
+                      {(config.scale_ratio * 100).toFixed(0)}% / {(config.opacity * 100).toFixed(0)}
+                      %
                     </span>
                   </Space>
                 </Option>
@@ -1785,8 +1890,23 @@ const ProductList: React.FC = () => {
               <Divider>预览结果</Divider>
               <div style={{ maxHeight: 600, overflowY: 'auto' }}>
                 {watermarkPreviews.map((preview) => (
-                  <div key={preview.product_id} style={{ marginBottom: 24, padding: 16, border: '1px solid #f0f0f0', borderRadius: 8, backgroundColor: '#fafafa' }}>
-                    <div style={{ marginBottom: 12, fontSize: 16, fontWeight: 500 }}>
+                  <div
+                    key={preview.product_id}
+                    style={{
+                      marginBottom: 24,
+                      padding: 16,
+                      border: '1px solid #f0f0f0',
+                      borderRadius: 8,
+                      backgroundColor: '#fafafa',
+                    }}
+                  >
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        fontSize: 16,
+                        fontWeight: 500,
+                      }}
+                    >
                       <strong>{preview.sku}</strong> - {preview.title}
                       <Tag color="blue" style={{ marginLeft: 8 }}>
                         {preview.total_images || preview.images?.length || 0} 张图片
@@ -1798,28 +1918,40 @@ const ProductList: React.FC = () => {
                     ) : preview.images && preview.images.length > 0 ? (
                       <div>
                         {/* 多图预览网格布局 */}
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                          gap: 12,
-                          marginTop: 8
-                        }}>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                            gap: 12,
+                            marginTop: 8,
+                          }}
+                        >
                           {preview.images.map((img, imgArrayIndex) => (
-                            <div key={imgArrayIndex} style={{
-                              border: '1px solid #e8e8e8',
-                              borderRadius: 8,
-                              padding: 8,
-                              backgroundColor: 'white'
-                            }}>
+                            <div
+                              key={imgArrayIndex}
+                              style={{
+                                border: '1px solid #e8e8e8',
+                                borderRadius: 8,
+                                padding: 8,
+                                backgroundColor: 'white',
+                              }}
+                            >
                               {/* 图片类型标签 */}
-                              <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div
+                                style={{
+                                  marginBottom: 8,
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                }}
+                              >
                                 <Tag color={img.image_type === 'primary' ? 'green' : 'default'}>
-                                  {img.image_type === 'primary' ? '主图' : `附加图 ${img.image_index + 1}`}
+                                  {img.image_type === 'primary'
+                                    ? '主图'
+                                    : `附加图 ${img.image_index + 1}`}
                                 </Tag>
                                 {img.suggested_position && (
-                                  <Tag color="blue">
-                                    位置: {img.suggested_position}
-                                  </Tag>
+                                  <Tag color="blue">位置: {img.suggested_position}</Tag>
                                 )}
                               </div>
 
@@ -1829,7 +1961,11 @@ const ProductList: React.FC = () => {
                                   style={{ width: '100%' }}
                                   size="small"
                                   placeholder="选择水印"
-                                  value={imageWatermarkSettings.get(`${preview.product_id}_${imgArrayIndex}`)?.watermarkId || selectedWatermarkConfig}
+                                  value={
+                                    imageWatermarkSettings.get(
+                                      `${preview.product_id}_${imgArrayIndex}`
+                                    )?.watermarkId || selectedWatermarkConfig
+                                  }
                                   onChange={(watermarkId) => {
                                     const key = `${preview.product_id}_${imgArrayIndex}`;
                                     const currentSettings = imageWatermarkSettings.get(key) || {};
@@ -1837,7 +1973,7 @@ const ProductList: React.FC = () => {
                                     newSettings.set(key, {
                                       ...currentSettings,
                                       watermarkId,
-                                      position: manualPositions.get(key)
+                                      position: manualPositions.get(key),
                                     });
                                     setImageWatermarkSettings(newSettings);
                                   }}
@@ -1848,7 +1984,11 @@ const ProductList: React.FC = () => {
                                         <img
                                           src={optimizeOzonImageUrl(config.image_url, 16)}
                                           alt={config.name}
-                                          style={{ width: 16, height: 16, objectFit: 'contain' }}
+                                          style={{
+                                            width: 16,
+                                            height: 16,
+                                            objectFit: 'contain',
+                                          }}
                                         />
                                         <span style={{ fontSize: 12 }}>{config.name}</span>
                                       </Space>
@@ -1860,21 +2000,25 @@ const ProductList: React.FC = () => {
                               {img.error ? (
                                 <Alert message={`处理失败: ${img.error}`} type="error" showIcon />
                               ) : (
-                                <div style={{
-                                  position: 'relative',
-                                  border: '1px solid #f0f0f0',
-                                  borderRadius: 4,
-                                  backgroundColor: '#f9f9f9',
-                                  height: 300,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}>
-                                  {/* 图片和9宫格容器 - 确保两者尺寸完全一致 */}
-                                  <div style={{
+                                <div
+                                  style={{
                                     position: 'relative',
-                                    display: 'inline-block'
-                                  }}>
+                                    border: '1px solid #f0f0f0',
+                                    borderRadius: 4,
+                                    backgroundColor: '#f9f9f9',
+                                    height: 300,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  {/* 图片和9宫格容器 - 确保两者尺寸完全一致 */}
+                                  <div
+                                    style={{
+                                      position: 'relative',
+                                      display: 'inline-block',
+                                    }}
+                                  >
                                     {/* 原图显示 */}
                                     <img
                                       src={optimizeOzonImageUrl(img.original_url, 300)}
@@ -1883,11 +2027,12 @@ const ProductList: React.FC = () => {
                                         display: 'block',
                                         maxWidth: '100%',
                                         maxHeight: '300px',
-                                        objectFit: 'contain'
+                                        objectFit: 'contain',
                                       }}
                                       onError={(e) => {
                                         console.error('原图加载失败:', img.original_url);
-                                        e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+                                        e.currentTarget.src =
+                                          'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
                                       }}
                                     />
 
@@ -1895,20 +2040,30 @@ const ProductList: React.FC = () => {
                                     {(() => {
                                       const key = `${preview.product_id}_${imgArrayIndex}`;
                                       const settings = imageWatermarkSettings.get(key);
-                                      const watermarkId = settings?.watermarkId || selectedWatermarkConfig;
-                                      const position = settings?.position || manualPositions.get(key);
+                                      const watermarkId =
+                                        settings?.watermarkId || selectedWatermarkConfig;
+                                      const position =
+                                        settings?.position || manualPositions.get(key);
 
                                       if (watermarkId && position) {
-                                        const watermarkConfig = (watermarkConfigs || []).find(c => c.id === watermarkId);
+                                        const watermarkConfig = (watermarkConfigs || []).find(
+                                          (c) => c.id === watermarkId
+                                        );
                                         if (watermarkConfig) {
                                           return (
                                             <img
-                                              src={optimizeOzonImageUrl(watermarkConfig.image_url, 100)}
+                                              src={optimizeOzonImageUrl(
+                                                watermarkConfig.image_url,
+                                                100
+                                              )}
                                               alt="水印预览"
                                               style={{
                                                 position: 'absolute',
-                                                ...getPreviewWatermarkStyle(position, watermarkConfig),
-                                                pointerEvents: 'none'
+                                                ...getPreviewWatermarkStyle(
+                                                  position,
+                                                  watermarkConfig
+                                                ),
+                                                pointerEvents: 'none',
                                               }}
                                             />
                                           );
@@ -1918,79 +2073,98 @@ const ProductList: React.FC = () => {
                                     })()}
 
                                     {/* 9宫格位置选择器 - 移到inline-block容器内 */}
-                                    <div style={{
-                                      position: 'absolute',
-                                      top: 0,
-                                      left: 0,
-                                      right: 0,
-                                      bottom: 0,
-                                      display: 'grid',
-                                      gridTemplateColumns: 'repeat(3, 1fr)',
-                                      gridTemplateRows: 'repeat(3, 1fr)',
-                                      gap: 0
-                                    }}>
-                                    {[
-                                      'top_left', 'top_center', 'top_right',
-                                      'center_left', null, 'center_right',
-                                      'bottom_left', 'bottom_center', 'bottom_right'
-                                    ].map((position, index) => {
-                                      if (position === null) return <div key={index} />; // 中心格子跳过
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(3, 1fr)',
+                                        gridTemplateRows: 'repeat(3, 1fr)',
+                                        gap: 0,
+                                      }}
+                                    >
+                                      {[
+                                        'top_left',
+                                        'top_center',
+                                        'top_right',
+                                        'center_left',
+                                        null,
+                                        'center_right',
+                                        'bottom_left',
+                                        'bottom_center',
+                                        'bottom_right',
+                                      ].map((position, index) => {
+                                        if (position === null) return <div key={index} />; // 中心格子跳过
 
-                                      const positionKey = `${preview.product_id}_${imgArrayIndex}`;
-                                      const currentSettings = imageWatermarkSettings.get(positionKey);
-                                      const isSelected = (currentSettings?.position || manualPositions.get(positionKey)) === position;
+                                        const positionKey = `${preview.product_id}_${imgArrayIndex}`;
+                                        const currentSettings =
+                                          imageWatermarkSettings.get(positionKey);
+                                        const isSelected =
+                                          (currentSettings?.position ||
+                                            manualPositions.get(positionKey)) === position;
 
-                                      // 格子仅用于位置选择，水印显示在大预览图上
+                                        // 格子仅用于位置选择，水印显示在大预览图上
 
-                                      return (
-                                        <div
-                                          key={index}
-                                          onClick={() => {
-                                            // 更新位置到 manualPositions
-                                            const newPositions = new Map(manualPositions);
-                                            newPositions.set(positionKey, position);
-                                            setManualPositions(newPositions);
+                                        return (
+                                          <div
+                                            key={index}
+                                            onClick={() => {
+                                              // 更新位置到 manualPositions
+                                              const newPositions = new Map(manualPositions);
+                                              newPositions.set(positionKey, position);
+                                              setManualPositions(newPositions);
 
-                                            // 同时更新到 imageWatermarkSettings
-                                            const newSettings = new Map(imageWatermarkSettings);
-                                            const watermarkId = currentSettings?.watermarkId || selectedWatermarkConfig;
-                                            if (watermarkId) {
-                                              newSettings.set(positionKey, {
-                                                watermarkId,
+                                              // 同时更新到 imageWatermarkSettings
+                                              const newSettings = new Map(imageWatermarkSettings);
+                                              const watermarkId =
+                                                currentSettings?.watermarkId ||
+                                                selectedWatermarkConfig;
+                                              if (watermarkId) {
+                                                newSettings.set(positionKey, {
+                                                  watermarkId,
+                                                  position,
+                                                });
+                                                setImageWatermarkSettings(newSettings);
+                                              }
+
+                                              // TODO: 触发重新预览
+                                              handlePositionChange(
+                                                preview.product_id,
+                                                imgArrayIndex,
                                                 position
-                                              });
-                                              setImageWatermarkSettings(newSettings);
-                                            }
-
-                                            // TODO: 触发重新预览
-                                            handlePositionChange(preview.product_id, imgArrayIndex, position);
-                                          }}
-                                          style={{
-                                            cursor: 'pointer',
-                                            backgroundColor: isSelected
-                                              ? 'rgba(24, 144, 255, 0.15)'
-                                              : 'transparent',
-                                            border: '1px solid transparent',
-                                            transition: 'all 0.2s',
-                                            position: 'relative',
-                                            overflow: 'hidden'
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            if (!isSelected) {
-                                              e.currentTarget.style.backgroundColor = 'rgba(24, 144, 255, 0.08)';
-                                            }
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            if (!isSelected) {
-                                              e.currentTarget.style.backgroundColor = 'transparent';
-                                            }
-                                          }}
-                                          title={`点击选择位置: ${position.replace('_', ' ')}`}
-                                        >
-                                          {/* 格子内容为空，仅通过边框显示选中状态 */}
-                                        </div>
-                                      );
-                                    })}
+                                              );
+                                            }}
+                                            style={{
+                                              cursor: 'pointer',
+                                              backgroundColor: isSelected
+                                                ? 'rgba(24, 144, 255, 0.15)'
+                                                : 'transparent',
+                                              border: '1px solid transparent',
+                                              transition: 'all 0.2s',
+                                              position: 'relative',
+                                              overflow: 'hidden',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              if (!isSelected) {
+                                                e.currentTarget.style.backgroundColor =
+                                                  'rgba(24, 144, 255, 0.08)';
+                                              }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              if (!isSelected) {
+                                                e.currentTarget.style.backgroundColor =
+                                                  'transparent';
+                                              }
+                                            }}
+                                            title={`点击选择位置: ${position.replace('_', ' ')}`}
+                                          >
+                                            {/* 格子内容为空，仅通过边框显示选中状态 */}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 </div>
@@ -2003,7 +2177,14 @@ const ProductList: React.FC = () => {
                       // 旧版单图预览兼容
                       <div style={{ display: 'flex', justifyContent: 'center' }}>
                         <div style={{ width: '60%' }}>
-                          <div style={{ marginBottom: 8, fontSize: 12, color: '#999', textAlign: 'center' }}>
+                          <div
+                            style={{
+                              marginBottom: 8,
+                              fontSize: 12,
+                              color: '#999',
+                              textAlign: 'center',
+                            }}
+                          >
                             水印预览
                             {preview.suggested_position && (
                               <Tag color="blue" style={{ marginLeft: 8 }}>
@@ -2011,19 +2192,29 @@ const ProductList: React.FC = () => {
                               </Tag>
                             )}
                           </div>
-                          <div style={{
-                            border: '1px solid #f0f0f0',
-                            borderRadius: 4,
-                            padding: 8,
-                            backgroundColor: '#f9f9f9'
-                          }}>
+                          <div
+                            style={{
+                              border: '1px solid #f0f0f0',
+                              borderRadius: 4,
+                              padding: 8,
+                              backgroundColor: '#f9f9f9',
+                            }}
+                          >
                             <img
                               src={preview.preview_image}
                               alt="Preview"
-                              style={{ width: '100%', maxHeight: 300, objectFit: 'contain' }}
+                              style={{
+                                width: '100%',
+                                maxHeight: 300,
+                                objectFit: 'contain',
+                              }}
                               onError={(e) => {
-                                console.error('预览图片加载失败:', preview.preview_image?.substring(0, 50));
-                                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
+                                console.error(
+                                  '预览图片加载失败:',
+                                  preview.preview_image?.substring(0, 50)
+                                );
+                                e.currentTarget.src =
+                                  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
                               }}
                             />
                           </div>

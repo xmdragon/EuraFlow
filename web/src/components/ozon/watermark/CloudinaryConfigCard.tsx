@@ -1,7 +1,7 @@
 /**
  * Cloudinary全局配置卡片组件
  */
-import React from 'react';
+import { DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import {
   Card,
   Form,
@@ -17,11 +17,8 @@ import {
   Modal,
   FormInstance,
 } from 'antd';
-import {
-  DeleteOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-} from '@ant-design/icons';
+import React from 'react';
+
 import styles from '../../../pages/ozon/WatermarkManagement.module.scss';
 
 export interface CloudinaryConfigCardProps {
@@ -82,20 +79,12 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item
-                name="folder_prefix"
-                label="文件夹前缀"
-                initialValue="euraflow"
-              >
+              <Form.Item name="folder_prefix" label="文件夹前缀" initialValue="euraflow">
                 <Input />
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item
-                name="auto_cleanup_days"
-                label="自动清理天数"
-                initialValue={30}
-              >
+              <Form.Item name="auto_cleanup_days" label="自动清理天数" initialValue={30}>
                 <InputNumber min={1} max={365} className={styles.fullWidthInput} controls={false} />
               </Form.Item>
             </Col>
@@ -105,7 +94,10 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
               <Button type="primary" htmlType="submit" loading={saveCloudinaryMutation.isPending}>
                 保存配置
               </Button>
-              <Button onClick={() => testCloudinaryMutation.mutate()} loading={testCloudinaryMutation.isPending}>
+              <Button
+                onClick={() => testCloudinaryMutation.mutate()}
+                loading={testCloudinaryMutation.isPending}
+              >
                 测试连接
               </Button>
             </Space>
@@ -167,9 +159,14 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
                           </div>
                         ),
                         onOk: () => {
-                          const input = document.getElementById('cleanup-days') as HTMLInputElement | null;
+                          const input = document.getElementById(
+                            'cleanup-days'
+                          ) as HTMLInputElement | null;
                           const days = input ? Number(input.value) || 30 : 30;
-                          cleanupResourcesMutation.mutate({ days, dryRun: false });
+                          cleanupResourcesMutation.mutate({
+                            days,
+                            dryRun: false,
+                          });
                         },
                       });
                     }}

@@ -2,19 +2,6 @@
  * OZON新建商品页面 - 优化版
  * 参照OZON官方界面设计
  */
-import React, { useState, useEffect } from 'react';
-import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
-import {
-  Form,
-  Input,
-  InputNumber,
-  Button,
-  Space,
-  Upload,
-  Cascader,
-  Modal,
-  Table,
-} from 'antd';
 import {
   PlusOutlined,
   SyncOutlined,
@@ -23,14 +10,19 @@ import {
   EditOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Form, Input, InputNumber, Button, Space, Upload, Cascader, Modal, Table } from 'antd';
+import type { UploadFile } from 'antd/es/upload/interface';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import styles from './ProductCreate.module.scss';
+
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
-import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
-import * as ozonApi from '@/services/ozonApi';
-import type { UploadFile } from 'antd/es/upload/interface';
 import { categoryTree as categoryTreeData } from '@/data/categoryTree';
-import styles from './ProductCreate.module.scss';
+import * as ozonApi from '@/services/ozonApi';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
 // 类目选项接口
 interface CategoryOption {
@@ -63,9 +55,7 @@ const ProductCreate: React.FC = () => {
   const [hasCategoryData, setHasCategoryData] = useState(false);
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
-  const [variants, setVariants] = useState<ProductVariant[]>([
-    { id: '1', sku: '', price: 0 }
-  ]);
+  const [variants, setVariants] = useState<ProductVariant[]>([{ id: '1', sku: '', price: 0 }]);
 
   // 创建商品
   const createProductMutation = useMutation({
@@ -144,7 +134,8 @@ const ProductCreate: React.FC = () => {
             <li>预计耗时 10-30 秒</li>
           </ul>
           <p className={styles.errorText}>
-            <strong>提示：</strong>同步期间请勿重复操作，同步完成后会自动刷新类目列表
+            <strong>提示：</strong>
+            同步期间请勿重复操作，同步完成后会自动刷新类目列表
           </p>
         </div>
       ),
@@ -233,22 +224,20 @@ const ProductCreate: React.FC = () => {
       dataIndex: 'image',
       key: 'image',
       width: 80,
-      render: (image: string) => (
+      render: (image: string) =>
         image ? (
           <img src={image} alt="variant" className={styles.variantImage} />
         ) : (
           <div className={styles.variantPlaceholder}>-</div>
-        )
-      ),
+        ),
     },
     {
       title: '视频',
       dataIndex: 'video',
       key: 'video',
       width: 80,
-      render: (video: string) => (
-        video ? '有' : <div className={styles.variantPlaceholder}>-</div>
-      ),
+      render: (video: string) =>
+        video ? '有' : <div className={styles.variantPlaceholder}>-</div>,
     },
     {
       title: '货号',
@@ -268,7 +257,7 @@ const ProductCreate: React.FC = () => {
       dataIndex: 'oldPrice',
       key: 'oldPrice',
       width: 120,
-      render: (oldPrice?: number) => oldPrice ? oldPrice.toFixed(2) : '-',
+      render: (oldPrice?: number) => (oldPrice ? oldPrice.toFixed(2) : '-'),
     },
     {
       title: '操作',
@@ -309,7 +298,7 @@ const ProductCreate: React.FC = () => {
       notifyWarning('操作失败', '至少保留一个变体');
       return;
     }
-    setVariants(variants.filter(v => v.id !== id));
+    setVariants(variants.filter((v) => v.id !== id));
   };
 
   return (
@@ -317,11 +306,7 @@ const ProductCreate: React.FC = () => {
       <PageTitle icon={<PlusOutlined />} title="新建商品" />
 
       <div className={styles.formCard}>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleProductSubmit}
-        >
+        <Form form={form} layout="vertical" onFinish={handleProductSubmit}>
           {/* 主要信息 */}
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>主要信息</h3>
@@ -348,9 +333,8 @@ const ProductCreate: React.FC = () => {
                   className={styles.cascader}
                   options={categoryTree}
                   onChange={(value) => {
-                    const catId = value && value.length > 0
-                      ? value[value.length - 1] as number
-                      : null;
+                    const catId =
+                      value && value.length > 0 ? (value[value.length - 1] as number) : null;
                     setSelectedCategory(catId);
                     form.setFieldValue('category_id', catId);
                   }}
@@ -359,9 +343,9 @@ const ProductCreate: React.FC = () => {
                   changeOnSelect={false}
                   showSearch={{
                     filter: (inputValue, path) =>
-                      path.some(option =>
+                      path.some((option) =>
                         (option.label as string).toLowerCase().includes(inputValue.toLowerCase())
-                      )
+                      ),
                   }}
                   disabled={!selectedShop || categoryLoading}
                   loading={categoryLoading}
@@ -377,9 +361,7 @@ const ProductCreate: React.FC = () => {
                 </Button>
               </div>
               {!hasCategoryData && selectedShop && (
-                <span className={styles.errorText}>
-                  数据库无类目数据，请点击"同步类目"按钮
-                </span>
+                <span className={styles.errorText}>数据库无类目数据，请点击"同步类目"按钮</span>
               )}
             </Form.Item>
 
@@ -391,10 +373,7 @@ const ProductCreate: React.FC = () => {
               <Input placeholder="商品标题" maxLength={200} showCount />
             </Form.Item>
 
-            <Form.Item
-              label="商品描述"
-              name="description"
-            >
+            <Form.Item label="商品描述" name="description">
               <TextArea rows={4} placeholder="商品详细描述" maxLength={5000} showCount />
             </Form.Item>
 
@@ -454,9 +433,9 @@ const ProductCreate: React.FC = () => {
                   name="price"
                   rules={[{ required: true, message: '请输入售价' }]}
                 >
-                  <InputNumber 
-                    min={0} 
-                    placeholder="0" 
+                  <InputNumber
+                    min={0}
+                    placeholder="0"
                     controls={false}
                     formatter={getNumberFormatter(2)}
                     parser={getNumberParser()}
@@ -464,13 +443,10 @@ const ProductCreate: React.FC = () => {
                 </Form.Item>
               </div>
               <div className={styles.formCol}>
-                <Form.Item
-                  label="原价（RUB）"
-                  name="old_price"
-                >
-                  <InputNumber 
-                    min={0} 
-                    placeholder="0" 
+                <Form.Item label="原价（RUB）" name="old_price">
+                  <InputNumber
+                    min={0}
+                    placeholder="0"
                     controls={false}
                     formatter={getNumberFormatter(2)}
                     parser={getNumberParser()}
@@ -479,11 +455,7 @@ const ProductCreate: React.FC = () => {
               </div>
             </div>
 
-            <Form.Item
-              label="库存"
-              name="stock"
-              initialValue={0}
-            >
+            <Form.Item label="库存" name="stock" initialValue={0}>
               <InputNumber min={0} placeholder="0" controls={false} />
             </Form.Item>
           </div>
@@ -507,9 +479,7 @@ const ProductCreate: React.FC = () => {
                   </div>
                 )}
               </Upload>
-              <div className={styles.uploadHint}>
-                支持JPG/PNG格式，建议3:4比例，最多15张
-              </div>
+              <div className={styles.uploadHint}>支持JPG/PNG格式，建议3:4比例，最多15张</div>
             </div>
           </div>
 
@@ -517,15 +487,9 @@ const ProductCreate: React.FC = () => {
           <div className={styles.section}>
             <div className={styles.variantSection}>
               <div className={styles.variantHeader}>
-                <span className={styles.variantInfo}>
-                  共 {variants.length} 个变体
-                </span>
+                <span className={styles.variantInfo}>共 {variants.length} 个变体</span>
                 <div className={styles.variantActions}>
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={handleAddVariant}
-                  >
+                  <Button type="primary" icon={<PlusOutlined />} onClick={handleAddVariant}>
                     添加变体
                   </Button>
                 </div>
@@ -546,14 +510,10 @@ const ProductCreate: React.FC = () => {
       {/* 底部操作栏 */}
       <div className={styles.actionBar}>
         <div className={styles.leftActions}>
-          <Button onClick={() => form.resetFields()}>
-            重置
-          </Button>
+          <Button onClick={() => form.resetFields()}>重置</Button>
         </div>
         <div className={styles.rightActions}>
-          <Button size="large">
-            保存草稿
-          </Button>
+          <Button size="large">保存草稿</Button>
           <Button
             type="primary"
             size="large"

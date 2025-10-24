@@ -6,8 +6,8 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import App from './App';
-import NotificationInitializer from '@/components/NotificationInitializer';
 
+import NotificationInitializer from '@/components/NotificationInitializer';
 import { AuthProvider } from '@/hooks/useAuth';
 import './services/simpleAxios'; // 导入简化的axios配置
 import './index.css';

@@ -2,8 +2,6 @@
  * 商品状态标签组件
  * 显示各状态的商品数量并支持切换过滤
  */
-import React from 'react';
-import { Tabs } from 'antd';
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -12,6 +10,8 @@ import {
   InfoCircleOutlined,
   FileOutlined,
 } from '@ant-design/icons';
+import { Tabs } from 'antd';
+import React from 'react';
 
 export interface ProductStats {
   on_sale: number;

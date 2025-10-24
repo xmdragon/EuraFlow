@@ -45,13 +45,15 @@ import {
   Spin,
 } from 'antd';
 import React, { useState, useEffect } from 'react';
-import * as ozonApi from '@/services/ozonApi';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import { usePermission } from '@/hooks/usePermission';
-import PageTitle from '@/components/PageTitle';
+
+import styles from './ShopSettings.module.scss';
+
 import Kuajing84Configuration from '@/components/ozon/shop/Kuajing84Configuration';
 import WebhookConfiguration from '@/components/ozon/shop/WebhookConfiguration';
-import styles from './ShopSettings.module.scss';
+import PageTitle from '@/components/PageTitle';
+import { usePermission } from '@/hooks/usePermission';
+import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
 const { Text, Paragraph, Title } = Typography;
 const { Option: _Option } = Select;
@@ -369,7 +371,8 @@ const ShopSettings: React.FC = () => {
                 暂无店铺
               </Title>
               <Text type="secondary" className={styles.emptyText}>
-                您还没有添加任何Ozon店铺{canOperate && '，点击上方"添加店铺"按钮开始配置'}
+                您还没有添加任何Ozon店铺
+                {canOperate && '，点击上方"添加店铺"按钮开始配置'}
               </Text>
               {canOperate && (
                 <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
@@ -378,95 +381,101 @@ const ShopSettings: React.FC = () => {
               )}
             </div>
           ) : (
-          <Table
-            dataSource={shops}
-            rowKey="id"
-            pagination={false}
-            columns={[
-              {
-                title: '店铺名称',
-                dataIndex: 'shop_name',
-                key: 'shop_name',
-                render: (text: string, record: Shop) => (
-                  <Space>
-                    <ShopOutlined />
-                    <Text strong>
-                      {text}
-                      {record.shop_name_cn && <Text type="secondary"> [{record.shop_name_cn}]</Text>}
-                    </Text>
-                    {record.id === selectedShop?.id && <Tag color="blue">当前选中</Tag>}
-                  </Space>
-                ),
-              },
-              {
-                title: '状态',
-                dataIndex: 'status',
-                key: 'status',
-                render: (status) => {
-                  const statusMap = {
-                    active: { color: 'success', text: '活跃' },
-                    inactive: { color: 'default', text: '未激活' },
-                    suspended: { color: 'error', text: '已暂停' },
-                  };
-                  const config = statusMap[status as keyof typeof statusMap];
-                  return <Badge status={config.color as any} text={config.text} />;
+            <Table
+              dataSource={shops}
+              rowKey="id"
+              pagination={false}
+              columns={[
+                {
+                  title: '店铺名称',
+                  dataIndex: 'shop_name',
+                  key: 'shop_name',
+                  render: (text: string, record: Shop) => (
+                    <Space>
+                      <ShopOutlined />
+                      <Text strong>
+                        {text}
+                        {record.shop_name_cn && (
+                          <Text type="secondary"> [{record.shop_name_cn}]</Text>
+                        )}
+                      </Text>
+                      {record.id === selectedShop?.id && <Tag color="blue">当前选中</Tag>}
+                    </Space>
+                  ),
                 },
-              },
-              {
-                title: '最后同步',
-                key: 'last_sync',
-                render: (_: unknown, record: Shop) => {
-                  if (!record.stats?.last_sync_at) return '-';
-                  const date = new Date(record.stats.last_sync_at);
-                  return (
-                    <Tooltip title={date.toLocaleString()}>
-                      <Space>
-                        <ClockCircleOutlined />
-                        {date.toLocaleTimeString()}
-                      </Space>
-                    </Tooltip>
-                  );
+                {
+                  title: '状态',
+                  dataIndex: 'status',
+                  key: 'status',
+                  render: (status) => {
+                    const statusMap = {
+                      active: { color: 'success', text: '活跃' },
+                      inactive: { color: 'default', text: '未激活' },
+                      suspended: { color: 'error', text: '已暂停' },
+                    };
+                    const config = statusMap[status as keyof typeof statusMap];
+                    return <Badge status={config.color as any} text={config.text} />;
+                  },
                 },
-              },
-              ...(canOperate ? [{
-                title: '操作',
-                key: 'action',
-                render: (_: unknown, record: Shop) => (
-                  <Space>
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() => {
-                        setSelectedShop(record);
-                        form.setFieldsValue({
-                          shop_name: record.shop_name,
-                          shop_name_cn: record.shop_name_cn,
-                          client_id: record.api_credentials?.client_id,
-                          api_key: record.api_credentials?.api_key,
-                          webhook_url: record.config?.webhook_url,
-                          sync_interval_minutes: record.config?.sync_interval_minutes,
-                          auto_sync_enabled: record.config?.auto_sync_enabled,
-                          rate_limit_products: record.config?.rate_limits?.products,
-                          rate_limit_orders: record.config?.rate_limits?.orders,
-                          rate_limit_postings: record.config?.rate_limits?.postings,
-                        });
-                      }}
-                    >
-                      编辑
-                    </Button>
-                    <Button
-                      type="link"
-                      size="small"
-                      danger
-                      onClick={() => handleDeleteShop(record)}
-                    >
-                      删除
-                    </Button>
-                  </Space>
-                ),
-              }] : []),
-            ]}
-          />
+                {
+                  title: '最后同步',
+                  key: 'last_sync',
+                  render: (_: unknown, record: Shop) => {
+                    if (!record.stats?.last_sync_at) return '-';
+                    const date = new Date(record.stats.last_sync_at);
+                    return (
+                      <Tooltip title={date.toLocaleString()}>
+                        <Space>
+                          <ClockCircleOutlined />
+                          {date.toLocaleTimeString()}
+                        </Space>
+                      </Tooltip>
+                    );
+                  },
+                },
+                ...(canOperate
+                  ? [
+                      {
+                        title: '操作',
+                        key: 'action',
+                        render: (_: unknown, record: Shop) => (
+                          <Space>
+                            <Button
+                              type="link"
+                              size="small"
+                              onClick={() => {
+                                setSelectedShop(record);
+                                form.setFieldsValue({
+                                  shop_name: record.shop_name,
+                                  shop_name_cn: record.shop_name_cn,
+                                  client_id: record.api_credentials?.client_id,
+                                  api_key: record.api_credentials?.api_key,
+                                  webhook_url: record.config?.webhook_url,
+                                  sync_interval_minutes: record.config?.sync_interval_minutes,
+                                  auto_sync_enabled: record.config?.auto_sync_enabled,
+                                  rate_limit_products: record.config?.rate_limits?.products,
+                                  rate_limit_orders: record.config?.rate_limits?.orders,
+                                  rate_limit_postings: record.config?.rate_limits?.postings,
+                                });
+                              }}
+                            >
+                              编辑
+                            </Button>
+                            <Button
+                              type="link"
+                              size="small"
+                              danger
+                              onClick={() => handleDeleteShop(record)}
+                            >
+                              删除
+                            </Button>
+                          </Space>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           )}
         </Card>
 
@@ -499,15 +508,18 @@ const ShopSettings: React.FC = () => {
                               label="店铺名称（俄文）"
                               rules={[{ required: true, message: '请输入店铺名称' }]}
                             >
-                              <Input placeholder="请输入店铺名称（俄文）" className={styles.nameInput} />
+                              <Input
+                                placeholder="请输入店铺名称（俄文）"
+                                className={styles.nameInput}
+                              />
                             </Form.Item>
                           </Col>
                           <Col span={12}>
-                            <Form.Item
-                              name="shop_name_cn"
-                              label="店铺中文名称"
-                            >
-                              <Input placeholder="请输入店铺中文名称（选填）" className={styles.nameInput} />
+                            <Form.Item name="shop_name_cn" label="店铺中文名称">
+                              <Input
+                                placeholder="请输入店铺中文名称（选填）"
+                                className={styles.nameInput}
+                              />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -529,7 +541,10 @@ const ShopSettings: React.FC = () => {
                               rules={[{ required: true, message: '请输入API Key' }]}
                               extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可。"
                             >
-                              <Input.Password placeholder="Ozon API Key" className={styles.apiInput} />
+                              <Input.Password
+                                placeholder="Ozon API Key"
+                                className={styles.apiInput}
+                              />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -557,7 +572,12 @@ const ShopSettings: React.FC = () => {
                           </Col>
                           <Col span={12}>
                             <Form.Item name="sync_interval_minutes" label="同步间隔（分钟）">
-                              <InputNumber min={5} max={1440} className={styles.apiInput} controls={false} />
+                              <InputNumber
+                                min={5}
+                                max={1440}
+                                className={styles.apiInput}
+                                controls={false}
+                              />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -615,17 +635,32 @@ const ShopSettings: React.FC = () => {
                         <Row gutter={16}>
                           <Col span={8}>
                             <Form.Item name="rate_limit_products" label="商品接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.apiInput} controls={false} />
+                              <InputNumber
+                                min={1}
+                                max={100}
+                                className={styles.apiInput}
+                                controls={false}
+                              />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_orders" label="订单接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.apiInput} controls={false} />
+                              <InputNumber
+                                min={1}
+                                max={100}
+                                className={styles.apiInput}
+                                controls={false}
+                              />
                             </Form.Item>
                           </Col>
                           <Col span={8}>
                             <Form.Item name="rate_limit_postings" label="发货接口（req/s）">
-                              <InputNumber min={1} max={100} className={styles.apiInput} controls={false} />
+                              <InputNumber
+                                min={1}
+                                max={100}
+                                className={styles.apiInput}
+                                controls={false}
+                              />
                             </Form.Item>
                           </Col>
                         </Row>
@@ -638,10 +673,26 @@ const ShopSettings: React.FC = () => {
                         <Table
                           dataSource={[]}
                           columns={[
-                            { title: '本地仓库ID', dataIndex: 'local_id', key: 'local_id' },
-                            { title: '本地仓库名称', dataIndex: 'local_name', key: 'local_name' },
-                            { title: 'Ozon仓库ID', dataIndex: 'ozon_id', key: 'ozon_id' },
-                            { title: 'Ozon仓库名称', dataIndex: 'ozon_name', key: 'ozon_name' },
+                            {
+                              title: '本地仓库ID',
+                              dataIndex: 'local_id',
+                              key: 'local_id',
+                            },
+                            {
+                              title: '本地仓库名称',
+                              dataIndex: 'local_name',
+                              key: 'local_name',
+                            },
+                            {
+                              title: 'Ozon仓库ID',
+                              dataIndex: 'ozon_id',
+                              key: 'ozon_id',
+                            },
+                            {
+                              title: 'Ozon仓库名称',
+                              dataIndex: 'ozon_name',
+                              key: 'ozon_name',
+                            },
                             {
                               title: '操作',
                               key: 'action',
@@ -743,10 +794,7 @@ const ShopSettings: React.FC = () => {
             <Input placeholder="请输入店铺名称（俄文）" className={styles.nameInput} />
           </Form.Item>
 
-          <Form.Item
-            name="shop_name_cn"
-            label="店铺中文名称"
-          >
+          <Form.Item name="shop_name_cn" label="店铺中文名称">
             <Input placeholder="请输入店铺中文名称（选填）" className={styles.nameInput} />
           </Form.Item>
 

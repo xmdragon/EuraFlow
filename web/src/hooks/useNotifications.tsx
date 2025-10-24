@@ -1,12 +1,25 @@
 /**
  * 通知管理Hook - 处理各种 WebSocket 通知展示
  */
-import React, { useCallback } from 'react';
-import { notification } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import {
+  MessageOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ShoppingOutlined,
+  WarningOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { WebSocketNotification, ChatNotificationData, Kuajing84SyncNotificationData, PostingNotificationData } from '@/types/notification';
-import { MessageOutlined, CheckCircleOutlined, CloseCircleOutlined, ShoppingOutlined, WarningOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { notification } from 'antd';
+import React, { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+import {
+  WebSocketNotification,
+  ChatNotificationData,
+  Kuajing84SyncNotificationData,
+  PostingNotificationData,
+} from '@/types/notification';
 
 export const useNotifications = (shopId: number | null) => {
   const navigate = useNavigate();
@@ -59,17 +72,24 @@ export const useNotifications = (shopId: number | null) => {
 
       // 显示通知
       const isSuccess = data.status === 'success';
-      const title = data.sync_type === 'submit_tracking'
-        ? (isSuccess ? '国内单号同步成功' : '国内单号同步失败')
-        : (isSuccess ? '订单废弃成功' : '订单废弃失败');
+      const title =
+        data.sync_type === 'submit_tracking'
+          ? isSuccess
+            ? '国内单号同步成功'
+            : '国内单号同步失败'
+          : isSuccess
+            ? '订单废弃成功'
+            : '订单废弃失败';
 
       notification.open({
         key,
         message: title,
         description: data.message,
-        icon: isSuccess
-          ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
-          : <CloseCircleOutlined style={{ color: '#ff4d4f' }} />,
+        icon: isSuccess ? (
+          <CheckCircleOutlined style={{ color: '#52c41a' }} />
+        ) : (
+          <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+        ),
         placement: 'bottomRight',
         duration: 5,
         style: {
@@ -239,7 +259,15 @@ export const useNotifications = (shopId: number | null) => {
           console.log('Unknown WebSocket message type:', message.type);
       }
     },
-    [shopId, handleChatNotification, handleKuajing84SyncNotification, handlePostingCreated, handlePostingCancelled, handlePostingStatusChanged, handlePostingDelivered]
+    [
+      shopId,
+      handleChatNotification,
+      handleKuajing84SyncNotification,
+      handlePostingCreated,
+      handlePostingCancelled,
+      handlePostingStatusChanged,
+      handlePostingDelivered,
+    ]
   );
 
   return {

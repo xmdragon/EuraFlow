@@ -339,122 +339,151 @@ const ShippingDetailCalculator: React.FC = () => {
       <div className={styles.contentContainer}>
         {/* 价格测算表 */}
         <Card title="价格测算表" className={styles.cardMargin}>
-        <Form
-          form={form}
-          layout="horizontal"
-          initialValues={calculationData}
-          onValuesChange={handleFormChange}
+          <Form
+            form={form}
+            layout="horizontal"
+            initialValues={calculationData}
+            onValuesChange={handleFormChange}
+          >
+            <Row gutter={24}>
+              <Col span={12}>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="重量(克)" name="weight">
+                      <InputNumber
+                        className={styles.fullWidthInput}
+                        min={0}
+                        max={25000}
+                        precision={0}
+                        controls={false}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item label="货值(RMB)" name="value">
+                      <InputNumber
+                        className={styles.fullWidthInput}
+                        min={0}
+                        precision={0}
+                        controls={false}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item label="长(cm)" name="length">
+                      <InputNumber
+                        className={styles.fullWidthInput}
+                        min={0}
+                        max={150}
+                        precision={0}
+                        controls={false}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item label="宽(cm)" name="width">
+                      <InputNumber
+                        className={styles.fullWidthInput}
+                        min={0}
+                        max={150}
+                        precision={0}
+                        controls={false}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item label="高(cm)" name="height">
+                      <InputNumber
+                        className={styles.fullWidthInput}
+                        min={0}
+                        max={150}
+                        precision={0}
+                        controls={false}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Form.Item label="配送方式" name="deliveryType">
+                  <Radio.Group>
+                    <Radio value="pickup">自提点</Radio>
+                    <Radio value="delivery">送货上门</Radio>
+                  </Radio.Group>
+                </Form.Item>
+              </Col>
+
+              <Col span={12}>
+                <Card size="small" title="体积重量" type="inner">
+                  <Space direction="vertical" className={styles.fullWidthSpace}>
+                    <Row justify="space-between">
+                      <Col>
+                        <Text>体积重量：</Text>
+                      </Col>
+                      <Col>
+                        <Text strong>{volumeWeight.toFixed(2)} 克</Text>
+                      </Col>
+                    </Row>
+                    <Row justify="space-between">
+                      <Col>
+                        <Text>实际重量：</Text>
+                      </Col>
+                      <Col>
+                        <Text strong>{calculationData.weight} 克</Text>
+                      </Col>
+                    </Row>
+                    <Divider style={{ margin: '8px 0' }} />
+                    <Row justify="space-between">
+                      <Col>
+                        <Text>计费重量：</Text>
+                      </Col>
+                      <Col>
+                        <Text strong style={{ color: '#1890ff' }}>
+                          {chargeableWeight.toFixed(2)} 克
+                        </Text>
+                      </Col>
+                    </Row>
+                    <Row justify="space-between">
+                      <Col>
+                        <Text>三边之和：</Text>
+                      </Col>
+                      <Col>
+                        <Text strong>{sumDimension} cm</Text>
+                      </Col>
+                    </Row>
+                    <Row justify="space-between">
+                      <Col>
+                        <Text>最长边：</Text>
+                      </Col>
+                      <Col>
+                        <Text strong>{maxDimension} cm</Text>
+                      </Col>
+                    </Row>
+                  </Space>
+                </Card>
+
+                <Alert
+                  message="体积重量 = (长×宽×高) / 5000"
+                  type="info"
+                  showIcon
+                  className={styles.alertMargin}
+                />
+              </Col>
+            </Row>
+          </Form>
+        </Card>
+
+        {/* 6个标签页 */}
+        <Card
+          styles={{
+            body: {
+              padding: '16px',
+            },
+          }}
         >
-          <Row gutter={24}>
-            <Col span={12}>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item label="重量(克)" name="weight">
-                    <InputNumber className={styles.fullWidthInput} min={0} max={25000} precision={0} controls={false} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item label="货值(RMB)" name="value">
-                    <InputNumber className={styles.fullWidthInput} min={0} precision={0} controls={false} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Form.Item label="长(cm)" name="length">
-                    <InputNumber className={styles.fullWidthInput} min={0} max={150} precision={0} controls={false} />
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item label="宽(cm)" name="width">
-                    <InputNumber className={styles.fullWidthInput} min={0} max={150} precision={0} controls={false} />
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item label="高(cm)" name="height">
-                    <InputNumber className={styles.fullWidthInput} min={0} max={150} precision={0} controls={false} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Form.Item label="配送方式" name="deliveryType">
-                <Radio.Group>
-                  <Radio value="pickup">自提点</Radio>
-                  <Radio value="delivery">送货上门</Radio>
-                </Radio.Group>
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Card size="small" title="体积重量" type="inner">
-                <Space direction="vertical" className={styles.fullWidthSpace}>
-                  <Row justify="space-between">
-                    <Col>
-                      <Text>体积重量：</Text>
-                    </Col>
-                    <Col>
-                      <Text strong>{volumeWeight.toFixed(2)} 克</Text>
-                    </Col>
-                  </Row>
-                  <Row justify="space-between">
-                    <Col>
-                      <Text>实际重量：</Text>
-                    </Col>
-                    <Col>
-                      <Text strong>{calculationData.weight} 克</Text>
-                    </Col>
-                  </Row>
-                  <Divider style={{ margin: '8px 0' }} />
-                  <Row justify="space-between">
-                    <Col>
-                      <Text>计费重量：</Text>
-                    </Col>
-                    <Col>
-                      <Text strong style={{ color: '#1890ff' }}>
-                        {chargeableWeight.toFixed(2)} 克
-                      </Text>
-                    </Col>
-                  </Row>
-                  <Row justify="space-between">
-                    <Col>
-                      <Text>三边之和：</Text>
-                    </Col>
-                    <Col>
-                      <Text strong>{sumDimension} cm</Text>
-                    </Col>
-                  </Row>
-                  <Row justify="space-between">
-                    <Col>
-                      <Text>最长边：</Text>
-                    </Col>
-                    <Col>
-                      <Text strong>{maxDimension} cm</Text>
-                    </Col>
-                  </Row>
-                </Space>
-              </Card>
-
-              <Alert
-                message="体积重量 = (长×宽×高) / 5000"
-                type="info"
-                showIcon
-                className={styles.alertMargin}
-              />
-            </Col>
-          </Row>
-        </Form>
-      </Card>
-
-      {/* 6个标签页 */}
-      <Card
-        styles={{
-          body: {
-            padding: '16px',
-          },
-        }}
-      >
-        <style>{`
+          <style>{`
           .disabled-row {
             opacity: 0.5;
             background-color: #f5f5f5;
@@ -465,10 +494,10 @@ const ShippingDetailCalculator: React.FC = () => {
             font-weight: 600;
           }
         `}</style>
-        <Tabs
-          activeKey={activeKey}
-          onChange={setActiveKey}
-          items={OZON_UNI_DATA.map((category) => ({
+          <Tabs
+            activeKey={activeKey}
+            onChange={setActiveKey}
+            items={OZON_UNI_DATA.map((category) => ({
               key: category.id,
               label: (
                 <Space>
@@ -479,8 +508,8 @@ const ShippingDetailCalculator: React.FC = () => {
               ),
               children: renderServiceTable(category),
             }))}
-        />
-      </Card>
+          />
+        </Card>
       </div>
     </div>
   );

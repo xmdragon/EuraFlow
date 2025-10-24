@@ -2,12 +2,15 @@
  * 商品过滤栏组件
  * 包含店铺选择、搜索、状态过滤等功能
  */
-import React from 'react';
-import { Card, Form, Input, Select, Button, Space, FormInstance } from 'antd';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
-import ShopSelector from '@/components/ozon/ShopSelector';
-import ProductStatusTabs, { ProductStats } from './ProductStatusTabs';
+import { Card, Form, Input, Select, Button, Space, FormInstance } from 'antd';
+import React from 'react';
+
 import styles from '../../../pages/ozon/ProductList.module.scss';
+
+import ProductStatusTabs, { ProductStats } from './ProductStatusTabs';
+
+import ShopSelector from '@/components/ozon/ShopSelector';
 
 const { Option } = Select;
 
@@ -63,7 +66,11 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
           />
         </Form.Item>
         <Form.Item name="search">
-          <Input placeholder="搜索 (SKU/标题/条码/产品ID)" prefix={<SearchOutlined />} style={{ width: 250 }} />
+          <Input
+            placeholder="搜索 (SKU/标题/条码/产品ID)"
+            prefix={<SearchOutlined />}
+            style={{ width: 250 }}
+          />
         </Form.Item>
         <Form.Item name="status">
           <Select placeholder="状态" style={{ width: 120 }} allowClear>

@@ -2,11 +2,13 @@
  * 打包发货搜索栏组件
  * 支持智能识别SKU/货件编号/追踪号码/国内单号
  */
-import React from 'react';
-import { Card, Row, Col, Space, Form, Input, Button, FormInstance } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
-import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
+import { Card, Row, Col, Space, Form, Input, Button, FormInstance } from 'antd';
+import React from 'react';
+
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
+
+import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 
 export interface SearchParams {
   sku?: string;
@@ -44,7 +46,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
     }
 
     // 智能识别搜索类型
-    let params: SearchParams = {};
+    const params: SearchParams = {};
 
     // 规则1: SKU - 10位数字
     if (/^\d{10}$/.test(searchValue)) {
@@ -104,9 +106,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
                 <Button type="primary" htmlType="submit">
                   查询
                 </Button>
-                <Button onClick={handleReset}>
-                  重置
-                </Button>
+                <Button onClick={handleReset}>重置</Button>
               </Space>
             </Form.Item>
           </Form>

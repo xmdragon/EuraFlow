@@ -2,17 +2,37 @@
 /**
  * 订单详情弹窗组件 - 供 OrderList 和 PackingShipment 共用
  */
-import React, { useState } from 'react';
-import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
-import { Modal, Tabs, Descriptions, Table, Avatar, Card, Tag, Typography, Button, InputNumber, Space } from 'antd';
-import { ShoppingCartOutlined, EditOutlined, SaveOutlined, CloseOutlined, SyncOutlined, CopyOutlined } from '@ant-design/icons';
+import {
+  ShoppingCartOutlined,
+  EditOutlined,
+  SaveOutlined,
+  CloseOutlined,
+  SyncOutlined,
+  CopyOutlined,
+} from '@ant-design/icons';
+import {
+  Modal,
+  Tabs,
+  Descriptions,
+  Table,
+  Avatar,
+  Card,
+  Tag,
+  Typography,
+  Button,
+  InputNumber,
+  Space,
+} from 'antd';
 import moment from 'moment';
-import * as ozonApi from '@/services/ozonApi';
-import { formatPriceWithFallback } from '@/utils/currency';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
-import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import React, { useState } from 'react';
+
 import { usePermission } from '@/hooks/usePermission';
 import styles from '@/pages/ozon/OrderList.module.scss';
+import * as ozonApi from '@/services/ozonApi';
+import { formatPriceWithFallback } from '@/utils/currency';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { Text } = Typography;
 
@@ -59,11 +79,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       notifyWarning('复制失败', `${label}为空，无法复制`);
       return;
     }
-    navigator.clipboard.writeText(text).then(() => {
-      notifySuccess('复制成功', `${label}已复制`);
-    }).catch(() => {
-      notifyError('复制失败', '复制失败，请手动复制');
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        notifySuccess('复制成功', `${label}已复制`);
+      })
+      .catch(() => {
+        notifyError('复制失败', '复制失败，请手动复制');
+      });
   };
 
   // 保存进货金额
@@ -173,7 +196,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     {selectedOrder.ozon_order_id || selectedOrder.order_id}
                   </Descriptions.Item>
                   <Descriptions.Item label="状态">
-                    <Tag color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}>
+                    <Tag
+                      color={statusConfig[selectedPosting?.status || selectedOrder.status]?.color}
+                    >
                       {statusConfig[selectedPosting?.status || selectedOrder.status]?.text}
                     </Tag>
                   </Descriptions.Item>
@@ -194,14 +219,26 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       : '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label="国内单号">
-                    {selectedPosting?.domestic_tracking_numbers && selectedPosting.domestic_tracking_numbers.length > 0 ? (
+                    {selectedPosting?.domestic_tracking_numbers &&
+                    selectedPosting.domestic_tracking_numbers.length > 0 ? (
                       <div>
                         {selectedPosting.domestic_tracking_numbers.map((number, index) => (
-                          <div key={index} style={{ marginBottom: index < selectedPosting.domestic_tracking_numbers.length - 1 ? '4px' : 0 }}>
+                          <div
+                            key={index}
+                            style={{
+                              marginBottom:
+                                index < selectedPosting.domestic_tracking_numbers.length - 1
+                                  ? '4px'
+                                  : 0,
+                            }}
+                          >
                             <Space>
                               <span>{number}</span>
                               <CopyOutlined
-                                style={{ cursor: 'pointer', color: '#1890ff' }}
+                                style={{
+                                  cursor: 'pointer',
+                                  color: '#1890ff',
+                                }}
                                 onClick={() => handleCopy(number, '国内单号')}
                               />
                             </Space>
@@ -216,11 +253,16 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     {selectedPosting?.posting_number || selectedOrder.posting_number || '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label="下单时间">
-                    {selectedOrder.ordered_at ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss') :
-                     (selectedOrder.created_at ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss') : '-')}
+                    {selectedOrder.ordered_at
+                      ? moment(selectedOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')
+                      : selectedOrder.created_at
+                        ? moment(selectedOrder.created_at).format('YYYY-MM-DD HH:mm:ss')
+                        : '-'}
                   </Descriptions.Item>
                   <Descriptions.Item label="发货截止">
-                    {selectedPosting?.shipment_date ? moment(selectedPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss') : '-'}
+                    {selectedPosting?.shipment_date
+                      ? moment(selectedPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss')
+                      : '-'}
                   </Descriptions.Item>
                 </Descriptions>
               ),
@@ -240,7 +282,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       key: 'image',
                       width: 80,
                       render: (sku, record) => {
-                        const rawImageUrl = record.image || (record.offer_id && offerIdImageMap[record.offer_id] ? offerIdImageMap[record.offer_id] : undefined);
+                        const rawImageUrl =
+                          record.image ||
+                          (record.offer_id && offerIdImageMap[record.offer_id]
+                            ? offerIdImageMap[record.offer_id]
+                            : undefined);
                         const imageUrl = optimizeOzonImageUrl(rawImageUrl, 60);
                         return imageUrl ? (
                           <Avatar
@@ -278,30 +324,29 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           );
                         }
                         return name || record.sku;
-                      }
+                      },
                     },
-                    { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 80 },
+                    {
+                      title: '数量',
+                      dataIndex: 'quantity',
+                      key: 'quantity',
+                      width: 80,
+                    },
                     {
                       title: '单价',
                       dataIndex: 'price',
                       key: 'price',
                       width: 100,
-                      render: (price) => formatPriceWithFallback(
-                        price,
-                        selectedOrder?.currency_code,
-                        userCurrency
-                      ),
+                      render: (price) =>
+                        formatPriceWithFallback(price, selectedOrder?.currency_code, userCurrency),
                     },
                     {
                       title: '小计',
                       dataIndex: 'total_amount',
                       key: 'total_amount',
                       width: 100,
-                      render: (amount) => formatPriceWithFallback(
-                        amount,
-                        selectedOrder?.currency_code,
-                        userCurrency
-                      ),
+                      render: (amount) =>
+                        formatPriceWithFallback(amount, selectedOrder?.currency_code, userCurrency),
                     },
                   ]}
                 />
@@ -319,7 +364,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <Descriptions.Item label="状态">
                       {statusConfig[posting.status]?.text || posting.status}
                     </Descriptions.Item>
-                    <Descriptions.Item label="仓库">{posting.warehouse_name || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="仓库">
+                      {posting.warehouse_name || '-'}
+                    </Descriptions.Item>
                     <Descriptions.Item label="订单类型">
                       {selectedOrder.order_type || 'FBS'}
                     </Descriptions.Item>
@@ -327,14 +374,24 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       {formatDeliveryMethodTextWhite(posting.delivery_method_name)}
                     </Descriptions.Item>
                     <Descriptions.Item label="国内单号">
-                      {posting.domestic_tracking_numbers && posting.domestic_tracking_numbers.length > 0 ? (
+                      {posting.domestic_tracking_numbers &&
+                      posting.domestic_tracking_numbers.length > 0 ? (
                         <div>
                           {posting.domestic_tracking_numbers.map((number, index) => (
-                            <div key={index} style={{ marginBottom: index < posting.domestic_tracking_numbers.length - 1 ? '4px' : 0 }}>
+                            <div
+                              key={index}
+                              style={{
+                                marginBottom:
+                                  index < posting.domestic_tracking_numbers.length - 1 ? '4px' : 0,
+                              }}
+                            >
                               <Space>
                                 <span>{number}</span>
                                 <CopyOutlined
-                                  style={{ cursor: 'pointer', color: '#1890ff' }}
+                                  style={{
+                                    cursor: 'pointer',
+                                    color: '#1890ff',
+                                  }}
                                   onClick={() => handleCopy(number, '国内单号')}
                                 />
                               </Space>
@@ -351,7 +408,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           {posting.packages.map((pkg, index) => (
                             <div key={pkg.id || index} style={{ marginBottom: 4 }}>
                               {pkg.tracking_number || '-'}
-                              {pkg.carrier_name && <Text type="secondary"> ({pkg.carrier_name})</Text>}
+                              {pkg.carrier_name && (
+                                <Text type="secondary"> ({pkg.carrier_name})</Text>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -395,26 +454,39 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 const isDelivered = selectedPosting?.status === 'delivered';
 
                 // 计算订单金额（商品总价）
-                const orderAmount = parseFloat(selectedOrder.total_price || selectedOrder.total_amount || '0');
+                const orderAmount = parseFloat(
+                  selectedOrder.total_price || selectedOrder.total_amount || '0'
+                );
 
                 // 获取各项费用
                 const purchasePrice = parseFloat(selectedPosting?.purchase_price || '0');
                 const ozonCommission = parseFloat(selectedPosting?.ozon_commission_cny || '0');
-                const internationalLogistics = parseFloat(selectedPosting?.international_logistics_fee_cny || '0');
-                const lastMileDelivery = parseFloat(selectedPosting?.last_mile_delivery_fee_cny || '0');
+                const internationalLogistics = parseFloat(
+                  selectedPosting?.international_logistics_fee_cny || '0'
+                );
+                const lastMileDelivery = parseFloat(
+                  selectedPosting?.last_mile_delivery_fee_cny || '0'
+                );
                 const packingFee = parseFloat(selectedPosting?.material_cost || '0');
 
                 // 只有在已签收状态下且有进货金额和Ozon佣金时才计算利润
-                const shouldCalculateProfit = isDelivered && purchasePrice > 0 && ozonCommission > 0;
+                const shouldCalculateProfit =
+                  isDelivered && purchasePrice > 0 && ozonCommission > 0;
 
                 const profitAmount = shouldCalculateProfit
-                  ? orderAmount - (purchasePrice + ozonCommission + internationalLogistics + lastMileDelivery + packingFee)
+                  ? orderAmount -
+                    (purchasePrice +
+                      ozonCommission +
+                      internationalLogistics +
+                      lastMileDelivery +
+                      packingFee)
                   : null;
 
                 // 计算利润比率 = (利润金额 / 订单金额) * 100，保留2位小数
-                const profitRate = (shouldCalculateProfit && orderAmount > 0 && profitAmount !== null)
-                  ? ((profitAmount / orderAmount) * 100).toFixed(2)
-                  : null;
+                const profitRate =
+                  shouldCalculateProfit && orderAmount > 0 && profitAmount !== null
+                    ? ((profitAmount / orderAmount) * 100).toFixed(2)
+                    : null;
 
                 return (
                   <Descriptions bordered column={1} labelStyle={{ width: '120px' }}>
@@ -594,7 +666,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     </Descriptions.Item>
                     <Descriptions.Item label="利润金额">
                       {profitAmount !== null ? (
-                        <Text strong style={{ color: profitAmount >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                        <Text
+                          strong
+                          style={{
+                            color: profitAmount >= 0 ? '#52c41a' : '#ff4d4f',
+                          }}
+                        >
                           {formatPriceWithFallback(
                             profitAmount.toString(),
                             selectedOrder.currency_code,
@@ -607,7 +684,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     </Descriptions.Item>
                     <Descriptions.Item label="利润比率">
                       {profitRate !== null ? (
-                        <Text strong style={{ color: parseFloat(profitRate) >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                        <Text
+                          strong
+                          style={{
+                            color: parseFloat(profitRate) >= 0 ? '#52c41a' : '#ff4d4f',
+                          }}
+                        >
                           {profitRate}%
                         </Text>
                       ) : (

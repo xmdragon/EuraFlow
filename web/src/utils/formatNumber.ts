@@ -17,7 +17,7 @@ export const formatNumber = (
   }
 
   const num = typeof value === 'string' ? parseFloat(value) : value;
-  
+
   if (isNaN(num)) {
     return '0';
   }

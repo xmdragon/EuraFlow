@@ -9,9 +9,9 @@ import { SCENARIOS, ScenarioConfig } from '../finance/constants';
  * 商品佣金率数据接口
  */
 export interface ProductCommissionRates {
-  rfbs_low?: number;   // rFBS(<=1500₽)佣金率 (百分比，如12表示12%)
-  rfbs_mid?: number;   // rFBS(1501-5000₽)佣金率
-  rfbs_high?: number;  // rFBS(>5000₽)佣金率
+  rfbs_low?: number; // rFBS(<=1500₽)佣金率 (百分比，如12表示12%)
+  rfbs_mid?: number; // rFBS(1501-5000₽)佣金率
+  rfbs_high?: number; // rFBS(>5000₽)佣金率
 }
 
 /**
@@ -37,8 +37,8 @@ export function selectCommissionRate(
   }
 
   // 将OZON的RUB档位阈值转换为RMB阈值
-  const threshold1_RMB = 1500 / exchangeRate;  // 1500₽ → RMB
-  const threshold2_RMB = 5000 / exchangeRate;  // 5000₽ → RMB
+  const threshold1_RMB = 1500 / exchangeRate; // 1500₽ → RMB
+  const threshold2_RMB = 5000 / exchangeRate; // 5000₽ → RMB
 
   // 根据商品的RMB价格选择对应的佣金率档位
   if (priceRMB <= threshold1_RMB) {
@@ -81,8 +81,10 @@ export function matchScenario(
 
     if (exchangeRate && exchangeRate > 0) {
       // 将场景的 RUB 价格范围转换为 RMB：RUB ÷ 汇率 = RMB
-      minPriceRMB = conditions.minPrice !== undefined ? conditions.minPrice / exchangeRate : undefined;
-      maxPriceRMB = conditions.maxPrice !== undefined ? conditions.maxPrice / exchangeRate : undefined;
+      minPriceRMB =
+        conditions.minPrice !== undefined ? conditions.minPrice / exchangeRate : undefined;
+      maxPriceRMB =
+        conditions.maxPrice !== undefined ? conditions.maxPrice / exchangeRate : undefined;
     }
 
     const priceMatch =
@@ -205,8 +207,10 @@ export function matchAllScenarios(
 
     if (exchangeRate && exchangeRate > 0) {
       // 将场景的 RUB 价格范围转换为 RMB：RUB ÷ 汇率 = RMB
-      minPriceRMB = conditions.minPrice !== undefined ? conditions.minPrice / exchangeRate : undefined;
-      maxPriceRMB = conditions.maxPrice !== undefined ? conditions.maxPrice / exchangeRate : undefined;
+      minPriceRMB =
+        conditions.minPrice !== undefined ? conditions.minPrice / exchangeRate : undefined;
+      maxPriceRMB =
+        conditions.maxPrice !== undefined ? conditions.maxPrice / exchangeRate : undefined;
     }
 
     const priceMatch =

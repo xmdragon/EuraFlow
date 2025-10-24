@@ -1,14 +1,9 @@
 /**
  * 字段配置Modal组件
  */
+import { Modal, Space, Button, Divider, Typography } from 'antd';
 import React from 'react';
-import {
-  Modal,
-  Space,
-  Button,
-  Divider,
-  Typography,
-} from 'antd';
+
 import styles from '../../../pages/ozon/ProductSelection.module.scss';
 
 const { Text } = Typography;
@@ -18,14 +13,14 @@ export interface FieldConfig {
   brand: boolean;
   originalPrice: boolean;
   rfbsCommission: boolean;
-  rfbsCommissionHigh: boolean;  // rFBS高档佣金率（>5000₽）
+  rfbsCommissionHigh: boolean; // rFBS高档佣金率（>5000₽）
   fbpCommission: boolean;
-  fbpCommissionHigh: boolean;   // FBP佣金率（高档>5000₽）
+  fbpCommissionHigh: boolean; // FBP佣金率（高档>5000₽）
   monthlySales: boolean;
   weight: boolean;
   competitors: boolean;
   rating: boolean;
-  listingDate: boolean;  // 上架时间
+  listingDate: boolean; // 上架时间
 }
 
 // 默认字段配置（全部显示）

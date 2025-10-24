@@ -22,7 +22,6 @@ class AuthService {
     this._accessToken = localStorage.getItem('access_token');
     this._refreshToken = localStorage.getItem('refresh_token');
 
-
     // Setup axios interceptors
     this.setupInterceptors();
   }
@@ -79,7 +78,9 @@ class AuthService {
               return Promise.reject(refreshError);
             }
           } else {
-            const reason = !this._refreshToken ? 'No refresh token available' : 'Already retried once';
+            const reason = !this._refreshToken
+              ? 'No refresh token available'
+              : 'Already retried once';
             // Clearing tokens
             // No refresh token or already retried, clear tokens
             this.clearTokens();
@@ -114,12 +115,12 @@ class AuthService {
       throw new Error('No refresh token available');
     }
 
-    const response = await axios.post<{ access_token: string; refresh_token: string }>(
-      `${API_BASE_URL}/auth/refresh`,
-      {
-        refresh_token: this._refreshToken,
-      }
-    );
+    const response = await axios.post<{
+      access_token: string;
+      refresh_token: string;
+    }>(`${API_BASE_URL}/auth/refresh`, {
+      refresh_token: this._refreshToken,
+    });
 
     const { access_token, refresh_token } = response.data;
     this.setTokens(access_token, refresh_token);
@@ -221,7 +222,6 @@ class AuthService {
     // console.log('Access Token:', this._accessToken ? `${this._accessToken.substring(0, 20)}...` : 'None');
     // console.log('Refresh Token:', this._refreshToken ? `${this._refreshToken.substring(0, 20)}...` : 'None');
     // console.log('Is Authenticated:', this.isAuthenticated());
-
     // if (this._accessToken) {
     //   try {
     //     const parts = this._accessToken.split('.');

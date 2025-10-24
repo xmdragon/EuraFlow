@@ -1,7 +1,15 @@
 /**
  * OZON商品上架管理页面
  */
-import React, { useState } from 'react';
+import {
+  CloudUploadOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  ExclamationCircleOutlined,
+  ReloadOutlined,
+  RocketOutlined,
+} from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   Table,
@@ -20,21 +28,15 @@ import {
   Col,
   Statistic,
 } from 'antd';
-import {
-  CloudUploadOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  ExclamationCircleOutlined,
-  ReloadOutlined,
-  RocketOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnsType } from 'antd/es/table';
+import React, { useState } from 'react';
+
+import styles from './ProductListing.module.scss';
+
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
-import { notifySuccess, notifyError } from '@/utils/notification';
 import * as ozonApi from '@/services/ozonApi';
-import styles from './ProductListing.module.scss';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Option } = Select;
 
@@ -69,7 +71,11 @@ const ProductListing: React.FC = () => {
   const [form] = Form.useForm();
 
   // 获取商品列表（优先显示draft和可上架的商品）
-  const { data: productsData, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    refetch: refetchProducts,
+  } = useQuery({
     queryKey: ['products', selectedShop, 'listable'],
     queryFn: async () => {
       if (!selectedShop) return { data: [], total: 0 };
@@ -164,7 +170,12 @@ const ProductListing: React.FC = () => {
       key: 'stock',
       width: 80,
       render: (stock: number) => (
-        <Badge count={stock} showZero overflowCount={999} style={{ backgroundColor: stock > 0 ? '#52c41a' : '#d9d9d9' }} />
+        <Badge
+          count={stock}
+          showZero
+          overflowCount={999}
+          style={{ backgroundColor: stock > 0 ? '#52c41a' : '#d9d9d9' }}
+        />
       ),
     },
     {
@@ -181,7 +192,10 @@ const ProductListing: React.FC = () => {
           inactive: { text: '未激活', color: 'warning' },
           archived: { text: '已归档', color: 'default' },
         };
-        const statusInfo = statusMap[status] || { text: status, color: 'default' };
+        const statusInfo = statusMap[status] || {
+          text: status,
+          color: 'default',
+        };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
       },
     },
@@ -233,12 +247,18 @@ const ProductListing: React.FC = () => {
   ];
 
   // 统计信息
-  const stats = productsData?.data ? {
-    total: productsData.data.length,
-    draft: productsData.data.filter((p: ozonApi.Product) => !p.ozon_product_id && (!p.price || p.stock <= 0)).length,
-    listed: productsData.data.filter((p: ozonApi.Product) => p.ozon_product_id).length,
-    ready: productsData.data.filter((p: ozonApi.Product) => p.price && p.stock > 0 && !p.ozon_product_id).length,
-  } : { total: 0, draft: 0, listed: 0, ready: 0 };
+  const stats = productsData?.data
+    ? {
+        total: productsData.data.length,
+        draft: productsData.data.filter(
+          (p: ozonApi.Product) => !p.ozon_product_id && (!p.price || p.stock <= 0)
+        ).length,
+        listed: productsData.data.filter((p: ozonApi.Product) => p.ozon_product_id).length,
+        ready: productsData.data.filter(
+          (p: ozonApi.Product) => p.price && p.stock > 0 && !p.ozon_product_id
+        ).length,
+      }
+    : { total: 0, draft: 0, listed: 0, ready: 0 };
 
   return (
     <div>
@@ -343,9 +363,15 @@ const ProductListing: React.FC = () => {
             message="上架说明"
             description={
               <div>
-                <p><strong>NEW_CARD</strong>: 创建全新商品卡片（需要填写类目和属性）</p>
-                <p><strong>FOLLOW_PDP</strong>: 跟随已有商品（需要条形码，共享商品详情页）</p>
-                <p><strong>自动推进</strong>: 自动完成图片上传、商品创建、价格设置、库存设置等步骤</p>
+                <p>
+                  <strong>NEW_CARD</strong>: 创建全新商品卡片（需要填写类目和属性）
+                </p>
+                <p>
+                  <strong>FOLLOW_PDP</strong>: 跟随已有商品（需要条形码，共享商品详情页）
+                </p>
+                <p>
+                  <strong>自动推进</strong>: 自动完成图片上传、商品创建、价格设置、库存设置等步骤
+                </p>
               </div>
             }
             type="info"
@@ -369,7 +395,8 @@ const ProductListing: React.FC = () => {
             <Select>
               <Option value="NEW_CARD">NEW_CARD - 创建新商品卡片</Option>
               <Option value="FOLLOW_PDP" disabled={!selectedProduct?.barcode}>
-                FOLLOW_PDP - 跟随已有商品{!selectedProduct?.barcode && ' (需要条形码)'}
+                FOLLOW_PDP - 跟随已有商品
+                {!selectedProduct?.barcode && ' (需要条形码)'}
               </Option>
             </Select>
           </Form.Item>
@@ -391,10 +418,18 @@ const ProductListing: React.FC = () => {
               message="商品信息"
               description={
                 <div>
-                  <p><strong>名称</strong>: {selectedProduct.title}</p>
-                  <p><strong>价格</strong>: {selectedProduct.price || '未设置'}</p>
-                  <p><strong>库存</strong>: {selectedProduct.stock || 0}</p>
-                  <p><strong>条形码</strong>: {selectedProduct.barcode || '无'}</p>
+                  <p>
+                    <strong>名称</strong>: {selectedProduct.title}
+                  </p>
+                  <p>
+                    <strong>价格</strong>: {selectedProduct.price || '未设置'}
+                  </p>
+                  <p>
+                    <strong>库存</strong>: {selectedProduct.stock || 0}
+                  </p>
+                  <p>
+                    <strong>条形码</strong>: {selectedProduct.barcode || '无'}
+                  </p>
                 </div>
               }
               type="warning"
@@ -435,9 +470,15 @@ const ProductListing: React.FC = () => {
                   {currentStatus.status}
                 </Tag>
               </p>
-              <p><strong>上架模式:</strong> {currentStatus.mode || '-'}</p>
-              <p><strong>OZON商品ID:</strong> {currentStatus.product_id || '-'}</p>
-              <p><strong>OZON SKU:</strong> {currentStatus.sku || '-'}</p>
+              <p>
+                <strong>上架模式:</strong> {currentStatus.mode || '-'}
+              </p>
+              <p>
+                <strong>OZON商品ID:</strong> {currentStatus.product_id || '-'}
+              </p>
+              <p>
+                <strong>OZON SKU:</strong> {currentStatus.sku || '-'}
+              </p>
             </Card>
 
             {currentStatus.error && (
@@ -445,8 +486,12 @@ const ProductListing: React.FC = () => {
                 message="错误信息"
                 description={
                   <div>
-                    <p><strong>错误代码:</strong> {currentStatus.error.code}</p>
-                    <p><strong>错误描述:</strong> {currentStatus.error.message}</p>
+                    <p>
+                      <strong>错误代码:</strong> {currentStatus.error.code}
+                    </p>
+                    <p>
+                      <strong>错误描述:</strong> {currentStatus.error.message}
+                    </p>
                   </div>
                 }
                 type="error"
@@ -456,13 +501,14 @@ const ProductListing: React.FC = () => {
             )}
 
             <Card title="时间戳记录" size="small">
-              {Object.entries(currentStatus.timestamps).map(([key, value]) => (
-                value && (
-                  <p key={key}>
-                    <strong>{key}:</strong> {new Date(value).toLocaleString('zh-CN')}
-                  </p>
-                )
-              ))}
+              {Object.entries(currentStatus.timestamps).map(
+                ([key, value]) =>
+                  value && (
+                    <p key={key}>
+                      <strong>{key}:</strong> {new Date(value).toLocaleString('zh-CN')}
+                    </p>
+                  )
+              )}
             </Card>
           </div>
         )}

@@ -1,9 +1,10 @@
 /**
  * 跨境巴士配置组件
  */
-import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Switch, Button, Space, Alert, Spin } from 'antd';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { Card, Form, Input, Switch, Button, Space, Alert, Spin } from 'antd';
+import React, { useState, useEffect } from 'react';
+
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -12,7 +13,11 @@ export const Kuajing84Configuration: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
 
-  const { data: configData, refetch: refetchConfig, isLoading: configLoading } = useQuery({
+  const {
+    data: configData,
+    refetch: refetchConfig,
+    isLoading: configLoading,
+  } = useQuery({
     queryKey: ['ozon', 'kuajing84-global-config'],
     queryFn: () => ozonApi.getKuajing84Config(),
     staleTime: 30 * 1000,
@@ -92,11 +97,19 @@ export const Kuajing84Configuration: React.FC = () => {
             <Switch checkedChildren="启用" unCheckedChildren="禁用" />
           </Form.Item>
 
-          <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
+          <Form.Item
+            name="username"
+            label="用户名"
+            rules={[{ required: true, message: '请输入用户名' }]}
+          >
             <Input placeholder="请输入跨境巴士用户名" />
           </Form.Item>
 
-          <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
+          <Form.Item
+            name="password"
+            label="密码"
+            rules={[{ required: true, message: '请输入密码' }]}
+          >
             <Input.Password placeholder="请输入跨境巴士密码" />
           </Form.Item>
 

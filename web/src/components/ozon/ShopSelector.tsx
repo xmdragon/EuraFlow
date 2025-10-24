@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Select, Space, Spin } from 'antd';
 import { ShopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
+import { Select, Space, Spin } from 'antd';
+import React, { useEffect, useState } from 'react';
+
 import * as ozonApi from '../../services/ozonApi';
+
 import styles from './ShopSelector.module.scss';
 
 const { Option } = Select;

@@ -1,10 +1,3 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  Button,
-  Space,
-  Spin,
-} from 'antd';
 import {
   LeftOutlined,
   RightOutlined,
@@ -17,8 +10,12 @@ import {
   PictureOutlined,
   RollbackOutlined,
 } from '@ant-design/icons';
-import { notifySuccess, notifyError } from '@/utils/notification';
+import { Modal, Button, Space, Spin } from 'antd';
+import React, { useState, useEffect } from 'react';
+
 import styles from './ImagePreview.module.scss';
+
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 interface ImagePreviewProps {
   images: string[];
@@ -63,7 +60,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!visible) return;
 
-      switch(e.key) {
+      switch (e.key) {
         case 'ArrowLeft':
           handlePrevious();
           break;
@@ -87,7 +84,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       e.preventDefault();
 
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setScale(prev => Math.min(Math.max(prev + delta, 0.5), 3));
+      setScale((prev) => Math.min(Math.max(prev + delta, 0.5), 3));
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -109,19 +106,19 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   };
 
   const handleZoomIn = () => {
-    setScale(prev => Math.min(prev + 0.2, 3));
+    setScale((prev) => Math.min(prev + 0.2, 3));
   };
 
   const handleZoomOut = () => {
-    setScale(prev => Math.max(prev - 0.2, 0.5));
+    setScale((prev) => Math.max(prev - 0.2, 0.5));
   };
 
   const handleRotateLeft = () => {
-    setRotate(prev => prev - 90);
+    setRotate((prev) => prev - 90);
   };
 
   const handleRotateRight = () => {
-    setRotate(prev => prev + 90);
+    setRotate((prev) => prev + 90);
   };
 
   const handleDownload = () => {
@@ -150,11 +147,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
         maxWidth: '90vw',
         top: '5vh',
       }}
-      modalRender={(modal) => (
-        <div className={styles.modalWrapper}>
-          {modal}
-        </div>
-      )}
+      modalRender={(modal) => <div className={styles.modalWrapper}>{modal}</div>}
     >
       <div className={styles.container}>
         {/* 加载动画 - 当loading或没有图片时显示 */}
@@ -222,69 +215,67 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
         {/* 底部工具栏 - 只在有图片时显示 */}
         {hasImages && (
           <div className={styles.toolbar}>
-          <Space>
-            <Button
-              type="text"
-              icon={<ZoomOutOutlined />}
-              onClick={handleZoomOut}
-              className={styles.toolbarButton}
-              title="缩小"
-            />
-            <span className={styles.zoomDisplay}>
-              {Math.round(scale * 100)}%
-            </span>
-            <Button
-              type="text"
-              icon={<ZoomInOutlined />}
-              onClick={handleZoomIn}
-              className={styles.toolbarButton}
-              title="放大"
-            />
-            <Button
-              type="text"
-              icon={<RotateLeftOutlined />}
-              onClick={handleRotateLeft}
-              className={styles.toolbarButton}
-              title="向左旋转"
-            />
-            <Button
-              type="text"
-              icon={<RotateRightOutlined />}
-              onClick={handleRotateRight}
-              className={styles.toolbarButton}
-              title="向右旋转"
-            />
-            <Button
-              type="text"
-              icon={<DownloadOutlined />}
-              onClick={handleDownload}
-              className={styles.toolbarButton}
-              title="下载图片"
-            />
+            <Space>
+              <Button
+                type="text"
+                icon={<ZoomOutOutlined />}
+                onClick={handleZoomOut}
+                className={styles.toolbarButton}
+                title="缩小"
+              />
+              <span className={styles.zoomDisplay}>{Math.round(scale * 100)}%</span>
+              <Button
+                type="text"
+                icon={<ZoomInOutlined />}
+                onClick={handleZoomIn}
+                className={styles.toolbarButton}
+                title="放大"
+              />
+              <Button
+                type="text"
+                icon={<RotateLeftOutlined />}
+                onClick={handleRotateLeft}
+                className={styles.toolbarButton}
+                title="向左旋转"
+              />
+              <Button
+                type="text"
+                icon={<RotateRightOutlined />}
+                onClick={handleRotateRight}
+                className={styles.toolbarButton}
+                title="向右旋转"
+              />
+              <Button
+                type="text"
+                icon={<DownloadOutlined />}
+                onClick={handleDownload}
+                className={styles.toolbarButton}
+                title="下载图片"
+              />
 
-            {/* 分隔线和水印操作按钮 */}
-            {productInfo && onWatermark && onRestore && (
-              <>
-                <div className={styles.divider} />
+              {/* 分隔线和水印操作按钮 */}
+              {productInfo && onWatermark && onRestore && (
+                <>
+                  <div className={styles.divider} />
 
-                <Button
-                  type="text"
-                  icon={<PictureOutlined />}
-                  onClick={onWatermark}
-                  className={styles.toolbarButton}
-                  title="应用水印"
-                />
-                <Button
-                  type="text"
-                  icon={<RollbackOutlined />}
-                  onClick={onRestore}
-                  className={styles.toolbarButton}
-                  title="还原原图"
-                />
-              </>
-            )}
-          </Space>
-        </div>
+                  <Button
+                    type="text"
+                    icon={<PictureOutlined />}
+                    onClick={onWatermark}
+                    className={styles.toolbarButton}
+                    title="应用水印"
+                  />
+                  <Button
+                    type="text"
+                    icon={<RollbackOutlined />}
+                    onClick={onRestore}
+                    className={styles.toolbarButton}
+                    title="还原原图"
+                  />
+                </>
+              )}
+            </Space>
+          </div>
         )}
       </div>
     </Modal>

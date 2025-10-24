@@ -3,8 +3,8 @@
  *
  * 用于轮询异步同步任务的状态（国内单号提交、废弃订单）
  */
-import { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 export interface Kuajing84SyncStatus {
   sync_log_id: number;
@@ -52,13 +52,7 @@ export function useKuajing84SyncStatus(
   syncLogId: number | null,
   options: UseKuajing84SyncStatusOptions = {}
 ): UseKuajing84SyncStatusReturn {
-  const {
-    pollInterval = 2000,
-    maxAttempts = 15,
-    onSuccess,
-    onFailure,
-    onTimeout,
-  } = options;
+  const { pollInterval = 2000, maxAttempts = 15, onSuccess, onFailure, onTimeout } = options;
 
   const [status, setStatus] = useState<Kuajing84SyncStatus | null>(null);
   const [isPolling, setIsPolling] = useState<boolean>(false);

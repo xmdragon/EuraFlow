@@ -77,7 +77,6 @@ const LoginPage: React.FC = () => {
               </Button>
             </Form.Item>
           </Form>
-
         </Space>
       </div>
     </div>

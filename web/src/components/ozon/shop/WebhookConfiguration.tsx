@@ -1,7 +1,8 @@
 /**
  * Webhook 配置组件
  */
-import React, { useState } from 'react';
+import { ApiOutlined, SettingOutlined } from '@ant-design/icons';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Card,
   Form,
@@ -15,14 +16,12 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import {
-  ApiOutlined,
-  SettingOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import React, { useState } from 'react';
+
+import styles from '../../../pages/ozon/ShopSettings.module.scss';
+
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
-import styles from '../../../pages/ozon/ShopSettings.module.scss';
 
 const { Text } = Typography;
 const { confirm } = Modal;
@@ -77,8 +76,14 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
             <ol>
               <li>登录 Ozon 卖家后台</li>
               <li>进入"设置" → "Webhook"配置页面</li>
-              <li>设置 Webhook URL: <Text code copyable>{data.webhook_url}</Text></li>
-              <li>启用以下事件类型：
+              <li>
+                设置 Webhook URL:{' '}
+                <Text code copyable>
+                  {data.webhook_url}
+                </Text>
+              </li>
+              <li>
+                启用以下事件类型：
                 <ul style={{ marginTop: 8 }}>
                   <li>posting.status_changed（订单状态变更）</li>
                   <li>posting.cancelled（订单取消）</li>
@@ -149,10 +154,11 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
   const handleConfigureWebhook = () => {
     // 自动生成webhook URL
     // 本地开发环境使用后端端口8000，生产环境使用当前域名
-    const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const isDev =
+      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const baseUrl = isDev
-      ? `http://localhost:8000`  // 本地开发直接指向后端
-      : window.location.origin;   // 生产环境使用当前域名
+      ? `http://localhost:8000` // 本地开发直接指向后端
+      : window.location.origin; // 生产环境使用当前域名
     const webhookUrl = `${baseUrl}/api/ef/v1/ozon/webhook`;
 
     configForm.setFieldsValue({
@@ -282,11 +288,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
 
           <Form.Item>
             <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={configureWebhookMutation.isPending}
-              >
+              <Button type="primary" htmlType="submit" loading={configureWebhookMutation.isPending}>
                 确认配置
               </Button>
               <Button onClick={() => setConfigModalVisible(false)}>取消</Button>
@@ -303,7 +305,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
         footer={[
           <Button key="close" onClick={() => setEventsModalVisible(false)}>
             关闭
-          </Button>
+          </Button>,
         ]}
         width={1200}
       >
@@ -322,7 +324,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
                 // 只显示后面的数字部分（去掉evt_前缀）
                 const id = text ? text.replace(/^evt_/, '') : '-';
                 return <Text code>{id}</Text>;
-              }
+              },
             },
             {
               title: '事件类型',
@@ -342,7 +344,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
                 };
                 const displayText = eventTypeMap[text] || text;
                 return <Tag>{displayText}</Tag>;
-              }
+              },
             },
             {
               title: '状态',
@@ -352,14 +354,17 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
               render: (status) => {
                 // 状态中文映射
                 const statusMap: Record<string, { text: string; badgeStatus: any }> = {
-                  'processed': { text: '已处理', badgeStatus: 'success' },
-                  'failed': { text: '失败', badgeStatus: 'error' },
-                  'processing': { text: '处理中', badgeStatus: 'processing' },
-                  'pending': { text: '待处理', badgeStatus: 'default' },
+                  processed: { text: '已处理', badgeStatus: 'success' },
+                  failed: { text: '失败', badgeStatus: 'error' },
+                  processing: { text: '处理中', badgeStatus: 'processing' },
+                  pending: { text: '待处理', badgeStatus: 'default' },
                 };
-                const config = statusMap[status] || { text: status, badgeStatus: 'default' };
+                const config = statusMap[status] || {
+                  text: status,
+                  badgeStatus: 'default',
+                };
                 return <Badge status={config.badgeStatus} text={config.text} />;
-              }
+              },
             },
             {
               title: '重试次数',
@@ -372,13 +377,13 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
               dataIndex: 'created_at',
               key: 'created_at',
               width: 160,
-              render: (time) => time ? new Date(time).toLocaleString() : '-'
+              render: (time) => (time ? new Date(time).toLocaleString() : '-'),
             },
             {
               title: '错误信息',
               dataIndex: 'error_message',
               key: 'error_message',
-              render: (error) => error ? <Text type="danger">{error}</Text> : '-'
+              render: (error) => (error ? <Text type="danger">{error}</Text> : '-'),
             },
           ]}
           pagination={{

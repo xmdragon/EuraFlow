@@ -55,9 +55,9 @@ export const getCurrencySymbol = (currencyCode: string | null | undefined): stri
   }
 
   const symbols: Record<string, string> = {
-    'CNY': '¥',   // 人民币
-    'RUB': '₽',   // 俄罗斯卢布
-    'USD': '$',   // 美元
+    CNY: '¥', // 人民币
+    RUB: '₽', // 俄罗斯卢布
+    USD: '$', // 美元
   };
 
   return symbols[currencyCode.toUpperCase()] || '¥'; // 未知货币默认使用人民币符号
@@ -83,10 +83,7 @@ export const formatPriceWithCurrency = (
  * @param suffix - 后缀，默认为 '%'
  * @returns 格式化后的百分比字符串
  */
-export const formatPercent = (
-  value: number | null | undefined,
-  suffix: string = '%'
-): string => {
+export const formatPercent = (value: number | null | undefined, suffix: string = '%'): string => {
   if (value === null || value === undefined || isNaN(value)) {
     return `0.00${suffix}`;
   }
@@ -118,10 +115,7 @@ export const formatPriceWithFallback = (
  * @param cost - 成本
  * @returns 毛利率（已格式化为百分比字符串）
  */
-export const calculateMargin = (
-  price: number | string,
-  cost: number | string
-): string => {
+export const calculateMargin = (price: number | string, cost: number | string): string => {
   const priceNum = typeof price === 'string' ? parseFloat(price) : price;
   const costNum = typeof cost === 'string' ? parseFloat(cost) : cost;
 

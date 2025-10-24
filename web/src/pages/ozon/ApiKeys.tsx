@@ -1,7 +1,14 @@
 /**
  * API Key管理页面
  */
-import React, { useState, useEffect } from 'react';
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  CopyOutlined,
+  ReloadOutlined,
+  KeyOutlined,
+  SafetyOutlined,
+} from '@ant-design/icons';
 import {
   Card,
   Table,
@@ -19,14 +26,8 @@ import {
   Empty,
   Spin,
 } from 'antd';
-import {
-  PlusOutlined,
-  DeleteOutlined,
-  CopyOutlined,
-  ReloadOutlined,
-  KeyOutlined,
-  SafetyOutlined,
-} from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+
 import {
   listAPIKeys,
   createAPIKey,
@@ -35,10 +36,12 @@ import {
   APIKey,
   CreateAPIKeyRequest,
 } from '../../services/apiKeyService';
-import { notifySuccess, notifyError } from '@/utils/notification';
-import { usePermission } from '@/hooks/usePermission';
-import PageTitle from '@/components/PageTitle';
+
 import styles from './ApiKeys.module.scss';
+
+import PageTitle from '@/components/PageTitle';
+import { usePermission } from '@/hooks/usePermission';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -49,7 +52,10 @@ const ApiKeys: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [keyModalVisible, setKeyModalVisible] = useState(false);
-  const [newKeyData, setNewKeyData] = useState<{ key: string; name: string } | null>(null);
+  const [newKeyData, setNewKeyData] = useState<{
+    key: string;
+    name: string;
+  } | null>(null);
   const [form] = Form.useForm();
 
   // 加载API Keys
@@ -104,7 +110,10 @@ const ApiKeys: React.FC = () => {
       loadKeys();
       notifySuccess('重新生成成功', 'API Key已重新生成');
     } catch (error: any) {
-      notifyError('重新生成失败', '重新生成失败: ' + (error.response?.data?.message || error.message));
+      notifyError(
+        '重新生成失败',
+        '重新生成失败: ' + (error.response?.data?.message || error.message)
+      );
     }
   };
 
@@ -178,11 +187,7 @@ const ApiKeys: React.FC = () => {
       key: 'expires_at',
       render: (date: string | null, record: APIKey) => {
         if (!date) return <Text type="secondary">永不过期</Text>;
-        return (
-          <Text type={isExpired(date) ? 'danger' : undefined}>
-            {formatDate(date)}
-          </Text>
-        );
+        return <Text type={isExpired(date) ? 'danger' : undefined}>{formatDate(date)}</Text>;
       },
     },
     {
@@ -191,46 +196,57 @@ const ApiKeys: React.FC = () => {
       key: 'created_at',
       render: (date: string) => formatDate(date),
     },
-    ...(canOperate ? [{
-      title: '操作',
-      key: 'actions',
-      render: (_: any, record: APIKey) => (
-        <Space size="small">
-          <Tooltip title="重新生成">
-            <Popconfirm
-              title="确定要重新生成吗？"
-              description="旧的Key将立即失效"
-              onConfirm={() => handleRegenerate(record.id, record.name)}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Button type="link" icon={<ReloadOutlined />} size="small">
-                重新生成
-              </Button>
-            </Popconfirm>
-          </Tooltip>
-          <Tooltip title="删除">
-            <Popconfirm
-              title="确定要删除吗？"
-              description="此操作不可恢复"
-              onConfirm={() => handleDelete(record.id, record.name)}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Button type="link" danger icon={<DeleteOutlined />} size="small">
-                删除
-              </Button>
-            </Popconfirm>
-          </Tooltip>
-        </Space>
-      ),
-    }] : []),
+    ...(canOperate
+      ? [
+          {
+            title: '操作',
+            key: 'actions',
+            render: (_: any, record: APIKey) => (
+              <Space size="small">
+                <Tooltip title="重新生成">
+                  <Popconfirm
+                    title="确定要重新生成吗？"
+                    description="旧的Key将立即失效"
+                    onConfirm={() => handleRegenerate(record.id, record.name)}
+                    okText="确定"
+                    cancelText="取消"
+                  >
+                    <Button type="link" icon={<ReloadOutlined />} size="small">
+                      重新生成
+                    </Button>
+                  </Popconfirm>
+                </Tooltip>
+                <Tooltip title="删除">
+                  <Popconfirm
+                    title="确定要删除吗？"
+                    description="此操作不可恢复"
+                    onConfirm={() => handleDelete(record.id, record.name)}
+                    okText="确定"
+                    cancelText="取消"
+                  >
+                    <Button type="link" danger icon={<DeleteOutlined />} size="small">
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </Tooltip>
+              </Space>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
     <div>
       {/* 标题和操作 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+        }}
+      >
         <div>
           <PageTitle icon={<KeyOutlined />} title="API密钥管理" />
           <div style={{ paddingLeft: 24, marginTop: -8 }}>
@@ -252,7 +268,9 @@ const ApiKeys: React.FC = () => {
       <Card className={styles.apiInfoCard}>
         <div className={styles.apiRow}>
           <div>
-            <Text strong className={styles.apiLabel}>📡 API 地址：</Text>
+            <Text strong className={styles.apiLabel}>
+              📡 API 地址：
+            </Text>
             <Text code copyable={{ text: window.location.origin }} className={styles.apiAddress}>
               {window.location.origin}
             </Text>
@@ -270,7 +288,9 @@ const ApiKeys: React.FC = () => {
           <ol className={styles.usageList}>
             <li>点击"创建API Key"生成新密钥，立即复制保存（仅显示一次）</li>
             <li>在 Ozon 网站打开 Tampermonkey 脚本控制面板，展开"⚙️ API设置"</li>
-            <li>填写上方的 <strong>API 地址</strong> 和刚才复制的 <strong>API Key</strong></li>
+            <li>
+              填写上方的 <strong>API 地址</strong> 和刚才复制的 <strong>API Key</strong>
+            </li>
             <li>点击"测试连接"验证配置，然后即可使用自动上传功能</li>
             <li>如果 Key 泄露，请立即删除或重新生成</li>
           </ol>
@@ -289,9 +309,7 @@ const ApiKeys: React.FC = () => {
           rowKey="id"
           loading={loading}
           locale={{
-            emptyText: (
-              <Empty description='还没有API Key，点击上方"创建API Key"按钮开始创建' />
-            ),
+            emptyText: <Empty description='还没有API Key，点击上方"创建API Key"按钮开始创建' />,
           }}
         />
       </Card>
@@ -342,10 +360,12 @@ const ApiKeys: React.FC = () => {
 
           <Form.Item>
             <Space>
-              <Button onClick={() => {
-                setCreateModalVisible(false);
-                form.resetFields();
-              }}>
+              <Button
+                onClick={() => {
+                  setCreateModalVisible(false);
+                  form.resetFields();
+                }}
+              >
                 取消
               </Button>
               <Button type="primary" htmlType="submit">
@@ -362,11 +382,7 @@ const ApiKeys: React.FC = () => {
         open={keyModalVisible}
         onCancel={() => setKeyModalVisible(false)}
         footer={[
-          <Button
-            key="close"
-            type="primary"
-            onClick={() => setKeyModalVisible(false)}
-          >
+          <Button key="close" type="primary" onClick={() => setKeyModalVisible(false)}>
             我已保存
           </Button>,
         ]}

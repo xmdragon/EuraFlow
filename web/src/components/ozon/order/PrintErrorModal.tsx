@@ -2,8 +2,8 @@
  * 打印错误结果展示Modal
  * 展示批量打印标签时的成功/失败结果
  */
-import React from 'react';
 import { Modal, Button, Space, Alert, Table, Typography } from 'antd';
+import React from 'react';
 
 const { Text } = Typography;
 
@@ -41,8 +41,8 @@ export const PrintErrorModal: React.FC<PrintErrorModalProps> = ({
 }) => {
   const handleRemoveFailed = () => {
     // 移除失败的，保留成功的，重新选择
-    const failedNumbers = errors.map(e => e.posting_number);
-    const remaining = selectedPostingNumbers.filter(pn => !failedNumbers.includes(pn));
+    const failedNumbers = errors.map((e) => e.posting_number);
+    const remaining = selectedPostingNumbers.filter((pn) => !failedNumbers.includes(pn));
     onRemoveFailedAndContinue(remaining);
     onClose();
   };
@@ -57,25 +57,17 @@ export const PrintErrorModal: React.FC<PrintErrorModalProps> = ({
           关闭
         </Button>,
         successPostings.length > 0 && (
-          <Button
-            key="retry-failed"
-            type="primary"
-            onClick={handleRemoveFailed}
-          >
+          <Button key="retry-failed" type="primary" onClick={handleRemoveFailed}>
             移除失败订单继续
           </Button>
-        )
+        ),
       ]}
       width={700}
     >
       <Space direction="vertical" style={{ width: '100%' }}>
         {/* 成功统计 */}
         {successPostings.length > 0 && (
-          <Alert
-            message={`成功打印 ${successPostings.length} 个订单`}
-            type="success"
-            showIcon
-          />
+          <Alert message={`成功打印 ${successPostings.length} 个订单`} type="success" showIcon />
         )}
 
         {/* 失败列表 */}
@@ -98,18 +90,18 @@ export const PrintErrorModal: React.FC<PrintErrorModalProps> = ({
                   title: '货件编号',
                   dataIndex: 'posting_number',
                   width: 180,
-                  render: (text) => <Text strong>{text}</Text>
+                  render: (text) => <Text strong>{text}</Text>,
                 },
                 {
                   title: '错误原因',
                   dataIndex: 'error',
-                  render: (text) => <Text type="danger">{text}</Text>
+                  render: (text) => <Text type="danger">{text}</Text>,
                 },
                 {
                   title: '建议',
                   dataIndex: 'suggestion',
-                  render: (text) => <Text type="secondary">{text}</Text>
-                }
+                  render: (text) => <Text type="secondary">{text}</Text>,
+                },
               ]}
             />
           </>

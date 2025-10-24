@@ -7,7 +7,16 @@
  * 3. 可视化Cron编辑器（react-js-cron）
  * 4. 清空日志（按日期）
  */
-import { useState, useEffect } from 'react';
+import {
+  SyncOutlined,
+  PlayCircleOutlined,
+  FileTextOutlined,
+  BarChartOutlined,
+  ReloadOutlined,
+  EditOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
 import {
   Card,
   Table,
@@ -27,25 +36,18 @@ import {
   Select,
   Popconfirm,
 } from 'antd';
-import {
-  SyncOutlined,
-  PlayCircleOutlined,
-  FileTextOutlined,
-  BarChartOutlined,
-  ReloadOutlined,
-  EditOutlined,
-  PlusOutlined,
-  DeleteOutlined,
-} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Cron } from 'react-js-cron';
-import 'react-js-cron/dist/styles.css';
-import axios from '@/services/axios';
 import dayjs from 'dayjs';
-import { notifySuccess, notifyError } from '@/utils/notification';
-import { usePermission } from '@/hooks/usePermission';
-import PageTitle from '@/components/PageTitle';
+import { useState, useEffect } from 'react';
+import { Cron } from 'react-js-cron';
+
+import 'react-js-cron/dist/styles.css';
 import styles from './SyncServices.module.scss';
+
+import PageTitle from '@/components/PageTitle';
+import { usePermission } from '@/hooks/usePermission';
+import axios from '@/services/axios';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { TextArea } = Input;
 
@@ -210,9 +212,10 @@ const SyncServices = () => {
       service_description: service.service_description,
       service_type: service.service_type,
       // 如果是 interval 类型，将字符串转换为数字
-      schedule_config: service.service_type === 'interval'
-        ? parseInt(service.schedule_config)
-        : service.schedule_config,
+      schedule_config:
+        service.service_type === 'interval'
+          ? parseInt(service.schedule_config)
+          : service.schedule_config,
       is_enabled: service.is_enabled,
     });
     setEditModalVisible(true);
@@ -226,9 +229,10 @@ const SyncServices = () => {
       // 如果是 interval 类型，确保 schedule_config 是字符串
       const payload = {
         ...values,
-        schedule_config: values.service_type === 'interval'
-          ? String(values.schedule_config)
-          : values.schedule_config
+        schedule_config:
+          values.service_type === 'interval'
+            ? String(values.schedule_config)
+            : values.schedule_config,
       };
 
       await axios.put(`/api/ef/v1/sync-services/${selectedService.id}`, payload);
@@ -253,9 +257,10 @@ const SyncServices = () => {
       // 如果是 interval 类型，确保 schedule_config 是字符串
       const payload = {
         ...values,
-        schedule_config: values.service_type === 'interval'
-          ? String(values.schedule_config)
-          : values.schedule_config
+        schedule_config:
+          values.service_type === 'interval'
+            ? String(values.schedule_config)
+            : values.schedule_config,
       };
 
       await axios.post('/api/ef/v1/sync-services', payload);
@@ -272,7 +277,7 @@ const SyncServices = () => {
   const clearLogs = async (service: SyncService, beforeDate?: string) => {
     try {
       const response = await axios.delete(`/api/ef/v1/sync-services/${service.id}/logs`, {
-        data: { before_date: beforeDate }
+        data: { before_date: beforeDate },
       });
       notifySuccess('清空成功', `已清空 ${response.data.data.deleted_count} 条日志`);
       if (logsModalVisible && selectedService?.id === service.id) {
@@ -404,16 +409,8 @@ const SyncServices = () => {
               </Button>
             </>
           )}
-          <Button
-            size="small"
-            icon={<FileTextOutlined />}
-            onClick={() => viewLogs(record)}
-          />
-          <Button
-            size="small"
-            icon={<BarChartOutlined />}
-            onClick={() => viewStats(record)}
-          />
+          <Button size="small" icon={<FileTextOutlined />} onClick={() => viewLogs(record)} />
+          <Button size="small" icon={<BarChartOutlined />} onClick={() => viewStats(record)} />
         </Space>
       ),
     },
@@ -450,7 +447,9 @@ const SyncServices = () => {
       key: 'status',
       width: 80,
       render: (text) => (
-        <Tag color={text === 'success' ? 'green' : 'red'}>{text === 'success' ? '成功' : '失败'}</Tag>
+        <Tag color={text === 'success' ? 'green' : 'red'}>
+          {text === 'success' ? '成功' : '失败'}
+        </Tag>
       ),
     },
     {
@@ -483,325 +482,318 @@ const SyncServices = () => {
 
       <Card
         extra={
-        <Space>
-          {canOperate && (
-            <Button icon={<PlusOutlined />} type="primary" onClick={openAddModal}>
-              添加服务
-            </Button>
-          )}
-          <Button icon={<ReloadOutlined />} onClick={loadServices}>
-            刷新
-          </Button>
-        </Space>
-      }
-    >
-      <Table
-        columns={columns}
-        dataSource={services}
-        rowKey="id"
-        loading={loading}
-        pagination={false}
-        scroll={{ x: 1400 }}
-      />
-
-      {/* 编辑服务对话框 */}
-      <Modal
-        title="编辑服务配置"
-        open={editModalVisible}
-        onCancel={() => {
-          setEditModalVisible(false);
-          editForm.resetFields();
-        }}
-        onOk={() => editForm.submit()}
-        width={700}
-      >
-        <Form
-          form={editForm}
-          layout="vertical"
-          onFinish={handleEditSubmit}
-        >
-          <Form.Item
-            label="服务名称"
-            name="service_name"
-            rules={[{ required: true, message: '请输入服务名称' }]}
-          >
-            <Input placeholder="服务显示名称" />
-          </Form.Item>
-
-          <Form.Item
-            label="服务描述"
-            name="service_description"
-          >
-            <TextArea rows={3} placeholder="服务功能说明" />
-          </Form.Item>
-
-          <Form.Item
-            label="调度类型"
-            name="service_type"
-            rules={[{ required: true }]}
-          >
-            <Radio.Group>
-              <Radio value="cron">Cron定时</Radio>
-              <Radio value="interval">间隔周期</Radio>
-            </Radio.Group>
-          </Form.Item>
-
-          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.service_type !== curr.service_type}>
-            {({ getFieldValue }) => {
-              const serviceType = getFieldValue('service_type');
-
-              if (serviceType === 'cron') {
-                return (
-                  <Form.Item
-                    label="Cron表达式"
-                    name="schedule_config"
-                    rules={[{ required: true, message: '请配置Cron表达式' }]}
-                  >
-                    <Cron
-                      value={editForm.getFieldValue('schedule_config') || '0 * * * *'}
-                      setValue={(value) => editForm.setFieldValue('schedule_config', value)}
-                      clearButton={false}
-                    />
-                  </Form.Item>
-                );
-              } else {
-                return (
-                  <Form.Item
-                    label="间隔秒数"
-                    name="schedule_config"
-                    rules={[{ required: true, message: '请输入间隔秒数' }]}
-                  >
-                    <InputNumber
-                      min={1}
-                      addonAfter="秒"
-                      placeholder="执行间隔（秒）"
-                      style={{ width: '100%' }}
-                    />
-                  </Form.Item>
-                );
-              }
-            }}
-          </Form.Item>
-
-          <Form.Item
-            label="启用状态"
-            name="is_enabled"
-            valuePropName="checked"
-          >
-            <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 添加服务对话框 */}
-      <Modal
-        title="添加服务"
-        open={addModalVisible}
-        onCancel={() => {
-          setAddModalVisible(false);
-          addForm.resetFields();
-        }}
-        onOk={() => addForm.submit()}
-        width={700}
-      >
-        <Form
-          form={addForm}
-          layout="vertical"
-          onFinish={handleAddSubmit}
-        >
-          <Form.Item
-            label="选择Handler"
-            name="service_key"
-            rules={[{ required: true, message: '请选择Handler' }]}
-          >
-            <Select placeholder="从已注册的Handler中选择">
-              {handlers.map((h) => (
-                <Select.Option key={h.service_key} value={h.service_key}>
-                  {h.name} ({h.plugin})
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            label="服务名称"
-            name="service_name"
-            rules={[{ required: true, message: '请输入服务名称' }]}
-          >
-            <Input placeholder="服务显示名称" />
-          </Form.Item>
-
-          <Form.Item
-            label="服务描述"
-            name="service_description"
-          >
-            <TextArea rows={3} placeholder="服务功能说明" />
-          </Form.Item>
-
-          <Form.Item
-            label="调度类型"
-            name="service_type"
-            rules={[{ required: true }]}
-            initialValue="cron"
-          >
-            <Radio.Group>
-              <Radio value="cron">Cron定时</Radio>
-              <Radio value="interval">间隔周期</Radio>
-            </Radio.Group>
-          </Form.Item>
-
-          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.service_type !== curr.service_type}>
-            {({ getFieldValue }) => {
-              const serviceType = getFieldValue('service_type');
-
-              if (serviceType === 'cron') {
-                return (
-                  <Form.Item
-                    label="Cron表达式"
-                    name="schedule_config"
-                    rules={[{ required: true, message: '请配置Cron表达式' }]}
-                    initialValue="0 * * * *"
-                  >
-                    <Cron
-                      value={addForm.getFieldValue('schedule_config') || '0 * * * *'}
-                      setValue={(value) => addForm.setFieldValue('schedule_config', value)}
-                      clearButton={false}
-                    />
-                  </Form.Item>
-                );
-              } else {
-                return (
-                  <Form.Item
-                    label="间隔秒数"
-                    name="schedule_config"
-                    rules={[{ required: true, message: '请输入间隔秒数' }]}
-                  >
-                    <InputNumber
-                      min={1}
-                      addonAfter="秒"
-                      placeholder="执行间隔（秒）"
-                      style={{ width: '100%' }}
-                    />
-                  </Form.Item>
-                );
-              }
-            }}
-          </Form.Item>
-
-          <Form.Item
-            label="启用状态"
-            name="is_enabled"
-            valuePropName="checked"
-            initialValue={true}
-          >
-            <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 日志模态框 */}
-      <Modal
-        title={`执行日志 - ${selectedService?.service_name}`}
-        open={logsModalVisible}
-        onCancel={() => setLogsModalVisible(false)}
-        width={1000}
-        footer={
           <Space>
             {canOperate && (
-              <Popconfirm
-                title="清空日志"
-                description={
-                  <div>
-                    <p>选择清空范围：</p>
-                    <DatePicker
-                      placeholder="清空此日期前的日志（可选）"
-                      onChange={(date) => {
-                        if (selectedService) {
-                          clearLogs(selectedService, date ? date.toISOString() : undefined);
-                        }
-                      }}
-                    />
-                  </div>
+              <Button icon={<PlusOutlined />} type="primary" onClick={openAddModal}>
+                添加服务
+              </Button>
+            )}
+            <Button icon={<ReloadOutlined />} onClick={loadServices}>
+              刷新
+            </Button>
+          </Space>
+        }
+      >
+        <Table
+          columns={columns}
+          dataSource={services}
+          rowKey="id"
+          loading={loading}
+          pagination={false}
+          scroll={{ x: 1400 }}
+        />
+
+        {/* 编辑服务对话框 */}
+        <Modal
+          title="编辑服务配置"
+          open={editModalVisible}
+          onCancel={() => {
+            setEditModalVisible(false);
+            editForm.resetFields();
+          }}
+          onOk={() => editForm.submit()}
+          width={700}
+        >
+          <Form form={editForm} layout="vertical" onFinish={handleEditSubmit}>
+            <Form.Item
+              label="服务名称"
+              name="service_name"
+              rules={[{ required: true, message: '请输入服务名称' }]}
+            >
+              <Input placeholder="服务显示名称" />
+            </Form.Item>
+
+            <Form.Item label="服务描述" name="service_description">
+              <TextArea rows={3} placeholder="服务功能说明" />
+            </Form.Item>
+
+            <Form.Item label="调度类型" name="service_type" rules={[{ required: true }]}>
+              <Radio.Group>
+                <Radio value="cron">Cron定时</Radio>
+                <Radio value="interval">间隔周期</Radio>
+              </Radio.Group>
+            </Form.Item>
+
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, curr) => prev.service_type !== curr.service_type}
+            >
+              {({ getFieldValue }) => {
+                const serviceType = getFieldValue('service_type');
+
+                if (serviceType === 'cron') {
+                  return (
+                    <Form.Item
+                      label="Cron表达式"
+                      name="schedule_config"
+                      rules={[{ required: true, message: '请配置Cron表达式' }]}
+                    >
+                      <Cron
+                        value={editForm.getFieldValue('schedule_config') || '0 * * * *'}
+                        setValue={(value) => editForm.setFieldValue('schedule_config', value)}
+                        clearButton={false}
+                      />
+                    </Form.Item>
+                  );
+                } else {
+                  return (
+                    <Form.Item
+                      label="间隔秒数"
+                      name="schedule_config"
+                      rules={[{ required: true, message: '请输入间隔秒数' }]}
+                    >
+                      <InputNumber
+                        min={1}
+                        addonAfter="秒"
+                        placeholder="执行间隔（秒）"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                  );
                 }
-                onConfirm={() => {
-                  if (selectedService) {
-                    clearLogs(selectedService);
-                  }
-                }}
-                okText="全部清空"
-                cancelText="取消"
-              >
-                <Button danger icon={<DeleteOutlined />}>
-                  清空日志
-                </Button>
-              </Popconfirm>
-            )}
-            <Button icon={<ReloadOutlined />} onClick={() => selectedService && viewLogs(selectedService)}>
-              刷新日志
-            </Button>
-          </Space>
-        }
-      >
-        <Spin spinning={logsLoading}>
-          <Table
-            columns={logColumns}
-            dataSource={logs}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 900 }}
-          />
-        </Spin>
-      </Modal>
+              }}
+            </Form.Item>
 
-      {/* 统计模态框 */}
-      <Modal
-        title={`服务统计 - ${selectedService?.service_name}`}
-        open={statsModalVisible}
-        onCancel={() => setStatsModalVisible(false)}
-        width={800}
-        footer={
-          <Space>
-            {canOperate && (
-              <Popconfirm
-                title="重置统计数据"
-                description="确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。"
-                onConfirm={() => {
-                  if (selectedService) {
-                    resetStats(selectedService);
+            <Form.Item label="启用状态" name="is_enabled" valuePropName="checked">
+              <Switch checkedChildren="启用" unCheckedChildren="禁用" />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        {/* 添加服务对话框 */}
+        <Modal
+          title="添加服务"
+          open={addModalVisible}
+          onCancel={() => {
+            setAddModalVisible(false);
+            addForm.resetFields();
+          }}
+          onOk={() => addForm.submit()}
+          width={700}
+        >
+          <Form form={addForm} layout="vertical" onFinish={handleAddSubmit}>
+            <Form.Item
+              label="选择Handler"
+              name="service_key"
+              rules={[{ required: true, message: '请选择Handler' }]}
+            >
+              <Select placeholder="从已注册的Handler中选择">
+                {handlers.map((h) => (
+                  <Select.Option key={h.service_key} value={h.service_key}>
+                    {h.name} ({h.plugin})
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              label="服务名称"
+              name="service_name"
+              rules={[{ required: true, message: '请输入服务名称' }]}
+            >
+              <Input placeholder="服务显示名称" />
+            </Form.Item>
+
+            <Form.Item label="服务描述" name="service_description">
+              <TextArea rows={3} placeholder="服务功能说明" />
+            </Form.Item>
+
+            <Form.Item
+              label="调度类型"
+              name="service_type"
+              rules={[{ required: true }]}
+              initialValue="cron"
+            >
+              <Radio.Group>
+                <Radio value="cron">Cron定时</Radio>
+                <Radio value="interval">间隔周期</Radio>
+              </Radio.Group>
+            </Form.Item>
+
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, curr) => prev.service_type !== curr.service_type}
+            >
+              {({ getFieldValue }) => {
+                const serviceType = getFieldValue('service_type');
+
+                if (serviceType === 'cron') {
+                  return (
+                    <Form.Item
+                      label="Cron表达式"
+                      name="schedule_config"
+                      rules={[{ required: true, message: '请配置Cron表达式' }]}
+                      initialValue="0 * * * *"
+                    >
+                      <Cron
+                        value={addForm.getFieldValue('schedule_config') || '0 * * * *'}
+                        setValue={(value) => addForm.setFieldValue('schedule_config', value)}
+                        clearButton={false}
+                      />
+                    </Form.Item>
+                  );
+                } else {
+                  return (
+                    <Form.Item
+                      label="间隔秒数"
+                      name="schedule_config"
+                      rules={[{ required: true, message: '请输入间隔秒数' }]}
+                    >
+                      <InputNumber
+                        min={1}
+                        addonAfter="秒"
+                        placeholder="执行间隔（秒）"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                  );
+                }
+              }}
+            </Form.Item>
+
+            <Form.Item
+              label="启用状态"
+              name="is_enabled"
+              valuePropName="checked"
+              initialValue={true}
+            >
+              <Switch checkedChildren="启用" unCheckedChildren="禁用" />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        {/* 日志模态框 */}
+        <Modal
+          title={`执行日志 - ${selectedService?.service_name}`}
+          open={logsModalVisible}
+          onCancel={() => setLogsModalVisible(false)}
+          width={1000}
+          footer={
+            <Space>
+              {canOperate && (
+                <Popconfirm
+                  title="清空日志"
+                  description={
+                    <div>
+                      <p>选择清空范围：</p>
+                      <DatePicker
+                        placeholder="清空此日期前的日志（可选）"
+                        onChange={(date) => {
+                          if (selectedService) {
+                            clearLogs(selectedService, date ? date.toISOString() : undefined);
+                          }
+                        }}
+                      />
+                    </div>
                   }
-                }}
-                okText="确定"
-                cancelText="取消"
+                  onConfirm={() => {
+                    if (selectedService) {
+                      clearLogs(selectedService);
+                    }
+                  }}
+                  okText="全部清空"
+                  cancelText="取消"
+                >
+                  <Button danger icon={<DeleteOutlined />}>
+                    清空日志
+                  </Button>
+                </Popconfirm>
+              )}
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => selectedService && viewLogs(selectedService)}
               >
-                <Button danger icon={<DeleteOutlined />}>
-                  重置统计
-                </Button>
-              </Popconfirm>
+                刷新日志
+              </Button>
+            </Space>
+          }
+        >
+          <Spin spinning={logsLoading}>
+            <Table
+              columns={logColumns}
+              dataSource={logs}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 900 }}
+            />
+          </Spin>
+        </Modal>
+
+        {/* 统计模态框 */}
+        <Modal
+          title={`服务统计 - ${selectedService?.service_name}`}
+          open={statsModalVisible}
+          onCancel={() => setStatsModalVisible(false)}
+          width={800}
+          footer={
+            <Space>
+              {canOperate && (
+                <Popconfirm
+                  title="重置统计数据"
+                  description="确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。"
+                  onConfirm={() => {
+                    if (selectedService) {
+                      resetStats(selectedService);
+                    }
+                  }}
+                  okText="确定"
+                  cancelText="取消"
+                >
+                  <Button danger icon={<DeleteOutlined />}>
+                    重置统计
+                  </Button>
+                </Popconfirm>
+              )}
+              <Button onClick={() => setStatsModalVisible(false)}>关闭</Button>
+            </Space>
+          }
+        >
+          <Spin spinning={statsLoading}>
+            {stats && (
+              <Descriptions bordered column={2}>
+                <Descriptions.Item label="总运行次数">{stats.total_runs}</Descriptions.Item>
+                <Descriptions.Item label="成功率">
+                  <Tag
+                    color={
+                      stats.success_rate >= 90
+                        ? 'green'
+                        : stats.success_rate >= 70
+                          ? 'orange'
+                          : 'red'
+                    }
+                  >
+                    {stats.success_rate.toFixed(2)}%
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="平均执行时间" span={2}>
+                  {stats.avg_execution_time_ms
+                    ? `${(stats.avg_execution_time_ms / 1000).toFixed(2)} 秒`
+                    : '-'}
+                </Descriptions.Item>
+              </Descriptions>
             )}
-            <Button onClick={() => setStatsModalVisible(false)}>
-              关闭
-            </Button>
-          </Space>
-        }
-      >
-        <Spin spinning={statsLoading}>
-          {stats && (
-            <Descriptions bordered column={2}>
-              <Descriptions.Item label="总运行次数">{stats.total_runs}</Descriptions.Item>
-              <Descriptions.Item label="成功率">
-                <Tag color={stats.success_rate >= 90 ? 'green' : stats.success_rate >= 70 ? 'orange' : 'red'}>
-                  {stats.success_rate.toFixed(2)}%
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="平均执行时间" span={2}>
-                {stats.avg_execution_time_ms
-                  ? `${(stats.avg_execution_time_ms / 1000).toFixed(2)} 秒`
-                  : '-'}
-              </Descriptions.Item>
-            </Descriptions>
-          )}
-        </Spin>
-      </Modal>
+          </Spin>
+        </Modal>
       </Card>
     </div>
   );

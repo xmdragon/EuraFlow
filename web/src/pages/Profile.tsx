@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { Form, Input, Button, Card, Space, Typography } from 'antd';
 import { KeyOutlined, UserOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Space, Typography } from 'antd';
+import React, { useState } from 'react';
+
+import styles from './Profile.module.scss';
+
+import PageTitle from '@/components/PageTitle';
 import { useAuth } from '@/hooks/useAuth';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
-import PageTitle from '@/components/PageTitle';
-import styles from './Profile.module.scss';
 
 const { Text } = Typography;
 
@@ -57,8 +59,7 @@ const Profile: React.FC = () => {
           <div className={styles.infoItem}>
             <div className={styles.label}>角色</div>
             <div className={styles.value}>
-              {user?.role === 'admin' ? '管理员' :
-               user?.role === 'operator' ? '操作员' : '查看员'}
+              {user?.role === 'admin' ? '管理员' : user?.role === 'operator' ? '操作员' : '查看员'}
             </div>
           </div>
 
@@ -80,25 +81,20 @@ const Profile: React.FC = () => {
 
           <div className={styles.infoItem}>
             <div className={styles.label}>创建时间</div>
-            <div className={styles.value}>{new Date(user?.created_at || '').toLocaleString('zh-CN')}</div>
+            <div className={styles.value}>
+              {new Date(user?.created_at || '').toLocaleString('zh-CN')}
+            </div>
           </div>
         </Card>
 
         <Card title="修改密码" bordered={false} className={styles.card}>
-          <Form
-            form={passwordForm}
-            layout="vertical"
-            onFinish={handleChangePassword}
-          >
+          <Form form={passwordForm} layout="vertical" onFinish={handleChangePassword}>
             <Form.Item
               label="当前密码"
               name="current_password"
               rules={[{ required: true, message: '请输入当前密码' }]}
             >
-              <Input.Password
-                prefix={<KeyOutlined />}
-                placeholder="请输入当前密码"
-              />
+              <Input.Password prefix={<KeyOutlined />} placeholder="请输入当前密码" />
             </Form.Item>
 
             <Form.Item
@@ -109,10 +105,7 @@ const Profile: React.FC = () => {
                 { min: 8, message: '密码至少8个字符' },
               ]}
             >
-              <Input.Password
-                prefix={<KeyOutlined />}
-                placeholder="请输入新密码"
-              />
+              <Input.Password prefix={<KeyOutlined />} placeholder="请输入新密码" />
             </Form.Item>
 
             <Form.Item
@@ -131,10 +124,7 @@ const Profile: React.FC = () => {
                 }),
               ]}
             >
-              <Input.Password
-                prefix={<KeyOutlined />}
-                placeholder="请再次输入新密码"
-              />
+              <Input.Password prefix={<KeyOutlined />} placeholder="请再次输入新密码" />
             </Form.Item>
 
             <Form.Item>

@@ -2,9 +2,10 @@
  * 更新业务信息弹窗组件
  * 用于"分配中"状态，允许编辑进货价格、采购平台和订单备注
  */
-import React, { useEffect } from 'react';
-import { Modal, Form, Input, Select, InputNumber } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Modal, Form, Input, Select, InputNumber } from 'antd';
+import React, { useEffect } from 'react';
+
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -20,7 +21,7 @@ interface UpdateBusinessInfoModalProps {
     source_platform?: string;
     order_notes?: string;
   };
-  onUpdate?: () => void;  // 更新成功后的回调
+  onUpdate?: () => void; // 更新成功后的回调
 }
 
 const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
@@ -74,7 +75,8 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
       const values = await form.validateFields();
       // 构造请求数据，所有字段都是可选的
       const data: ozonApi.UpdateBusinessInfoRequest = {
-        purchase_price: values.purchase_price !== undefined ? String(values.purchase_price) : undefined,
+        purchase_price:
+          values.purchase_price !== undefined ? String(values.purchase_price) : undefined,
         source_platform: values.source_platform,
         order_notes: values.order_notes,
       };
@@ -95,17 +97,11 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
       cancelText="取消"
       width={600}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        autoComplete="off"
-      >
+      <Form form={form} layout="vertical" autoComplete="off">
         <Form.Item
           name="purchase_price"
           label="进货价格"
-          rules={[
-            { type: 'number', min: 0, message: '价格必须大于0' },
-          ]}
+          rules={[{ type: 'number', min: 0, message: '价格必须大于0' }]}
           tooltip="商品的采购成本（可选）"
         >
           <InputNumber
@@ -118,11 +114,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item
-          name="source_platform"
-          label="采购平台"
-          tooltip="商品采购来源平台（可选）"
-        >
+        <Form.Item name="source_platform" label="采购平台" tooltip="商品采购来源平台（可选）">
           <Select placeholder="请选择采购平台" allowClear>
             <Option value="1688">1688</Option>
             <Option value="拼多多">拼多多</Option>
@@ -131,11 +123,7 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
           </Select>
         </Form.Item>
 
-        <Form.Item
-          name="order_notes"
-          label="订单备注"
-          tooltip="订单相关的备注信息（可选）"
-        >
+        <Form.Item name="order_notes" label="订单备注" tooltip="订单相关的备注信息（可选）">
           <TextArea
             placeholder="请输入订单备注"
             autoSize={{ minRows: 3, maxRows: 6 }}
@@ -145,9 +133,17 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
         </Form.Item>
       </Form>
 
-      <div style={{ marginTop: 16, padding: 12, background: '#f0f2f5', borderRadius: 4 }}>
+      <div
+        style={{
+          marginTop: 16,
+          padding: 12,
+          background: '#f0f2f5',
+          borderRadius: 4,
+        }}
+      >
         <p style={{ margin: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
-          <strong>说明：</strong>更新业务信息不会改变操作状态，仅修改订单的业务字段。
+          <strong>说明：</strong>
+          更新业务信息不会改变操作状态，仅修改订单的业务字段。
         </p>
       </div>
     </Modal>

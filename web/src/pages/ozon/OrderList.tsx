@@ -52,19 +52,21 @@ import {
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
 
-import * as ozonApi from '@/services/ozonApi';
-import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
-import { usePermission } from '@/hooks/usePermission';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
-import OrderDetailModal from '@/components/ozon/OrderDetailModal';
-import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
+
+import styles from './OrderList.module.scss';
+
 import PrintErrorModal from '@/components/ozon/order/PrintErrorModal';
 import ShipModal from '@/components/ozon/order/ShipModal';
+import OrderDetailModal from '@/components/ozon/OrderDetailModal';
+import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
+import { usePermission } from '@/hooks/usePermission';
+import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
-import styles from './OrderList.module.scss';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -73,13 +75,13 @@ const { Text } = Typography;
 
 // 订单商品行数据结构（用于表格展示）
 interface OrderItemRow {
-  key: string;                      // 唯一标识：posting_number + item_index
-  item: ozonApi.OrderItem;          // 商品明细
-  itemIndex: number;                // 商品索引（从0开始）
-  posting: ozonApi.PostingWithOrder;// 货件信息
-  order: ozonApi.Order;             // 订单信息
-  isFirstItem: boolean;             // 是否是第一个商品（用于rowSpan）
-  itemCount: number;                // 该posting的商品总数（用于rowSpan）
+  key: string; // 唯一标识：posting_number + item_index
+  item: ozonApi.OrderItem; // 商品明细
+  itemIndex: number; // 商品索引（从0开始）
+  posting: ozonApi.PostingWithOrder; // 货件信息
+  order: ozonApi.Order; // 订单信息
+  isFirstItem: boolean; // 是否是第一个商品（用于rowSpan）
+  itemCount: number; // 该posting的商品总数（用于rowSpan）
 }
 
 const OrderList: React.FC = () => {
@@ -124,11 +126,14 @@ const OrderList: React.FC = () => {
       notifyWarning('复制失败', `${label}为空，无法复制`);
       return;
     }
-    navigator.clipboard.writeText(text).then(() => {
-      notifySuccess('复制成功', `${label}已复制`);
-    }).catch(() => {
-      notifyError('复制失败', '复制失败，请手动复制');
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        notifySuccess('复制成功', `${label}已复制`);
+      })
+      .catch(() => {
+        notifyError('复制失败', '复制失败，请手动复制');
+      });
   };
 
   // 查询店铺列表（用于显示店铺名称）
@@ -152,26 +157,90 @@ const OrderList: React.FC = () => {
   // 状态配置 - 包含所有 OZON 原生状态
   const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
     // 通用订单状态
-    pending: { color: 'default', text: '待确认', icon: <ClockCircleOutlined /> },
-    confirmed: { color: 'processing', text: '已确认', icon: <CheckCircleOutlined /> },
-    processing: { color: 'processing', text: '处理中', icon: <SyncOutlined spin /> },
+    pending: {
+      color: 'default',
+      text: '待确认',
+      icon: <ClockCircleOutlined />,
+    },
+    confirmed: {
+      color: 'processing',
+      text: '已确认',
+      icon: <CheckCircleOutlined />,
+    },
+    processing: {
+      color: 'processing',
+      text: '处理中',
+      icon: <SyncOutlined spin />,
+    },
     shipped: { color: 'cyan', text: '已发货', icon: <TruckOutlined /> },
 
     // OZON Posting 原生状态
-    acceptance_in_progress: { color: 'processing', text: '验收中', icon: <SyncOutlined spin /> },
-    awaiting_approve: { color: 'default', text: '等待审核', icon: <ClockCircleOutlined /> },
-    awaiting_packaging: { color: 'processing', text: '等待备货', icon: <ClockCircleOutlined /> },
-    awaiting_deliver: { color: 'warning', text: '等待发运', icon: <TruckOutlined /> },
-    awaiting_registration: { color: 'processing', text: '等待登记', icon: <FileTextOutlined /> },
-    awaiting_debit: { color: 'processing', text: '等待扣款', icon: <ClockCircleOutlined /> },
-    arbitration: { color: 'warning', text: '仲裁中', icon: <ClockCircleOutlined /> },
-    client_arbitration: { color: 'warning', text: '客户仲裁', icon: <ClockCircleOutlined /> },
+    acceptance_in_progress: {
+      color: 'processing',
+      text: '验收中',
+      icon: <SyncOutlined spin />,
+    },
+    awaiting_approve: {
+      color: 'default',
+      text: '等待审核',
+      icon: <ClockCircleOutlined />,
+    },
+    awaiting_packaging: {
+      color: 'processing',
+      text: '等待备货',
+      icon: <ClockCircleOutlined />,
+    },
+    awaiting_deliver: {
+      color: 'warning',
+      text: '等待发运',
+      icon: <TruckOutlined />,
+    },
+    awaiting_registration: {
+      color: 'processing',
+      text: '等待登记',
+      icon: <FileTextOutlined />,
+    },
+    awaiting_debit: {
+      color: 'processing',
+      text: '等待扣款',
+      icon: <ClockCircleOutlined />,
+    },
+    arbitration: {
+      color: 'warning',
+      text: '仲裁中',
+      icon: <ClockCircleOutlined />,
+    },
+    client_arbitration: {
+      color: 'warning',
+      text: '客户仲裁',
+      icon: <ClockCircleOutlined />,
+    },
     delivering: { color: 'cyan', text: '运输中', icon: <TruckOutlined /> },
-    driver_pickup: { color: 'processing', text: '司机取货', icon: <TruckOutlined /> },
-    delivered: { color: 'success', text: '已签收', icon: <CheckCircleOutlined /> },
-    cancelled: { color: 'error', text: '已取消', icon: <CloseCircleOutlined /> },
-    not_accepted: { color: 'error', text: '未接受', icon: <CloseCircleOutlined /> },
-    sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
+    driver_pickup: {
+      color: 'processing',
+      text: '司机取货',
+      icon: <TruckOutlined />,
+    },
+    delivered: {
+      color: 'success',
+      text: '已签收',
+      icon: <CheckCircleOutlined />,
+    },
+    cancelled: {
+      color: 'error',
+      text: '已取消',
+      icon: <CloseCircleOutlined />,
+    },
+    not_accepted: {
+      color: 'error',
+      text: '未接受',
+      icon: <CloseCircleOutlined />,
+    },
+    sent_by_seller: {
+      color: 'cyan',
+      text: '卖家已发货',
+      icon: <TruckOutlined />,
+    },
   };
 
   // 查询订单列表
@@ -224,14 +293,17 @@ const OrderList: React.FC = () => {
           if (activeTab === 'discarded' || activeTab === 'all' || posting.status === activeTab) {
             flattened.push({
               ...posting,
-              order: order  // 关联完整的订单信息
+              order: order, // 关联完整的订单信息
             });
           }
         });
       } else {
         // 如果订单没有 postings，使用订单本身的 posting_number 创建一个虚拟 posting
         // 这是为了兼容可能存在的没有 postings 数组的订单
-        if (order.posting_number && (activeTab === 'discarded' || activeTab === 'all' || order.status === activeTab)) {
+        if (
+          order.posting_number &&
+          (activeTab === 'discarded' || activeTab === 'all' || order.status === activeTab)
+        ) {
           flattened.push({
             id: order.id,
             posting_number: order.posting_number,
@@ -241,7 +313,7 @@ const OrderList: React.FC = () => {
             warehouse_name: order.warehouse_name,
             packages_count: 1,
             is_cancelled: order.status === 'cancelled',
-            order: order
+            order: order,
           } as ozonApi.PostingWithOrder);
         }
       }
@@ -250,7 +322,7 @@ const OrderList: React.FC = () => {
     // 如果用户搜索了 posting_number，进行二次过滤，只保留匹配的货件
     const searchPostingNumber = searchParams.posting_number?.trim();
     if (searchPostingNumber) {
-      return flattened.filter(posting =>
+      return flattened.filter((posting) =>
         posting.posting_number.toLowerCase().includes(searchPostingNumber.toLowerCase())
       );
     }
@@ -265,9 +337,10 @@ const OrderList: React.FC = () => {
     postingsData.forEach((posting) => {
       // 优先使用 posting.products（从 raw_payload 提取的该 posting 的商品）
       // 如果不存在，降级使用 posting.order.items（订单级别的商品汇总）
-      const items = (posting.products && posting.products.length > 0)
-        ? posting.products
-        : (posting.order.items || []);
+      const items =
+        posting.products && posting.products.length > 0
+          ? posting.products
+          : posting.order.items || [];
       const itemCount = items.length;
 
       if (itemCount === 0) {
@@ -434,7 +507,14 @@ const OrderList: React.FC = () => {
       <div className={styles.deliveryMethodTextWhite}>
         <div>{mainPart}</div>
         {restrictionLines.map((line, index) => (
-          <div key={index} style={{ fontSize: '12px', color: 'rgba(0, 0, 0, 0.65)', marginTop: '2px' }}>
+          <div
+            key={index}
+            style={{
+              fontSize: '12px',
+              color: 'rgba(0, 0, 0, 0.65)',
+              marginTop: '2px',
+            }}
+          >
             {line}
           </div>
         ))}
@@ -464,7 +544,7 @@ const OrderList: React.FC = () => {
     // 持续轮询状态
     while (!completed) {
       try {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 每2秒检查一次
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
         const result = await ozonApi.getSyncStatus(taskId);
         const status = result.data || result;
 
@@ -519,7 +599,6 @@ const OrderList: React.FC = () => {
   });
 
   // 已移除旧的 useEffect 轮询逻辑，改为异步后台任务
-
 
   // 发货
   const shipOrderMutation = useMutation({
@@ -627,14 +706,16 @@ const OrderList: React.FC = () => {
             <div>
               <Text type="secondary">店铺: </Text>
               <Tooltip title={shopName}>
-                <strong style={{
-                  display: 'inline-block',
-                  maxWidth: '180px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  verticalAlign: 'bottom'
-                }}>
+                <strong
+                  style={{
+                    display: 'inline-block',
+                    maxWidth: '180px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    verticalAlign: 'bottom',
+                  }}
+                >
                   {shopName}
                 </strong>
               </Tooltip>
@@ -654,7 +735,11 @@ const OrderList: React.FC = () => {
                     {item.sku}
                   </a>
                   <CopyOutlined
-                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    style={{
+                      marginLeft: 8,
+                      cursor: 'pointer',
+                      color: '#1890ff',
+                    }}
                     onClick={() => handleCopy(item.sku, 'SKU')}
                   />
                 </>
@@ -662,7 +747,9 @@ const OrderList: React.FC = () => {
                 <span>-</span>
               )}
             </div>
-            <div><Text type="secondary">数量: </Text>X {item.quantity || 1}</div>
+            <div>
+              <Text type="secondary">数量: </Text>X {item.quantity || 1}
+            </div>
             <div>
               <Text type="secondary">单价: </Text>
               <span className={styles.price}>
@@ -710,7 +797,11 @@ const OrderList: React.FC = () => {
                 <span>{trackingNumber || '-'}</span>
                 {trackingNumber && (
                   <CopyOutlined
-                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    style={{
+                      marginLeft: 8,
+                      cursor: 'pointer',
+                      color: '#1890ff',
+                    }}
                     onClick={() => handleCopy(trackingNumber, '追踪号码')}
                   />
                 )}
@@ -723,7 +814,11 @@ const OrderList: React.FC = () => {
                       <div key={index}>
                         {number}
                         <CopyOutlined
-                          style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                          style={{
+                            marginLeft: 8,
+                            cursor: 'pointer',
+                            color: '#1890ff',
+                          }}
                           onClick={() => handleCopy(number, '国内单号')}
                         />
                       </div>
@@ -743,7 +838,7 @@ const OrderList: React.FC = () => {
                     onClick={() => {
                       syncSingleOrderMutation.mutate({
                         postingNumber: posting.posting_number,
-                        shopId: row.order.shop_id
+                        shopId: row.order.shop_id,
                       });
                     }}
                     style={{ padding: 0, height: 'auto' }}
@@ -770,7 +865,8 @@ const OrderList: React.FC = () => {
 
         const posting = row.posting;
         const order = row.order;
-        const fullText = posting.delivery_method_name || order.delivery_method || order.order_type || 'FBS';
+        const fullText =
+          posting.delivery_method_name || order.delivery_method || order.order_type || 'FBS';
         const shortText = fullText.split('（')[0].split('(')[0].trim();
         const status = statusConfig[posting.status] || statusConfig.pending;
 
@@ -780,7 +876,16 @@ const OrderList: React.FC = () => {
               <div>
                 <Text type="secondary">配送: </Text>
                 <Tooltip title={formatDeliveryMethodText(fullText)}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '150px', verticalAlign: 'bottom' }}>
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-block',
+                      maxWidth: '150px',
+                      verticalAlign: 'bottom',
+                    }}
+                  >
                     {shortText}
                   </span>
                 </Tooltip>
@@ -798,7 +903,9 @@ const OrderList: React.FC = () => {
               <div>
                 <Text type="secondary">截止: </Text>
                 <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
-                  {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
+                  {posting.shipment_date
+                    ? moment(posting.shipment_date).format('MM-DD HH:mm')
+                    : '-'}
                 </span>
               </div>
             </div>
@@ -845,7 +952,9 @@ const OrderList: React.FC = () => {
 
     confirm({
       title: fullSync ? '确认执行全量同步？' : '确认执行增量同步？',
-      content: fullSync ? '全量同步将拉取所有历史订单数据，耗时较长' : '增量同步将只拉取最近7天的订单',
+      content: fullSync
+        ? '全量同步将拉取所有历史订单数据，耗时较长'
+        : '增量同步将只拉取最近7天的订单',
       onOk: () => {
         syncOrdersMutation.mutate(fullSync);
       },
@@ -866,9 +975,7 @@ const OrderList: React.FC = () => {
     setIsPrinting(true);
 
     try {
-      const result = await ozonApi.batchPrintLabels(
-        selectedPostingNumbers
-      );
+      const result = await ozonApi.batchPrintLabels(selectedPostingNumbers);
 
       if (result.success) {
         // 全部成功
@@ -1075,9 +1182,7 @@ const OrderList: React.FC = () => {
               打印标签 ({selectedPostingNumbers.length}/20)
             </Button>
           )}
-          {canExport && (
-            <Button icon={<DownloadOutlined />}>导出订单</Button>
-          )}
+          {canExport && <Button icon={<DownloadOutlined />}>导出订单</Button>}
         </Space>
 
         {/* 订单列表（以商品为单位显示，多商品使用rowSpan合并）*/}
@@ -1096,7 +1201,7 @@ const OrderList: React.FC = () => {
               disabled: !record.isFirstItem || record.posting.status !== 'awaiting_deliver',
             }),
           }}
-          pagination={false}  // 禁用Table内置分页，使用下方独立的Pagination组件
+          pagination={false} // 禁用Table内置分页，使用下方独立的Pagination组件
           scroll={{ x: 'max-content' }}
           size="small"
         />

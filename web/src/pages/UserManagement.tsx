@@ -1,4 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  UserAddOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import {
   Table,
   Button,
@@ -14,20 +22,14 @@ import {
   Tooltip,
   Popconfirm,
 } from 'antd';
-import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  UserAddOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
-import axios from '@/services/axios';
-import { useAuth } from '@/hooks/useAuth';
-import { notifySuccess, notifyError } from '@/utils/notification';
-import PageTitle from '@/components/PageTitle';
+import React, { useState, useEffect } from 'react';
+
 import styles from './UserManagement.module.scss';
+
+import PageTitle from '@/components/PageTitle';
+import { useAuth } from '@/hooks/useAuth';
+import axios from '@/services/axios';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Option } = Select;
 
@@ -113,9 +115,8 @@ const UserManagement: React.FC = () => {
   const handleSubmit = async (values: any) => {
     try {
       // 处理shop_ids：如果是admin角色，传入所有店铺ID
-      const shopIds = values.role === 'admin'
-        ? shops.map(shop => shop.id)
-        : (values.shop_ids || []);
+      const shopIds =
+        values.role === 'admin' ? shops.map((shop) => shop.id) : values.shop_ids || [];
 
       if (editingUser) {
         // 更新用户
@@ -144,7 +145,8 @@ const UserManagement: React.FC = () => {
       if (error.response?.data?.detail) {
         // 如果detail是对象，获取message字段
         if (typeof error.response.data.detail === 'object') {
-          errorMsg = error.response.data.detail.message || error.response.data.detail.msg || '操作失败';
+          errorMsg =
+            error.response.data.detail.message || error.response.data.detail.msg || '操作失败';
         } else {
           // 如果detail是字符串，直接使用
           errorMsg = error.response.data.detail;
@@ -249,8 +251,10 @@ const UserManagement: React.FC = () => {
       dataIndex: 'is_active',
       key: 'is_active',
       render: (isActive: boolean) => (
-        <Tag icon={isActive ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-             color={isActive ? 'success' : 'error'}>
+        <Tag
+          icon={isActive ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+          color={isActive ? 'success' : 'error'}
+        >
           {isActive ? '激活' : '停用'}
         </Tag>
       ),
@@ -275,11 +279,7 @@ const UserManagement: React.FC = () => {
         return (
           <Space size="middle">
             <Tooltip title="编辑">
-              <Button
-                type="link"
-                icon={<EditOutlined />}
-                onClick={() => handleEdit(record)}
-              />
+              <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
             </Tooltip>
             <Tooltip title={record.is_active ? '停用' : '启用'}>
               <Switch
@@ -296,11 +296,7 @@ const UserManagement: React.FC = () => {
               cancelText="取消"
             >
               <Tooltip title="删除">
-                <Button
-                  type="link"
-                  danger
-                  icon={<DeleteOutlined />}
-                />
+                <Button type="link" danger icon={<DeleteOutlined />} />
               </Tooltip>
             </Popconfirm>
           </Space>
@@ -313,11 +309,7 @@ const UserManagement: React.FC = () => {
     <div>
       <div className={styles.pageHeader}>
         <PageTitle icon={<UserOutlined />} title="用户管理" />
-        <Button
-          type="primary"
-          icon={<UserAddOutlined />}
-          onClick={handleCreate}
-        >
+        <Button type="primary" icon={<UserAddOutlined />} onClick={handleCreate}>
           添加用户
         </Button>
       </div>
@@ -394,22 +386,14 @@ const UserManagement: React.FC = () => {
             </Form.Item>
           )}
 
-          <Form.Item
-            name="role"
-            label="角色"
-            rules={[{ required: true, message: '请选择角色' }]}
-          >
+          <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
             <Select>
               <Option value="operator">操作员</Option>
               <Option value="viewer">查看员</Option>
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="is_active"
-            valuePropName="checked"
-            label="账号状态"
-          >
+          <Form.Item name="is_active" valuePropName="checked" label="账号状态">
             <Switch checkedChildren="激活" unCheckedChildren="停用" />
           </Form.Item>
 
@@ -437,9 +421,9 @@ const UserManagement: React.FC = () => {
                     mode="multiple"
                     placeholder={isAdmin ? '自动关联所有店铺' : '请选择店铺'}
                     disabled={isAdmin}
-                    value={isAdmin ? shops.map(shop => shop.id) : undefined}
+                    value={isAdmin ? shops.map((shop) => shop.id) : undefined}
                   >
-                    {shops.map(shop => (
+                    {shops.map((shop) => (
                       <Option key={shop.id} value={shop.id}>
                         {shop.name}
                       </Option>
@@ -455,10 +439,12 @@ const UserManagement: React.FC = () => {
               <Button type="primary" htmlType="submit">
                 {editingUser ? '更新' : '创建'}
               </Button>
-              <Button onClick={() => {
-                setModalVisible(false);
-                form.resetFields();
-              }}>
+              <Button
+                onClick={() => {
+                  setModalVisible(false);
+                  form.resetFields();
+                }}
+              >
                 取消
               </Button>
             </Space>

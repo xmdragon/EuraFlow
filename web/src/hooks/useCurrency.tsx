@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+
 import { getCurrencySymbol } from '../utils/currency';
 
 interface UserSettings {
@@ -17,7 +18,7 @@ export const useCurrency = () => {
     queryFn: async () => {
       const response = await fetch('/api/ef/v1/settings', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
       if (!response.ok) throw new Error('获取用户设置失败');

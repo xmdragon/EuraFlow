@@ -5,6 +5,7 @@
  */
 import { App } from 'antd';
 import { useEffect } from 'react';
+
 import { setGlobalNotification } from '@/utils/globalNotification';
 
 const NotificationInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {

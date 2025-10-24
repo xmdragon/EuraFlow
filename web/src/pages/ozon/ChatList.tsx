@@ -1,7 +1,16 @@
 /**
  * OZON 聊天列表页面
  */
-import React, { useState } from 'react';
+import {
+  MessageOutlined,
+  UserOutlined,
+  SyncOutlined,
+  SearchOutlined,
+  ShoppingOutlined,
+  ClockCircleOutlined,
+  CheckOutlined,
+} from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   List,
@@ -19,25 +28,17 @@ import {
   Spin,
   Empty,
 } from 'antd';
-import {
-  MessageOutlined,
-  UserOutlined,
-  SyncOutlined,
-  SearchOutlined,
-  ShoppingOutlined,
-  ClockCircleOutlined,
-  CheckOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-import * as ozonApi from '@/services/ozonApi';
-import { notifySuccess, notifyError } from '@/utils/notification';
+import styles from './ChatList.module.scss';
+
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
-import styles from './ChatList.module.scss';
+import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -78,7 +79,15 @@ const ChatList: React.FC = () => {
     isLoading,
     refetch: refetchChats,
   } = useQuery({
-    queryKey: ['chats', selectedShopId, shopIdsString, statusFilter, unreadFilter, searchText, currentPage],
+    queryKey: [
+      'chats',
+      selectedShopId,
+      shopIdsString,
+      statusFilter,
+      unreadFilter,
+      searchText,
+      currentPage,
+    ],
     queryFn: async () => {
       const params: any = {
         limit: pageSize,
@@ -122,9 +131,17 @@ const ChatList: React.FC = () => {
 
           try {
             const result = await ozonApi.syncChats(shop.id);
-            results.push({ shop_id: shop.id, shop_name: displayName, ...result });
+            results.push({
+              shop_id: shop.id,
+              shop_name: displayName,
+              ...result,
+            });
           } catch (error: any) {
-            results.push({ shop_id: shop.id, shop_name: displayName, error: error.message });
+            results.push({
+              shop_id: shop.id,
+              shop_name: displayName,
+              error: error.message,
+            });
           }
         }
         return results;
@@ -219,200 +236,203 @@ const ChatList: React.FC = () => {
       <div className={styles.contentContainer}>
         {/* 店铺选择器 */}
         <Card className={styles.shopCard}>
-        <ShopSelectorWithLabel
-          label="选择店铺"
-          value={selectedShopId}
-          onChange={(shopId) => {
-            const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : shopId;
-            setSelectedShopId(normalized);
-            setCurrentPage(1);
-          }}
-          showAllOption={true}
-        />
-      </Card>
+          <ShopSelectorWithLabel
+            label="选择店铺"
+            value={selectedShopId}
+            onChange={(shopId) => {
+              const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : shopId;
+              setSelectedShopId(normalized);
+              setCurrentPage(1);
+            }}
+            showAllOption={true}
+          />
+        </Card>
 
-      {/* 统计卡片 */}
-          <Row gutter={16} className={styles.statsRow}>
-            <Col span={6}>
-              <Card>
+        {/* 统计卡片 */}
+        <Row gutter={16} className={styles.statsRow}>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="总聊天数"
+                value={statsData?.total_chats || 0}
+                prefix={<MessageOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <div className={styles.successValue}>
                 <Statistic
-                  title="总聊天数"
-                  value={statsData?.total_chats || 0}
+                  title="活跃聊天"
+                  value={statsData?.active_chats || 0}
                   prefix={<MessageOutlined />}
                 />
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card>
-                <div className={styles.successValue}>
-                  <Statistic
-                    title="活跃聊天"
-                    value={statsData?.active_chats || 0}
-                    prefix={<MessageOutlined />}
-                  />
-                </div>
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card>
-                <div className={styles.errorValue}>
-                  <Statistic
-                    title="未读消息"
-                    value={statsData?.total_unread || 0}
-                    prefix={<Badge status="error" />}
-                  />
-                </div>
-              </Card>
-            </Col>
-            <Col span={6}>
-              <Card>
+              </div>
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <div className={styles.errorValue}>
                 <Statistic
-                  title="未读聊天"
-                  value={statsData?.unread_chats || 0}
-                  prefix={<UserOutlined />}
+                  title="未读消息"
+                  value={statsData?.total_unread || 0}
+                  prefix={<Badge status="error" />}
                 />
-              </Card>
-            </Col>
-          </Row>
+              </div>
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="未读聊天"
+                value={statsData?.unread_chats || 0}
+                prefix={<UserOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
 
-          {/* 筛选和操作栏 */}
-          <Card className={styles.filterCard}>
-            <Space wrap className={styles.filterSpace}>
-              <Space>
-                <Search
-                  placeholder="搜索订单号"
-                  allowClear
-                  className={styles.searchInput}
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  onSearch={() => setCurrentPage(1)}
-                  prefix={<SearchOutlined />}
-                />
-                <Select
-                  value={statusFilter}
-                  onChange={(value) => {
-                    setStatusFilter(value);
-                    setCurrentPage(1);
-                  }}
-                  className={styles.filterSelect}
-                >
-                  <Select.Option value="all">全部状态</Select.Option>
-                  <Select.Option value="open">进行中</Select.Option>
-                  <Select.Option value="closed">已关闭</Select.Option>
-                </Select>
-                <Select
-                  value={unreadFilter}
-                  onChange={(value) => {
-                    setUnreadFilter(value);
-                    setCurrentPage(1);
-                  }}
-                  className={styles.filterSelect}
-                >
-                  <Select.Option value="all">全部消息</Select.Option>
-                  <Select.Option value="unread">未读</Select.Option>
-                  <Select.Option value="read">已读</Select.Option>
-                </Select>
-              </Space>
-              <Space>
-                {canSync && (
-                  <Button
-                    icon={<SyncOutlined />}
-                    loading={syncMutation.isPending}
-                    disabled={selectedShopId === null && (shopsLoading || shops.length === 0)}
-                    onClick={handleSync}
-                    title={selectedShopId === null ? '将依次同步所有店铺的聊天' : '同步当前店铺的聊天'}
-                  >
-                    {selectedShopId === null ? `同步所有店铺 (${shops.length})` : '同步聊天'}
-                  </Button>
-                )}
-              </Space>
+        {/* 筛选和操作栏 */}
+        <Card className={styles.filterCard}>
+          <Space wrap className={styles.filterSpace}>
+            <Space>
+              <Search
+                placeholder="搜索订单号"
+                allowClear
+                className={styles.searchInput}
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onSearch={() => setCurrentPage(1)}
+                prefix={<SearchOutlined />}
+              />
+              <Select
+                value={statusFilter}
+                onChange={(value) => {
+                  setStatusFilter(value);
+                  setCurrentPage(1);
+                }}
+                className={styles.filterSelect}
+              >
+                <Select.Option value="all">全部状态</Select.Option>
+                <Select.Option value="open">进行中</Select.Option>
+                <Select.Option value="closed">已关闭</Select.Option>
+              </Select>
+              <Select
+                value={unreadFilter}
+                onChange={(value) => {
+                  setUnreadFilter(value);
+                  setCurrentPage(1);
+                }}
+                className={styles.filterSelect}
+              >
+                <Select.Option value="all">全部消息</Select.Option>
+                <Select.Option value="unread">未读</Select.Option>
+                <Select.Option value="read">已读</Select.Option>
+              </Select>
             </Space>
-          </Card>
+            <Space>
+              {canSync && (
+                <Button
+                  icon={<SyncOutlined />}
+                  loading={syncMutation.isPending}
+                  disabled={selectedShopId === null && (shopsLoading || shops.length === 0)}
+                  onClick={handleSync}
+                  title={
+                    selectedShopId === null ? '将依次同步所有店铺的聊天' : '同步当前店铺的聊天'
+                  }
+                >
+                  {selectedShopId === null ? `同步所有店铺 (${shops.length})` : '同步聊天'}
+                </Button>
+              )}
+            </Space>
+          </Space>
+        </Card>
 
-          {/* 聊天列表 */}
-          <Card className={styles.listCard}>
-            <Spin spinning={isLoading}>
-              {chatsData?.items && chatsData.items.length > 0 ? (
-                <List
-                  itemLayout="horizontal"
-                  dataSource={chatsData.items}
-                  pagination={{
-                    current: currentPage,
-                    pageSize: pageSize,
-                    total: chatsData.total,
-                    onChange: (page) => setCurrentPage(page),
-                    showSizeChanger: false,
-                    showTotal: (total) => `共 ${total} 个聊天`,
-                  }}
-                  renderItem={(chat) => (
-                    <List.Item
-                      className={`${styles.chatListItem} ${chat.unread_count > 0 ? styles.unread : ''}`}
-                      onClick={() => handleChatClick(chat)}
-                      actions={[
-                        chat.unread_count > 0 && canOperate && (
-                          <Button
-                            type="link"
-                            size="small"
-                            icon={<CheckOutlined />}
-                            onClick={(e) => handleMarkAsRead(chat, e)}
-                          >
-                            标记已读
-                          </Button>
-                        ),
-                      ].filter(Boolean)}
-                    >
-                      <List.Item.Meta
-                        avatar={
-                          <Badge count={chat.unread_count} offset={[-5, 5]}>
-                            <Avatar icon={<UserOutlined />} />
-                          </Badge>
-                        }
-                        title={
-                          <Space>
-                            <Text strong>{getChatDisplayName(chat)}</Text>
-                            {/* 全部店铺模式下显示店铺名称 */}
-                            {selectedShopId === null && chat.shop_name && (
-                              <Tag color="purple">{chat.shop_name}</Tag>
-                            )}
-                            {/* 显示聊天类型标签（仅当没有客户名称或是旧数据时） */}
-                            {(!chat.customer_name || chat.customer_name === '未知客户') && chat.chat_type === 'SELLER_SUPPORT' && (
+        {/* 聊天列表 */}
+        <Card className={styles.listCard}>
+          <Spin spinning={isLoading}>
+            {chatsData?.items && chatsData.items.length > 0 ? (
+              <List
+                itemLayout="horizontal"
+                dataSource={chatsData.items}
+                pagination={{
+                  current: currentPage,
+                  pageSize: pageSize,
+                  total: chatsData.total,
+                  onChange: (page) => setCurrentPage(page),
+                  showSizeChanger: false,
+                  showTotal: (total) => `共 ${total} 个聊天`,
+                }}
+                renderItem={(chat) => (
+                  <List.Item
+                    className={`${styles.chatListItem} ${chat.unread_count > 0 ? styles.unread : ''}`}
+                    onClick={() => handleChatClick(chat)}
+                    actions={[
+                      chat.unread_count > 0 && canOperate && (
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<CheckOutlined />}
+                          onClick={(e) => handleMarkAsRead(chat, e)}
+                        >
+                          标记已读
+                        </Button>
+                      ),
+                    ].filter(Boolean)}
+                  >
+                    <List.Item.Meta
+                      avatar={
+                        <Badge count={chat.unread_count} offset={[-5, 5]}>
+                          <Avatar icon={<UserOutlined />} />
+                        </Badge>
+                      }
+                      title={
+                        <Space>
+                          <Text strong>{getChatDisplayName(chat)}</Text>
+                          {/* 全部店铺模式下显示店铺名称 */}
+                          {selectedShopId === null && chat.shop_name && (
+                            <Tag color="purple">{chat.shop_name}</Tag>
+                          )}
+                          {/* 显示聊天类型标签（仅当没有客户名称或是旧数据时） */}
+                          {(!chat.customer_name || chat.customer_name === '未知客户') &&
+                            chat.chat_type === 'SELLER_SUPPORT' && (
                               <Tag color="orange">客服咨询</Tag>
                             )}
-                            {getStatusTag(chat.status)}
-                            {chat.order_number && (
-                              <Tag icon={<ShoppingOutlined />} color="blue">
-                                {chat.order_number}
-                              </Tag>
-                            )}
-                          </Space>
-                        }
-                        description={
-                          <div>
-                            <div className={styles.chatMessage}>
-                              {chat.last_message_preview || '暂无消息'}
-                            </div>
-                            <Space size="small">
-                              <Text type="secondary" className={styles.chatMeta}>
-                                <ClockCircleOutlined />
-                                {chat.last_message_at
-                                  ? moment(chat.last_message_at).format('YYYY-MM-DD HH:mm')
-                                  : ''}
-                              </Text>
-                              <Text type="secondary" className={styles.chatMeta}>
-                                {chat.message_count} 条消息
-                              </Text>
-                            </Space>
+                          {getStatusTag(chat.status)}
+                          {chat.order_number && (
+                            <Tag icon={<ShoppingOutlined />} color="blue">
+                              {chat.order_number}
+                            </Tag>
+                          )}
+                        </Space>
+                      }
+                      description={
+                        <div>
+                          <div className={styles.chatMessage}>
+                            {chat.last_message_preview || '暂无消息'}
                           </div>
-                        }
-                      />
-                    </List.Item>
-                  )}
-                />
-              ) : (
-                <Empty description="暂无聊天" />
-              )}
-            </Spin>
-          </Card>
+                          <Space size="small">
+                            <Text type="secondary" className={styles.chatMeta}>
+                              <ClockCircleOutlined />
+                              {chat.last_message_at
+                                ? moment(chat.last_message_at).format('YYYY-MM-DD HH:mm')
+                                : ''}
+                            </Text>
+                            <Text type="secondary" className={styles.chatMeta}>
+                              {chat.message_count} 条消息
+                            </Text>
+                          </Space>
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Empty description="暂无聊天" />
+            )}
+          </Spin>
+        </Card>
       </div>
     </div>
   );

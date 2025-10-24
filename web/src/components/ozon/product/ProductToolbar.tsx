@@ -2,8 +2,6 @@
  * 商品工具栏组件
  * 包含同步、批量操作、导入导出等功能按钮
  */
-import React from 'react';
-import { Space, Button, Tooltip } from 'antd';
 import {
   SyncOutlined,
   ReloadOutlined,
@@ -13,6 +11,9 @@ import {
   DownloadOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
+import { Space, Button, Tooltip } from 'antd';
+import React from 'react';
+
 import styles from '../../../pages/ozon/ProductList.module.scss';
 
 export interface ProductToolbarProps {
@@ -76,11 +77,7 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
           </Button>
         )}
         {canSync && (
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={onFullSync}
-            loading={syncLoading}
-          >
+          <Button icon={<ReloadOutlined />} onClick={onFullSync} loading={syncLoading}>
             全量同步
           </Button>
         )}
@@ -114,10 +111,7 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
         )}
       </Space>
       <Tooltip title="列显示设置">
-        <Button
-          icon={<SettingOutlined />}
-          onClick={onColumnSettings}
-        >
+        <Button icon={<SettingOutlined />} onClick={onColumnSettings}>
           列设置
         </Button>
       </Tooltip>

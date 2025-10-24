@@ -434,31 +434,49 @@ export function checkServiceAvailable(
 ): { available: boolean; reason?: string } {
   // 检查最小重量限制
   if (service.minWeight && weight < service.minWeight) {
-    return { available: false, reason: `低于最小重量限制 ${service.minWeight}g` };
+    return {
+      available: false,
+      reason: `低于最小重量限制 ${service.minWeight}g`,
+    };
   }
 
   // 检查最大重量限制
   if (service.maxWeight && weight > service.maxWeight) {
-    return { available: false, reason: `超过最大重量限制 ${service.maxWeight}g` };
+    return {
+      available: false,
+      reason: `超过最大重量限制 ${service.maxWeight}g`,
+    };
   }
 
   // 检查最小货值限制
   if (service.minValue && value < service.minValue) {
-    return { available: false, reason: `低于最小货值限制 ${service.minValue} RMB` };
+    return {
+      available: false,
+      reason: `低于最小货值限制 ${service.minValue} RMB`,
+    };
   }
 
   // 检查最大货值限制
   if (service.maxValue && value > service.maxValue) {
-    return { available: false, reason: `超过最大货值限制 ${service.maxValue} RMB` };
+    return {
+      available: false,
+      reason: `超过最大货值限制 ${service.maxValue} RMB`,
+    };
   }
 
   // 检查尺寸限制
   if (service.dimensionLimit.sumLimit && sumDimension > service.dimensionLimit.sumLimit) {
-    return { available: false, reason: `三边之和超过限制 ${service.dimensionLimit.sumLimit}cm` };
+    return {
+      available: false,
+      reason: `三边之和超过限制 ${service.dimensionLimit.sumLimit}cm`,
+    };
   }
 
   if (service.dimensionLimit.maxSide && maxDimension > service.dimensionLimit.maxSide) {
-    return { available: false, reason: `最长边超过限制 ${service.dimensionLimit.maxSide}cm` };
+    return {
+      available: false,
+      reason: `最长边超过限制 ${service.dimensionLimit.maxSide}cm`,
+    };
   }
 
   return { available: true };

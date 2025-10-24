@@ -2,12 +2,13 @@
  * 商品进货价格历史弹窗
  * 显示指定SKU的最近10次进货价格记录
  */
-import React from 'react';
-import { Modal, Table, Typography, Empty, Spin, Tag, message } from 'antd';
 import { useQuery } from '@tanstack/react-query';
+import { Modal, Table, Typography, Empty, Spin, Tag, message } from 'antd';
 import moment from 'moment';
-import * as ozonApi from '@/services/ozonApi';
+import React from 'react';
+
 import { useCurrency } from '@/hooks/useCurrency';
+import * as ozonApi from '@/services/ozonApi';
 import { getCurrencySymbol } from '@/utils/currency';
 
 const { Text } = Typography;
@@ -41,9 +42,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       dataIndex: 'posting_number',
       key: 'posting_number',
       width: 180,
-      render: (text: string) => (
-        <Text copyable={{ text }}>{text}</Text>
-      ),
+      render: (text: string) => <Text copyable={{ text }}>{text}</Text>,
     },
     {
       title: '采购平台',
@@ -54,9 +53,9 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
         if (!platform) return '-';
         const colorMap: Record<string, string> = {
           '1688': 'orange',
-          '拼多多': 'magenta',
-          '咸鱼': 'cyan',
-          '淘宝': 'red',
+          拼多多: 'magenta',
+          咸鱼: 'cyan',
+          淘宝: 'red',
         };
         return <Tag color={colorMap[platform] || 'default'}>{platform}</Tag>;
       },
@@ -69,7 +68,11 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       render: (price: string | null) => {
         if (!price) return '-';
         const symbol = getCurrencySymbol(userCurrency);
-        return <Text strong>{symbol} {price}</Text>;
+        return (
+          <Text strong>
+            {symbol} {price}
+          </Text>
+        );
       },
     },
     {
@@ -100,7 +103,9 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
         </div>
         <div>
           <Text type="secondary">商品SKU: </Text>
-          <Text strong copyable={{ text: sku }}>{sku}</Text>
+          <Text strong copyable={{ text: sku }}>
+            {sku}
+          </Text>
         </div>
       </div>
 

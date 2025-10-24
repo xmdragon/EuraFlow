@@ -2,8 +2,9 @@
  * 全局通知Provider - 管理WebSocket连接和通知
  */
 import React, { useEffect, useState } from 'react';
-import { useWebSocket } from '@/hooks/useWebSocket';
+
 import { useNotifications } from '@/hooks/useNotifications';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import type { User } from '@/types/auth';
 
 interface NotificationProviderProps {
@@ -50,7 +51,7 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children, u
     url: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/ef/v1/notifications/ws`,
     token,
     shopIds,
-    enabled,  // 新增：控制是否建立连接
+    enabled, // 新增：控制是否建立连接
     onMessage: handleWebSocketMessage,
     onConnected: () => {
       console.log('通知系统已连接');

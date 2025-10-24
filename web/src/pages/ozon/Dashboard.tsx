@@ -13,25 +13,27 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Row, Col, Statistic, Space, Progress, List, Tag, Typography } from 'antd';
 import React, { useState, useEffect, useCallback } from 'react';
 
-import * as ozonApi from '../../services/ozonApi';
 import ShopSelectorWithLabel from '../../components/ozon/ShopSelectorWithLabel';
-import PageTitle from '@/components/PageTitle';
+import * as ozonApi from '../../services/ozonApi';
+
 import styles from './Dashboard.module.scss';
+
+import PageTitle from '@/components/PageTitle';
 
 const { Text } = Typography;
 
 // OZON 状态中文映射
 const OZON_STATUS_NAME_MAP: Record<string, string> = {
-  'awaiting_registration': '待登记',
-  'awaiting_packaging': '待打包',
-  'awaiting_deliver': '待发货',
-  'delivering': '运输中',
-  'delivered': '已送达',
-  'cancelled': '已取消',
-  'acceptance_in_progress': '验收中',
-  'arbitration': '仲裁中',
-  'client_arbitration': '客户仲裁',
-  'sent_by_seller': '卖家已发货',
+  awaiting_registration: '待登记',
+  awaiting_packaging: '待打包',
+  awaiting_deliver: '待发货',
+  delivering: '运输中',
+  delivered: '已送达',
+  cancelled: '已取消',
+  acceptance_in_progress: '验收中',
+  arbitration: '仲裁中',
+  client_arbitration: '客户仲裁',
+  sent_by_seller: '卖家已发货',
 };
 
 const OzonDashboard: React.FC = () => {
@@ -66,7 +68,6 @@ const OzonDashboard: React.FC = () => {
   // 允许 debouncedShop 为 null（表示全部店铺）
   const shouldFetchData = !!shops?.data?.length && debouncedShop !== undefined;
 
-
   // 获取统计数据（使用防抖后的店铺ID）
   const { data: statisticsData } = useQuery({
     queryKey: ['ozon', 'statistics', debouncedShop],
@@ -100,7 +101,11 @@ const OzonDashboard: React.FC = () => {
   };
 
   // 同步历史数据应该从API获取，暂时使用空数组
-  const syncHistory: Array<{ time: string; type: string; status: 'success' | 'error' | 'syncing' }> = [];
+  const syncHistory: Array<{
+    time: string;
+    type: string;
+    status: 'success' | 'error' | 'syncing';
+  }> = [];
 
   const getStatusIcon = (status: 'success' | 'error' | 'syncing') => {
     switch (status) {
@@ -134,152 +139,150 @@ const OzonDashboard: React.FC = () => {
 
       <div className={styles.contentContainer}>
         <Row className={styles.titleRow} align="middle" justify="end">
-        <Col>
-          <ShopSelectorWithLabel
-            showLabel={false}
-            value={selectedShop}
-            onChange={handleShopChange}
-            showAllOption={false}
-            className={styles.shopSelector}
-          />
-        </Col>
-      </Row>
+          <Col>
+            <ShopSelectorWithLabel
+              showLabel={false}
+              value={selectedShop}
+              onChange={handleShopChange}
+              showAllOption={false}
+              className={styles.shopSelector}
+            />
+          </Col>
+        </Row>
 
-      {/* 概览统计 */}
-      <Row gutter={[8, 8]} className={styles.statsRow}>
-        <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statSuccess}>
-            <Statistic
-              title="总商品数"
-              value={stats.products.total}
-              prefix={<ShoppingOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statError}>
-            <Statistic
-              title="待处理订单"
-              value={stats.orders.pending}
-              prefix={<ShoppingCartOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statSuccess}>
-            <Statistic
-              title="昨日销售额"
-              value={stats.revenue.yesterday}
-              precision={2}
-              prefix="¥"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className={styles.statInfo}>
-            <Statistic
-              title={selectedShop ? "当前店铺" : "活跃店铺"}
-              value={
-                selectedShop
-                  ? shops?.data?.find((s: any) => s.id === selectedShop)?.shop_name || '-'
-                  : shops?.data?.length || 0
-              }
-              prefix={selectedShop ? null : <ShoppingOutlined />}
-              valueRender={(value) =>
-                typeof value === 'string' && isNaN(Number(value)) ? (
-                  <Text className={styles.shopNameValue}>
-                    {value}
-                  </Text>
-                ) : (
-                  value
-                )
-              }
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 详细统计 */}
-      <Row gutter={[8, 8]} className={styles.detailRow}>
-        <Col xs={24} lg={12}>
-          <Card title="商品统计" extra={<SyncOutlined />}>
-            <Space direction="vertical" className={styles.productStatsContent}>
-              <div className={styles.statRow}>
-                <Text>销售商品:</Text>
-                <Text strong>{stats.products.active}</Text>
-              </div>
-              <Progress
-                percent={Math.round((stats.products.active / stats.products.total) * 100)}
-                status="success"
+        {/* 概览统计 */}
+        <Row gutter={[8, 8]} className={styles.statsRow}>
+          <Col xs={24} sm={12} md={6}>
+            <Card className={styles.statSuccess}>
+              <Statistic
+                title="总商品数"
+                value={stats.products.total}
+                prefix={<ShoppingOutlined />}
               />
-              <div className={styles.statRow}>
-                <Text>缺货商品:</Text>
-                <Text type="warning">{stats.products.outOfStock}</Text>
-              </div>
-              <Progress
-                percent={Math.round((stats.products.outOfStock / stats.products.total) * 100)}
-                status="exception"
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card className={styles.statError}>
+              <Statistic
+                title="待处理订单"
+                value={stats.orders.pending}
+                prefix={<ShoppingCartOutlined />}
               />
-              <div className={styles.statRow}>
-                <Text>已同步商品:</Text>
-                <Text type="success">{stats.products.synced}</Text>
-              </div>
-              <Progress
-                percent={Math.round((stats.products.synced / stats.products.total) * 100)}
-                status="success"
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card className={styles.statSuccess}>
+              <Statistic
+                title="昨日销售额"
+                value={stats.revenue.yesterday}
+                precision={2}
+                prefix="¥"
               />
-            </Space>
-          </Card>
-        </Col>
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card className={styles.statInfo}>
+              <Statistic
+                title={selectedShop ? '当前店铺' : '活跃店铺'}
+                value={
+                  selectedShop
+                    ? shops?.data?.find((s: any) => s.id === selectedShop)?.shop_name || '-'
+                    : shops?.data?.length || 0
+                }
+                prefix={selectedShop ? null : <ShoppingOutlined />}
+                valueRender={(value) =>
+                  typeof value === 'string' && isNaN(Number(value)) ? (
+                    <Text className={styles.shopNameValue}>{value}</Text>
+                  ) : (
+                    value
+                  )
+                }
+              />
+            </Card>
+          </Col>
+        </Row>
 
-        <Col xs={24} lg={12}>
-          <Card title="订单统计（按OZON状态）" extra={<ShoppingCartOutlined />}>
-            <Row gutter={[8, 8]}>
-              {Object.entries(stats.orders.byOzonStatus).map(([status, count]) => (
-                <Col span={12} key={status}>
-                  <Card>
-                    <Statistic
-                      title={OZON_STATUS_NAME_MAP[status] || status}
-                      value={count as number}
-                    />
-                  </Card>
-                </Col>
-              ))}
-              {Object.keys(stats.orders.byOzonStatus).length === 0 && (
-                <Col span={24}>
-                  <Text type="secondary">暂无订单数据</Text>
-                </Col>
-              )}
-            </Row>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 同步历史 - 当有数据时才显示 */}
-      {syncHistory.length > 0 && (
-        <Card title="同步历史" extra={<SyncOutlined />}>
-          <List
-            itemLayout="horizontal"
-            dataSource={syncHistory}
-            renderItem={(item) => (
-              <List.Item>
-                <List.Item.Meta
-                  avatar={getStatusIcon(item.status)}
-                  title={
-                    <Space>
-                      <Text>{item.type}</Text>
-                      <Tag color={getStatusColor(item.status)}>
-                        {item.status === 'success' ? '成功' : '失败'}
-                      </Tag>
-                    </Space>
-                  }
-                  description={item.time}
+        {/* 详细统计 */}
+        <Row gutter={[8, 8]} className={styles.detailRow}>
+          <Col xs={24} lg={12}>
+            <Card title="商品统计" extra={<SyncOutlined />}>
+              <Space direction="vertical" className={styles.productStatsContent}>
+                <div className={styles.statRow}>
+                  <Text>销售商品:</Text>
+                  <Text strong>{stats.products.active}</Text>
+                </div>
+                <Progress
+                  percent={Math.round((stats.products.active / stats.products.total) * 100)}
+                  status="success"
                 />
-              </List.Item>
-            )}
-          />
-        </Card>
-      )}
+                <div className={styles.statRow}>
+                  <Text>缺货商品:</Text>
+                  <Text type="warning">{stats.products.outOfStock}</Text>
+                </div>
+                <Progress
+                  percent={Math.round((stats.products.outOfStock / stats.products.total) * 100)}
+                  status="exception"
+                />
+                <div className={styles.statRow}>
+                  <Text>已同步商品:</Text>
+                  <Text type="success">{stats.products.synced}</Text>
+                </div>
+                <Progress
+                  percent={Math.round((stats.products.synced / stats.products.total) * 100)}
+                  status="success"
+                />
+              </Space>
+            </Card>
+          </Col>
+
+          <Col xs={24} lg={12}>
+            <Card title="订单统计（按OZON状态）" extra={<ShoppingCartOutlined />}>
+              <Row gutter={[8, 8]}>
+                {Object.entries(stats.orders.byOzonStatus).map(([status, count]) => (
+                  <Col span={12} key={status}>
+                    <Card>
+                      <Statistic
+                        title={OZON_STATUS_NAME_MAP[status] || status}
+                        value={count as number}
+                      />
+                    </Card>
+                  </Col>
+                ))}
+                {Object.keys(stats.orders.byOzonStatus).length === 0 && (
+                  <Col span={24}>
+                    <Text type="secondary">暂无订单数据</Text>
+                  </Col>
+                )}
+              </Row>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* 同步历史 - 当有数据时才显示 */}
+        {syncHistory.length > 0 && (
+          <Card title="同步历史" extra={<SyncOutlined />}>
+            <List
+              itemLayout="horizontal"
+              dataSource={syncHistory}
+              renderItem={(item) => (
+                <List.Item>
+                  <List.Item.Meta
+                    avatar={getStatusIcon(item.status)}
+                    title={
+                      <Space>
+                        <Text>{item.type}</Text>
+                        <Tag color={getStatusColor(item.status)}>
+                          {item.status === 'success' ? '成功' : '失败'}
+                        </Tag>
+                      </Space>
+                    }
+                    description={item.time}
+                  />
+                </List.Item>
+              )}
+            />
+          </Card>
+        )}
       </div>
     </div>
   );

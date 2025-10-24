@@ -51,9 +51,7 @@ export const listAPIKeys = async (): Promise<APIKey[]> => {
 /**
  * 创建新的API Key
  */
-export const createAPIKey = async (
-  data: CreateAPIKeyRequest
-): Promise<CreateAPIKeyResponse> => {
+export const createAPIKey = async (data: CreateAPIKeyRequest): Promise<CreateAPIKeyResponse> => {
   const response = await axios.post(`${API_BASE_URL}/api-keys/`, data);
   return response.data;
 };
@@ -68,9 +66,7 @@ export const deleteAPIKey = async (keyId: number): Promise<void> => {
 /**
  * 重新生成API Key
  */
-export const regenerateAPIKey = async (
-  keyId: number
-): Promise<RegenerateAPIKeyResponse> => {
+export const regenerateAPIKey = async (keyId: number): Promise<RegenerateAPIKeyResponse> => {
   const response = await axios.put(`${API_BASE_URL}/api-keys/${keyId}/regenerate`);
   return response.data;
 };

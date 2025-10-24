@@ -2,9 +2,10 @@
  * 备货弹窗组件
  * 用于填写进货价格、采购平台和订单备注
  */
-import React from 'react';
-import { Modal, Form, Input, Select, InputNumber, Checkbox } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Modal, Form, Input, Select, InputNumber, Checkbox } from 'antd';
+import React from 'react';
+
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -100,11 +101,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       cancelText="取消"
       width={600}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        autoComplete="off"
-      >
+      <Form form={form} layout="vertical" autoComplete="off">
         <Form.Item
           name="purchase_price"
           label="进货价格"
@@ -124,11 +121,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item
-          name="source_platform"
-          label="采购平台"
-          tooltip="商品采购来源平台（可选）"
-        >
+        <Form.Item name="source_platform" label="采购平台" tooltip="商品采购来源平台（可选）">
           <Select placeholder="请选择采购平台" allowClear>
             <Option value="1688">1688</Option>
             <Option value="拼多多">拼多多</Option>
@@ -137,11 +130,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
           </Select>
         </Form.Item>
 
-        <Form.Item
-          name="order_notes"
-          label="订单备注"
-          tooltip="订单相关的备注信息（可选）"
-        >
+        <Form.Item name="order_notes" label="订单备注" tooltip="订单相关的备注信息（可选）">
           <TextArea
             placeholder="请输入订单备注"
             autoSize={{ minRows: 3, maxRows: 6 }}

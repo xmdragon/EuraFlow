@@ -2,10 +2,11 @@
  * 价格编辑模态框组件
  * 支持单个商品或批量商品的价格更新
  */
-import React from 'react';
 import { Modal, Form, InputNumber, Input, Button, Space } from 'antd';
-import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import React from 'react';
+
 import { getCurrencySymbol } from '@/utils/currency';
+import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 
 export interface Product {
   sku: string;
@@ -66,11 +67,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
       footer={null}
       width={600}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleFinish}
-      >
+      <Form form={form} layout="vertical" onFinish={handleFinish}>
         <Form.Item name="price" label="售价" rules={[{ required: true, message: '请输入售价' }]}>
           <InputNumber
             style={{ width: '100%' }}

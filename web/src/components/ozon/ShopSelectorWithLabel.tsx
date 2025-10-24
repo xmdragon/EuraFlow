@@ -2,8 +2,9 @@
  * 带标签的店铺选择器组件
  * 封装 ShopSelector + 标签显示，统一所有页面的使用方式
  */
-import React from 'react';
 import { Space } from 'antd';
+import React from 'react';
+
 import ShopSelector from './ShopSelector';
 
 export interface ShopSelectorWithLabelProps {

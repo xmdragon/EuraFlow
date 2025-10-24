@@ -1,7 +1,8 @@
 /**
  * OZON 财务交易页面
  */
-import React, { useState } from 'react';
+import { DollarOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
 import {
   Card,
   Table,
@@ -15,33 +16,29 @@ import {
   Col,
   Pagination,
 } from 'antd';
-import {
-  DollarOutlined,
-  DownloadOutlined,
-  SearchOutlined,
-} from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs, { Dayjs } from 'dayjs';
+import React, { useState } from 'react';
+
+import styles from './FinanceTransactions.module.scss';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
+import PageTitle from '@/components/PageTitle';
 import * as ozonApi from '@/services/ozonApi';
 import { notifyInfo } from '@/utils/notification';
-import PageTitle from '@/components/PageTitle';
-import styles from './FinanceTransactions.module.scss';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 // 交易类型中文映射
 const TRANSACTION_TYPE_MAP: Record<string, string> = {
-  'orders': '订单',
-  'returns': '退货',
-  'services': '服务',
-  'compensation': '补偿',
-  'transferDelivery': '配送转移',
-  'other': '其他',
-  'all': '全部',
+  orders: '订单',
+  returns: '退货',
+  services: '服务',
+  compensation: '补偿',
+  transferDelivery: '配送转移',
+  other: '其他',
+  all: '全部',
 };
 
 const FinanceTransactions: React.FC = () => {
@@ -103,12 +100,7 @@ const FinanceTransactions: React.FC = () => {
 
   // 查询汇总数据
   const { data: summaryData } = useQuery({
-    queryKey: [
-      'financeTransactionsSummary',
-      selectedShop,
-      dateRange,
-      transactionType,
-    ],
+    queryKey: ['financeTransactionsSummary', selectedShop, dateRange, transactionType],
     queryFn: async () => {
       if (!selectedShop) return null;
 
@@ -116,12 +108,7 @@ const FinanceTransactions: React.FC = () => {
       const dateTo = dateRange?.[1]?.format('YYYY-MM-DD');
       const txType = transactionType !== 'all' ? transactionType : undefined;
 
-      return await ozonApi.getFinanceTransactionsSummary(
-        selectedShop,
-        dateFrom,
-        dateTo,
-        txType
-      );
+      return await ozonApi.getFinanceTransactionsSummary(selectedShop, dateFrom, dateTo, txType);
     },
     enabled: selectedShop !== null,
     staleTime: 60000,
@@ -235,175 +222,175 @@ const FinanceTransactions: React.FC = () => {
 
       <div className={styles.contentContainer}>
         <Card className={styles.filterCard}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col>
-            <span>选择店铺:</span>
-          </Col>
-          <Col>
-            <ShopSelector
-              value={selectedShop}
-              onChange={(value) => {
-                setSelectedShop(value as number | null);
-                setCurrentPage(1);
-              }}
-              showAllOption={true}
-            />
-          </Col>
-          <Col>
-            <RangePicker
-              value={dateRange}
-              onChange={(dates) => {
-                setDateRange(dates);
-                setCurrentPage(1);
-              }}
-              format="YYYY-MM-DD"
-            />
-          </Col>
-          <Col>
-            <Select
-              value={transactionType}
-              onChange={(value) => {
-                setTransactionType(value);
-                setCurrentPage(1);
-              }}
-              style={{ minWidth: 120 }}
-            >
-              {Object.entries(TRANSACTION_TYPE_MAP).map(([key, label]) => (
-                <Option key={key} value={key}>
-                  {label}
-                </Option>
-              ))}
-            </Select>
-          </Col>
-          <Col>
-            <Input
-              placeholder="操作类型"
-              value={operationType}
-              onChange={(e) => setOperationType(e.target.value)}
-              onPressEnter={() => setCurrentPage(1)}
-              allowClear
-              style={{ width: 150 }}
-            />
-          </Col>
-          <Col>
-            <Input
-              placeholder="货件编号"
-              value={postingNumber}
-              onChange={(e) => setPostingNumber(e.target.value)}
-              onPressEnter={() => setCurrentPage(1)}
-              prefix={<SearchOutlined />}
-              allowClear
-              style={{ width: 180 }}
-            />
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              onClick={handleExport}
-              disabled={!selectedShop}
-            >
-              导出CSV
-            </Button>
-          </Col>
-        </Row>
-      </Card>
-
-      {/* 汇总统计卡片 */}
-      {summaryData && selectedShop && (
-        <Row gutter={16} className={styles.summaryRow}>
-          <Col span={4}>
-            <Card>
-              <Statistic
-                title="交易总数"
-                value={summaryData.transaction_count}
-                prefix={<DollarOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col span={5}>
-            <Card>
-              <Statistic
-                title="销售收入总额"
-                value={parseFloat(summaryData.total_accruals_for_sale)}
-                precision={2}
-                prefix="₽"
-                valueStyle={{ color: '#3f8600' }}
-              />
-            </Card>
-          </Col>
-          <Col span={5}>
-            <Card>
-              <Statistic
-                title="总金额"
-                value={parseFloat(summaryData.total_amount)}
-                precision={2}
-                prefix="₽"
-                valueStyle={{
-                  color: parseFloat(summaryData.total_amount) >= 0 ? '#3f8600' : '#cf1322',
+          <Row gutter={[16, 16]} align="middle">
+            <Col>
+              <span>选择店铺:</span>
+            </Col>
+            <Col>
+              <ShopSelector
+                value={selectedShop}
+                onChange={(value) => {
+                  setSelectedShop(value as number | null);
+                  setCurrentPage(1);
                 }}
+                showAllOption={true}
               />
-            </Card>
-          </Col>
-          <Col span={5}>
-            <Card>
-              <Statistic
-                title="销售佣金总额"
-                value={parseFloat(summaryData.total_sale_commission)}
-                precision={2}
-                prefix="₽"
-                valueStyle={{ color: '#cf1322' }}
-              />
-            </Card>
-          </Col>
-          <Col span={5}>
-            <Card>
-              <Statistic
-                title="配送费总额"
-                value={parseFloat(summaryData.total_delivery_charge)}
-                precision={2}
-                prefix="₽"
-              />
-            </Card>
-          </Col>
-        </Row>
-      )}
-
-      {/* 交易列表 */}
-      <Card className={styles.listCard}>
-        {!selectedShop ? (
-          <div className={styles.emptyState}>
-            <p>请先选择店铺</p>
-          </div>
-        ) : (
-          <>
-            <Table
-              loading={isLoading}
-              columns={columns}
-              dataSource={transactionsData?.items || []}
-              rowKey="id"
-              pagination={false}
-              scroll={{ x: 'max-content' }}
-              size="small"
-            />
-            <div className={styles.paginationWrapper}>
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={transactionsData?.total || 0}
-                showSizeChanger
-                showQuickJumper
-                pageSizeOptions={[50, 100, 200, 500]}
-                showTotal={(total) => `共 ${total} 条记录`}
-                onChange={(page, size) => {
-                  setCurrentPage(page);
-                  setPageSize(size || 100);
+            </Col>
+            <Col>
+              <RangePicker
+                value={dateRange}
+                onChange={(dates) => {
+                  setDateRange(dates);
+                  setCurrentPage(1);
                 }}
+                format="YYYY-MM-DD"
               />
-            </div>
-          </>
+            </Col>
+            <Col>
+              <Select
+                value={transactionType}
+                onChange={(value) => {
+                  setTransactionType(value);
+                  setCurrentPage(1);
+                }}
+                style={{ minWidth: 120 }}
+              >
+                {Object.entries(TRANSACTION_TYPE_MAP).map(([key, label]) => (
+                  <Option key={key} value={key}>
+                    {label}
+                  </Option>
+                ))}
+              </Select>
+            </Col>
+            <Col>
+              <Input
+                placeholder="操作类型"
+                value={operationType}
+                onChange={(e) => setOperationType(e.target.value)}
+                onPressEnter={() => setCurrentPage(1)}
+                allowClear
+                style={{ width: 150 }}
+              />
+            </Col>
+            <Col>
+              <Input
+                placeholder="货件编号"
+                value={postingNumber}
+                onChange={(e) => setPostingNumber(e.target.value)}
+                onPressEnter={() => setCurrentPage(1)}
+                prefix={<SearchOutlined />}
+                allowClear
+                style={{ width: 180 }}
+              />
+            </Col>
+            <Col>
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                onClick={handleExport}
+                disabled={!selectedShop}
+              >
+                导出CSV
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+
+        {/* 汇总统计卡片 */}
+        {summaryData && selectedShop && (
+          <Row gutter={16} className={styles.summaryRow}>
+            <Col span={4}>
+              <Card>
+                <Statistic
+                  title="交易总数"
+                  value={summaryData.transaction_count}
+                  prefix={<DollarOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col span={5}>
+              <Card>
+                <Statistic
+                  title="销售收入总额"
+                  value={parseFloat(summaryData.total_accruals_for_sale)}
+                  precision={2}
+                  prefix="₽"
+                  valueStyle={{ color: '#3f8600' }}
+                />
+              </Card>
+            </Col>
+            <Col span={5}>
+              <Card>
+                <Statistic
+                  title="总金额"
+                  value={parseFloat(summaryData.total_amount)}
+                  precision={2}
+                  prefix="₽"
+                  valueStyle={{
+                    color: parseFloat(summaryData.total_amount) >= 0 ? '#3f8600' : '#cf1322',
+                  }}
+                />
+              </Card>
+            </Col>
+            <Col span={5}>
+              <Card>
+                <Statistic
+                  title="销售佣金总额"
+                  value={parseFloat(summaryData.total_sale_commission)}
+                  precision={2}
+                  prefix="₽"
+                  valueStyle={{ color: '#cf1322' }}
+                />
+              </Card>
+            </Col>
+            <Col span={5}>
+              <Card>
+                <Statistic
+                  title="配送费总额"
+                  value={parseFloat(summaryData.total_delivery_charge)}
+                  precision={2}
+                  prefix="₽"
+                />
+              </Card>
+            </Col>
+          </Row>
         )}
-      </Card>
+
+        {/* 交易列表 */}
+        <Card className={styles.listCard}>
+          {!selectedShop ? (
+            <div className={styles.emptyState}>
+              <p>请先选择店铺</p>
+            </div>
+          ) : (
+            <>
+              <Table
+                loading={isLoading}
+                columns={columns}
+                dataSource={transactionsData?.items || []}
+                rowKey="id"
+                pagination={false}
+                scroll={{ x: 'max-content' }}
+                size="small"
+              />
+              <div className={styles.paginationWrapper}>
+                <Pagination
+                  current={currentPage}
+                  pageSize={pageSize}
+                  total={transactionsData?.total || 0}
+                  showSizeChanger
+                  showQuickJumper
+                  pageSizeOptions={[50, 100, 200, 500]}
+                  showTotal={(total) => `共 ${total} 条记录`}
+                  onChange={(page, size) => {
+                    setCurrentPage(page);
+                    setPageSize(size || 100);
+                  }}
+                />
+              </div>
+            </>
+          )}
+        </Card>
       </div>
     </div>
   );

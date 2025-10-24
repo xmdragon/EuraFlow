@@ -2,10 +2,12 @@
  * 订单发货Modal
  * 用于填写物流单号和选择物流公司
  */
-import React from 'react';
 import { Modal, Form, Input, Select, Button, Space, Alert, FormInstance } from 'antd';
-import * as ozonApi from '@/services/ozonApi';
+import React from 'react';
+
 import styles from '../../../pages/ozon/OrderList.module.scss';
+
+import * as ozonApi from '@/services/ozonApi';
 
 const { Option } = Select;
 
@@ -51,11 +53,7 @@ export const ShipModal: React.FC<ShipModalProps> = ({
       footer={null}
       width={600}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onSubmit}
-      >
+      <Form form={form} layout="vertical" onFinish={onSubmit}>
         <Alert
           message="发货信息"
           description={`Posting号: ${selectedPosting?.posting_number}`}

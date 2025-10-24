@@ -3,6 +3,7 @@
  * 处理与后端汇率接口的通信
  */
 import axios from 'axios';
+
 import authService from './authService';
 
 const API_BASE = '/api/ef/v1';
@@ -157,9 +158,7 @@ export const getExchangeRate = async (
 /**
  * 货币转换
  */
-export const convertCurrency = async (
-  request: ConvertRequest
-): Promise<ConvertResponse> => {
+export const convertCurrency = async (request: ConvertRequest): Promise<ConvertResponse> => {
   const response = await apiClient.post('/exchange-rates/convert', request);
   return response.data;
 };

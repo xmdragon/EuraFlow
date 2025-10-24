@@ -2,15 +2,16 @@
  * WebSocket Hook - 管理WebSocket连接和消息
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { WebSocketNotification, WebSocketMessage } from '@/types/notification';
+
 import authService from '@/services/authService';
+import { WebSocketNotification, WebSocketMessage } from '@/types/notification';
 import { notifyWarning } from '@/utils/notification';
 
 interface UseWebSocketOptions {
   url: string;
   token: string | null;
   shopIds?: number[];
-  enabled?: boolean;  // 新增：是否启用连接
+  enabled?: boolean; // 新增：是否启用连接
   onMessage?: (message: WebSocketNotification) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
@@ -23,7 +24,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     url,
     token,
     shopIds = [],
-    enabled = true,  // 默认启用
+    enabled = true, // 默认启用
     onMessage,
     onConnected,
     onDisconnected,
@@ -36,7 +37,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);  // 新增：cleanup延迟定时器
+  const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // 新增：cleanup延迟定时器
 
   // 使用 ref 保存回调函数，避免它们的变化导致重连
   const onMessageRef = useRef(onMessage);
@@ -94,7 +95,10 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket disconnected', { code: event.code, reason: event.reason });
+        console.log('WebSocket disconnected', {
+          code: event.code,
+          reason: event.reason,
+        });
         setIsConnected(false);
         onDisconnectedRef.current?.();
 
@@ -113,7 +117,10 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           event.code === 4001;
 
         if (isAuthFailure) {
-          console.error('WebSocket closed due to authentication failure', { code: event.code, reason: event.reason });
+          console.error('WebSocket closed due to authentication failure', {
+            code: event.code,
+            reason: event.reason,
+          });
           // 清除token并跳转到登录页
           authService.clearTokens();
           if (window.location.pathname !== '/login') {
@@ -126,7 +133,10 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         }
 
         // 非认证失败的断开（如网络抖动、超时等）
-        console.log('WebSocket closed, will attempt reconnect', { code: event.code, reason: event.reason });
+        console.log('WebSocket closed, will attempt reconnect', {
+          code: event.code,
+          reason: event.reason,
+        });
 
         // 自动重连（非认证失败的情况）
         if (autoReconnect) {

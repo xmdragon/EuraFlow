@@ -53,11 +53,18 @@ export interface ProductSearchParams {
   competitor_count_max?: number;
   competitor_min_price_min?: number;
   competitor_min_price_max?: number;
-  created_at_start?: string;  // 上架时间开始
-  created_at_end?: string;    // 上架时间结束
-  batch_id?: number;  // 批次ID过滤
-  is_read?: boolean;  // 已读状态过滤
-  sort_by?: 'sales_desc' | 'sales_asc' | 'weight_asc' | 'price_asc' | 'price_desc' | 'created_desc' | 'created_asc';
+  created_at_start?: string; // 上架时间开始
+  created_at_end?: string; // 上架时间结束
+  batch_id?: number; // 批次ID过滤
+  is_read?: boolean; // 已读状态过滤
+  sort_by?:
+    | 'sales_desc'
+    | 'sales_asc'
+    | 'weight_asc'
+    | 'price_asc'
+    | 'price_desc'
+    | 'created_desc'
+    | 'created_asc';
   page?: number;
   page_size?: number;
 }
@@ -118,7 +125,7 @@ export interface ImportHistory {
 export const importProducts = async (
   file: File,
   strategy: 'skip' | 'update' | 'append' = 'update',
-  shopId: number = 1  // 默认使用店铺ID 1
+  shopId: number = 1 // 默认使用店铺ID 1
 ): Promise<ImportResponse> => {
   const formData = new FormData();
   formData.append('file', file);
@@ -165,15 +172,17 @@ export const searchProducts = async (params: ProductSearchParams): Promise<Searc
 
 // 获取商品列表（GET方法）
 export const getProducts = async (params: ProductSearchParams): Promise<SearchResponse> => {
-  const response = await axios.get<SearchResponse>(
-    '/api/ef/v1/ozon/product-selection/products',
-    { params }
-  );
+  const response = await axios.get<SearchResponse>('/api/ef/v1/ozon/product-selection/products', {
+    params,
+  });
   return response.data;
 };
 
 // 获取品牌列表
-export const getBrands = async (): Promise<{ success: boolean; data: string[] }> => {
+export const getBrands = async (): Promise<{
+  success: boolean;
+  data: string[];
+}> => {
   const response = await axios.get<{ success: boolean; data: string[] }>(
     '/api/ef/v1/ozon/product-selection/brands'
   );
@@ -193,17 +202,16 @@ export const getImportHistory = async (
     page_size: number;
   };
 }> => {
-  const response = await axios.get(
-    '/api/ef/v1/ozon/product-selection/import-history',
-    {
-      params: { page, page_size: pageSize },
-    }
-  );
+  const response = await axios.get('/api/ef/v1/ozon/product-selection/import-history', {
+    params: { page, page_size: pageSize },
+  });
   return response.data;
 };
 
 // 获取商品详细信息
-export const getProductDetail = async (productId: string): Promise<{
+export const getProductDetail = async (
+  productId: string
+): Promise<{
   success: boolean;
   data: {
     product_id: number;
@@ -242,7 +250,9 @@ export const clearAllData = async (): Promise<{
 };
 
 // 批量标记商品为已读
-export const markProductsAsRead = async (productIds: number[]): Promise<{
+export const markProductsAsRead = async (
+  productIds: number[]
+): Promise<{
   success: boolean;
   marked_count: number;
   message?: string;

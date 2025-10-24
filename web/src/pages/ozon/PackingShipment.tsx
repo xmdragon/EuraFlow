@@ -55,23 +55,25 @@ import {
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
 
-import * as ozonApi from '@/services/ozonApi';
-import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 import { useCurrency } from '../../hooks/useCurrency';
-import { usePermission } from '@/hooks/usePermission';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import ShopSelector from '@/components/ozon/ShopSelector';
-import OrderDetailModal from '@/components/ozon/OrderDetailModal';
-import PrepareStockModal from '@/components/ozon/PrepareStockModal';
-import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
-import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
-import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
-import PageTitle from '@/components/PageTitle';
-import ExtraInfoForm from '@/components/ozon/packing/ExtraInfoForm';
-import PackingSearchBar from '@/components/ozon/packing/PackingSearchBar';
-import OrderCardComponent, { type OrderCard } from '@/components/ozon/packing/OrderCardComponent';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+import { formatRuble, formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
+
 import styles from './PackingShipment.module.scss';
+
+import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
+import OrderDetailModal from '@/components/ozon/OrderDetailModal';
+import ExtraInfoForm from '@/components/ozon/packing/ExtraInfoForm';
+import OrderCardComponent, { type OrderCard } from '@/components/ozon/packing/OrderCardComponent';
+import PackingSearchBar from '@/components/ozon/packing/PackingSearchBar';
+import PrepareStockModal from '@/components/ozon/PrepareStockModal';
+import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
+import ShopSelector from '@/components/ozon/ShopSelector';
+import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
+import PageTitle from '@/components/PageTitle';
+import { usePermission } from '@/hooks/usePermission';
+import * as ozonApi from '@/services/ozonApi';
+import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -80,13 +82,13 @@ const { Text } = Typography;
 
 // 订单商品行数据结构（用于表格展示）
 interface OrderItemRow {
-  key: string;                      // 唯一标识：posting_number + item_index
-  item: ozonApi.OrderItem;          // 商品明细
-  itemIndex: number;                // 商品索引（从0开始）
-  posting: ozonApi.PostingWithOrder;// 货件信息
-  order: ozonApi.Order;             // 订单信息
-  isFirstItem: boolean;             // 是否是第一个商品（用于rowSpan）
-  itemCount: number;                // 该posting的商品总数（用于rowSpan）
+  key: string; // 唯一标识：posting_number + item_index
+  item: ozonApi.OrderItem; // 商品明细
+  itemIndex: number; // 商品索引（从0开始）
+  posting: ozonApi.PostingWithOrder; // 货件信息
+  order: ozonApi.Order; // 订单信息
+  isFirstItem: boolean; // 是否是第一个商品（用于rowSpan）
+  itemCount: number; // 该posting的商品总数（用于rowSpan）
 }
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
@@ -95,7 +97,7 @@ const PackingShipment: React.FC = () => {
 
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
-  const currentPageRef = React.useRef(1);  // 使用 ref 跟踪当前页，避免 useEffect 依赖
+  const currentPageRef = React.useRef(1); // 使用 ref 跟踪当前页，避免 useEffect 依赖
   const [pageSize, setPageSize] = useState(24); // 会根据容器宽度动态调整
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量
   const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize
@@ -145,7 +147,11 @@ const PackingShipment: React.FC = () => {
 
   // 批量同步状态
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState({ success: 0, failed: 0, total: 0 });
+  const [syncProgress, setSyncProgress] = useState({
+    success: 0,
+    failed: 0,
+    total: 0,
+  });
 
   // 扫描单号状态
   const [scanTrackingNumber, setScanTrackingNumber] = useState<string>('');
@@ -188,11 +194,14 @@ const PackingShipment: React.FC = () => {
       notifyWarning('复制失败', `${label}为空，无法复制`);
       return;
     }
-    navigator.clipboard.writeText(text).then(() => {
-      notifySuccess('复制成功', `${label}已复制`);
-    }).catch(() => {
-      notifyError('复制失败', '复制失败，请手动复制');
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        notifySuccess('复制成功', `${label}已复制`);
+      })
+      .catch(() => {
+        notifyError('复制失败', '复制失败，请手动复制');
+      });
   };
 
   // 查询店铺列表（用于显示店铺名称）
@@ -216,26 +225,90 @@ const PackingShipment: React.FC = () => {
   // 状态配置 - 包含所有 OZON 原生状态
   const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
     // 通用订单状态
-    pending: { color: 'default', text: '待确认', icon: <ClockCircleOutlined /> },
-    confirmed: { color: 'processing', text: '已确认', icon: <CheckCircleOutlined /> },
-    processing: { color: 'processing', text: '处理中', icon: <SyncOutlined spin /> },
+    pending: {
+      color: 'default',
+      text: '待确认',
+      icon: <ClockCircleOutlined />,
+    },
+    confirmed: {
+      color: 'processing',
+      text: '已确认',
+      icon: <CheckCircleOutlined />,
+    },
+    processing: {
+      color: 'processing',
+      text: '处理中',
+      icon: <SyncOutlined spin />,
+    },
     shipped: { color: 'cyan', text: '已发货', icon: <TruckOutlined /> },
 
     // OZON Posting 原生状态
-    acceptance_in_progress: { color: 'processing', text: '验收中', icon: <SyncOutlined spin /> },
-    awaiting_approve: { color: 'default', text: '等待审核', icon: <ClockCircleOutlined /> },
-    awaiting_packaging: { color: 'processing', text: '等待备货', icon: <ClockCircleOutlined /> },
-    awaiting_deliver: { color: 'warning', text: '等待发运', icon: <TruckOutlined /> },
-    awaiting_registration: { color: 'processing', text: '等待登记', icon: <FileTextOutlined /> },
-    awaiting_debit: { color: 'processing', text: '等待扣款', icon: <ClockCircleOutlined /> },
-    arbitration: { color: 'warning', text: '仲裁中', icon: <ClockCircleOutlined /> },
-    client_arbitration: { color: 'warning', text: '客户仲裁', icon: <ClockCircleOutlined /> },
+    acceptance_in_progress: {
+      color: 'processing',
+      text: '验收中',
+      icon: <SyncOutlined spin />,
+    },
+    awaiting_approve: {
+      color: 'default',
+      text: '等待审核',
+      icon: <ClockCircleOutlined />,
+    },
+    awaiting_packaging: {
+      color: 'processing',
+      text: '等待备货',
+      icon: <ClockCircleOutlined />,
+    },
+    awaiting_deliver: {
+      color: 'warning',
+      text: '等待发运',
+      icon: <TruckOutlined />,
+    },
+    awaiting_registration: {
+      color: 'processing',
+      text: '等待登记',
+      icon: <FileTextOutlined />,
+    },
+    awaiting_debit: {
+      color: 'processing',
+      text: '等待扣款',
+      icon: <ClockCircleOutlined />,
+    },
+    arbitration: {
+      color: 'warning',
+      text: '仲裁中',
+      icon: <ClockCircleOutlined />,
+    },
+    client_arbitration: {
+      color: 'warning',
+      text: '客户仲裁',
+      icon: <ClockCircleOutlined />,
+    },
     delivering: { color: 'cyan', text: '运输中', icon: <TruckOutlined /> },
-    driver_pickup: { color: 'processing', text: '司机取货', icon: <TruckOutlined /> },
-    delivered: { color: 'success', text: '已签收', icon: <CheckCircleOutlined /> },
-    cancelled: { color: 'error', text: '已取消', icon: <CloseCircleOutlined /> },
-    not_accepted: { color: 'error', text: '未接受', icon: <CloseCircleOutlined /> },
-    sent_by_seller: { color: 'cyan', text: '卖家已发货', icon: <TruckOutlined /> },
+    driver_pickup: {
+      color: 'processing',
+      text: '司机取货',
+      icon: <TruckOutlined />,
+    },
+    delivered: {
+      color: 'success',
+      text: '已签收',
+      icon: <CheckCircleOutlined />,
+    },
+    cancelled: {
+      color: 'error',
+      text: '已取消',
+      icon: <CloseCircleOutlined />,
+    },
+    not_accepted: {
+      color: 'error',
+      text: '未接受',
+      icon: <CloseCircleOutlined />,
+    },
+    sent_by_seller: {
+      color: 'cyan',
+      text: '卖家已发货',
+      icon: <TruckOutlined />,
+    },
   };
 
   // 操作状态配置 - 用于打包发货流程的内部状态
@@ -259,7 +332,7 @@ const PackingShipment: React.FC = () => {
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
       const queryParams: any = {
         shop_id: selectedShop,
-        ...searchParams,  // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
+        ...searchParams, // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
       };
 
       if (operationStatus === 'awaiting_stock') {
@@ -281,7 +354,7 @@ const PackingShipment: React.FC = () => {
   // 当店铺、状态或搜索参数变化时，重置分页
   useEffect(() => {
     setCurrentPage(1);
-    currentPageRef.current = 1;  // 同步更新 ref
+    currentPageRef.current = 1; // 同步更新 ref
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
@@ -311,7 +384,7 @@ const PackingShipment: React.FC = () => {
       });
 
       // 合并到累积的映射中
-      setAccumulatedImageMap(prev => ({ ...prev, ...newImageMap }));
+      setAccumulatedImageMap((prev) => ({ ...prev, ...newImageMap }));
 
       // 展开订单为货件
       const flattened: ozonApi.PostingWithOrder[] = [];
@@ -321,7 +394,7 @@ const PackingShipment: React.FC = () => {
           order.postings.forEach((posting) => {
             flattened.push({
               ...posting,
-              order: order  // 关联完整的订单信息
+              order: order, // 关联完整的订单信息
             });
           });
         } else {
@@ -336,7 +409,7 @@ const PackingShipment: React.FC = () => {
               warehouse_name: order.warehouse_name,
               packages_count: 1,
               is_cancelled: order.status === 'cancelled',
-              order: order
+              order: order,
             } as ozonApi.PostingWithOrder);
           }
         }
@@ -347,7 +420,7 @@ const PackingShipment: React.FC = () => {
       // 批量更新状态 - 使用 ref 避免依赖循环
       // React 18 会自动批处理所有 setState，只触发一次渲染
       let newPostingsLength = 0;
-      setAllPostings(prev => {
+      setAllPostings((prev) => {
         if (currentPageRef.current === 1) {
           // 第一页，直接使用新数据
           newPostingsLength = flattened.length;
@@ -355,10 +428,10 @@ const PackingShipment: React.FC = () => {
         }
 
         // 构建已有posting的Set（使用posting_number作为唯一标识）
-        const existingNumbers = new Set(prev.map(p => p.posting_number));
+        const existingNumbers = new Set(prev.map((p) => p.posting_number));
 
         // 过滤掉已存在的posting（去重）
-        const newPostings = flattened.filter(p => !existingNumbers.has(p.posting_number));
+        const newPostings = flattened.filter((p) => !existingNumbers.has(p.posting_number));
 
         // 合并数据
         const result = [...prev, ...newPostings];
@@ -370,14 +443,12 @@ const PackingShipment: React.FC = () => {
       // 判断是否还有更多数据：
       // 1. 累积的数据量小于总数 AND
       // 2. 本次返回的数据量等于请求的limit（如果小于limit说明已经是最后一页）
-      const hasMore = (
-        newPostingsLength < (ordersData.total || 0) &&
-        ordersData.data.length >= pageSize
-      );
+      const hasMore =
+        newPostingsLength < (ordersData.total || 0) && ordersData.data.length >= pageSize;
       setHasMoreData(hasMore);
       setIsLoadingMore(false);
     }
-  }, [ordersData?.data]);  // 只依赖数据变化
+  }, [ordersData?.data]); // 只依赖数据变化
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
@@ -395,9 +466,9 @@ const PackingShipment: React.FC = () => {
         // 加载更多时使用较小的pageSize（初始值的一半，但至少一行）
         const loadMoreSize = Math.min(Math.max(Math.floor(initialPageSize / 2), itemsPerRow), 100);
         setPageSize(loadMoreSize);
-        setCurrentPage(prev => {
+        setCurrentPage((prev) => {
           const next = prev + 1;
-          currentPageRef.current = next;  // 同步更新 ref
+          currentPageRef.current = next; // 同步更新 ref
           return next;
         });
       }
@@ -415,7 +486,7 @@ const PackingShipment: React.FC = () => {
   // 重置分页并刷新数据的辅助函数
   const resetAndRefresh = React.useCallback(() => {
     setCurrentPage(1);
-    currentPageRef.current = 1;  // 同步更新 ref
+    currentPageRef.current = 1; // 同步更新 ref
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({});
@@ -427,10 +498,11 @@ const PackingShipment: React.FC = () => {
   // 查询各操作状态的数量统计（合并为单个请求）
   const { data: statsData } = useQuery({
     queryKey: ['packingStats', selectedShop, searchParams],
-    queryFn: () => ozonApi.getPackingStats({
-      shop_id: selectedShop,
-      ...searchParams,  // 展开所有搜索参数
-    }),
+    queryFn: () =>
+      ozonApi.getPackingStats({
+        shop_id: selectedShop,
+        ...searchParams, // 展开所有搜索参数
+      }),
     staleTime: 30000, // 30秒缓存
   });
 
@@ -450,9 +522,10 @@ const PackingShipment: React.FC = () => {
     postingsData.forEach((posting) => {
       // 优先使用 posting.products（从 raw_payload 提取的该 posting 的商品）
       // 如果不存在，降级使用 posting.order.items（订单级别的商品汇总）
-      const items = (posting.products && posting.products.length > 0)
-        ? posting.products
-        : (posting.order.items || []);
+      const items =
+        posting.products && posting.products.length > 0
+          ? posting.products
+          : posting.order.items || [];
       const itemCount = items.length;
 
       if (itemCount === 0) {
@@ -492,9 +565,10 @@ const PackingShipment: React.FC = () => {
     postingsData.forEach((posting) => {
       // 优先使用 posting.products（从 raw_payload 提取的该 posting 的商品）
       // 如果不存在，降级使用 posting.order.items（订单级别的商品汇总）
-      const products = (posting.products && posting.products.length > 0)
-        ? posting.products
-        : (posting.order.items || []);
+      const products =
+        posting.products && posting.products.length > 0
+          ? posting.products
+          : posting.order.items || [];
 
       if (products.length === 0) {
         // 如果没有商品，创建一张空卡片
@@ -632,7 +706,14 @@ const PackingShipment: React.FC = () => {
       <div className={styles.deliveryMethodTextWhite}>
         <div>{mainPart}</div>
         {restrictionLines.map((line, index) => (
-          <div key={index} style={{ fontSize: '12px', color: 'rgba(0, 0, 0, 0.65)', marginTop: '2px' }}>
+          <div
+            key={index}
+            style={{
+              fontSize: '12px',
+              color: 'rgba(0, 0, 0, 0.65)',
+              marginTop: '2px',
+            }}
+          >
             {line}
           </div>
         ))}
@@ -651,7 +732,11 @@ const PackingShipment: React.FC = () => {
     onSuccess: (data) => {
       notifySuccess('同步已启动', '订单同步任务已启动');
       setSyncTaskId(data.task_id);
-      setSyncStatus({ status: 'running', progress: 0, message: '正在启动同步...' });
+      setSyncStatus({
+        status: 'running',
+        progress: 0,
+        message: '正在启动同步...',
+      });
     },
     onError: (error: any) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
@@ -688,7 +773,6 @@ const PackingShipment: React.FC = () => {
     return () => clearInterval(interval);
   }, [syncTaskId, syncStatus?.status, queryClient]);
 
-
   // 发货
   const shipOrderMutation = useMutation({
     mutationFn: ozonApi.shipOrder,
@@ -718,8 +802,15 @@ const PackingShipment: React.FC = () => {
 
   // 同步到跨境巴士
   const syncToKuajing84Mutation = useMutation({
-    mutationFn: ({ ozonOrderId, postingNumber, logisticsOrder }: { ozonOrderId: number; postingNumber: string; logisticsOrder: string }) =>
-      ozonApi.syncToKuajing84(ozonOrderId, postingNumber, logisticsOrder),
+    mutationFn: ({
+      ozonOrderId,
+      postingNumber,
+      logisticsOrder,
+    }: {
+      ozonOrderId: number;
+      postingNumber: string;
+      logisticsOrder: string;
+    }) => ozonApi.syncToKuajing84(ozonOrderId, postingNumber, logisticsOrder),
     onSuccess: () => {
       notifySuccess('同步成功', '已成功同步到跨境巴士');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
@@ -738,7 +829,7 @@ const PackingShipment: React.FC = () => {
       // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       // 从当前列表中移除该posting
-      setAllPostings(prev => prev.filter(p => p.posting_number !== postingNumber));
+      setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
     },
     onError: (error: any) => {
       notifyError('废弃失败', `废弃失败: ${error.response?.data?.message || error.message}`);
@@ -759,9 +850,7 @@ const PackingShipment: React.FC = () => {
       description: (
         <div>
           <Progress percent={0} size="small" status="active" />
-          <div style={{ marginTop: 8 }}>
-            已完成 0/{total} (成功: 0, 失败: 0)
-          </div>
+          <div style={{ marginTop: 8 }}>已完成 0/{total} (成功: 0, 失败: 0)</div>
         </div>
       ),
       duration: 0, // 不自动关闭
@@ -838,7 +927,7 @@ const PackingShipment: React.FC = () => {
 
         // 立即返回，对话框会关闭
         return Promise.resolve();
-      }
+      },
     });
   };
 
@@ -848,21 +937,27 @@ const PackingShipment: React.FC = () => {
       notifyWarning('复制失败', `${label}为空，无法复制`);
       return;
     }
-    navigator.clipboard.writeText(text).then(() => {
-      notifySuccess('复制成功', `${label}已复制`);
-    }).catch(() => {
-      notifyError('复制失败', '复制失败，请手动复制');
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        notifySuccess('复制成功', `${label}已复制`);
+      })
+      .catch(() => {
+        notifyError('复制失败', '复制失败，请手动复制');
+      });
   }, []);
 
-  const handleShowDetailCallback = React.useCallback((order: ozonApi.Order, posting: ozonApi.Posting) => {
-    showOrderDetail(order, posting);
-  }, []);
+  const handleShowDetailCallback = React.useCallback(
+    (order: ozonApi.Order, posting: ozonApi.Posting) => {
+      showOrderDetail(order, posting);
+    },
+    []
+  );
 
   const handleOpenImagePreviewCallback = React.useCallback((url: string) => {
     setImageLoading(true);
     setImagePreviewVisible(true);
-    setPreviewImageUrl('');  // 先清空旧图
+    setPreviewImageUrl(''); // 先清空旧图
     // 下一帧再设置新图URL，确保旧图已被清除
     requestAnimationFrame(() => {
       setPreviewImageUrl(url);
@@ -871,7 +966,7 @@ const PackingShipment: React.FC = () => {
 
   const handleCloseImagePreview = React.useCallback(() => {
     setImagePreviewVisible(false);
-    setPreviewImageUrl('');  // 关闭时清空图片URL
+    setPreviewImageUrl(''); // 关闭时清空图片URL
     setImageLoading(false);
   }, []);
 
@@ -896,36 +991,45 @@ const PackingShipment: React.FC = () => {
     setPrepareStockModalVisible(true);
   }, []);
 
-  const handleUpdateBusinessInfoCallback = React.useCallback((posting: ozonApi.PostingWithOrder) => {
-    setCurrentPosting(posting);
-    setUpdateBusinessInfoModalVisible(true);
-  }, []);
+  const handleUpdateBusinessInfoCallback = React.useCallback(
+    (posting: ozonApi.PostingWithOrder) => {
+      setCurrentPosting(posting);
+      setUpdateBusinessInfoModalVisible(true);
+    },
+    []
+  );
 
   const handleSubmitTrackingCallback = React.useCallback((posting: ozonApi.PostingWithOrder) => {
     setCurrentPosting(posting);
     setDomesticTrackingModalVisible(true);
   }, []);
 
-  const handleDiscardOrderCallback = React.useCallback((postingNumber: string) => {
-    confirm({
-      title: '确认废弃订单？',
-      content: `货件号: ${postingNumber}。废弃后订单将同步到跨境84并更新为取消状态。`,
-      okText: '确认废弃',
-      okType: 'danger',
-      cancelText: '取消',
-      onOk: () => {
-        discardOrderMutation.mutate(postingNumber);
-      },
-    });
-  }, [discardOrderMutation]);
+  const handleDiscardOrderCallback = React.useCallback(
+    (postingNumber: string) => {
+      confirm({
+        title: '确认废弃订单？',
+        content: `货件号: ${postingNumber}。废弃后订单将同步到跨境84并更新为取消状态。`,
+        okText: '确认废弃',
+        okType: 'danger',
+        cancelText: '取消',
+        onOk: () => {
+          discardOrderMutation.mutate(postingNumber);
+        },
+      });
+    },
+    [discardOrderMutation]
+  );
 
-  const handleCheckboxChangeCallback = React.useCallback((postingNumber: string, checked: boolean) => {
-    if (checked) {
-      setSelectedPostingNumbers(prev => [...prev, postingNumber]);
-    } else {
-      setSelectedPostingNumbers(prev => prev.filter(pn => pn !== postingNumber));
-    }
-  }, []);
+  const handleCheckboxChangeCallback = React.useCallback(
+    (postingNumber: string, checked: boolean) => {
+      if (checked) {
+        setSelectedPostingNumbers((prev) => [...prev, postingNumber]);
+      } else {
+        setSelectedPostingNumbers((prev) => prev.filter((pn) => pn !== postingNumber));
+      }
+    },
+    []
+  );
 
   // 表格列定义（商品维度 - 4列布局）
   const columns: any[] = [
@@ -946,7 +1050,8 @@ const PackingShipment: React.FC = () => {
         if (!rawImageUrl && item.sku && order.items) {
           const matchedItem = order.items.find((orderItem: any) => orderItem.sku === item.sku);
           if (matchedItem) {
-            rawImageUrl = matchedItem.image || (matchedItem.offer_id && offerIdImageMap[matchedItem.offer_id]);
+            rawImageUrl =
+              matchedItem.image || (matchedItem.offer_id && offerIdImageMap[matchedItem.offer_id]);
           }
         }
 
@@ -962,8 +1067,8 @@ const PackingShipment: React.FC = () => {
                   alt={item.name || item.sku || '商品图片'}
                   className={styles.productImage}
                   onClick={() => {
-                    setPreviewImageUrl('');  // 先清空旧图
-                    setImageLoading(true);   // 设置加载状态
+                    setPreviewImageUrl(''); // 先清空旧图
+                    setImageLoading(true); // 设置加载状态
                     setImagePreviewVisible(true);
                     // 延迟设置新URL
                     setTimeout(() => setPreviewImageUrl(optimizeOzonImageUrl(rawImageUrl, 800)), 0);
@@ -1014,14 +1119,16 @@ const PackingShipment: React.FC = () => {
             <div>
               <Text type="secondary">店铺: </Text>
               <Tooltip title={shopName}>
-                <strong style={{
-                  display: 'inline-block',
-                  maxWidth: '180px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  verticalAlign: 'bottom'
-                }}>
+                <strong
+                  style={{
+                    display: 'inline-block',
+                    maxWidth: '180px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    verticalAlign: 'bottom',
+                  }}
+                >
                   {shopName}
                 </strong>
               </Tooltip>
@@ -1041,7 +1148,11 @@ const PackingShipment: React.FC = () => {
                     {item.sku}
                   </a>
                   <CopyOutlined
-                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    style={{
+                      marginLeft: 8,
+                      cursor: 'pointer',
+                      color: '#1890ff',
+                    }}
                     onClick={() => handleCopy(item.sku, 'SKU')}
                   />
                 </>
@@ -1049,7 +1160,9 @@ const PackingShipment: React.FC = () => {
                 <span>-</span>
               )}
             </div>
-            <div><Text type="secondary">数量: </Text>X {item.quantity || 1}</div>
+            <div>
+              <Text type="secondary">数量: </Text>X {item.quantity || 1}
+            </div>
             <div>
               <Text type="secondary">单价: </Text>
               <span className={styles.price}>
@@ -1102,7 +1215,11 @@ const PackingShipment: React.FC = () => {
                 <span>{trackingNumber || '-'}</span>
                 {trackingNumber && (
                   <CopyOutlined
-                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                    style={{
+                      marginLeft: 8,
+                      cursor: 'pointer',
+                      color: '#1890ff',
+                    }}
                     onClick={() => handleCopy(trackingNumber, '追踪号码')}
                   />
                 )}
@@ -1115,7 +1232,11 @@ const PackingShipment: React.FC = () => {
                       <div key={index}>
                         {number}
                         <CopyOutlined
-                          style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                          style={{
+                            marginLeft: 8,
+                            cursor: 'pointer',
+                            color: '#1890ff',
+                          }}
                           onClick={() => handleCopy(number, '国内单号')}
                         />
                       </div>
@@ -1151,7 +1272,8 @@ const PackingShipment: React.FC = () => {
 
         const posting = row.posting;
         const order = row.order;
-        const fullText = posting.delivery_method_name || order.delivery_method || order.order_type || 'FBS';
+        const fullText =
+          posting.delivery_method_name || order.delivery_method || order.order_type || 'FBS';
         const shortText = fullText.split('（')[0].split('(')[0].trim();
         const status = statusConfig[posting.status] || statusConfig.pending;
 
@@ -1160,8 +1282,20 @@ const PackingShipment: React.FC = () => {
             <div className={styles.infoColumn}>
               <div>
                 <Text type="secondary">配送: </Text>
-                <Tooltip title={formatDeliveryMethodText(fullText)} overlayInnerStyle={{ color: '#fff' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '150px', verticalAlign: 'bottom' }}>
+                <Tooltip
+                  title={formatDeliveryMethodText(fullText)}
+                  overlayInnerStyle={{ color: '#fff' }}
+                >
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-block',
+                      maxWidth: '150px',
+                      verticalAlign: 'bottom',
+                    }}
+                  >
                     {shortText}
                   </span>
                 </Tooltip>
@@ -1179,7 +1313,9 @@ const PackingShipment: React.FC = () => {
               <div>
                 <Text type="secondary">截止: </Text>
                 <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
-                  {posting.shipment_date ? moment(posting.shipment_date).format('MM-DD HH:mm') : '-'}
+                  {posting.shipment_date
+                    ? moment(posting.shipment_date).format('MM-DD HH:mm')
+                    : '-'}
                 </span>
               </div>
             </div>
@@ -1320,7 +1456,9 @@ const PackingShipment: React.FC = () => {
 
     confirm({
       title: fullSync ? '确认执行全量同步？' : '确认执行增量同步？',
-      content: fullSync ? '全量同步将拉取所有历史订单数据，耗时较长' : '增量同步将只拉取最近7天的订单',
+      content: fullSync
+        ? '全量同步将拉取所有历史订单数据，耗时较长'
+        : '增量同步将只拉取最近7天的订单',
       onOk: () => {
         syncOrdersMutation.mutate(fullSync);
       },
@@ -1341,9 +1479,7 @@ const PackingShipment: React.FC = () => {
     setIsPrinting(true);
 
     try {
-      const result = await ozonApi.batchPrintLabels(
-        selectedPostingNumbers
-      );
+      const result = await ozonApi.batchPrintLabels(selectedPostingNumbers);
 
       if (result.success) {
         // 全部成功
@@ -1450,7 +1586,7 @@ const PackingShipment: React.FC = () => {
       // 刷新计数
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       // 从当前列表中移除该posting
-      setAllPostings(prev => prev.filter(p => p.posting_number !== postingNumber));
+      setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
     } catch (error: any) {
       notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
     }
@@ -1502,15 +1638,17 @@ const PackingShipment: React.FC = () => {
             type="primary"
             onClick={() => {
               // 移除失败的，保留成功的，重新选择
-              const failedNumbers = printErrors.map(e => e.posting_number);
-              setSelectedPostingNumbers(selectedPostingNumbers.filter(pn => !failedNumbers.includes(pn)));
+              const failedNumbers = printErrors.map((e) => e.posting_number);
+              setSelectedPostingNumbers(
+                selectedPostingNumbers.filter((pn) => !failedNumbers.includes(pn))
+              );
               setPrintErrorModalVisible(false);
               notifyInfo('订单已移除', '已移除失败的订单，可重新选择并打印');
             }}
           >
             移除失败订单继续
           </Button>
-        )
+        ),
       ]}
       width={700}
     >
@@ -1544,18 +1682,18 @@ const PackingShipment: React.FC = () => {
                   title: '货件编号',
                   dataIndex: 'posting_number',
                   width: 180,
-                  render: (text) => <Text strong>{text}</Text>
+                  render: (text) => <Text strong>{text}</Text>,
                 },
                 {
                   title: '错误原因',
                   dataIndex: 'error',
-                  render: (text) => <Text type="danger">{text}</Text>
+                  render: (text) => <Text type="danger">{text}</Text>,
                 },
                 {
                   title: '建议',
                   dataIndex: 'suggestion',
-                  render: (text) => <Text type="secondary">{text}</Text>
-                }
+                  render: (text) => <Text type="secondary">{text}</Text>,
+                },
               ]}
             />
           </>
@@ -1612,7 +1750,7 @@ const PackingShipment: React.FC = () => {
           onChange={(key) => {
             setOperationStatus(key);
             // 记录访问过的标签（用于按需加载统计数据）
-            setVisitedTabs(prev => new Set(prev).add(key));
+            setVisitedTabs((prev) => new Set(prev).add(key));
             // 切换tab时会自动重新加载（queryKey改变）
             // 切换到扫描标签时清空之前的扫描结果
             if (key === 'scan') {
@@ -1751,19 +1889,33 @@ const PackingShipment: React.FC = () => {
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="国内单号">
-                      {scanResult.domestic_tracking_numbers && scanResult.domestic_tracking_numbers.length > 0 ? (
+                      {scanResult.domestic_tracking_numbers &&
+                      scanResult.domestic_tracking_numbers.length > 0 ? (
                         <div>
-                          {scanResult.domestic_tracking_numbers.map((number: string, index: number) => (
-                            <div key={index} style={{ marginBottom: index < scanResult.domestic_tracking_numbers.length - 1 ? '4px' : 0 }}>
-                              <Space>
-                                <span>{number}</span>
-                                <CopyOutlined
-                                  style={{ cursor: 'pointer', color: '#1890ff' }}
-                                  onClick={() => handleCopy(number, '国内单号')}
-                                />
-                              </Space>
-                            </div>
-                          ))}
+                          {scanResult.domestic_tracking_numbers.map(
+                            (number: string, index: number) => (
+                              <div
+                                key={index}
+                                style={{
+                                  marginBottom:
+                                    index < scanResult.domestic_tracking_numbers.length - 1
+                                      ? '4px'
+                                      : 0,
+                                }}
+                              >
+                                <Space>
+                                  <span>{number}</span>
+                                  <CopyOutlined
+                                    style={{
+                                      cursor: 'pointer',
+                                      color: '#1890ff',
+                                    }}
+                                    onClick={() => handleCopy(number, '国内单号')}
+                                  />
+                                </Space>
+                              </div>
+                            )
+                          )}
                         </div>
                       ) : (
                         '-'
@@ -1775,19 +1927,29 @@ const PackingShipment: React.FC = () => {
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="操作状态">
-                      <Tag color={operationStatusConfig[scanResult.operation_status]?.color || 'default'}>
-                        {operationStatusConfig[scanResult.operation_status]?.text || scanResult.operation_status || '-'}
+                      <Tag
+                        color={
+                          operationStatusConfig[scanResult.operation_status]?.color || 'default'
+                        }
+                      >
+                        {operationStatusConfig[scanResult.operation_status]?.text ||
+                          scanResult.operation_status ||
+                          '-'}
                       </Tag>
                     </Descriptions.Item>
                     <Descriptions.Item label="配送方式" span={2}>
                       {scanResult.delivery_method || '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="下单时间">
-                      {scanResult.ordered_at ? moment(scanResult.ordered_at).format('YYYY-MM-DD HH:mm') : '-'}
+                      {scanResult.ordered_at
+                        ? moment(scanResult.ordered_at).format('YYYY-MM-DD HH:mm')
+                        : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="发货截止">
                       <Text type="danger">
-                        {scanResult.shipment_date ? moment(scanResult.shipment_date).format('YYYY-MM-DD HH:mm') : '-'}
+                        {scanResult.shipment_date
+                          ? moment(scanResult.shipment_date).format('YYYY-MM-DD HH:mm')
+                          : '-'}
                       </Text>
                     </Descriptions.Item>
                   </Descriptions>
@@ -1807,18 +1969,31 @@ const PackingShipment: React.FC = () => {
                             title: '商品图片',
                             dataIndex: 'image',
                             width: 100,
-                            render: (image) => (
+                            render: (image) =>
                               image ? (
                                 <Tooltip
                                   overlayInnerStyle={{ padding: 0 }}
-                                  title={<img src={optimizeOzonImageUrl(image, 160)} alt="" style={{ width: 160, height: 160 }} />}
+                                  title={
+                                    <img
+                                      src={optimizeOzonImageUrl(image, 160)}
+                                      alt=""
+                                      style={{ width: 160, height: 160 }}
+                                    />
+                                  }
                                 >
-                                  <img src={optimizeOzonImageUrl(image, 80)} alt="" style={{ width: 80, height: 80, cursor: 'pointer' }} />
+                                  <img
+                                    src={optimizeOzonImageUrl(image, 80)}
+                                    alt=""
+                                    style={{
+                                      width: 80,
+                                      height: 80,
+                                      cursor: 'pointer',
+                                    }}
+                                  />
                                 </Tooltip>
                               ) : (
                                 <Avatar size={80} icon={<ShoppingCartOutlined />} shape="square" />
-                              )
-                            ),
+                              ),
                           },
                           {
                             title: 'SKU',
@@ -1864,7 +2039,10 @@ const PackingShipment: React.FC = () => {
                           size="large"
                           icon={<CheckCircleOutlined />}
                           onClick={() => handleMarkPrinted(scanResult.posting_number)}
-                          disabled={scanResult.operation_status === 'printed' || scanResult.status !== 'awaiting_deliver'}
+                          disabled={
+                            scanResult.operation_status === 'printed' ||
+                            scanResult.status !== 'awaiting_deliver'
+                          }
                         >
                           {scanResult.operation_status === 'printed' ? '已打印' : '标记已打印'}
                         </Button>
@@ -1895,17 +2073,19 @@ const PackingShipment: React.FC = () => {
               )}
 
               {/* 批量打印按钮 - 只在"已分配"及之后的标签显示 */}
-              {canOperate && operationStatus !== 'awaiting_stock' && operationStatus !== 'allocating' && (
-                <Button
-                  type="primary"
-                  icon={<PrinterOutlined />}
-                  disabled={selectedPostingNumbers.length === 0}
-                  loading={isPrinting}
-                  onClick={handleBatchPrint}
-                >
-                  打印标签 ({selectedPostingNumbers.length}/20)
-                </Button>
-              )}
+              {canOperate &&
+                operationStatus !== 'awaiting_stock' &&
+                operationStatus !== 'allocating' && (
+                  <Button
+                    type="primary"
+                    icon={<PrinterOutlined />}
+                    disabled={selectedPostingNumbers.length === 0}
+                    loading={isPrinting}
+                    onClick={handleBatchPrint}
+                  >
+                    打印标签 ({selectedPostingNumbers.length}/20)
+                  </Button>
+                )}
             </div>
 
             {/* 订单卡片网格 */}
@@ -1920,7 +2100,7 @@ const PackingShipment: React.FC = () => {
             ) : (
               <>
                 <div className={styles.orderGrid}>
-                  {orderCards.map(card => (
+                  {orderCards.map((card) => (
                     <OrderCardComponent
                       key={card.key}
                       card={card}
@@ -2035,10 +2215,14 @@ const PackingShipment: React.FC = () => {
               <Button type="primary" htmlType="submit" loading={shipOrderMutation.isPending}>
                 确认发货
               </Button>
-              <Button onClick={() => {
-                setShipModalVisible(false);
-                shipForm.resetFields();
-              }}>取消</Button>
+              <Button
+                onClick={() => {
+                  setShipModalVisible(false);
+                  shipForm.resetFields();
+                }}
+              >
+                取消
+              </Button>
             </Space>
           </Form.Item>
         </Form>
@@ -2053,7 +2237,9 @@ const PackingShipment: React.FC = () => {
           posting={currentPosting}
           onSuccess={() => {
             // 操作成功后，从当前列表中移除该posting
-            setAllPostings(prev => prev.filter(p => p.posting_number !== currentPosting.posting_number));
+            setAllPostings((prev) =>
+              prev.filter((p) => p.posting_number !== currentPosting.posting_number)
+            );
             setPrepareStockModalVisible(false);
           }}
         />
@@ -2082,7 +2268,9 @@ const PackingShipment: React.FC = () => {
           postingNumber={currentPosting.posting_number}
           onSuccess={() => {
             // 操作成功后，从当前列表中移除该posting
-            setAllPostings(prev => prev.filter(p => p.posting_number !== currentPosting.posting_number));
+            setAllPostings((prev) =>
+              prev.filter((p) => p.posting_number !== currentPosting.posting_number)
+            );
             setDomesticTrackingModalVisible(false);
           }}
         />
@@ -2119,20 +2307,22 @@ const PackingShipment: React.FC = () => {
           />
           {/* 加载占位符 - 覆盖在图片上方 */}
           {imageLoading && (
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: '600px',
-              minHeight: '600px',
-              backgroundColor: '#f0f0f0',
-              zIndex: 10
-            }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '600px',
+                minHeight: '600px',
+                backgroundColor: '#f0f0f0',
+                zIndex: 10,
+              }}
+            >
               <Spin size="large" tip="加载图片中..." />
             </div>
           )}

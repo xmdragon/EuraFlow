@@ -2,8 +2,8 @@
  * 库存编辑模态框组件
  * 支持单个商品或批量商品的库存更新
  */
-import React from 'react';
 import { Modal, Form, InputNumber, Select, Button, Space } from 'antd';
+import React from 'react';
 
 const { Option } = Select;
 
@@ -54,11 +54,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
       footer={null}
       width={500}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleFinish}
-      >
+      <Form form={form} layout="vertical" onFinish={handleFinish}>
         <Form.Item
           name="stock"
           label="库存数量"

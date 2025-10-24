@@ -2,13 +2,14 @@
  * 订单额外信息表单组件
  * 用于编辑订单的进货价格、物料成本、采购平台、国内物流单号和订单备注
  */
-import React, { useEffect } from 'react';
-import { Form, Input, Select, Button, Space, Row, Col } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
+import { Form, Input, Select, Button, Space, Row, Col } from 'antd';
+import React, { useEffect } from 'react';
+
+import { useCurrency } from '@/hooks/useCurrency';
 import * as ozonApi from '@/services/ozonApi';
 import { getCurrencySymbol } from '@/utils/currency';
-import { useCurrency } from '@/hooks/useCurrency';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Option } = Select;
@@ -122,11 +123,7 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
 
       <Row gutter={16}>
         <Col span={12}>
-          <Form.Item
-            name="source_platform"
-            label="采购平台"
-            tooltip="商品采购来源平台"
-          >
+          <Form.Item name="source_platform" label="采购平台" tooltip="商品采购来源平台">
             <Select placeholder="请选择采购平台" allowClear>
               <Option value="1688">1688</Option>
               <Option value="拼多多">拼多多</Option>
@@ -146,15 +143,8 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
         </Col>
       </Row>
 
-      <Form.Item
-        name="order_notes"
-        label="订单备注"
-        tooltip="订单相关的备注信息"
-      >
-        <Input.TextArea
-          placeholder="订单备注"
-          autoSize={{ minRows: 3, maxRows: 6 }}
-        />
+      <Form.Item name="order_notes" label="订单备注" tooltip="订单相关的备注信息">
+        <Input.TextArea placeholder="订单备注" autoSize={{ minRows: 3, maxRows: 6 }} />
       </Form.Item>
 
       {canOperate && (
@@ -199,9 +189,7 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
             >
               保存并同步跨境巴士
             </Button>
-            <Button onClick={() => form.resetFields()}>
-              重置
-            </Button>
+            <Button onClick={() => form.resetFields()}>重置</Button>
           </Space>
         </Form.Item>
       )}
