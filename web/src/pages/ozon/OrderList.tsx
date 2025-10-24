@@ -578,7 +578,7 @@ const OrderList: React.FC = () => {
   });
 
   // 取消订单
-  const cancelOrderMutation = useMutation({
+  const _cancelOrderMutation = useMutation({
     mutationFn: ({ postingNumber, reason }: { postingNumber: string; reason: string }) =>
       ozonApi.cancelOrder(postingNumber, reason),
     onSuccess: () => {

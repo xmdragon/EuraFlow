@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
+/* eslint-disable no-unused-vars */
 import { CalculatorOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {

@@ -2,6 +2,7 @@
 import axios from 'axios';
 
 import type { LoginRequest, LoginResponse, User } from '@/types/auth';
+import { loggers } from '@/utils/logger';
 
 const API_BASE_URL = '/api/ef/v1';
 
@@ -86,7 +87,7 @@ class AuthService {
             this.clearTokens();
             // Redirect to login if appropriate
             if (this.shouldRedirectToLogin(error.config?.url)) {
-              console.info('[AuthService] Redirecting to login page');
+              loggers.auth.info('Redirecting to login page');
               window.location.href = '/login';
             }
           }

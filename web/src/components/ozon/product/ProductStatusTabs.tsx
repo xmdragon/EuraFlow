@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
+/* eslint-disable no-unused-vars */
 /**
  * 商品状态标签组件
  * 显示各状态的商品数量并支持切换过滤

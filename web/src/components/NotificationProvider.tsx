@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import type { User } from '@/types/auth';
+import { loggers } from '@/utils/logger';
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -64,14 +65,12 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children, u
 
   // 显示连接状态（开发模式）
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WebSocket connection status:', {
-        isConnected,
-        connectionError,
-        token: token ? '***' : null,
-        shopIds,
-      });
-    }
+    loggers.websocket.debug('Connection status:', {
+      isConnected,
+      connectionError,
+      token: token ? '***' : null,
+      shopIds,
+    });
   }, [isConnected, connectionError, token, shopIds]);
 
   return <>{children}</>;

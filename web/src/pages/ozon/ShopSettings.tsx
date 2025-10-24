@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Ozon 店铺设置页面
  */
@@ -27,7 +27,6 @@ import {
   Switch,
   Alert,
   Divider,
-  Select,
   InputNumber,
   Typography,
   Row,

@@ -13,7 +13,6 @@ import {
   ShoppingCartOutlined,
   FileTextOutlined,
   CopyOutlined,
-  LinkOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -41,7 +40,7 @@ import moment from 'moment';
 import React, { useState, useEffect } from 'react';
 
 import { useCurrency } from '../../hooks/useCurrency';
-import { formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
+import { formatPriceWithFallback, _getCurrencySymbol } from '../../utils/currency';
 
 import styles from './PackingShipment.module.scss';
 
@@ -63,7 +62,7 @@ const { confirm } = Modal;
 const { Text } = Typography;
 
 // 订单商品行数据结构（用于表格展示）
-interface OrderItemRow {
+interface _OrderItemRow {
   key: string; // 唯一标识：posting_number + item_index
   item: ozonApi.OrderItem; // 商品明细
   itemIndex: number; // 商品索引（从0开始）
@@ -542,7 +541,6 @@ const PackingShipment: React.FC = () => {
   // offer_id到图片的映射，使用累积的映射
   const offerIdImageMap = accumulatedImageMap;
 
-
   // 格式化配送方式文本（用于详情显示）
   const formatDeliveryMethodText = (text: string | undefined): React.ReactNode => {
     if (!text) return '-';
@@ -641,7 +639,7 @@ const PackingShipment: React.FC = () => {
   };
 
   // 同步订单
-  const syncOrdersMutation = useMutation({
+  const _syncOrdersMutation = useMutation({
     mutationFn: (fullSync: boolean) => {
       if (!selectedShop) {
         throw new Error('请先选择店铺');
@@ -707,7 +705,7 @@ const PackingShipment: React.FC = () => {
   });
 
   // 取消订单
-  const cancelOrderMutation = useMutation({
+  const _cancelOrderMutation = useMutation({
     mutationFn: ({ postingNumber, reason }: { postingNumber: string; reason: string }) =>
       ozonApi.cancelOrder(postingNumber, reason),
     onSuccess: () => {
@@ -718,7 +716,6 @@ const PackingShipment: React.FC = () => {
       notifyError('取消失败', `取消失败: ${error.message}`);
     },
   });
-
 
   // 废弃订单
   const discardOrderMutation = useMutation({
@@ -1078,7 +1075,6 @@ const PackingShipment: React.FC = () => {
       setIsPrinting(false);
     }
   };
-
 
   // 错误展示Modal
   const PrintErrorModal = () => (

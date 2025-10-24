@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
+/* eslint-disable no-unused-vars */
 /**
  * 订单额外信息表单组件
  * 用于编辑订单的进货价格、物料成本、采购平台、国内物流单号和订单备注

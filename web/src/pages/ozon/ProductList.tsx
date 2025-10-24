@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, no-unused-vars, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Ozon 商品列表页面
  */
@@ -59,6 +59,7 @@ import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import * as watermarkApi from '@/services/watermarkApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
+import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { generateOzonSlug } from '@/utils/ozon/productUtils';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
@@ -234,9 +235,14 @@ const ProductList: React.FC = () => {
       // 调试：检查SKU 3001670275的数据
       const targetProduct = result.data?.find((p: any) => p.sku === '3001670275');
       if (targetProduct) {
-        console.log('🔍 找到SKU 3001670275，API返回的数据:', targetProduct);
-        console.log('📏 重量字段:', targetProduct.weight, '类型:', typeof targetProduct.weight);
-        console.log('📦 尺寸字段:', {
+        loggers.product.debug('🔍 找到SKU 3001670275，API返回的数据:', targetProduct);
+        loggers.product.debug(
+          '📏 重量字段:',
+          targetProduct.weight,
+          '类型:',
+          typeof targetProduct.weight
+        );
+        loggers.product.debug('📦 尺寸字段:', {
           width: targetProduct.width,
           height: targetProduct.height,
           depth: targetProduct.depth,
@@ -390,7 +396,7 @@ const ProductList: React.FC = () => {
             img.src = optimizeOzonImageUrl(product.images.primary, 160);
           } catch (error) {
             // 图片预加载失败，静默处理
-            console.debug('Failed to preload image:', error);
+            loggers.product.debug('Failed to preload image:', error);
           }
         }
       });
@@ -419,7 +425,7 @@ const ProductList: React.FC = () => {
         positionOverrides
       ), // 强制使用异步模式
     onSuccess: (data) => {
-      console.log('Watermark batch response:', data);
+      loggers.product.debug('Watermark batch response:', data);
 
       if (!data.batch_id) {
         notifyError('任务启动失败', '未获取到任务ID，请重试');
@@ -432,7 +438,7 @@ const ProductList: React.FC = () => {
 
       // 延迟1秒后开始轮询，给后端时间创建任务
       setTimeout(() => {
-        console.log('Starting polling for batch:', data.batch_id);
+        loggers.product.debug('Starting polling for batch:', data.batch_id);
         pollWatermarkTasks(data.batch_id);
       }, 1000);
 
@@ -460,7 +466,7 @@ const ProductList: React.FC = () => {
 
   // 轮询水印任务状态
   const pollWatermarkTasks = async (batchId: string) => {
-    console.log('Starting to poll watermark tasks for batch:', batchId);
+    loggers.product.debug('Starting to poll watermark tasks for batch:', batchId);
     let completed = 0;
     let failed = 0;
     let hasShownProgress = false;
@@ -468,14 +474,14 @@ const ProductList: React.FC = () => {
 
     const interval = setInterval(async () => {
       pollCount++;
-      console.log(`Polling attempt ${pollCount} for batch ${batchId}`);
+      loggers.product.debug(`Polling attempt ${pollCount} for batch ${batchId}`);
 
       try {
         const tasks = await watermarkApi.getTasks({
           shop_id: selectedShop!,
           batch_id: batchId,
         });
-        console.log('Tasks received:', tasks);
+        loggers.product.debug('Tasks received:', tasks);
 
         completed = tasks.filter((t) => t.status === 'completed').length;
         failed = tasks.filter((t) => t.status === 'failed').length;
@@ -483,7 +489,7 @@ const ProductList: React.FC = () => {
         const pending = tasks.filter((t) => t.status === 'pending').length;
         const total = tasks.length;
 
-        console.log(
+        loggers.product.debug(
           `Status: ${completed} completed, ${failed} failed, ${processing} processing, ${pending} pending, total: ${total}`
         );
 
@@ -1011,9 +1017,9 @@ const ProductList: React.FC = () => {
 
   // 处理函数
   const handleEdit = (product: ozonApi.Product) => {
-    console.log('📝 编辑商品数据:', product);
-    console.log('📏 重量字段值:', product.weight, '类型:', typeof product.weight);
-    console.log('📦 尺寸字段:', {
+    loggers.product.debug('📝 编辑商品数据:', product);
+    loggers.product.debug('📏 重量字段值:', product.weight, '类型:', typeof product.weight);
+    loggers.product.debug('📦 尺寸字段:', {
       width: product.width,
       height: product.height,
       depth: product.depth,

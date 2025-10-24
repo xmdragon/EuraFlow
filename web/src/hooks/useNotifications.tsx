@@ -20,6 +20,7 @@ import {
   Kuajing84SyncNotificationData,
   PostingNotificationData,
 } from '@/types/notification';
+import { loggers } from '@/utils/logger';
 
 export const useNotifications = (shopId: number | null) => {
   const navigate = useNavigate();
@@ -256,7 +257,7 @@ export const useNotifications = (shopId: number | null) => {
           break;
 
         default:
-          console.log('Unknown WebSocket message type:', message.type);
+          loggers.notification.debug('Unknown WebSocket message type:', message.type);
       }
     },
     [

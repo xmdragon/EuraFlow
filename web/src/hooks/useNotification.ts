@@ -5,6 +5,8 @@
 import { App } from 'antd';
 import type { ArgsProps } from 'antd/es/notification';
 
+import { loggers } from '@/utils/logger';
+
 /**
  * 使用通知系统的 Hook
  *
@@ -21,7 +23,7 @@ export const useNotification = () => {
   const { notification } = App.useApp();
 
   const notifySuccess = (message: string, description?: string) => {
-    console.log('[Notification] Success:', message, description);
+    loggers.notification.debug('Success:', message, description);
     notification.success({
       message,
       description,
@@ -31,7 +33,7 @@ export const useNotification = () => {
   };
 
   const notifyError = (message: string, description?: string) => {
-    console.log('[Notification] Error:', message, description);
+    loggers.notification.debug('Error:', message, description);
     notification.error({
       message,
       description,
@@ -41,7 +43,7 @@ export const useNotification = () => {
   };
 
   const notifyWarning = (message: string, description?: string) => {
-    console.log('[Notification] Warning:', message, description);
+    loggers.notification.debug('Warning:', message, description);
     notification.warning({
       message,
       description,
@@ -51,7 +53,7 @@ export const useNotification = () => {
   };
 
   const notifyInfo = (message: string, description?: string) => {
-    console.log('[Notification] Info:', message, description);
+    loggers.notification.debug('Info:', message, description);
     notification.info({
       message,
       description,
@@ -61,7 +63,7 @@ export const useNotification = () => {
   };
 
   const notify = (config: ArgsProps) => {
-    console.log('[Notification] Custom:', config);
+    loggers.notification.debug('Custom:', config);
     notification.open({
       ...config,
       placement: config.placement || 'bottomRight',
