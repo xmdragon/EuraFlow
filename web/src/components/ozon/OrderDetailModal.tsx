@@ -340,7 +340,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     <Descriptions.Item label="总金额">
                       {(() => {
                         const calculatedTotal = (localOrder.items || []).reduce((sum, item) => {
-                          return sum + (parseFloat(item.price || '0') * (item.quantity || 1));
+                          return sum + parseFloat(item.price || '0') * (item.quantity || 1);
                         }, 0);
                         return formatPriceWithFallback(
                           calculatedTotal.toString(),
