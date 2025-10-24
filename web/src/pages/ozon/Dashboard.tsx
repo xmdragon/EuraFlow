@@ -138,10 +138,9 @@ const OzonDashboard: React.FC = () => {
       <PageTitle icon={<ShoppingOutlined />} title="Ozon 管理概览" />
 
       <div className={styles.contentContainer}>
-        <Row className={styles.titleRow} align="middle" justify="end">
+        <Row className={styles.titleRow} align="middle">
           <Col>
             <ShopSelectorWithLabel
-              showLabel={false}
               value={selectedShop}
               onChange={handleShopChange}
               showAllOption={false}
