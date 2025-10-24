@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, @typescript-eslint/no-unused-vars */
 import {
   EditOutlined,
   DeleteOutlined,
@@ -57,25 +58,13 @@ const UserManagement: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form] = Form.useForm();
 
-  // 检查是否为管理员
-  if (currentUser?.role !== 'admin') {
-    return (
-      <div>
-        <PageTitle icon={<UserOutlined />} title="用户管理" />
-        <Card style={{ textAlign: 'center' }}>
-          <p>只有管理员可以访问用户管理页面</p>
-        </Card>
-      </div>
-    );
-  }
-
   // 获取用户列表
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const response = await axios.get('/api/ef/v1/auth/users');
       setUsers(response.data);
-    } catch (error) {
+    } catch (_error) {
       notifyError('获取失败', '获取用户列表失败');
     } finally {
       setLoading(false);
@@ -93,15 +82,29 @@ const UserManagement: React.FC = () => {
         platform: shop.platform,
       }));
       setShops(shopsData);
-    } catch (error) {
+    } catch (_error) {
       notifyError('获取失败', '获取店铺列表失败');
     }
   };
 
   useEffect(() => {
-    fetchUsers();
-    fetchShops();
-  }, []);
+    if (currentUser?.role === 'admin') {
+      fetchUsers();
+      fetchShops();
+    }
+  }, [currentUser?.role]);
+
+  // 检查是否为管理员
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div>
+        <PageTitle icon={<UserOutlined />} title="用户管理" />
+        <Card style={{ textAlign: 'center' }}>
+          <p>只有管理员可以访问用户管理页面</p>
+        </Card>
+      </div>
+    );
+  }
 
   // 创建/更新用户
   const handleSubmit = async (values: any) => {
