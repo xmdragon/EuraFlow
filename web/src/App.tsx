@@ -1,21 +1,13 @@
-import { Spin, App as AntApp } from 'antd';
+import { Spin } from 'antd';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
 
 import { useAuth } from '@/hooks/useAuth';
 import Dashboard from '@/pages/Dashboard';
 import LoginPage from '@/pages/LoginPage';
 import NotificationProvider from '@/components/NotificationProvider';
-import { setGlobalNotification } from '@/utils/globalNotification';
 
 function App() {
   const { user, isLoading } = useAuth();
-  const { notification } = AntApp.useApp();
-
-  // 初始化全局notification实例
-  useEffect(() => {
-    setGlobalNotification(notification);
-  }, [notification]);
 
   if (isLoading) {
     return (

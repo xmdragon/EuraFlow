@@ -6,6 +6,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import App from './App';
+import NotificationInitializer from '@/components/NotificationInitializer';
 
 import { AuthProvider } from '@/hooks/useAuth';
 import './services/simpleAxios'; // 导入简化的axios配置
@@ -23,16 +24,18 @@ ReactDOM.createRoot(rootElement).render(
     <QueryClientProvider client={queryClient}>
       <ConfigProvider locale={zhCN}>
         <AntApp>
-          <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </BrowserRouter>
+          <NotificationInitializer>
+            <BrowserRouter
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </BrowserRouter>
+          </NotificationInitializer>
         </AntApp>
       </ConfigProvider>
     </QueryClientProvider>
