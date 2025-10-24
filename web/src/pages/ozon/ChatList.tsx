@@ -9,9 +9,8 @@ import {
   SearchOutlined,
   ShoppingOutlined,
   ClockCircleOutlined,
-  CheckOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+} from "@ant-design/icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   List,
@@ -28,19 +27,19 @@ import {
   Typography,
   Spin,
   Empty,
-} from 'antd';
-import moment from 'moment';
-import React, { useState, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+} from "antd";
+import moment from "moment";
+import React, { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
-import styles from './ChatList.module.scss';
+import styles from "./ChatList.module.scss";
 
-import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
-import PageTitle from '@/components/PageTitle';
-import { usePermission } from '@/hooks/usePermission';
-import * as ozonApi from '@/services/ozonApi';
-import { notifySuccess, notifyError } from '@/utils/notification';
+import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
+import PageTitle from "@/components/PageTitle";
+import { usePermission } from "@/hooks/usePermission";
+import * as ozonApi from "@/services/ozonApi";
+import { notifySuccess, notifyError } from "@/utils/notification";
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -52,19 +51,20 @@ const ChatList: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 从URL参数中读取店铺ID
-  const shopIdParam = searchParams.get('shopId');
+  const shopIdParam = searchParams.get("shopId");
   const [selectedShopId, setSelectedShopId] = useState<number | null>(
-    shopIdParam ? Number(shopIdParam) : null
+    shopIdParam ? Number(shopIdParam) : null,
   );
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [unreadFilter, setUnreadFilter] = useState<string>('all');
-  const [searchText, setSearchText] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [unreadFilter, setUnreadFilter] = useState<string>("all");
+  const [archiveFilter, setArchiveFilter] = useState<string>("normal"); // 归档筛选：normal/archived/all
+  const [searchText, setSearchText] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 20;
 
   // 当URL参数变化时更新选中的店铺
   useEffect(() => {
-    const shopIdParam = searchParams.get('shopId');
+    const shopIdParam = searchParams.get("shopId");
     if (shopIdParam) {
       setSelectedShopId(Number(shopIdParam));
     } else {
@@ -74,18 +74,18 @@ const ChatList: React.FC = () => {
 
   // 获取店铺列表
   const { data: shopsData, isLoading: shopsLoading } = useQuery({
-    queryKey: ['ozon', 'shops'],
+    queryKey: ["ozon", "shops"],
     queryFn: ozonApi.getShops,
   });
 
   const shops = shopsData?.data || [];
 
   // 构建shop_ids字符串（逗号分隔）
-  const shopIdsString = shops.map((s) => s.id).join(',');
+  const shopIdsString = shops.map((s) => s.id).join(",");
 
   // 获取聊天统计
   const { data: statsData } = useQuery({
-    queryKey: ['chatStats', selectedShopId, shopIdsString],
+    queryKey: ["chatStats", selectedShopId, shopIdsString],
     queryFn: () => ozonApi.getChatStats(selectedShopId, shopIdsString),
     enabled: selectedShopId === null ? !!shopIdsString : true,
   });
@@ -97,11 +97,12 @@ const ChatList: React.FC = () => {
     refetch: _refetchChats,
   } = useQuery({
     queryKey: [
-      'chats',
+      "chats",
       selectedShopId,
       shopIdsString,
       statusFilter,
       unreadFilter,
+      archiveFilter,
       searchText,
       currentPage,
     ],
@@ -116,15 +117,23 @@ const ChatList: React.FC = () => {
         params.shop_ids = shopIdsString;
       }
 
-      if (statusFilter !== 'all') {
+      if (statusFilter !== "all") {
         params.status = statusFilter;
       }
 
-      if (unreadFilter === 'unread') {
+      if (unreadFilter === "unread") {
         params.has_unread = true;
-      } else if (unreadFilter === 'read') {
+      } else if (unreadFilter === "read") {
         params.has_unread = false;
       }
+
+      // 归档筛选
+      if (archiveFilter === "normal") {
+        params.is_archived = false;
+      } else if (archiveFilter === "archived") {
+        params.is_archived = true;
+      }
+      // archiveFilter === 'all' 时不传参数
 
       if (searchText) {
         params.order_number = searchText;
@@ -143,8 +152,13 @@ const ChatList: React.FC = () => {
         const results = [];
         for (let i = 0; i < shops.length; i++) {
           const shop = shops[i];
-          const displayName = shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : '');
-          notifySuccess(`同步进度`, `正在同步店铺 ${i + 1}/${shops.length}: ${displayName}`);
+          const displayName =
+            shop.shop_name +
+            (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : "");
+          notifySuccess(
+            `同步进度`,
+            `正在同步店铺 ${i + 1}/${shops.length}: ${displayName}`,
+          );
 
           try {
             const result = await ozonApi.syncChats(shop.id);
@@ -170,24 +184,30 @@ const ChatList: React.FC = () => {
     onSuccess: (data) => {
       if (Array.isArray(data)) {
         // 全部店铺模式的结果
-        const total = data.reduce((sum, r) => sum + (r.new_count || 0) + (r.updated_count || 0), 0);
-        const totalMessages = data.reduce((sum, r) => sum + (r.total_new_messages || 0), 0);
+        const total = data.reduce(
+          (sum, r) => sum + (r.new_count || 0) + (r.updated_count || 0),
+          0,
+        );
+        const totalMessages = data.reduce(
+          (sum, r) => sum + (r.total_new_messages || 0),
+          0,
+        );
         notifySuccess(
-          '批量同步完成',
-          `已同步 ${data.length} 个店铺，共 ${total} 个聊天，${totalMessages} 条新消息`
+          "批量同步完成",
+          `已同步 ${data.length} 个店铺，共 ${total} 个聊天，${totalMessages} 条新消息`,
         );
       } else {
         // 单店铺模式的结果
         notifySuccess(
-          '同步成功',
-          `新增 ${data.new_count} 个聊天，更新 ${data.updated_count} 个聊天，${data.total_new_messages || 0} 条新消息`
+          "同步成功",
+          `新增 ${data.new_count} 个聊天，更新 ${data.updated_count} 个聊天，${data.total_new_messages || 0} 条新消息`,
         );
       }
-      queryClient.invalidateQueries({ queryKey: ['chats'] });
-      queryClient.invalidateQueries({ queryKey: ['chatStats'] });
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+      queryClient.invalidateQueries({ queryKey: ["chatStats"] });
     },
     onError: (error: Error) => {
-      notifyError('同步失败', `同步失败: ${error.message}`);
+      notifyError("同步失败", `同步失败: ${error.message}`);
     },
   });
 
@@ -197,12 +217,35 @@ const ChatList: React.FC = () => {
       return ozonApi.markChatAsRead(shopId, chatId);
     },
     onSuccess: () => {
-      notifySuccess('操作成功', '已标记为已读');
-      queryClient.invalidateQueries({ queryKey: ['chats'] });
-      queryClient.invalidateQueries({ queryKey: ['chatStats'] });
+      notifySuccess("操作成功", "已标记为已读");
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+      queryClient.invalidateQueries({ queryKey: ["chatStats"] });
     },
     onError: (error: Error) => {
-      notifyError('操作失败', `操作失败: ${error.message}`);
+      notifyError("操作失败", `操作失败: ${error.message}`);
+    },
+  });
+
+  // 归档/取消归档
+  const archiveMutation = useMutation({
+    mutationFn: ({
+      chatId,
+      shopId,
+      isArchived,
+    }: {
+      chatId: string;
+      shopId: number;
+      isArchived: boolean;
+    }) => {
+      return ozonApi.archiveChat(shopId, chatId, isArchived);
+    },
+    onSuccess: (_data, variables) => {
+      notifySuccess("操作成功", variables.isArchived ? "已归档" : "已取消归档");
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+      queryClient.invalidateQueries({ queryKey: ["chatStats"] });
+    },
+    onError: (error: Error) => {
+      notifyError("操作失败", `操作失败: ${error.message}`);
     },
   });
 
@@ -217,32 +260,52 @@ const ChatList: React.FC = () => {
     markAsReadMutation.mutate({ chatId: chat.chat_id, shopId: chat.shop_id });
   };
 
+  const handleArchive = (chat: ozonApi.OzonChat, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // 使用chat的shop_id，支持全部店铺模式
+    archiveMutation.mutate({
+      chatId: chat.chat_id,
+      shopId: chat.shop_id,
+      isArchived: true,
+    });
+  };
+
+  const handleUnarchive = (chat: ozonApi.OzonChat, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // 使用chat的shop_id，支持全部店铺模式
+    archiveMutation.mutate({
+      chatId: chat.chat_id,
+      shopId: chat.shop_id,
+      isArchived: false,
+    });
+  };
+
   const handleSync = () => {
     syncMutation.mutate();
   };
 
   const getStatusTag = (status: string) => {
     const statusMap: Record<string, { color: string; text: string }> = {
-      open: { color: 'green', text: '进行中' },
-      closed: { color: 'default', text: '已关闭' },
+      open: { color: "green", text: "进行中" },
+      closed: { color: "default", text: "已关闭" },
     };
-    const config = statusMap[status] || { color: 'default', text: status };
+    const config = statusMap[status] || { color: "default", text: status };
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
   const getChatDisplayName = (chat: ozonApi.OzonChat) => {
     // 如果有客户名称且不是旧数据的"未知客户"，直接显示
-    if (chat.customer_name && chat.customer_name !== '未知客户') {
+    if (chat.customer_name && chat.customer_name !== "未知客户") {
       return chat.customer_name;
     }
 
     // 根据 chat_type 显示类型标签（全大写格式）
-    if (chat.chat_type === 'BUYER_SELLER') {
-      return '买家';
-    } else if (chat.chat_type === 'SELLER_SUPPORT') {
-      return 'Ozon官方';
+    if (chat.chat_type === "BUYER_SELLER") {
+      return "买家";
+    } else if (chat.chat_type === "SELLER_SUPPORT") {
+      return "Ozon官方";
     } else {
-      return '客户';
+      return "客户";
     }
   };
 
@@ -257,14 +320,16 @@ const ChatList: React.FC = () => {
             label="选择店铺"
             value={selectedShopId}
             onChange={(shopId) => {
-              const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : shopId;
+              const normalized = Array.isArray(shopId)
+                ? (shopId[0] ?? null)
+                : shopId;
               setSelectedShopId(normalized);
               setCurrentPage(1);
               // 更新URL参数以保持店铺选择状态
               if (normalized === null) {
-                searchParams.delete('shopId');
+                searchParams.delete("shopId");
               } else {
-                searchParams.set('shopId', String(normalized));
+                searchParams.set("shopId", String(normalized));
               }
               setSearchParams(searchParams);
             }}
@@ -353,19 +418,38 @@ const ChatList: React.FC = () => {
                 <Select.Option value="unread">未读</Select.Option>
                 <Select.Option value="read">已读</Select.Option>
               </Select>
+              <Select
+                value={archiveFilter}
+                onChange={(value) => {
+                  setArchiveFilter(value);
+                  setCurrentPage(1);
+                }}
+                className={styles.filterSelect}
+              >
+                <Select.Option value="normal">正常</Select.Option>
+                <Select.Option value="archived">归档</Select.Option>
+                <Select.Option value="all">全部</Select.Option>
+              </Select>
             </Space>
             <Space>
               {canSync && (
                 <Button
                   icon={<SyncOutlined />}
                   loading={syncMutation.isPending}
-                  disabled={selectedShopId === null && (shopsLoading || shops.length === 0)}
+                  disabled={
+                    selectedShopId === null &&
+                    (shopsLoading || shops.length === 0)
+                  }
                   onClick={handleSync}
                   title={
-                    selectedShopId === null ? '将依次同步所有店铺的聊天' : '同步当前店铺的聊天'
+                    selectedShopId === null
+                      ? "将依次同步所有店铺的聊天"
+                      : "同步当前店铺的聊天"
                   }
                 >
-                  {selectedShopId === null ? `同步所有店铺 (${shops.length})` : '同步聊天'}
+                  {selectedShopId === null
+                    ? `同步所有店铺 (${shops.length})`
+                    : "同步聊天"}
                 </Button>
               )}
             </Space>
@@ -389,20 +473,45 @@ const ChatList: React.FC = () => {
                 }}
                 renderItem={(chat) => (
                   <List.Item
-                    className={`${styles.chatListItem} ${chat.unread_count > 0 ? styles.unread : ''}`}
+                    className={`${styles.chatListItem} ${chat.unread_count > 0 ? styles.unread : ""}`}
                     onClick={() => handleChatClick(chat)}
-                    actions={[
-                      chat.unread_count > 0 && canOperate && (
-                        <Button
-                          type="link"
-                          size="small"
-                          icon={<CheckOutlined />}
-                          onClick={(e) => handleMarkAsRead(chat, e)}
-                        >
-                          标记已读
-                        </Button>
-                      ),
-                    ].filter(Boolean)}
+                    actions={
+                      canOperate
+                        ? [
+                            <div
+                              key="actions"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Space direction="vertical" size="small">
+                                {chat.unread_count > 0 && (
+                                  <Button
+                                    type="primary"
+                                    size="small"
+                                    onClick={(e) => handleMarkAsRead(chat, e)}
+                                  >
+                                    已读
+                                  </Button>
+                                )}
+                                {chat.is_archived ? (
+                                  <Button
+                                    size="small"
+                                    onClick={(e) => handleUnarchive(chat, e)}
+                                  >
+                                    取消归档
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="small"
+                                    onClick={(e) => handleArchive(chat, e)}
+                                  >
+                                    归档
+                                  </Button>
+                                )}
+                              </Space>
+                            </div>,
+                          ]
+                        : []
+                    }
                   >
                     <List.Item.Meta
                       avatar={
@@ -418,8 +527,9 @@ const ChatList: React.FC = () => {
                             <Tag color="purple">{chat.shop_name}</Tag>
                           )}
                           {/* 显示聊天类型标签（仅当没有客户名称或是旧数据时） */}
-                          {(!chat.customer_name || chat.customer_name === '未知客户') &&
-                            chat.chat_type === 'SELLER_SUPPORT' && (
+                          {(!chat.customer_name ||
+                            chat.customer_name === "未知客户") &&
+                            chat.chat_type === "SELLER_SUPPORT" && (
                               <Tag color="orange">客服咨询</Tag>
                             )}
                           {getStatusTag(chat.status)}
@@ -434,17 +544,21 @@ const ChatList: React.FC = () => {
                         <div>
                           <div className={styles.chatMessage}>
                             {chat.last_message_preview ? (
-                              <ReactMarkdown>{chat.last_message_preview}</ReactMarkdown>
+                              <ReactMarkdown>
+                                {chat.last_message_preview}
+                              </ReactMarkdown>
                             ) : (
-                              '暂无消息'
+                              "暂无消息"
                             )}
                           </div>
                           <Space size="small">
                             <Text type="secondary" className={styles.chatMeta}>
                               <ClockCircleOutlined />
                               {chat.last_message_at
-                                ? moment(chat.last_message_at).format('YYYY-MM-DD HH:mm')
-                                : ''}
+                                ? moment(chat.last_message_at).format(
+                                    "YYYY-MM-DD HH:mm",
+                                  )
+                                : ""}
                             </Text>
                             <Text type="secondary" className={styles.chatMeta}>
                               {chat.message_count} 条消息
