@@ -21,8 +21,9 @@ import {
   RocketOutlined,
   SettingOutlined,
   LoadingOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+  CalculatorOutlined,
+} from "@ant-design/icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   Row,
@@ -49,30 +50,35 @@ import {
   DatePicker,
   Tooltip,
   Checkbox,
-} from 'antd';
-import type { UploadFile } from 'antd/es/upload/interface';
-import dayjs from 'dayjs';
-import React, { useState, useEffect, useMemo } from 'react';
+} from "antd";
+import type { UploadFile } from "antd/es/upload/interface";
+import dayjs from "dayjs";
+import React, { useState, useEffect, useMemo } from "react";
 
-import { useCurrency } from '../../hooks/useCurrency';
+import { useCurrency } from "../../hooks/useCurrency";
 
-import styles from './ProductSelection.module.scss';
-import { calculateMaxCost, formatMaxCost } from './profitCalculator';
+import styles from "./ProductSelection.module.scss";
+import { calculateMaxCost, formatMaxCost } from "./profitCalculator";
 
-import ImagePreview from '@/components/ImagePreview';
+import ImagePreview from "@/components/ImagePreview";
 import FieldConfigModal, {
   type FieldConfig,
   defaultFieldConfig,
-} from '@/components/ozon/selection/FieldConfigModal';
-import PageTitle from '@/components/PageTitle';
-import { getExchangeRate } from '@/services/exchangeRateApi';
-import * as api from '@/services/productSelectionApi';
-import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
-import { logger } from '@/utils/logger';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+} from "@/components/ozon/selection/FieldConfigModal";
+import PageTitle from "@/components/PageTitle";
+import { getExchangeRate } from "@/services/exchangeRateApi";
+import * as api from "@/services/productSelectionApi";
+import { getNumberFormatter, getNumberParser } from "@/utils/formatNumber";
+import { logger } from "@/utils/logger";
+import {
+  notifySuccess,
+  notifyError,
+  notifyWarning,
+  notifyInfo,
+} from "@/utils/notification";
+import { optimizeOzonImageUrl } from "@/utils/ozonImageOptimizer";
 
-import type { FormValues } from '@/types/common';
+import type { FormValues } from "@/types/common";
 
 const { Option } = Select;
 const { Text, Link, Paragraph, Title } = Typography;
@@ -83,28 +89,39 @@ const ProductSelection: React.FC = () => {
   const { symbol: userSymbol } = useCurrency();
 
   // 状态管理
-  const [activeTab, setActiveTab] = useState('search');
+  const [activeTab, setActiveTab] = useState("search");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(24); // 初始值，会根据容器宽度动态调整
   const [historyPage, setHistoryPage] = useState(1); // 导入历史分页
   const [searchParams, setSearchParams] = useState<api.ProductSearchParams>({});
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [previewData, setPreviewData] = useState<api.PreviewResponse | null>(null);
-  const [importStrategy, setImportStrategy] = useState<'skip' | 'update' | 'append'>('update');
+  const [previewData, setPreviewData] = useState<api.PreviewResponse | null>(
+    null,
+  );
+  const [importStrategy, setImportStrategy] = useState<
+    "skip" | "update" | "append"
+  >("update");
   const [importLoading, setImportLoading] = useState(false);
   const [competitorModalVisible, setCompetitorModalVisible] = useState(false);
-  const [selectedProductCompetitors, setSelectedProductCompetitors] = useState<any>(null);
+  const [selectedProductCompetitors, setSelectedProductCompetitors] =
+    useState<any>(null);
   const [imageModalVisible, setImageModalVisible] = useState(false);
-  const [selectedProductImages, setSelectedProductImages] = useState<string[]>([]);
+  const [selectedProductImages, setSelectedProductImages] = useState<string[]>(
+    [],
+  );
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // 批次管理和选择状态
-  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(
+    new Set(),
+  );
   const [markingAsRead, setMarkingAsRead] = useState(false);
 
   // 无限滚动相关状态
-  const [allProducts, setAllProducts] = useState<api.ProductSelectionItem[]>([]); // 累积所有已加载的商品
+  const [allProducts, setAllProducts] = useState<api.ProductSelectionItem[]>(
+    [],
+  ); // 累积所有已加载的商品
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量（动态计算）
   const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize（itemsPerRow * 4）
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
@@ -112,54 +129,62 @@ const ProductSelection: React.FC = () => {
 
   // 字段配置状态
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
-    const saved = localStorage.getItem('productFieldConfig');
+    const saved = localStorage.getItem("productFieldConfig");
     return saved ? JSON.parse(saved) : defaultFieldConfig;
   });
   const [fieldConfigVisible, setFieldConfigVisible] = useState(false);
 
   // 成本计算相关状态（从localStorage读取默认值）
   const [targetProfitRate, setTargetProfitRate] = useState<number>(() => {
-    const saved = localStorage.getItem('productSelectionProfitRate');
+    const saved = localStorage.getItem("productSelectionProfitRate");
     return saved ? parseFloat(saved) : 20; // 默认20%
   });
   const [packingFee, setPackingFee] = useState<number>(() => {
-    const saved = localStorage.getItem('productSelectionPackingFee');
+    const saved = localStorage.getItem("productSelectionPackingFee");
     return saved ? parseFloat(saved) : 2.0; // 默认2.0 RMB
   });
 
   // 记住我的选择状态
   const [rememberFilters, setRememberFilters] = useState<boolean>(() => {
-    const saved = localStorage.getItem('productSelectionRememberFilters');
+    const saved = localStorage.getItem("productSelectionRememberFilters");
     return saved ? JSON.parse(saved) : false; // 默认不记住
   });
 
   // 保存利润率到localStorage
   useEffect(() => {
-    localStorage.setItem('productSelectionProfitRate', targetProfitRate.toString());
+    localStorage.setItem(
+      "productSelectionProfitRate",
+      targetProfitRate.toString(),
+    );
   }, [targetProfitRate]);
 
   // 保存打包费到localStorage
   useEffect(() => {
-    localStorage.setItem('productSelectionPackingFee', packingFee.toString());
+    localStorage.setItem("productSelectionPackingFee", packingFee.toString());
   }, [packingFee]);
 
   // 保存"记住选择"设置到localStorage
   useEffect(() => {
-    localStorage.setItem('productSelectionRememberFilters', JSON.stringify(rememberFilters));
+    localStorage.setItem(
+      "productSelectionRememberFilters",
+      JSON.stringify(rememberFilters),
+    );
   }, [rememberFilters]);
 
   // 处理URL参数（批次ID和已读状态）+ 恢复保存的筛选条件
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const batchId = params.get('batch_id');
-    const isReadParam = params.get('is_read');
+    const batchId = params.get("batch_id");
+    const isReadParam = params.get("is_read");
 
     // 从localStorage恢复保存的筛选条件（仅在rememberFilters为true时）
-    const savedFilters = localStorage.getItem('productSelectionFilters');
-    const shouldRemember = localStorage.getItem('productSelectionRememberFilters');
+    const savedFilters = localStorage.getItem("productSelectionFilters");
+    const shouldRemember = localStorage.getItem(
+      "productSelectionRememberFilters",
+    );
     let restoredParams: api.ProductSearchParams = {};
 
-    if (savedFilters && shouldRemember === 'true') {
+    if (savedFilters && shouldRemember === "true") {
       try {
         const parsed = JSON.parse(savedFilters);
         // 排除batch_id和is_read，这两个由URL参数或默认值控制
@@ -172,13 +197,15 @@ const ProductSelection: React.FC = () => {
           // DatePicker需要dayjs对象
           form.setFieldsValue({
             ...parsed,
-            listing_date: parsed.listing_date ? dayjs(parsed.listing_date) : undefined,
+            listing_date: parsed.listing_date
+              ? dayjs(parsed.listing_date)
+              : undefined,
           });
         } else {
           form.setFieldsValue(parsed);
         }
       } catch (e) {
-        logger.error('恢复筛选条件失败:', e);
+        logger.error("恢复筛选条件失败:", e);
       }
     }
 
@@ -188,7 +215,7 @@ const ProductSelection: React.FC = () => {
         ...restoredParams,
         batch_id: parseInt(batchId),
       });
-    } else if (isReadParam === null || isReadParam === 'false') {
+    } else if (isReadParam === null || isReadParam === "false") {
       // 默认或明确指定只显示未读商品
       setSearchParams({ ...restoredParams, is_read: false });
     } else {
@@ -202,7 +229,7 @@ const ProductSelection: React.FC = () => {
 
   // 查询品牌列表
   const { data: brandsData } = useQuery({
-    queryKey: ['productSelectionBrands'],
+    queryKey: ["productSelectionBrands"],
     queryFn: api.getBrands,
   });
 
@@ -222,31 +249,33 @@ const ProductSelection: React.FC = () => {
     isLoading: productsLoading,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ['productSelectionProducts', searchParams, currentPage, pageSize],
+    queryKey: ["productSelectionProducts", searchParams, currentPage, pageSize],
     queryFn: () =>
       api.searchProducts({
         ...searchParams,
         page: currentPage,
         page_size: pageSize,
       }),
-    enabled: activeTab === 'search',
+    enabled: activeTab === "search",
   });
 
   // 查询汇率（CNY → RUB），用于正确匹配场景
   // 场景配置中的价格范围是RUB，需要汇率来转换为RMB后匹配
   const { data: exchangeRateData } = useQuery({
-    queryKey: ['exchangeRate', 'CNY', 'RUB'],
-    queryFn: () => getExchangeRate('CNY', 'RUB', false),
+    queryKey: ["exchangeRate", "CNY", "RUB"],
+    queryFn: () => getExchangeRate("CNY", "RUB", false),
     staleTime: 30 * 60 * 1000, // 30分钟
     gcTime: 60 * 60 * 1000, // 1小时
   });
-  const exchangeRate = exchangeRateData ? parseFloat((exchangeRateData as any).rate) : null;
+  const exchangeRate = exchangeRateData
+    ? parseFloat((exchangeRateData as any).rate)
+    : null;
 
   // 查询导入历史
   const { data: historyData, refetch: refetchHistory } = useQuery({
-    queryKey: ['productSelectionHistory', historyPage],
+    queryKey: ["productSelectionHistory", historyPage],
     queryFn: () => api.getImportHistory(historyPage, 10),
-    enabled: activeTab === 'history',
+    enabled: activeTab === "history",
   });
 
   // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
@@ -257,7 +286,10 @@ const ProductSelection: React.FC = () => {
         const containerWidth = container.clientWidth;
         const itemWidth = 160; // 固定宽度
         const gap = 16; // 间距
-        const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemWidth + gap)));
+        const columns = Math.max(
+          1,
+          Math.floor((containerWidth + gap) / (itemWidth + gap)),
+        );
         setItemsPerRow(columns);
 
         // 动态设置初始pageSize：列数 × 4行，但不超过后端限制100
@@ -268,8 +300,8 @@ const ProductSelection: React.FC = () => {
     };
 
     calculateItemsPerRow();
-    window.addEventListener('resize', calculateItemsPerRow);
-    return () => window.removeEventListener('resize', calculateItemsPerRow);
+    window.addEventListener("resize", calculateItemsPerRow);
+    return () => window.removeEventListener("resize", calculateItemsPerRow);
   }, []);
 
   // 当收到新数据时，累积到 allProducts
@@ -304,7 +336,8 @@ const ProductSelection: React.FC = () => {
     const handleScroll = () => {
       if (isLoadingMore || !hasMoreData) return;
 
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollTop =
+        window.pageYOffset || document.documentElement.scrollTop;
       const windowHeight = window.innerHeight;
       const documentHeight = document.documentElement.scrollHeight;
       const scrollPercent = (scrollTop + windowHeight) / documentHeight;
@@ -312,14 +345,17 @@ const ProductSelection: React.FC = () => {
       if (scrollPercent > 0.8) {
         setIsLoadingMore(true);
         // 设置pageSize为初始值的一半，但至少为1行，不超过100
-        const loadMoreSize = Math.min(Math.max(Math.floor(initialPageSize / 2), itemsPerRow), 100);
+        const loadMoreSize = Math.min(
+          Math.max(Math.floor(initialPageSize / 2), itemsPerRow),
+          100,
+        );
         setPageSize(loadMoreSize);
         setCurrentPage((prev) => prev + 1);
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
 
   // 过滤可盈利商品：计算成本上限，过滤掉无法达到目标利润率的商品
@@ -353,7 +389,7 @@ const ProductSelection: React.FC = () => {
         targetProfitRate / 100,
         packingFee,
         exchangeRate || undefined,
-        commissionRates
+        commissionRates,
       );
 
       // 过滤掉无法达到目标利润率的商品（maxCost < 0）
@@ -367,30 +403,32 @@ const ProductSelection: React.FC = () => {
     onSuccess: (data) => {
       if (data.success) {
         notification.success({
-          message: '数据清空成功',
+          message: "数据清空成功",
           description: `已清空 ${data.data.deleted_products} 个商品和 ${data.data.deleted_history} 条导入历史`,
           duration: 3,
         });
         // 刷新所有相关数据
         refetchProducts();
         refetchHistory();
-        queryClient.invalidateQueries({ queryKey: ['productSelectionBrands'] });
+        queryClient.invalidateQueries({ queryKey: ["productSelectionBrands"] });
       } else {
-        notifyError('清空失败', data.error || '清空数据失败');
+        notifyError("清空失败", data.error || "清空数据失败");
       }
     },
     onError: (error: Error) => {
-      notifyError('清空失败', '清空数据失败: ' + error.message);
+      notifyError("清空失败", "清空数据失败: " + error.message);
     },
   });
 
   // 处理清空数据
   const handleClearData = () => {
     Modal.confirm({
-      title: '确认清空所有数据？',
+      title: "确认清空所有数据？",
       content: (
         <div>
-          <p className={styles.dangerText}>⚠️ 此操作将永久删除您账号下的所有选品数据，无法恢复！</p>
+          <p className={styles.dangerText}>
+            ⚠️ 此操作将永久删除您账号下的所有选品数据，无法恢复！
+          </p>
           <p>包括：</p>
           <ul>
             <li>所有商品选品记录</li>
@@ -399,9 +437,9 @@ const ProductSelection: React.FC = () => {
           <p>请确认是否继续？</p>
         </div>
       ),
-      okText: '确认清空',
-      cancelText: '取消',
-      okType: 'danger',
+      okText: "确认清空",
+      cancelText: "取消",
+      okType: "danger",
       onOk: () => {
         clearDataMutation.mutate();
       },
@@ -413,18 +451,22 @@ const ProductSelection: React.FC = () => {
     const params: api.ProductSearchParams = {};
 
     if (values.brand) params.brand = values.brand;
-    if (values.monthly_sales_min) params.monthly_sales_min = values.monthly_sales_min;
-    if (values.monthly_sales_max) params.monthly_sales_max = values.monthly_sales_max;
+    if (values.monthly_sales_min)
+      params.monthly_sales_min = values.monthly_sales_min;
+    if (values.monthly_sales_max)
+      params.monthly_sales_max = values.monthly_sales_max;
     if (values.weight_max) params.weight_max = values.weight_max;
-    if (values.competitor_count_min) params.competitor_count_min = values.competitor_count_min;
-    if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max;
+    if (values.competitor_count_min)
+      params.competitor_count_min = values.competitor_count_min;
+    if (values.competitor_count_max)
+      params.competitor_count_max = values.competitor_count_max;
     if (values.competitor_min_price_min)
       params.competitor_min_price_min = values.competitor_min_price_min;
     if (values.competitor_min_price_max)
       params.competitor_min_price_max = values.competitor_min_price_max;
     // 上架时间：搜索晚于该日期的商品
     if (values.listing_date) {
-      params.created_at_start = values.listing_date.format('YYYY-MM-DD');
+      params.created_at_start = values.listing_date.format("YYYY-MM-DD");
     }
     if (values.sort_by) params.sort_by = values.sort_by;
 
@@ -437,9 +479,14 @@ const ProductSelection: React.FC = () => {
     if (rememberFilters) {
       const filtersToSave = {
         ...values,
-        listing_date: values.listing_date ? values.listing_date.format('YYYY-MM-DD') : undefined,
+        listing_date: values.listing_date
+          ? values.listing_date.format("YYYY-MM-DD")
+          : undefined,
       };
-      localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
+      localStorage.setItem(
+        "productSelectionFilters",
+        JSON.stringify(filtersToSave),
+      );
     }
 
     setSearchParams(params);
@@ -452,7 +499,7 @@ const ProductSelection: React.FC = () => {
   // 处理重置
   const handleReset = () => {
     form.resetFields();
-    localStorage.removeItem('productSelectionFilters'); // 清除保存的筛选条件
+    localStorage.removeItem("productSelectionFilters"); // 清除保存的筛选条件
     setSearchParams({ is_read: false }); // 重置时默认显示未读商品
     setCurrentPage(1);
     setAllProducts([]); // 清空已加载的商品
@@ -477,28 +524,35 @@ const ProductSelection: React.FC = () => {
   // 批量标记已读
   const handleMarkAsRead = async () => {
     if (selectedProductIds.size === 0) {
-      notifyWarning('操作失败', '请先选择商品');
+      notifyWarning("操作失败", "请先选择商品");
       return;
     }
 
     setMarkingAsRead(true);
     try {
-      const result = await api.markProductsAsRead(Array.from(selectedProductIds));
+      const result = await api.markProductsAsRead(
+        Array.from(selectedProductIds),
+      );
       if (result.success) {
-        notifySuccess('标记成功', `成功标记 ${result.marked_count} 个商品为已读`);
+        notifySuccess(
+          "标记成功",
+          `成功标记 ${result.marked_count} 个商品为已读`,
+        );
 
         // 如果当前是"仅显示未读"模式，立即从列表中移除已标记的商品
         if (searchParams.is_read === false) {
-          setAllProducts((prev) => prev.filter((p) => !selectedProductIds.has(p.id)));
+          setAllProducts((prev) =>
+            prev.filter((p) => !selectedProductIds.has(p.id)),
+          );
         }
 
         setSelectedProductIds(new Set()); // 清空选择
         refetchProducts(); // 刷新商品列表以确保数据一致性
       } else {
-        notifyError('标记失败', '标记失败');
+        notifyError("标记失败", "标记失败");
       }
     } catch (error) {
-      notifyError('标记失败', '标记失败: ' + error.message);
+      notifyError("标记失败", "标记失败: " + error.message);
     } finally {
       setMarkingAsRead(false);
     }
@@ -511,17 +565,23 @@ const ProductSelection: React.FC = () => {
     // 直接执行导入
     setImportLoading(true);
     try {
-      const result = await api.importProducts(file, 'update'); // 默认使用更新策略
+      const result = await api.importProducts(file, "update"); // 默认使用更新策略
       if (result.success) {
         notification.success({
-          message: '导入完成',
+          message: "导入完成",
           description: (
             <div>
               <p>总行数: {result.total_rows}</p>
               <p>成功: {result.success_rows} 条</p>
-              {(result.updated_rows ?? 0) > 0 && <p>更新: {result.updated_rows} 条</p>}
-              {(result.skipped_rows ?? 0) > 0 && <p>跳过: {result.skipped_rows} 条</p>}
-              {(result.failed_rows ?? 0) > 0 && <p>失败: {result.failed_rows} 条</p>}
+              {(result.updated_rows ?? 0) > 0 && (
+                <p>更新: {result.updated_rows} 条</p>
+              )}
+              {(result.skipped_rows ?? 0) > 0 && (
+                <p>跳过: {result.skipped_rows} 条</p>
+              )}
+              {(result.failed_rows ?? 0) > 0 && (
+                <p>失败: {result.failed_rows} 条</p>
+              )}
               <p>耗时: {result.duration} 秒</p>
             </div>
           ),
@@ -532,17 +592,17 @@ const ProductSelection: React.FC = () => {
         refetchProducts();
         refetchHistory(); // 刷新历史记录
       } else {
-        notifyError('导入失败', result.error || '导入失败');
+        notifyError("导入失败", result.error || "导入失败");
         if (result.missing_columns) {
           notification.error({
-            message: '文件格式错误',
-            description: `缺少必需列: ${result.missing_columns.join(', ')}`,
+            message: "文件格式错误",
+            description: `缺少必需列: ${result.missing_columns.join(", ")}`,
             duration: 0,
           });
         }
       }
     } catch (error) {
-      notifyError('导入失败', '导入失败: ' + error.message);
+      notifyError("导入失败", "导入失败: " + error.message);
     } finally {
       setImportLoading(false);
       setFileList([]);
@@ -574,36 +634,45 @@ const ProductSelection: React.FC = () => {
       } else {
         // 如果没有图片，关闭Modal并提示
         setImageModalVisible(false);
-        notifyInfo('提示', '该商品暂无更多图片');
+        notifyInfo("提示", "该商品暂无更多图片");
       }
     } catch (error) {
       // 出错时关闭Modal并提示
       setImageModalVisible(false);
-      notifyError('获取失败', '获取商品图片失败');
-      logger.error('获取商品图片失败:', error);
+      notifyError("获取失败", "获取商品图片失败");
+      logger.error("获取商品图片失败:", error);
     }
   };
 
   // 执行导入
   const handleImport = async () => {
     if (!fileList[0]) {
-      notifyError('操作失败', '请选择文件');
+      notifyError("操作失败", "请选择文件");
       return;
     }
 
     setImportLoading(true);
     try {
-      const result = await api.importProducts(fileList[0] as any, importStrategy);
+      const result = await api.importProducts(
+        fileList[0] as any,
+        importStrategy,
+      );
       if (result.success) {
         notification.success({
-          message: '导入完成',
+          message: "导入完成",
           description: (
             <div>
               <p>总行数: {result.total_rows}</p>
               <p>成功: {result.success_rows} 条</p>
-              {(result.updated_rows ?? 0) > 0 && <p>更新: {result.updated_rows} 条</p>}
-              {(result.skipped_rows ?? 0) > 0 && <p>跳过: {result.skipped_rows} 条</p>}
-              {(result.failed_rows ?? 0) > 0 && <p>失败: {result.failed_rows} 条</p>}
+              {(result.updated_rows ?? 0) > 0 && (
+                <p>更新: {result.updated_rows} 条</p>
+              )}
+              {(result.skipped_rows ?? 0) > 0 && (
+                <p>跳过: {result.skipped_rows} 条</p>
+              )}
+              {(result.failed_rows ?? 0) > 0 && (
+                <p>失败: {result.failed_rows} 条</p>
+              )}
               <p>耗时: {result.duration} 秒</p>
             </div>
           ),
@@ -616,10 +685,10 @@ const ProductSelection: React.FC = () => {
         refetchProducts();
         refetchHistory();
       } else {
-        notifyError('导入失败', result.error || '导入失败');
+        notifyError("导入失败", result.error || "导入失败");
       }
     } catch (error) {
-      notifyError('导入失败', '导入失败: ' + error.message);
+      notifyError("导入失败", "导入失败: " + error.message);
     } finally {
       setImportLoading(false);
     }
@@ -627,67 +696,68 @@ const ProductSelection: React.FC = () => {
 
   // 格式化价格（OZON采集的是分，需要除以100转换为元）
   const formatPrice = (priceInFen: number | null | undefined): string => {
-    if (priceInFen === null || priceInFen === undefined) return '0.00';
+    if (priceInFen === null || priceInFen === undefined) return "0.00";
     return (priceInFen / 100).toFixed(2);
   };
 
   // 格式化百分比显示（不显示%符号）
   const formatPercentage = (value: number | null | undefined): string => {
-    if (value === null || value === undefined || value === 0) return '-';
+    if (value === null || value === undefined || value === 0) return "-";
     return `${value}`;
   };
 
   // 格式化数量显示
   const formatNumber = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return '-';
+    if (value === null || value === undefined) return "-";
     return value.toString();
   };
 
   // 格式化重量显示
   const formatWeight = (value: number | null | undefined): string => {
-    if (value === null || value === undefined) return '-';
+    if (value === null || value === undefined) return "-";
     return `${value}g`;
   };
 
   // 格式化日期显示
   const formatDate = (dateStr: string): string => {
-    if (!dateStr) return '-';
+    if (!dateStr) return "-";
     return new Date(dateStr)
-      .toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
+      .toLocaleDateString("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
       })
-      .replace(/\//g, '-');
+      .replace(/\//g, "-");
   };
 
   // 下载用户脚本
   const handleDownloadScript = () => {
     // 创建一个虚拟链接触发下载，添加时间戳防止浏览器缓存
     const scriptUrl =
-      window.location.origin + `/scripts/ozon_product_selector.user.js?t=${Date.now()}`;
-    const link = document.createElement('a');
+      window.location.origin +
+      `/scripts/ozon_product_selector.user.js?t=${Date.now()}`;
+    const link = document.createElement("a");
     link.href = scriptUrl;
-    link.download = 'ozon_product_selector.user.js';
+    link.download = "ozon_product_selector.user.js";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    notifySuccess('下载开始', '脚本下载已开始');
+    notifySuccess("下载开始", "脚本下载已开始");
   };
 
   // 保存字段配置
   const saveFieldConfig = (config: FieldConfig) => {
     setFieldConfig(config);
-    localStorage.setItem('productFieldConfig', JSON.stringify(config));
-    notifySuccess('配置已保存', '字段配置已保存');
+    localStorage.setItem("productFieldConfig", JSON.stringify(config));
+    notifySuccess("配置已保存", "字段配置已保存");
     setFieldConfigVisible(false);
   };
 
   // 重置字段配置
   const resetFieldConfig = () => {
     setFieldConfig(defaultFieldConfig);
-    localStorage.removeItem('productFieldConfig');
-    notifySuccess('恢复成功', '已恢复默认配置');
+    localStorage.removeItem("productFieldConfig");
+    notifySuccess("恢复成功", "已恢复默认配置");
   };
 
   // 渲染商品卡片
@@ -704,7 +774,10 @@ const ProductSelection: React.FC = () => {
         className={styles.productCard}
         cover={
           product.image_url ? (
-            <div className={styles.productCover} onClick={() => showProductImages(product)}>
+            <div
+              className={styles.productCover}
+              onClick={() => showProductImages(product)}
+            >
               {/* 复选框 - 左上角 */}
               <Checkbox
                 className={styles.productCheckbox}
@@ -725,7 +798,7 @@ const ProductSelection: React.FC = () => {
                   className={styles.linkIconOverlay}
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(product.ozon_link, '_blank');
+                    window.open(product.ozon_link, "_blank");
                   }}
                 >
                   <LinkOutlined />
@@ -735,7 +808,7 @@ const ProductSelection: React.FC = () => {
           ) : (
             <div
               className={styles.productImagePlaceholder}
-              onClick={() => window.open(product.ozon_link, '_blank')}
+              onClick={() => window.open(product.ozon_link, "_blank")}
             >
               {/* 复选框 - 左上角 */}
               <Checkbox
@@ -764,9 +837,13 @@ const ProductSelection: React.FC = () => {
           {/* SKU - 可复制 */}
           <div className={styles.skuRow}>
             <Text type="secondary" className={styles.skuLabel}>
-              SKU:{' '}
+              SKU:{" "}
             </Text>
-            <Text copyable={{ text: product.product_id }} className={styles.skuValue} ellipsis>
+            <Text
+              copyable={{ text: product.product_id }}
+              className={styles.skuValue}
+              ellipsis
+            >
               {product.product_id}
             </Text>
           </div>
@@ -798,7 +875,7 @@ const ProductSelection: React.FC = () => {
           {fieldConfig.brand && (
             <div className={styles.brandInfo}>
               <Text type="secondary">品牌: </Text>
-              <Text>{product.brand || '无品牌'}</Text>
+              <Text>{product.brand || "无品牌"}</Text>
             </div>
           )}
 
@@ -808,13 +885,17 @@ const ProductSelection: React.FC = () => {
               <Col span={12}>
                 <div className={styles.statsItem}>
                   <Text type="secondary">rFBS低: </Text>
-                  <Text strong>{formatPercentage(product.rfbs_commission_low)}</Text>
+                  <Text strong>
+                    {formatPercentage(product.rfbs_commission_low)}
+                  </Text>
                 </div>
               </Col>
               <Col span={12}>
                 <div className={styles.statsItem}>
                   <Text type="secondary">rFBS中: </Text>
-                  <Text strong>{formatPercentage(product.rfbs_commission_mid)}</Text>
+                  <Text strong>
+                    {formatPercentage(product.rfbs_commission_mid)}
+                  </Text>
                 </div>
               </Col>
             </Row>
@@ -824,7 +905,9 @@ const ProductSelection: React.FC = () => {
               <Col span={24}>
                 <div className={styles.statsItem}>
                   <Text type="secondary">rFBS高(&gt;5000₽): </Text>
-                  <Text strong>{formatPercentage(product.rfbs_commission_high)}</Text>
+                  <Text strong>
+                    {formatPercentage(product.rfbs_commission_high)}
+                  </Text>
                 </div>
               </Col>
             </Row>
@@ -834,13 +917,17 @@ const ProductSelection: React.FC = () => {
               <Col span={12}>
                 <div className={styles.statsItem}>
                   <Text type="secondary">FBP低: </Text>
-                  <Text strong>{formatPercentage(product.fbp_commission_low)}</Text>
+                  <Text strong>
+                    {formatPercentage(product.fbp_commission_low)}
+                  </Text>
                 </div>
               </Col>
               <Col span={12}>
                 <div className={styles.statsItem}>
                   <Text type="secondary">FBP中: </Text>
-                  <Text strong>{formatPercentage(product.fbp_commission_mid)}</Text>
+                  <Text strong>
+                    {formatPercentage(product.fbp_commission_mid)}
+                  </Text>
                 </div>
               </Col>
             </Row>
@@ -850,7 +937,9 @@ const ProductSelection: React.FC = () => {
               <Col span={24}>
                 <div className={styles.statsItem}>
                   <Text type="secondary">FBP高(&gt;5000₽): </Text>
-                  <Text strong>{formatPercentage(product.fbp_commission_high)}</Text>
+                  <Text strong>
+                    {formatPercentage(product.fbp_commission_high)}
+                  </Text>
                 </div>
               </Col>
             </Row>
@@ -863,7 +952,9 @@ const ProductSelection: React.FC = () => {
                 <Col span={fieldConfig.weight ? 12 : 24}>
                   <div className={styles.statsItem}>
                     <Text type="secondary">月销: </Text>
-                    <Text strong>{formatNumber(product.monthly_sales_volume)}</Text>
+                    <Text strong>
+                      {formatNumber(product.monthly_sales_volume)}
+                    </Text>
                   </div>
                 </Col>
               )}
@@ -882,7 +973,8 @@ const ProductSelection: React.FC = () => {
           {fieldConfig.competitors && (
             <div className={styles.statsItem}>
               <Text type="secondary">跟卖: </Text>
-              {product.competitor_count !== null && product.competitor_count !== undefined ? (
+              {product.competitor_count !== null &&
+              product.competitor_count !== undefined ? (
                 product.competitor_count > 0 ? (
                   <Text
                     strong
@@ -923,7 +1015,7 @@ const ProductSelection: React.FC = () => {
                       </Text>
                     </>
                   ) : (
-                    <Text type="secondary" style={{ fontSize: '11px' }}>
+                    <Text type="secondary" style={{ fontSize: "11px" }}>
                       -
                     </Text>
                   )}
@@ -931,8 +1023,10 @@ const ProductSelection: React.FC = () => {
               )}
               {fieldConfig.listingDate && (
                 <div className={styles.listingDate}>
-                  <Text type="secondary" style={{ fontSize: '11px' }}>
-                    {product.product_created_date ? formatDate(product.product_created_date) : '-'}
+                  <Text type="secondary" style={{ fontSize: "11px" }}>
+                    {product.product_created_date
+                      ? formatDate(product.product_created_date)
+                      : "-"}
                   </Text>
                 </div>
               )}
@@ -944,7 +1038,8 @@ const ProductSelection: React.FC = () => {
             // 价格单位：CNY分，÷100 = CNY元 = RMB元
             const currentPriceRMB = product.current_price / 100; // 分 → RMB
             const competitorPriceRMB =
-              product.competitor_min_price !== null && product.competitor_min_price !== undefined
+              product.competitor_min_price !== null &&
+              product.competitor_min_price !== undefined
                 ? product.competitor_min_price / 100
                 : null;
 
@@ -972,7 +1067,7 @@ const ProductSelection: React.FC = () => {
                     targetProfitRate / 100,
                     packingFee,
                     exchangeRate || undefined,
-                    commissionRates
+                    commissionRates,
                   )
                 : null;
 
@@ -1007,7 +1102,7 @@ const ProductSelection: React.FC = () => {
           onChange={setActiveTab}
           items={[
             {
-              key: 'search',
+              key: "search",
               label: (
                 <span>
                   <SearchOutlined /> 商品搜索
@@ -1021,19 +1116,19 @@ const ProductSelection: React.FC = () => {
                       form={form}
                       layout="inline"
                       onFinish={handleSearch}
-                      initialValues={{ sort_by: 'created_asc' }}
+                      initialValues={{ sort_by: "created_asc" }}
                     >
                       <Row gutter={[16, 0]} wrap>
                         {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
-                        <Col flex="auto" style={{ minWidth: '150px' }}>
+                        <Col flex="auto" style={{ minWidth: "150px" }}>
                           <Form.Item label="品牌" name="brand">
                             <Select
                               placeholder="品牌"
                               allowClear
                               showSearch
-                              style={{ width: '100%' }}
+                              style={{ width: "100%" }}
                               filterOption={(input, option) =>
-                                String(option?.value ?? '')
+                                String(option?.value ?? "")
                                   .toLowerCase()
                                   .includes(input.toLowerCase())
                               }
@@ -1054,16 +1149,19 @@ const ProductSelection: React.FC = () => {
                             style={{ marginBottom: 0 }}
                           >
                             <DatePicker
-                              style={{ width: '110px' }}
+                              style={{ width: "110px" }}
                               format="YYYY-MM-DD"
                               placeholder="选择日期"
                             />
                           </Form.Item>
                         </Col>
 
-                        <Col flex="auto" style={{ minWidth: '150px' }}>
+                        <Col flex="auto" style={{ minWidth: "150px" }}>
                           <Form.Item label="排序" name="sort_by">
-                            <Select placeholder="最早导入" style={{ width: '100%' }}>
+                            <Select
+                              placeholder="最早导入"
+                              style={{ width: "100%" }}
+                            >
                               <Option value="created_asc">最早导入</Option>
                               <Option value="created_desc">最新导入</Option>
                               <Option value="sales_desc">销量↓</Option>
@@ -1082,7 +1180,7 @@ const ProductSelection: React.FC = () => {
                                 <InputNumber
                                   min={0}
                                   controls={false}
-                                  style={{ width: '70px' }}
+                                  style={{ width: "70px" }}
                                   placeholder="最小"
                                 />
                               </Form.Item>
@@ -1090,7 +1188,7 @@ const ProductSelection: React.FC = () => {
                                 <InputNumber
                                   min={0}
                                   controls={false}
-                                  style={{ width: '70px' }}
+                                  style={{ width: "70px" }}
                                   placeholder="最大"
                                 />
                               </Form.Item>
@@ -1099,11 +1197,15 @@ const ProductSelection: React.FC = () => {
                         </Col>
 
                         <Col>
-                          <Form.Item label="重量≤" name="weight_max" style={{ marginBottom: 0 }}>
+                          <Form.Item
+                            label="重量≤"
+                            name="weight_max"
+                            style={{ marginBottom: 0 }}
+                          >
                             <InputNumber
                               min={0}
                               controls={false}
-                              style={{ width: '70px' }}
+                              style={{ width: "70px" }}
                               placeholder="g"
                               suffix="g"
                             />
@@ -1111,13 +1213,16 @@ const ProductSelection: React.FC = () => {
                         </Col>
 
                         <Col>
-                          <Form.Item label="跟卖者数量" style={{ marginBottom: 0 }}>
+                          <Form.Item
+                            label="跟卖者数量"
+                            style={{ marginBottom: 0 }}
+                          >
                             <Space.Compact>
                               <Form.Item name="competitor_count_min" noStyle>
                                 <InputNumber
                                   min={0}
                                   controls={false}
-                                  style={{ width: '70px' }}
+                                  style={{ width: "70px" }}
                                   placeholder="最小"
                                 />
                               </Form.Item>
@@ -1125,7 +1230,7 @@ const ProductSelection: React.FC = () => {
                                 <InputNumber
                                   min={0}
                                   controls={false}
-                                  style={{ width: '70px' }}
+                                  style={{ width: "70px" }}
                                   placeholder="最大"
                                 />
                               </Form.Item>
@@ -1134,21 +1239,30 @@ const ProductSelection: React.FC = () => {
                         </Col>
 
                         <Col>
-                          <Form.Item label="最低跟卖价" style={{ marginBottom: 0 }}>
+                          <Form.Item
+                            label="最低跟卖价"
+                            style={{ marginBottom: 0 }}
+                          >
                             <Space.Compact>
-                              <Form.Item name="competitor_min_price_min" noStyle>
+                              <Form.Item
+                                name="competitor_min_price_min"
+                                noStyle
+                              >
                                 <InputNumber
                                   min={0}
                                   controls={false}
-                                  style={{ width: '70px' }}
+                                  style={{ width: "70px" }}
                                   placeholder={`最小`}
                                 />
                               </Form.Item>
-                              <Form.Item name="competitor_min_price_max" noStyle>
+                              <Form.Item
+                                name="competitor_min_price_max"
+                                noStyle
+                              >
                                 <InputNumber
                                   min={0}
                                   controls={false}
-                                  style={{ width: '70px' }}
+                                  style={{ width: "70px" }}
                                   placeholder={`最大`}
                                 />
                               </Form.Item>
@@ -1161,7 +1275,9 @@ const ProductSelection: React.FC = () => {
                           <Space.Compact>
                             <InputNumber
                               value={targetProfitRate}
-                              onChange={(val) => setTargetProfitRate((val as number) || 20)}
+                              onChange={(val) =>
+                                setTargetProfitRate((val as number) || 20)
+                              }
                               min={0}
                               max={100}
                               formatter={getNumberFormatter(2)}
@@ -1169,7 +1285,7 @@ const ProductSelection: React.FC = () => {
                               controls={false}
                               addonBefore="利润率"
                               addonAfter="%"
-                              style={{ width: '150px' }}
+                              style={{ width: "150px" }}
                             />
                           </Space.Compact>
                         </Col>
@@ -1184,22 +1300,31 @@ const ProductSelection: React.FC = () => {
                               controls={false}
                               addonBefore="打包费"
                               addonAfter="RMB"
-                              style={{ width: '150px' }}
+                              style={{ width: "150px" }}
                             />
                           </Space.Compact>
                         </Col>
 
                         <Col span={24}>
                           <Space>
-                            <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
+                            <Button
+                              type="primary"
+                              htmlType="submit"
+                              icon={<SearchOutlined />}
+                            >
                               搜索
                             </Button>
-                            <Button onClick={handleReset} icon={<ReloadOutlined />}>
+                            <Button
+                              onClick={handleReset}
+                              icon={<ReloadOutlined />}
+                            >
                               重置
                             </Button>
                             <Checkbox
                               checked={rememberFilters}
-                              onChange={(e) => setRememberFilters(e.target.checked)}
+                              onChange={(e) =>
+                                setRememberFilters(e.target.checked)
+                              }
                             >
                               记住我的选择
                             </Checkbox>
@@ -1211,11 +1336,16 @@ const ProductSelection: React.FC = () => {
 
                   {/* 搜索结果统计和配置按钮 */}
                   {productsData?.data && (
-                    <Row justify="space-between" align="middle" className={styles.searchStats}>
+                    <Row
+                      justify="space-between"
+                      align="middle"
+                      className={styles.searchStats}
+                    >
                       <Col>
                         <Space>
                           <Text>
-                            已加载 <Text strong>{profitableProducts.length}</Text> /{' '}
+                            已加载{" "}
+                            <Text strong>{profitableProducts.length}</Text> /{" "}
                             {productsData.data.total} 件商品
                           </Text>
                           {selectedProductIds.size > 0 && (
@@ -1247,13 +1377,22 @@ const ProductSelection: React.FC = () => {
                       <>
                         <div className={styles.productGrid}>
                           {profitableProducts.map((product) => (
-                            <div key={product.id}>{renderProductCard(product)}</div>
+                            <div key={product.id}>
+                              {renderProductCard(product)}
+                            </div>
                           ))}
                         </div>
                         {/* 加载更多提示 */}
                         {isLoadingMore && (
                           <div className={styles.loadingMore}>
-                            <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+                            <Spin
+                              indicator={
+                                <LoadingOutlined
+                                  style={{ fontSize: 24 }}
+                                  spin
+                                />
+                              }
+                            />
                             <Text type="secondary" style={{ marginLeft: 12 }}>
                               加载中...
                             </Text>
@@ -1276,7 +1415,7 @@ const ProductSelection: React.FC = () => {
               ),
             },
             {
-              key: 'import',
+              key: "import",
               label: (
                 <span>
                   <UploadOutlined /> 数据导入
@@ -1284,7 +1423,11 @@ const ProductSelection: React.FC = () => {
               ),
               children: (
                 <Card>
-                  <Space direction="vertical" size="large" className={styles.fullWidthInput}>
+                  <Space
+                    direction="vertical"
+                    size="large"
+                    className={styles.fullWidthInput}
+                  >
                     <Alert
                       message="导入说明"
                       description={
@@ -1293,7 +1436,8 @@ const ProductSelection: React.FC = () => {
                           <p>2. 文件需包含必要列：商品ID、商品名称等</p>
                           <p>3. 系统会自动进行数据清洗和格式转换</p>
                           <p>
-                            4. 导入策略：以"商品名称+商品ID"作为唯一标识，存在则更新，不存在则追加
+                            4.
+                            导入策略：以"商品名称+商品ID"作为唯一标识，存在则更新，不存在则追加
                           </p>
                         </div>
                       }
@@ -1311,8 +1455,12 @@ const ProductSelection: React.FC = () => {
                       <p className="ant-upload-drag-icon">
                         <FileExcelOutlined className={styles.uploadIcon} />
                       </p>
-                      <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-                      <p className="ant-upload-hint">支持 Excel 和 CSV 文件，文件大小不超过 10MB</p>
+                      <p className="ant-upload-text">
+                        点击或拖拽文件到此区域上传
+                      </p>
+                      <p className="ant-upload-hint">
+                        支持 Excel 和 CSV 文件，文件大小不超过 10MB
+                      </p>
                     </Upload.Dragger>
 
                     <Divider />
@@ -1339,7 +1487,7 @@ const ProductSelection: React.FC = () => {
               ),
             },
             {
-              key: 'history',
+              key: "history",
               label: (
                 <span>
                   <HistoryOutlined /> 导入历史
@@ -1357,14 +1505,14 @@ const ProductSelection: React.FC = () => {
                   }}
                   columns={[
                     {
-                      title: '文件名',
-                      dataIndex: 'file_name',
-                      key: 'file_name',
+                      title: "文件名",
+                      dataIndex: "file_name",
+                      key: "file_name",
                     },
                     {
-                      title: '批次链接',
-                      dataIndex: 'id',
-                      key: 'batch_link',
+                      title: "批次链接",
+                      dataIndex: "id",
+                      key: "batch_link",
                       render: (id: number, record: api.ImportHistory) => (
                         <Button
                           type="link"
@@ -1372,14 +1520,14 @@ const ProductSelection: React.FC = () => {
                           icon={<LinkOutlined />}
                           onClick={() => {
                             // 切换到商品搜索标签并设置批次过滤
-                            setActiveTab('search');
+                            setActiveTab("search");
                             setSearchParams({ batch_id: id });
                             setCurrentPage(1);
                             setAllProducts([]);
                             setHasMoreData(true);
                             setPageSize(initialPageSize);
                             // 更新URL
-                            window.history.pushState({}, '', `?batch_id=${id}`);
+                            window.history.pushState({}, "", `?batch_id=${id}`);
                           }}
                         >
                           查看批次 #{id}
@@ -1387,57 +1535,61 @@ const ProductSelection: React.FC = () => {
                       ),
                     },
                     {
-                      title: '导入时间',
-                      dataIndex: 'import_time',
-                      key: 'import_time',
-                      render: (time: string) => new Date(time).toLocaleString('zh-CN'),
+                      title: "导入时间",
+                      dataIndex: "import_time",
+                      key: "import_time",
+                      render: (time: string) =>
+                        new Date(time).toLocaleString("zh-CN"),
                     },
                     {
-                      title: '导入策略',
-                      dataIndex: 'import_strategy',
-                      key: 'import_strategy',
+                      title: "导入策略",
+                      dataIndex: "import_strategy",
+                      key: "import_strategy",
                       render: (strategy: string) => {
                         const map: Record<string, string> = {
-                          skip: '跳过重复',
-                          update: '更新已有',
-                          append: '追加记录',
+                          skip: "跳过重复",
+                          update: "更新已有",
+                          append: "追加记录",
                         };
                         return map[strategy] || strategy;
                       },
                     },
                     {
-                      title: '总行数',
-                      dataIndex: 'total_rows',
-                      key: 'total_rows',
+                      title: "总行数",
+                      dataIndex: "total_rows",
+                      key: "total_rows",
                     },
                     {
-                      title: '成功',
-                      dataIndex: 'success_rows',
-                      key: 'success_rows',
+                      title: "成功",
+                      dataIndex: "success_rows",
+                      key: "success_rows",
                       render: (val: number) => <Tag color="success">{val}</Tag>,
                     },
                     {
-                      title: '更新',
-                      dataIndex: 'updated_rows',
-                      key: 'updated_rows',
-                      render: (val: number) => val > 0 && <Tag color="blue">{val}</Tag>,
+                      title: "更新",
+                      dataIndex: "updated_rows",
+                      key: "updated_rows",
+                      render: (val: number) =>
+                        val > 0 && <Tag color="blue">{val}</Tag>,
                     },
                     {
-                      title: '跳过',
-                      dataIndex: 'skipped_rows',
-                      key: 'skipped_rows',
-                      render: (val: number) => val > 0 && <Tag color="warning">{val}</Tag>,
+                      title: "跳过",
+                      dataIndex: "skipped_rows",
+                      key: "skipped_rows",
+                      render: (val: number) =>
+                        val > 0 && <Tag color="warning">{val}</Tag>,
                     },
                     {
-                      title: '失败',
-                      dataIndex: 'failed_rows',
-                      key: 'failed_rows',
-                      render: (val: number) => val > 0 && <Tag color="error">{val}</Tag>,
+                      title: "失败",
+                      dataIndex: "failed_rows",
+                      key: "failed_rows",
+                      render: (val: number) =>
+                        val > 0 && <Tag color="error">{val}</Tag>,
                     },
                     {
-                      title: '耗时',
-                      dataIndex: 'process_duration',
-                      key: 'process_duration',
+                      title: "耗时",
+                      dataIndex: "process_duration",
+                      key: "process_duration",
                       render: (val: number) => `${val}秒`,
                     },
                   ]}
@@ -1445,14 +1597,18 @@ const ProductSelection: React.FC = () => {
               ),
             },
             {
-              key: 'guide',
+              key: "guide",
               label: (
                 <span>
                   <BookOutlined /> 使用指南
                 </span>
               ),
               children: (
-                <Space direction="vertical" size="large" className={styles.fullWidthInput}>
+                <Space
+                  direction="vertical"
+                  size="large"
+                  className={styles.fullWidthInput}
+                >
                   {/* 工具介绍 */}
                   <Card>
                     <Title level={4}>
@@ -1478,7 +1634,7 @@ const ProductSelection: React.FC = () => {
                       defaultActiveKey="extension"
                       items={[
                         {
-                          key: 'extension',
+                          key: "extension",
                           label: (
                             <span>
                               <RocketOutlined /> 方式一：浏览器扩展（推荐）
@@ -1542,7 +1698,7 @@ const ProductSelection: React.FC = () => {
                                   current={-1}
                                   items={[
                                     {
-                                      title: '下载扩展包',
+                                      title: "下载扩展包",
                                       description: (
                                         <Space direction="vertical">
                                           <Button
@@ -1551,45 +1707,67 @@ const ProductSelection: React.FC = () => {
                                             href="/downloads/euraflow-ozon-selector-v1.0.0.zip"
                                             download
                                           >
-                                            下载 euraflow-ozon-selector-v1.0.0.zip
+                                            下载
+                                            euraflow-ozon-selector-v1.0.0.zip
                                           </Button>
-                                          <Text type="secondary">扩展包大小：约 63 KB</Text>
+                                          <Text type="secondary">
+                                            扩展包大小：约 63 KB
+                                          </Text>
                                         </Space>
                                       ),
                                     },
                                     {
-                                      title: '解压文件',
-                                      description: '将下载的 .zip 文件解压到任意目录',
+                                      title: "解压文件",
+                                      description:
+                                        "将下载的 .zip 文件解压到任意目录",
                                     },
                                     {
-                                      title: '加载扩展',
+                                      title: "加载扩展",
                                       description: (
                                         <div>
-                                          <Paragraph>1. 打开 Chrome/Edge 浏览器</Paragraph>
                                           <Paragraph>
-                                            2. 访问 <Text code>chrome://extensions/</Text>
-                                            （Edge: <Text code>edge://extensions/</Text>）
+                                            1. 打开 Chrome/Edge 浏览器
                                           </Paragraph>
-                                          <Paragraph>3. 开启右上角的"开发者模式"</Paragraph>
-                                          <Paragraph>4. 点击"加载已解压的扩展程序"</Paragraph>
                                           <Paragraph>
-                                            5. 选择解压后的 <Text code>dist/</Text> 目录
+                                            2. 访问{" "}
+                                            <Text code>
+                                              chrome://extensions/
+                                            </Text>
+                                            （Edge:{" "}
+                                            <Text code>edge://extensions/</Text>
+                                            ）
+                                          </Paragraph>
+                                          <Paragraph>
+                                            3. 开启右上角的"开发者模式"
+                                          </Paragraph>
+                                          <Paragraph>
+                                            4. 点击"加载已解压的扩展程序"
+                                          </Paragraph>
+                                          <Paragraph>
+                                            5. 选择解压后的{" "}
+                                            <Text code>dist/</Text> 目录
                                           </Paragraph>
                                         </div>
                                       ),
                                     },
                                     {
-                                      title: '配置API',
+                                      title: "配置API",
                                       description: (
                                         <div>
-                                          <Paragraph>点击扩展图标，配置API连接信息：</Paragraph>
+                                          <Paragraph>
+                                            点击扩展图标，配置API连接信息：
+                                          </Paragraph>
                                           <Paragraph>
                                             <Text strong>API地址：</Text>
-                                            <Text code>{window.location.origin}</Text>
+                                            <Text code>
+                                              {window.location.origin}
+                                            </Text>
                                           </Paragraph>
                                           <Paragraph>
                                             <Text strong>API Key：</Text>
-                                            <Link href="/dashboard/ozon/api-keys">前往获取 →</Link>
+                                            <Link href="/dashboard/ozon/api-keys">
+                                              前往获取 →
+                                            </Link>
                                           </Paragraph>
                                         </div>
                                       ),
@@ -1603,32 +1781,34 @@ const ProductSelection: React.FC = () => {
                                 <Timeline
                                   items={[
                                     {
-                                      children: '访问 https://www.ozon.ru 并搜索商品',
-                                      color: 'blue',
+                                      children:
+                                        "访问 https://www.ozon.ru 并搜索商品",
+                                      color: "blue",
                                     },
                                     {
-                                      children: '确保上品帮或毛子ERP插件已安装并工作',
-                                      color: 'blue',
+                                      children:
+                                        "确保上品帮或毛子ERP插件已安装并工作",
+                                      color: "blue",
                                     },
                                     {
-                                      children: '页面右上角会出现控制面板',
-                                      color: 'blue',
+                                      children: "页面右上角会出现控制面板",
+                                      color: "blue",
                                     },
                                     {
-                                      children: '设置目标采集数量（默认100）',
-                                      color: 'green',
+                                      children: "设置目标采集数量（默认100）",
+                                      color: "green",
                                     },
                                     {
                                       children: '点击"开始采集"按钮',
-                                      color: 'green',
+                                      color: "green",
                                     },
                                     {
-                                      children: '等待自动采集完成',
-                                      color: 'green',
+                                      children: "等待自动采集完成",
+                                      color: "green",
                                     },
                                     {
-                                      children: '数据自动上传到EuraFlow',
-                                      color: 'green',
+                                      children: "数据自动上传到EuraFlow",
+                                      color: "green",
                                     },
                                   ]}
                                 />
@@ -1637,10 +1817,328 @@ const ProductSelection: React.FC = () => {
                           ),
                         },
                         {
-                          key: 'userscript',
+                          key: "price-calculator",
                           label: (
                             <span>
-                              <CodeOutlined /> 方式二：用户脚本（旧版）
+                              <CalculatorOutlined /> 真实售价计算器
+                            </span>
+                          ),
+                          children: (
+                            <Space
+                              direction="vertical"
+                              size="large"
+                              className={styles.fullWidthInput}
+                            >
+                              <Alert
+                                message="💰 OZON真实售价计算器"
+                                description="在OZON商品页面自动计算并显示商品的真实售价，帮助您快速评估利润空间。"
+                                type="success"
+                                showIcon
+                              />
+
+                              {/* 功能介绍 */}
+                              <Card title="✨ 功能特性" size="small">
+                                <Row gutter={[16, 16]}>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="智能计算"
+                                      description="根据Ozon Card价格和常规价格，智能计算真实售价"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="分级规则"
+                                      description="根据价格区间自动应用不同的计算规则"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="实时更新"
+                                      description="监听页面变化，切换规格或货币时自动更新"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                  <Col span={12}>
+                                    <Alert
+                                      message="醒目显示"
+                                      description="橙色高亮提示框，真实售价一目了然"
+                                      type="info"
+                                      showIcon
+                                    />
+                                  </Col>
+                                </Row>
+                              </Card>
+
+                              {/* 计算规则 */}
+                              <Card title="📊 计算规则说明" size="small">
+                                <Timeline
+                                  items={[
+                                    {
+                                      children: (
+                                        <div>
+                                          <Text strong>
+                                            低价商品（黑标价 &lt; 90 ¥）
+                                          </Text>
+                                          <br />
+                                          <Text code>真实售价 = 黑标价</Text>
+                                          <br />
+                                          <Text type="secondary">
+                                            示例：黑标价 85¥ → 真实售价 85¥
+                                          </Text>
+                                        </div>
+                                      ),
+                                      color: "green",
+                                    },
+                                    {
+                                      children: (
+                                        <div>
+                                          <Text strong>
+                                            中价商品（90 ¥ ≤ 黑标价 ≤ 120 ¥）
+                                          </Text>
+                                          <br />
+                                          <Text code>
+                                            真实售价 = 黑标价 + 5
+                                          </Text>
+                                          <br />
+                                          <Text type="secondary">
+                                            示例：黑标价 95¥ → 真实售价 100¥
+                                          </Text>
+                                        </div>
+                                      ),
+                                      color: "blue",
+                                    },
+                                    {
+                                      children: (
+                                        <div>
+                                          <Text strong>
+                                            高价商品（黑标价 &gt; 120 ¥）
+                                          </Text>
+                                          <br />
+                                          <Text code>
+                                            真实售价 =
+                                            ceil((黑标价-绿标价)×2.5+黑标价)
+                                          </Text>
+                                          <br />
+                                          <Text type="secondary">
+                                            示例：绿标价 1219¥，黑标价 1258¥ →
+                                            真实售价 1356¥
+                                          </Text>
+                                        </div>
+                                      ),
+                                      color: "orange",
+                                    },
+                                    {
+                                      children: (
+                                        <div>
+                                          <Text strong>卢布货币（₽）</Text>
+                                          <br />
+                                          <Text type="warning">
+                                            显示提示："⚠️ 请切换货币为CNY"
+                                          </Text>
+                                        </div>
+                                      ),
+                                      color: "red",
+                                    },
+                                  ]}
+                                />
+                              </Card>
+
+                              {/* 安装步骤 */}
+                              <Card title="📥 安装步骤" size="small">
+                                <Steps
+                                  direction="vertical"
+                                  current={-1}
+                                  items={[
+                                    {
+                                      title: "安装 Tampermonkey",
+                                      description: (
+                                        <Space wrap>
+                                          <Link
+                                            href="https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
+                                            target="_blank"
+                                          >
+                                            <Button
+                                              type="link"
+                                              icon={<LinkOutlined />}
+                                            >
+                                              Chrome/Edge 扩展商店
+                                            </Button>
+                                          </Link>
+                                          <Link
+                                            href="https://addons.mozilla.org/zh-CN/firefox/addon/tampermonkey/"
+                                            target="_blank"
+                                          >
+                                            <Button
+                                              type="link"
+                                              icon={<LinkOutlined />}
+                                            >
+                                              Firefox 扩展商店
+                                            </Button>
+                                          </Link>
+                                        </Space>
+                                      ),
+                                    },
+                                    {
+                                      title: "下载脚本",
+                                      description: (
+                                        <Space direction="vertical">
+                                          <Button
+                                            type="primary"
+                                            icon={<DownloadOutlined />}
+                                            href="/scripts/ozon-real-price-calculator.user.js"
+                                            download
+                                          >
+                                            下载
+                                            ozon-real-price-calculator.user.js
+                                          </Button>
+                                          <Text type="secondary">
+                                            版本：v1.0.3 | 文件大小：约 10 KB
+                                          </Text>
+                                        </Space>
+                                      ),
+                                    },
+                                    {
+                                      title: "安装脚本",
+                                      description: (
+                                        <div>
+                                          <Paragraph>
+                                            方法一：直接拖拽
+                                          </Paragraph>
+                                          <ul>
+                                            <li>
+                                              将下载的 .user.js
+                                              文件拖拽到浏览器窗口
+                                            </li>
+                                            <li>
+                                              Tampermonkey
+                                              会自动识别并弹出安装确认
+                                            </li>
+                                            <li>点击"安装"按钮完成</li>
+                                          </ul>
+                                          <Paragraph>
+                                            方法二：手动安装
+                                          </Paragraph>
+                                          <ul>
+                                            <li>
+                                              点击 Tampermonkey 图标 →
+                                              "管理面板"
+                                            </li>
+                                            <li>点击"+"新建脚本</li>
+                                            <li>复制脚本内容并粘贴</li>
+                                            <li>按 Ctrl+S（或 Cmd+S）保存</li>
+                                          </ul>
+                                        </div>
+                                      ),
+                                    },
+                                    {
+                                      title: "开始使用",
+                                      description: (
+                                        <div>
+                                          <Paragraph>
+                                            访问任意 OZON 商品页面（如：
+                                            <Link
+                                              href="https://www.ozon.ru/product/"
+                                              target="_blank"
+                                            >
+                                              https://www.ozon.ru/product/...
+                                            </Link>
+                                            ）
+                                          </Paragraph>
+                                          <Paragraph>
+                                            脚本会自动在价格区域上方显示橙色的真实售价提示框
+                                          </Paragraph>
+                                        </div>
+                                      ),
+                                    },
+                                  ]}
+                                />
+                              </Card>
+
+                              {/* 使用示例 */}
+                              <Card title="🎨 显示效果" size="small">
+                                <Alert
+                                  message="真实售价：1356.00 ¥"
+                                  type="warning"
+                                  showIcon
+                                  description="在商品价格上方会显示类似这样的橙色高亮提示框，让您一眼就能看到真实售价。"
+                                  style={{
+                                    background: "#FFE7BA",
+                                    border: "2px solid #FF9800",
+                                  }}
+                                />
+                              </Card>
+
+                              {/* 常见问题 */}
+                              <Card title="❓ 常见问题" size="small">
+                                <Collapse
+                                  items={[
+                                    {
+                                      key: "calc-faq-1",
+                                      label: "Q: 脚本没有运行怎么办？",
+                                      children: (
+                                        <div>
+                                          <Paragraph>请检查：</Paragraph>
+                                          <ul>
+                                            <li>Tampermonkey 扩展是否已启用</li>
+                                            <li>
+                                              脚本在管理面板中是否处于"启用"状态
+                                            </li>
+                                            <li>
+                                              访问的 URL 是否为 OZON
+                                              商品页面（https://www.ozon.ru/product/...）
+                                            </li>
+                                            <li>刷新页面（Ctrl+R 或 Cmd+R）</li>
+                                          </ul>
+                                        </div>
+                                      ),
+                                    },
+                                    {
+                                      key: "calc-faq-2",
+                                      label: 'Q: 为什么提示"请切换货币为CNY"？',
+                                      children: (
+                                        <Paragraph>
+                                          计算公式基于人民币（¥）价格设计。如果页面显示的是卢布（₽），请在
+                                          OZON
+                                          页面右上角切换货币为人民币（CNY）后再使用。
+                                        </Paragraph>
+                                      ),
+                                    },
+                                    {
+                                      key: "calc-faq-3",
+                                      label: "Q: 计算结果准确吗？",
+                                      children: (
+                                        <Paragraph>
+                                          真实售价是基于 OZON
+                                          平台价格策略估算的参考价格，考虑了会员折扣、平台佣金等因素。实际价格请以最终结算为准。
+                                        </Paragraph>
+                                      ),
+                                    },
+                                    {
+                                      key: "calc-faq-4",
+                                      label: "Q: 价格变化时会自动更新吗？",
+                                      children: (
+                                        <Paragraph>
+                                          是的！脚本会实时监听页面变化，当您切换商品规格或货币时，真实售价会自动重新计算和更新（延迟
+                                          500ms）。
+                                        </Paragraph>
+                                      ),
+                                    },
+                                  ]}
+                                />
+                              </Card>
+                            </Space>
+                          ),
+                        },
+                        {
+                          key: "userscript",
+                          label: (
+                            <span>
+                              <CodeOutlined /> 方式三：用户脚本（旧版）
                             </span>
                           ),
                           children: (
@@ -1662,14 +2160,17 @@ const ProductSelection: React.FC = () => {
                                   current={-1}
                                   items={[
                                     {
-                                      title: '安装Tampermonkey',
+                                      title: "安装Tampermonkey",
                                       description: (
                                         <Space wrap>
                                           <Link
                                             href="https://www.tampermonkey.net/"
                                             target="_blank"
                                           >
-                                            <Button type="link" icon={<LinkOutlined />}>
+                                            <Button
+                                              type="link"
+                                              icon={<LinkOutlined />}
+                                            >
                                               Chrome/Edge - Tampermonkey
                                             </Button>
                                           </Link>
@@ -1677,7 +2178,10 @@ const ProductSelection: React.FC = () => {
                                             href="https://addons.mozilla.org/zh-CN/firefox/addon/greasemonkey/"
                                             target="_blank"
                                           >
-                                            <Button type="link" icon={<LinkOutlined />}>
+                                            <Button
+                                              type="link"
+                                              icon={<LinkOutlined />}
+                                            >
                                               Firefox - Greasemonkey
                                             </Button>
                                           </Link>
@@ -1685,7 +2189,7 @@ const ProductSelection: React.FC = () => {
                                       ),
                                     },
                                     {
-                                      title: '下载用户脚本',
+                                      title: "下载用户脚本",
                                       description: (
                                         <Button
                                           type="primary"
@@ -1697,9 +2201,9 @@ const ProductSelection: React.FC = () => {
                                       ),
                                     },
                                     {
-                                      title: '安装脚本',
+                                      title: "安装脚本",
                                       description:
-                                        '将下载的 .user.js 文件拖拽到浏览器，Tampermonkey会自动识别',
+                                        "将下载的 .user.js 文件拖拽到浏览器，Tampermonkey会自动识别",
                                     },
                                   ]}
                                 />
@@ -1718,32 +2222,32 @@ const ProductSelection: React.FC = () => {
                     </Paragraph>
                     <Row gutter={[8, 8]}>
                       {[
-                        '商品ID',
-                        '商品名称',
-                        '商品链接',
-                        '商品图片',
-                        '品牌',
-                        '销售价格',
-                        '原价',
-                        '商品评分',
-                        '评价次数',
-                        'rFBS各档佣金',
-                        'FBP各档佣金',
-                        '月销量',
-                        '月销售额',
-                        '日销量',
-                        '日销售额',
-                        '包装重量',
-                        '包装尺寸',
-                        '商品体积',
-                        '跟卖者数量',
-                        '最低跟卖价',
-                        '成交率',
-                        '商品可用性',
-                        '广告费用份额',
-                        '配送时间',
-                        '卖家类型',
-                        '商品创建日期',
+                        "商品ID",
+                        "商品名称",
+                        "商品链接",
+                        "商品图片",
+                        "品牌",
+                        "销售价格",
+                        "原价",
+                        "商品评分",
+                        "评价次数",
+                        "rFBS各档佣金",
+                        "FBP各档佣金",
+                        "月销量",
+                        "月销售额",
+                        "日销量",
+                        "日销售额",
+                        "包装重量",
+                        "包装尺寸",
+                        "商品体积",
+                        "跟卖者数量",
+                        "最低跟卖价",
+                        "成交率",
+                        "商品可用性",
+                        "广告费用份额",
+                        "配送时间",
+                        "卖家类型",
+                        "商品创建日期",
                       ].map((field) => (
                         <Col span={6} key={field}>
                           <Tag color="blue">{field}</Tag>
@@ -1757,15 +2261,18 @@ const ProductSelection: React.FC = () => {
                     <Collapse
                       items={[
                         {
-                          key: 'faq-0',
-                          label: 'Q: 浏览器扩展和用户脚本有什么区别？',
+                          key: "faq-0",
+                          label: "Q: 浏览器扩展和用户脚本有什么区别？",
                           children: (
                             <div>
                               <Paragraph>
                                 <Text strong>浏览器扩展（推荐）：</Text>
                               </Paragraph>
                               <ul>
-                                <li>✅ 支持上品帮和毛子ERP数据融合，智能选择最优数据</li>
+                                <li>
+                                  ✅
+                                  支持上品帮和毛子ERP数据融合，智能选择最优数据
+                                </li>
                                 <li>✅ 更稳定，无需依赖Tampermonkey</li>
                                 <li>✅ 功能更强大，适配性更好</li>
                               </ul>
@@ -1781,14 +2288,16 @@ const ProductSelection: React.FC = () => {
                           ),
                         },
                         {
-                          key: 'faq-1',
-                          label: 'Q: API连接测试失败？',
+                          key: "faq-1",
+                          label: "Q: API连接测试失败？",
                           children: (
                             <div>
                               <Paragraph>请检查以下几点：</Paragraph>
                               <ul>
                                 <li>API地址是否正确（不要包含 /api 等路径）</li>
-                                <li>API Key是否有效（可在API Keys页面重新生成）</li>
+                                <li>
+                                  API Key是否有效（可在API Keys页面重新生成）
+                                </li>
                                 <li>网络是否通畅（检查VPN或代理设置）</li>
                                 <li>浏览器控制台是否有CORS错误</li>
                               </ul>
@@ -1796,26 +2305,32 @@ const ProductSelection: React.FC = () => {
                           ),
                         },
                         {
-                          key: 'faq-2',
-                          label: 'Q: 数据采集不完整或没有数据？',
+                          key: "faq-2",
+                          label: "Q: 数据采集不完整或没有数据？",
                           children: (
                             <div>
                               <Paragraph>请确认：</Paragraph>
                               <ul>
                                 <li>
                                   <Text strong>必须</Text>
-                                  安装上品帮或毛子ERP插件 - 扩展依赖这些工具提供的数据
+                                  安装上品帮或毛子ERP插件 -
+                                  扩展依赖这些工具提供的数据
                                 </li>
-                                <li>等待时间是否足够 - 默认滚动等待1秒，可在配置中调整</li>
+                                <li>
+                                  等待时间是否足够 -
+                                  默认滚动等待1秒，可在配置中调整
+                                </li>
                                 <li>检查浏览器控制台是否有错误信息</li>
-                                <li>确保在OZON商品列表页面使用（搜索结果或分类页面）</li>
+                                <li>
+                                  确保在OZON商品列表页面使用（搜索结果或分类页面）
+                                </li>
                               </ul>
                             </div>
                           ),
                         },
                         {
-                          key: 'faq-3',
-                          label: 'Q: 如何查看采集到的数据？',
+                          key: "faq-3",
+                          label: "Q: 如何查看采集到的数据？",
                           children: (
                             <Paragraph>
                               数据上传成功后，切换到"商品搜索"标签页即可查看和筛选导入的商品。
@@ -1824,8 +2339,8 @@ const ProductSelection: React.FC = () => {
                           ),
                         },
                         {
-                          key: 'faq-4',
-                          label: 'Q: 扩展无法加载或报错？',
+                          key: "faq-4",
+                          label: "Q: 扩展无法加载或报错？",
                           children: (
                             <div>
                               <Paragraph>请尝试：</Paragraph>
@@ -1853,7 +2368,8 @@ const ProductSelection: React.FC = () => {
                           </Paragraph>
                           <Paragraph>
                             <Text type="secondary">
-                              浏览器扩展版本：v1.0.0 | 用户脚本版本：v4.3 | 更新时间：2024-10-18
+                              浏览器扩展版本：v1.0.0 | 用户脚本版本：v4.3 |
+                              更新时间：2024-10-18
                             </Text>
                           </Paragraph>
                         </div>
@@ -1875,7 +2391,10 @@ const ProductSelection: React.FC = () => {
           open={competitorModalVisible}
           onCancel={() => setCompetitorModalVisible(false)}
           footer={[
-            <Button key="close" onClick={() => setCompetitorModalVisible(false)}>
+            <Button
+              key="close"
+              onClick={() => setCompetitorModalVisible(false)}
+            >
               关闭
             </Button>,
           ]}
@@ -1902,7 +2421,9 @@ const ProductSelection: React.FC = () => {
                       <Text>最低跟卖价: </Text>
                       <Text strong className={styles.competitorMinPriceValue}>
                         {userSymbol}
-                        {formatPrice(selectedProductCompetitors.competitor_min_price)}
+                        {formatPrice(
+                          selectedProductCompetitors.competitor_min_price,
+                        )}
                       </Text>
                     </div>
                   </>
@@ -1945,8 +2466,15 @@ const ProductSelection: React.FC = () => {
           width={800}
         >
           {previewData && (
-            <Space direction="vertical" size="middle" className={styles.fullWidthInput}>
-              <Alert message={`文件包含 ${previewData.total_rows} 行数据`} type="info" />
+            <Space
+              direction="vertical"
+              size="middle"
+              className={styles.fullWidthInput}
+            >
+              <Alert
+                message={`文件包含 ${previewData.total_rows} 行数据`}
+                type="info"
+              />
 
               <div>
                 <Text strong>导入策略：</Text>
@@ -1964,7 +2492,9 @@ const ProductSelection: React.FC = () => {
               <div>
                 <Text strong>数据预览（前5行）：</Text>
                 <div className={styles.dataPreview}>
-                  <pre>{JSON.stringify(previewData.preview?.slice(0, 5), null, 2)}</pre>
+                  <pre>
+                    {JSON.stringify(previewData.preview?.slice(0, 5), null, 2)}
+                  </pre>
                 </div>
               </div>
             </Space>
