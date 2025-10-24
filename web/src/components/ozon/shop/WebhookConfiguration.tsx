@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /**
  * Webhook 配置组件
  */
@@ -39,7 +40,7 @@ export interface WebhookConfigurationProps {
 }
 
 export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ selectedShop }) => {
-  const [webhookConfig, setWebhookConfig] = useState<any>(null);
+  const [_webhookConfig, _setWebhookConfig] = useState<any>(null);
   const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [configModalVisible, setConfigModalVisible] = useState(false);

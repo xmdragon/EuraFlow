@@ -27,8 +27,7 @@ import {
 } from './ozonUniShippingData';
 import styles from './ShippingDetailCalculator.module.scss';
 
-const { Title, Text } = Typography;
-const { Option } = Select;
+const { Text } = Typography;
 
 interface CalculationData {
   weight?: number; // 重量(克)

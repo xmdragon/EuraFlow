@@ -37,13 +37,12 @@ import {
   Popconfirm,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
 import { useState, useEffect } from 'react';
+import { Cron } from 'react-js-cron';
 
-import styles from './SyncServices.module.scss';
+import 'react-js-cron/dist/styles.css';
 
 import PageTitle from '@/components/PageTitle';
-import CronEditor from '@/components/CronEditor';
 import { usePermission } from '@/hooks/usePermission';
 import axios from '@/services/axios';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -547,7 +546,11 @@ const SyncServices = () => {
                       name="schedule_config"
                       rules={[{ required: true, message: '请配置Cron表达式' }]}
                     >
-                      <CronEditor />
+                      <Cron
+                        value={editForm.getFieldValue('schedule_config') || '0 * * * *'}
+                        setValue={(value) => editForm.setFieldValue('schedule_config', value)}
+                        clearButton={false}
+                      />
                     </Form.Item>
                   );
                 } else {
@@ -640,7 +643,11 @@ const SyncServices = () => {
                       rules={[{ required: true, message: '请配置Cron表达式' }]}
                       initialValue="0 * * * *"
                     >
-                      <CronEditor />
+                      <Cron
+                        value={addForm.getFieldValue('schedule_config') || '0 * * * *'}
+                        setValue={(value) => addForm.setFieldValue('schedule_config', value)}
+                        clearButton={false}
+                      />
                     </Form.Item>
                   );
                 } else {

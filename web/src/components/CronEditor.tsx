@@ -3,8 +3,8 @@
  * 支持预设选项和自定义输入两种模式
  */
 import { Radio, Input, Space, Typography } from 'antd';
-import { Cron } from 'react-js-cron';
 import { useState } from 'react';
+import { Cron } from 'react-js-cron';
 import 'react-js-cron/dist/styles.css';
 
 const { Text } = Typography;
@@ -29,9 +29,11 @@ const PRESET_OPTIONS = [
 
 export default function CronEditor({ value, onChange }: CronEditorProps) {
   // 判断当前值是否在预设列表中
-  const isPreset = PRESET_OPTIONS.some(opt => opt.value === value);
+  const isPreset = PRESET_OPTIONS.some((opt) => opt.value === value);
   const [mode, setMode] = useState<string>(isPreset ? value! : '__custom__');
-  const [customValue, setCustomValue] = useState<string>(isPreset ? '0 * * * *' : value || '0 * * * *');
+  const [customValue, setCustomValue] = useState<string>(
+    isPreset ? '0 * * * *' : value || '0 * * * *'
+  );
 
   const handleModeChange = (newMode: string) => {
     setMode(newMode);
@@ -61,7 +63,7 @@ export default function CronEditor({ value, onChange }: CronEditorProps) {
         optionType="button"
         buttonStyle="solid"
       >
-        {PRESET_OPTIONS.map(opt => (
+        {PRESET_OPTIONS.map((opt) => (
           <Radio.Button key={opt.value} value={opt.value}>
             {opt.label}
           </Radio.Button>
@@ -72,11 +74,7 @@ export default function CronEditor({ value, onChange }: CronEditorProps) {
       {mode === '__custom__' && (
         <Space direction="vertical" style={{ width: '100%' }}>
           <Text type="secondary">可视化编辑器：</Text>
-          <Cron
-            value={customValue}
-            setValue={handleCustomChange}
-            clearButton={false}
-          />
+          <Cron value={customValue} setValue={handleCustomChange} clearButton={false} />
           <Text type="secondary">或直接输入：</Text>
           <Input
             value={customValue}

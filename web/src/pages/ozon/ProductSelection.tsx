@@ -159,8 +159,8 @@ const ProductSelection: React.FC = () => {
       try {
         const parsed = JSON.parse(savedFilters);
         // 排除batch_id和is_read，这两个由URL参数或默认值控制
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { batch_id, is_read, ...filters } = parsed;
+
+        const { _batch_id, _is_read, ...filters } = parsed;
         restoredParams = filters;
 
         // 恢复表单字段

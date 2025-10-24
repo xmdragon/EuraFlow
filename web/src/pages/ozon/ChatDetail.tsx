@@ -6,7 +6,6 @@ import {
   SendOutlined,
   ArrowLeftOutlined,
   ShoppingOutlined,
-  ClockCircleOutlined,
   CheckOutlined,
   CloseOutlined,
   SyncOutlined,
