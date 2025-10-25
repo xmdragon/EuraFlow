@@ -50,6 +50,7 @@ import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
+import { getGlobalNotification } from '@/utils/globalNotification';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
@@ -84,6 +85,8 @@ const OrderList: React.FC = () => {
   const [shipForm] = Form.useForm();
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [shipModalVisible, setShipModalVisible] = useState(false);
+  const [syncConfirmVisible, setSyncConfirmVisible] = useState(false);
+  const [syncFullMode, setSyncFullMode] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [activeTab, setActiveTab] = useState('awaiting_packaging');
@@ -496,56 +499,96 @@ const OrderList: React.FC = () => {
     const notificationKey = 'order-sync';
     let completed = false;
 
-    // 显示初始进度通知
-    notification.open({
-      key: notificationKey,
-      message: '订单同步进行中',
-      description: (
-        <div>
-          <Progress percent={0} size="small" status="active" />
-          <div style={{ marginTop: 8 }}>正在启动同步...</div>
-        </div>
-      ),
-      duration: 0, // 不自动关闭
-      icon: <SyncOutlined spin />,
-    });
-
-    // 持续轮询状态
-    while (!completed) {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
-        const result = await ozonApi.getSyncStatus(taskId);
-        const status = result.data || result;
-
-        if (status.status === 'completed') {
-          completed = true;
-          notification.destroy(notificationKey);
-          notifySuccess('同步完成', '订单同步已完成！');
-          queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-          refetch();
-        } else if (status.status === 'failed') {
-          completed = true;
-          notification.destroy(notificationKey);
-          notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
-        } else {
-          // 更新进度通知
-          const percent = Math.round(status.progress || 0);
-          notification.open({
-            key: notificationKey,
-            message: '订单同步进行中',
-            description: (
-              <div>
-                <Progress percent={percent} size="small" status="active" />
-                <div style={{ marginTop: 8 }}>{status.message || '同步中...'}</div>
-              </div>
-            ),
-            duration: 0,
-            icon: <SyncOutlined spin />,
-          });
-        }
-      } catch (error) {
-        logger.error('Failed to fetch sync status:', error);
+    try {
+      // 显示初始进度通知
+      const notificationInstance = getGlobalNotification();
+      if (notificationInstance) {
+        notificationInstance.open({
+          key: notificationKey,
+          message: '订单同步进行中',
+          description: (
+            <div>
+              <Progress percent={0} size="small" status="active" />
+              <div style={{ marginTop: 8 }}>正在启动同步...</div>
+            </div>
+          ),
+          duration: 0, // 不自动关闭
+          placement: 'bottomRight',
+          icon: <SyncOutlined spin />,
+        });
       }
+
+      // 持续轮询状态
+      while (!completed) {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
+          const result = await ozonApi.getSyncStatus(taskId);
+          const status = result.data || result;
+
+          if (status.status === 'completed') {
+            completed = true;
+            const notificationInstance = getGlobalNotification();
+            if (notificationInstance) {
+              notificationInstance.destroy(notificationKey);
+            }
+            notifySuccess('同步完成', '订单同步已完成！');
+            queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+            refetch();
+          } else if (status.status === 'failed') {
+            completed = true;
+            const notificationInstance = getGlobalNotification();
+            if (notificationInstance) {
+              notificationInstance.destroy(notificationKey);
+            }
+            notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
+          } else {
+            // 更新进度通知
+            const percent = Math.round(status.progress || 0);
+            // 格式化消息：将英文状态转为中文
+            let displayMessage = status.message || '同步中...';
+
+            // 匹配 "正在同步 awaiting_deliver 订单 56210030-0227-1..." 格式
+            const matchWithStatus = displayMessage.match(/正在同步\s+(\w+)\s+订单\s+([0-9-]+)/);
+            if (matchWithStatus) {
+              const statusKey = matchWithStatus[1];
+              const postingNumber = matchWithStatus[2];
+              const statusText = statusMap[statusKey]?.text || statusKey;
+              displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
+            } else {
+              // 简单匹配订单号
+              const match = displayMessage.match(/订单\s+([0-9-]+)/);
+              if (match) {
+                displayMessage = `同步订单：${match[1]}`;
+              }
+            }
+
+            const notificationInstance = getGlobalNotification();
+            if (notificationInstance) {
+              notificationInstance.open({
+                key: notificationKey,
+                message: '订单同步进行中',
+                description: (
+                  <div>
+                    <Progress percent={percent} size="small" status="active" />
+                    <div style={{ marginTop: 8 }}>{displayMessage}</div>
+                  </div>
+                ),
+                duration: 0,
+                placement: 'bottomRight',
+                icon: <SyncOutlined spin />,
+              });
+            }
+          }
+        } catch (error) {
+          // 静默处理错误，继续轮询
+        }
+      }
+    } catch (error) {
+      const notificationInstance = getGlobalNotification();
+      if (notificationInstance) {
+        notificationInstance.destroy(notificationKey);
+      }
+      notifyError('同步失败', '同步过程发生异常');
     }
   };
 
@@ -558,9 +601,13 @@ const OrderList: React.FC = () => {
       return ozonApi.syncOrdersDirect(selectedShop, fullSync ? 'full' : 'incremental');
     },
     onSuccess: (data) => {
-      // 立即启动后台轮询任务
-      pollOrderSyncStatus(data.task_id);
-      // 不再使用 setSyncTaskId 和 setSyncStatus
+      const taskId = data?.task_id || data?.data?.task_id;
+      if (taskId) {
+        // 立即启动后台轮询任务
+        pollOrderSyncStatus(taskId);
+      } else {
+        notifyError('同步失败', '未获取到任务ID，请稍后重试');
+      }
     },
     onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
@@ -906,15 +953,13 @@ const OrderList: React.FC = () => {
       return;
     }
 
-    confirm({
-      title: fullSync ? '确认执行全量同步？' : '确认执行增量同步？',
-      content: fullSync
-        ? '全量同步将拉取所有历史订单数据，耗时较长'
-        : '增量同步将只拉取最近7天的订单',
-      onOk: () => {
-        syncOrdersMutation.mutate(fullSync);
-      },
-    });
+    setSyncFullMode(fullSync);
+    setSyncConfirmVisible(true);
+  };
+
+  const handleSyncConfirm = () => {
+    setSyncConfirmVisible(false);
+    syncOrdersMutation.mutate(syncFullMode);
   };
 
   const handleBatchPrint = async () => {
@@ -1234,6 +1279,21 @@ const OrderList: React.FC = () => {
           notifyInfo('提示', '已移除失败的订单，可重新选择并打印');
         }}
       />
+
+      {/* 同步确认对话框 */}
+      <Modal
+        title={syncFullMode ? '确认执行全量同步？' : '确认执行增量同步？'}
+        open={syncConfirmVisible}
+        onOk={handleSyncConfirm}
+        onCancel={() => setSyncConfirmVisible(false)}
+        okText="确认"
+        cancelText="取消"
+        zIndex={10000}
+      >
+        <p>
+          {syncFullMode ? '全量同步将拉取所有历史订单数据，耗时较长' : '增量同步将只拉取最近7天的订单'}
+        </p>
+      </Modal>
     </div>
   );
 };

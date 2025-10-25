@@ -68,8 +68,9 @@ async def get_orders(
         query = query.where(shop_filter)
 
     if status:
-        # status参数指的是系统映射的订单状态
-        query = query.where(OzonOrder.status == status)
+        # status参数应该按 Posting 的状态过滤（OZON 原生状态）
+        # 因为同一个订单的不同 posting 可能有不同的状态
+        query = query.where(OzonPosting.status == status)
 
     # 按 operation_status 过滤
     if operation_status:
@@ -115,7 +116,7 @@ async def get_orders(
     if shop_filter is not True:
         count_query = count_query.where(shop_filter)
     if status:
-        count_query = count_query.where(OzonOrder.status == status)
+        count_query = count_query.where(OzonPosting.status == status)
     if operation_status:
         count_query = count_query.where(OzonPosting.operation_status == operation_status)
     if posting_number:
