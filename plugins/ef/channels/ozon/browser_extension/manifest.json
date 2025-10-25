@@ -9,10 +9,8 @@
   ],
   "host_permissions": [
     "https://www.ozon.ru/*",
-    "https://ozon.gxfc.life/*",
-    "http://localhost:8000/*",
-    "https://*/*",
-    "http://*/*"
+    "https://euraflow.hjdtrading.com/*",
+    "http://localhost:8000/*"
   ],
   "content_scripts": [
     {
