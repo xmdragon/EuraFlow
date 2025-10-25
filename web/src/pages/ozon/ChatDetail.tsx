@@ -410,11 +410,12 @@ const ChatDetail: React.FC = () => {
     href,
     children,
   }) => {
-    // 检查是否是OZON域名的链接
+    // 检查是否是OZON域名的CSV链接
     const isOzonLink = href && (href.includes('.ozon.ru') || href.includes('ozonru.'));
+    const isCsvLink = href && href.toLowerCase().endsWith('.csv');
 
-    if (isOzonLink && shopId) {
-      // 使用JavaScript预览（带认证）
+    if (isOzonLink && isCsvLink && shopId) {
+      // CSV链接：使用JavaScript预览（带认证）
       return (
         <a
           href="#"
