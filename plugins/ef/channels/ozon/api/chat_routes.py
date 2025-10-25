@@ -312,8 +312,11 @@ async def proxy_csv_download(
 
         logger.info(f"Proxying CSV download: shop_id={shop_id}, url={decoded_url}")
 
-        # 使用httpx请求OZON（带认证头）
-        async with httpx.AsyncClient(timeout=30.0) as http_client:
+        # 使用httpx请求OZON（带认证头，自动跟随重定向）
+        async with httpx.AsyncClient(
+            timeout=30.0,
+            follow_redirects=True  # 自动跟随重定向
+        ) as http_client:
             response = await http_client.get(
                 decoded_url,
                 headers={
