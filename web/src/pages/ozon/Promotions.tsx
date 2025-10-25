@@ -48,6 +48,13 @@ const ACTION_TYPE_MAP: Record<string, string> = {
   MARKETPLACE_MULTI_LEVEL_DISCOUNT_ON_AMOUNT: '弹性提升',
 };
 
+// 活动状态中文映射
+const STATUS_MAP: Record<string, string> = {
+  active: '活动中',
+  inactive: '未激活',
+  expired: '已过期',
+};
+
 // 将UTC时间转换为莫斯科时间并格式化为日期
 const formatMoscowDate = (utcDateString: string): string => {
   if (!utcDateString) return '-';
@@ -435,7 +442,16 @@ const Promotions: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 120,
-      render: (status: string) => <Tag>{status || '-'}</Tag>,
+      render: (status: string) => {
+        const colorMap: Record<string, string> = {
+          active: 'green',
+          inactive: 'default',
+          expired: 'red',
+        };
+        return (
+          <Tag color={colorMap[status] || 'default'}>{STATUS_MAP[status] || status || '-'}</Tag>
+        );
+      },
     },
     {
       title: '开始时间 (莫斯科)',
