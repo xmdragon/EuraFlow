@@ -1304,7 +1304,7 @@ const PackingShipment: React.FC = () => {
                       ref={scanInputRef}
                       placeholder="请输入或扫描追踪号码"
                       value={scanTrackingNumber}
-                      onChange={(e) => setScanTrackingNumber(e.target.value)}
+                      onChange={(e) => setScanTrackingNumber(e.target.value.toUpperCase())}
                       onPressEnter={handleScanSearch}
                       disabled={isScanning}
                       autoFocus
@@ -1448,24 +1448,24 @@ const PackingShipment: React.FC = () => {
                                   overlayInnerStyle={{ padding: 0 }}
                                   title={
                                     <img
-                                      src={optimizeOzonImageUrl(image, 160)}
+                                      src={optimizeOzonImageUrl(image, 400)}
                                       alt=""
-                                      style={{ width: 160, height: 160 }}
+                                      style={{ width: 400, height: 400 }}
                                     />
                                   }
                                 >
                                   <img
-                                    src={optimizeOzonImageUrl(image, 80)}
+                                    src={optimizeOzonImageUrl(image, 160)}
                                     alt=""
                                     style={{
-                                      width: 80,
-                                      height: 80,
+                                      width: 160,
+                                      height: 160,
                                       cursor: 'pointer',
                                     }}
                                   />
                                 </Tooltip>
                               ) : (
-                                <Avatar size={80} icon={<ShoppingCartOutlined />} shape="square" />
+                                <Avatar size={160} icon={<ShoppingCartOutlined />} shape="square" />
                               ),
                           },
                           {
@@ -1514,7 +1514,8 @@ const PackingShipment: React.FC = () => {
                           onClick={() => handleMarkPrinted(scanResult.posting_number)}
                           disabled={
                             scanResult.operation_status === 'printed' ||
-                            scanResult.status !== 'awaiting_deliver'
+                            (scanResult.operation_status !== 'tracking_confirmed' &&
+                              scanResult.status !== 'awaiting_deliver')
                           }
                         >
                           {scanResult.operation_status === 'printed' ? '已打印' : '标记已打印'}
