@@ -12,6 +12,7 @@ import {
   PaperClipOutlined,
   CloseOutlined,
   FileOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -26,6 +27,8 @@ import {
   Empty,
   Descriptions,
   Badge,
+  Modal,
+  Table,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect, useRef } from 'react';
@@ -56,6 +59,12 @@ const ChatDetail: React.FC = () => {
   const [translatingMessageId, setTranslatingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // CSV预览模态窗口状态
+  const [csvModalVisible, setCsvModalVisible] = useState(false);
+  const [csvData, setCsvData] = useState<string[][]>([]);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [currentCsvUrl, setCurrentCsvUrl] = useState<string>('');
 
   // 获取聊天详情
   const {
@@ -316,13 +325,63 @@ const ChatDetail: React.FC = () => {
     }
   };
 
-  // 下载CSV文件（带认证）
+  // 解析CSV文本为二维数组
+  const parseCsv = (text: string): string[][] => {
+    const lines = text.trim().split('\n');
+    return lines.map((line) => {
+      // 简单的CSV解析（处理逗号分隔）
+      const values: string[] = [];
+      let currentValue = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(currentValue.trim());
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      values.push(currentValue.trim());
+      return values;
+    });
+  };
+
+  // 预览CSV文件（在模态窗口中）
+  const handlePreviewCsv = async (url: string) => {
+    setCsvLoading(true);
+    setCsvModalVisible(true);
+    setCurrentCsvUrl(url);
+
+    try {
+      const response = await ozonApi.downloadChatCsv(Number(shopId), url);
+
+      // 读取Blob为文本
+      const text = await response.data.text();
+
+      // 解析CSV
+      const parsedData = parseCsv(text);
+      setCsvData(parsedData);
+    } catch (error) {
+      notifyError('加载失败', `无法加载CSV: ${error instanceof Error ? error.message : '未知错误'}`);
+      setCsvModalVisible(false);
+    } finally {
+      setCsvLoading(false);
+    }
+  };
+
+  // 下载CSV文件
   const handleDownloadCsv = async (url: string) => {
     try {
       const response = await ozonApi.downloadChatCsv(Number(shopId), url);
 
       // 创建下载链接
-      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'text/csv' });
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'] || 'text/csv',
+      });
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -355,13 +414,13 @@ const ChatDetail: React.FC = () => {
     const isOzonLink = href && (href.includes('.ozon.ru') || href.includes('ozonru.'));
 
     if (isOzonLink && shopId) {
-      // 使用JavaScript下载（带认证）
+      // 使用JavaScript预览（带认证）
       return (
         <a
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            handleDownloadCsv(href);
+            handlePreviewCsv(href);
           }}
           style={{ cursor: 'pointer' }}
         >
@@ -688,6 +747,60 @@ const ChatDetail: React.FC = () => {
           </>
         )}
       </Spin>
+
+      {/* CSV预览模态窗口 */}
+      <Modal
+        title="CSV 文件预览"
+        open={csvModalVisible}
+        onCancel={() => setCsvModalVisible(false)}
+        width={800}
+        footer={[
+          <Button key="close" onClick={() => setCsvModalVisible(false)}>
+            关闭
+          </Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              handleDownloadCsv(currentCsvUrl);
+              setCsvModalVisible(false);
+            }}
+          >
+            下载
+          </Button>,
+        ]}
+      >
+        <Spin spinning={csvLoading}>
+          {csvData.length > 0 && (
+            <Table
+              dataSource={csvData.slice(1).map((row, index) => ({
+                key: index,
+                ...row.reduce(
+                  (acc, value, colIndex) => ({
+                    ...acc,
+                    [`col${colIndex}`]: value,
+                  }),
+                  {},
+                ),
+              }))}
+              columns={
+                csvData[0]?.map((header, index) => ({
+                  title: header || `列 ${index + 1}`,
+                  dataIndex: `col${index}`,
+                  key: `col${index}`,
+                  ellipsis: true,
+                })) || []
+              }
+              pagination={{ pageSize: 10 }}
+              size="small"
+              bordered
+              scroll={{ x: true }}
+            />
+          )}
+          {csvData.length === 0 && !csvLoading && <Empty description="无数据" />}
+        </Spin>
+      </Modal>
     </div>
   );
 };
