@@ -569,12 +569,12 @@ const Promotions: React.FC = () => {
           </div>
           <div style={{ fontSize: 12, color: '#888' }}>
             <Space size={4}>
-              <span>SKU: {record.sku || '-'}</span>
-              {record.sku && (
+              <span>SKU: {record.ozon_sku || '-'}</span>
+              {record.ozon_sku && (
                 <Tooltip title="复制SKU">
                   <CopyOutlined
                     style={{ cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => handleCopySKU(record.sku || '')}
+                    onClick={() => handleCopySKU(String(record.ozon_sku))}
                   />
                 </Tooltip>
               )}
@@ -651,12 +651,12 @@ const Promotions: React.FC = () => {
           </div>
           <div style={{ fontSize: 12, color: '#888' }}>
             <Space size={4}>
-              <span>SKU: {record.sku || '-'}</span>
-              {record.sku && (
+              <span>SKU: {record.ozon_sku || '-'}</span>
+              {record.ozon_sku && (
                 <Tooltip title="复制SKU">
                   <CopyOutlined
                     style={{ cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => handleCopySKU(record.sku || '')}
+                    onClick={() => handleCopySKU(String(record.ozon_sku))}
                   />
                 </Tooltip>
               )}

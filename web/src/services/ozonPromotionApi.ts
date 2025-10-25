@@ -99,6 +99,7 @@ export interface PromotionProduct {
   product_id: number;
   ozon_product_id?: number;
   sku?: string;
+  ozon_sku?: number;    // OZON平台SKU
   status?: "candidate" | "active" | "deactivated";
   add_mode?: "manual" | "automatic";
   promotion_price?: number;
