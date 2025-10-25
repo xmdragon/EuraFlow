@@ -248,8 +248,6 @@ export class ProductCollector {
         // 去重：使用 SKU 作为唯一标识
         if (product.product_id && !this.collected.has(product.product_id)) {
           this.collected.set(product.product_id, product);
-          // 调试输出：仅显示SKU
-          console.log(`SKU: ${product.product_id}`);
         }
       } catch (error: any) {
         console.warn('[Collector] Failed to extract product:', error.message);

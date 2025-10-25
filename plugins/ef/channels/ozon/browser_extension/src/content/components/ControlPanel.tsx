@@ -8,6 +8,7 @@ import type { DataFusionEngine } from '../fusion/engine';
 import type { ProductCollector } from '../collector';
 import type { CollectorConfig } from '../../shared/types';
 import { getApiConfig, setApiConfig } from '../../shared/storage';
+import { ApiClient } from '../../shared/api-client';
 
 interface ControlPanelProps {
   fusionEngine: DataFusionEngine;
@@ -65,9 +66,13 @@ export function ControlPanel(props: ControlPanelProps) {
     display: none;
   `;
 
+  // 获取版本号
+  const manifest = chrome.runtime.getManifest();
+  const version = manifest.version;
+
   panel.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <div style="font-weight: bold; font-size: 16px;">🎯 Ozon选品助手 v1.0</div>
+      <div style="font-weight: bold; font-size: 16px;">🎯 Ozon选品助手 v${version}</div>
       <div style="display: flex; gap: 8px;">
         <button id="ef-settings-btn" style="background: rgba(255,255,255,0.3); border: none; color: white; width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.2s;">⚙️</button>
         <button id="ef-minimize-btn" style="background: rgba(255,255,255,0.3); border: none; color: white; width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.2s;">➖</button>
@@ -142,7 +147,7 @@ export function ControlPanel(props: ControlPanelProps) {
         />
       </div>
 
-      <div style="margin-bottom: 16px;">
+      <div style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 6px; color: #333; font-size: 14px; font-weight: 600;">API Key：</label>
         <input
           id="ef-api-key"
@@ -152,16 +157,14 @@ export function ControlPanel(props: ControlPanelProps) {
         />
       </div>
 
-      <div style="margin-bottom: 20px;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #333;">
-          <input id="ef-auto-upload" type="checkbox" style="cursor: pointer; width: 18px; height: 18px;" />
-          <span style="font-size: 14px;">自动上传采集结果</span>
-        </label>
+      <div style="display: flex; gap: 12px;">
+        <button id="ef-test-connection-btn" style="flex: 1; padding: 12px; background: #17a2b8; border: none; color: white; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
+          🔍 测试连接
+        </button>
+        <button id="ef-save-config-btn" disabled style="flex: 1; padding: 12px; background: #ccc; border: none; color: #666; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: not-allowed; transition: all 0.2s;">
+          💾 保存配置
+        </button>
       </div>
-
-      <button id="ef-save-config-btn" style="width: 100%; padding: 12px; background: #5b9bd5; border: none; color: white; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
-        💾 保存配置
-      </button>
     </div>
   `;
 
@@ -174,11 +177,18 @@ export function ControlPanel(props: ControlPanelProps) {
     const apiConfig = await getApiConfig();
     const apiUrlInput = document.getElementById('ef-api-url') as HTMLInputElement;
     const apiKeyInput = document.getElementById('ef-api-key') as HTMLInputElement;
-    const autoUploadInput = document.getElementById('ef-auto-upload') as HTMLInputElement;
+    const saveConfigBtn = document.getElementById('ef-save-config-btn') as HTMLButtonElement;
 
     if (apiUrlInput) apiUrlInput.value = apiConfig.apiUrl;
     if (apiKeyInput) apiKeyInput.value = apiConfig.apiKey;
-    if (autoUploadInput) autoUploadInput.checked = apiConfig.autoUpload;
+
+    // 如果已经有配置，启用保存按钮
+    if (saveConfigBtn && apiConfig.apiUrl && apiConfig.apiKey) {
+      saveConfigBtn.disabled = false;
+      saveConfigBtn.style.background = '#5b9bd5';
+      saveConfigBtn.style.color = 'white';
+      saveConfigBtn.style.cursor = 'pointer';
+    }
   }
 
   // 绑定事件
@@ -266,26 +276,91 @@ export function ControlPanel(props: ControlPanelProps) {
       }
     };
 
+    // 测试连接
+    const testConnectionBtn = document.getElementById('ef-test-connection-btn');
+    if (testConnectionBtn) {
+      testConnectionBtn.onclick = async () => {
+        const apiUrlInput = document.getElementById('ef-api-url') as HTMLInputElement;
+        const apiKeyInput = document.getElementById('ef-api-key') as HTMLInputElement;
+        const saveConfigBtn = document.getElementById('ef-save-config-btn') as HTMLButtonElement;
+
+        const apiUrl = apiUrlInput.value.trim();
+        const apiKey = apiKeyInput.value.trim();
+
+        if (!apiUrl || !apiKey) {
+          updateStatus('⚠️ 请填写 API 地址和 Key');
+          return;
+        }
+
+        updateStatus('🔍 测试连接中...');
+        testConnectionBtn.textContent = '测试中...';
+        (testConnectionBtn as HTMLButtonElement).disabled = true;
+
+        try {
+          console.log('[ControlPanel] Testing connection...', { apiUrl });
+          const response = await chrome.runtime.sendMessage({
+            type: 'TEST_CONNECTION',
+            data: { apiUrl, apiKey }
+          });
+          console.log('[ControlPanel] Test response:', response);
+
+          if (response.success) {
+            const username = response.data?.username || '未知用户';
+            updateStatus(`✅ 连接成功！用户: ${username}`);
+            testConnectionBtn.textContent = '✅ 连接成功';
+            testConnectionBtn.style.background = '#28a745';
+
+            // 启用保存按钮
+            saveConfigBtn.disabled = false;
+            saveConfigBtn.style.background = '#5b9bd5';
+            saveConfigBtn.style.color = 'white';
+            saveConfigBtn.style.cursor = 'pointer';
+          } else {
+            const errorMsg = response.error || '未知错误';
+            console.error('[ControlPanel] Test connection failed:', errorMsg);
+            updateStatus(`❌ 连接失败: ${errorMsg}`);
+            testConnectionBtn.textContent = '❌ 连接失败';
+            testConnectionBtn.style.background = '#dc3545';
+            setTimeout(() => {
+              testConnectionBtn.textContent = '🔍 测试连接';
+              testConnectionBtn.style.background = '#17a2b8';
+              (testConnectionBtn as HTMLButtonElement).disabled = false;
+            }, 2000);
+          }
+        } catch (error: any) {
+          console.error('[ControlPanel] Test connection exception:', error);
+          updateStatus(`❌ 测试失败: ${error.message}`);
+          testConnectionBtn.textContent = '❌ 测试失败';
+          testConnectionBtn.style.background = '#dc3545';
+          setTimeout(() => {
+            testConnectionBtn.textContent = '🔍 测试连接';
+            testConnectionBtn.style.background = '#17a2b8';
+            (testConnectionBtn as HTMLButtonElement).disabled = false;
+          }, 2000);
+        }
+      };
+    }
+
     // 保存配置
     const saveConfigBtn = document.getElementById('ef-save-config-btn');
     if (saveConfigBtn) {
       saveConfigBtn.onclick = async () => {
         const apiUrlInput = document.getElementById('ef-api-url') as HTMLInputElement;
         const apiKeyInput = document.getElementById('ef-api-key') as HTMLInputElement;
-        const autoUploadInput = document.getElementById('ef-auto-upload') as HTMLInputElement;
 
         await setApiConfig({
-          apiUrl: apiUrlInput.value,
-          apiKey: apiKeyInput.value,
-          autoUpload: autoUploadInput.checked
+          apiUrl: apiUrlInput.value.trim(),
+          apiKey: apiKeyInput.value.trim()
         });
 
         updateStatus('✅ 配置已保存');
         apiModal.style.display = 'none';
       };
       saveConfigBtn.onmouseover = () => {
-        saveConfigBtn.style.transform = 'scale(1.05)';
-        saveConfigBtn.style.boxShadow = '0 4px 12px rgba(91,155,213,0.4)';
+        if (!(saveConfigBtn as HTMLButtonElement).disabled) {
+          saveConfigBtn.style.transform = 'scale(1.05)';
+          saveConfigBtn.style.boxShadow = '0 4px 12px rgba(91,155,213,0.4)';
+        }
       };
       saveConfigBtn.onmouseout = () => {
         saveConfigBtn.style.transform = 'scale(1)';
@@ -296,6 +371,13 @@ export function ControlPanel(props: ControlPanelProps) {
 
   // 开始采集
   async function startCollection() {
+    // 【检查API配置】必须先配置API才能采集
+    const apiConfig = await getApiConfig();
+    if (!apiConfig.apiUrl || !apiConfig.apiKey) {
+      updateStatus('⚠️ 请先进行API配置');
+      return;
+    }
+
     isCollecting = true;
     const toggleBtn = document.getElementById('ef-toggle-btn');
     if (toggleBtn) {
@@ -309,11 +391,21 @@ export function ControlPanel(props: ControlPanelProps) {
     updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品`);
 
     try {
-      await collector.startCollection(targetCount, (progress) => {
+      await collector.startCollection(targetCount, async (progress) => {
         updateProgress(progress.collected, progress.target);
         if (!progress.isRunning) {
           stopCollection();
           updateStatus(`✅ 采集完成！共采集 ${progress.collected} 个商品`);
+
+          // 自动上传（如果有 API 配置）
+          if (progress.collected > 0) {
+            const apiConfig = await getApiConfig();
+            if (apiConfig.apiUrl && apiConfig.apiKey) {
+              setTimeout(async () => {
+                await uploadToAPI();
+              }, 1000);
+            }
+          }
         }
       });
     } catch (error: any) {
@@ -335,6 +427,32 @@ export function ControlPanel(props: ControlPanelProps) {
 
     if (!collectedCount) {
       updateStatus('⏸️ 采集已停止');
+    }
+  }
+
+  // 上传到 API
+  async function uploadToAPI() {
+    try {
+      const products = collector.getCollectedProducts();
+      if (products.length === 0) {
+        updateStatus('⚠️ 没有可上传的商品');
+        return;
+      }
+
+      const apiConfig = await getApiConfig();
+      if (!apiConfig.apiUrl || !apiConfig.apiKey) {
+        updateStatus('⚠️ 未配置 API');
+        return;
+      }
+
+      updateStatus(`📤 正在上传 ${products.length} 个商品...`);
+
+      const apiClient = new ApiClient(apiConfig.apiUrl, apiConfig.apiKey);
+      const result = await apiClient.uploadProducts(products);
+
+      updateStatus(`✅ 上传成功！共 ${result.total} 个商品`);
+    } catch (error: any) {
+      updateStatus(`❌ 上传失败: ${error.message}`);
     }
   }
 
