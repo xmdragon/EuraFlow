@@ -34,6 +34,7 @@ import moment from 'moment';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 
 import styles from './ChatDetail.module.scss';
 
@@ -350,7 +351,21 @@ const ChatDetail: React.FC = () => {
     });
   };
 
-  // 预览CSV文件（在模态窗口中）
+  // 解析Excel文件为二维数组
+  const parseExcel = async (blob: Blob): Promise<string[][]> => {
+    const arrayBuffer = await blob.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+    // 读取第一个工作表
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+
+    // 转换为二维数组
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
+    return data;
+  };
+
+  // 预览CSV/Excel文件（在模态窗口中）
   const handlePreviewCsv = async (url: string) => {
     setCsvLoading(true);
     setCsvModalVisible(true);
@@ -359,14 +374,29 @@ const ChatDetail: React.FC = () => {
     try {
       const response = await ozonApi.downloadChatCsv(Number(shopId), url);
 
-      // 读取Blob为文本
-      const text = await response.data.text();
+      // 判断文件类型
+      const isExcel =
+        url.toLowerCase().endsWith('.xlsx') ||
+        url.toLowerCase().endsWith('.xls') ||
+        response.headers['content-type']?.includes('spreadsheet');
 
-      // 解析CSV
-      const parsedData = parseCsv(text);
+      let parsedData: string[][];
+
+      if (isExcel) {
+        // 解析Excel
+        parsedData = await parseExcel(response.data);
+      } else {
+        // 解析CSV
+        const text = await response.data.text();
+        parsedData = parseCsv(text);
+      }
+
       setCsvData(parsedData);
     } catch (error) {
-      notifyError('加载失败', `无法加载CSV: ${error instanceof Error ? error.message : '未知错误'}`);
+      notifyError(
+        '加载失败',
+        `无法加载文件: ${error instanceof Error ? error.message : '未知错误'}`,
+      );
       setCsvModalVisible(false);
     } finally {
       setCsvLoading(false);
@@ -405,17 +435,21 @@ const ChatDetail: React.FC = () => {
     }
   };
 
-  // 自定义Link组件，拦截OZON CSV链接
+  // 自定义Link组件，拦截OZON CSV/Excel链接
   const CustomLink: React.FC<{ href?: string; children: React.ReactNode }> = ({
     href,
     children,
   }) => {
-    // 检查是否是OZON域名的CSV链接
+    // 检查是否是OZON域名的表格文件链接
     const isOzonLink = href && (href.includes('.ozon.ru') || href.includes('ozonru.'));
-    const isCsvLink = href && href.toLowerCase().endsWith('.csv');
+    const isSpreadsheetLink =
+      href &&
+      (href.toLowerCase().endsWith('.csv') ||
+        href.toLowerCase().endsWith('.xlsx') ||
+        href.toLowerCase().endsWith('.xls'));
 
-    if (isOzonLink && isCsvLink && shopId) {
-      // CSV链接：使用JavaScript预览（带认证）
+    if (isOzonLink && isSpreadsheetLink && shopId) {
+      // CSV/Excel链接：使用JavaScript预览（带认证）
       return (
         <a
           href="#"
@@ -749,9 +783,9 @@ const ChatDetail: React.FC = () => {
         )}
       </Spin>
 
-      {/* CSV预览模态窗口 */}
+      {/* 表格文件预览模态窗口 */}
       <Modal
-        title="CSV 文件预览"
+        title="文件预览"
         open={csvModalVisible}
         onCancel={() => setCsvModalVisible(false)}
         width={800}
