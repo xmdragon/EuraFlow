@@ -116,7 +116,6 @@ class OzonProduct(Base):
     
     # 索引
     __table_args__ = (
-        UniqueConstraint("shop_id", "sku", name="uq_ozon_products_shop_sku"),
         UniqueConstraint("shop_id", "offer_id", name="uq_ozon_products_shop_offer"),
         Index("idx_ozon_products_ozon_product_id", "ozon_product_id"),
         Index("idx_ozon_products_status", "status"),
