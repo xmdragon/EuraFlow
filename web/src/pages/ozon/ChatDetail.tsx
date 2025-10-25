@@ -442,13 +442,20 @@ const ChatDetail: React.FC = () => {
   }) => {
     // 检查是否是OZON域名的表格文件链接
     const isOzonLink = href && (href.includes('.ozon.ru') || href.includes('ozonru.'));
+
+    // 检查是否是报表下载链接（通过URL路径模式）
+    const isReportDownloadLink =
+      href && href.includes('/api/auditor-exporter/reports/download/');
+
+    // 检查是否是表格文件扩展名
     const isSpreadsheetLink =
       href &&
       (href.toLowerCase().endsWith('.csv') ||
         href.toLowerCase().endsWith('.xlsx') ||
         href.toLowerCase().endsWith('.xls'));
 
-    if (isOzonLink && isSpreadsheetLink && shopId) {
+    // OZON表格文件：文件扩展名匹配 或 报表下载路径匹配
+    if (isOzonLink && (isSpreadsheetLink || isReportDownloadLink) && shopId) {
       // CSV/Excel链接：使用JavaScript预览（带认证）
       return (
         <a
