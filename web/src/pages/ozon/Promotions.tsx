@@ -797,7 +797,6 @@ const Promotions: React.FC = () => {
           dataSource={actionsData || []}
           loading={actionsLoading}
           rowKey="id"
-          scroll={{ x: 1500 }}
           locale={{
             emptyText: selectedShop ? (
               <Empty description="暂无促销活动，请点击同步按钮获取数据" />
@@ -892,7 +891,6 @@ const Promotions: React.FC = () => {
                           setSelectedCandidateRows(selectedRows);
                         },
                       }}
-                      scroll={{ x: 1000 }}
                     />
                   </Space>
                 ),
@@ -926,7 +924,6 @@ const Promotions: React.FC = () => {
                           setSelectedActiveRows(selectedRows);
                         },
                       }}
-                      scroll={{ x: 1000 }}
                     />
                   </Space>
                 ),
