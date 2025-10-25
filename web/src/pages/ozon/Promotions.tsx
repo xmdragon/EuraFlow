@@ -125,12 +125,31 @@ const Promotions: React.FC = () => {
   const { canOperate, canSync } = usePermission();
   const { symbol: currencySymbol } = useCurrency();
 
-  // 添加样式移除 row-gap
+  // 添加样式
   React.useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
       .ant-space-gap-row-large {
         row-gap: 0 !important;
+      }
+      .promotion-description * {
+        max-width: 100%;
+        word-wrap: break-word;
+      }
+      .promotion-description p {
+        margin-bottom: 8px;
+      }
+      .promotion-description ul, .promotion-description ol {
+        margin-left: 20px;
+        margin-bottom: 8px;
+      }
+      .promotion-description li {
+        margin-bottom: 4px;
+      }
+      .promotion-description br {
+        display: block;
+        margin: 4px 0;
+        content: "";
       }
     `;
     document.head.appendChild(style);
@@ -795,7 +814,13 @@ const Promotions: React.FC = () => {
             >
               <div
                 dangerouslySetInnerHTML={{ __html: selectedAction.description }}
-                style={{ lineHeight: '1.6' }}
+                style={{
+                  lineHeight: '1.8',
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'break-word',
+                }}
+                className="promotion-description"
               />
             </Card>
           )}
