@@ -341,10 +341,22 @@ async def proxy_csv_download(
                         }
                     )
 
-                logger.info(f"Following redirect to: {redirect_url}")
+                logger.info(f"Got redirect {response.status_code}: {redirect_url}")
+                logger.info(f"Redirect headers: {dict(response.headers)}")
 
                 # 第二次请求：不带认证头，从CDN下载文件
-                response = await http_client.get(redirect_url)
+                # 添加常见浏览器头，模拟正常访问
+                cdn_headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "*/*",
+                    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Referer": "https://seller.ozon.ru/",
+                }
+                logger.info(f"CDN request headers: {cdn_headers}")
+                response = await http_client.get(redirect_url, headers=cdn_headers)
+                logger.info(f"CDN response: status={response.status_code}, content-type={response.headers.get('Content-Type')}")
+                if response.status_code != 200:
+                    logger.error(f"CDN response body preview: {response.text[:500]}")
 
             # 检查最终响应状态
             if response.status_code != 200:
