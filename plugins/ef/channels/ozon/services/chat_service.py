@@ -10,6 +10,7 @@ from ..models.chat import OzonChat, OzonChatMessage
 from ..models.ozon_shops import OzonShop
 from ..api.client import OzonAPIClient
 from ..utils.datetime_utils import parse_datetime, utcnow
+from .ozon_sync import SYNC_TASKS
 
 logger = logging.getLogger(__name__)
 
@@ -586,7 +587,8 @@ class OzonChatService:
         self,
         api_client: OzonAPIClient,
         chat_id_list: Optional[List[str]] = None,
-        sync_messages: bool = True
+        sync_messages: bool = True,
+        task_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """从OZON同步聊天数据
 
@@ -594,6 +596,7 @@ class OzonChatService:
             api_client: OZON API客户端
             chat_id_list: 要同步的聊天ID列表（为空则同步全部）
             sync_messages: 是否同步消息内容（默认True）
+            task_id: 任务ID（用于更新进度）
 
         Returns:
             同步结果统计
@@ -604,85 +607,141 @@ class OzonChatService:
         total_messages = 0
         total_new_messages = 0
 
-        # 获取聊天列表 - 使用cursor分页
-        limit = 100
-        cursor = None
-        max_pages = 50  # 防止无限循环，最多50页
-
-        for page in range(max_pages):
-            # 构建请求参数
-            params = {
-                "limit": limit
+        # 初始化任务状态
+        if task_id:
+            SYNC_TASKS[task_id] = {
+                "status": "running",
+                "progress": 0,
+                "message": "正在连接OZON API...",
+                "started_at": utcnow().isoformat(),
+                "type": "chats",
+                "shop_id": self.shop_id
             }
-            if cursor:
-                params["cursor"] = cursor
-            if chat_id_list:
-                params["chat_id_list"] = chat_id_list
 
-            result = await api_client.get_chat_list(**params)
+        try:
+            # 获取聊天列表 - 使用cursor分页
+            limit = 100
+            cursor = None
+            max_pages = 50  # 防止无限循环，最多50页
 
-            chats_data = result.get("chats", [])
-            if not chats_data:
-                break
+            # 更新进度：开始获取聊天列表
+            if task_id:
+                SYNC_TASKS[task_id]["progress"] = 10
+                SYNC_TASKS[task_id]["message"] = "正在获取聊天列表..."
 
-            async with self.db_manager.get_session() as session:
-                for chat_data in chats_data:
-                    # 提取chat_id（在嵌套的chat对象中）
-                    chat_info = chat_data.get("chat", {})
-                    chat_id = chat_info.get("chat_id")
-                    if not chat_id:
-                        continue
+            for page in range(max_pages):
+                # 更新进度
+                if task_id:
+                    progress = 10 + (page * 70 // max_pages)  # 10% 到 80%
+                    SYNC_TASKS[task_id]["progress"] = progress
+                    SYNC_TASKS[task_id]["message"] = f"正在获取第 {page + 1} 页聊天..."
 
-                    # 检查聊天是否已存在
-                    stmt = select(OzonChat).where(
-                        and_(
-                            OzonChat.shop_id == self.shop_id,
-                            OzonChat.chat_id == chat_id
+                # 构建请求参数
+                params = {
+                    "limit": limit
+                }
+                if cursor:
+                    params["cursor"] = cursor
+                if chat_id_list:
+                    params["chat_id_list"] = chat_id_list
+
+                result = await api_client.get_chat_list(**params)
+
+                chats_data = result.get("chats", [])
+                if not chats_data:
+                    break
+
+                async with self.db_manager.get_session() as session:
+                    for idx, chat_data in enumerate(chats_data):
+                        # 提取chat_id（在嵌套的chat对象中）
+                        chat_info = chat_data.get("chat", {})
+                        chat_id = chat_info.get("chat_id")
+                        if not chat_id:
+                            continue
+
+                        # 检查聊天是否已存在
+                        stmt = select(OzonChat).where(
+                            and_(
+                                OzonChat.shop_id == self.shop_id,
+                                OzonChat.chat_id == chat_id
+                            )
                         )
-                    )
-                    existing_chat = await session.scalar(stmt)
+                        existing_chat = await session.scalar(stmt)
 
-                    if existing_chat:
-                        # 更新现有聊天
-                        self._update_chat_from_api(existing_chat, chat_data)
-                        updated_count += 1
-                    else:
-                        # 创建新聊天
-                        new_chat = self._create_chat_from_api(chat_data)
-                        session.add(new_chat)
-                        new_count += 1
+                        if existing_chat:
+                            # 更新现有聊天
+                            self._update_chat_from_api(existing_chat, chat_data)
+                            updated_count += 1
+                        else:
+                            # 创建新聊天
+                            new_chat = self._create_chat_from_api(chat_data)
+                            session.add(new_chat)
+                            new_count += 1
 
-                    synced_count += 1
+                        synced_count += 1
 
-                await session.commit()
+                    await session.commit()
 
-            # 同步消息内容
-            if sync_messages:
-                for chat_data in chats_data:
-                    chat_info = chat_data.get("chat", {})
-                    chat_id = chat_info.get("chat_id")
-                    if chat_id:
-                        msg_stats = await self._sync_chat_messages(chat_id, api_client)
-                        total_messages += msg_stats.get("synced_messages", 0)
-                        total_new_messages += msg_stats.get("new_messages", 0)
+                # 同步消息内容
+                if sync_messages:
+                    if task_id:
+                        SYNC_TASKS[task_id]["message"] = f"正在同步第 {page + 1} 页的消息..."
 
-            # 检查是否还有更多数据
-            has_next = result.get("has_next", False)
-            if not has_next:
-                break
+                    for chat_data in chats_data:
+                        chat_info = chat_data.get("chat", {})
+                        chat_id = chat_info.get("chat_id")
+                        if chat_id:
+                            msg_stats = await self._sync_chat_messages(chat_id, api_client)
+                            total_messages += msg_stats.get("synced_messages", 0)
+                            total_new_messages += msg_stats.get("new_messages", 0)
 
-            # 获取下一页的cursor
-            cursor = result.get("cursor")
-            if not cursor:
-                break
+                # 检查是否还有更多数据
+                has_next = result.get("has_next", False)
+                if not has_next:
+                    break
 
-        return {
-            "synced_count": synced_count,
-            "new_count": new_count,
-            "updated_count": updated_count,
-            "total_messages": total_messages,
-            "total_new_messages": total_new_messages
-        }
+                # 获取下一页的cursor
+                cursor = result.get("cursor")
+                if not cursor:
+                    break
+
+            # 同步完成
+            result = {
+                "synced_count": synced_count,
+                "new_count": new_count,
+                "updated_count": updated_count,
+                "total_messages": total_messages,
+                "total_new_messages": total_new_messages
+            }
+
+            if task_id:
+                SYNC_TASKS[task_id] = {
+                    "status": "completed",
+                    "progress": 100,
+                    "message": f"同步完成：{synced_count} 个聊天，{total_new_messages} 条新消息",
+                    "completed_at": utcnow().isoformat(),
+                    "type": "chats",
+                    "shop_id": self.shop_id,
+                    "result": result
+                }
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to sync chats: {e}")
+
+            if task_id:
+                SYNC_TASKS[task_id] = {
+                    "status": "failed",
+                    "progress": SYNC_TASKS.get(task_id, {}).get("progress", 0),
+                    "message": f"同步失败: {str(e)}",
+                    "error": str(e),
+                    "failed_at": utcnow().isoformat(),
+                    "type": "chats",
+                    "shop_id": self.shop_id
+                }
+
+            raise
 
     def _create_message_from_api(self, chat_id: str, msg_data: Dict[str, Any]) -> OzonChatMessage:
         """从OZON API数据创建消息对象"""
@@ -731,7 +790,7 @@ class OzonChatService:
             sender_id=str(user.get("id", "")),
             sender_name=sender_name,
             content=content,
-            content_data=msg_data,
+            content_data=data_array,  # 修复：保存data数组，与Webhook处理器保持一致
             is_read=msg_data.get("is_read", False),
             is_deleted=False,
             is_edited=False,

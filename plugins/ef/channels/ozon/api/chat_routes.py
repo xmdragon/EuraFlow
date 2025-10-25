@@ -2,6 +2,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from pydantic import BaseModel, Field
+import logging
 
 from ef_core.api.auth import get_current_user
 from ef_core.models.users import User
@@ -13,6 +14,7 @@ from ef_core.database import get_db_manager
 
 
 router = APIRouter(prefix="/chats", tags=["ozon-chats"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/all")
@@ -606,7 +608,7 @@ async def sync_chats(
     chat_id_list: Optional[list[str]] = Body(None, description="要同步的聊天ID列表"),
     shop_and_client: tuple = Depends(get_shop_and_client)
 ):
-    """从OZON同步聊天数据
+    """从OZON同步聊天数据（异步任务模式）
 
     Args:
         shop_id: 店铺ID
@@ -616,30 +618,80 @@ async def sync_chats(
         {
             "ok": true,
             "data": {
-                "synced_count": int,
-                "new_count": int,
-                "updated_count": int
+                "task_id": str,
+                "message": str
             }
         }
     """
-    try:
-        shop, client = shop_and_client
-        service = OzonChatService(shop_id)
+    import uuid
+    import asyncio
+    from ef_core.database import get_db_manager
 
-        result = await service.sync_chats(
-            api_client=client,
-            chat_id_list=chat_id_list
-        )
+    shop, _ = shop_and_client
 
-        return {"ok": True, "data": result}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "type": "about:blank",
-                "title": "Internal Server Error",
-                "status": 500,
-                "detail": str(e),
-                "code": "INTERNAL_ERROR"
-            }
-        )
+    # 生成任务ID
+    task_id = f"chat_sync_{uuid.uuid4().hex[:12]}"
+
+    # 定义异步任务
+    async def run_sync():
+        """后台运行聊天同步"""
+        try:
+            logger.info(f"Starting chat sync task: task_id={task_id}, shop_id={shop_id}")
+
+            # 创建新的数据库会话和API客户端
+            db_manager = get_db_manager()
+
+            # 重新获取店铺信息并创建客户端
+            from ..models.ozon_shops import OzonShop
+            from ..api.client import OzonAPIClient
+            from sqlalchemy import select
+
+            async with db_manager.get_session() as session:
+                shop_result = await session.execute(
+                    select(OzonShop).where(OzonShop.id == shop_id)
+                )
+                shop_obj = shop_result.scalar_one_or_none()
+
+                if not shop_obj:
+                    logger.error(f"Shop {shop_id} not found")
+                    return
+
+                # 创建API客户端
+                client = OzonAPIClient(
+                    client_id=shop_obj.client_id,
+                    api_key=shop_obj.api_key_enc
+                )
+
+                try:
+                    # 执行同步
+                    service = OzonChatService(shop_id)
+                    result = await service.sync_chats(
+                        api_client=client,
+                        chat_id_list=chat_id_list,
+                        sync_messages=True,
+                        task_id=task_id
+                    )
+
+                    logger.info(f"Chat sync completed: {result}")
+
+                finally:
+                    # 关闭API客户端
+                    await client.close()
+
+        except Exception as e:
+            logger.error(f"Chat sync failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    # 创建异步任务
+    asyncio.create_task(run_sync())
+
+    logger.info(f"Created chat sync task: task_id={task_id}, shop_id={shop_id}")
+
+    return {
+        "ok": True,
+        "data": {
+            "task_id": task_id,
+            "message": "聊天同步任务已启动"
+        }
+    }

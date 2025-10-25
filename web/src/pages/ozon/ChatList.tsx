@@ -27,6 +27,7 @@ import {
   Typography,
   Spin,
   Empty,
+  Progress,
 } from "antd";
 import moment from "moment";
 import React, { useState, useEffect } from "react";
@@ -40,6 +41,7 @@ import PageTitle from "@/components/PageTitle";
 import { usePermission } from "@/hooks/usePermission";
 import * as ozonApi from "@/services/ozonApi";
 import { notifySuccess, notifyError } from "@/utils/notification";
+import { getGlobalNotification } from "@/utils/globalNotification";
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -89,6 +91,107 @@ const ChatList: React.FC = () => {
     queryFn: () => ozonApi.getChatStats(selectedShopId, shopIdsString),
     enabled: selectedShopId === null ? !!shopIdsString : true,
   });
+
+  // 轮询聊天同步状态
+  const pollChatSyncStatus = async (taskId: string) => {
+    const notificationKey = 'chat-sync';
+    let completed = false;
+
+    try {
+      // 显示初始进度通知
+      const notificationInstance = getGlobalNotification();
+      if (notificationInstance) {
+        notificationInstance.open({
+          key: notificationKey,
+          message: '聊天同步进行中',
+          description: (
+            <div>
+              <Progress percent={0} size="small" status="active" />
+              <div style={{ marginTop: 8 }}>正在启动同步...</div>
+            </div>
+          ),
+          duration: 0, // 不自动关闭
+          placement: 'bottomRight',
+          icon: <SyncOutlined spin />,
+        });
+      }
+
+      // 持续轮询状态
+      while (!completed) {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
+          const result = await ozonApi.getSyncStatus(taskId);
+          const status = result.data || result;
+
+          if (status.status === 'completed') {
+            completed = true;
+
+            // 显示完成通知
+            if (notificationInstance) {
+              notificationInstance.destroy(notificationKey);
+              notificationInstance.success({
+                message: '同步完成',
+                description: status.message || '聊天同步已完成',
+                placement: 'bottomRight',
+                duration: 5,
+              });
+            }
+
+            // 刷新数据
+            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            queryClient.invalidateQueries({ queryKey: ["chatStats"] });
+          } else if (status.status === 'failed') {
+            completed = true;
+
+            // 显示失败通知
+            if (notificationInstance) {
+              notificationInstance.destroy(notificationKey);
+              notificationInstance.error({
+                message: '同步失败',
+                description: status.message || status.error || '同步失败，请重试',
+                placement: 'bottomRight',
+                duration: 10,
+              });
+            }
+          } else if (status.status === 'running') {
+            // 更新进度通知
+            const progress = status.progress || 0;
+            const message = status.message || '同步进行中...';
+
+            if (notificationInstance) {
+              notificationInstance.open({
+                key: notificationKey,
+                message: '聊天同步进行中',
+                description: (
+                  <div>
+                    <Progress percent={progress} size="small" status="active" />
+                    <div style={{ marginTop: 8 }}>{message}</div>
+                  </div>
+                ),
+                duration: 0,
+                placement: 'bottomRight',
+                icon: <SyncOutlined spin />,
+              });
+            }
+          }
+        } catch (error) {
+          // 静默处理轮询错误，继续重试
+        }
+      }
+    } catch (error) {
+      // 轮询本身失败
+      const notificationInstance = getGlobalNotification();
+      if (notificationInstance) {
+        notificationInstance.destroy(notificationKey);
+        notificationInstance.error({
+          message: '同步状态查询失败',
+          description: '无法获取同步状态，请刷新页面查看结果',
+          placement: 'bottomRight',
+          duration: 10,
+        });
+      }
+    }
+  };
 
   // 获取聊天列表
   const {
@@ -144,67 +247,128 @@ const ChatList: React.FC = () => {
     enabled: selectedShopId === null ? !!shopIdsString : true,
   });
 
+  // 顺序同步多个店铺
+  const syncMultipleShops = async () => {
+    const results = [];
+    let totalChats = 0;
+    let totalMessages = 0;
+
+    for (let i = 0; i < shops.length; i++) {
+      const shop = shops[i];
+      const displayName =
+        shop.shop_name + (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : "");
+
+      notifySuccess(
+        "批量同步进度",
+        `正在同步店铺 ${i + 1}/${shops.length}: ${displayName}`,
+      );
+
+      try {
+        // 启动异步任务
+        const taskResponse = await ozonApi.syncChats(shop.id);
+        const taskId = taskResponse.task_id;
+
+        if (!taskId) {
+          results.push({
+            shop_id: shop.id,
+            shop_name: displayName,
+            error: "未获取到任务ID",
+          });
+          continue;
+        }
+
+        // 等待任务完成（轮询）
+        let completed = false;
+        let shopResult = null;
+
+        while (!completed) {
+          await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
+
+          try {
+            const statusResponse = await ozonApi.getSyncStatus(taskId);
+            const status = statusResponse.data || statusResponse;
+
+            if (status.status === "completed") {
+              completed = true;
+              shopResult = status.result || {};
+              totalChats += shopResult.synced_count || 0;
+              totalMessages += shopResult.total_new_messages || 0;
+
+              results.push({
+                shop_id: shop.id,
+                shop_name: displayName,
+                ...shopResult,
+              });
+
+              notifySuccess(
+                `${displayName} 同步完成`,
+                `${shopResult.synced_count || 0} 个聊天，${shopResult.total_new_messages || 0} 条新消息`,
+              );
+            } else if (status.status === "failed") {
+              completed = true;
+              results.push({
+                shop_id: shop.id,
+                shop_name: displayName,
+                error: status.error || "同步失败",
+              });
+
+              notifyError(
+                `${displayName} 同步失败`,
+                status.error || "未知错误",
+              );
+            }
+            // 状态为 running 时继续轮询
+          } catch (error) {
+            // 轮询错误，继续重试
+          }
+        }
+      } catch (error) {
+        results.push({
+          shop_id: shop.id,
+          shop_name: displayName,
+          error: error.message,
+        });
+        notifyError(`${displayName} 同步失败`, error.message);
+      }
+    }
+
+    // 所有店铺完成后显示总结
+    notifySuccess(
+      "批量同步完成",
+      `已同步 ${shops.length} 个店铺，共 ${totalChats} 个聊天，${totalMessages} 条新消息`,
+    );
+
+    queryClient.invalidateQueries({ queryKey: ["chats"] });
+    queryClient.invalidateQueries({ queryKey: ["chatStats"] });
+
+    return results;
+  };
+
   // 同步聊天
   const syncMutation = useMutation({
     mutationFn: async () => {
       if (selectedShopId === null) {
-        // 全部店铺模式：批量同步所有店铺
-        const results = [];
-        for (let i = 0; i < shops.length; i++) {
-          const shop = shops[i];
-          const displayName =
-            shop.shop_name +
-            (shop.shop_name_cn ? ` [${shop.shop_name_cn}]` : "");
-          notifySuccess(
-            `同步进度`,
-            `正在同步店铺 ${i + 1}/${shops.length}: ${displayName}`,
-          );
-
-          try {
-            const result = await ozonApi.syncChats(shop.id);
-            results.push({
-              shop_id: shop.id,
-              shop_name: displayName,
-              ...result,
-            });
-          } catch (error) {
-            results.push({
-              shop_id: shop.id,
-              shop_name: displayName,
-              error: error.message,
-            });
-          }
-        }
-        return results;
+        // 全部店铺模式：顺序同步所有店铺
+        return syncMultipleShops();
       } else {
-        // 单店铺模式
+        // 单店铺模式 - 返回异步任务
         return ozonApi.syncChats(selectedShopId);
       }
     },
     onSuccess: (data) => {
       if (Array.isArray(data)) {
-        // 全部店铺模式的结果
-        const total = data.reduce(
-          (sum, r) => sum + (r.new_count || 0) + (r.updated_count || 0),
-          0,
-        );
-        const totalMessages = data.reduce(
-          (sum, r) => sum + (r.total_new_messages || 0),
-          0,
-        );
-        notifySuccess(
-          "批量同步完成",
-          `已同步 ${data.length} 个店铺，共 ${total} 个聊天，${totalMessages} 条新消息`,
-        );
+        // 多店铺模式 - syncMultipleShops 已经处理完成并显示通知
+        // 这里不需要再做任何处理
       } else {
-        // 单店铺模式的结果
-        notifySuccess(
-          "同步成功",
-          `新增 ${data.new_count} 个聊天，更新 ${data.updated_count} 个聊天，${data.total_new_messages || 0} 条新消息`,
-        );
+        // 单店铺模式的结果（异步任务模式）
+        const taskId = data.task_id;
+        if (taskId) {
+          // 开始轮询任务状态
+          pollChatSyncStatus(taskId);
+        } else {
+          notifyError("同步失败", "未获取到任务ID，请稍后重试");
+        }
       }
-      queryClient.invalidateQueries({ queryKey: ["chats"] });
-      queryClient.invalidateQueries({ queryKey: ["chatStats"] });
     },
     onError: (error: Error) => {
       notifyError("同步失败", `同步失败: ${error.message}`);

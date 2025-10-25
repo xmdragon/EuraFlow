@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OZON真实售价计算器
 // @namespace    http://tampermonkey.net/
-// @version      1.0.3
-// @description  在OZON商品页面显示计算后的真实售价（支持动态更新）
+// @version      1.0.4
+// @description  在OZON商品页面显示计算后的真实售价（统一使用公式计算）
 // @author       EuraFlow
 // @match        https://www.ozon.ru/product/*
 // @match        https://*.ozon.ru/product/*
@@ -16,12 +16,6 @@
 
   // ========== 配置常量 ==========
   const CONFIG = {
-    // 价格区间阈值
-    LOW_PRICE_THRESHOLD: 90,
-    MID_PRICE_MIN: 90,
-    MID_PRICE_MAX: 120,
-    MID_PRICE_MARKUP: 5,
-
     // 计算公式系数
     FORMULA_MULTIPLIER: 2.5,
 
@@ -192,27 +186,7 @@
       };
     }
 
-    // 优先级规则1: 黑标价 < 90 ¥
-    if (blackPrice < CONFIG.LOW_PRICE_THRESHOLD) {
-      return {
-        price: blackPrice,
-        message: `真实售价：${blackPrice.toFixed(2)} ¥`,
-      };
-    }
-
-    // 优先级规则2: 黑标价在 90-120 ¥
-    if (
-      blackPrice >= CONFIG.MID_PRICE_MIN &&
-      blackPrice <= CONFIG.MID_PRICE_MAX
-    ) {
-      const realPrice = blackPrice + CONFIG.MID_PRICE_MARKUP;
-      return {
-        price: realPrice,
-        message: `真实售价：${realPrice.toFixed(2)} ¥`,
-      };
-    }
-
-    // 优先级规则3: 有绿标价，使用公式
+    // 统一使用公式计算：有绿标价时，使用公式
     if (greenPrice !== null) {
       const realPrice = Math.ceil(
         (blackPrice - greenPrice) * CONFIG.FORMULA_MULTIPLIER + blackPrice
@@ -223,7 +197,7 @@
       };
     }
 
-    // 默认情况：只有黑标价
+    // 只有黑标价时，直接使用黑标价
     return {
       price: blackPrice,
       message: `真实售价：${blackPrice.toFixed(2)} ¥`,
