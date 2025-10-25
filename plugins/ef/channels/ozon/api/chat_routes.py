@@ -312,13 +312,14 @@ async def proxy_csv_download(
 
         logger.info(f"Proxying CSV download: shop_id={shop_id}, url={decoded_url}")
 
-        # 使用httpx请求OZON（启用自动重定向，保留Cookie）
-        # OZON使用Cookie(__Secure-ETC)进行防机器人验证，必须在同一session中保留Cookie
+        # 使用httpx请求OZON（禁用自动重定向，手动处理以便控制请求头）
+        # OZON的防机器人系统：第一次请求需要认证头，重定向后不能带认证头
         async with httpx.AsyncClient(
             timeout=30.0,
-            follow_redirects=True  # 启用自动重定向，httpx会自动保留Cookie
+            follow_redirects=False,  # 手动处理重定向
+            http2=False  # 强制HTTP/1.1，避免被识别为机器人
         ) as http_client:
-            # 请求时带认证头和浏览器头
+            # 第一次请求：带认证头
             response = await http_client.get(
                 decoded_url,
                 headers={
@@ -330,6 +331,28 @@ async def proxy_csv_download(
                     "Referer": "https://seller.ozon.ru/",
                 }
             )
+
+            # 处理重定向
+            if response.status_code in (301, 302, 303, 307, 308):
+                redirect_url = response.headers.get("Location")
+                logger.info(f"Got redirect to: {redirect_url}")
+
+                # 提取并保留Cookie
+                cookies = response.cookies
+                logger.info(f"Cookies from first request: {dict(cookies)}")
+
+                # 第二次请求：不带认证头，只带Cookie和浏览器头
+                response = await http_client.get(
+                    redirect_url,
+                    cookies=cookies,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Accept": "*/*",
+                        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+                        "Referer": "https://seller.ozon.ru/",
+                    }
+                )
+                logger.info(f"Second response: status={response.status_code}")
 
             logger.info(f"Final response: status={response.status_code}, url={response.url}, content-type={response.headers.get('Content-Type')}")
 
