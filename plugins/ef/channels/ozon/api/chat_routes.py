@@ -312,11 +312,12 @@ async def proxy_csv_download(
 
         logger.info(f"Proxying CSV download: shop_id={shop_id}, url={decoded_url}")
 
-        # 使用httpx请求OZON（带认证头，自动跟随重定向）
+        # 使用httpx请求OZON（手动处理重定向）
         async with httpx.AsyncClient(
             timeout=30.0,
-            follow_redirects=True  # 自动跟随重定向
+            follow_redirects=False  # 禁用自动重定向，手动处理
         ) as http_client:
+            # 第一次请求：带认证头，获取重定向URL
             response = await http_client.get(
                 decoded_url,
                 headers={
@@ -325,7 +326,27 @@ async def proxy_csv_download(
                 }
             )
 
-            # 检查响应状态
+            # 处理重定向（307/302/303等）
+            if response.status_code in (301, 302, 303, 307, 308):
+                redirect_url = response.headers.get("Location")
+                if not redirect_url:
+                    raise HTTPException(
+                        status_code=500,
+                        detail={
+                            "type": "about:blank",
+                            "title": "Redirect Error",
+                            "status": 500,
+                            "detail": "重定向响应缺少Location头",
+                            "code": "REDIRECT_ERROR"
+                        }
+                    )
+
+                logger.info(f"Following redirect to: {redirect_url}")
+
+                # 第二次请求：不带认证头，从CDN下载文件
+                response = await http_client.get(redirect_url)
+
+            # 检查最终响应状态
             if response.status_code != 200:
                 logger.error(f"OZON CSV download failed: status={response.status_code}, body={response.text[:200]}")
                 raise HTTPException(
