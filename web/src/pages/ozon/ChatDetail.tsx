@@ -316,6 +316,36 @@ const ChatDetail: React.FC = () => {
     }
   };
 
+  // 下载CSV文件（带认证）
+  const handleDownloadCsv = async (url: string) => {
+    try {
+      const response = await ozonApi.downloadChatCsv(Number(shopId), url);
+
+      // 创建下载链接
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'text/csv' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+
+      // 从Content-Disposition提取文件名，或使用默认名称
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'report.csv';
+      if (contentDisposition && contentDisposition.includes('filename=')) {
+        filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+
+      notifySuccess('下载成功', '文件已开始下载');
+    } catch (error) {
+      notifyError('下载失败', `无法下载文件: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
   // 自定义Link组件，拦截OZON CSV链接
   const CustomLink: React.FC<{ href?: string; children: React.ReactNode }> = ({
     href,
@@ -325,10 +355,16 @@ const ChatDetail: React.FC = () => {
     const isOzonLink = href && (href.includes('.ozon.ru') || href.includes('ozonru.'));
 
     if (isOzonLink && shopId) {
-      // 重写为代理URL
-      const proxyUrl = `/api/ef/v1/ozon/chats/${shopId}/csv-proxy?url=${encodeURIComponent(href)}`;
+      // 使用JavaScript下载（带认证）
       return (
-        <a href={proxyUrl} target="_blank" rel="noopener noreferrer">
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            handleDownloadCsv(href);
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           {children}
         </a>
       );

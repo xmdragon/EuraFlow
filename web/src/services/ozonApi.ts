@@ -914,6 +914,21 @@ export const syncChats = async (
   return response.data.data;
 };
 
+// 下载聊天CSV文件（代理）
+export const downloadChatCsv = async (
+  shopId: number,
+  csvUrl: string,
+): Promise<any> => {
+  const response = await apiClient.get(
+    `/ozon/chats/${shopId}/csv-proxy`,
+    {
+      params: { url: csvUrl },
+      responseType: 'blob', // 重要：告诉axios返回二进制数据
+    },
+  );
+  return response;
+};
+
 // 获取聊天统计信息
 export const getChatStats = async (
   shopId: number | null,
