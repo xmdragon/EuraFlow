@@ -41,11 +41,14 @@ def upgrade() -> None:
     """
     # 首先检查有多少条记录需要修复
     connection = op.get_bind()
+
+    # 检查时增加类型过滤：只处理数组类型的 content_data
     count_result = connection.execute(sa.text("""
         SELECT COUNT(*) as count
         FROM ozon_chat_messages
         WHERE (content IS NULL OR content = '')
           AND content_data IS NOT NULL
+          AND jsonb_typeof(content_data) = 'array'
           AND jsonb_array_length(content_data) > 0
     """))
 
@@ -54,7 +57,7 @@ def upgrade() -> None:
     if count > 0:
         print(f"⏳ 发现 {count} 条需要修复的消息记录...")
 
-        # 执行修复
+        # 执行修复：只处理数组类型的 content_data
         result = connection.execute(sa.text("""
             UPDATE ozon_chat_messages
             SET content = (
@@ -63,6 +66,7 @@ def upgrade() -> None:
             )
             WHERE (content IS NULL OR content = '')
               AND content_data IS NOT NULL
+              AND jsonb_typeof(content_data) = 'array'
               AND jsonb_array_length(content_data) > 0
         """))
 
