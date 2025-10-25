@@ -71,6 +71,23 @@ const formatMoscowDate = (utcDateString: string): string => {
   return `${year}/${month}/${day}`;
 };
 
+// 格式化描述文本：在句子结束符后添加换行
+const formatDescription = (html: string): string => {
+  if (!html) return '';
+
+  // 在句子结束符（。！？.!?）后面添加换行，但要避免影响HTML标签
+  // 使用正则表达式匹配句子结束符，后面不是HTML标签的情况
+  let formatted = html
+    // 在中文句号、感叹号、问号后添加换行
+    .replace(/([。！？])(?!<)/g, '$1<br/>')
+    // 在英文句号、感叹号、问号后添加换行（但要避免数字中的点和HTML实体）
+    .replace(/([.!?])(\s+)(?![0-9<])/g, '$1<br/>$2')
+    // 在</p>、</li>等块级标签后不需要额外的<br/>，移除多余的
+    .replace(/<br\/>\s*(<\/(p|li|div|h[1-6])>)/gi, '$1');
+
+  return formatted;
+};
+
 // 鼠标悬浮显示大图的组件
 const HoverImage: React.FC<{
   src: string;
@@ -829,7 +846,7 @@ const Promotions: React.FC = () => {
               }}
             >
               <div
-                dangerouslySetInnerHTML={{ __html: selectedAction.description }}
+                dangerouslySetInnerHTML={{ __html: formatDescription(selectedAction.description) }}
                 style={{
                   lineHeight: '1.8',
                   whiteSpace: 'normal',
