@@ -31,34 +31,74 @@ def upgrade() -> None:
 
     执行逻辑：
     1. 找出所有 content 为空（NULL 或空字符串）但 content_data 有值的消息
-    2. 从 content_data 数组中提取所有元素，用空格连接成字符串
-    3. 更新 content 字段
+    2. 根据 content_data 的类型提取内容：
+       - 如果是 object 类型（同步服务保存的完整 API 响应）：从 content_data->'data' 数组提取
+       - 如果是 array 类型（Webhook 保存的 data 数组）：直接提取
+    3. 用空格连接成字符串并更新 content 字段
 
     SQL 说明：
-    - jsonb_array_length: 获取 JSONB 数组的长度
+    - jsonb_typeof: 获取 JSONB 值的类型
     - jsonb_array_elements_text: 将 JSONB 数组展开为文本行
     - string_agg: 聚合文本行，用空格连接
     """
-    # 首先检查有多少条记录需要修复
     connection = op.get_bind()
 
-    # 检查时增加类型过滤：只处理数组类型的 content_data
-    count_result = connection.execute(sa.text("""
+    # 统计需要修复的记录数
+    print("⏳ 统计需要修复的消息记录...")
+
+    # 情况1：content_data 是 object 类型（包含 'data' 字段）
+    count_object = connection.execute(sa.text("""
+        SELECT COUNT(*) as count
+        FROM ozon_chat_messages
+        WHERE (content IS NULL OR content = '')
+          AND content_data IS NOT NULL
+          AND jsonb_typeof(content_data) = 'object'
+          AND content_data ? 'data'
+          AND jsonb_typeof(content_data->'data') = 'array'
+          AND jsonb_array_length(content_data->'data') > 0
+    """)).scalar()
+
+    # 情况2：content_data 是 array 类型
+    count_array = connection.execute(sa.text("""
         SELECT COUNT(*) as count
         FROM ozon_chat_messages
         WHERE (content IS NULL OR content = '')
           AND content_data IS NOT NULL
           AND jsonb_typeof(content_data) = 'array'
           AND jsonb_array_length(content_data) > 0
-    """))
+    """)).scalar()
 
-    count = count_result.scalar()
+    total_count = count_object + count_array
+    print(f"📊 发现 {total_count} 条需要修复的消息：")
+    print(f"   - Object 类型（API 响应）: {count_object} 条")
+    print(f"   - Array 类型（Webhook）: {count_array} 条")
 
-    if count > 0:
-        print(f"⏳ 发现 {count} 条需要修复的消息记录...")
+    if total_count == 0:
+        print("✅ 没有需要修复的消息记录，跳过数据修复")
+        return
 
-        # 执行修复：只处理数组类型的 content_data
-        result = connection.execute(sa.text("""
+    # 修复情况1：content_data 是 object 类型
+    if count_object > 0:
+        print(f"⏳ 修复 {count_object} 条 Object 类型消息...")
+        result1 = connection.execute(sa.text("""
+            UPDATE ozon_chat_messages
+            SET content = (
+                SELECT string_agg(value, ' ')
+                FROM jsonb_array_elements_text(content_data->'data')
+            )
+            WHERE (content IS NULL OR content = '')
+              AND content_data IS NOT NULL
+              AND jsonb_typeof(content_data) = 'object'
+              AND content_data ? 'data'
+              AND jsonb_typeof(content_data->'data') = 'array'
+              AND jsonb_array_length(content_data->'data') > 0
+        """))
+        print(f"✅ 已修复 {result1.rowcount} 条 Object 类型消息")
+
+    # 修复情况2：content_data 是 array 类型
+    if count_array > 0:
+        print(f"⏳ 修复 {count_array} 条 Array 类型消息...")
+        result2 = connection.execute(sa.text("""
             UPDATE ozon_chat_messages
             SET content = (
                 SELECT string_agg(value, ' ')
@@ -69,11 +109,9 @@ def upgrade() -> None:
               AND jsonb_typeof(content_data) = 'array'
               AND jsonb_array_length(content_data) > 0
         """))
+        print(f"✅ 已修复 {result2.rowcount} 条 Array 类型消息")
 
-        updated = result.rowcount
-        print(f"✅ 已修复 {updated} 条消息记录的 content 字段")
-    else:
-        print("✅ 没有需要修复的消息记录，跳过数据修复")
+    print(f"✅ 数据修复完成！共修复 {total_count} 条消息的 content 字段")
 
 
 def downgrade() -> None:
