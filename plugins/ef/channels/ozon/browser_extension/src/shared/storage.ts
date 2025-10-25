@@ -8,8 +8,7 @@ import type { ApiConfig, CollectorConfig } from './types';
 
 const DEFAULT_API_CONFIG: ApiConfig = {
   apiUrl: '',
-  apiKey: '',
-  autoUpload: true
+  apiKey: ''
 };
 
 const DEFAULT_COLLECTOR_CONFIG: CollectorConfig = {
@@ -23,11 +22,10 @@ const DEFAULT_COLLECTOR_CONFIG: CollectorConfig = {
  */
 export async function getApiConfig(): Promise<ApiConfig> {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(['apiUrl', 'apiKey', 'autoUpload'], (result: { [key: string]: any }) => {
+    chrome.storage.sync.get(['apiUrl', 'apiKey'], (result: { [key: string]: any }) => {
       resolve({
         apiUrl: result.apiUrl || DEFAULT_API_CONFIG.apiUrl,
-        apiKey: result.apiKey || DEFAULT_API_CONFIG.apiKey,
-        autoUpload: result.autoUpload !== undefined ? result.autoUpload : DEFAULT_API_CONFIG.autoUpload
+        apiKey: result.apiKey || DEFAULT_API_CONFIG.apiKey
       });
     });
   });

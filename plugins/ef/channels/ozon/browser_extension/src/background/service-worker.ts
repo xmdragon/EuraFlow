@@ -79,18 +79,26 @@ async function handleUploadProducts(data: { apiUrl: string; apiKey: string; prod
 async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
   const { apiUrl, apiKey } = data;
 
-  const response = await fetch(`${apiUrl}/api/ef/v1/health`, {
+  console.log('[EuraFlow] Testing connection to:', apiUrl);
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/auth/me`, {
     method: 'GET',
     headers: {
       'X-API-Key': apiKey
     }
   });
 
+  console.log('[EuraFlow] Test connection response status:', response.status);
+
   if (!response.ok) {
-    throw new Error('连接失败');
+    const errorText = await response.text();
+    console.error('[EuraFlow] Test connection failed:', errorText);
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
   }
 
-  return { status: 'ok' };
+  const userData = await response.json();
+  console.log('[EuraFlow] Test connection success, user:', userData.username);
+  return { status: 'ok', username: userData.username };
 }
 
 // 导出类型（供TypeScript使用）

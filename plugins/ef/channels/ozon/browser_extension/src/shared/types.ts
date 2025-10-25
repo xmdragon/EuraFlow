@@ -83,7 +83,6 @@ export interface ProductData {
 export interface ApiConfig {
   apiUrl: string;
   apiKey: string;
-  autoUpload: boolean;
 }
 
 /**

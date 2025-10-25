@@ -14,8 +14,7 @@ function Popup() {
   // API配置
   const [apiConfig, setApiConfigState] = useState<ApiConfig>({
     apiUrl: '',
-    apiKey: '',
-    autoUpload: true
+    apiKey: ''
   });
 
   // 采集配置
@@ -110,18 +109,6 @@ function Popup() {
             value={apiConfig.apiKey}
             onChange={(e) => setApiConfigState({ ...apiConfig, apiKey: e.target.value })}
           />
-        </div>
-
-        <div className="form-group checkbox-group">
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              className="form-checkbox"
-              checked={apiConfig.autoUpload}
-              onChange={(e) => setApiConfigState({ ...apiConfig, autoUpload: e.target.checked })}
-            />
-            <span>自动上传采集结果</span>
-          </label>
         </div>
       </section>
 

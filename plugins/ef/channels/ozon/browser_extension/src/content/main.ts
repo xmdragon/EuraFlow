@@ -1,22 +1,28 @@
 /**
  * 内容脚本入口
  *
- * 此脚本会被注入到OZON商品列表页面
+ * 此脚本会被注入到OZON页面（商品列表页或详情页）
  */
 
 import { ShangpinbangParser } from './parsers/shangpinbang';
 import { MaoziErpParser } from './parsers/maozi-erp';
 import { DataFusionEngine } from './fusion/engine';
 import { ProductCollector } from './collector';
-import { ApiClient } from '../shared/api-client';
-import { getApiConfig, getCollectorConfig } from '../shared/storage';
+import { getCollectorConfig } from '../shared/storage';
 import { ControlPanel } from './components/ControlPanel';
+import { RealPriceCalculator } from './price-calculator';
 
 console.log('[EuraFlow] Content script loaded');
 
-// 检测当前页面是否为OZON页面
+// 检测当前页面是否为商品列表页
 function isProductListPage(): boolean {
-  return window.location.href.includes('ozon.ru');
+  return window.location.href.includes('ozon.ru') &&
+         !window.location.href.includes('/product/');
+}
+
+// 检测当前页面是否为商品详情页
+function isProductDetailPage(): boolean {
+  return window.location.href.includes('/product/');
 }
 
 // 等待DOM加载完成
@@ -29,40 +35,48 @@ if (document.readyState === 'loading') {
 async function init() {
   console.log('[EuraFlow] Initializing...');
 
-  if (!isProductListPage()) {
-    console.log('[EuraFlow] Not a product list page, skipping initialization');
+  // 分支处理：商品详情页 vs 商品列表页
+  if (isProductDetailPage()) {
+    console.log('[EuraFlow] Product detail page detected');
+
+    // 初始化真实售价计算器
+    const priceCalculator = new RealPriceCalculator();
+    priceCalculator.init();
+
+    console.log('[EuraFlow] Real Price Calculator initialized');
     return;
   }
 
-  console.log('[EuraFlow] Product list page detected');
+  if (isProductListPage()) {
+    console.log('[EuraFlow] Product list page detected');
 
-  // 1. 初始化解析器
-  const parsers = [
-    new ShangpinbangParser(),
-    new MaoziErpParser()
-  ];
+    // 1. 初始化解析器
+    const parsers = [
+      new ShangpinbangParser(),
+      new MaoziErpParser()
+    ];
 
-  // 2. 创建融合引擎
-  const fusionEngine = new DataFusionEngine(parsers);
+    // 2. 创建融合引擎
+    const fusionEngine = new DataFusionEngine(parsers);
 
-  // 3. 加载配置
-  const apiConfig = await getApiConfig();
-  const collectorConfig = await getCollectorConfig();
+    // 3. 加载采集配置
+    const collectorConfig = await getCollectorConfig();
 
-  // 4. 创建API客户端
-  const apiClient = new ApiClient(apiConfig.apiUrl, apiConfig.apiKey);
+    // 4. 创建采集器（API配置和上传由 ControlPanel 负责）
+    const collector = new ProductCollector(fusionEngine, collectorConfig);
 
-  // 5. 创建采集器
-  const collector = new ProductCollector(fusionEngine, apiClient, collectorConfig);
+    // 6. 创建并挂载控制面板
+    ControlPanel({
+      fusionEngine,
+      collector,
+      config: collectorConfig
+    });
 
-  // 6. 创建并挂载控制面板
-  ControlPanel({
-    fusionEngine,
-    collector,
-    config: collectorConfig
-  });
+    console.log('[EuraFlow] Product Collector initialized');
+    return;
+  }
 
-  console.log('[EuraFlow] Initialization complete');
+  console.log('[EuraFlow] Unknown page type, skipping initialization');
 }
 
 // 导出类型（供TypeScript使用）
