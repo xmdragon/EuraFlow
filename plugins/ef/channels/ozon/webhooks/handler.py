@@ -1229,7 +1229,8 @@ class OzonWebhookHandler:
 
         # 从data数组中获取消息内容（OZON格式）
         data_array = payload.get("data", [])
-        content = data_array[0] if data_array and len(data_array) > 0 else ""
+        # 合并所有元素为文本（与同步服务逻辑一致）
+        content = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
 
         # 从user对象中提取发送者信息
         user = payload.get("user", {})
@@ -1377,9 +1378,13 @@ class OzonWebhookHandler:
         """处理聊天消息更新事件 (TYPE_UPDATE_MESSAGE)"""
         chat_id = payload.get("chat_id")
         message_id = payload.get("message_id")
-        new_content = payload.get("text", "")
 
-        logger.info(f"Chat message updated: chat_id={chat_id}, message_id={message_id}")
+        # 使用正确的字段名：data（不是text）
+        data_array = payload.get("data", [])
+        # 合并所有元素为文本（与创建逻辑一致）
+        new_content = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
+
+        logger.info(f"Chat message updated: chat_id={chat_id}, message_id={message_id}, new_content_length={len(new_content)}")
 
         from ..models.chat import OzonChatMessage
 
@@ -1395,8 +1400,9 @@ class OzonWebhookHandler:
             message = await session.scalar(stmt)
 
             if message:
-                # 更新消息内容
+                # 同时更新两个字段，保持数据一致性
                 message.content = new_content
+                message.content_data = data_array  # 同步更新原始数据
                 message.is_edited = True
                 message.edited_at = utcnow()
                 message.extra_data = payload
