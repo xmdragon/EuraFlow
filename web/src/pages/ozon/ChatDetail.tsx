@@ -375,10 +375,13 @@ const ChatDetail: React.FC = () => {
       const response = await ozonApi.downloadChatCsv(Number(shopId), url);
 
       // 判断文件类型
-      const isExcel =
-        url.toLowerCase().endsWith('.xlsx') ||
-        url.toLowerCase().endsWith('.xls') ||
-        response.headers['content-type']?.includes('spreadsheet');
+      const isReportDownload = url.includes('/api/auditor-exporter/reports/download/');
+      const hasExcelExtension =
+        url.toLowerCase().endsWith('.xlsx') || url.toLowerCase().endsWith('.xls');
+      const hasExcelContentType = response.headers['content-type']?.includes('spreadsheet');
+
+      // OZON报表下载链接默认为Excel格式
+      const isExcel = isReportDownload || hasExcelExtension || hasExcelContentType;
 
       let parsedData: string[][];
 
