@@ -362,8 +362,12 @@ const ChatDetail: React.FC = () => {
                 </Text>
               </div>
               <div className={styles.messageContent}>
-                {/* 俄语原文或中文内容 */}
-                <ReactMarkdown>{msg.content || ''}</ReactMarkdown>
+                {/* 俄语原文或中文内容（优先使用content，若为空则从content_data提取） */}
+                <ReactMarkdown>
+                  {msg.content ||
+                    (Array.isArray(msg.content_data) ? msg.content_data.join(' ') : '') ||
+                    ''}
+                </ReactMarkdown>
 
                 {/* 中文翻译（如果有） */}
                 {(msg.data_cn || translations[msg.message_id]) && (
