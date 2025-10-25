@@ -232,7 +232,7 @@ class PostingOperationsService:
         posting_number: str,
         domestic_tracking_numbers: List[str],
         order_notes: Optional[str] = None,
-        sync_to_kuajing84: bool = True
+        sync_to_kuajing84: bool = False
     ) -> Dict[str, Any]:
         """
         填写国内物流单号 + 同步跨境巴士（支持多单号）
@@ -241,7 +241,7 @@ class PostingOperationsService:
             posting_number: 货件编号
             domestic_tracking_numbers: 国内物流单号列表（支持多个）
             order_notes: 订单备注（可选）
-            sync_to_kuajing84: 是否同步到跨境巴士（默认true）
+            sync_to_kuajing84: 是否同步到跨境巴士（默认false）
 
         Returns:
             操作结果

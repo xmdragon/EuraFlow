@@ -526,7 +526,6 @@ const Promotions: React.FC = () => {
                   />
                 </Tooltip>
               )}
-              <span>| ID: {record.ozon_product_id || '-'}</span>
             </Space>
           </div>
         </div>
@@ -609,7 +608,6 @@ const Promotions: React.FC = () => {
                   />
                 </Tooltip>
               )}
-              <span>| ID: {record.ozon_product_id || '-'}</span>
             </Space>
           </div>
         </div>

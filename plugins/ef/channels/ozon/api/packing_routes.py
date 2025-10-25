@@ -48,7 +48,7 @@ class SubmitDomesticTrackingDTO(BaseModel):
 
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
 
-    sync_to_kuajing84: bool = Field(True, description="是否同步到跨境巴士（默认true）")
+    sync_to_kuajing84: bool = Field(False, description="是否同步到跨境巴士（默认false）")
 
     def get_tracking_numbers(self) -> List[str]:
         """获取国内单号列表（兼容逻辑）"""

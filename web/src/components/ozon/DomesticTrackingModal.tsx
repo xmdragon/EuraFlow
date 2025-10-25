@@ -74,7 +74,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       const data: ozonApi.SubmitDomesticTrackingRequest = {
         domestic_tracking_numbers: cleanedNumbers,
         order_notes: values.order_notes,
-        sync_to_kuajing84: values.sync_to_kuajing84 !== false, // 默认为true
+        sync_to_kuajing84: values.sync_to_kuajing84 === true, // 默认为false
       };
       submitTrackingMutation.mutate(data);
     } catch (error) {
@@ -137,7 +137,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item name="sync_to_kuajing84" valuePropName="checked" initialValue={true}>
+        <Form.Item name="sync_to_kuajing84" valuePropName="checked" initialValue={false}>
           <Checkbox>同步到跨境巴士</Checkbox>
         </Form.Item>
       </Form>
