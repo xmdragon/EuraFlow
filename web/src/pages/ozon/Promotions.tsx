@@ -25,7 +25,6 @@ import {
   Empty,
   Image,
   message,
-  Collapse,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
@@ -742,26 +741,6 @@ const Promotions: React.FC = () => {
           </Space>
         </div>
 
-        {/* 活动描述展示区域 */}
-        {actionsData && actionsData.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <Collapse
-              items={actionsData
-                .filter((action) => action.description)
-                .map((action) => ({
-                  key: action.action_id.toString(),
-                  label: `${action.title} (ID: ${action.action_id})`,
-                  children: (
-                    <div
-                      dangerouslySetInnerHTML={{ __html: action.description || '' }}
-                      style={{ padding: '8px 0' }}
-                    />
-                  ),
-                }))}
-            />
-          </div>
-        )}
-
         {/* 活动列表表格 */}
         <Table
           columns={actionColumns}
@@ -806,6 +785,22 @@ const Promotions: React.FC = () => {
               {selectedAction.action_status}
             </Tag>
           </Space>
+
+          {/* 活动描述 */}
+          {selectedAction.description && (
+            <Card
+              size="small"
+              style={{
+                backgroundColor: '#f5f5f5',
+                border: '1px solid #d9d9d9',
+              }}
+            >
+              <div
+                dangerouslySetInnerHTML={{ __html: selectedAction.description }}
+                style={{ lineHeight: '1.6' }}
+              />
+            </Card>
+          )}
 
           {/* 标签页 */}
           <Tabs
