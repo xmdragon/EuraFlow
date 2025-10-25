@@ -1,6 +1,6 @@
 /**
  * 全局通知工具
- * 统一的通知系统，右下角弹出,5秒后自动消失
+ * 统一的通知系统，右下角弹出,10秒后自动消失
  *
  * ⚠️ Ant Design 5.x 注意事项：
  * - 需要在 App.tsx 中初始化全局notification实例
@@ -36,7 +36,7 @@ export const notifySuccess = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 5,
+      duration: 10,
     });
   }
 };
@@ -51,7 +51,7 @@ export const notifyError = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 5,
+      duration: 10,
     });
   }
 };
@@ -66,7 +66,7 @@ export const notifyWarning = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 5,
+      duration: 10,
     });
   }
 };
@@ -81,7 +81,7 @@ export const notifyInfo = (message: string, description?: string) => {
       message,
       description,
       placement: 'bottomRight',
-      duration: 5,
+      duration: 10,
     });
   }
 };
@@ -95,7 +95,7 @@ export const notify = (config: ArgsProps) => {
     notification.open({
       ...config,
       placement: config.placement || 'bottomRight',
-      duration: config.duration !== undefined ? config.duration : 5,
+      duration: config.duration !== undefined ? config.duration : 10,
     });
   }
 };

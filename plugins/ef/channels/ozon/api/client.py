@@ -1339,7 +1339,7 @@ class OzonAPIClient:
     async def send_chat_file(
         self,
         chat_id: str,
-        file_url: str,
+        base64_content: str,
         file_name: str
     ) -> Dict[str, Any]:
         """
@@ -1347,18 +1347,16 @@ class OzonAPIClient:
 
         Args:
             chat_id: 聊天ID
-            file_url: 文件URL
-            file_name: 文件名
+            base64_content: base64编码的文件内容
+            file_name: 文件名（含扩展名）
 
         Returns:
             发送结果
         """
         data = {
             "chat_id": chat_id,
-            "file": {
-                "url": file_url,
-                "name": file_name
-            }
+            "base64_content": base64_content,
+            "name": file_name
         }
 
         return await self._request(
@@ -1875,4 +1873,160 @@ class OzonAPIClient:
             "/v1/warehouse/list",
             data={},  # 空body
             resource_type="default"
+        )
+
+    # ========== 促销活动相关 API ==========
+
+    async def get_actions(self) -> Dict[str, Any]:
+        """
+        获取促销活动清单
+        使用 /v1/actions 接口
+
+        Returns:
+            活动列表数据，包含：
+            - result: 活动列表
+                [{
+                    "id": 活动ID,
+                    "title": 活动名称,
+                    "description": 活动描述,
+                    "date_start": 开始时间,
+                    "date_end": 结束时间,
+                    "is_participating": 是否参与,
+                    ...
+                }]
+        """
+        return await self._request(
+            "GET",
+            "/v1/actions",
+            resource_type="actions"
+        )
+
+    async def get_action_candidates(
+        self,
+        action_id: int,
+        limit: int = 100,
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """
+        获取可参加促销的商品列表（候选商品）
+        使用 /v1/actions/candidates 接口
+
+        Args:
+            action_id: 活动ID
+            limit: 每页数量
+            offset: 偏移量
+
+        Returns:
+            候选商品列表数据
+        """
+        data = {
+            "action_id": action_id,
+            "limit": limit,
+            "offset": offset
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/actions/candidates",
+            data=data,
+            resource_type="actions"
+        )
+
+    async def get_action_products(
+        self,
+        action_id: int,
+        limit: int = 100,
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """
+        获取参与活动的商品列表
+        使用 /v1/actions/products 接口
+
+        Args:
+            action_id: 活动ID
+            limit: 每页数量
+            offset: 偏移量
+
+        Returns:
+            参与商品列表数据，包含：
+            - result: 商品列表
+                [{
+                    "id": 商品ID,
+                    "offer_id": SKU,
+                    "price": 促销价格,
+                    "stock": 促销库存,
+                    "add_mode": 加入方式（manual/automatic）,
+                    ...
+                }]
+        """
+        data = {
+            "action_id": action_id,
+            "limit": limit,
+            "offset": offset
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/actions/products",
+            data=data,
+            resource_type="actions"
+        )
+
+    async def activate_action_products(
+        self,
+        action_id: int,
+        products: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        添加商品到促销活动
+        使用 /v1/actions/products/activate 接口
+
+        Args:
+            action_id: 活动ID
+            products: 商品列表，每个包含：
+                - product_id: 商品ID
+                - action_price: 促销价格
+                - stock: 促销库存
+
+        Returns:
+            操作结果
+        """
+        data = {
+            "action_id": action_id,
+            "products": products
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/actions/products/activate",
+            data=data,
+            resource_type="actions"
+        )
+
+    async def deactivate_action_products(
+        self,
+        action_id: int,
+        product_ids: List[int]
+    ) -> Dict[str, Any]:
+        """
+        从促销活动中移除商品
+        使用 /v1/actions/products/deactivate 接口
+
+        Args:
+            action_id: 活动ID
+            product_ids: 商品ID列表
+
+        Returns:
+            操作结果
+        """
+        data = {
+            "action_id": action_id,
+            "product_id": product_ids
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/actions/products/deactivate",
+            data=data,
+            resource_type="actions"
         )

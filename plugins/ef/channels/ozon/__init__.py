@@ -165,7 +165,19 @@ async def setup(hooks) -> None:
         )
         logger.info("✓ Registered ozon_finance_sync service handler")
 
-        # 3. 注册OZON商品订单增量同步服务（封装）
+        # 3. 注册OZON促销活动同步服务
+        from .tasks.promotion_sync_task import sync_all_promotions
+        registry.register(
+            service_key="ozon_promotion_sync",
+            handler=sync_all_promotions,
+            name="OZON促销活动同步",
+            description="同步所有店铺的促销活动、候选商品和参与商品，并执行自动取消逻辑（每30分钟执行）",
+            plugin="ef.channels.ozon",
+            config_schema={}
+        )
+        logger.info("✓ Registered ozon_promotion_sync service handler")
+
+        # 4. 注册OZON商品订单增量同步服务（封装）
         async def ozon_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
             """OZON商品订单增量同步处理函数"""
             import uuid
@@ -279,6 +291,30 @@ async def setup(hooks) -> None:
 
     except Exception as e:
         logger.info(f"Warning: Failed to register sync service handlers: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # 注册促销相关定时任务
+    try:
+        from .tasks.promotion_sync_task import sync_all_promotions, promotion_health_check
+
+        # 注册促销同步任务（每30分钟执行一次）
+        await hooks.register_cron(
+            name="ef.ozon.promotions.sync",
+            cron="*/30 * * * *",  # 每30分钟执行
+            task=sync_all_promotions
+        )
+
+        # 注册健康检查任务（每小时执行一次）
+        await hooks.register_cron(
+            name="ef.ozon.promotions.health_check",
+            cron="0 * * * *",  # 每小时执行
+            task=promotion_health_check
+        )
+
+        logger.info("✓ Registered promotion tasks successfully")
+    except Exception as e:
+        logger.info(f"Warning: Failed to register promotion tasks: {e}")
         import traceback
         traceback.print_exc()
 

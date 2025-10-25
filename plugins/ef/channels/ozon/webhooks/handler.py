@@ -1331,7 +1331,7 @@ class OzonWebhookHandler:
             if sender_type == "user":  # 买家消息，增加未读数
                 chat.unread_count += 1
             chat.last_message_at = utcnow()
-            chat.last_message_preview = content[:100] if content else ""
+            chat.last_message_preview = content[:1000] if content else ""
 
             await session.commit()
 

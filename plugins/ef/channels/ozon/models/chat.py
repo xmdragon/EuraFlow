@@ -88,8 +88,9 @@ class OzonChat(Base):
     customer_name = Column(String(200))  # 买家姓名
 
     # 状态
-    status = Column(String(50), default="open")  # open/closed/archived
+    status = Column(String(50), default="open")  # open/closed
     is_closed = Column(Boolean, default=False)
+    is_archived = Column(Boolean, default=False, index=True)  # 是否已归档
 
     # 关联信息
     order_number = Column(String(100))  # 关联的订单号
@@ -101,7 +102,7 @@ class OzonChat(Base):
 
     # 最后消息
     last_message_at = Column(DateTime(timezone=True))  # 最后消息时间
-    last_message_preview = Column(String(500))  # 最后消息预览
+    last_message_preview = Column(String(1000))  # 最后消息预览
 
     # 元数据（Python属性名用extra_data，数据库列名是metadata）
     extra_data = Column('metadata', JSONB)  # 其他元数据

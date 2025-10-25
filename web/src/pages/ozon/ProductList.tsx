@@ -1385,6 +1385,7 @@ const ProductList: React.FC = () => {
           setCurrentPage(1);
         }}
         onCreateProduct={() => navigate('/dashboard/ozon/products/create')}
+        onPromotions={() => navigate('/dashboard/ozon/promotions')}
         stats={globalStats?.products}
       />
 

@@ -19,6 +19,7 @@ from .listing import (
     OzonStockUpdateLog,
 )
 from .finance import OzonFinanceTransaction, OzonFinanceSyncWatermark
+from .promotion import OzonPromotionAction, OzonPromotionProduct
 
 __all__ = [
     "OzonShop",
@@ -50,4 +51,7 @@ __all__ = [
     # Finance models
     "OzonFinanceTransaction",
     "OzonFinanceSyncWatermark",
+    # Promotion models
+    "OzonPromotionAction",
+    "OzonPromotionProduct",
 ]

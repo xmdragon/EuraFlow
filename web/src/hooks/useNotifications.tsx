@@ -41,7 +41,7 @@ export const useNotifications = (shopId: number | null) => {
         description: descriptionText,
         icon: <MessageOutlined style={{ color: '#1890ff' }} />,
         placement: 'bottomRight',
-        duration: 6,
+        duration: 10,
         onClick: () => {
           notification.destroy(key);
           if (shopId && chatId) {
@@ -117,7 +117,7 @@ export const useNotifications = (shopId: number | null) => {
         onClick: () => {
           notification.destroy(key);
           if (shopId) {
-            navigate(`/ozon/orders?shopId=${shopId}`);
+            navigate(`/ozon/packing?shopId=${shopId}&tab=awaiting_stock&posting_number=${data.posting_number}`);
           }
         },
       });

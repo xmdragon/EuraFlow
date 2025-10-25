@@ -20,6 +20,7 @@ async def get_all_chats(
     shop_ids: str = Query(..., description="店铺ID列表，逗号分隔"),
     status: Optional[str] = Query(None, description="聊天状态筛选 (open/closed)"),
     has_unread: Optional[bool] = Query(None, description="是否有未读消息"),
+    is_archived: Optional[bool] = Query(None, description="是否已归档"),
     order_number: Optional[str] = Query(None, description="订单号筛选"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
     offset: int = Query(0, ge=0, description="偏移量"),
@@ -31,6 +32,7 @@ async def get_all_chats(
         shop_ids: 店铺ID列表，逗号分隔（如 "1,2,3"）
         status: 聊天状态 (open/closed)
         has_unread: 是否有未读消息
+        is_archived: 是否已归档
         order_number: 订单号
         limit: 每页数量 (1-100)
         offset: 偏移量
@@ -58,6 +60,7 @@ async def get_all_chats(
         result = await service.get_chats(
             status=status,
             has_unread=has_unread,
+            is_archived=is_archived,
             order_number=order_number,
             limit=limit,
             offset=offset
@@ -127,8 +130,8 @@ class SendMessageRequest(BaseModel):
 
 class SendFileRequest(BaseModel):
     """发送文件请求"""
-    file_url: str = Field(..., description="文件URL")
-    file_name: str = Field(..., description="文件名")
+    base64_content: str = Field(..., description="base64编码的文件内容")
+    file_name: str = Field(..., min_length=1, max_length=255, description="文件名（含扩展名）")
 
 
 async def get_shop_and_client(
@@ -174,6 +177,7 @@ async def get_chats(
     shop_id: int,
     status: Optional[str] = Query(None, description="聊天状态筛选 (open/closed)"),
     has_unread: Optional[bool] = Query(None, description="是否有未读消息"),
+    is_archived: Optional[bool] = Query(None, description="是否已归档"),
     order_number: Optional[str] = Query(None, description="订单号筛选"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
     offset: int = Query(0, ge=0, description="偏移量"),
@@ -185,6 +189,7 @@ async def get_chats(
         shop_id: 店铺ID
         status: 聊天状态 (open/closed)
         has_unread: 是否有未读消息
+        is_archived: 是否已归档
         order_number: 订单号
         limit: 每页数量 (1-100)
         offset: 偏移量
@@ -205,6 +210,7 @@ async def get_chats(
         result = await service.get_chats(
             status=status,
             has_unread=has_unread,
+            is_archived=is_archived,
             order_number=order_number,
             limit=limit,
             offset=offset
@@ -428,7 +434,7 @@ async def send_file(
     Args:
         shop_id: 店铺ID
         chat_id: 聊天ID
-        request: 文件信息
+        request: 文件信息（base64_content + file_name）
 
     Returns:
         {
@@ -442,21 +448,37 @@ async def send_file(
 
         result = await service.send_file(
             chat_id=chat_id,
-            file_url=request.file_url,
+            base64_content=request.base64_content,
             file_name=request.file_name,
             api_client=client
         )
 
         return {"ok": True, "data": result}
     except ValueError as e:
+        # 业务逻辑错误（聊天不存在、文件大小/类型错误）
+        # 根据错误信息判断具体的状态码
+        error_message = str(e).lower()
+        if "not found" in error_message:
+            status_code = 404
+            code = "CHAT_NOT_FOUND"
+            title = "Chat Not Found"
+        elif "size" in error_message or "type" in error_message:
+            status_code = 400
+            code = "INVALID_FILE"
+            title = "Invalid File"
+        else:
+            status_code = 400
+            code = "VALIDATION_ERROR"
+            title = "Validation Error"
+
         raise HTTPException(
-            status_code=404,
+            status_code=status_code,
             detail={
                 "type": "about:blank",
-                "title": "Chat Not Found",
-                "status": 404,
+                "title": title,
+                "status": status_code,
                 "detail": str(e),
-                "code": "CHAT_NOT_FOUND"
+                "code": code
             }
         )
     except Exception as e:
@@ -497,6 +519,60 @@ async def mark_chat_as_read(
         result = await service.mark_as_read(
             chat_id=chat_id,
             api_client=client
+        )
+
+        return {"ok": True, "data": result}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "type": "about:blank",
+                "title": "Chat Not Found",
+                "status": 404,
+                "detail": str(e),
+                "code": "CHAT_NOT_FOUND"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "about:blank",
+                "title": "Internal Server Error",
+                "status": 500,
+                "detail": str(e),
+                "code": "INTERNAL_ERROR"
+            }
+        )
+
+
+@router.post("/{shop_id}/{chat_id}/archive")
+async def archive_chat(
+    shop_id: int,
+    chat_id: str,
+    request: dict = Body(...),
+    user: User = Depends(get_current_user)
+):
+    """归档/取消归档聊天
+
+    Args:
+        shop_id: 店铺ID
+        chat_id: 聊天ID
+        request: 请求体，包含 is_archived 字段
+
+    Returns:
+        {
+            "ok": true,
+            "data": {...}
+        }
+    """
+    try:
+        is_archived = request.get("is_archived", True)
+        service = OzonChatService(shop_id)
+
+        result = await service.archive_chat(
+            chat_id=chat_id,
+            is_archived=is_archived
         )
 
         return {"ok": True, "data": result}

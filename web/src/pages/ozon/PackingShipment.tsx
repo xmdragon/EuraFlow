@@ -38,6 +38,7 @@ import {
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { useCurrency } from '../../hooks/useCurrency';
 import { formatPriceWithFallback, _getCurrencySymbol } from '../../utils/currency';
@@ -76,6 +77,7 @@ const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
   const { canOperate, canSync } = usePermission();
+  const [urlSearchParams] = useSearchParams();
 
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
@@ -167,6 +169,22 @@ const PackingShipment: React.FC = () => {
     window.addEventListener('resize', calculateItemsPerRow);
     return () => window.removeEventListener('resize', calculateItemsPerRow);
   }, [calculateItemsPerRow]);
+
+  // 从 URL 参数初始化状态（用于通知点击跳转）
+  useEffect(() => {
+    const tab = urlSearchParams.get('tab');
+    const postingNumber = urlSearchParams.get('posting_number');
+
+    // 如果 URL 有 tab 参数，设置操作状态
+    if (tab && ['awaiting_stock', 'allocating', 'allocated', 'tracking_confirmed'].includes(tab)) {
+      setOperationStatus(tab);
+    }
+
+    // 如果 URL 有 posting_number 参数，设置搜索过滤
+    if (postingNumber) {
+      setSearchParams({ posting_number: postingNumber });
+    }
+  }, []); // 仅在组件挂载时执行一次
 
   // 复制功能处理函数
   const handleCopy = (text: string | undefined, label: string) => {

@@ -32,6 +32,7 @@ class OzonChatService:
         self,
         status: Optional[str] = None,
         has_unread: Optional[bool] = None,
+        is_archived: Optional[bool] = None,
         order_number: Optional[str] = None,
         limit: int = 20,
         offset: int = 0
@@ -41,6 +42,7 @@ class OzonChatService:
         Args:
             status: 聊天状态筛选 (open/closed)
             has_unread: 是否有未读消息
+            is_archived: 是否已归档
             order_number: 订单号筛选
             limit: 每页数量
             offset: 偏移量
@@ -73,6 +75,9 @@ class OzonChatService:
                     conditions.append(OzonChat.unread_count > 0)
                 else:
                     conditions.append(OzonChat.unread_count == 0)
+
+            if is_archived is not None:
+                conditions.append(OzonChat.is_archived == is_archived)
 
             if order_number:
                 conditions.append(OzonChat.order_number == order_number)
@@ -432,6 +437,40 @@ class OzonChatService:
 
         return result
 
+    async def archive_chat(
+        self,
+        chat_id: str,
+        is_archived: bool
+    ) -> Dict[str, Any]:
+        """归档/取消归档聊天
+
+        Args:
+            chat_id: 聊天ID
+            is_archived: 是否归档
+
+        Returns:
+            操作结果
+        """
+        async with self.db_manager.get_session() as session:
+            stmt = select(OzonChat).where(
+                and_(
+                    OzonChat.shop_id == self.shop_id,
+                    OzonChat.chat_id == chat_id
+                )
+            )
+            chat = await session.scalar(stmt)
+            if not chat:
+                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+
+            chat.is_archived = is_archived
+            await session.commit()
+
+        return {
+            "chat_id": chat_id,
+            "is_archived": is_archived,
+            "message": "归档成功" if is_archived else "取消归档成功"
+        }
+
     async def _sync_chat_messages(
         self,
         chat_id: str,
@@ -512,7 +551,7 @@ class OzonChatService:
                     # data 是字符串数组，提取文本预览
                     data_array = last_msg.get("data", [])
                     preview = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
-                    chat.last_message_preview = preview[:500]
+                    chat.last_message_preview = preview[:1000]
                     chat.last_message_at = parse_datetime(last_msg.get("created_at"))
                     chat.message_count = len(messages_data)
 
@@ -752,6 +791,7 @@ class OzonChatService:
             "customer_name": chat.customer_name,
             "status": chat.status,
             "is_closed": chat.is_closed,
+            "is_archived": chat.is_archived,
             "order_number": chat.order_number,
             "product_id": chat.product_id,
             "message_count": chat.message_count,

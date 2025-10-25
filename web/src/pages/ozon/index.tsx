@@ -17,6 +17,7 @@ const WatermarkManagement = lazy(() => import("./WatermarkManagement"));
 const ProductSelection = lazy(() => import("./ProductSelection"));
 const ChatList = lazy(() => import("./ChatList"));
 const ChatDetail = lazy(() => import("./ChatDetail"));
+const Promotions = lazy(() => import("./Promotions"));
 
 // 加载中组件
 const PageLoading = () => (
@@ -40,6 +41,7 @@ const OzonManagement: React.FC = () => {
         <Route path="products" element={<ProductList />} />
         <Route path="products/create" element={<ProductCreate />} />
         <Route path="listing" element={<ProductListing />} />
+        <Route path="promotions" element={<Promotions />} />
         <Route path="orders" element={<OrderList />} />
         <Route path="packing" element={<PackingShipment />} />
         <Route path="reports" element={<OrderReport />} />
