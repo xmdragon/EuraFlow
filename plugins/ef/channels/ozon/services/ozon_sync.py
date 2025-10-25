@@ -1474,48 +1474,48 @@ class OzonSyncService:
         existing_items_result = await db.execute(
             select(OzonOrderItem).where(OzonOrderItem.order_id == order.id)
         )
-        existing_items = {item.sku: item for item in existing_items_result.scalars().all()}
+        existing_items = {item.offer_id: item for item in existing_items_result.scalars().all()}
 
-        synced_skus = set()
+        synced_offer_ids = set()
 
         # 遍历API返回的商品
         for product in products_data:
-            # SKU可能是整数，需要转换为字符串
-            sku = str(product.get("sku", "")) if product.get("sku") else ""
-            if not sku:
-                logger.warning(f"Product without SKU in order {order.order_id}: {product}")
+            # offer_id也可能是整数，转换为字符串
+            offer_id = str(product.get("offer_id", "")) if product.get("offer_id") else ""
+            if not offer_id:
+                logger.warning(f"Product without offer_id in order {order.order_id}: {product}")
                 continue
 
-            synced_skus.add(sku)
+            synced_offer_ids.add(offer_id)
 
             # 解析商品数据
             quantity = product.get("quantity", 1)
             price = safe_decimal_conversion(product.get("price", 0)) or Decimal("0")
 
-            # offer_id也可能是整数，转换为字符串
-            offer_id = str(product.get("offer_id", "")) if product.get("offer_id") else ""
+            # OZON平台SKU
+            ozon_sku = product.get("sku")
             name = product.get("name", "")
 
             # 计算总价
             total_amount = price * quantity
 
             # 检查是否已存在
-            if sku in existing_items:
+            if offer_id in existing_items:
                 # 更新现有明细
-                item = existing_items[sku]
+                item = existing_items[offer_id]
                 item.quantity = quantity
                 item.price = price
                 item.total_amount = total_amount
                 item.name = name
-                item.offer_id = offer_id
+                item.ozon_sku = ozon_sku
                 # 状态继承订单状态
                 item.status = order.status
             else:
                 # 创建新明细
                 item = OzonOrderItem(
                     order_id=order.id,
-                    sku=sku,
                     offer_id=offer_id,
+                    ozon_sku=ozon_sku,
                     name=name,
                     quantity=quantity,
                     price=price,
@@ -1526,13 +1526,13 @@ class OzonSyncService:
                 db.add(item)
 
         # 删除不再存在的明细（订单更新时商品被移除）
-        for sku, item in existing_items.items():
-            if sku not in synced_skus:
+        for offer_id, item in existing_items.items():
+            if offer_id not in synced_offer_ids:
                 await db.delete(item)
 
         logger.info(
-            f"Synced {len(synced_skus)} items for order {order.order_id}",
-            extra={"order_id": order.order_id, "items_count": len(synced_skus)}
+            f"Synced {len(synced_offer_ids)} items for order {order.order_id}",
+            extra={"order_id": order.order_id, "items_count": len(synced_offer_ids)}
         )
 
     @staticmethod

@@ -88,7 +88,13 @@ const FinanceTransactions: React.FC = () => {
       }
 
       if (postingNumber) {
-        filter.posting_number = postingNumber.trim();
+        const trimmedPostingNumber = postingNumber.trim();
+        // 如果是"数字-数字"格式，自动添加通配符
+        if (/^\d+-\d+$/.test(trimmedPostingNumber)) {
+          filter.posting_number = trimmedPostingNumber + '-%';
+        } else {
+          filter.posting_number = trimmedPostingNumber;
+        }
       }
 
       return await ozonApi.getFinanceTransactions(filter);
@@ -153,7 +159,7 @@ const FinanceTransactions: React.FC = () => {
     },
     {
       title: '商品SKU',
-      dataIndex: 'item_sku',
+      dataIndex: 'ozon_sku',
       width: 140,
       render: (text) => text || '-',
     },

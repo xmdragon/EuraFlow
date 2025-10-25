@@ -56,8 +56,13 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
       params.sku = searchValue;
     }
     // 规则2: 货件编号 - 包含数字和"-"
+    // 如果是"数字-数字"格式，添加通配符用于模糊匹配
     else if (/\d/.test(searchValue) && searchValue.includes('-')) {
-      params.posting_number = searchValue;
+      if (/^\d+-\d+$/.test(searchValue)) {
+        params.posting_number = searchValue + '-%';
+      } else {
+        params.posting_number = searchValue;
+      }
     }
     // 规则3: 追踪号码 - 字母开头+中间数字+字母结尾
     else if (/^[A-Za-z]+\d+[A-Za-z]+$/.test(searchValue)) {

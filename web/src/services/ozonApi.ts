@@ -1681,7 +1681,7 @@ export interface FinanceTransaction {
   delivery_charge: string;
   return_delivery_charge: string;
   sale_commission: string;
-  item_sku?: string;
+  ozon_sku?: string;
   item_name?: string;
   item_quantity?: number;
   item_price?: string;

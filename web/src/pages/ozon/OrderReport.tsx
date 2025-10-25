@@ -205,6 +205,11 @@ const OrderReport: React.FC = () => {
     queryFn: async () => {
       const shopIds =
         selectedShop !== null ? selectedShop.toString() : undefined;
+      // 如果posting_number是"数字-数字"格式，自动添加通配符
+      let processedPostingNumber = postingNumber || undefined;
+      if (postingNumber && /^\d+-\d+$/.test(postingNumber.trim())) {
+        processedPostingNumber = postingNumber.trim() + '-%';
+      }
       return await ozonApi.getPostingReport(
         selectedMonth,
         shopIds,
@@ -213,7 +218,7 @@ const OrderReport: React.FC = () => {
         pageSize,
         sortBy,
         sortOrder,
-        postingNumber || undefined,
+        processedPostingNumber,
       );
     },
     enabled: activeTab === "details",

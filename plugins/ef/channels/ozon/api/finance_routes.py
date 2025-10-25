@@ -32,7 +32,7 @@ class FinanceTransactionDTO(BaseModel):
     delivery_charge: str
     return_delivery_charge: str
     sale_commission: str
-    item_sku: Optional[str] = None
+    ozon_sku: Optional[str] = None
     item_name: Optional[str] = None
     item_quantity: Optional[int] = None
     item_price: Optional[str] = None

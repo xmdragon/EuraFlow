@@ -485,7 +485,6 @@ class OrderSyncService:
             price = Decimal(str(product_data.get("price", "0")))
             item = OzonOrderItem(
                 order_id=order.id,
-                sku=product_data.get("offer_id", ""),
                 offer_id=product_data.get("offer_id"),
                 ozon_sku=product_data.get("sku"),
                 name=product_data.get("name"),

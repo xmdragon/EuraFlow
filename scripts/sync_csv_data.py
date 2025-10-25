@@ -23,6 +23,36 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
+def is_valid_tracking_number(tracking_number: str) -> bool:
+    """
+    判断是否是有效的物流单号
+
+    有效的物流单号通常：
+    - 长度至少10位
+    - 主要由数字和字母组成
+    - 不包含中文字符
+
+    Args:
+        tracking_number: 待检查的单号
+
+    Returns:
+        True表示是有效的物流单号，False表示可能是备注信息
+    """
+    if not tracking_number or len(tracking_number) < 10:
+        return False
+
+    # 检查是否包含中文字符
+    if any('\u4e00' <= char <= '\u9fff' for char in tracking_number):
+        return False
+
+    # 检查是否主要由数字和字母组成（至少80%）
+    alphanumeric_count = sum(1 for char in tracking_number if char.isalnum())
+    if alphanumeric_count / len(tracking_number) < 0.8:
+        return False
+
+    return True
+
+
 async def sync_csv_data(csv_path: str):
     """
     同步CSV数据到数据库
@@ -35,7 +65,8 @@ async def sync_csv_data(csv_path: str):
     skipped = 0  # 两个值都有，跳过
     updated_price = 0  # 更新了进货价格
     updated_tracking = 0  # 更新了国内单号
-    updated_both = 0  # 两个都更新了
+    updated_notes = 0  # 更新了备注
+    updated_both = 0  # 更新了多个字段
     not_found = 0  # 货件编号未找到
     errors = 0  # 错误数量
 
@@ -118,45 +149,79 @@ async def sync_csv_data(csv_path: str):
                         errors += 1
                         continue
 
-                # 添加国内单号
-                if not has_tracking and tracking_number:
-                    # 检查是否已存在相同单号（避免重复）
-                    check_stmt = text("""
-                        SELECT COUNT(*) FROM ozon_domestic_tracking_numbers
-                        WHERE posting_id = :posting_id AND tracking_number = :tracking_number
-                    """)
-                    check_result = await session.execute(check_stmt, {
-                        "posting_id": posting_id,
-                        "tracking_number": tracking_number
-                    })
-                    exists = check_result.scalar() > 0
+                # 处理国内单号或备注信息
+                if tracking_number:
+                    # 判断是否是有效的物流单号
+                    is_valid = is_valid_tracking_number(tracking_number)
 
-                    if not exists:
-                        insert_stmt = text("""
-                            INSERT INTO ozon_domestic_tracking_numbers (posting_id, tracking_number, created_at)
-                            VALUES (:posting_id, :tracking_number, :created_at)
+                    if is_valid and not has_tracking:
+                        # 是有效的物流单号，添加到国内单号表
+                        check_stmt = text("""
+                            SELECT COUNT(*) FROM ozon_domestic_tracking_numbers
+                            WHERE posting_id = :posting_id AND tracking_number = :tracking_number
                         """)
-                        await session.execute(insert_stmt, {
+                        check_result = await session.execute(check_stmt, {
                             "posting_id": posting_id,
-                            "tracking_number": tracking_number,
-                            "created_at": utcnow()
+                            "tracking_number": tracking_number
                         })
-                        updated.append('单号')
+                        exists = check_result.scalar() > 0
+
+                        if not exists:
+                            insert_stmt = text("""
+                                INSERT INTO ozon_domestic_tracking_numbers (posting_id, tracking_number, created_at)
+                                VALUES (:posting_id, :tracking_number, :created_at)
+                            """)
+                            await session.execute(insert_stmt, {
+                                "posting_id": posting_id,
+                                "tracking_number": tracking_number,
+                                "created_at": utcnow()
+                            })
+                            updated.append('单号')
+                    elif not is_valid:
+                        # 不是有效的物流单号，保存为备注信息
+                        # 查询当前备注
+                        check_notes_stmt = text("""
+                            SELECT order_notes FROM ozon_postings WHERE id = :posting_id
+                        """)
+                        notes_result = await session.execute(check_notes_stmt, {"posting_id": posting_id})
+                        current_notes = notes_result.scalar()
+
+                        # 如果备注为空或不包含该信息，则更新
+                        if not current_notes or tracking_number not in current_notes:
+                            new_notes = f"{current_notes}\n{tracking_number}" if current_notes else tracking_number
+                            update_notes_stmt = text("""
+                                UPDATE ozon_postings
+                                SET order_notes = :order_notes
+                                WHERE id = :posting_id
+                            """)
+                            await session.execute(update_notes_stmt, {
+                                "order_notes": new_notes.strip(),
+                                "posting_id": posting_id
+                            })
+                            updated.append('备注')
 
                 # 如果有更新，提交
                 if updated:
                     await session.commit()
 
-                    # 统计
-                    if len(updated) == 2:
-                        updated_both += 1
-                        print(f"[{idx}/{total}] ✅ 更新价格+单号: {posting_number} - 价格:{purchase_price_str}, 单号:{tracking_number}")
-                    elif '价格' in updated:
+                    # 统计并打印
+                    update_desc = "+".join(updated)
+                    details = []
+                    if '价格' in updated:
                         updated_price += 1
-                        print(f"[{idx}/{total}] ✅ 更新价格: {posting_number} - {purchase_price_str}")
-                    elif '单号' in updated:
+                        details.append(f"价格:{purchase_price_str}")
+                    if '单号' in updated:
                         updated_tracking += 1
-                        print(f"[{idx}/{total}] ✅ 更新单号: {posting_number} - {tracking_number}")
+                        details.append(f"单号:{tracking_number}")
+                    if '备注' in updated:
+                        updated_notes += 1
+                        details.append(f"备注:{tracking_number}")
+
+                    if len(updated) >= 2:
+                        updated_both += 1
+
+                    detail_str = ", ".join(details)
+                    print(f"[{idx}/{total}] ✅ 更新{update_desc}: {posting_number} - {detail_str}")
                 else:
                     # CSV中没有需要更新的数据
                     print(f"[{idx}/{total}] 跳过（CSV无新数据）: {posting_number}")

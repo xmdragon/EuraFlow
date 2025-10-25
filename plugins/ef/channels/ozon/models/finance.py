@@ -52,7 +52,7 @@ class OzonFinanceTransaction(Base):
 
     # 商品明细（扁平化字段，用于快速查询）
     # 注意：一个operation可能包含多个item，会展开成多条记录
-    item_sku = Column(String(100), comment="商品SKU")
+    ozon_sku = Column(String(100), comment="OZON平台SKU")
     item_name = Column(String(500), comment="商品名称")
     item_quantity = Column(Integer, comment="商品数量")
     item_price = Column(Numeric(18, 4), comment="商品价格")
@@ -72,8 +72,8 @@ class OzonFinanceTransaction(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, comment="记录更新时间")
 
     __table_args__ = (
-        # 唯一约束：同一个operation_id + item_sku组合只能有一条记录（扁平化后的唯一性）
-        UniqueConstraint("shop_id", "operation_id", "item_sku", name="uq_ozon_finance_transaction"),
+        # 唯一约束：同一个operation_id + ozon_sku组合只能有一条记录（扁平化后的唯一性）
+        UniqueConstraint("shop_id", "operation_id", "ozon_sku", name="uq_ozon_finance_transaction"),
         # 按店铺+日期查询（高频）
         Index("idx_ozon_finance_shop_date", "shop_id", "operation_date"),
         # 按发货单号查询（关联订单）
@@ -102,7 +102,7 @@ class OzonFinanceTransaction(Base):
             "return_delivery_charge": str(self.return_delivery_charge) if self.return_delivery_charge else "0",
             "sale_commission": str(self.sale_commission) if self.sale_commission else "0",
             # 商品明细
-            "item_sku": self.item_sku,
+            "ozon_sku": self.ozon_sku,
             "item_name": self.item_name,
             "item_quantity": self.item_quantity,
             "item_price": str(self.item_price) if self.item_price else None,

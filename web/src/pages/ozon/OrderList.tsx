@@ -245,6 +245,11 @@ const OrderList: React.FC = () => {
         dateRange: undefined,
       };
 
+      // 如果posting_number是"数字-数字"格式，自动添加通配符
+      if (queryParams.posting_number && /^\d+-\d+$/.test(queryParams.posting_number.trim())) {
+        queryParams.posting_number = queryParams.posting_number.trim() + '-%';
+      }
+
       if (activeTab === 'discarded') {
         // 已废弃：使用 operation_status='cancelled' 过滤
         queryParams.operation_status = 'cancelled';

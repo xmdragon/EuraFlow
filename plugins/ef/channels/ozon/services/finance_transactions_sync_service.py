@@ -262,7 +262,7 @@ class FinanceTransactionsSyncService:
                         "return_delivery_charge": return_delivery_charge,
                         "sale_commission": sale_commission,
                         # 商品明细
-                        "item_sku": str(item.get("sku")) if item.get("sku") is not None else None,
+                        "ozon_sku": str(item.get("sku")) if item.get("sku") is not None else None,
                         "item_name": item.get("name"),
                         "item_quantity": item.get("quantity"),
                         "item_price": Decimal(str(item.get("price", 0))) if item.get("price") else None,

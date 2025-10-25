@@ -468,10 +468,9 @@ class OzonOrderItem(Base):
     
     id = Column(BigInteger, primary_key=True)
     order_id = Column(BigInteger, ForeignKey("ozon_orders.id"), nullable=False)
-    
+
     # SKU映射
-    sku = Column(String(100), nullable=False)
-    offer_id = Column(String(100))
+    offer_id = Column(String(100), nullable=False)
     ozon_sku = Column(BigInteger)
     
     # 商品信息
@@ -490,9 +489,9 @@ class OzonOrderItem(Base):
     
     # 关系
     order = relationship("OzonOrder", back_populates="items")
-    
+
     __table_args__ = (
-        Index("idx_ozon_order_items_sku", "sku"),
+        Index("idx_ozon_order_items_offer_id", "offer_id"),
         Index("idx_ozon_order_items_order", "order_id", "status")
     )
 
