@@ -316,6 +316,32 @@ const ChatDetail: React.FC = () => {
     }
   };
 
+  // 自定义Link组件，拦截OZON CSV链接
+  const CustomLink: React.FC<{ href?: string; children: React.ReactNode }> = ({
+    href,
+    children,
+  }) => {
+    // 检查是否是OZON域名的链接
+    const isOzonLink = href && (href.includes('.ozon.ru') || href.includes('ozonru.'));
+
+    if (isOzonLink && shopId) {
+      // 重写为代理URL
+      const proxyUrl = `/api/ef/v1/ozon/chats/${shopId}/csv-proxy?url=${encodeURIComponent(href)}`;
+      return (
+        <a href={proxyUrl} target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      );
+    }
+
+    // 其他链接保持原样
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    );
+  };
+
   const renderMessage = (msg: ozonApi.OzonChatMessage) => {
     const isSeller = msg.sender_type === 'seller';
     const isSupport = msg.sender_type === 'support';
@@ -363,7 +389,7 @@ const ChatDetail: React.FC = () => {
               </div>
               <div className={styles.messageContent}>
                 {/* 俄语原文或中文内容（优先使用content，若为空则从content_data提取） */}
-                <ReactMarkdown>
+                <ReactMarkdown components={{ a: CustomLink }}>
                   {msg.content ||
                     (Array.isArray(msg.content_data) ? msg.content_data.join(' ') : '') ||
                     ''}

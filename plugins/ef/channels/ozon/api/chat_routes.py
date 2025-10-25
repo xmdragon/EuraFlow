@@ -1,8 +1,11 @@
 """OZON聊天REST API路由"""
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 import logging
+import httpx
+from urllib.parse import unquote
 
 from ef_core.api.auth import get_current_user
 from ef_core.models.users import User
@@ -695,3 +698,100 @@ async def sync_chats(
             "message": "聊天同步任务已启动"
         }
     }
+
+
+@router.get("/{shop_id}/csv-proxy")
+async def proxy_csv_download(
+    shop_id: int,
+    url: str = Query(..., description="OZON CSV文件的URL（需要URL编码）"),
+    shop_and_client: tuple = Depends(get_shop_and_client)
+):
+    """代理下载OZON CSV文件
+
+    Args:
+        shop_id: 店铺ID
+        url: OZON CSV文件的URL（需要URL编码）
+
+    Returns:
+        StreamingResponse: CSV文件流
+
+    说明:
+        OZON聊天消息中的CSV链接需要Client-Id和Api-Key认证头才能访问。
+        此接口作为代理，使用店铺的认证信息请求OZON，返回CSV文件。
+    """
+    try:
+        shop, client = shop_and_client
+
+        # URL解码（防止双重编码）
+        decoded_url = unquote(url)
+
+        # 安全检查：仅允许代理OZON域名的链接
+        if not any(domain in decoded_url.lower() for domain in ['.ozon.ru', 'ozonru.']):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "type": "about:blank",
+                    "title": "Invalid URL",
+                    "status": 400,
+                    "detail": "只能代理OZON域名的链接",
+                    "code": "INVALID_URL"
+                }
+            )
+
+        logger.info(f"Proxying CSV download: shop_id={shop_id}, url={decoded_url}")
+
+        # 使用httpx请求OZON（带认证头）
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            response = await http_client.get(
+                decoded_url,
+                headers={
+                    "Client-Id": shop.client_id,
+                    "Api-Key": shop.api_key_enc,
+                }
+            )
+
+            # 检查响应状态
+            if response.status_code != 200:
+                logger.error(f"OZON CSV download failed: status={response.status_code}, body={response.text[:200]}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Download Failed",
+                        "status": response.status_code,
+                        "detail": f"下载CSV文件失败: {response.text[:100]}",
+                        "code": "DOWNLOAD_FAILED"
+                    }
+                )
+
+            # 提取文件名（从Content-Disposition或URL）
+            content_disposition = response.headers.get("Content-Disposition", "")
+            filename = "report.csv"
+            if "filename=" in content_disposition:
+                filename = content_disposition.split("filename=")[-1].strip('"')
+            elif "/" in decoded_url:
+                filename = decoded_url.split("/")[-1].split("?")[0] or "report.csv"
+
+            # 返回文件流
+            return StreamingResponse(
+                iter([response.content]),
+                media_type=response.headers.get("Content-Type", "text/csv"),
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"CSV proxy error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "about:blank",
+                "title": "Internal Server Error",
+                "status": 500,
+                "detail": str(e),
+                "code": "INTERNAL_ERROR"
+            }
+        )
