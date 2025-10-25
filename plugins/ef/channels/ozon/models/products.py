@@ -29,10 +29,9 @@ class OzonProduct(Base):
     
     # 店铺隔离
     shop_id = Column(Integer, nullable=False, index=True)
-    
+
     # SKU 映射（三个ID体系）
-    sku = Column(String(100), nullable=False, comment="本地SKU")
-    offer_id = Column(String(100), nullable=False, comment="卖家SKU")
+    offer_id = Column(String(100), nullable=False, comment="卖家SKU（商品货号）")
     ozon_product_id = Column(BigInteger, comment="Ozon商品ID")
     ozon_sku = Column(BigInteger, comment="Ozon SKU")
     

@@ -774,8 +774,6 @@ async def update_product(
         # 更新可编辑字段
         if "title" in product_data:
             product.title = product_data["title"]
-        if "sku" in product_data:
-            product.sku = product_data["sku"]
         if "price" in product_data and product_data["price"] is not None:
             product.price = Decimal(str(product_data["price"]))
         if "old_price" in product_data and product_data["old_price"] is not None:
@@ -914,7 +912,7 @@ async def export_products(
     # 写入数据行
     for product in products:
         writer.writerow([
-            product.sku or '',
+            product.offer_id or '',
             product.title or '',
             str(product.price) if product.price else '',
             str(product.old_price) if product.old_price else '',

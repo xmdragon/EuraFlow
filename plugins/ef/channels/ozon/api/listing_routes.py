@@ -757,7 +757,6 @@ async def create_product(
             "data": {
                 "id": product.id,
                 "offer_id": product.offer_id,
-                "sku": product.sku,
                 "title": product.title,
                 "listing_status": product.listing_status
             }

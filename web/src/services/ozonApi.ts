@@ -137,7 +137,6 @@ export interface ProductAttributes {
 export interface Product {
   id: number;
   shop_id: number;
-  sku: string;
   offer_id: string;
   ozon_product_id?: number;
   ozon_sku?: number;

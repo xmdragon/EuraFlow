@@ -551,7 +551,7 @@ async def preview_watermark_batch(
             if not product_images:
                 preview_results.append({
                     "product_id": product.id,
-                    "sku": product.sku,
+                    "offer_id": product.offer_id,
                     "title": product.title,
                     "error": "No images available",
                     "images": []
@@ -598,7 +598,7 @@ async def preview_watermark_batch(
 
             preview_results.append({
                 "product_id": product.id,
-                "sku": product.sku,
+                "offer_id": product.offer_id,
                 "title": product.title,
                 "images": image_previews,
                 "total_images": len(product_images)

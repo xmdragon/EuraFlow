@@ -88,7 +88,6 @@ class OzonPromotionProduct(Base):
         comment="本地商品ID"
     )
     ozon_product_id = Column(BigInteger, index=True, comment="OZON商品ID")
-    sku = Column(String(100), comment="本地SKU")
 
     # 状态和价格
     status = Column(

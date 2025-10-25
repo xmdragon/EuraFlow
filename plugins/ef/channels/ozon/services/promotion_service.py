@@ -174,7 +174,6 @@ class PromotionService:
                             action_id=action_id,
                             product_id=local_product.id if local_product else None,
                             ozon_product_id=ozon_product_id,
-                            sku=product_data.get("offer_id"),
                             status="candidate",
                             raw_data=product_data,
                             last_sync_at=utcnow()
@@ -280,7 +279,6 @@ class PromotionService:
                             action_id=action_id,
                             product_id=local_product.id if local_product else None,
                             ozon_product_id=ozon_product_id,
-                            sku=product_data.get("offer_id"),
                             status="active",
                             promotion_price=Decimal(str(product_data.get("action_price", 0))),
                             promotion_stock=product_data.get("stock", 0),
@@ -423,7 +421,6 @@ class PromotionService:
                 "id": promo_product.id,
                 "product_id": promo_product.product_id,
                 "ozon_product_id": promo_product.ozon_product_id,
-                "sku": product.sku if product else None,  # 从本地商品表获取SKU
                 "ozon_sku": product.ozon_sku if product else None,  # OZON平台SKU
                 "title": product.title if product else None,
                 "price": float(product.price) if product and product.price else 0,
@@ -468,7 +465,6 @@ class PromotionService:
                 "id": promo_product.id,
                 "product_id": promo_product.product_id,
                 "ozon_product_id": promo_product.ozon_product_id,
-                "sku": product.sku if product else None,  # 从本地商品表获取SKU
                 "ozon_sku": product.ozon_sku if product else None,  # OZON平台SKU
                 "title": product.title if product else None,
                 "promotion_price": float(promo_product.promotion_price) if promo_product.promotion_price else 0,
@@ -559,7 +555,6 @@ class PromotionService:
                         action_id=action_id,
                         product_id=prod["product_id"],
                         ozon_product_id=local_product.ozon_product_id,
-                        sku=local_product.sku,
                         status="active",
                         promotion_price=Decimal(str(prod["promotion_price"])),
                         promotion_stock=prod["promotion_stock"],

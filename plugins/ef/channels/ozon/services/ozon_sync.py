@@ -435,7 +435,7 @@ class OzonSyncService:
 
                                 # 调试日志：检查visibility_details的实际数据
                                 if visibility_details or not is_visible:
-                                    logger.info(f"Product {product.sku} visibility_details: {visibility_details}, has_price: {has_price}, has_stock: {has_stock}, is_visible: {is_visible}")
+                                    logger.info(f"Product {product.offer_id} visibility_details: {visibility_details}, has_price: {has_price}, has_stock: {has_stock}, is_visible: {is_visible}")
 
                                 product.visibility = is_visible
                                 product.is_archived = product_details.get("is_archived", False) or product_details.get(
@@ -628,7 +628,6 @@ class OzonSyncService:
 
                             product = OzonProduct(
                                 shop_id=shop_id,
-                                sku=item.get("offer_id", ""),
                                 offer_id=item.get("offer_id", ""),
                                 ozon_product_id=item.get("product_id"),
                                 ozon_sku=safe_int_conversion(

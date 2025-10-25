@@ -343,7 +343,6 @@ class QuickPublishService:
         product = OzonProduct(
             shop_id=shop_id,
             offer_id=dto.offer_id,
-            sku=dto.offer_id,  # 使用offer_id作为SKU
             title=dto.title,
             description=dto.description,
             price=dto.price,

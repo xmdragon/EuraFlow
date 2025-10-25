@@ -219,7 +219,7 @@ class WatermarkProcessor:
                             })
 
                     # 生成唯一ID
-                    unique_id = f"{product.sku}_{uuid4().hex[:8]}_{idx}"
+                    unique_id = f"{product.offer_id}_{uuid4().hex[:8]}_{idx}"
                     folder = f"{self.cloudinary_service.folder_prefix}/products/{shop_id}"
 
                     # 使用分析得出的最佳位置，或使用默认
@@ -270,7 +270,7 @@ class WatermarkProcessor:
             return {
                 "success": True,
                 "product_id": product_id,
-                "sku": product.sku,
+                "offer_id": product.offer_id,
                 "original_images": original_images,
                 "processed_images": processed_images,
                 "cloudinary_ids": cloudinary_public_ids,
@@ -351,12 +351,12 @@ class WatermarkProcessor:
             # 准备更新数据
             update_data = {
                 "product_id": product.ozon_product_id,  # 添加OZON产品ID
-                "offer_id": product.offer_id or product.sku,
+                "offer_id": product.offer_id,
                 "images": processed_images[:15]  # OZON最多支持15张图片
             }
 
             # 调试日志
-            logger.info(f"Updating OZON product images - product_id: {product.ozon_product_id}, offer_id: {product.offer_id or product.sku}")
+            logger.info(f"Updating OZON product images - product_id: {product.ozon_product_id}, offer_id: {product.offer_id}")
             logger.info(f"Update data: {update_data}")
 
             # 调用OZON API更新商品图片
