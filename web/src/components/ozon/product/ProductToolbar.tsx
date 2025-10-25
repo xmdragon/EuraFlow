@@ -29,6 +29,8 @@ export interface ProductToolbarProps {
   selectedRowsCount: number;
   /** 同步是否正在进行 */
   syncLoading: boolean;
+  /** 是否选择了店铺 */
+  hasSelectedShop?: boolean;
   /** 增量同步回调 */
   onIncrementalSync: () => void;
   /** 全量同步回调 */
@@ -55,6 +57,7 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
   canExport,
   selectedRowsCount,
   syncLoading,
+  hasSelectedShop = true,
   onIncrementalSync,
   onFullSync,
   onBatchPriceUpdate,
@@ -72,12 +75,18 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
             icon={<SyncOutlined />}
             onClick={onIncrementalSync}
             loading={syncLoading}
+            disabled={!hasSelectedShop}
           >
             增量同步
           </Button>
         )}
         {canSync && (
-          <Button icon={<ReloadOutlined />} onClick={onFullSync} loading={syncLoading}>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={onFullSync}
+            loading={syncLoading}
+            disabled={!hasSelectedShop}
+          >
             全量同步
           </Button>
         )}

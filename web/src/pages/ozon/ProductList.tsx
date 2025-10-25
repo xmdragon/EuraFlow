@@ -1064,6 +1064,11 @@ const ProductList: React.FC = () => {
   };
 
   const handleSync = (fullSync: boolean = false) => {
+    if (!selectedShop) {
+      notifyWarning('操作失败', '请先选择店铺');
+      return;
+    }
+
     confirm({
       title: fullSync ? '确认执行全量同步？' : '确认执行增量同步？',
       content: fullSync ? '全量同步将拉取所有商品数据，耗时较长' : '增量同步将只拉取最近更新的商品',
@@ -1398,6 +1403,7 @@ const ProductList: React.FC = () => {
           canExport={canExport}
           selectedRowsCount={selectedRows.length}
           syncLoading={syncProductsMutation.isPending}
+          hasSelectedShop={selectedShop !== null}
           onIncrementalSync={() => handleSync(false)}
           onFullSync={() => handleSync(true)}
           onBatchPriceUpdate={handleBatchPriceUpdate}
