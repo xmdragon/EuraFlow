@@ -80,7 +80,7 @@ class PromotionTaskRunner:
                 # 同步每个店铺
                 for shop in shops:
                     try:
-                        logger.info(f"Syncing shop {shop.id}: {shop.name}")
+                        logger.info(f"Syncing shop {shop.id}: {shop.shop_name}")
 
                         # 1. 同步活动清单
                         result1 = await PromotionService.sync_actions(shop.id, session)
