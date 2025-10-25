@@ -116,6 +116,25 @@ class ProductUploadItem(BaseModel):
     competitor_count: Optional[int] = None
     competitor_min_price: Optional[float] = None
 
+    # 营销分析字段（上品帮）
+    card_views: Optional[int] = None
+    card_add_to_cart_rate: Optional[float] = None
+    search_views: Optional[int] = None
+    search_add_to_cart_rate: Optional[float] = None
+    click_through_rate: Optional[float] = None
+    promo_days: Optional[int] = None
+    promo_discount_percent: Optional[float] = None
+    promo_conversion_rate: Optional[float] = None
+    paid_promo_days: Optional[int] = None
+    return_cancel_rate: Optional[float] = None
+
+    # 基础字段（上品帮）
+    category_path: Optional[str] = None
+    avg_price: Optional[float] = None
+    listing_date: Optional[str] = None
+    listing_days: Optional[int] = None
+    seller_mode: Optional[str] = None
+
 
 class ProductsUploadRequest(BaseModel):
     """批量上传商品请求"""
@@ -1038,6 +1057,46 @@ async def upload_products(
                             cleaned_data['product_created_date'] = parsed.to_pydatetime()
                     except:
                         pass
+
+                # 营销分析字段（上品帮新增）
+                if product.card_views is not None:
+                    cleaned_data['card_views'] = product.card_views
+                if product.card_add_to_cart_rate is not None:
+                    cleaned_data['card_add_to_cart_rate'] = Decimal(str(product.card_add_to_cart_rate))
+                if product.search_views is not None:
+                    cleaned_data['search_views'] = product.search_views
+                if product.search_add_to_cart_rate is not None:
+                    cleaned_data['search_add_to_cart_rate'] = Decimal(str(product.search_add_to_cart_rate))
+                if product.click_through_rate is not None:
+                    cleaned_data['click_through_rate'] = Decimal(str(product.click_through_rate))
+                if product.promo_days is not None:
+                    cleaned_data['promo_days'] = product.promo_days
+                if product.promo_discount_percent is not None:
+                    cleaned_data['promo_discount_percent'] = Decimal(str(product.promo_discount_percent))
+                if product.promo_conversion_rate is not None:
+                    cleaned_data['promo_conversion_rate'] = Decimal(str(product.promo_conversion_rate))
+                if product.paid_promo_days is not None:
+                    cleaned_data['paid_promo_days'] = product.paid_promo_days
+                if product.return_cancel_rate is not None:
+                    cleaned_data['return_cancel_rate'] = Decimal(str(product.return_cancel_rate))
+
+                # 基础字段（上品帮新增）
+                if product.category_path:
+                    cleaned_data['category_path'] = product.category_path
+                if product.avg_price is not None:
+                    cleaned_data['avg_price'] = Decimal(str(product.avg_price))
+                if product.seller_mode:
+                    cleaned_data['seller_mode'] = product.seller_mode
+                if product.listing_date:
+                    try:
+                        import pandas as pd
+                        parsed = pd.to_datetime(product.listing_date, errors='coerce')
+                        if not pd.isna(parsed):
+                            cleaned_data['listing_date'] = parsed.to_pydatetime()
+                    except:
+                        pass
+                if product.listing_days is not None:
+                    cleaned_data['listing_days'] = product.listing_days
 
                 batch_items.append(cleaned_data)
 

@@ -101,8 +101,11 @@ export class ShangpinbangParser implements PageDataParser {
    * 提取商品标题
    */
   private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string | undefined {
-    // OZON商品标题通常在span.tsBody500Medium或类似类中
-    const titleElement = element.querySelector('span.tsBody500Medium, span[class*="tsBody"]');
+    // 必须从 <a href*="/product/"> 标签内提取标题,避免匹配到价格区域
+    const linkElement = element.querySelector('a[href*="/product/"]');
+    if (!linkElement) return undefined;
+
+    const titleElement = linkElement.querySelector('span.tsBody500Medium, span[class*="tsBody"]');
     const title = titleElement?.textContent?.trim();
 
     if (!title) return undefined;
@@ -133,24 +136,26 @@ export class ShangpinbangParser implements PageDataParser {
    */
   private extractPrice(element: HTMLElement, type: 'current' | 'original'): number | undefined {
     if (type === 'current') {
-      // 当前价格通常在 [class*="price"] span 中
-      const priceElement = element.querySelector('[class*="price"] span');
-      const priceText = priceElement?.textContent?.trim();
+      // OZON当前价格标准类名: tsHeadline500Medium (不带删除线)
+      const priceElement = element.querySelector('span.tsHeadline500Medium:not([class*="strikethrough"]), span.c35_3_11-a1.tsHeadline500Medium');
+      if (!priceElement) return undefined;
+
+      const priceText = priceElement.textContent?.trim();
       if (!priceText) return undefined;
 
       // 移除货币符号和空格
-      const cleanedPrice = priceText.replace(/[₽\s]/g, '');
+      const cleanedPrice = priceText.replace(/[₽¥\s]/g, '');
       return cleanNumber(cleanedPrice);
     }
 
-    // 原价提取逻辑（通常有删除线）
-    const originalPriceElement = element.querySelector('[class*="strikethrough"], [class*="old-price"]');
+    // 原价: 查找带删除线的价格 (tsBodyControl400Small + c35_3_11-b)
+    const originalPriceElement = element.querySelector('span.tsBodyControl400Small.c35_3_11-b, span.c35_3_11-a1.c35_3_11-b');
     if (!originalPriceElement) return undefined;
 
     const priceText = originalPriceElement.textContent?.trim();
     if (!priceText) return undefined;
 
-    const cleanedPrice = priceText.replace(/[₽\s]/g, '');
+    const cleanedPrice = priceText.replace(/[₽¥\s]/g, '');
     return cleanNumber(cleanedPrice);
   }
 
@@ -244,12 +249,18 @@ export class ShangpinbangParser implements PageDataParser {
       const label = labelElement.textContent?.trim() || '';
       const value = valueElement.textContent?.trim() || '';
 
-      if (!label || !value || value === '无数据' || value === '-') {
+      // 允许空字符串value（佣金字段需要解析子元素）
+      if (!label) {
         return;
       }
 
-      // 根据标签名分发到具体字段
-      this.parseFieldByLabel(label, value, bangData);
+      // 跳过"无数据"和"-"值（但允许空字符串）
+      if (value === '无数据' || value === '-') {
+        return;
+      }
+
+      // 传递 valueElement 以便解析嵌套结构
+      this.parseFieldByLabel(label, value, valueElement, bangData);
     });
 
     return bangData;
@@ -258,7 +269,7 @@ export class ShangpinbangParser implements PageDataParser {
   /**
    * 根据标签名解析字段值
    */
-  private parseFieldByLabel(label: string, value: string, data: Partial<ProductData>): void {
+  private parseFieldByLabel(label: string, value: string, valueElement: HTMLElement, data: Partial<ProductData>): void {
     // 移除标签中的冒号和空格
     const cleanLabel = label.replace(/[：:]/g, '').trim();
 
@@ -272,6 +283,22 @@ export class ShangpinbangParser implements PageDataParser {
         break;
       case 'SKU':
         data.product_id = value;
+        break;
+
+      // rFBS佣金（三个档位）
+      case 'rFBS佣金':
+        const [rfbsHigh, rfbsMid, rfbsLow] = this.parseCommissionValues(valueElement);
+        data.rfbs_commission_high = rfbsHigh;
+        data.rfbs_commission_mid = rfbsMid;
+        data.rfbs_commission_low = rfbsLow;
+        break;
+
+      // FBP佣金（三个档位）
+      case 'FBP佣金':
+        const [fbpHigh, fbpMid, fbpLow] = this.parseCommissionValues(valueElement);
+        data.fbp_commission_high = fbpHigh;
+        data.fbp_commission_mid = fbpMid;
+        data.fbp_commission_low = fbpLow;
         break;
 
       // 销售数据
@@ -449,5 +476,26 @@ export class ShangpinbangParser implements PageDataParser {
     if (daysMatch) {
       data.listing_days = parseInt(daysMatch[1]);
     }
+  }
+
+  /**
+   * 解析佣金值（从三个ant-tag标签中提取）
+   * @param valueElement 包含佣金数据的 <b> 元素
+   * @returns [high, mid, low] 三个佣金百分比值
+   */
+  private parseCommissionValues(valueElement: HTMLElement): [number | undefined, number | undefined, number | undefined] {
+    // 查找所有 ant-tag 标签
+    const tags = valueElement.querySelectorAll<HTMLElement>('.ant-tag');
+
+    if (tags.length < 3) {
+      return [undefined, undefined, undefined];
+    }
+
+    // 按顺序提取: lime(>5000₽), orange(1501~5000₽), magenta(≤1500₽)
+    const high = this.parsePercent(tags[0].textContent || '');
+    const mid = this.parsePercent(tags[1].textContent || '');
+    const low = this.parsePercent(tags[2].textContent || '');
+
+    return [high, mid, low];
   }
 }
