@@ -423,7 +423,7 @@ class PromotionService:
                 "id": promo_product.id,
                 "product_id": promo_product.product_id,
                 "ozon_product_id": promo_product.ozon_product_id,
-                "sku": promo_product.sku,
+                "sku": product.sku if product else None,  # 从本地商品表获取SKU
                 "title": product.title if product else None,
                 "price": float(product.price) if product and product.price else 0,
                 "stock": product.stock if product else 0,
@@ -467,7 +467,7 @@ class PromotionService:
                 "id": promo_product.id,
                 "product_id": promo_product.product_id,
                 "ozon_product_id": promo_product.ozon_product_id,
-                "sku": promo_product.sku,
+                "sku": product.sku if product else None,  # 从本地商品表获取SKU
                 "title": product.title if product else None,
                 "promotion_price": float(promo_product.promotion_price) if promo_product.promotion_price else 0,
                 "promotion_stock": promo_product.promotion_stock,

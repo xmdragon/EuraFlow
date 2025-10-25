@@ -48,6 +48,8 @@ class SubmitDomesticTrackingDTO(BaseModel):
 
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
 
+    sync_to_kuajing84: bool = Field(True, description="是否同步到跨境巴士（默认true）")
+
     def get_tracking_numbers(self) -> List[str]:
         """获取国内单号列表（兼容逻辑）"""
         if self.domestic_tracking_numbers:
@@ -149,7 +151,8 @@ async def submit_domestic_tracking(
     result = await service.submit_domestic_tracking(
         posting_number=posting_number,
         domestic_tracking_numbers=tracking_numbers,
-        order_notes=request.order_notes
+        order_notes=request.order_notes,
+        sync_to_kuajing84=request.sync_to_kuajing84
     )
 
     if not result["success"]:

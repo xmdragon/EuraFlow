@@ -3,7 +3,7 @@
  * 用于"已分配"状态，填写国内物流单号并同步到跨境巴士
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Modal, Form, Input, message, Select } from 'antd';
+import { Modal, Form, Input, message, Select, Checkbox } from 'antd';
 import React from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
@@ -74,6 +74,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       const data: ozonApi.SubmitDomesticTrackingRequest = {
         domestic_tracking_numbers: cleanedNumbers,
         order_notes: values.order_notes,
+        sync_to_kuajing84: values.sync_to_kuajing84 !== false, // 默认为true
       };
       submitTrackingMutation.mutate(data);
     } catch (error) {
@@ -135,33 +136,11 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
             showCount
           />
         </Form.Item>
-      </Form>
 
-      <div
-        style={{
-          marginTop: 16,
-          padding: 12,
-          background: '#f0f2f5',
-          borderRadius: 4,
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 12, color: 'rgba(0, 0, 0, 0.65)' }}>
-          <strong>说明：</strong>
-        </p>
-        <ul
-          style={{
-            margin: '4px 0 0 20px',
-            padding: 0,
-            fontSize: 12,
-            color: 'rgba(0, 0, 0, 0.65)',
-          }}
-        >
-          <li>支持输入多个国内物流单号（一个订单可能从多个供应商采购）</li>
-          <li>输入单号后按回车或逗号分隔即可添加</li>
-          <li>提交后将在后台同步到跨境巴士，弹窗可以关闭，同步继续进行</li>
-          <li>同步完成后会在右下角显示通知，无需等待</li>
-        </ul>
-      </div>
+        <Form.Item name="sync_to_kuajing84" valuePropName="checked" initialValue={true}>
+          <Checkbox>同步到跨境巴士</Checkbox>
+        </Form.Item>
+      </Form>
     </Modal>
   );
 };
