@@ -736,7 +736,7 @@ class ProductSelectionService:
         db: AsyncSession,
         user_id: int,
         filters: Dict[str, Any],
-        sort_by: str = 'sales_desc',
+        sort_by: str = 'created_asc',
         page: int = 1,
         page_size: int = 20
     ) -> Dict[str, Any]:

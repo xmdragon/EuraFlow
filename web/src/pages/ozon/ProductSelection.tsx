@@ -278,25 +278,27 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === "history",
   });
 
-  // 计算每行显示数量（根据容器宽度），并动态设置初始pageSize
+  // 计算每行显示数量（根据屏幕宽度-左边菜单宽度），并动态设置初始pageSize
   useEffect(() => {
     const calculateItemsPerRow = () => {
-      const container = document.querySelector(`.${styles.productGrid}`);
-      if (container) {
-        const containerWidth = container.clientWidth;
-        const itemWidth = 160; // 固定宽度
-        const gap = 16; // 间距
-        const columns = Math.max(
-          1,
-          Math.floor((containerWidth + gap) / (itemWidth + gap)),
-        );
-        setItemsPerRow(columns);
+      // 获取侧边栏实际宽度
+      const sider = document.querySelector('.ant-layout-sider');
+      const siderWidth = sider ? sider.clientWidth : 240; // 默认240px
 
-        // 动态设置初始pageSize：列数 × 4行，但不超过后端限制100
-        const calculatedPageSize = Math.min(columns * 4, 100);
-        setInitialPageSize(calculatedPageSize);
-        setPageSize(calculatedPageSize);
-      }
+      // 使用屏幕宽度 - 侧边栏宽度
+      const availableWidth = window.innerWidth - siderWidth;
+      const itemWidth = 165; // 每个商品卡片宽度
+
+      const columns = Math.max(
+        1,
+        Math.floor(availableWidth / itemWidth),
+      );
+      setItemsPerRow(columns);
+
+      // 动态设置初始pageSize：列数 × 4行，但不超过后端限制100
+      const calculatedPageSize = Math.min(columns * 4, 100);
+      setInitialPageSize(calculatedPageSize);
+      setPageSize(calculatedPageSize);
     };
 
     calculateItemsPerRow();
@@ -715,6 +717,9 @@ const ProductSelection: React.FC = () => {
   // 格式化重量显示
   const formatWeight = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return "-";
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}kg`;
+    }
     return `${value}g`;
   };
 
