@@ -49,6 +49,7 @@ class OzonAPIClient:
                 "orders": 5,  # 订单接口：5 req/s
                 "postings": 20,  # 发货单接口：20 req/s
                 "analytics": 5,  # 分析接口：5 req/s
+                "actions": 10,  # 促销活动接口：10 req/s
                 "default": 10,  # 默认：10 req/s
             }
         )
