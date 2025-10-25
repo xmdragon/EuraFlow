@@ -1260,32 +1260,46 @@ async def search_posting_by_tracking(
                     elif isinstance(images, list) and images:
                         offer_id_images[offer_id] = images[0]
 
-        # 转换为字典并移除冗余的 items 字段
+        # 转换为字典
         order_dict = order.to_dict()
-        order_dict.pop('items', None)
 
-        # 添加前端期望的字段（从第一个 posting 提取）
-        if order.postings and len(order.postings) > 0:
-            first_posting = order.postings[0]
-            # 添加 status（前端期望的字段名）
-            order_dict['status'] = first_posting.status
-            # 添加 operation_status
-            order_dict['operation_status'] = first_posting.operation_status
-            # 添加 tracking_number（从 packages 或 raw_payload 提取）
-            if first_posting.packages and len(first_posting.packages) > 0:
-                order_dict['tracking_number'] = first_posting.packages[0].tracking_number
-            elif first_posting.raw_payload and 'tracking_number' in first_posting.raw_payload:
-                order_dict['tracking_number'] = first_posting.raw_payload['tracking_number']
-            else:
-                order_dict['tracking_number'] = None
-            # 添加 delivery_method（配送方式）
-            order_dict['delivery_method'] = first_posting.delivery_method_name or order.delivery_method
-            # 添加 domestic_tracking_numbers（国内单号列表）
-            order_dict['domestic_tracking_numbers'] = first_posting.get_domestic_tracking_numbers()
+        # 添加前端期望的字段（从查询到的 posting 提取，而不是 order.postings[0]）
+        # 添加 status（前端期望的字段名）
+        order_dict['status'] = posting.status
+        # 添加 operation_status
+        order_dict['operation_status'] = posting.operation_status
+        # 添加 tracking_number（从 packages 或 raw_payload 提取）
+        if posting.packages and len(posting.packages) > 0:
+            order_dict['tracking_number'] = posting.packages[0].tracking_number
+        elif posting.raw_payload and 'tracking_number' in posting.raw_payload:
+            order_dict['tracking_number'] = posting.raw_payload['tracking_number']
+        else:
+            order_dict['tracking_number'] = None
+        # 添加 delivery_method（配送方式）
+        order_dict['delivery_method'] = posting.delivery_method_name or order.delivery_method
+        # 添加 domestic_tracking_numbers（国内单号列表）
+        order_dict['domestic_tracking_numbers'] = posting.get_domestic_tracking_numbers()
+
+        # 添加商品列表（从 posting.raw_payload.products 提取，包含图片）
+        items = []
+        if posting.raw_payload and 'products' in posting.raw_payload:
+            for product in posting.raw_payload['products']:
+                offer_id = product.get('offer_id')
+                item = {
+                    'sku': product.get('sku'),
+                    'name': product.get('name'),
+                    'quantity': product.get('quantity'),
+                    'price': product.get('price'),
+                    'offer_id': offer_id,
+                    'image': offer_id_images.get(offer_id) if offer_id else None
+                }
+                items.append(item)
+        order_dict['items'] = items
 
         # 返回与其他标签一致的数据结构
         return {
-            "data": order_dict
+            "data": order_dict,
+            "offer_id_images": offer_id_images
         }
 
     except HTTPException:
@@ -1325,12 +1339,18 @@ async def mark_posting_printed(
                 detail=f"只能标记'等待发运'状态的订单为已打印，当前状态：{posting.status}"
             )
 
-        # 检查互斥状态：已打印和单号确认互斥
-        if posting.operation_status == 'tracking_confirmed':
-            raise HTTPException(
-                status_code=422,
-                detail="该订单已完成单号确认，不能标记为已打印"
-            )
+        # 已打印是单号确认的下一步状态，允许 tracking_confirmed → printed
+        # 如果已经是 printed，则幂等返回成功
+        if posting.operation_status == 'printed':
+            return {
+                "success": True,
+                "message": "该订单已是已打印状态",
+                "data": {
+                    "posting_number": posting.posting_number,
+                    "operation_status": posting.operation_status,
+                    "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
+                }
+            }
 
         # 更新状态
         posting.operation_status = 'printed'

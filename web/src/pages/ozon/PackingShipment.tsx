@@ -140,6 +140,7 @@ const PackingShipment: React.FC = () => {
   const [scanResult, setScanResult] = useState<any>(null);
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
 
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<any>(null);
@@ -1095,6 +1096,23 @@ const PackingShipment: React.FC = () => {
     }
   };
 
+  // 保存订单备注
+  const handleSaveOrderNotes = async () => {
+    if (!scanResult) return;
+
+    setIsSavingNotes(true);
+    try {
+      await ozonApi.updatePostingBusinessInfo(scanResult.posting_number, {
+        order_notes: scanResult.order_notes,
+      });
+      notifySuccess('保存成功', '订单备注已更新');
+    } catch (error) {
+      notifyError('保存失败', `保存失败: ${error.response?.data?.error?.title || error.message}`);
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
   // 错误展示Modal
   const PrintErrorModal = () => (
     <Modal
@@ -1425,6 +1443,20 @@ const PackingShipment: React.FC = () => {
                           : '-'}
                       </Text>
                     </Descriptions.Item>
+                    <Descriptions.Item label="订单备注" span={2}>
+                      <Input.TextArea
+                        value={scanResult.order_notes || ''}
+                        onChange={(e) => {
+                          setScanResult((prev) => ({
+                            ...prev,
+                            order_notes: e.target.value,
+                          }));
+                        }}
+                        placeholder="暂无备注"
+                        autoSize={{ minRows: 2, maxRows: 6 }}
+                        style={{ width: '100%' }}
+                      />
+                    </Descriptions.Item>
                   </Descriptions>
 
                   {/* 商品列表 */}
@@ -1514,11 +1546,19 @@ const PackingShipment: React.FC = () => {
                           onClick={() => handleMarkPrinted(scanResult.posting_number)}
                           disabled={
                             scanResult.operation_status === 'printed' ||
-                            (scanResult.operation_status !== 'tracking_confirmed' &&
-                              scanResult.status !== 'awaiting_deliver')
+                            scanResult.status !== 'awaiting_deliver'
                           }
                         >
                           {scanResult.operation_status === 'printed' ? '已打印' : '标记已打印'}
+                        </Button>
+                        <Button
+                          type="default"
+                          size="large"
+                          icon={<FileTextOutlined />}
+                          loading={isSavingNotes}
+                          onClick={handleSaveOrderNotes}
+                        >
+                          保存备注
                         </Button>
                       </Space>
                     </div>
