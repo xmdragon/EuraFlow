@@ -365,7 +365,30 @@ async def get_current_user_info(request: Request):
     - 支持 JWT Token (Authorization: Bearer <token>) 或 API Key (X-API-Key: <key>)
     - 返回用户基本信息和关联的店铺
     """
-    # 手动验证token（绕过依赖注入）
+    # 1. 优先尝试 API Key 认证
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            api_key_service = get_api_key_service()
+            user = await api_key_service.validate_api_key(session, api_key)
+
+            if user:
+                # 重新加载用户以包含 shops 关系
+                stmt = select(User).where(User.id == user.id).options(
+                    selectinload(User.primary_shop),
+                    selectinload(User.shops)
+                )
+                result = await session.execute(stmt)
+                user = result.scalar_one_or_none()
+
+                if user:
+                    user_data = user.to_dict()
+                    user_data["shop_ids"] = [shop.id for shop in user.shops] if user.shops else []
+                    logger.info("API Key认证成功")
+                    return UserResponse(**user_data)
+
+    # 2. 降级到 JWT Token 认证
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail={"code": "MISSING_AUTH", "message": "Missing authorization"})

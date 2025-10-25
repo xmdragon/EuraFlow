@@ -1,5 +1,4 @@
 import { DataFusionEngine } from './fusion/engine';
-import { ApiClient } from '../shared/api-client';
 import type { ProductData, CollectionProgress, CollectorConfig } from '../shared/types';
 
 /**
@@ -28,9 +27,10 @@ export class ProductCollector {
 
   constructor(
     private fusionEngine: DataFusionEngine,
-    private apiClient: ApiClient,
     private config: CollectorConfig
-  ) {}
+  ) {
+    // 上传逻辑已移至 ControlPanel，collector 仅负责采集
+  }
 
   /**
    * 开始采集（完全对齐原版）
@@ -42,6 +42,17 @@ export class ProductCollector {
     if (this.isRunning) {
       throw new Error('采集已在运行中');
     }
+
+    // 【检测数据工具】必须安装上品帮或毛子ERP
+    const availableParsers = this.fusionEngine.getAvailableParsers();
+    if (availableParsers.length === 0) {
+      const errorMsg = '未检测到上品帮或毛子ERP插件\n\n请先安装至少一个数据工具：\n- 上品帮 Chrome扩展\n- 毛子ERP Chrome扩展';
+      console.error('[Collector]', errorMsg);
+      this.progress.errors.push(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    console.log('[Collector] 检测到数据工具:', availableParsers.map(p => p.displayName).join(', '));
 
     this.isRunning = true;
     this.collected.clear();
@@ -187,15 +198,8 @@ export class ProductCollector {
       const products = Array.from(this.collected.values());
 
       // 上传数据（如果配置了自动上传）
-      if (this.config && products.length > 0) {
-        try {
-          await this.apiClient.uploadProducts(products);
-          console.log('[Collector] Upload successful');
-        } catch (error: any) {
-          console.error('[Collector] Upload failed:', error);
-          this.progress.errors.push(`上传失败: ${error.message}`);
-        }
-      }
+      // 注意：自动上传由外部控制，这里不自动上传
+      // 上传逻辑应该在 ControlPanel 的 stopCollection 中处理
 
       return products;
     } finally {
@@ -221,6 +225,13 @@ export class ProductCollector {
   }
 
   /**
+   * 获取已采集的商品
+   */
+  getCollectedProducts(): ProductData[] {
+    return Array.from(this.collected.values());
+  }
+
+  /**
    * 采集当前可见的商品
    */
   private async collectVisibleProducts(): Promise<void> {
@@ -237,6 +248,8 @@ export class ProductCollector {
         // 去重：使用 SKU 作为唯一标识
         if (product.product_id && !this.collected.has(product.product_id)) {
           this.collected.set(product.product_id, product);
+          // 调试输出：仅显示SKU
+          console.log(`SKU: ${product.product_id}`);
         }
       } catch (error: any) {
         console.warn('[Collector] Failed to extract product:', error.message);
@@ -247,27 +260,43 @@ export class ProductCollector {
 
   /**
    * 获取当前可见的商品卡片
+   * 【重要】仅返回有数据工具标记的商品（上品帮或毛子ERP）
    */
   private getVisibleProductCards(): HTMLElement[] {
-    // OZON 商品卡片的选择器
+    // 获取所有可能的商品卡片
     const selectors = [
       '[data-widget="searchResultsV2"] > div',
       '[data-widget="megaPaginator"] > div',
-      'div[class*="tile"]',
-      'div[class*="product"]'
+      '.tile-root',
+      'div[class*="tile"]'
     ];
 
+    let allCards: HTMLElement[] = [];
     for (const selector of selectors) {
       const elements = document.querySelectorAll<HTMLElement>(selector);
       if (elements.length > 0) {
-        // 过滤掉不包含商品链接的元素
-        return Array.from(elements).filter(el =>
-          el.querySelector('a[href*="/product/"]')
-        );
+        allCards = Array.from(elements);
+        break;
       }
     }
 
-    return [];
+    // 【关键过滤】只返回有数据工具标记的商品
+    return allCards.filter(card => {
+      // 检查是否有商品链接
+      const hasProductLink = !!card.querySelector('a[href*="/product/"]');
+      if (!hasProductLink) {
+        return false;
+      }
+
+      // 检查上品帮标记
+      const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
+
+      // 检查毛子ERP标记
+      const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
+
+      // 必须至少有一个数据工具标记
+      return hasShangpinbang || hasMaoziErp;
+    });
   }
 
   /**
