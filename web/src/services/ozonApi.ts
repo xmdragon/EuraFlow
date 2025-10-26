@@ -448,15 +448,15 @@ export interface ShipmentRequest {
   }>;
 }
 
-// 获取订单列表
+// 获取订单列表（游标分页）
 export const getOrders = async (
-  page: number = 1,
-  pageSize: number = 50,
+  afterId: number = 0,
+  limit: number = 50,
   filter?: OrderFilter,
 ) => {
   const params = {
-    offset: (page - 1) * pageSize,
-    limit: pageSize,
+    after_id: afterId,
+    limit: limit,
     ...filter,
   };
   // 如果shop_id为null（全部店铺），不传递该参数
