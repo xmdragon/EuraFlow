@@ -49,7 +49,7 @@ import {
   Popconfirm,
 } from "antd";
 import dayjs from "dayjs";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 
 import { useCurrency } from "../../hooks/useCurrency";
 
@@ -114,6 +114,8 @@ const ProductSelection: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
   const [isCalculated, setIsCalculated] = useState(false); // 是否已完成初始计算（避免重复请求）
+  const loadingLockRef = useRef(false); // 请求锁，防止并发请求
+  const lastRequestPageRef = useRef(0); // 上次成功请求的页码
 
   // 字段配置状态
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
@@ -311,13 +313,16 @@ const ProductSelection: React.FC = () => {
   useEffect(() => {
     if (!productsData?.data) return;
 
-    const { items = [], total = 0 } = productsData.data;
+    const { items = [], total = 0, page, page_size } = productsData.data;
+
+    // 计算总页数
+    const totalPages = Math.ceil(total / page_size);
 
     if (currentPage === 1) {
       // 第一页，替换数据
       setAllProducts(items);
-      setHasMoreData(items.length < total);
-      setIsLoadingMore(false);
+      setHasMoreData(currentPage < totalPages);
+      lastRequestPageRef.current = 1;
     } else if (items.length > 0) {
       // 后续页，追加数据并去重（根据 product_id）
       setAllProducts((prev) => {
@@ -326,59 +331,66 @@ const ProductSelection: React.FC = () => {
         // 只添加不存在的商品
         const newItems = items.filter((item) => !existingIds.has(item.product_id));
         const newProducts = [...prev, ...newItems];
-
-        // 立即检查是否还有更多数据
-        setHasMoreData(newProducts.length < total);
         return newProducts;
       });
-      setIsLoadingMore(false);
+      // 更新最后成功请求的页码
+      lastRequestPageRef.current = currentPage;
+      // 基于页码判断是否还有更多数据，而不是数据量
+      setHasMoreData(currentPage < totalPages);
     } else {
       // API返回空数组，说明没有更多数据了
       setHasMoreData(false);
-      setIsLoadingMore(false);
     }
+
+    // 释放请求锁
+    loadingLockRef.current = false;
+    setIsLoadingMore(false);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productsData?.data, currentPage]); // 添加currentPage作为依赖
+  }, [productsData?.data]); // 移除 currentPage 依赖，避免循环
 
   // 滚动监听：滚动到80%加载下一页（pageSize为初始值的一半）
   useEffect(() => {
+    let scrollTimeout: NodeJS.Timeout | null = null;
+
     const handleScroll = () => {
-      if (isLoadingMore || !hasMoreData) return;
+      // 防抖：200ms内只处理最后一次滚动事件
+      if (scrollTimeout) clearTimeout(scrollTimeout);
 
-      const scrollTop =
-        window.pageYOffset || document.documentElement.scrollTop;
-      const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      const scrollPercent = (scrollTop + windowHeight) / documentHeight;
+      scrollTimeout = setTimeout(() => {
+        // 双重检查：状态锁 + Ref锁
+        if (isLoadingMore || !hasMoreData || loadingLockRef.current) return;
 
-      if (scrollPercent > 0.8) {
-        // 边界判断：检查是否已加载完所有数据
-        const currentTotal = allProducts.length;
-        const apiTotal = productsData?.data?.total || 0;
+        const scrollTop =
+          window.pageYOffset || document.documentElement.scrollTop;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+        const scrollPercent = (scrollTop + windowHeight) / documentHeight;
 
-        if (apiTotal > 0 && currentTotal >= apiTotal) {
-          // 已加载完所有数据，不再发起请求
-          setHasMoreData(false);
-          return;
+        if (scrollPercent > 0.8) {
+          // 加锁，防止并发请求
+          loadingLockRef.current = true;
+          setIsLoadingMore(true);
+
+          // 设置pageSize为初始值的一半，但至少为1行，不超过100
+          const loadMoreSize = Math.min(
+            Math.max(Math.floor(initialPageSize / 2), itemsPerRow),
+            100,
+          );
+
+          // 批量更新状态
+          setPageSize(loadMoreSize);
+          setCurrentPage((prev) => prev + 1);
         }
-
-        setIsLoadingMore(true);
-        // 设置pageSize为初始值的一半，但至少为1行，不超过100
-        const loadMoreSize = Math.min(
-          Math.max(Math.floor(initialPageSize / 2), itemsPerRow),
-          100,
-        );
-        // 使用函数式更新批量修改状态，避免触发多次请求
-        setCurrentPage((prev) => {
-          setPageSize(loadMoreSize); // 在同一更新周期内修改pageSize
-          return prev + 1;
-        });
-      }
+      }, 200);
     };
 
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow, allProducts.length, productsData?.data?.total]);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
 
   // 过滤可盈利商品：根据成本估算开关决定是否过滤
   const profitableProducts = useMemo(() => {
@@ -543,6 +555,8 @@ const ProductSelection: React.FC = () => {
     setAllProducts([]); // 清空已加载的商品
     setHasMoreData(true); // 重置标志
     setPageSize(initialPageSize); // 重置为初始pageSize
+    loadingLockRef.current = false; // 重置请求锁
+    lastRequestPageRef.current = 0; // 重置页码引用
     // 注意：不需要重置 isCalculated，因为只需计算一次
   };
 
