@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 @router.get("/orders")
 async def get_orders(
-    after_id: int = Query(0, ge=0, description="游标：上次最后一个Posting的ID"),
-    limit: int = Query(50, le=1000, description="每次加载数量"),
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(50, le=1000, description="每页数量"),
     shop_id: Optional[int] = None,
     status: Optional[str] = None,
     operation_status: Optional[str] = None,
@@ -36,7 +36,7 @@ async def get_orders(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
-    """获取 Ozon 订单列表（游标分页），支持多种搜索条件
+    """获取 Ozon 订单列表（页码分页），支持多种搜索条件
 
     注意：返回以Posting为粒度的数据，一个订单拆分成多个posting时会显示为多条记录
 
@@ -66,10 +66,6 @@ async def get_orders(
     shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
     if shop_filter is not True:
         query = query.where(shop_filter)
-
-    # 游标分页条件
-    if after_id > 0:
-        query = query.where(OzonPosting.id < after_id)
 
     if status:
         # status参数应该按 Posting 的状态过滤（OZON 原生状态）
@@ -197,12 +193,15 @@ async def get_orders(
         "cancelled": status_counts.get('cancelled', 0),
     }
 
-    # 游标分页：按订单时间倒序，用Posting.id降序作为稳定排序键
-    query = query.order_by(OzonOrder.ordered_at.desc(), OzonPosting.id.desc()).limit(limit)
+    # 页码分页：按订单时间倒序，用Posting.id降序作为稳定排序键
+    offset = (page - 1) * limit
+    query = query.order_by(OzonOrder.ordered_at.desc(), OzonPosting.id.desc()).offset(offset).limit(limit)
 
     # 执行查询，获取Posting列表
     result = await db.execute(query)
     postings = result.scalars().all()
+
+    logger.info(f"订单查询: total={total}, postings_count={len(postings)}, limit={limit}, page={page}, offset={offset}, status={status}, operation_status={operation_status}")
 
     # 提取所有posting中的offer_id
     all_offer_ids = set()
@@ -244,11 +243,18 @@ async def get_orders(
             order_dict.pop('items', None)
             orders_data.append(order_dict)
 
+    # 计算总页数
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+    has_more = page < total_pages
+
     return {
         "data": orders_data,
         "total": total,
-        "next_cursor": postings[-1].id if postings else None,  # 返回最后一个Posting的ID作为下一页游标
-        "has_more": len(postings) == limit,  # 是否还有更多数据
+        "page": page,
+        "page_size": limit,
+        "total_pages": total_pages,
+        "next_cursor": page + 1 if has_more else None,  # 兼容旧的游标字段，返回下一页页码
+        "has_more": has_more,  # 是否还有更多数据
         "stats": global_stats,  # 全局统计数据
         "offer_id_images": offer_id_images  # 额外返回offer_id图片映射，前端可选使用
     }

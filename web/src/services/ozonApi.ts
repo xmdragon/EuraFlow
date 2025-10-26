@@ -448,14 +448,14 @@ export interface ShipmentRequest {
   }>;
 }
 
-// 获取订单列表（游标分页）
+// 获取订单列表（页码分页）
 export const getOrders = async (
-  afterId: number = 0,
+  page: number = 1,
   limit: number = 50,
   filter?: OrderFilter,
 ) => {
   const params = {
-    after_id: afterId,
+    page: page,
     limit: limit,
     ...filter,
   };
