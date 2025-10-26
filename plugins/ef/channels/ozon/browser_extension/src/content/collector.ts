@@ -185,7 +185,8 @@ export class ProductCollector {
       // 注意：自动上传由外部控制，这里不自动上传
       // 上传逻辑应该在 ControlPanel 的 stopCollection 中处理
 
-      return products;
+      // 限制返回数量不超过目标数量
+      return products.slice(0, targetCount);
     } finally {
       this.isRunning = false;
       this.progress.isRunning = false;
