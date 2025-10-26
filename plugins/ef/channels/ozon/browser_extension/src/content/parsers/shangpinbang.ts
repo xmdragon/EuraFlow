@@ -103,10 +103,43 @@ export class ShangpinbangParser implements PageDataParser {
   private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string | undefined {
     // 必须从 <a href*="/product/"> 标签内提取标题,避免匹配到价格区域
     const linkElement = element.querySelector('a[href*="/product/"]');
-    if (!linkElement) return undefined;
+    if (!linkElement) {
+      console.debug('[ShangpinbangParser] 未找到商品链接', { element });
+      return undefined;
+    }
 
-    const titleElement = linkElement.querySelector('span.tsBody500Medium, span[class*="tsBody"]');
+    // 优先使用更精确的选择器路径（匹配OZON最新页面结构）
+    let titleElement = linkElement.querySelector('div[class*="bq03"] span.tsBody500Medium');
+
+    // 备用方案1：直接查找 tsBody500Medium
+    if (!titleElement) {
+      titleElement = linkElement.querySelector('span.tsBody500Medium');
+    }
+
+    // 备用方案2：查找任何包含商品名的div（排除价格区域）
+    if (!titleElement) {
+      const allSpans = linkElement.querySelectorAll('span[class*="tsBody"]');
+      // 选择最长的文本（通常是商品名称，价格文本较短）
+      let longest: Element | null = null;
+      let maxLength = 0;
+      allSpans.forEach(span => {
+        const text = span.textContent?.trim() || '';
+        // 排除纯数字（价格）和过短的文本
+        if (text.length > maxLength && text.length > 10 && !/^\d+(\.\d+)?$/.test(text)) {
+          longest = span;
+          maxLength = text.length;
+        }
+      });
+      titleElement = longest;
+    }
+
     const title = titleElement?.textContent?.trim();
+
+    console.debug('[ShangpinbangParser] 提取标题:', {
+      found: !!titleElement,
+      title,
+      selector: titleElement?.className
+    });
 
     if (!title) return undefined;
 
