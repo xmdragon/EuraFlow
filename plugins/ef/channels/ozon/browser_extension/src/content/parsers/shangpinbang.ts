@@ -249,7 +249,8 @@ export class ShangpinbangParser implements PageDataParser {
     const debugLabels: string[] = [];
 
     listItems.forEach(item => {
-      const labelElement = item.querySelector('span');
+      // 优先选择内层的 span（带 cursor: pointer 的）或第一个直接子 span
+      const labelElement = item.querySelector('span span') || item.querySelector('span');
       const valueElement = item.querySelector('b');
 
       if (!labelElement || !valueElement) {
