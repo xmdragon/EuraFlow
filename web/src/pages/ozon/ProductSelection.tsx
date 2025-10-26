@@ -108,9 +108,9 @@ const ProductSelection: React.FC = () => {
   // 无限滚动相关状态
   const [allProducts, setAllProducts] = useState<api.ProductSelectionItem[]>(
     [],
-  ); // 累积所有已加载的商品
+  ); // 累积所有已加载的商品（包含被过滤的）
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量（动态计算）
-  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize（itemsPerRow * 2）
+  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize（itemsPerRow * 4）
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
   const [isCalculated, setIsCalculated] = useState(false); // 是否已完成初始计算（避免重复请求）
@@ -283,8 +283,8 @@ const ProductSelection: React.FC = () => {
       );
       setItemsPerRow(columns);
 
-      // 动态设置初始pageSize：列数 × 2行（修改为2行），但不超过后端限制100
-      const calculatedPageSize = Math.min(columns * 2, 100);
+      // 动态设置初始pageSize：列数 × 4行，但不超过后端限制100
+      const calculatedPageSize = Math.min(columns * 4, 100);
       setInitialPageSize(calculatedPageSize);
       setPageSize(calculatedPageSize);
       setIsCalculated(true); // 标记计算完成，允许查询
@@ -297,30 +297,31 @@ const ProductSelection: React.FC = () => {
 
   // 当收到新数据时，累积到 allProducts
   useEffect(() => {
-    if (productsData?.data?.items) {
-      let totalLoaded = 0;
+    if (!productsData?.data) return;
 
-      if (currentPage === 1) {
-        // 第一页，替换数据
-        setAllProducts(productsData.data.items);
-        totalLoaded = productsData.data.items.length;
-      } else {
-        // 后续页，追加数据
-        setAllProducts((prev) => {
-          const newProducts = [...prev, ...productsData.data.items];
-          totalLoaded = newProducts.length;
-          return newProducts;
-        });
-      }
+    const { items = [], total = 0 } = productsData.data;
 
-      // 使用 setTimeout 确保在 setAllProducts 完成后检查是否还有更多数据
-      setTimeout(() => {
-        setHasMoreData(totalLoaded < productsData.data.total);
-        setIsLoadingMore(false);
-      }, 0);
+    if (currentPage === 1) {
+      // 第一页，替换数据
+      setAllProducts(items);
+      setHasMoreData(items.length < total);
+      setIsLoadingMore(false);
+    } else if (items.length > 0) {
+      // 后续页，追加数据
+      setAllProducts((prev) => {
+        const newProducts = [...prev, ...items];
+        // 立即检查是否还有更多数据
+        setHasMoreData(newProducts.length < total);
+        return newProducts;
+      });
+      setIsLoadingMore(false);
+    } else {
+      // API返回空数组，说明没有更多数据了
+      setHasMoreData(false);
+      setIsLoadingMore(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productsData?.data]); // currentPage 用于条件判断，不需要作为依赖
+  }, [productsData?.data, currentPage]); // 添加currentPage作为依赖
 
   // 滚动监听：滚动到80%加载下一页（pageSize为初始值的一半）
   useEffect(() => {
