@@ -71,7 +71,7 @@ export function ControlPanel(props: ControlPanelProps) {
   const version = manifest.version;
 
   panel.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
       <div style="font-weight: bold; font-size: 16px;">🎯 Ozon选品助手 v${version}</div>
       <div style="display: flex; gap: 8px;">
         <button id="ef-settings-btn" style="background: rgba(255,255,255,0.3); border: none; color: white; width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.2s;">⚙️</button>
@@ -79,37 +79,27 @@ export function ControlPanel(props: ControlPanelProps) {
       </div>
     </div>
 
-    <div style="margin-bottom: 12px;">
-      <label style="display: block; margin-bottom: 6px; font-size: 13px;">目标采集数量：</label>
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+      <label style="font-size: 13px; white-space: nowrap;">采集数量:</label>
       <input
         id="ef-target-count"
         type="number"
         value="${config.targetCount}"
         min="1"
         max="1000"
-        style="width: 100%; padding: 8px 12px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
+        style="width: 5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
       />
     </div>
 
-    <button id="ef-toggle-btn" style="width: 100%; padding: 12px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 15px; transition: all 0.2s;">
+    <button id="ef-toggle-btn" style="width: 100%; padding: 12px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: all 0.2s;">
       🚀 开始采集
     </button>
 
-    <div style="margin-bottom: 15px;">
-      <div style="background: rgba(255,255,255,0.2); height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
-        <div id="ef-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #48bb78 0%, #38a169 100%); transition: width 0.3s;"></div>
-      </div>
-      <div id="ef-progress-text" style="text-align: center; font-size: 13px; font-weight: 600;">0%</div>
-    </div>
-
-    <div id="ef-status" style="background: rgba(255,255,255,0.2); padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; text-align: center;">
-      ✨ 就绪，点击开始采集
-    </div>
-
-    <div style="background: rgba(255,255,255,0.2); padding: 12px; border-radius: 6px; font-size: 13px;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-        <span>已采集：</span>
-        <span id="ef-collected" style="font-weight: bold; font-size: 16px;">0</span>
+    <div style="position: relative; background: rgba(255,255,255,0.2); border-radius: 6px; overflow: hidden;">
+      <div id="ef-progress-bg" style="position: absolute; top: 0; left: 0; width: 0%; height: 100%; background: linear-gradient(90deg, #48bb78 0%, #38a169 100%); transition: width 0.3s;"></div>
+      <div style="position: relative; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; font-size: 13px;">
+        <span id="ef-status-text">✨ 就绪，点击开始采集</span>
+        <span id="ef-progress-numbers" style="font-weight: 600;">0 [0%]</span>
       </div>
     </div>
   `;
@@ -458,27 +448,23 @@ export function ControlPanel(props: ControlPanelProps) {
 
   // 更新状态
   function updateStatus(message: string) {
-    const statusDiv = document.getElementById('ef-status');
-    if (statusDiv) {
-      statusDiv.textContent = message;
+    const statusText = document.getElementById('ef-status-text');
+    if (statusText) {
+      statusText.textContent = message;
     }
   }
 
   // 更新进度
   function updateProgress(current: number, target: number) {
     const progress = Math.min((current / target) * 100, 100);
-    const progressBar = document.getElementById('ef-progress-bar');
-    const progressText = document.getElementById('ef-progress-text');
-    const collectedSpan = document.getElementById('ef-collected');
+    const progressBg = document.getElementById('ef-progress-bg');
+    const progressNumbers = document.getElementById('ef-progress-numbers');
 
-    if (progressBar) {
-      progressBar.style.width = `${progress}%`;
+    if (progressBg) {
+      progressBg.style.width = `${progress}%`;
     }
-    if (progressText) {
-      progressText.textContent = `${Math.round(progress)}%`;
-    }
-    if (collectedSpan) {
-      collectedSpan.textContent = current.toString();
+    if (progressNumbers) {
+      progressNumbers.textContent = `${current} [${Math.round(progress)}%]`;
     }
 
     collectedCount = current;
