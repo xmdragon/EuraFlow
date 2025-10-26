@@ -163,7 +163,7 @@ async def submit_domestic_tracking(
 
 class UpdateDomesticTrackingDTO(BaseModel):
     """更新国内单号请求 DTO"""
-    domestic_tracking_numbers: List[str] = Field(..., min_length=1, max_length=10, description="国内物流单号列表（完整列表，会替换现有单号）")
+    domestic_tracking_numbers: List[str] = Field(..., min_length=0, max_length=10, description="国内物流单号列表（完整列表，会替换现有单号，允许空列表删除所有单号）")
 
 
 @router.patch("/postings/{posting_number}/domestic-tracking")
@@ -208,25 +208,26 @@ async def update_domestic_tracking(
             )
         )
 
-        # 3. 插入新的国内单号记录
-        for tracking_number in request.domestic_tracking_numbers:
+        # 3. 插入新的国内单号记录（过滤空字符串）
+        valid_numbers = [n.strip() for n in request.domestic_tracking_numbers if n.strip()]
+        for tracking_number in valid_numbers:
             new_tracking = OzonDomesticTracking(
                 posting_id=posting.id,
-                tracking_number=tracking_number.strip(),
+                tracking_number=tracking_number,
                 created_at=utcnow()
             )
             db.add(new_tracking)
 
         await db.commit()
 
-        logger.info(f"更新国内单号成功: {posting_number}, 单号数量: {len(request.domestic_tracking_numbers)}")
+        logger.info(f"更新国内单号成功: {posting_number}, 单号数量: {len(valid_numbers)}")
 
         return {
             "success": True,
             "message": "国内单号更新成功",
             "data": {
                 "posting_number": posting_number,
-                "domestic_tracking_numbers": request.domestic_tracking_numbers
+                "domestic_tracking_numbers": valid_numbers
             }
         }
 
@@ -351,9 +352,15 @@ async def get_packing_orders(
     if shop_id:
         query = query.where(OzonPosting.shop_id == shop_id)
 
-    # 搜索条件：精确匹配货件编号
+    # 搜索条件：货件编号（支持通配符）
     if posting_number:
-        query = query.where(OzonPosting.posting_number == posting_number.strip())
+        posting_number_value = posting_number.strip()
+        if '%' in posting_number_value:
+            # 包含通配符，使用 LIKE 模糊匹配
+            query = query.where(OzonPosting.posting_number.like(posting_number_value))
+        else:
+            # 精确匹配
+            query = query.where(OzonPosting.posting_number == posting_number_value)
 
     # 搜索条件：SKU搜索（在products数组中查找）
     if sku:
@@ -465,7 +472,11 @@ async def get_packing_orders(
     if shop_id:
         count_query = count_query.where(OzonPosting.shop_id == shop_id)
     if posting_number:
-        count_query = count_query.where(OzonPosting.posting_number == posting_number.strip())
+        posting_number_value = posting_number.strip()
+        if '%' in posting_number_value:
+            count_query = count_query.where(OzonPosting.posting_number.like(posting_number_value))
+        else:
+            count_query = count_query.where(OzonPosting.posting_number == posting_number_value)
     if sku:
         # SKU搜索（count查询也需要应用）
         try:
@@ -1570,7 +1581,11 @@ async def get_packing_stats(
             if shop_id:
                 conditions.append(OzonPosting.shop_id == shop_id)
             if posting_number:
-                conditions.append(OzonPosting.posting_number == posting_number.strip())
+                posting_number_value = posting_number.strip()
+                if '%' in posting_number_value:
+                    conditions.append(OzonPosting.posting_number.like(posting_number_value))
+                else:
+                    conditions.append(OzonPosting.posting_number == posting_number_value)
             return conditions
 
         # 构建搜索条件（SKU/tracking_number/domestic_tracking_number）

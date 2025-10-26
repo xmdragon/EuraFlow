@@ -1160,22 +1160,26 @@ const PackingShipment: React.FC = () => {
     // 过滤掉空字符串
     const validNumbers = editingTrackingNumbers.filter((n) => n.trim() !== '');
 
-    if (validNumbers.length === 0) {
-      notifyWarning('保存失败', '至少需要保留一个国内单号');
-      return;
-    }
-
+    // 允许删除所有单号（validNumbers 可以为空数组）
     setIsSavingTracking(true);
     try {
-      await ozonApi.updateDomesticTracking(scanResult.posting_number, {
-        domestic_tracking_numbers: validNumbers,
-      });
+      if (validNumbers.length === 0) {
+        // 删除所有国内单号
+        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
+          domestic_tracking_numbers: [''], // 传空字符串表示删除所有
+        });
+      } else {
+        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
+          domestic_tracking_numbers: validNumbers,
+        });
+      }
+
       notifySuccess('保存成功', '国内单号已更新');
 
       // 更新 scanResult
       setScanResult({
         ...scanResult,
-        domestic_tracking_numbers: validNumbers,
+        domestic_tracking_numbers: validNumbers.length > 0 ? validNumbers : [],
       });
 
       // 退出编辑状态
@@ -1475,7 +1479,6 @@ const PackingShipment: React.FC = () => {
                                   size="small"
                                   icon={<DeleteOutlined />}
                                   onClick={() => handleDeleteEditingNumber(index)}
-                                  disabled={editingTrackingNumbers.length === 1}
                                 />
                               </Space>
                             </div>

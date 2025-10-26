@@ -112,9 +112,13 @@ async def get_finance_transactions(
         if operation_type:
             conditions.append(OzonFinanceTransaction.operation_type == operation_type)
 
-        # 发货单号搜索
+        # 发货单号搜索（支持通配符）
         if posting_number:
-            conditions.append(OzonFinanceTransaction.posting_number == posting_number)
+            posting_number_value = posting_number.strip()
+            if '%' in posting_number_value:
+                conditions.append(OzonFinanceTransaction.posting_number.like(posting_number_value))
+            else:
+                conditions.append(OzonFinanceTransaction.posting_number == posting_number_value)
 
         # 查询总数
         count_stmt = select(func.count()).select_from(OzonFinanceTransaction).where(and_(*conditions))

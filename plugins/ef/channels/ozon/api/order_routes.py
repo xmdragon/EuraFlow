@@ -80,9 +80,15 @@ async def get_orders(
     if operation_status:
         query = query.where(OzonPosting.operation_status == operation_status)
 
-    # 搜索条件：精确匹配 posting_number
+    # 搜索条件：posting_number（支持通配符）
     if posting_number:
-        query = query.where(OzonPosting.posting_number == posting_number.strip())
+        posting_number_value = posting_number.strip()
+        if '%' in posting_number_value:
+            # 包含通配符，使用 LIKE 模糊匹配
+            query = query.where(OzonPosting.posting_number.like(posting_number_value))
+        else:
+            # 精确匹配
+            query = query.where(OzonPosting.posting_number == posting_number_value)
 
     if customer_phone:
         query = query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
@@ -124,7 +130,11 @@ async def get_orders(
     if operation_status:
         count_query = count_query.where(OzonPosting.operation_status == operation_status)
     if posting_number:
-        count_query = count_query.where(OzonPosting.posting_number == posting_number.strip())
+        posting_number_value = posting_number.strip()
+        if '%' in posting_number_value:
+            count_query = count_query.where(OzonPosting.posting_number.like(posting_number_value))
+        else:
+            count_query = count_query.where(OzonPosting.posting_number == posting_number_value)
     if customer_phone:
         count_query = count_query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
     if order_type:

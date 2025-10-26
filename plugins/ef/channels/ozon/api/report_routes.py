@@ -290,6 +290,7 @@ async def get_posting_report(
     page_size: int = Query(50, ge=1, le=100, description="每页条数，最大100"),
     sort_by: Optional[str] = Query(None, description="排序字段：profit_rate"),
     sort_order: str = Query("desc", description="排序方向：asc或desc"),
+    posting_number: Optional[str] = Query(None, description="货件编号（支持通配符%）"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -342,6 +343,14 @@ async def get_posting_report(
         if shop_ids:
             shop_id_list = [int(sid) for sid in shop_ids.split(",")]
             conditions.append(OzonOrder.shop_id.in_(shop_id_list))
+
+        # 货件编号过滤（支持通配符）
+        if posting_number:
+            posting_number_value = posting_number.strip()
+            if '%' in posting_number_value:
+                conditions.append(OzonPosting.posting_number.like(posting_number_value))
+            else:
+                conditions.append(OzonPosting.posting_number == posting_number_value)
 
         # 查询总数（用于分页）- 保持和数据查询一致的JOIN
         count_query = select(func.count(OzonPosting.id)).join(
