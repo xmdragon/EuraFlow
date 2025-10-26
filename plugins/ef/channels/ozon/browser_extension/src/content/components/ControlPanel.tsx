@@ -79,17 +79,19 @@ export function ControlPanel(props: ControlPanelProps) {
       </div>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-      <label style="font-size: 13px; white-space: nowrap;">数量:</label>
-      <input
-        id="ef-target-count"
-        type="number"
-        value="${config.targetCount}"
-        min="1"
-        max="1000"
-        style="width: 4.5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
-      />
-      <button id="ef-toggle-btn" style="flex: 1; padding: 10px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <label style="font-size: 13px; white-space: nowrap;">数量:</label>
+        <input
+          id="ef-target-count"
+          type="number"
+          value="${config.targetCount}"
+          min="1"
+          max="1000"
+          style="width: 4.5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
+        />
+      </div>
+      <button id="ef-toggle-btn" style="width: 120px; padding: 10px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
         🚀 开始
       </button>
     </div>

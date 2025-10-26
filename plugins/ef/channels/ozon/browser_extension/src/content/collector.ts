@@ -66,11 +66,9 @@ export class ProductCollector {
     };
 
     try {
-      // 【条件性初始扫描】仅在页面顶部时才进行初始扫描
-      if (window.scrollY === 0) {
-        await this.collectVisibleProducts();
-        onProgress?.(this.progress);
-      }
+      // 初始扫描当前可见商品
+      await this.collectVisibleProducts();
+      onProgress?.(this.progress);
 
       let lastCollectedCount = this.collected.size;
       let sameCountTimes = 0;
@@ -234,16 +232,6 @@ export class ProductCollector {
         // 去重：使用 SKU 作为唯一标识
         if (product.product_id && !this.collected.has(product.product_id)) {
           this.collected.set(product.product_id, product);
-
-          // 【DEBUG】采集到第一条数据时，打印所有字段
-          if (this.collected.size === 1) {
-            console.log('[Collector] 🔍 DEBUG - 第一条商品数据：');
-            console.log('================================================');
-            Object.entries(product).forEach(([key, value]) => {
-              console.log(`  ${key}: ${JSON.stringify(value)}`);
-            });
-            console.log('================================================');
-          }
         }
       } catch (error: any) {
         console.warn('[Collector] Failed to extract product:', error.message);

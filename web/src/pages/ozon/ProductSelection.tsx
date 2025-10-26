@@ -290,7 +290,7 @@ const ProductSelection: React.FC = () => {
 
       // 使用屏幕宽度 - 侧边栏宽度
       const availableWidth = window.innerWidth - siderWidth;
-      const itemWidth = 180; // 每个商品卡片宽度（修正为180）
+      const itemWidth = 170; // 每个商品卡片宽度
 
       const columns = Math.max(
         1,
@@ -1004,7 +1004,7 @@ const ProductSelection: React.FC = () => {
                 <Col span={12}>
                   <Text type="secondary">均价: </Text>
                   <Text strong>
-                    {product.avg_price ? `${product.avg_price.toFixed(2)}₽` : "-"}
+                    {formatCurrency(product.avg_price, exchangeRate)}
                   </Text>
                 </Col>
               )}

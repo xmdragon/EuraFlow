@@ -97,6 +97,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
       okText="保存"
       cancelText="取消"
       width={600}
+      styles={{ body: { overflowX: 'hidden', maxHeight: '60vh', overflowY: 'auto' } }}
     >
       <div className={styles.fieldConfigList}>
         {/* 第一行：品牌和原价（单列，保持不变） */}
