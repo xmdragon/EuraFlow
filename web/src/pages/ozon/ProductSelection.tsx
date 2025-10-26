@@ -46,6 +46,7 @@ import {
   DatePicker,
   Tooltip,
   Checkbox,
+  Popconfirm,
 } from "antd";
 import dayjs from "dayjs";
 import React, { useState, useEffect, useMemo } from "react";
@@ -428,26 +429,6 @@ const ProductSelection: React.FC = () => {
       notifyError("清空失败", "清空数据失败: " + error.message);
     },
   });
-
-  // 处理删除批次
-  const handleDeleteBatch = (batchId: number) => {
-    logger.info('删除批次', { batchId });
-    Modal.confirm({
-      title: "确认删除该批次？",
-      content: (
-        <div>
-          <p>此操作将删除批次 #{batchId} 的所有商品数据，无法恢复！</p>
-        </div>
-      ),
-      okText: "确认删除",
-      cancelText: "取消",
-      okType: "danger",
-      onOk: () => {
-        logger.info('确认删除批次', { batchId });
-        deleteBatchMutation.mutate(batchId);
-      },
-    });
-  };
 
   // 处理清空数据
   const handleClearData = () => {
@@ -1453,23 +1434,27 @@ const ProductSelection: React.FC = () => {
                       title: "操作",
                       key: "action",
                       width: 120,
-                      render: (_: any, record: api.ImportHistory) => {
-                        return (
+                      render: (_: any, record: api.ImportHistory) => (
+                        <Popconfirm
+                          title="确认删除该批次？"
+                          description={`此操作将删除批次 #${record.id} 的所有商品数据，无法恢复！`}
+                          onConfirm={() => {
+                            deleteBatchMutation.mutate(record.id);
+                          }}
+                          okText="确认删除"
+                          cancelText="取消"
+                          okButtonProps={{ danger: true }}
+                        >
                           <Button
                             type="link"
                             danger
                             size="small"
                             icon={<DeleteOutlined />}
-                            onClick={(e: React.MouseEvent) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleDeleteBatch(record.id);
-                            }}
                           >
                             删除
                           </Button>
-                        );
-                      },
+                        </Popconfirm>
+                      ),
                     },
                   ]}
                 />
