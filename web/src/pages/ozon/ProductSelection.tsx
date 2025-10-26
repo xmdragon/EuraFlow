@@ -791,17 +791,10 @@ const ProductSelection: React.FC = () => {
                 {formatPrice(product.current_price)}
               </Text>
               {fieldConfig.originalPrice && product.original_price && (
-                <>
-                  <Text delete className={styles.originalPrice}>
-                    {userSymbol}
-                    {formatPrice(product.original_price)}
-                  </Text>
-                  {discount > 0 && (
-                    <Tag color="red" className={styles.discountTag}>
-                      -{discount}%
-                    </Tag>
-                  )}
-                </>
+                <Text delete className={styles.originalPrice}>
+                  {userSymbol}
+                  {formatPrice(product.original_price)}
+                </Text>
               )}
             </div>
           </div>
@@ -820,19 +813,13 @@ const ProductSelection: React.FC = () => {
               <Text type="secondary">rFBS: </Text>
               <Space size={4}>
                 <Tag color="success">
-                  {product.rfbs_commission_low
-                    ? `${product.rfbs_commission_low}%`
-                    : "-"}
+                  {product.rfbs_commission_low ?? "-"}
                 </Tag>
                 <Tag color="warning">
-                  {product.rfbs_commission_mid
-                    ? `${product.rfbs_commission_mid}%`
-                    : "-"}
+                  {product.rfbs_commission_mid ?? "-"}
                 </Tag>
                 <Tag color="error">
-                  {product.rfbs_commission_high
-                    ? `${product.rfbs_commission_high}%`
-                    : "-"}
+                  {product.rfbs_commission_high ?? "-"}
                 </Tag>
               </Space>
             </div>
@@ -844,19 +831,13 @@ const ProductSelection: React.FC = () => {
               <Text type="secondary">FBP: </Text>
               <Space size={4}>
                 <Tag color="success">
-                  {product.fbp_commission_low
-                    ? `${product.fbp_commission_low}%`
-                    : "-"}
+                  {product.fbp_commission_low ?? "-"}
                 </Tag>
                 <Tag color="warning">
-                  {product.fbp_commission_mid
-                    ? `${product.fbp_commission_mid}%`
-                    : "-"}
+                  {product.fbp_commission_mid ?? "-"}
                 </Tag>
                 <Tag color="error">
-                  {product.fbp_commission_high
-                    ? `${product.fbp_commission_high}%`
-                    : "-"}
+                  {product.fbp_commission_high ?? "-"}
                 </Tag>
               </Space>
             </div>
@@ -867,7 +848,7 @@ const ProductSelection: React.FC = () => {
             <div className={styles.statsItem}>
               <Text type="secondary">月销: </Text>
               <Text strong>
-                {formatNum(product.monthly_sales_volume)} 件{" "}
+                {product.monthly_sales_volume ? `${formatNum(product.monthly_sales_volume)} 件` : ""}{" "}
                 {formatCurrency(product.monthly_sales_revenue, exchangeRate)}
               </Text>
             </div>
@@ -878,112 +859,119 @@ const ProductSelection: React.FC = () => {
             <div className={styles.statsItem}>
               <Text type="secondary">日销: </Text>
               <Text strong>
-                {formatNum(product.daily_sales_volume)} 件{" "}
+                {product.daily_sales_volume ? `${formatNum(product.daily_sales_volume)} 件` : ""}{" "}
                 {formatCurrency(product.daily_sales_revenue, exchangeRate)}
               </Text>
             </div>
           )}
 
-          {/* 销售动态+点击率 */}
+          {/* 销售动态+点击率 - 两列布局 */}
           {fieldConfig.salesDynamic && (
-            <div className={styles.statsItem}>
-              <Text type="secondary">动态: </Text>
-              <Text strong>{formatPercent(product.sales_dynamic_percent)}</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                点击:{" "}
-              </Text>
-              <Text strong>{formatPercent(product.click_through_rate)}</Text>
-            </div>
+            <Row gutter={8} className={styles.statsItem}>
+              <Col span={12}>
+                <Text type="secondary">动态: </Text>
+                <Text strong>{formatPercent(product.sales_dynamic_percent)}</Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary">点击: </Text>
+                <Text strong>{formatPercent(product.click_through_rate)}</Text>
+              </Col>
+            </Row>
           )}
 
-          {/* 卡片浏览量+加购率 */}
+          {/* 卡片浏览量+加购率 - 两列布局 */}
           {fieldConfig.cardMetrics && (
-            <div className={styles.statsItem}>
-              <Text type="secondary">卡片: </Text>
-              <Text strong>{formatNum(product.card_views)}</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                加购:{" "}
-              </Text>
-              <Text strong>
-                {formatPercent(product.card_add_to_cart_rate)}
-              </Text>
-            </div>
+            <Row gutter={8} className={styles.statsItem}>
+              <Col span={12}>
+                <Text type="secondary">卡片: </Text>
+                <Text strong>{formatNum(product.card_views)}</Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary">加购: </Text>
+                <Text strong>{formatPercent(product.card_add_to_cart_rate)}</Text>
+              </Col>
+            </Row>
           )}
 
-          {/* 搜索浏览量+加购率 */}
+          {/* 搜索浏览量+加购率 - 两列布局 */}
           {fieldConfig.searchMetrics && (
-            <div className={styles.statsItem}>
-              <Text type="secondary">搜索: </Text>
-              <Text strong>{formatNum(product.search_views)}</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                加购:{" "}
-              </Text>
-              <Text strong>
-                {formatPercent(product.search_add_to_cart_rate)}
-              </Text>
-            </div>
+            <Row gutter={8} className={styles.statsItem}>
+              <Col span={12}>
+                <Text type="secondary">搜索: </Text>
+                <Text strong>{formatNum(product.search_views)}</Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary">加购: </Text>
+                <Text strong>{formatPercent(product.search_add_to_cart_rate)}</Text>
+              </Col>
+            </Row>
           )}
 
-          {/* 促销天数+折扣+转化率 */}
+          {/* 促销天数+折扣+转化率 - 两列布局 */}
           {fieldConfig.promoMetrics && (
-            <div className={styles.statsItem}>
-              <Text type="secondary">促销: </Text>
-              <Text strong>
-                {product.promo_days ? `${product.promo_days}天` : "-"}{" "}
-                {formatPercent(product.promo_discount_percent)}{" "}
-                {formatPercent(product.promo_conversion_rate)}
-              </Text>
-            </div>
+            <Row gutter={8} className={styles.statsItem}>
+              <Col span={12}>
+                <Text type="secondary">促销: </Text>
+                <Text strong>
+                  {product.promo_days ? `${product.promo_days}天` : "-"}{" "}
+                  {formatPercent(product.promo_discount_percent)}
+                </Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary">转化: </Text>
+                <Text strong>{formatPercent(product.promo_conversion_rate)}</Text>
+              </Col>
+            </Row>
           )}
 
-          {/* 付费推广+份额 */}
+          {/* 付费推广+份额 - 两列布局 */}
           {fieldConfig.paidPromo && (
-            <div className={styles.statsItem}>
-              <Text type="secondary">付费: </Text>
-              <Text strong>
-                {product.paid_promo_days ? `${product.paid_promo_days}天` : "-"}
-              </Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                份额:{" "}
-              </Text>
-              <Text strong>{formatPercent(product.ad_cost_share)}</Text>
-            </div>
+            <Row gutter={8} className={styles.statsItem}>
+              <Col span={12}>
+                <Text type="secondary">付费: </Text>
+                <Text strong>
+                  {product.paid_promo_days ? `${product.paid_promo_days}天` : "-"}
+                </Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary">份额: </Text>
+                <Text strong>{formatPercent(product.ad_cost_share)}</Text>
+              </Col>
+            </Row>
           )}
 
-          {/* 成交率+退货率 */}
+          {/* 成交率+退货率 - 两列布局 */}
           {fieldConfig.conversionMetrics && (
-            <div className={styles.statsItem}>
-              <Text type="secondary">成交: </Text>
-              <Text strong>{formatPercent(product.conversion_rate)}</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                退取:{" "}
-              </Text>
-              <Text strong>{formatPercent(product.return_cancel_rate)}</Text>
-            </div>
+            <Row gutter={8} className={styles.statsItem}>
+              <Col span={12}>
+                <Text type="secondary">成交: </Text>
+                <Text strong>{formatPercent(product.conversion_rate)}</Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary">退取: </Text>
+                <Text strong>{formatPercent(product.return_cancel_rate)}</Text>
+              </Col>
+            </Row>
           )}
 
-          {/* 平均价格+重量 */}
+          {/* 平均价格+重量 - 两列布局 */}
           {(fieldConfig.avgPrice || fieldConfig.weight) && (
-            <div className={styles.statsItem}>
+            <Row gutter={8} className={styles.statsItem}>
               {fieldConfig.avgPrice && (
-                <>
+                <Col span={12}>
                   <Text type="secondary">均价: </Text>
                   <Text strong>
-                    {product.avg_price
-                      ? `${product.avg_price.toFixed(2)}₽`
-                      : "-"}
+                    {product.avg_price ? `${product.avg_price.toFixed(2)}₽` : "-"}
                   </Text>
-                </>
+                </Col>
               )}
               {fieldConfig.weight && (
-                <>
-                  <Text type="secondary" style={{ marginLeft: 8 }}>
-                    重量:{" "}
-                  </Text>
+                <Col span={12}>
+                  <Text type="secondary">重量: </Text>
                   <Text strong>{formatWeight(product.package_weight)}</Text>
-                </>
+                </Col>
               )}
-            </div>
+            </Row>
           )}
 
           {/* 包装尺寸 */}
