@@ -459,7 +459,16 @@ const ChatDetail: React.FC = () => {
 
     // OZON表格文件：文件扩展名匹配 或 报表下载路径匹配
     if (isOzonLink && (isSpreadsheetLink || isReportDownloadLink) && shopId) {
-      // CSV/Excel链接：使用JavaScript预览（带认证）
+      // 报表下载链接：直接打开新标签页（需要用户浏览器登录session）
+      if (isReportDownloadLink) {
+        return (
+          <a href={href} target="_blank" rel="noopener noreferrer" title="在OZON中打开并下载">
+            {children}
+          </a>
+        );
+      }
+
+      // 普通CSV/Excel链接：使用JavaScript预览（带认证）
       return (
         <a
           href="#"
