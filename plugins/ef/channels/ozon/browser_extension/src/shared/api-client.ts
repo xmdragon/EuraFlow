@@ -88,6 +88,25 @@ export class ApiClient {
 
       competitor_count: product.competitor_count,
       competitor_min_price: product.competitor_min_price,
+
+      // 营销分析字段（上品帮）
+      card_views: product.card_views,
+      card_add_to_cart_rate: product.card_add_to_cart_rate,
+      search_views: product.search_views,
+      search_add_to_cart_rate: product.search_add_to_cart_rate,
+      click_through_rate: product.click_through_rate,
+      promo_days: product.promo_days,
+      promo_discount_percent: product.promo_discount_percent,
+      promo_conversion_rate: product.promo_conversion_rate,
+      paid_promo_days: product.paid_promo_days,
+      return_cancel_rate: product.return_cancel_rate,
+
+      // 基础字段（上品帮）
+      category_path: product.category_path,
+      avg_price: product.avg_price,
+      listing_date: product.listing_date?.toISOString(),
+      listing_days: product.listing_days,
+      seller_mode: product.seller_mode,
     }));
   }
 }
