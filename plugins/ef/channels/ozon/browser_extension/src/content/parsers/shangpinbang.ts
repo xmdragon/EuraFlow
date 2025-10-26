@@ -110,8 +110,8 @@ export class ShangpinbangParser implements PageDataParser {
 
     if (!title) return undefined;
 
-    // 暂时只提供俄文标题（中文翻译需要额外处理）
-    return lang === 'ru' ? title : undefined;
+    // 暂时只提供俄文标题（中文翻译需要额外处理，返回空字符串）
+    return lang === 'ru' ? title : '';
   }
 
   /**
@@ -210,7 +210,7 @@ export class ShangpinbangParser implements PageDataParser {
     const delivery = element.querySelector('[class*="delivery"], [class*="shipping"]');
     const deliveryText = delivery?.textContent?.trim();
 
-    if (!deliveryText) return undefined;
+    if (!deliveryText) return 0;
 
     // 提取数字（例如："2-3天" -> 3）
     const match = deliveryText.match(/(\d+)/);
@@ -218,7 +218,7 @@ export class ShangpinbangParser implements PageDataParser {
       return parseInt(match[1]);
     }
 
-    return undefined;
+    return 0;
   }
 
   /**
@@ -382,7 +382,12 @@ export class ShangpinbangParser implements PageDataParser {
         data.competitor_count = this.parseCompetitorCount(value);
         break;
       case '跟卖最低价':
-        data.competitor_min_price = this.parsePrice(value);
+        // 处理"无跟卖"的情况
+        if (value === '无跟卖' || value === '无') {
+          data.competitor_min_price = 0;
+        } else {
+          data.competitor_min_price = this.parsePrice(value);
+        }
         break;
 
       // 日期
@@ -452,6 +457,11 @@ export class ShangpinbangParser implements PageDataParser {
    * 解析跟卖者数量（从"等8个卖家"中提取数字）
    */
   private parseCompetitorCount(value: string): number | undefined {
+    // 处理"无跟卖"的情况
+    if (value === '无跟卖' || value === '无') {
+      return 0;
+    }
+
     const match = value.match(/等(\d+)个/);
     if (!match) return undefined;
     return parseInt(match[1]);

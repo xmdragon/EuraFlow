@@ -234,6 +234,16 @@ export class ProductCollector {
         // 去重：使用 SKU 作为唯一标识
         if (product.product_id && !this.collected.has(product.product_id)) {
           this.collected.set(product.product_id, product);
+
+          // 【DEBUG】采集到第一条数据时，打印所有字段
+          if (this.collected.size === 1) {
+            console.log('[Collector] 🔍 DEBUG - 第一条商品数据：');
+            console.log('================================================');
+            Object.entries(product).forEach(([key, value]) => {
+              console.log(`  ${key}: ${JSON.stringify(value)}`);
+            });
+            console.log('================================================');
+          }
         }
       } catch (error: any) {
         console.warn('[Collector] Failed to extract product:', error.message);

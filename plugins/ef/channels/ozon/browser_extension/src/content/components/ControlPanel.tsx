@@ -80,20 +80,19 @@ export function ControlPanel(props: ControlPanelProps) {
     </div>
 
     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-      <label style="font-size: 13px; white-space: nowrap;">采集数量:</label>
+      <label style="font-size: 13px; white-space: nowrap;">数量:</label>
       <input
         id="ef-target-count"
         type="number"
         value="${config.targetCount}"
         min="1"
         max="1000"
-        style="width: 5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
+        style="width: 4.5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
       />
+      <button id="ef-toggle-btn" style="flex: 1; padding: 10px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
+        🚀 开始
+      </button>
     </div>
-
-    <button id="ef-toggle-btn" style="width: 100%; padding: 12px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: all 0.2s;">
-      🚀 开始采集
-    </button>
 
     <div style="position: relative; background: rgba(255,255,255,0.2); border-radius: 6px; overflow: hidden;">
       <div id="ef-progress-bg" style="position: absolute; top: 0; left: 0; width: 0%; height: 100%; background: linear-gradient(90deg, #48bb78 0%, #38a169 100%); transition: width 0.3s;"></div>
@@ -372,7 +371,7 @@ export function ControlPanel(props: ControlPanelProps) {
     const toggleBtn = document.getElementById('ef-toggle-btn');
     if (toggleBtn) {
       toggleBtn.style.background = '#f56565';
-      toggleBtn.innerHTML = '⏸️ 停止采集';
+      toggleBtn.innerHTML = '⏸️ 停止';
     }
 
     const targetCountInput = document.getElementById('ef-target-count') as HTMLInputElement;
@@ -412,7 +411,7 @@ export function ControlPanel(props: ControlPanelProps) {
     const toggleBtn = document.getElementById('ef-toggle-btn');
     if (toggleBtn) {
       toggleBtn.style.background = '#48bb78';
-      toggleBtn.innerHTML = '🚀 开始采集';
+      toggleBtn.innerHTML = '🚀 开始';
     }
 
     if (!collectedCount) {

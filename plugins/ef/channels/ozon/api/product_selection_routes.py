@@ -1142,6 +1142,14 @@ async def upload_products(
 
                 batch_items.append(cleaned_data)
 
+                # 【DEBUG】打印第一条商品的所有字段
+                if idx == 0:
+                    logger.info("=" * 60)
+                    logger.info(f"[DEBUG] 第一条商品数据（索引 {idx}）：")
+                    for key, value in cleaned_data.items():
+                        logger.info(f"  {key}: {value}")
+                    logger.info("=" * 60)
+
             except Exception as e:
                 failed_count += 1
                 errors.append({
