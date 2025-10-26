@@ -197,6 +197,7 @@
 .brandInfo {
   font-size: 11px;
   line-height: 1.2;
+  margin-bottom: 1px;
 }
 
 // ===== 统计信息（销量、重量、佣金等） =====
@@ -206,6 +207,7 @@
 
 .statsItem {
   font-size: 11px;
+  margin-bottom: 1px;
 }
 
 // ===== 上架时间 =====
@@ -464,8 +466,8 @@
 .commissionRow {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
+  gap: 1px;
+  margin-bottom: 1px;
   font-size: 12px;
 
   :global(.ant-tag) {

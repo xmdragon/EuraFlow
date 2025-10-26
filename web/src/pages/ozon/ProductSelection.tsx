@@ -110,9 +110,10 @@ const ProductSelection: React.FC = () => {
     [],
   ); // 累积所有已加载的商品
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量（动态计算）
-  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize（itemsPerRow * 4）
+  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize（itemsPerRow * 2）
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
+  const [isCalculated, setIsCalculated] = useState(false); // 是否已完成初始计算（避免重复请求）
 
   // 字段配置状态
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
@@ -243,7 +244,7 @@ const ProductSelection: React.FC = () => {
         page: currentPage,
         page_size: pageSize,
       }),
-    enabled: activeTab === "search",
+    enabled: activeTab === "search" && isCalculated, // 等待初始计算完成后才允许请求
   });
 
   // 查询汇率（CNY → RUB），用于正确匹配场景
@@ -270,11 +271,11 @@ const ProductSelection: React.FC = () => {
     const calculateItemsPerRow = () => {
       // 获取侧边栏实际宽度
       const sider = document.querySelector('.ant-layout-sider');
-      const siderWidth = sider ? sider.clientWidth : 240; // 默认240px
+      const siderWidth = sider ? sider.clientWidth : 240; // 默认240px（展开），收缩时80px
 
       // 使用屏幕宽度 - 侧边栏宽度
       const availableWidth = window.innerWidth - siderWidth;
-      const itemWidth = 165; // 每个商品卡片宽度
+      const itemWidth = 180; // 每个商品卡片宽度（修正为180）
 
       const columns = Math.max(
         1,
@@ -282,10 +283,11 @@ const ProductSelection: React.FC = () => {
       );
       setItemsPerRow(columns);
 
-      // 动态设置初始pageSize：列数 × 4行，但不超过后端限制100
-      const calculatedPageSize = Math.min(columns * 4, 100);
+      // 动态设置初始pageSize：列数 × 2行（修改为2行），但不超过后端限制100
+      const calculatedPageSize = Math.min(columns * 2, 100);
       setInitialPageSize(calculatedPageSize);
       setPageSize(calculatedPageSize);
+      setIsCalculated(true); // 标记计算完成，允许查询
     };
 
     calculateItemsPerRow();
@@ -332,20 +334,33 @@ const ProductSelection: React.FC = () => {
       const scrollPercent = (scrollTop + windowHeight) / documentHeight;
 
       if (scrollPercent > 0.8) {
+        // 边界判断：检查是否已加载完所有数据
+        const currentTotal = allProducts.length;
+        const apiTotal = productsData?.data?.total || 0;
+
+        if (apiTotal > 0 && currentTotal >= apiTotal) {
+          // 已加载完所有数据，不再发起请求
+          setHasMoreData(false);
+          return;
+        }
+
         setIsLoadingMore(true);
         // 设置pageSize为初始值的一半，但至少为1行，不超过100
         const loadMoreSize = Math.min(
           Math.max(Math.floor(initialPageSize / 2), itemsPerRow),
           100,
         );
-        setPageSize(loadMoreSize);
-        setCurrentPage((prev) => prev + 1);
+        // 使用函数式更新批量修改状态，避免触发多次请求
+        setCurrentPage((prev) => {
+          setPageSize(loadMoreSize); // 在同一更新周期内修改pageSize
+          return prev + 1;
+        });
       }
     };
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
+  }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow, allProducts.length, productsData?.data?.total]);
 
   // 过滤可盈利商品：计算成本上限，过滤掉无法达到目标利润率的商品
   const profitableProducts = useMemo(() => {
@@ -504,6 +519,7 @@ const ProductSelection: React.FC = () => {
     setAllProducts([]); // 清空已加载的商品
     setHasMoreData(true); // 重置标志
     setPageSize(initialPageSize); // 重置为初始pageSize
+    // 注意：不需要重置 isCalculated，因为只需计算一次
   };
 
   // 处理重置
@@ -867,7 +883,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 销售动态+点击率 - 两列布局 */}
           {fieldConfig.salesDynamic && (
-            <Row gutter={8} className={styles.statsItem}>
+            <Row gutter={1} className={styles.statsItem}>
               <Col span={12}>
                 <Text type="secondary">动态: </Text>
                 <Text strong>{formatPercent(product.sales_dynamic_percent)}</Text>
@@ -881,7 +897,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 卡片浏览量+加购率 - 两列布局 */}
           {fieldConfig.cardMetrics && (
-            <Row gutter={8} className={styles.statsItem}>
+            <Row gutter={1} className={styles.statsItem}>
               <Col span={12}>
                 <Text type="secondary">卡片: </Text>
                 <Text strong>{formatNum(product.card_views)}</Text>
@@ -895,7 +911,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 搜索浏览量+加购率 - 两列布局 */}
           {fieldConfig.searchMetrics && (
-            <Row gutter={8} className={styles.statsItem}>
+            <Row gutter={1} className={styles.statsItem}>
               <Col span={12}>
                 <Text type="secondary">搜索: </Text>
                 <Text strong>{formatNum(product.search_views)}</Text>
@@ -909,7 +925,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 促销天数+折扣+转化率 - 两列布局 */}
           {fieldConfig.promoMetrics && (
-            <Row gutter={8} className={styles.statsItem}>
+            <Row gutter={1} className={styles.statsItem}>
               <Col span={12}>
                 <Text type="secondary">促销: </Text>
                 <Text strong>
@@ -926,7 +942,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 付费推广+份额 - 两列布局 */}
           {fieldConfig.paidPromo && (
-            <Row gutter={8} className={styles.statsItem}>
+            <Row gutter={1} className={styles.statsItem}>
               <Col span={12}>
                 <Text type="secondary">付费: </Text>
                 <Text strong>
@@ -942,7 +958,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 成交率+退货率 - 两列布局 */}
           {fieldConfig.conversionMetrics && (
-            <Row gutter={8} className={styles.statsItem}>
+            <Row gutter={1} className={styles.statsItem}>
               <Col span={12}>
                 <Text type="secondary">成交: </Text>
                 <Text strong>{formatPercent(product.conversion_rate)}</Text>
@@ -956,7 +972,7 @@ const ProductSelection: React.FC = () => {
 
           {/* 平均价格+重量 - 两列布局 */}
           {(fieldConfig.avgPrice || fieldConfig.weight) && (
-            <Row gutter={8} className={styles.statsItem}>
+            <Row gutter={1} className={styles.statsItem}>
               {fieldConfig.avgPrice && (
                 <Col span={12}>
                   <Text type="secondary">均价: </Text>
