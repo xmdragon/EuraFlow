@@ -527,7 +527,7 @@ async def get_product_purchase_price_history(
     # 1. 查询商品名称（从products表）
     product_result = await db.execute(
         select(OzonProduct.title, OzonProduct.offer_id)
-        .where(OzonProduct.sku == str(sku))
+        .where(OzonProduct.ozon_sku == int(sku))
         .limit(1)
     )
     product = product_result.first()
