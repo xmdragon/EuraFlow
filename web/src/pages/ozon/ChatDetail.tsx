@@ -34,7 +34,6 @@ import moment from 'moment';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 
 import styles from './ChatDetail.module.scss';
 
@@ -351,21 +350,7 @@ const ChatDetail: React.FC = () => {
     });
   };
 
-  // 解析Excel文件为二维数组
-  const parseExcel = async (blob: Blob): Promise<string[][]> => {
-    const arrayBuffer = await blob.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-
-    // 读取第一个工作表
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
-
-    // 转换为二维数组
-    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
-    return data;
-  };
-
-  // 预览CSV/Excel文件（在模态窗口中）
+  // 预览CSV文件（在模态窗口中）
   const handlePreviewCsv = async (url: string) => {
     setCsvLoading(true);
     setCsvModalVisible(true);
@@ -374,25 +359,9 @@ const ChatDetail: React.FC = () => {
     try {
       const response = await ozonApi.downloadChatCsv(Number(shopId), url);
 
-      // 判断文件类型
-      const isReportDownload = url.includes('/api/auditor-exporter/reports/download/');
-      const hasExcelExtension =
-        url.toLowerCase().endsWith('.xlsx') || url.toLowerCase().endsWith('.xls');
-      const hasExcelContentType = response.headers['content-type']?.includes('spreadsheet');
-
-      // OZON报表下载链接默认为Excel格式
-      const isExcel = isReportDownload || hasExcelExtension || hasExcelContentType;
-
-      let parsedData: string[][];
-
-      if (isExcel) {
-        // 解析Excel
-        parsedData = await parseExcel(response.data);
-      } else {
-        // 解析CSV
-        const text = await response.data.text();
-        parsedData = parseCsv(text);
-      }
+      // 解析CSV
+      const text = await response.data.text();
+      const parsedData = parseCsv(text);
 
       setCsvData(parsedData);
     } catch (error) {
@@ -450,15 +419,11 @@ const ChatDetail: React.FC = () => {
     const isReportDownloadLink =
       href && href.includes('/api/auditor-exporter/reports/download/');
 
-    // 检查是否是表格文件扩展名
-    const isSpreadsheetLink =
-      href &&
-      (href.toLowerCase().endsWith('.csv') ||
-        href.toLowerCase().endsWith('.xlsx') ||
-        href.toLowerCase().endsWith('.xls'));
+    // 检查是否是CSV文件
+    const isCsvLink = href && href.toLowerCase().endsWith('.csv');
 
-    // OZON表格文件：文件扩展名匹配 或 报表下载路径匹配
-    if (isOzonLink && (isSpreadsheetLink || isReportDownloadLink) && shopId) {
+    // OZON表格文件：CSV文件 或 报表下载路径
+    if (isOzonLink && (isCsvLink || isReportDownloadLink) && shopId) {
       // 报表下载链接：直接打开新标签页（需要用户浏览器登录session）
       if (isReportDownloadLink) {
         return (
@@ -468,7 +433,7 @@ const ChatDetail: React.FC = () => {
         );
       }
 
-      // 普通CSV/Excel链接：使用JavaScript预览（带认证）
+      // 普通CSV链接：使用JavaScript预览（带认证）
       return (
         <a
           href="#"
