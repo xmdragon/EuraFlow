@@ -110,12 +110,15 @@ export class ShangpinbangParser implements PageDataParser {
    *   - 第1个<a>: 图片链接
    *   - 第2个<a>: 在 <div class="si2_24"> 内的标题链接
    */
-  private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string | undefined {
+  private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string {
     // 精确选择器：定位到标题所在的容器内的span元素
     const titleElement = element.querySelector('div.si2_24 a[href*="/product/"] span.tsBody500Medium');
     const title = titleElement?.textContent?.trim();
 
-    if (!title) return undefined;
+    if (!title) {
+      // 中文返回空字符串，俄文返回空字符串（如果找不到标题）
+      return '';
+    }
 
     // 暂时只提供俄文标题（中文翻译需要额外处理，返回空字符串）
     return lang === 'ru' ? title : '';

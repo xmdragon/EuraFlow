@@ -953,19 +953,16 @@ const ProductSelection: React.FC = () => {
             </Row>
           )}
 
-          {/* 促销天数+折扣+转化率 - 两列布局 */}
+          {/* 促销天数+折扣+转化率 - 单行布局 */}
           {fieldConfig.promoMetrics && (
             <Row gutter={1} className={styles.statsItem}>
-              <Col span={12}>
+              <Col span={24}>
                 <Text type="secondary">促销: </Text>
                 <Text strong>
                   {product.promo_days ? `${product.promo_days}天` : "-"}{" "}
-                  {formatPercent(product.promo_discount_percent)}
+                  {formatPercent(product.promo_discount_percent)}{" "}
+                  {formatPercent(product.promo_conversion_rate)}
                 </Text>
-              </Col>
-              <Col span={12}>
-                <Text type="secondary">转化: </Text>
-                <Text strong>{formatPercent(product.promo_conversion_rate)}</Text>
               </Col>
             </Row>
           )}
