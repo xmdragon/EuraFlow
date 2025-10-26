@@ -105,17 +105,18 @@ const ProductSelection: React.FC = () => {
   );
   const [markingAsRead, setMarkingAsRead] = useState(false);
 
-  // 无限滚动相关状态
+  // 无限滚动相关状态（游标分页）
   const [allProducts, setAllProducts] = useState<api.ProductSelectionItem[]>(
     [],
-  ); // 累积所有已加载的商品（包含被过滤的）
+  ); // 累积所有已加载的商品
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量（动态计算）
-  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize（itemsPerRow * 4）
+  const [initialPageSize, setInitialPageSize] = useState(24); // 初始加载数量（itemsPerRow * 4）
+  const [loadMoreSize, setLoadMoreSize] = useState(14); // 后续每次加载数量（itemsPerRow * 2）
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
   const [isCalculated, setIsCalculated] = useState(false); // 是否已完成初始计算（避免重复请求）
   const loadingLockRef = useRef(false); // 请求锁，防止并发请求
-  const lastRequestPageRef = useRef(0); // 上次成功请求的页码
+  const [lastId, setLastId] = useState<number>(0); // 游标：上次最后一个商品的ID
 
   // 字段配置状态
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
@@ -251,12 +252,12 @@ const ProductSelection: React.FC = () => {
     isLoading: productsLoading,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ["productSelectionProducts", searchParams, currentPage, pageSize],
+    queryKey: ["productSelectionProducts", searchParams, currentPage, lastId],
     queryFn: () =>
       api.searchProducts({
         ...searchParams,
-        page: currentPage,
-        page_size: pageSize,
+        after_id: currentPage === 1 ? 0 : lastId,
+        limit: currentPage === 1 ? initialPageSize : loadMoreSize,
       }),
     enabled: activeTab === "search" && isCalculated, // 等待初始计算完成后才允许请求
   });
@@ -280,7 +281,7 @@ const ProductSelection: React.FC = () => {
     enabled: activeTab === "history",
   });
 
-  // 计算每行显示数量（根据屏幕宽度-左边菜单宽度），并动态设置初始pageSize
+  // 计算每行显示数量（根据屏幕宽度-左边菜单宽度），并动态设置加载数量
   useEffect(() => {
     const calculateItemsPerRow = () => {
       // 获取侧边栏实际宽度
@@ -297,10 +298,14 @@ const ProductSelection: React.FC = () => {
       );
       setItemsPerRow(columns);
 
-      // 动态设置初始pageSize：列数 × 4行，但不超过后端限制100
-      const calculatedPageSize = Math.min(columns * 4, 100);
-      setInitialPageSize(calculatedPageSize);
-      setPageSize(calculatedPageSize);
+      // 设置初始加载数量：列数 × 4行，但不超过后端限制100
+      const calculatedInitialSize = Math.min(columns * 4, 100);
+      setInitialPageSize(calculatedInitialSize);
+
+      // 设置后续加载数量：列数 × 2行
+      const calculatedLoadMoreSize = Math.min(columns * 2, 50);
+      setLoadMoreSize(calculatedLoadMoreSize);
+
       setIsCalculated(true); // 标记计算完成，允许查询
     };
 
@@ -313,30 +318,22 @@ const ProductSelection: React.FC = () => {
   useEffect(() => {
     if (!productsData?.data) return;
 
-    const { items = [], total = 0, page, page_size } = productsData.data;
-
-    // 计算总页数
-    const totalPages = Math.ceil(total / page_size);
+    const { items = [], next_cursor, has_more } = productsData.data;
 
     if (currentPage === 1) {
       // 第一页，替换数据
       setAllProducts(items);
-      setHasMoreData(currentPage < totalPages);
-      lastRequestPageRef.current = 1;
+      setHasMoreData(has_more ?? false);
+      // 更新游标为第一页最后一个商品的ID
+      if (items.length > 0) {
+        setLastId(items[items.length - 1].id);
+      }
     } else if (items.length > 0) {
-      // 后续页，追加数据并去重（根据 product_id）
-      setAllProducts((prev) => {
-        // 创建已有商品ID的Set用于快速查找
-        const existingIds = new Set(prev.map((p) => p.product_id));
-        // 只添加不存在的商品
-        const newItems = items.filter((item) => !existingIds.has(item.product_id));
-        const newProducts = [...prev, ...newItems];
-        return newProducts;
-      });
-      // 更新最后成功请求的页码
-      lastRequestPageRef.current = currentPage;
-      // 基于页码判断是否还有更多数据，而不是数据量
-      setHasMoreData(currentPage < totalPages);
+      // 后续页，追加数据（游标分页不会有重复）
+      setAllProducts((prev) => [...prev, ...items]);
+      setHasMoreData(has_more ?? false);
+      // 更新游标为当前页最后一个商品的ID
+      setLastId(items[items.length - 1].id);
     } else {
       // API返回空数组，说明没有更多数据了
       setHasMoreData(false);

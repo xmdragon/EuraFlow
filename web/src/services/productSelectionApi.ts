@@ -94,8 +94,8 @@ export interface ProductSearchParams {
     | 'price_desc'
     | 'created_desc'
     | 'created_asc';
-  page?: number;
-  page_size?: number;
+  after_id?: number; // 游标：上次最后一个商品的ID
+  limit?: number; // 每次加载数量
 }
 
 export interface SearchResponse {
@@ -103,9 +103,8 @@ export interface SearchResponse {
   data: {
     items: ProductSelectionItem[];
     total: number;
-    page: number;
-    page_size: number;
-    total_pages: number;
+    next_cursor?: number; // 下一页的游标
+    has_more: boolean; // 是否还有更多数据
   };
 }
 

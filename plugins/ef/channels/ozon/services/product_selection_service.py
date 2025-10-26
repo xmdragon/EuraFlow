@@ -738,14 +738,17 @@ class ProductSelectionService:
         user_id: int,
         filters: Dict[str, Any],
         sort_by: str = 'created_asc',
-        page: int = 1,
-        page_size: int = 20
+        after_id: int = 0,  # 游标：上次最后一个商品的 ID
+        limit: int = 20
     ) -> Dict[str, Any]:
-        """搜索商品"""
+        """搜索商品（使用游标分页）"""
         query = select(ProductSelectionItem)
 
         # 应用筛选条件
-        conditions = [ProductSelectionItem.user_id == user_id]
+        conditions = [
+            ProductSelectionItem.user_id == user_id,
+            ProductSelectionItem.id > after_id  # 游标条件
+        ]
 
         if filters.get('product_name'):
             # 商品名称搜索 - 同时搜索中文和俄文名称
@@ -832,44 +835,61 @@ class ProductSelectionService:
         if conditions:
             query = query.where(and_(*conditions))
 
-        # 获取总数
+        # 获取总数（不包含游标条件）
+        count_conditions = [ProductSelectionItem.user_id == user_id]
+        # 复制其他过滤条件（排除游标条件）
+        for cond in conditions:
+            if 'id >' not in str(cond):
+                count_conditions.append(cond)
+
         count_query = select(func.count()).select_from(ProductSelectionItem)
-        count_query = count_query.where(and_(*conditions))
+        if count_conditions:
+            count_query = count_query.where(and_(*count_conditions))
         total_result = await db.execute(count_query)
         total = total_result.scalar()
 
-        # 应用排序 - 默认按原始CSV行号排序
+        # 应用排序 - 必须包含 id 以确保游标分页稳定
         if sort_by == 'sales_desc':
-            query = query.order_by(ProductSelectionItem.monthly_sales_volume.desc().nullslast())
-        elif sort_by == 'sales_asc':
-            query = query.order_by(ProductSelectionItem.monthly_sales_volume.asc().nullsfirst())
-        elif sort_by == 'weight_asc':
-            query = query.order_by(ProductSelectionItem.package_weight.asc().nullsfirst())
-        elif sort_by == 'price_asc':
-            query = query.order_by(ProductSelectionItem.current_price.asc().nullsfirst())
-        elif sort_by == 'price_desc':
-            query = query.order_by(ProductSelectionItem.current_price.desc().nullslast())
-        elif sort_by == 'created_desc':
-            query = query.order_by(ProductSelectionItem.created_at.desc())
-        elif sort_by == 'created_asc':
-            query = query.order_by(ProductSelectionItem.created_at.asc())
-        elif sort_by == 'source_order' or sort_by == '':
-            # 按CSV原始行号排序（保持OZON原始顺序）
-            # NULL值排在最后，并使用id作为第二排序字段确保顺序稳定
             query = query.order_by(
-                ProductSelectionItem.source_row_index.asc().nullslast(),
+                ProductSelectionItem.monthly_sales_volume.desc().nullslast(),
+                ProductSelectionItem.id.asc()
+            )
+        elif sort_by == 'sales_asc':
+            query = query.order_by(
+                ProductSelectionItem.monthly_sales_volume.asc().nullsfirst(),
+                ProductSelectionItem.id.asc()
+            )
+        elif sort_by == 'weight_asc':
+            query = query.order_by(
+                ProductSelectionItem.package_weight.asc().nullsfirst(),
+                ProductSelectionItem.id.asc()
+            )
+        elif sort_by == 'price_asc':
+            query = query.order_by(
+                ProductSelectionItem.current_price.asc().nullsfirst(),
+                ProductSelectionItem.id.asc()
+            )
+        elif sort_by == 'price_desc':
+            query = query.order_by(
+                ProductSelectionItem.current_price.desc().nullslast(),
+                ProductSelectionItem.id.asc()
+            )
+        elif sort_by == 'created_desc':
+            query = query.order_by(
+                ProductSelectionItem.created_at.desc(),
+                ProductSelectionItem.id.asc()
+            )
+        elif sort_by == 'created_asc':
+            query = query.order_by(
+                ProductSelectionItem.created_at.asc(),
                 ProductSelectionItem.id.asc()
             )
         else:
-            # 默认按CSV原始行号排序
-            query = query.order_by(
-                ProductSelectionItem.source_row_index.asc().nullslast(),
-                ProductSelectionItem.id.asc()
-            )
+            # 默认按 ID 排序（等同于导入顺序，因为 ID 是自增的）
+            query = query.order_by(ProductSelectionItem.id.asc())
 
-        # 分页
-        offset = (page - 1) * page_size
-        query = query.offset(offset).limit(page_size)
+        # 游标分页：只需要 LIMIT，不需要 OFFSET
+        query = query.limit(limit)
 
         # 执行查询
         result = await db.execute(query)
@@ -878,9 +898,8 @@ class ProductSelectionService:
         return {
             'items': [item.to_dict() for item in items],
             'total': total,
-            'page': page,
-            'page_size': page_size,
-            'total_pages': (total + page_size - 1) // page_size if total > 0 else 0
+            'next_cursor': items[-1].id if items else None,  # 返回下一页的游标
+            'has_more': len(items) == limit  # 是否还有更多数据
         }
 
     async def get_brands(self, db: AsyncSession, user_id: int) -> List[str]:

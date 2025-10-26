@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # DTO 模型
 class ProductSearchRequest(BaseModel):
-    """商品搜索请求"""
+    """商品搜索请求（使用游标分页）"""
     product_name: Optional[str] = Field(None, description="商品名称")
     brand: Optional[str] = None
     rfbs_low_max: Optional[float] = Field(None, description="rFBS(<=1500₽)最大佣金率")
@@ -48,8 +48,8 @@ class ProductSearchRequest(BaseModel):
     batch_id: Optional[int] = Field(None, description="批次ID")
     is_read: Optional[bool] = Field(None, description="是否已读（None=全部,True=已读,False=未读）")
     sort_by: Optional[str] = Field('created_asc', description="排序方式")
-    page: Optional[int] = Field(1, ge=1, description="页码")
-    page_size: Optional[int] = Field(20, ge=1, le=100, description="每页数量")
+    after_id: Optional[int] = Field(0, ge=0, description="游标：上次最后一个商品的ID")
+    limit: Optional[int] = Field(20, ge=1, le=100, description="每次加载数量")
 
 
 class ImportResponse(BaseModel):
@@ -297,7 +297,7 @@ async def search_products(
     # 构建筛选条件
     filters = {
         k: v for k, v in request.dict().items()
-        if v is not None and k not in ['sort_by', 'page', 'page_size']
+        if v is not None and k not in ['sort_by', 'after_id', 'limit']
     }
 
     result = await service.search_products(
@@ -305,8 +305,8 @@ async def search_products(
         user_id=current_user.id,
         filters=filters,
         sort_by=request.sort_by,
-        page=request.page,
-        page_size=request.page_size
+        after_id=request.after_id,
+        limit=request.limit
     )
 
     return {

@@ -103,7 +103,6 @@ class ProductSelectionItem(Base):
     batch_id = Column(Integer, ForeignKey("ozon_product_selection_import_history.id"), nullable=True, index=True, comment="导入批次ID")
     is_read = Column(Boolean, default=False, nullable=False, comment="是否已读")
     read_at = Column(DateTime(timezone=True), nullable=True, comment="标记已读时间")
-    source_row_index = Column(Integer, nullable=True, index=True, comment="CSV原始行号（保持导入顺序）")
 
     # 系统字段
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
