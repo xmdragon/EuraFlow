@@ -45,14 +45,16 @@ export class ProductCollector {
 
     // 【检测数据工具】必须安装上品帮或毛子ERP
     const availableParsers = this.fusionEngine.getAvailableParsers();
+    console.log(`[Collector] 数据工具检测结果: 找到 ${availableParsers.length} 个工具`);
+
     if (availableParsers.length === 0) {
-      const errorMsg = '未检测到上品帮或毛子ERP插件\n\n请先安装至少一个数据工具：\n- 上品帮 Chrome扩展\n- 毛子ERP Chrome扩展';
+      const errorMsg = '❌ 未检测到上品帮或毛子ERP插件\n\n请先安装至少一个数据工具：\n- 上品帮 Chrome扩展\n- 毛子ERP Chrome扩展\n\n提示：安装后刷新OZON页面';
       console.error('[Collector]', errorMsg);
       this.progress.errors.push(errorMsg);
       throw new Error(errorMsg);
     }
 
-    console.log('[Collector] 检测到数据工具:', availableParsers.map(p => p.displayName).join(', '));
+    console.log('[Collector] ✓ 检测到数据工具:', availableParsers.map(p => p.displayName).join(', '));
 
     this.isRunning = true;
     this.collected.clear();
@@ -274,12 +276,18 @@ export class ProductCollector {
       const elements = document.querySelectorAll<HTMLElement>(selector);
       if (elements.length > 0) {
         allCards = Array.from(elements);
+        console.log(`[Collector] 使用选择器 "${selector}" 找到 ${elements.length} 个卡片`);
         break;
       }
     }
 
+    if (allCards.length === 0) {
+      console.log('[Collector] ⚠ 未找到任何商品卡片容器');
+      return [];
+    }
+
     // 【关键过滤】只返回有数据工具标记的商品
-    return allCards.filter(card => {
+    const filtered = allCards.filter(card => {
       // 检查是否有商品链接
       const hasProductLink = !!card.querySelector('a[href*="/product/"]');
       if (!hasProductLink) {
@@ -295,6 +303,9 @@ export class ProductCollector {
       // 必须至少有一个数据工具标记
       return hasShangpinbang || hasMaoziErp;
     });
+
+    console.log(`[Collector] 过滤后剩余 ${filtered.length} 个有数据工具标记的商品卡片`);
+    return filtered;
   }
 
   /**

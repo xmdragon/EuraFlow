@@ -12,7 +12,9 @@ export class ShangpinbangParser implements PageDataParser {
 
   isInjected(): boolean {
     // 检测上品帮特征元素
-    return !!document.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+    const hasOzonBang = !!document.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+    console.log(`[ShangpinbangParser] 上品帮检测: ${hasOzonBang ? '✓ 已注入' : '❌ 未检测到'}`);
+    return hasOzonBang;
   }
 
   async waitForInjection(): Promise<void> {
@@ -29,11 +31,17 @@ export class ShangpinbangParser implements PageDataParser {
   }
 
   async parseProductCard(cardElement: HTMLElement): Promise<Partial<ProductData>> {
+    console.log('[ShangpinbangParser] 🔍 parseProductCard 被调用，cardElement:', cardElement.className);
+
     // 提取OZON原生数据
+    console.log('[ShangpinbangParser] 开始提取OZON原生数据...');
     const ozonData = this.extractOzonData(cardElement);
+    console.log('[ShangpinbangParser] OZON原生数据:', ozonData);
 
     // 提取上品帮注入的数据
+    console.log('[ShangpinbangParser] 开始提取上品帮注入数据...');
     const bangData = this.extractBangData(cardElement);
+    console.log('[ShangpinbangParser] 上品帮注入数据:', bangData);
 
     // 合并数据
     return {
@@ -48,10 +56,21 @@ export class ShangpinbangParser implements PageDataParser {
    * 从OZON页面提取原生数据
    */
   private extractOzonData(element: HTMLElement): Partial<ProductData> {
+    console.log('[ShangpinbangParser] extractOzonData - 开始提取各个字段...');
+
+    const product_id = this.extractSKU(element);
+    console.log('[ShangpinbangParser] - product_id:', product_id);
+
+    const product_name_ru = this.extractProductTitle(element, 'ru');
+    console.log('[ShangpinbangParser] - product_name_ru:', product_name_ru);
+
+    const product_name_cn = this.extractProductTitle(element, 'cn');
+    console.log('[ShangpinbangParser] - product_name_cn:', product_name_cn);
+
     return {
-      product_id: this.extractSKU(element),
-      product_name_ru: this.extractProductTitle(element, 'ru'),
-      product_name_cn: this.extractProductTitle(element, 'cn'),
+      product_id,
+      product_name_ru,
+      product_name_cn,
       ozon_link: this.extractLink(element),
       image_url: this.extractImage(element),
       category_link: window.location.href,
@@ -99,47 +118,35 @@ export class ShangpinbangParser implements PageDataParser {
 
   /**
    * 提取商品标题
+   * 实际结构: <div class="si2_24"><a><div class="bq03_..."><span class="tsBody500Medium">标题</span></div></a></div>
    */
   private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string | undefined {
-    // 必须从 <a href*="/product/"> 标签内提取标题,避免匹配到价格区域
+    console.log('[ShangpinbangParser] 开始提取标题，element:', element.className);
+
+    // 从卡片容器中找到商品链接
     const linkElement = element.querySelector('a[href*="/product/"]');
     if (!linkElement) {
-      console.debug('[ShangpinbangParser] 未找到商品链接', { element });
+      console.log('[ShangpinbangParser] ❌ 未找到商品链接');
       return undefined;
     }
 
-    // 优先使用更精确的选择器路径（匹配OZON最新页面结构）
-    let titleElement = linkElement.querySelector('div[class*="bq03"] span.tsBody500Medium');
+    console.log('[ShangpinbangParser] ✓ 找到商品链接:', linkElement.getAttribute('href'));
 
-    // 备用方案1：直接查找 tsBody500Medium
+    // 精确匹配：<a> 内的 <span class="tsBody500Medium">
+    const titleElement = linkElement.querySelector('span.tsBody500Medium');
+
     if (!titleElement) {
-      titleElement = linkElement.querySelector('span.tsBody500Medium');
+      console.log('[ShangpinbangParser] ❌ 未找到 span.tsBody500Medium');
+      return undefined;
     }
 
-    // 备用方案2：查找任何包含商品名的div（排除价格区域）
-    if (!titleElement) {
-      const allSpans = linkElement.querySelectorAll('span[class*="tsBody"]');
-      // 选择最长的文本（通常是商品名称，价格文本较短）
-      let longest: Element | null = null;
-      let maxLength = 0;
-      allSpans.forEach(span => {
-        const text = span.textContent?.trim() || '';
-        // 排除纯数字（价格）和过短的文本
-        if (text.length > maxLength && text.length > 10 && !/^\d+(\.\d+)?$/.test(text)) {
-          longest = span;
-          maxLength = text.length;
-        }
-      });
-      titleElement = longest;
+    const title = titleElement.textContent?.trim();
+
+    if (title) {
+      console.log(`[ShangpinbangParser] ✅ 成功提取标题: "${title.substring(0, 60)}..."`);
+    } else {
+      console.log('[ShangpinbangParser] ❌ span.tsBody500Medium 存在但内容为空');
     }
-
-    const title = titleElement?.textContent?.trim();
-
-    console.debug('[ShangpinbangParser] 提取标题:', {
-      found: !!titleElement,
-      title,
-      selector: titleElement?.className
-    });
 
     if (!title) return undefined;
 
