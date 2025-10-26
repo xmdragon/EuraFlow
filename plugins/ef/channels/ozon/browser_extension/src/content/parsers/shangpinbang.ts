@@ -12,9 +12,7 @@ export class ShangpinbangParser implements PageDataParser {
 
   isInjected(): boolean {
     // 检测上品帮特征元素
-    const hasOzonBang = !!document.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
-    console.log(`[ShangpinbangParser] 上品帮检测: ${hasOzonBang ? '✓ 已注入' : '❌ 未检测到'}`);
-    return hasOzonBang;
+    return !!document.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
   }
 
   async waitForInjection(): Promise<void> {
@@ -31,17 +29,11 @@ export class ShangpinbangParser implements PageDataParser {
   }
 
   async parseProductCard(cardElement: HTMLElement): Promise<Partial<ProductData>> {
-    console.log('[ShangpinbangParser] 🔍 parseProductCard 被调用，cardElement:', cardElement.className);
-
     // 提取OZON原生数据
-    console.log('[ShangpinbangParser] 开始提取OZON原生数据...');
     const ozonData = this.extractOzonData(cardElement);
-    console.log('[ShangpinbangParser] OZON原生数据:', ozonData);
 
     // 提取上品帮注入的数据
-    console.log('[ShangpinbangParser] 开始提取上品帮注入数据...');
     const bangData = this.extractBangData(cardElement);
-    console.log('[ShangpinbangParser] 上品帮注入数据:', bangData);
 
     // 合并数据
     return {
@@ -56,21 +48,10 @@ export class ShangpinbangParser implements PageDataParser {
    * 从OZON页面提取原生数据
    */
   private extractOzonData(element: HTMLElement): Partial<ProductData> {
-    console.log('[ShangpinbangParser] extractOzonData - 开始提取各个字段...');
-
-    const product_id = this.extractSKU(element);
-    console.log('[ShangpinbangParser] - product_id:', product_id);
-
-    const product_name_ru = this.extractProductTitle(element, 'ru');
-    console.log('[ShangpinbangParser] - product_name_ru:', product_name_ru);
-
-    const product_name_cn = this.extractProductTitle(element, 'cn');
-    console.log('[ShangpinbangParser] - product_name_cn:', product_name_cn);
-
     return {
-      product_id,
-      product_name_ru,
-      product_name_cn,
+      product_id: this.extractSKU(element),
+      product_name_ru: this.extractProductTitle(element, 'ru'),
+      product_name_cn: this.extractProductTitle(element, 'cn'),
       ozon_link: this.extractLink(element),
       image_url: this.extractImage(element),
       category_link: window.location.href,
@@ -123,21 +104,9 @@ export class ShangpinbangParser implements PageDataParser {
    *   - 第2个<a>: 在 <div class="si2_24"> 内的标题链接
    */
   private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string | undefined {
-    // 一行选择器：div.si2_24 > a > div > span.tsBody500Medium
+    // 精确选择器：定位到标题所在的容器内的span元素
     const titleElement = element.querySelector('div.si2_24 a[href*="/product/"] span.tsBody500Medium');
-
-    if (!titleElement) {
-      console.log('[ShangpinbangParser] ❌ 未找到标题元素');
-      return undefined;
-    }
-
-    const title = titleElement.textContent?.trim();
-
-    if (title) {
-      console.log(`[ShangpinbangParser] ✅ 成功提取标题: "${title}"`);
-    } else {
-      console.log('[ShangpinbangParser] ❌ 标题元素存在但内容为空');
-    }
+    const title = titleElement?.textContent?.trim();
 
     if (!title) return undefined;
 

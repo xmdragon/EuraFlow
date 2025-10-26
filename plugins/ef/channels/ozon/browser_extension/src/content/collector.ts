@@ -45,16 +45,12 @@ export class ProductCollector {
 
     // 【检测数据工具】必须安装上品帮或毛子ERP
     const availableParsers = this.fusionEngine.getAvailableParsers();
-    console.log(`[Collector] 数据工具检测结果: 找到 ${availableParsers.length} 个工具`);
 
     if (availableParsers.length === 0) {
       const errorMsg = '❌ 未检测到上品帮或毛子ERP插件\n\n请先安装至少一个数据工具：\n- 上品帮 Chrome扩展\n- 毛子ERP Chrome扩展\n\n提示：安装后刷新OZON页面';
-      console.error('[Collector]', errorMsg);
       this.progress.errors.push(errorMsg);
       throw new Error(errorMsg);
     }
-
-    console.log('[Collector] ✓ 检测到数据工具:', availableParsers.map(p => p.displayName).join(', '));
 
     this.isRunning = true;
     this.collected.clear();
@@ -74,9 +70,6 @@ export class ProductCollector {
       if (window.scrollY === 0) {
         await this.collectVisibleProducts();
         onProgress?.(this.progress);
-        console.log(`[Collector] Initial scan: ${this.collected.size} products`);
-      } else {
-        console.log(`[Collector] Skip initial scan, scroll position: ${window.scrollY}px`);
       }
 
       let lastCollectedCount = this.collected.size;
@@ -91,7 +84,6 @@ export class ProductCollector {
 
         // 检查是否达到目标
         if (this.collected.size >= targetCount) {
-          console.log(`[Collector] Target reached: ${this.collected.size} products`);
           break;
         }
 
@@ -129,8 +121,6 @@ export class ProductCollector {
         this.progress.collected = this.collected.size;
         onProgress?.(this.progress);
 
-        console.log(`[Collector] Scroll ${this.scrollCount}: ${actualNewCount} new, ${afterCount} total`);
-
         // 【智能重试机制】原版逻辑
         if (actualNewCount === 0) {
           this.noChangeCount++;
@@ -143,7 +133,6 @@ export class ProductCollector {
               forceScrollCount++;
 
               if (forceScrollCount <= 3) {
-                console.log(`[Collector] Force scroll to bottom (${forceScrollCount}/3)`);
                 window.scrollTo(0, document.body.scrollHeight);
                 await this.sleep(500);
 
@@ -152,13 +141,11 @@ export class ProductCollector {
                   // 页面高度增加，重置计数器
                   sameCountTimes = 0;
                   this.noChangeCount = 0;
-                  console.log('[Collector] Page height increased, continue');
                   continue;
                 }
               } else {
                 // 强制滚动3次后仍无新增，停止采集
                 if (afterCount > 0) {
-                  console.log(`[Collector] Force scroll exhausted, stop at ${afterCount} products`);
                   break;
                 }
               }
@@ -169,7 +156,6 @@ export class ProductCollector {
 
           // 无变化阈值检查
           if (this.noChangeCount >= noChangeThreshold * 2) {
-            console.log(`[Collector] No change threshold reached, stop at ${afterCount} products`);
             break;
           }
         } else {
@@ -194,8 +180,6 @@ export class ProductCollector {
           await this.sleep(this.config.scrollDelay);
         }
       }
-
-      console.log(`[Collector] Collection completed: ${this.collected.size} products`);
 
       const products = Array.from(this.collected.values());
 
@@ -276,13 +260,11 @@ export class ProductCollector {
       const elements = document.querySelectorAll<HTMLElement>(selector);
       if (elements.length > 0) {
         allCards = Array.from(elements);
-        console.log(`[Collector] 使用选择器 "${selector}" 找到 ${elements.length} 个卡片`);
         break;
       }
     }
 
     if (allCards.length === 0) {
-      console.log('[Collector] ⚠ 未找到任何商品卡片容器');
       return [];
     }
 
@@ -304,7 +286,6 @@ export class ProductCollector {
       return hasShangpinbang || hasMaoziErp;
     });
 
-    console.log(`[Collector] 过滤后剩余 ${filtered.length} 个有数据工具标记的商品卡片`);
     return filtered;
   }
 
