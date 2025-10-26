@@ -290,7 +290,7 @@ const ProductSelection: React.FC = () => {
 
       // 使用屏幕宽度 - 侧边栏宽度
       const availableWidth = window.innerWidth - siderWidth;
-      const itemWidth = 170; // 每个商品卡片宽度
+      const itemWidth = 180; // 每个商品卡片宽度
 
       const columns = Math.max(
         1,

@@ -38,6 +38,7 @@
 - **数据**：PostgreSQL、Redis
 - **观测**：JSON 日志、Prometheus 指标（`ef_*`）、OpenTelemetry Trace
 - **配置**：环境变量前缀 `EF__*`；配置中心/KV 渲染
+- **数据库连接信息**：在项目根目录 `.env` 文件中（`EF__DB_*` 开头的环境变量）
 
 ---
 

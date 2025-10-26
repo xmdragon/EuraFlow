@@ -14,6 +14,10 @@ import {
   FileTextOutlined,
   CopyOutlined,
   CloseOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  SaveOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -141,6 +145,11 @@ const PackingShipment: React.FC = () => {
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+
+  // 国内单号编辑状态
+  const [isEditingTracking, setIsEditingTracking] = useState(false);
+  const [editingTrackingNumbers, setEditingTrackingNumbers] = useState<string[]>([]);
+  const [isSavingTracking, setIsSavingTracking] = useState(false);
 
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<any>(null);
@@ -1113,6 +1122,72 @@ const PackingShipment: React.FC = () => {
     }
   };
 
+  // 开始编辑国内单号
+  const handleStartEditTracking = () => {
+    const currentNumbers = scanResult?.domestic_tracking_numbers || [];
+    setEditingTrackingNumbers([...currentNumbers]);
+    setIsEditingTracking(true);
+  };
+
+  // 取消编辑国内单号
+  const handleCancelEditTracking = () => {
+    setIsEditingTracking(false);
+    setEditingTrackingNumbers([]);
+  };
+
+  // 更新编辑中的单号
+  const handleUpdateEditingNumber = (index: number, value: string) => {
+    const newNumbers = [...editingTrackingNumbers];
+    newNumbers[index] = value.toUpperCase(); // 转大写
+    setEditingTrackingNumbers(newNumbers);
+  };
+
+  // 删除编辑中的单号
+  const handleDeleteEditingNumber = (index: number) => {
+    const newNumbers = editingTrackingNumbers.filter((_, i) => i !== index);
+    setEditingTrackingNumbers(newNumbers);
+  };
+
+  // 添加新单号
+  const handleAddTrackingNumber = () => {
+    setEditingTrackingNumbers([...editingTrackingNumbers, '']);
+  };
+
+  // 保存国内单号
+  const handleSaveTrackingNumbers = async () => {
+    if (!scanResult) return;
+
+    // 过滤掉空字符串
+    const validNumbers = editingTrackingNumbers.filter((n) => n.trim() !== '');
+
+    if (validNumbers.length === 0) {
+      notifyWarning('保存失败', '至少需要保留一个国内单号');
+      return;
+    }
+
+    setIsSavingTracking(true);
+    try {
+      await ozonApi.updateDomesticTracking(scanResult.posting_number, {
+        domestic_tracking_numbers: validNumbers,
+      });
+      notifySuccess('保存成功', '国内单号已更新');
+
+      // 更新 scanResult
+      setScanResult({
+        ...scanResult,
+        domestic_tracking_numbers: validNumbers,
+      });
+
+      // 退出编辑状态
+      setIsEditingTracking(false);
+      setEditingTrackingNumbers([]);
+    } catch (error) {
+      notifyError('保存失败', `保存失败: ${error.response?.data?.error?.title || error.message}`);
+    } finally {
+      setIsSavingTracking(false);
+    }
+  };
+
   // 错误展示Modal
   const PrintErrorModal = () => (
     <Modal
@@ -1379,37 +1454,115 @@ const PackingShipment: React.FC = () => {
                         '-'
                       )}
                     </Descriptions.Item>
-                    <Descriptions.Item label="国内单号">
-                      {scanResult.domestic_tracking_numbers &&
-                      scanResult.domestic_tracking_numbers.length > 0 ? (
+                    <Descriptions.Item label="国内单号" span={2}>
+                      {isEditingTracking ? (
+                        // 编辑模式
                         <div>
-                          {scanResult.domestic_tracking_numbers.map(
-                            (number: string, index: number) => (
-                              <div
-                                key={index}
-                                style={{
-                                  marginBottom:
-                                    index < scanResult.domestic_tracking_numbers.length - 1
-                                      ? '4px'
-                                      : 0,
-                                }}
+                          {editingTrackingNumbers.map((number, index) => (
+                            <div key={index} style={{ marginBottom: '8px' }}>
+                              <Space>
+                                <Input
+                                  value={number}
+                                  onChange={(e) =>
+                                    handleUpdateEditingNumber(index, e.target.value)
+                                  }
+                                  placeholder="请输入国内单号"
+                                  style={{ width: '200px' }}
+                                />
+                                <Button
+                                  type="text"
+                                  danger
+                                  size="small"
+                                  icon={<DeleteOutlined />}
+                                  onClick={() => handleDeleteEditingNumber(index)}
+                                  disabled={editingTrackingNumbers.length === 1}
+                                />
+                              </Space>
+                            </div>
+                          ))}
+                          <div style={{ marginTop: '8px' }}>
+                            <Space>
+                              <Button
+                                type="dashed"
+                                size="small"
+                                icon={<PlusOutlined />}
+                                onClick={handleAddTrackingNumber}
                               >
-                                <Space>
-                                  <span>{number}</span>
-                                  <CopyOutlined
-                                    style={{
-                                      cursor: 'pointer',
-                                      color: '#1890ff',
-                                    }}
-                                    onClick={() => handleCopy(number, '国内单号')}
-                                  />
-                                </Space>
-                              </div>
-                            )
-                          )}
+                                添加单号
+                              </Button>
+                              <Button
+                                type="primary"
+                                size="small"
+                                icon={<SaveOutlined />}
+                                loading={isSavingTracking}
+                                onClick={handleSaveTrackingNumbers}
+                              >
+                                保存
+                              </Button>
+                              <Button
+                                size="small"
+                                onClick={handleCancelEditTracking}
+                                disabled={isSavingTracking}
+                              >
+                                取消
+                              </Button>
+                            </Space>
+                          </div>
                         </div>
                       ) : (
-                        '-'
+                        // 显示模式
+                        <div>
+                          {scanResult.domestic_tracking_numbers &&
+                          scanResult.domestic_tracking_numbers.length > 0 ? (
+                            <>
+                              {scanResult.domestic_tracking_numbers.map(
+                                (number: string, index: number) => (
+                                  <div
+                                    key={index}
+                                    style={{
+                                      marginBottom:
+                                        index < scanResult.domestic_tracking_numbers.length - 1
+                                          ? '4px'
+                                          : 0,
+                                    }}
+                                  >
+                                    <Space>
+                                      <span>{number}</span>
+                                      <CopyOutlined
+                                        style={{
+                                          cursor: 'pointer',
+                                          color: '#1890ff',
+                                        }}
+                                        onClick={() => handleCopy(number, '国内单号')}
+                                      />
+                                    </Space>
+                                  </div>
+                                )
+                              )}
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={handleStartEditTracking}
+                                style={{ paddingLeft: 0, marginTop: '4px' }}
+                              >
+                                编辑
+                              </Button>
+                            </>
+                          ) : (
+                            <Space>
+                              <span>-</span>
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<PlusOutlined />}
+                                onClick={handleStartEditTracking}
+                              >
+                                添加
+                              </Button>
+                            </Space>
+                          )}
+                        </div>
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="订单状态">

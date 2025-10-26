@@ -1248,6 +1248,22 @@ export const submitDomesticTracking = async (
   return response.data;
 };
 
+// 更新国内物流单号列表（用于修正错误单号）
+export interface UpdateDomesticTrackingRequest {
+  domestic_tracking_numbers: string[]; // 完整的国内单号列表（会替换现有单号）
+}
+
+export const updateDomesticTracking = async (
+  postingNumber: string,
+  data: UpdateDomesticTrackingRequest,
+) => {
+  const response = await apiClient.patch(
+    `/ozon/postings/${postingNumber}/domestic-tracking`,
+    data,
+  );
+  return response.data;
+};
+
 // ==================== 商品进货价格历史 API ====================
 
 export interface PurchasePriceHistory {

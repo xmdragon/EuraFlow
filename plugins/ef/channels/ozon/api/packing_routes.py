@@ -161,6 +161,83 @@ async def submit_domestic_tracking(
     return result
 
 
+class UpdateDomesticTrackingDTO(BaseModel):
+    """更新国内单号请求 DTO"""
+    domestic_tracking_numbers: List[str] = Field(..., min_length=1, max_length=10, description="国内物流单号列表（完整列表，会替换现有单号）")
+
+
+@router.patch("/postings/{posting_number}/domestic-tracking")
+async def update_domestic_tracking(
+    posting_number: str,
+    request: UpdateDomesticTrackingDTO,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    更新国内物流单号列表（需要操作员权限）
+
+    用于扫描单号界面修正错误的国内单号
+
+    操作说明：
+    - 传入完整的国内单号列表，会**替换**现有的所有单号
+    - 支持编辑、删除、添加单号
+    - 不会改变 operation_status（保持当前状态）
+    - 不会同步到跨境巴士（仅更新本地数据）
+
+    Args:
+        posting_number: 货件编号
+        request: 包含完整的国内单号列表
+
+    Returns:
+        更新结果
+    """
+    try:
+        # 1. 查询 posting
+        result = await db.execute(
+            select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        )
+        posting = result.scalar_one_or_none()
+
+        if not posting:
+            raise HTTPException(status_code=404, detail=f"货件不存在: {posting_number}")
+
+        # 2. 删除旧的国内单号记录
+        await db.execute(
+            OzonDomesticTracking.__table__.delete().where(
+                OzonDomesticTracking.posting_id == posting.id
+            )
+        )
+
+        # 3. 插入新的国内单号记录
+        for tracking_number in request.domestic_tracking_numbers:
+            new_tracking = OzonDomesticTracking(
+                posting_id=posting.id,
+                tracking_number=tracking_number.strip(),
+                created_at=utcnow()
+            )
+            db.add(new_tracking)
+
+        await db.commit()
+
+        logger.info(f"更新国内单号成功: {posting_number}, 单号数量: {len(request.domestic_tracking_numbers)}")
+
+        return {
+            "success": True,
+            "message": "国内单号更新成功",
+            "data": {
+                "posting_number": posting_number,
+                "domestic_tracking_numbers": request.domestic_tracking_numbers
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新国内单号失败: {str(e)}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"更新失败: {str(e)}")
+
+
 @router.get("/packing/orders")
 async def get_packing_orders(
     offset: int = 0,
