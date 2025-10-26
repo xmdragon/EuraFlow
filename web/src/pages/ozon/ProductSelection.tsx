@@ -319,9 +319,14 @@ const ProductSelection: React.FC = () => {
       setHasMoreData(items.length < total);
       setIsLoadingMore(false);
     } else if (items.length > 0) {
-      // 后续页，追加数据
+      // 后续页，追加数据并去重（根据 product_id）
       setAllProducts((prev) => {
-        const newProducts = [...prev, ...items];
+        // 创建已有商品ID的Set用于快速查找
+        const existingIds = new Set(prev.map((p) => p.product_id));
+        // 只添加不存在的商品
+        const newItems = items.filter((item) => !existingIds.has(item.product_id));
+        const newProducts = [...prev, ...newItems];
+
         // 立即检查是否还有更多数据
         setHasMoreData(newProducts.length < total);
         return newProducts;
@@ -1178,7 +1183,7 @@ const ProductSelection: React.FC = () => {
                       form={form}
                       layout="inline"
                       onFinish={handleSearch}
-                      initialValues={{ sort_by: "created_asc" }}
+                      initialValues={{ sort_by: "source_order" }}
                     >
                       <Row gutter={[16, 0]} wrap>
                         {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
@@ -1221,9 +1226,10 @@ const ProductSelection: React.FC = () => {
                         <Col flex="auto" style={{ minWidth: "150px" }}>
                           <Form.Item label="排序" name="sort_by">
                             <Select
-                              placeholder="最早导入"
+                              placeholder="原始顺序"
                               style={{ width: "100%" }}
                             >
+                              <Option value="source_order">原始顺序</Option>
                               <Option value="created_asc">最早导入</Option>
                               <Option value="created_desc">最新导入</Option>
                               <Option value="sales_desc">销量↓</Option>
@@ -1474,8 +1480,14 @@ const ProductSelection: React.FC = () => {
                         {!hasMoreData && profitableProducts.length > 0 && (
                           <div className={styles.loadingMore}>
                             <Text type="secondary">
-                              已显示全部 {profitableProducts.length} 件商品
-                              {enableCostEstimation && "（已过滤利润率不达标商品）"}
+                              {enableCostEstimation ? (
+                                <>
+                                  已加载 {allProducts.length} 件商品，显示 {profitableProducts.length} 件
+                                  （已过滤 {allProducts.length - profitableProducts.length} 件利润率不达标商品）
+                                </>
+                              ) : (
+                                <>已显示全部 {allProducts.length} 件商品</>
+                              )}
                             </Text>
                           </div>
                         )}

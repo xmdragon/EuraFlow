@@ -518,9 +518,10 @@ class ProductSelectionService:
                     try:
                         cleaned_data = self._clean_row(row)
                         if cleaned_data and cleaned_data.get('product_id'):
-                            # 添加user_id和batch_id到每个清洗后的数据项
+                            # 添加user_id、batch_id和source_row_index到每个清洗后的数据项
                             cleaned_data['user_id'] = user_id
                             cleaned_data['batch_id'] = batch_id
+                            cleaned_data['source_row_index'] = int(idx) + 2  # pandas索引从0开始，加上表头行，实际CSV行号=idx+2
                             batch_items.append(cleaned_data)
                         else:
                             failed_count += 1
@@ -837,7 +838,7 @@ class ProductSelectionService:
         total_result = await db.execute(count_query)
         total = total_result.scalar()
 
-        # 应用排序 - 默认按导入时间从新到旧
+        # 应用排序 - 默认按原始CSV行号排序
         if sort_by == 'sales_desc':
             query = query.order_by(ProductSelectionItem.monthly_sales_volume.desc().nullslast())
         elif sort_by == 'sales_asc':
@@ -848,13 +849,16 @@ class ProductSelectionService:
             query = query.order_by(ProductSelectionItem.current_price.asc().nullsfirst())
         elif sort_by == 'price_desc':
             query = query.order_by(ProductSelectionItem.current_price.desc().nullslast())
-        elif sort_by == 'created_desc' or sort_by == '':
+        elif sort_by == 'created_desc':
             query = query.order_by(ProductSelectionItem.created_at.desc())
         elif sort_by == 'created_asc':
             query = query.order_by(ProductSelectionItem.created_at.asc())
+        elif sort_by == 'source_order' or sort_by == '':
+            # 按CSV原始行号排序（保持OZON原始顺序）
+            query = query.order_by(ProductSelectionItem.source_row_index.asc().nullslast())
         else:
-            # 默认按导入时间从新到旧排序
-            query = query.order_by(ProductSelectionItem.created_at.desc())
+            # 默认按CSV原始行号排序
+            query = query.order_by(ProductSelectionItem.source_row_index.asc().nullslast())
 
         # 分页
         offset = (page - 1) * page_size
