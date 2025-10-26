@@ -431,6 +431,7 @@ const ProductSelection: React.FC = () => {
 
   // 处理删除批次
   const handleDeleteBatch = (batchId: number) => {
+    logger.info('删除批次', { batchId });
     Modal.confirm({
       title: "确认删除该批次？",
       content: (
@@ -442,6 +443,7 @@ const ProductSelection: React.FC = () => {
       cancelText: "取消",
       okType: "danger",
       onOk: () => {
+        logger.info('确认删除批次', { batchId });
         deleteBatchMutation.mutate(batchId);
       },
     });
@@ -1457,7 +1459,10 @@ const ProductSelection: React.FC = () => {
                           danger
                           size="small"
                           icon={<DeleteOutlined />}
-                          onClick={() => handleDeleteBatch(record.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteBatch(record.id);
+                          }}
                           loading={deleteBatchMutation.isPending}
                         >
                           删除
