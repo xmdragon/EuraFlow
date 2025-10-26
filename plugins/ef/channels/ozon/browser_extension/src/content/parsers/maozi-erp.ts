@@ -281,15 +281,24 @@ export class MaoziErpParser implements PageDataParser {
    */
   private extractText(widget: Element, label: string): string | undefined {
     const divs = Array.from(widget.querySelectorAll('div'));
+
+    // 查找包含标签的div（必须是直接子span，避免匹配到父容器）
     const targetDiv = divs.find(div => {
-      const text = div.textContent || '';
-      return text.includes(`${label}：`);
+      const children = Array.from(div.children);
+      const spans = children.filter(child => child.tagName === 'SPAN');
+      if (spans.length < 2) return false;
+
+      const firstSpan = spans[0];
+      return firstSpan?.textContent?.includes(`${label}：`);
     });
 
     if (!targetDiv) return undefined;
 
-    const span = targetDiv.querySelector('span:nth-of-type(2)');
-    const text = span?.textContent?.trim();
+    // 获取第二个直接子span的文本
+    const children = Array.from(targetDiv.children);
+    const spans = children.filter(child => child.tagName === 'SPAN');
+    const valueSpan = spans[1] as HTMLElement;
+    const text = valueSpan?.textContent?.trim();
 
     // 过滤无效值
     if (!text || text === '--' || text === '无' || text === 'null') {
@@ -332,15 +341,22 @@ export class MaoziErpParser implements PageDataParser {
    * 提取卢布金额
    */
   private extractRubles(widget: Element, label: string): number | undefined {
-    const text = this.extractText(widget, label); // "₽1715.6 ≈ ¥150.63"
+    const text = this.extractText(widget, label); // "₽22.74万 ≈ ¥2.03万" 或 "₽1715.6 ≈ ¥150.63"
     if (!text) return undefined;
 
-    // 提取卢布金额
-    const match = text.match(/₽([\d.]+)/);
+    // 提取卢布金额（支持"万"单位）
+    const match = text.match(/₽([\d.]+)(万)?/);
     if (!match) return undefined;
 
-    const num = parseFloat(match[1]);
-    return isNaN(num) ? undefined : num;
+    let num = parseFloat(match[1]);
+    if (isNaN(num)) return undefined;
+
+    // 如果有"万"单位，乘以10000
+    if (match[2] === '万') {
+      num = num * 10000;
+    }
+
+    return num;
   }
 
   /**

@@ -274,6 +274,14 @@ logger.info('订单同步开始', extra={'order_id': order_id})
 - **包含文件**：`dist/manifest.json`、`dist/service-worker-loader.js`、`dist/assets/*`、`dist/src/popup/popup.html`
 - **排除文件**：`.vite/`、`icons/`、`README.md`、`*.map`、源代码
 
+### 版本管理规则
+- **版本清理**：`web/public/downloads/` 目录只保留最近 3 个版本的 zip 包
+  - 生成新版本后，自动删除旧版本（保留最新3个）
+  - 命令：`ls -t web/public/downloads/euraflow-ozon-selector-*.zip | tail -n +4 | xargs rm -f`
+- **文档更新**：生成新版本后，必须更新选品助手使用指南中的下载链接
+  - 文档文件：`docs/product-selection-guide.md`（或对应的文档位置）
+  - 确保链接指向最新版本的 zip 包
+
 ---
 
 ## 20) 术语表

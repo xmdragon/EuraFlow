@@ -687,10 +687,19 @@ const ProductSelection: React.FC = () => {
     return `${cny.toFixed(2)}¥`;
   };
 
-  // 格式化百分比（带%符号）
+  // 格式化百分比（带%符号，智能去除无意义的小数）
   const formatPercent = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return "-";
-    return `${value.toFixed(2)}%`;
+
+    // 100及以上只显示整数
+    if (value >= 100) {
+      return `${Math.round(value)}%`;
+    }
+
+    // 去掉无意义的小数（92.00 → 92，92.80 → 92.8）
+    const formatted = value.toFixed(2);
+    const trimmed = parseFloat(formatted).toString();
+    return `${trimmed}%`;
   };
 
   // 格式化普通数字（带千分位）
@@ -1746,11 +1755,11 @@ const ProductSelection: React.FC = () => {
                                           <Button
                                             type="primary"
                                             icon={<DownloadOutlined />}
-                                            href="/downloads/euraflow-ozon-selector-v1.0.0.zip"
+                                            href="/downloads/euraflow-ozon-selector-v1.2.3.zip"
                                             download
                                           >
                                             下载
-                                            euraflow-ozon-selector-v1.0.0.zip
+                                            euraflow-ozon-selector-v1.2.3.zip
                                           </Button>
                                           <Text type="secondary">
                                             扩展包大小：约 63 KB
