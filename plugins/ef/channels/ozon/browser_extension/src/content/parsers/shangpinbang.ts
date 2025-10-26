@@ -118,34 +118,25 @@ export class ShangpinbangParser implements PageDataParser {
 
   /**
    * 提取商品标题
-   * 实际结构: <div class="si2_24"><a><div class="bq03_..."><span class="tsBody500Medium">标题</span></div></a></div>
+   * 实际结构: <div class="tile-root"> 包含2个<a>
+   *   - 第1个<a>: 图片链接
+   *   - 第2个<a>: 在 <div class="si2_24"> 内的标题链接
    */
   private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string | undefined {
-    console.log('[ShangpinbangParser] 开始提取标题，element:', element.className);
-
-    // 从卡片容器中找到商品链接
-    const linkElement = element.querySelector('a[href*="/product/"]');
-    if (!linkElement) {
-      console.log('[ShangpinbangParser] ❌ 未找到商品链接');
-      return undefined;
-    }
-
-    console.log('[ShangpinbangParser] ✓ 找到商品链接:', linkElement.getAttribute('href'));
-
-    // 精确匹配：<a> 内的 <span class="tsBody500Medium">
-    const titleElement = linkElement.querySelector('span.tsBody500Medium');
+    // 一行选择器：div.si2_24 > a > div > span.tsBody500Medium
+    const titleElement = element.querySelector('div.si2_24 a[href*="/product/"] span.tsBody500Medium');
 
     if (!titleElement) {
-      console.log('[ShangpinbangParser] ❌ 未找到 span.tsBody500Medium');
+      console.log('[ShangpinbangParser] ❌ 未找到标题元素');
       return undefined;
     }
 
     const title = titleElement.textContent?.trim();
 
     if (title) {
-      console.log(`[ShangpinbangParser] ✅ 成功提取标题: "${title.substring(0, 60)}..."`);
+      console.log(`[ShangpinbangParser] ✅ 成功提取标题: "${title}"`);
     } else {
-      console.log('[ShangpinbangParser] ❌ span.tsBody500Medium 存在但内容为空');
+      console.log('[ShangpinbangParser] ❌ 标题元素存在但内容为空');
     }
 
     if (!title) return undefined;
