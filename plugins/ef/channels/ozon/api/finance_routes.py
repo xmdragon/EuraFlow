@@ -112,12 +112,25 @@ async def get_finance_transactions(
         if operation_type:
             conditions.append(OzonFinanceTransaction.operation_type == operation_type)
 
-        # 发货单号搜索（支持通配符）
+        # 发货单号搜索（支持同时匹配精确和右匹配）
         if posting_number:
+            import re
             posting_number_value = posting_number.strip()
-            if '%' in posting_number_value:
+
+            # 如果是"数字-数字"格式（如 29025599-0332），同时匹配精确和右匹配
+            if re.match(r'^\d+-\d+$', posting_number_value):
+                from sqlalchemy import or_
+                conditions.append(
+                    or_(
+                        OzonFinanceTransaction.posting_number == posting_number_value,
+                        OzonFinanceTransaction.posting_number.like(posting_number_value + '-%')
+                    )
+                )
+            elif '%' in posting_number_value:
+                # 包含通配符，使用 LIKE
                 conditions.append(OzonFinanceTransaction.posting_number.like(posting_number_value))
             else:
+                # 其他情况，精确匹配
                 conditions.append(OzonFinanceTransaction.posting_number == posting_number_value)
 
         # 查询总数

@@ -88,14 +88,7 @@ const FinanceTransactions: React.FC = () => {
       }
 
       if (postingNumber) {
-        const trimmedPostingNumber = postingNumber.trim();
-        // 如果末尾是"-"，添加%通配符进行右匹配
-        if (trimmedPostingNumber.endsWith('-')) {
-          filter.posting_number = trimmedPostingNumber + '%';
-        } else {
-          // 否则精确匹配
-          filter.posting_number = trimmedPostingNumber;
-        }
+        filter.posting_number = postingNumber.trim();
       }
 
       return await ozonApi.getFinanceTransactions(filter);
