@@ -33,6 +33,7 @@ import {
   Divider,
   Spin,
   Image,
+  Popconfirm,
 } from 'antd';
 import React, { useState } from 'react';
 
@@ -317,20 +318,22 @@ const WatermarkManagement: React.FC = () => {
                 >
                   编辑
                 </Button>
-                <Button
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => {
-                    Modal.confirm({
-                      title: '确认删除',
-                      content: `确定要删除水印配置 "${record.name}" 吗？`,
-                      onOk: () => deleteWatermarkMutation.mutate(record.id),
-                    });
-                  }}
+                <Popconfirm
+                  title="确认删除"
+                  description={`确定要删除水印配置 "${record.name}" 吗？`}
+                  onConfirm={() => deleteWatermarkMutation.mutate(record.id)}
+                  okText="确认"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
                 >
-                  删除
-                </Button>
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                  >
+                    删除
+                  </Button>
+                </Popconfirm>
               </Space>
             ),
           },
@@ -535,21 +538,24 @@ const WatermarkManagement: React.FC = () => {
                       <Space>
                         <span>已选中: {selectedResources.length} 个</span>
                         {canOperate && (
-                          <Button
-                            danger
-                            icon={<DeleteOutlined />}
+                          <Popconfirm
+                            title="确认删除"
+                            description={`确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`}
+                            onConfirm={() => deleteResourcesMutation.mutate(selectedResources)}
+                            okText="确认"
+                            cancelText="取消"
+                            okButtonProps={{ danger: true }}
                             disabled={selectedResources.length === 0}
-                            loading={deleteResourcesMutation.isPending}
-                            onClick={() => {
-                              Modal.confirm({
-                                title: '确认删除',
-                                content: `确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`,
-                                onOk: () => deleteResourcesMutation.mutate(selectedResources),
-                              });
-                            }}
                           >
-                            删除选中
-                          </Button>
+                            <Button
+                              danger
+                              icon={<DeleteOutlined />}
+                              disabled={selectedResources.length === 0}
+                              loading={deleteResourcesMutation.isPending}
+                            >
+                              删除选中
+                            </Button>
+                          </Popconfirm>
                         )}
                         <Button icon={<ReloadOutlined />} onClick={() => refetchResources()}>
                           刷新
