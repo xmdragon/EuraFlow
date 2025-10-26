@@ -331,6 +331,19 @@ const ProductSelection: React.FC = () => {
         // 只添加不存在的商品
         const newItems = items.filter((item) => !existingIds.has(item.product_id));
         const newProducts = [...prev, ...newItems];
+
+        // 调试日志：检查去重情况
+        if (newItems.length < items.length) {
+          const duplicates = items.filter((item) => existingIds.has(item.product_id));
+          console.warn(
+            `[去重] 第${currentPage}页有${items.length - newItems.length}个重复商品:`,
+            duplicates.map((d) => d.product_id)
+          );
+        }
+        console.log(
+          `[分页] 第${currentPage}页: 收到${items.length}条, 去重后${newItems.length}条, 累计${newProducts.length}条`
+        );
+
         return newProducts;
       });
       // 更新最后成功请求的页码
