@@ -1,6 +1,13 @@
 import type { PageDataParser, ProductData } from './base';
 import { cleanNumber, normalizeBrand } from './base';
 
+// 扩展 window 类型以支持调试标志
+declare global {
+  interface Window {
+    __efDebugLogged?: boolean;
+  }
+}
+
 /**
  * 上品帮数据解析器
  *
@@ -238,6 +245,9 @@ export class ShangpinbangParser implements PageDataParser {
 
     const bangData: Partial<ProductData> = {};
 
+    // 【DEBUG】用于诊断：记录所有提取到的标签和值
+    const debugLabels: string[] = [];
+
     listItems.forEach(item => {
       const labelElement = item.querySelector('span');
       const valueElement = item.querySelector('b');
@@ -248,6 +258,9 @@ export class ShangpinbangParser implements PageDataParser {
 
       const label = labelElement.textContent?.trim() || '';
       const value = valueElement.textContent?.trim() || '';
+
+      // 【DEBUG】记录所有标签
+      debugLabels.push(`"${label}": "${value.substring(0, 50)}..."`);
 
       // 允许空字符串value（佣金字段需要解析子元素）
       if (!label) {
@@ -263,6 +276,13 @@ export class ShangpinbangParser implements PageDataParser {
       this.parseFieldByLabel(label, value, valueElement, bangData);
     });
 
+    // 【DEBUG】输出所有提取到的标签（仅第一次）
+    if (debugLabels.length > 0 && !window.__efDebugLogged) {
+      console.log('🔍 [上品帮解析器] 提取到的所有标签和值：');
+      debugLabels.forEach(item => console.log('  ' + item));
+      window.__efDebugLogged = true;
+    }
+
     return bangData;
   }
 
@@ -272,6 +292,9 @@ export class ShangpinbangParser implements PageDataParser {
   private parseFieldByLabel(label: string, value: string, valueElement: HTMLElement, data: Partial<ProductData>): void {
     // 移除标签中的冒号和空格
     const cleanLabel = label.replace(/[：:]/g, '').trim();
+
+    // 【DEBUG】记录清理后的标签（用于诊断字段匹配）
+    const beforeCount = Object.keys(data).length;
 
     switch (cleanLabel) {
       // 基础信息
@@ -394,6 +417,12 @@ export class ShangpinbangParser implements PageDataParser {
       case '上架时间':
         this.parseListingDate(value, data);
         break;
+    }
+
+    // 【DEBUG】检查字段是否被匹配
+    const afterCount = Object.keys(data).length;
+    if (afterCount === beforeCount && !window.__efDebugLogged) {
+      console.warn(`⚠️ [上品帮解析器] 未匹配的标签: "${cleanLabel}" (原始: "${label}")`);
     }
   }
 
