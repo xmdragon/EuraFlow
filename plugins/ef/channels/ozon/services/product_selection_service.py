@@ -855,10 +855,17 @@ class ProductSelectionService:
             query = query.order_by(ProductSelectionItem.created_at.asc())
         elif sort_by == 'source_order' or sort_by == '':
             # 按CSV原始行号排序（保持OZON原始顺序）
-            query = query.order_by(ProductSelectionItem.source_row_index.asc().nullslast())
+            # NULL值排在最后，并使用id作为第二排序字段确保顺序稳定
+            query = query.order_by(
+                ProductSelectionItem.source_row_index.asc().nullslast(),
+                ProductSelectionItem.id.asc()
+            )
         else:
             # 默认按CSV原始行号排序
-            query = query.order_by(ProductSelectionItem.source_row_index.asc().nullslast())
+            query = query.order_by(
+                ProductSelectionItem.source_row_index.asc().nullslast(),
+                ProductSelectionItem.id.asc()
+            )
 
         # 分页
         offset = (page - 1) * page_size
