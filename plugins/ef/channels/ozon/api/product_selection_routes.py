@@ -309,6 +309,17 @@ async def search_products(
         limit=request.limit
     )
 
+    # 【DEBUG】打印第一条商品的关键字段
+    if result.get('items') and len(result['items']) > 0:
+        first_item = result['items'][0]
+        logger.info("=" * 60)
+        logger.info(f"[DEBUG] 查询返回第一条商品数据（关键字段）：")
+        logger.info(f"  product_id: {first_item.get('product_id')}")
+        logger.info(f"  conversion_rate: {first_item.get('conversion_rate')}")
+        logger.info(f"  return_cancel_rate: {first_item.get('return_cancel_rate')}")
+        logger.info(f"  avg_price: {first_item.get('avg_price')}")
+        logger.info("=" * 60)
+
     return {
         'success': True,
         'data': result
