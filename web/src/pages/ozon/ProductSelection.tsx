@@ -623,9 +623,34 @@ const ProductSelection: React.FC = () => {
   const formatWeight = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return "-";
     if (value >= 1000) {
-      return `${(value / 1000).toFixed(1)}kg`;
+      return `${(value / 1000).toFixed(2)}kg`;
     }
     return `${value}g`;
+  };
+
+  // 格式化货币（RUB → CNY）
+  const formatCurrency = (
+    rubAmount: number | null | undefined,
+    rate: number | null
+  ): string => {
+    if (!rubAmount || !rate) return "-";
+    const cny = rubAmount / rate;
+    if (cny >= 10000) {
+      return `${(cny / 10000).toFixed(2)}万¥`;
+    }
+    return `${cny.toFixed(2)}¥`;
+  };
+
+  // 格式化百分比（带%符号）
+  const formatPercent = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return "-";
+    return `${value.toFixed(2)}%`;
+  };
+
+  // 格式化普通数字（带千分位）
+  const formatNum = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return "-";
+    return value.toLocaleString();
   };
 
   // 格式化日期显示
@@ -789,94 +814,198 @@ const ProductSelection: React.FC = () => {
             </div>
           )}
 
-          {/* 佣金率 - 统一布局 */}
+          {/* rFBS佣金 - 横向三标签 */}
           {fieldConfig.rfbsCommission && (
-            <Row gutter={4} className={styles.statsRow}>
-              <Col span={12}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">rFBS低: </Text>
-                  <Text strong>
-                    {formatPercentage(product.rfbs_commission_low)}
-                  </Text>
-                </div>
-              </Col>
-              <Col span={12}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">rFBS中: </Text>
-                  <Text strong>
-                    {formatPercentage(product.rfbs_commission_mid)}
-                  </Text>
-                </div>
-              </Col>
-            </Row>
-          )}
-          {fieldConfig.rfbsCommissionHigh && (
-            <Row gutter={4} className={styles.statsRow}>
-              <Col span={24}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">rFBS高(&gt;5000₽): </Text>
-                  <Text strong>
-                    {formatPercentage(product.rfbs_commission_high)}
-                  </Text>
-                </div>
-              </Col>
-            </Row>
-          )}
-          {fieldConfig.fbpCommission && (
-            <Row gutter={4} className={styles.statsRow}>
-              <Col span={12}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">FBP低: </Text>
-                  <Text strong>
-                    {formatPercentage(product.fbp_commission_low)}
-                  </Text>
-                </div>
-              </Col>
-              <Col span={12}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">FBP中: </Text>
-                  <Text strong>
-                    {formatPercentage(product.fbp_commission_mid)}
-                  </Text>
-                </div>
-              </Col>
-            </Row>
-          )}
-          {fieldConfig.fbpCommissionHigh && (
-            <Row gutter={4} className={styles.statsRow}>
-              <Col span={24}>
-                <div className={styles.statsItem}>
-                  <Text type="secondary">FBP高(&gt;5000₽): </Text>
-                  <Text strong>
-                    {formatPercentage(product.fbp_commission_high)}
-                  </Text>
-                </div>
-              </Col>
-            </Row>
+            <div className={styles.commissionRow}>
+              <Text type="secondary">rFBS: </Text>
+              <Space size={4}>
+                <Tag color="success">
+                  {product.rfbs_commission_low
+                    ? `${product.rfbs_commission_low}%`
+                    : "-"}
+                </Tag>
+                <Tag color="warning">
+                  {product.rfbs_commission_mid
+                    ? `${product.rfbs_commission_mid}%`
+                    : "-"}
+                </Tag>
+                <Tag color="error">
+                  {product.rfbs_commission_high
+                    ? `${product.rfbs_commission_high}%`
+                    : "-"}
+                </Tag>
+              </Space>
+            </div>
           )}
 
-          {/* 销量和重量 */}
-          {(fieldConfig.monthlySales || fieldConfig.weight) && (
-            <Row gutter={4} className={styles.statsRow}>
-              {fieldConfig.monthlySales && (
-                <Col span={fieldConfig.weight ? 12 : 24}>
-                  <div className={styles.statsItem}>
-                    <Text type="secondary">月销: </Text>
-                    <Text strong>
-                      {formatNumber(product.monthly_sales_volume)}
-                    </Text>
-                  </div>
-                </Col>
+          {/* FBP佣金 - 横向三标签 */}
+          {fieldConfig.fbpCommission && (
+            <div className={styles.commissionRow}>
+              <Text type="secondary">FBP: </Text>
+              <Space size={4}>
+                <Tag color="success">
+                  {product.fbp_commission_low
+                    ? `${product.fbp_commission_low}%`
+                    : "-"}
+                </Tag>
+                <Tag color="warning">
+                  {product.fbp_commission_mid
+                    ? `${product.fbp_commission_mid}%`
+                    : "-"}
+                </Tag>
+                <Tag color="error">
+                  {product.fbp_commission_high
+                    ? `${product.fbp_commission_high}%`
+                    : "-"}
+                </Tag>
+              </Space>
+            </div>
+          )}
+
+          {/* 月销量+月销售额 */}
+          {(fieldConfig.monthlySales || fieldConfig.monthlySalesRevenue) && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">月销: </Text>
+              <Text strong>
+                {formatNum(product.monthly_sales_volume)} 件{" "}
+                {formatCurrency(product.monthly_sales_revenue, exchangeRate)}
+              </Text>
+            </div>
+          )}
+
+          {/* 日销量+日销售额 */}
+          {fieldConfig.dailySales && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">日销: </Text>
+              <Text strong>
+                {formatNum(product.daily_sales_volume)} 件{" "}
+                {formatCurrency(product.daily_sales_revenue, exchangeRate)}
+              </Text>
+            </div>
+          )}
+
+          {/* 销售动态+点击率 */}
+          {fieldConfig.salesDynamic && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">动态: </Text>
+              <Text strong>{formatPercent(product.sales_dynamic_percent)}</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                点击:{" "}
+              </Text>
+              <Text strong>{formatPercent(product.click_through_rate)}</Text>
+            </div>
+          )}
+
+          {/* 卡片浏览量+加购率 */}
+          {fieldConfig.cardMetrics && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">卡片: </Text>
+              <Text strong>{formatNum(product.card_views)}</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                加购:{" "}
+              </Text>
+              <Text strong>
+                {formatPercent(product.card_add_to_cart_rate)}
+              </Text>
+            </div>
+          )}
+
+          {/* 搜索浏览量+加购率 */}
+          {fieldConfig.searchMetrics && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">搜索: </Text>
+              <Text strong>{formatNum(product.search_views)}</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                加购:{" "}
+              </Text>
+              <Text strong>
+                {formatPercent(product.search_add_to_cart_rate)}
+              </Text>
+            </div>
+          )}
+
+          {/* 促销天数+折扣+转化率 */}
+          {fieldConfig.promoMetrics && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">促销: </Text>
+              <Text strong>
+                {product.promo_days ? `${product.promo_days}天` : "-"}{" "}
+                {formatPercent(product.promo_discount_percent)}{" "}
+                {formatPercent(product.promo_conversion_rate)}
+              </Text>
+            </div>
+          )}
+
+          {/* 付费推广+份额 */}
+          {fieldConfig.paidPromo && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">付费: </Text>
+              <Text strong>
+                {product.paid_promo_days ? `${product.paid_promo_days}天` : "-"}
+              </Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                份额:{" "}
+              </Text>
+              <Text strong>{formatPercent(product.ad_cost_share)}</Text>
+            </div>
+          )}
+
+          {/* 成交率+退货率 */}
+          {fieldConfig.conversionMetrics && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">成交: </Text>
+              <Text strong>{formatPercent(product.conversion_rate)}</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                退取:{" "}
+              </Text>
+              <Text strong>{formatPercent(product.return_cancel_rate)}</Text>
+            </div>
+          )}
+
+          {/* 平均价格+重量 */}
+          {(fieldConfig.avgPrice || fieldConfig.weight) && (
+            <div className={styles.statsItem}>
+              {fieldConfig.avgPrice && (
+                <>
+                  <Text type="secondary">均价: </Text>
+                  <Text strong>
+                    {product.avg_price
+                      ? `${product.avg_price.toFixed(2)}₽`
+                      : "-"}
+                  </Text>
+                </>
               )}
               {fieldConfig.weight && (
-                <Col span={fieldConfig.monthlySales ? 12 : 24}>
-                  <div className={styles.statsItem}>
-                    <Text type="secondary">重量: </Text>
-                    <Text strong>{formatWeight(product.package_weight)}</Text>
-                  </div>
-                </Col>
+                <>
+                  <Text type="secondary" style={{ marginLeft: 8 }}>
+                    重量:{" "}
+                  </Text>
+                  <Text strong>{formatWeight(product.package_weight)}</Text>
+                </>
               )}
-            </Row>
+            </div>
+          )}
+
+          {/* 包装尺寸 */}
+          {fieldConfig.dimensions && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">尺寸: </Text>
+              <Text strong>
+                {product.package_length &&
+                product.package_width &&
+                product.package_height
+                  ? `${product.package_length}×${product.package_width}×${product.package_height}`
+                  : "-"}
+              </Text>
+            </div>
+          )}
+
+          {/* 发货模式 */}
+          {fieldConfig.sellerMode && (
+            <div className={styles.statsItem}>
+              <Text type="secondary">模式: </Text>
+              <Text strong>{product.seller_mode || "-"}</Text>
+            </div>
           )}
 
           {/* 竞争对手数据 */}

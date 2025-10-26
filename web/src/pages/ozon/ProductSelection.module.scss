@@ -459,3 +459,20 @@
     color: #8c8c8c;
   }
 }
+
+// ===== 佣金标签行（横向三标签）=====
+.commissionRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+
+  :global(.ant-tag) {
+    margin: 0;
+    font-size: 11px;
+    padding: 1px 6px;
+    line-height: 18px;
+    font-weight: 500;
+  }
+}

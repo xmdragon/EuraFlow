@@ -20,15 +20,44 @@ export interface ProductSelectionItem {
   fbp_commission_mid: number;
   fbp_commission_high: number;
   monthly_sales_volume: number;
+  monthly_sales_revenue?: number;        // 月销售额(RUB)
+  daily_sales_volume?: number;           // 日销量
+  daily_sales_revenue?: number;          // 日销售额(RUB)
+  sales_dynamic_percent?: number;        // 月销售动态(%)
+  conversion_rate?: number;              // 成交率(%)
   package_weight: number;
+  package_volume?: number;               // 包装体积(升)
+  package_length?: number;               // 包装长度(mm)
+  package_width?: number;                // 包装宽度(mm)
+  package_height?: number;               // 包装高度(mm)
   rating: number;
   review_count: number;
   seller_type: string;
+  delivery_days?: number;                // 配送时间(天)
+  availability_percent?: number;         // 可用性(%)
+  ad_cost_share?: number;                // 广告费用份额(%)
   // 竞争对手数据
   competitor_count?: number;
   competitor_min_price?: number;
   market_min_price?: number;
   price_index?: number;
+  // 营销分析字段（上品帮）
+  card_views?: number;                   // 商品卡片浏览量
+  card_add_to_cart_rate?: number;        // 商品卡片加购率(%)
+  search_views?: number;                 // 搜索和目录浏览量
+  search_add_to_cart_rate?: number;      // 搜索和目录加购率(%)
+  click_through_rate?: number;           // 点击率(%)
+  promo_days?: number;                   // 参与促销天数
+  promo_discount_percent?: number;       // 参与促销的折扣(%)
+  promo_conversion_rate?: number;        // 促销活动的转化率(%)
+  paid_promo_days?: number;              // 付费推广天数
+  return_cancel_rate?: number;           // 退货取消率(%)
+  // 基础字段（上品帮）
+  category_path?: string;                // 类目路径
+  avg_price?: number;                    // 平均价格(RUB)
+  listing_date?: string;                 // 上架时间
+  listing_days?: number;                 // 上架天数
+  seller_mode?: string;                  // 发货模式(FBS/FBO)
   // 批次管理
   batch_id?: number;
   is_read?: boolean;
