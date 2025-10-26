@@ -1452,22 +1452,24 @@ const ProductSelection: React.FC = () => {
                     {
                       title: "操作",
                       key: "action",
-                      width: 100,
-                      render: (_: any, record: api.ImportHistory) => (
-                        <Button
-                          type="link"
-                          danger
-                          size="small"
-                          icon={<DeleteOutlined />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteBatch(record.id);
-                          }}
-                          loading={deleteBatchMutation.isPending}
-                        >
-                          删除
-                        </Button>
-                      ),
+                      width: 120,
+                      render: (_: any, record: api.ImportHistory) => {
+                        return (
+                          <Button
+                            type="link"
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={(e: React.MouseEvent) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDeleteBatch(record.id);
+                            }}
+                          >
+                            删除
+                          </Button>
+                        );
+                      },
                     },
                   ]}
                 />
