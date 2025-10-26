@@ -89,10 +89,11 @@ const FinanceTransactions: React.FC = () => {
 
       if (postingNumber) {
         const trimmedPostingNumber = postingNumber.trim();
-        // 如果是"数字-数字"格式，自动添加通配符
-        if (/^\d+-\d+$/.test(trimmedPostingNumber)) {
-          filter.posting_number = trimmedPostingNumber + '-%';
+        // 如果末尾是"-"，添加%通配符进行右匹配
+        if (trimmedPostingNumber.endsWith('-')) {
+          filter.posting_number = trimmedPostingNumber + '%';
         } else {
+          // 否则精确匹配
           filter.posting_number = trimmedPostingNumber;
         }
       }
