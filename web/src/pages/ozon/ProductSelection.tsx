@@ -123,6 +123,10 @@ const ProductSelection: React.FC = () => {
   const [fieldConfigVisible, setFieldConfigVisible] = useState(false);
 
   // 成本计算相关状态（从localStorage读取默认值）
+  const [enableCostEstimation, setEnableCostEstimation] = useState<boolean>(() => {
+    const saved = localStorage.getItem("productSelectionEnableCostEstimation");
+    return saved ? JSON.parse(saved) : true; // 默认勾选
+  });
   const [targetProfitRate, setTargetProfitRate] = useState<number>(() => {
     const saved = localStorage.getItem("productSelectionProfitRate");
     return saved ? parseFloat(saved) : 20; // 默认20%
@@ -137,6 +141,14 @@ const ProductSelection: React.FC = () => {
     const saved = localStorage.getItem("productSelectionRememberFilters");
     return saved ? JSON.parse(saved) : false; // 默认不记住
   });
+
+  // 保存成本估算开关到localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      "productSelectionEnableCostEstimation",
+      JSON.stringify(enableCostEstimation),
+    );
+  }, [enableCostEstimation]);
 
   // 保存利润率到localStorage
   useEffect(() => {
@@ -363,8 +375,14 @@ const ProductSelection: React.FC = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow, allProducts.length, productsData?.data?.total]);
 
-  // 过滤可盈利商品：计算成本上限，过滤掉无法达到目标利润率的商品
+  // 过滤可盈利商品：根据成本估算开关决定是否过滤
   const profitableProducts = useMemo(() => {
+    // 如果未启用成本估算，返回所有商品
+    if (!enableCostEstimation) {
+      return allProducts;
+    }
+
+    // 启用成本估算时，过滤掉无法达到目标利润率的商品
     return allProducts.filter((product) => {
       // 价格单位：CNY分，÷100 = CNY元 = RMB元
       const currentPriceRMB = product.current_price / 100; // 分 → RMB
@@ -400,7 +418,7 @@ const ProductSelection: React.FC = () => {
       // 过滤掉无法达到目标利润率的商品（maxCost < 0）
       return maxCost !== null && maxCost >= 0;
     });
-  }, [allProducts, targetProfitRate, packingFee, exchangeRate]);
+  }, [allProducts, targetProfitRate, packingFee, exchangeRate, enableCostEstimation]);
 
   // 删除批次mutation
   const deleteBatchMutation = useMutation({
@@ -1077,8 +1095,8 @@ const ProductSelection: React.FC = () => {
             </div>
           )}
 
-          {/* 成本上限计算 */}
-          {(() => {
+          {/* 成本上限计算 - 仅在启用成本估算时显示 */}
+          {enableCostEstimation && (() => {
             // 价格单位：CNY分，÷100 = CNY元 = RMB元
             const currentPriceRMB = product.current_price / 100; // 分 → RMB
             const competitorPriceRMB =
@@ -1316,22 +1334,31 @@ const ProductSelection: React.FC = () => {
 
                         {/* 成本计算参数（不参与搜索筛选） */}
                         <Col>
-                          <Space.Compact>
-                            <InputNumber
-                              value={targetProfitRate}
-                              onChange={(val) =>
-                                setTargetProfitRate((val as number) || 20)
-                              }
-                              min={0}
-                              max={100}
-                              formatter={getNumberFormatter(2)}
-                              parser={getNumberParser()}
-                              controls={false}
-                              addonBefore="利润率"
-                              addonAfter="%"
-                              style={{ width: "150px" }}
-                            />
-                          </Space.Compact>
+                          <Space>
+                            <Checkbox
+                              checked={enableCostEstimation}
+                              onChange={(e) => setEnableCostEstimation(e.target.checked)}
+                            >
+                              成本估算
+                            </Checkbox>
+                            <Space.Compact>
+                              <InputNumber
+                                value={targetProfitRate}
+                                onChange={(val) =>
+                                  setTargetProfitRate((val as number) || 20)
+                                }
+                                min={0}
+                                max={100}
+                                formatter={getNumberFormatter(2)}
+                                parser={getNumberParser()}
+                                controls={false}
+                                addonBefore="利润率"
+                                addonAfter="%"
+                                style={{ width: "150px" }}
+                                disabled={!enableCostEstimation}
+                              />
+                            </Space.Compact>
+                          </Space>
                         </Col>
 
                         <Col>
@@ -1345,6 +1372,7 @@ const ProductSelection: React.FC = () => {
                               addonBefore="打包费"
                               addonAfter="RMB"
                               style={{ width: "150px" }}
+                              disabled={!enableCostEstimation}
                             />
                           </Space.Compact>
                         </Col>
@@ -1447,6 +1475,7 @@ const ProductSelection: React.FC = () => {
                           <div className={styles.loadingMore}>
                             <Text type="secondary">
                               已显示全部 {profitableProducts.length} 件商品
+                              {enableCostEstimation && "（已过滤利润率不达标商品）"}
                             </Text>
                           </div>
                         )}
