@@ -1244,19 +1244,40 @@ async def search_posting_by_tracking(
         # 智能识别单号类型
         if '-' in search_value:
             # 规则1: 包含"-" → 货件编号
-            logger.info(f"识别为货件编号: {search_value}")
-            result = await db.execute(
-                select(OzonPosting)
-                .options(
-                    selectinload(OzonPosting.packages),
-                    selectinload(OzonPosting.domestic_trackings),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.items),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
+            # 如果是"数字-数字"格式，自动右匹配（添加%通配符）
+            import re
+            if re.match(r'^\d+-\d+$', search_value):
+                # 数字-数字格式，使用右匹配
+                search_pattern = search_value + '-%'
+                logger.info(f"识别为货件编号（右匹配）: {search_pattern}")
+                result = await db.execute(
+                    select(OzonPosting)
+                    .options(
+                        selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.domestic_trackings),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.items),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
+                    )
+                    .where(OzonPosting.posting_number.like(search_pattern))
+                    .limit(1)  # 只返回第一个匹配的结果
                 )
-                .where(OzonPosting.posting_number == search_value)
-            )
-            posting = result.scalar_one_or_none()
+                posting = result.scalar_one_or_none()
+            else:
+                # 完整的货件编号，精确匹配
+                logger.info(f"识别为货件编号（精确匹配）: {search_value}")
+                result = await db.execute(
+                    select(OzonPosting)
+                    .options(
+                        selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.domestic_trackings),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.items),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
+                    )
+                    .where(OzonPosting.posting_number == search_value)
+                )
+                posting = result.scalar_one_or_none()
 
         elif search_value[-1].isalpha() and any(c.isdigit() for c in search_value):
             # 规则2: 结尾是字母 且 包含数字 → OZON追踪号码（字母+数字+字母）
