@@ -331,19 +331,6 @@ const ProductSelection: React.FC = () => {
         // 只添加不存在的商品
         const newItems = items.filter((item) => !existingIds.has(item.product_id));
         const newProducts = [...prev, ...newItems];
-
-        // 调试日志：检查去重情况
-        if (newItems.length < items.length) {
-          const duplicates = items.filter((item) => existingIds.has(item.product_id));
-          console.warn(
-            `[去重] 第${currentPage}页有${items.length - newItems.length}个重复商品:`,
-            duplicates.map((d) => d.product_id)
-          );
-        }
-        console.log(
-          `[分页] 第${currentPage}页: 收到${items.length}条, 去重后${newItems.length}条, 累计${newProducts.length}条`
-        );
-
         return newProducts;
       });
       // 更新最后成功请求的页码
@@ -385,14 +372,9 @@ const ProductSelection: React.FC = () => {
           loadingLockRef.current = true;
           setIsLoadingMore(true);
 
-          // 设置pageSize为初始值的一半，但至少为1行，不超过100
-          const loadMoreSize = Math.min(
-            Math.max(Math.floor(initialPageSize / 2), itemsPerRow),
-            100,
-          );
-
-          // 批量更新状态
-          setPageSize(loadMoreSize);
+          // 保持pageSize不变，避免offset计算错误导致数据重复
+          // 问题：如果第1页用pageSize=28，第2页改为14，后端计算offset=(2-1)*14=14，实际应该是28
+          // 解决：所有分页使用相同的pageSize
           setCurrentPage((prev) => prev + 1);
         }
       }, 200);
