@@ -467,6 +467,48 @@ async def mark_products_as_read(
         raise HTTPException(status_code=500, detail=f"标记失败: {str(e)}")
 
 
+@router.delete("/batch/{batch_id}")
+async def delete_batch(
+    batch_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    删除指定批次的数据
+
+    Args:
+        batch_id: 批次ID
+
+    Returns:
+        删除结果
+    """
+    try:
+        service = ProductSelectionService()
+        result = await service.delete_batch(
+            db=db,
+            batch_id=batch_id,
+            user_id=current_user.id
+        )
+
+        if not result['success']:
+            raise HTTPException(status_code=404, detail=result.get('error', '删除失败'))
+
+        return {
+            "success": True,
+            "message": result.get('message', '批次删除完成'),
+            "data": {
+                "batch_id": result['batch_id'],
+                "deleted_products": result['deleted_products']
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting batch {batch_id}: {e}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/clear-all-data")
 async def clear_all_data(
     current_user: User = Depends(get_current_user),

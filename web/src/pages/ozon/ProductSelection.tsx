@@ -3,13 +3,11 @@
  * 选品助手页面
  */
 import {
-  UploadOutlined,
   SearchOutlined,
   ReloadOutlined,
   DownloadOutlined,
   ShoppingOutlined,
   StarOutlined,
-  FileExcelOutlined,
   HistoryOutlined,
   FilterOutlined,
   DeleteOutlined,
@@ -29,7 +27,6 @@ import {
   Row,
   Col,
   Button,
-  Upload,
   Form,
   InputNumber,
   Select,
@@ -42,7 +39,6 @@ import {
   Modal,
   Table,
   Typography,
-  Divider,
   Tabs,
   Steps,
   Timeline,
@@ -51,7 +47,6 @@ import {
   Tooltip,
   Checkbox,
 } from "antd";
-import type { UploadFile } from "antd/es/upload/interface";
 import dayjs from "dayjs";
 import React, { useState, useEffect, useMemo } from "react";
 
@@ -94,15 +89,6 @@ const ProductSelection: React.FC = () => {
   const [pageSize, setPageSize] = useState(24); // 初始值，会根据容器宽度动态调整
   const [historyPage, setHistoryPage] = useState(1); // 导入历史分页
   const [searchParams, setSearchParams] = useState<api.ProductSearchParams>({});
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
-  const [importModalVisible, setImportModalVisible] = useState(false);
-  const [previewData, setPreviewData] = useState<api.PreviewResponse | null>(
-    null,
-  );
-  const [importStrategy, setImportStrategy] = useState<
-    "skip" | "update" | "append"
-  >("update");
-  const [importLoading, setImportLoading] = useState(false);
   const [competitorModalVisible, setCompetitorModalVisible] = useState(false);
   const [selectedProductCompetitors, setSelectedProductCompetitors] =
     useState<any>(null);
@@ -399,6 +385,27 @@ const ProductSelection: React.FC = () => {
     });
   }, [allProducts, targetProfitRate, packingFee, exchangeRate]);
 
+  // 删除批次mutation
+  const deleteBatchMutation = useMutation({
+    mutationFn: api.deleteBatch,
+    onSuccess: (data) => {
+      if (data.success) {
+        notification.success({
+          message: "批次删除成功",
+          description: `已删除批次 #${data.data.batch_id}，共 ${data.data.deleted_products} 个商品`,
+          duration: 3,
+        });
+        // 刷新所有相关数据
+        refetchProducts();
+        refetchHistory();
+        queryClient.invalidateQueries({ queryKey: ["productSelectionBrands"] });
+      }
+    },
+    onError: (error: Error) => {
+      notifyError("删除失败", "删除批次失败: " + error.message);
+    },
+  });
+
   // 清空数据mutation
   const clearDataMutation = useMutation({
     mutationFn: api.clearAllData,
@@ -421,6 +428,24 @@ const ProductSelection: React.FC = () => {
       notifyError("清空失败", "清空数据失败: " + error.message);
     },
   });
+
+  // 处理删除批次
+  const handleDeleteBatch = (batchId: number) => {
+    Modal.confirm({
+      title: "确认删除该批次？",
+      content: (
+        <div>
+          <p>此操作将删除批次 #{batchId} 的所有商品数据，无法恢复！</p>
+        </div>
+      ),
+      okText: "确认删除",
+      cancelText: "取消",
+      okType: "danger",
+      onOk: () => {
+        deleteBatchMutation.mutate(batchId);
+      },
+    });
+  };
 
   // 处理清空数据
   const handleClearData = () => {
@@ -560,59 +585,6 @@ const ProductSelection: React.FC = () => {
     }
   };
 
-  // 处理文件上传 - 直接导入，不预览
-  const handleBeforeUpload = async (file: File) => {
-    setFileList([file]);
-
-    // 直接执行导入
-    setImportLoading(true);
-    try {
-      const result = await api.importProducts(file, "update"); // 默认使用更新策略
-      if (result.success) {
-        notification.success({
-          message: "导入完成",
-          description: (
-            <div>
-              <p>总行数: {result.total_rows}</p>
-              <p>成功: {result.success_rows} 条</p>
-              {(result.updated_rows ?? 0) > 0 && (
-                <p>更新: {result.updated_rows} 条</p>
-              )}
-              {(result.skipped_rows ?? 0) > 0 && (
-                <p>跳过: {result.skipped_rows} 条</p>
-              )}
-              {(result.failed_rows ?? 0) > 0 && (
-                <p>失败: {result.failed_rows} 条</p>
-              )}
-              <p>耗时: {result.duration} 秒</p>
-            </div>
-          ),
-          duration: 5, // 5秒后自动消失
-        });
-
-        setFileList([]);
-        refetchProducts();
-        refetchHistory(); // 刷新历史记录
-      } else {
-        notifyError("导入失败", result.error || "导入失败");
-        if (result.missing_columns) {
-          notification.error({
-            message: "文件格式错误",
-            description: `缺少必需列: ${result.missing_columns.join(", ")}`,
-            duration: 0,
-          });
-        }
-      }
-    } catch (error) {
-      notifyError("导入失败", "导入失败: " + error.message);
-    } finally {
-      setImportLoading(false);
-      setFileList([]);
-    }
-
-    return false; // 阻止自动上传
-  };
-
   // 显示跟卖者列表
   const showCompetitorsList = (product: api.ProductSelectionItem) => {
     setSelectedProductCompetitors(product);
@@ -643,56 +615,6 @@ const ProductSelection: React.FC = () => {
       setImageModalVisible(false);
       notifyError("获取失败", "获取商品图片失败");
       logger.error("获取商品图片失败:", error);
-    }
-  };
-
-  // 执行导入
-  const handleImport = async () => {
-    if (!fileList[0]) {
-      notifyError("操作失败", "请选择文件");
-      return;
-    }
-
-    setImportLoading(true);
-    try {
-      const result = await api.importProducts(
-        fileList[0] as any,
-        importStrategy,
-      );
-      if (result.success) {
-        notification.success({
-          message: "导入完成",
-          description: (
-            <div>
-              <p>总行数: {result.total_rows}</p>
-              <p>成功: {result.success_rows} 条</p>
-              {(result.updated_rows ?? 0) > 0 && (
-                <p>更新: {result.updated_rows} 条</p>
-              )}
-              {(result.skipped_rows ?? 0) > 0 && (
-                <p>跳过: {result.skipped_rows} 条</p>
-              )}
-              {(result.failed_rows ?? 0) > 0 && (
-                <p>失败: {result.failed_rows} 条</p>
-              )}
-              <p>耗时: {result.duration} 秒</p>
-            </div>
-          ),
-          duration: 0,
-        });
-
-        setImportModalVisible(false);
-        setFileList([]);
-        setPreviewData(null);
-        refetchProducts();
-        refetchHistory();
-      } else {
-        notifyError("导入失败", result.error || "导入失败");
-      }
-    } catch (error) {
-      notifyError("导入失败", "导入失败: " + error.message);
-    } finally {
-      setImportLoading(false);
     }
   };
 
@@ -1420,78 +1342,6 @@ const ProductSelection: React.FC = () => {
               ),
             },
             {
-              key: "import",
-              label: (
-                <span>
-                  <UploadOutlined /> 数据导入
-                </span>
-              ),
-              children: (
-                <Card>
-                  <Space
-                    direction="vertical"
-                    size="large"
-                    className={styles.fullWidthInput}
-                  >
-                    <Alert
-                      message="导入说明"
-                      description={
-                        <div>
-                          <p>1. 支持 Excel (.xlsx) 和 CSV (.csv) 文件格式</p>
-                          <p>2. 文件需包含必要列：商品ID、商品名称等</p>
-                          <p>3. 系统会自动进行数据清洗和格式转换</p>
-                          <p>
-                            4.
-                            导入策略：以"商品名称+商品ID"作为唯一标识，存在则更新，不存在则追加
-                          </p>
-                        </div>
-                      }
-                      type="info"
-                      showIcon
-                    />
-
-                    <Upload.Dragger
-                      fileList={fileList}
-                      beforeUpload={handleBeforeUpload}
-                      onRemove={() => setFileList([])}
-                      accept=".csv,.xlsx,.xls"
-                      maxCount={1}
-                    >
-                      <p className="ant-upload-drag-icon">
-                        <FileExcelOutlined className={styles.uploadIcon} />
-                      </p>
-                      <p className="ant-upload-text">
-                        点击或拖拽文件到此区域上传
-                      </p>
-                      <p className="ant-upload-hint">
-                        支持 Excel 和 CSV 文件，文件大小不超过 10MB
-                      </p>
-                    </Upload.Dragger>
-
-                    <Divider />
-
-                    <Alert
-                      message="数据管理"
-                      description="如需重新开始，可以清空所有当前账号的选品数据"
-                      type="warning"
-                      showIcon
-                      action={
-                        <Button
-                          danger
-                          type="text"
-                          icon={<DeleteOutlined />}
-                          onClick={handleClearData}
-                          loading={clearDataMutation.isPending}
-                        >
-                          清空所有数据
-                        </Button>
-                      }
-                    />
-                  </Space>
-                </Card>
-              ),
-            },
-            {
               key: "history",
               label: (
                 <span>
@@ -1596,6 +1446,23 @@ const ProductSelection: React.FC = () => {
                       dataIndex: "process_duration",
                       key: "process_duration",
                       render: (val: number) => `${val}秒`,
+                    },
+                    {
+                      title: "操作",
+                      key: "action",
+                      width: 100,
+                      render: (_: any, record: api.ImportHistory) => (
+                        <Button
+                          type="link"
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDeleteBatch(record.id)}
+                          loading={deleteBatchMutation.isPending}
+                        >
+                          删除
+                        </Button>
+                      ),
                     },
                   ]}
                 />
@@ -2458,53 +2325,6 @@ const ProductSelection: React.FC = () => {
           onCancel={() => setFieldConfigVisible(false)}
         />
 
-        {/* 导入预览和确认弹窗 */}
-        <Modal
-          title="导入预览"
-          open={importModalVisible}
-          onOk={handleImport}
-          onCancel={() => {
-            setImportModalVisible(false);
-            setPreviewData(null);
-          }}
-          confirmLoading={importLoading}
-          width={800}
-        >
-          {previewData && (
-            <Space
-              direction="vertical"
-              size="middle"
-              className={styles.fullWidthInput}
-            >
-              <Alert
-                message={`文件包含 ${previewData.total_rows} 行数据`}
-                type="info"
-              />
-
-              <div>
-                <Text strong>导入策略：</Text>
-                <Select
-                  value={importStrategy}
-                  onChange={setImportStrategy}
-                  className={styles.importStrategySelector}
-                >
-                  <Option value="skip">跳过重复记录</Option>
-                  <Option value="update">更新已有记录</Option>
-                  <Option value="append">追加为新记录</Option>
-                </Select>
-              </div>
-
-              <div>
-                <Text strong>数据预览（前5行）：</Text>
-                <div className={styles.dataPreview}>
-                  <pre>
-                    {JSON.stringify(previewData.preview?.slice(0, 5), null, 2)}
-                  </pre>
-                </div>
-              </div>
-            </Space>
-          )}
-        </Modal>
       </Card>
     </div>
   );

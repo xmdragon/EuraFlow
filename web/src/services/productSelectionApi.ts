@@ -262,3 +262,18 @@ export const markProductsAsRead = async (
   });
   return response.data;
 };
+
+// 删除批次数据
+export const deleteBatch = async (
+  batchId: number
+): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    batch_id: number;
+    deleted_products: number;
+  };
+}> => {
+  const response = await axios.delete(`/api/ef/v1/ozon/product-selection/batch/${batchId}`);
+  return response.data;
+};
