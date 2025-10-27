@@ -148,6 +148,10 @@ const PackingShipment: React.FC = () => {
   const [multipleResults, setMultipleResults] = useState<any[]>([]);
   const [showMultipleResultsModal, setShowMultipleResultsModal] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  // 打印标签弹窗状态
+  const [showPrintLabelModal, setShowPrintLabelModal] = useState(false);
+  const [printLabelUrl, setPrintLabelUrl] = useState<string>('');
+  const [currentPrintingPosting, setCurrentPrintingPosting] = useState<string>('');
 
   // 国内单号编辑状态
   const [isEditingTracking, setIsEditingTracking] = useState(false);
@@ -1103,16 +1107,45 @@ const PackingShipment: React.FC = () => {
     }
   };
 
+  // 从打印弹窗标记为已打印
+  const handleMarkPrintedFromModal = async () => {
+    if (!currentPrintingPosting) return;
+
+    try {
+      await ozonApi.markPostingPrinted(currentPrintingPosting);
+      notifySuccess('标记成功', '已标记为已打印');
+      // 关闭弹窗
+      setShowPrintLabelModal(false);
+      setPrintLabelUrl('');
+      setCurrentPrintingPosting('');
+      // 刷新扫描结果
+      if (scanResult && scanResult.posting_number === currentPrintingPosting) {
+        setScanResult({ ...scanResult, operation_status: 'printed' });
+      }
+      // 刷新计数
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 从当前列表中移除该posting
+      setAllPostings((prev) => prev.filter((p) => p.posting_number !== currentPrintingPosting));
+    } catch (error) {
+      notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
+    }
+  };
+
   // 从扫描结果打印单个标签
   const handlePrintSingleLabel = async (postingNumber: string) => {
     setIsPrinting(true);
     try {
       const result = await ozonApi.batchPrintLabels([postingNumber]);
       if (result.success && result.pdf_url) {
-        window.open(result.pdf_url, '_blank');
-        notifySuccess('打印成功', '标签已打开');
+        // 弹出窗口显示PDF，而不是直接打开
+        setPrintLabelUrl(result.pdf_url);
+        setCurrentPrintingPosting(postingNumber);
+        setShowPrintLabelModal(true);
+        notifySuccess('标签加载成功', '请在弹窗中查看并打印');
       } else if (result.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-        window.open(result.pdf_url, '_blank');
+        setPrintLabelUrl(result.pdf_url);
+        setCurrentPrintingPosting(postingNumber);
+        setShowPrintLabelModal(true);
       } else {
         notifyError('打印失败', '打印失败');
       }
@@ -2123,6 +2156,70 @@ const PackingShipment: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      </Modal>
+
+      {/* 打印标签弹窗 */}
+      <Modal
+        title="快递面单"
+        open={showPrintLabelModal}
+        onCancel={() => {
+          setShowPrintLabelModal(false);
+          setPrintLabelUrl('');
+          setCurrentPrintingPosting('');
+        }}
+        width={900}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setShowPrintLabelModal(false);
+              setPrintLabelUrl('');
+              setCurrentPrintingPosting('');
+            }}
+          >
+            关闭
+          </Button>,
+          <Button
+            key="print"
+            type="default"
+            icon={<PrinterOutlined />}
+            onClick={() => {
+              // 打开打印对话框
+              const iframe = document.getElementById('print-label-iframe') as HTMLIFrameElement;
+              if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.print();
+              }
+            }}
+          >
+            打印
+          </Button>,
+          <Button
+            key="mark-printed"
+            type="primary"
+            onClick={handleMarkPrintedFromModal}
+          >
+            标记已打印
+          </Button>,
+        ]}
+      >
+        <div style={{ width: '100%', height: '600px', display: 'flex', justifyContent: 'center' }}>
+          {printLabelUrl ? (
+            <iframe
+              id="print-label-iframe"
+              src={printLabelUrl}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+              }}
+              title="快递面单"
+            />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Spin size="large" tip="加载PDF中..." />
+            </div>
+          )}
         </div>
       </Modal>
     </div>
