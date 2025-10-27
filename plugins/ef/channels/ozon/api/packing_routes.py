@@ -991,10 +991,11 @@ async def batch_print_labels(
                     "posting_number": pn,
                     "current_status": posting.status,
                     "status_display": {
-                        "awaiting_packaging": "等待打包",
+                        "awaiting_packaging": "等待备货",
                         "awaiting_deliver": "等待发运",
+                        "sent_by_seller": "已准备发运",
                         "delivering": "运输中",
-                        "delivered": "已送达",
+                        "delivered": "已签收",
                         "cancelled": "已取消"
                     }.get(posting.status, posting.status)
                 })

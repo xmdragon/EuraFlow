@@ -1068,18 +1068,19 @@ class OzonSyncService:
 
             # 需要同步的订单状态（OZON FBS 订单状态）
             statuses_to_sync = [
-                "awaiting_packaging",  # 待打包（待备货）- 最重要
-                "awaiting_deliver",    # 待发货
-                "delivering",          # 配送中
+                "awaiting_packaging",  # 等待备货 - 最重要
+                "awaiting_deliver",    # 等待发运
+                "sent_by_seller",      # 已准备发运
+                "delivering",          # 运输中
                 "cancelled",           # 已取消
-                "awaiting_registration", # 等待登记
-                "acceptance_in_progress", # 验收中
-                "awaiting_approve",    # 等待审批
-                "arbitration",         # 仲裁中
-                "client_arbitration",  # 客户仲裁
-                "driver_pickup",       # 司机取件
-                "not_accepted",        # 未接受
-                "delivered",           # 已交付
+                "awaiting_registration", # 等待备货（等待注册）
+                "acceptance_in_progress", # 等待备货（验收中）
+                "awaiting_approve",    # 等待备货（等待确认）
+                "arbitration",         # 有争议的（仲裁）
+                "client_arbitration",  # 有争议的（客户仲裁）
+                "driver_pickup",       # 运输中（司机处）
+                "not_accepted",        # 已取消（未接受）
+                "delivered",           # 已签收
             ]
 
             total_synced = 0
