@@ -1603,7 +1603,12 @@ const PackingShipment: React.FC = () => {
                             }),
                             renderCell: (_checked, row: ScanResultItemRow, _index, originNode) => {
                               // 只在第一行显示复选框，并使用rowSpan
-                              if (!row.isFirstItem) return null;
+                              if (!row.isFirstItem) {
+                                return {
+                                  props: { rowSpan: 0 },
+                                  children: null,
+                                };
+                              }
                               return {
                                 props: { rowSpan: row.itemCount },
                                 children: originNode,
@@ -1711,7 +1716,12 @@ const PackingShipment: React.FC = () => {
                         title: '货件信息',
                         key: 'posting_info',
                         render: (_: any, row: ScanResultItemRow) => {
-                          if (!row.isFirstItem) return null;
+                          if (!row.isFirstItem) {
+                            return {
+                              props: { rowSpan: 0 },
+                              children: null,
+                            };
+                          }
 
                           const posting = row.posting;
                           return {
@@ -1774,7 +1784,12 @@ const PackingShipment: React.FC = () => {
                         title: '订单信息',
                         key: 'order_info',
                         render: (_: any, row: ScanResultItemRow) => {
-                          if (!row.isFirstItem) return null;
+                          if (!row.isFirstItem) {
+                            return {
+                              props: { rowSpan: 0 },
+                              children: null,
+                            };
+                          }
 
                           const posting = row.posting;
                           const statusCfg = statusConfig[posting.status] || statusConfig.pending;
@@ -1835,7 +1850,12 @@ const PackingShipment: React.FC = () => {
                         key: 'notes',
                         width: 150,
                         render: (_: any, row: ScanResultItemRow) => {
-                          if (!row.isFirstItem) return null;
+                          if (!row.isFirstItem) {
+                            return {
+                              props: { rowSpan: 0 },
+                              children: null,
+                            };
+                          }
 
                           const posting = row.posting;
                           return {
@@ -1866,7 +1886,12 @@ const PackingShipment: React.FC = () => {
                         width: 80,
                         fixed: 'right' as const,
                         render: (_: any, row: ScanResultItemRow) => {
-                          if (!row.isFirstItem) return null;
+                          if (!row.isFirstItem) {
+                            return {
+                              props: { rowSpan: 0 },
+                              children: null,
+                            };
+                          }
 
                           return {
                             children: (
