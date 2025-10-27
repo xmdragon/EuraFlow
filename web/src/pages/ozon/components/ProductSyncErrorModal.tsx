@@ -103,7 +103,7 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
     if (!data?.has_errors) {
       return (
         <Empty
-          description="该商品没有同步错误记录"
+          description="该商品没有错误记录"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
       );
@@ -173,7 +173,7 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
       title={
         <span>
           <ExclamationCircleOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />
-          商品同步错误详情
+          商品错误详情
         </span>
       }
       open={visible}

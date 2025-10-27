@@ -255,7 +255,7 @@ class OzonInventorySnapshot(Base):
 
 
 class OzonProductSyncError(Base):
-    """Ozon 商品同步错误记录"""
+    """Ozon 商品错误记录（OZON平台返回的商品错误信息）"""
     __tablename__ = "ozon_product_sync_errors"
 
     # 主键

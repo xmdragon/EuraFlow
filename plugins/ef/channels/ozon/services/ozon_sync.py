@@ -66,7 +66,7 @@ class OzonSyncService:
         status: Optional[str],
         errors: list
     ) -> None:
-        """保存商品同步错误信息
+        """保存商品错误信息（OZON平台返回的商品审核错误）
 
         Args:
             db: 数据库会话
@@ -74,8 +74,8 @@ class OzonSyncService:
             product_id: 商品ID（可能为None，如果是新商品）
             offer_id: 商品offer_id
             task_id: 任务ID（可选）
-            status: 同步状态
-            errors: 错误列表
+            status: 商品状态
+            errors: OZON返回的错误列表
         """
         if not errors:
             return
@@ -99,7 +99,7 @@ class OzonSyncService:
                 existing_error.status = status
                 existing_error.errors = errors
                 existing_error.updated_at = utcnow()
-                logger.info(f"Updated sync error for product {offer_id}: {len(errors)} errors")
+                logger.info(f"Updated product error for {offer_id}: {len(errors)} errors")
             else:
                 # 创建新错误记录
                 sync_error = OzonProductSyncError(
@@ -113,10 +113,10 @@ class OzonSyncService:
                     updated_at=utcnow()
                 )
                 db.add(sync_error)
-                logger.info(f"Created sync error for product {offer_id}: {len(errors)} errors")
+                logger.info(f"Created product error record for {offer_id}: {len(errors)} errors")
 
         except Exception as e:
-            logger.error(f"Failed to save sync error for product {offer_id}: {e}")
+            logger.error(f"Failed to save product error for {offer_id}: {e}")
 
     @staticmethod
     async def _clear_product_sync_error(
@@ -124,7 +124,7 @@ class OzonSyncService:
         shop_id: int,
         offer_id: str
     ) -> None:
-        """清除商品同步错误信息（当商品错误已修复时）
+        """清除商品错误信息（当商品错误已修复时）
 
         Args:
             db: 数据库会话
@@ -146,10 +146,10 @@ class OzonSyncService:
             if existing_errors:
                 for error in existing_errors:
                     await db.delete(error)
-                logger.info(f"Cleared {len(existing_errors)} sync error(s) for product {offer_id}")
+                logger.info(f"Cleared {len(existing_errors)} product error(s) for {offer_id}")
 
         except Exception as e:
-            logger.error(f"Failed to clear sync error for product {offer_id}: {e}")
+            logger.error(f"Failed to clear product error for {offer_id}: {e}")
 
     @staticmethod
     async def sync_products(shop_id: int, db: AsyncSession, task_id: str, mode: str = "incremental") -> Dict[str, Any]:
@@ -584,7 +584,7 @@ class OzonSyncService:
                                     status_reason = "商品信息有误或违规"
                                     error_count += 1
 
-                                    # 保存错误信息到数据库
+                                    # 保存OZON返回的错误信息到数据库
                                     error_list = []
                                     if product_details.get("errors"):
                                         error_list.extend(product_details["errors"])
@@ -839,7 +839,7 @@ class OzonSyncService:
                                     status_reason = "商品信息有误或违规"
                                     error_count += 1
 
-                                    # 标记需要保存错误信息（在add之后处理）
+                                    # 标记需要保存OZON返回的错误信息（在add之后处理）
                                     product._has_sync_errors = True
                                     product._sync_error_details = {
                                         "errors": product_details.get("errors", []),

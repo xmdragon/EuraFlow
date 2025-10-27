@@ -1072,7 +1072,7 @@ async def get_product_sync_errors(
     current_user: User = Depends(get_current_user_flexible)
 ):
     """
-    获取商品的同步错误信息
+    获取商品的错误信息（OZON平台返回的商品审核错误详情）
     """
     from ..models.products import OzonProductSyncError
 
@@ -1105,7 +1105,7 @@ async def get_product_sync_errors(
     if not sync_error:
         return {
             "has_errors": False,
-            "message": "该商品没有同步错误记录"
+            "message": "该商品没有错误记录"
         }
 
     return {
