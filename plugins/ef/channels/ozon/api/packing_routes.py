@@ -1179,7 +1179,7 @@ async def batch_print_labels(
                 merger.write(batch_path)
                 merger.close()
 
-                pdf_url = f"/downloads/labels/{shop_id}/{batch_filename}"
+                pdf_url = f"/downloads/labels/{batch_filename}"
                 logger.info(f"成功合并PDF: {batch_path}")
             except Exception as e:
                 logger.error(f"合并PDF失败: {e}")
