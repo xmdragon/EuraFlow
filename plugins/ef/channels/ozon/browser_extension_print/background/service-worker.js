@@ -57,6 +57,9 @@ async function handlePrintRequest(pdfUrl, sendResponse) {
             media_size: {
               width_microns: 100000,  // 100mm
               height_microns: 150000  // 150mm (OZON 标签尺寸 100x150)
+            },
+            fit_to_page: {
+              type: 'FIT_TO_PAGE' // 调整为可打印区域大小
             }
           }
         },
