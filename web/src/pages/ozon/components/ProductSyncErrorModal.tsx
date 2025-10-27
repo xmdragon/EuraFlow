@@ -6,6 +6,33 @@ import * as ozonApi from '@/services/ozonApi';
 
 const { Text, Paragraph } = Typography;
 
+// 错误代码中文映射
+const ERROR_CODE_MAP: Record<string, string> = {
+  'DESCRIPTION_DECLINE': '描述被拒绝',
+  'IMAGE_DECLINE': '图片被拒绝',
+  'ATTRIBUTE_DECLINE': '属性被拒绝',
+  'PRICE_DECLINE': '价格被拒绝',
+  'STOCK_DECLINE': '库存被拒绝',
+  'CATEGORY_DECLINE': '分类被拒绝',
+  'NAME_DECLINE': '名称被拒绝',
+};
+
+// 错误级别中文映射
+const ERROR_LEVEL_MAP: Record<string, string> = {
+  'ERROR_LEVEL_ERROR': '错误',
+  'ERROR_LEVEL_WARNING': '警告',
+  'ERROR_LEVEL_INFO': '提示',
+};
+
+// 错误状态中文映射
+const ERROR_STATE_MAP: Record<string, string> = {
+  'declined': '已拒绝',
+  'pending': '待处理',
+  'processing': '处理中',
+  'approved': '已通过',
+  'failed': '失败',
+};
+
 interface ProductSyncErrorModalProps {
   visible: boolean;
   productId: number | null;
@@ -58,13 +85,13 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
           {/* 错误代码和级别 */}
           <div style={{ marginBottom: 8 }}>
             {error.code && (
-              <Tag color="red">{error.code}</Tag>
+              <Tag color="red">{ERROR_CODE_MAP[error.code] || error.code}</Tag>
             )}
             {error.level && (
-              <Tag color="orange">{error.level}</Tag>
+              <Tag color="orange">{ERROR_LEVEL_MAP[error.level] || error.level}</Tag>
             )}
             {error.state && (
-              <Tag color="blue">{error.state}</Tag>
+              <Tag color="blue">{ERROR_STATE_MAP[error.state] || error.state}</Tag>
             )}
           </div>
 

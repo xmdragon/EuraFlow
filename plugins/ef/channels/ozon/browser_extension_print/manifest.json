@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "EuraFlow 打印助手",
+  "version": "1.0.0",
+  "description": "EuraFlow 静默打印助手，支持PDF标签直接打印到默认打印机",
+  "permissions": [
+    "printing"
+  ],
+  "host_permissions": [
+    "https://euraflow.hjdtrading.com/*",
+    "http://localhost:3000/*",
+    "http://localhost:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://euraflow.hjdtrading.com/*",
+        "http://localhost:3000/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js"
+  }
+}
