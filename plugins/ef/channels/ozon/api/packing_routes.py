@@ -978,7 +978,7 @@ async def batch_print_labels(
             raise HTTPException(status_code=404, detail="未找到任何货件记录")
 
         # 3. 验证所有posting的状态必须为"awaiting_deliver"（等待发运）
-        # 并且 operation_status 不能是 tracking_confirmed 或 shipping（已确认运单号后OZON不允许再获取标签）
+        # 并且 operation_status 必须是 tracking_confirmed（运单号已确认才能打印标签）
         invalid_status_postings = []
         for pn in posting_numbers:
             posting = postings.get(pn)
@@ -1000,12 +1000,12 @@ async def batch_print_labels(
                 })
                 continue
 
-            # 检查操作状态：已确认运单号后不能再打印
-            if posting.operation_status in ('tracking_confirmed', 'shipping'):
+            # 检查操作状态：必须先确认运单号才能打印标签
+            if posting.operation_status != 'tracking_confirmed':
                 invalid_status_postings.append({
                     "posting_number": pn,
-                    "current_status": f"运单号已确认 ({posting.operation_status})",
-                    "status_display": "运单号已确认，OZON不允许重新获取标签"
+                    "current_status": f"运单号未确认 ({posting.operation_status or '未设置'})",
+                    "status_display": "请先确认运单号后再打印标签"
                 })
 
         if invalid_status_postings:
@@ -1013,7 +1013,7 @@ async def batch_print_labels(
                 status_code=422,
                 detail={
                     "error": "INVALID_STATUS",
-                    "message": "只能打印'等待发运'且未确认运单号的订单标签",
+                    "message": "只能打印'等待发运'且已确认运单号的订单标签",
                     "invalid_postings": invalid_status_postings
                 }
             )
