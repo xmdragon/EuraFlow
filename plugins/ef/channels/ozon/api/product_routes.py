@@ -490,26 +490,26 @@ async def update_prices(
         )
 
         for update in updates:
-            sku = update.get("sku")
+            offer_id = update.get("offer_id")
             new_price = update.get("price")
             old_price = update.get("old_price")
 
-            if not sku or new_price is None:
-                errors.append(f"SKU {sku}: 缺少必要字段")
+            if not offer_id or new_price is None:
+                errors.append(f"商品货号 {offer_id}: 缺少必要字段")
                 continue
 
             try:
-                # 查找本地商品
+                # 查找本地商品（使用 offer_id）
                 product_result = await db.execute(
                     select(OzonProduct).where(
                         OzonProduct.shop_id == shop_id,
-                        OzonProduct.sku == sku
+                        OzonProduct.offer_id == offer_id
                     )
                 )
                 product = product_result.scalar_one_or_none()
 
                 if not product:
-                    errors.append(f"SKU {sku}: 商品不存在")
+                    errors.append(f"商品货号 {offer_id}: 商品不存在")
                     continue
 
                 # 调用Ozon API更新价格
@@ -533,10 +533,10 @@ async def update_prices(
 
                     updated_count += 1
                 else:
-                    errors.append(f"SKU {sku}: Ozon API更新失败")
+                    errors.append(f"商品货号 {offer_id}: Ozon API更新失败")
 
             except Exception as e:
-                errors.append(f"SKU {sku}: {str(e)}")
+                errors.append(f"商品货号 {offer_id}: {str(e)}")
 
         await db.commit()
 
@@ -603,26 +603,26 @@ async def update_stocks(
         )
 
         for update in updates:
-            sku = update.get("sku")
+            offer_id = update.get("offer_id")
             stock = update.get("stock")
-            warehouse_id = update.get("warehouse_id", 1)
+            warehouse_id = update.get("warehouse_id")
 
-            if not sku or stock is None:
-                errors.append(f"SKU {sku}: 缺少必要字段")
+            if not offer_id or stock is None or not warehouse_id:
+                errors.append(f"商品货号 {offer_id}: 缺少必要字段")
                 continue
 
             try:
-                # 查找本地商品
+                # 查找本地商品（使用 offer_id）
                 product_result = await db.execute(
                     select(OzonProduct).where(
                         OzonProduct.shop_id == shop_id,
-                        OzonProduct.sku == sku
+                        OzonProduct.offer_id == offer_id
                     )
                 )
                 product = product_result.scalar_one_or_none()
 
                 if not product:
-                    errors.append(f"SKU {sku}: 商品不存在")
+                    errors.append(f"商品货号 {offer_id}: 商品不存在")
                     continue
 
                 # 调用Ozon API更新库存
@@ -645,10 +645,10 @@ async def update_stocks(
 
                     updated_count += 1
                 else:
-                    errors.append(f"SKU {sku}: Ozon API更新失败")
+                    errors.append(f"商品货号 {offer_id}: Ozon API更新失败")
 
             except Exception as e:
-                errors.append(f"SKU {sku}: {str(e)}")
+                errors.append(f"商品货号 {offer_id}: {str(e)}")
 
         await db.commit()
 

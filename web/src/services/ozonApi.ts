@@ -114,6 +114,12 @@ export const testApiConnection = async (credentials: {
   return response.data;
 };
 
+// 获取店铺仓库列表（从数据库读取）
+export const getWarehouses = async (shopId: number) => {
+  const response = await apiClient.get(`/ozon/shops/${shopId}/warehouses`);
+  return response.data;
+};
+
 // 同步仓库（单个店铺）
 export const syncWarehouses = async (shopId: number) => {
   const response = await apiClient.post(
@@ -221,7 +227,7 @@ export interface ProductFilter {
 }
 
 export interface PriceUpdate {
-  sku: string;
+  offer_id: string;
   price: string;
   old_price?: string;
   premium_price?: string;
@@ -229,9 +235,9 @@ export interface PriceUpdate {
 }
 
 export interface StockUpdate {
-  sku: string;
+  offer_id: string;
   stock: number;
-  warehouse_id?: number;
+  warehouse_id: number;
 }
 
 // 获取商品列表

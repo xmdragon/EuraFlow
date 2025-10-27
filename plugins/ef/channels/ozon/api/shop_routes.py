@@ -566,6 +566,31 @@ async def trigger_sync(
     }
 
 
+@router.get("/shops/{shop_id}/warehouses")
+async def get_warehouses(
+    shop_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取店铺仓库列表（从数据库读取）
+    """
+    from ..models import OzonWarehouse
+
+    # 查询店铺的仓库
+    stmt = select(OzonWarehouse).where(
+        OzonWarehouse.shop_id == shop_id
+    ).order_by(OzonWarehouse.warehouse_id)
+
+    result = await db.execute(stmt)
+    warehouses = result.scalars().all()
+
+    return {
+        "success": True,
+        "data": [wh.to_dict() for wh in warehouses]
+    }
+
+
 @router.post("/shops/{shop_id}/sync-warehouses")
 async def sync_warehouses(
     shop_id: int,

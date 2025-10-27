@@ -1099,16 +1099,18 @@ const ProductList: React.FC = () => {
   };
 
   const handleBatchPriceUpdate = () => {
-    if (selectedRows.length === 0) {
-      notifyWarning('操作失败', '请先选择商品');
+    // 不再检查是否选择商品，未选择时对全店铺商品批量操作
+    if (!selectedShop) {
+      notifyWarning('操作失败', '请先选择店铺');
       return;
     }
     setPriceModalVisible(true);
   };
 
   const handleBatchStockUpdate = () => {
-    if (selectedRows.length === 0) {
-      notifyWarning('操作失败', '请先选择商品');
+    // 不再检查是否选择商品，未选择时对全店铺商品批量操作
+    if (!selectedShop) {
+      notifyWarning('操作失败', '请先选择店铺');
       return;
     }
     setStockModalVisible(true);
@@ -1508,6 +1510,7 @@ const ProductList: React.FC = () => {
         selectedProduct={selectedProduct}
         selectedRows={selectedRows}
         loading={updateStocksMutation.isPending}
+        shopId={selectedShop}
       />
 
       {/* 商品编辑弹窗 */}

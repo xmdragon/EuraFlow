@@ -12,7 +12,7 @@ import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import type { FormValues } from '@/types/common';
 
 export interface Product {
-  sku: string;
+  offer_id: string;
   currency_code?: string;
   [key: string]: unknown;
 }
@@ -40,12 +40,12 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
     const updates = selectedProduct
       ? [
           {
-            sku: selectedProduct.sku,
+            offer_id: selectedProduct.offer_id,
             ...values,
           },
         ]
       : selectedRows.map((row) => ({
-          sku: row.sku,
+          offer_id: row.offer_id,
           ...values,
         }));
     onSubmit(updates);
@@ -64,7 +64,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
 
   return (
     <Modal
-      title={selectedProduct ? `更新价格 - ${selectedProduct.sku}` : '批量更新价格'}
+      title={selectedProduct ? `更新价格 - ${selectedProduct.offer_id}` : '批量更新价格'}
       open={visible}
       onCancel={onCancel}
       footer={null}
