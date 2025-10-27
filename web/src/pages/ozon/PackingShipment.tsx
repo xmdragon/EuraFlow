@@ -1563,6 +1563,66 @@ const PackingShipment: React.FC = () => {
                         ),
                       },
                       {
+                        title: '商品信息',
+                        dataIndex: 'items',
+                        width: 250,
+                        render: (items: any[]) => {
+                          if (!items || items.length === 0) {
+                            return <span>-</span>;
+                          }
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {items.map((item, index) => (
+                                <div
+                                  key={index}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                  {item.image && (
+                                    <img
+                                      src={item.image}
+                                      alt={item.name || item.sku}
+                                      style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        objectFit: 'cover',
+                                        borderRadius: '4px',
+                                      }}
+                                    />
+                                  )}
+                                  <div style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div
+                                      style={{
+                                        fontSize: '12px',
+                                        color: '#666',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      SKU: {item.sku || '-'}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '12px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                      title={item.name}
+                                    >
+                                      {item.name || '-'}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#999' }}>
+                                      数量: {item.quantity || 0}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        },
+                      },
+                      {
                         title: '追踪号码',
                         dataIndex: 'tracking_number',
                         width: 150,
