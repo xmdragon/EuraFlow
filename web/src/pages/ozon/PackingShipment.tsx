@@ -144,6 +144,9 @@ const PackingShipment: React.FC = () => {
   const [scanResult, setScanResult] = useState<any>(null);
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
+  // 多结果选择状态
+  const [multipleResults, setMultipleResults] = useState<any[]>([]);
+  const [showMultipleResultsModal, setShowMultipleResultsModal] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
 
   // 国内单号编辑状态
@@ -1043,10 +1046,25 @@ const PackingShipment: React.FC = () => {
     setIsScanning(true);
     setScanResult(null);
     setScanError('');
+    setMultipleResults([]);
+    setShowMultipleResultsModal(false);
 
     try {
       const result = await ozonApi.searchPostingByTracking(scanTrackingNumber.trim());
-      if (result.data) {
+      if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+        // 新版API返回数组格式
+        if (result.data.length === 1) {
+          // 只有一个结果，直接显示
+          setScanResult(result.data[0]);
+          setScanError('');
+        } else {
+          // 多个结果，弹出选择框
+          setMultipleResults(result.data);
+          setShowMultipleResultsModal(true);
+          setScanError('');
+        }
+      } else if (result.data && !Array.isArray(result.data)) {
+        // 兼容旧版API（返回单个对象）
         setScanResult(result.data);
         setScanError('');
       } else {
@@ -2013,6 +2031,83 @@ const PackingShipment: React.FC = () => {
               }}
             />
           )}
+        </div>
+      </Modal>
+
+      {/* 多结果选择 Modal */}
+      <Modal
+        title={`找到 ${multipleResults.length} 个匹配的货件，请选择`}
+        open={showMultipleResultsModal}
+        onCancel={() => {
+          setShowMultipleResultsModal(false);
+          setMultipleResults([]);
+          // 重新聚焦到扫描输入框
+          setTimeout(() => scanInputRef.current?.focus(), 100);
+        }}
+        footer={null}
+        width={800}
+      >
+        <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+          {multipleResults.map((result, index) => (
+            <div
+              key={result.posting_number || index}
+              style={{
+                padding: '12px',
+                border: '1px solid #d9d9d9',
+                borderRadius: '4px',
+                marginBottom: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f0f0f0';
+                e.currentTarget.style.borderColor = '#1890ff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.borderColor = '#d9d9d9';
+              }}
+              onClick={() => {
+                setScanResult(result);
+                setShowMultipleResultsModal(false);
+                setMultipleResults([]);
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div>
+                  <strong>货件编号：</strong>
+                  <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>{result.posting_number}</span>
+                </div>
+                <div>
+                  <strong>状态：</strong>
+                  <span>{result.status}</span>
+                </div>
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>订单号：</strong>
+                <span>{result.order_number}</span>
+              </div>
+              {result.items && result.items.length > 0 && (
+                <div>
+                  <strong>商品：</strong>
+                  {result.items.map((item: any, itemIndex: number) => (
+                    <span key={itemIndex}>
+                      {item.name}
+                      {itemIndex < result.items.length - 1 ? ', ' : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {result.domestic_tracking_numbers && result.domestic_tracking_numbers.length > 0 && (
+                <div style={{ marginTop: '4px' }}>
+                  <strong>国内单号：</strong>
+                  <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                    {result.domestic_tracking_numbers.join(', ')}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </Modal>
     </div>

@@ -1237,14 +1237,14 @@ async def search_posting_by_tracking(
     2. 结尾是字母 且 包含数字 → OZON追踪号码（packages.tracking_number），如 "UNIM83118549CN"
     3. 纯数字 或 字母开头+数字 → 国内单号（domestic_tracking_number），如 "75324623944112" 或 "SF1234567890"
 
-    返回：posting 详情 + 订单信息 + 商品列表
+    返回：posting 列表（当国内单号匹配多个posting时，返回所有匹配结果）
     """
     from sqlalchemy.orm import selectinload
     from ..models import OzonShipmentPackage
 
     try:
         search_value = tracking_number.strip()
-        posting = None
+        postings = []
 
         # 智能识别单号类型
         if '-' in search_value:
@@ -1268,6 +1268,8 @@ async def search_posting_by_tracking(
                     .limit(1)  # 只返回第一个匹配的结果
                 )
                 posting = result.scalar_one_or_none()
+                if posting:
+                    postings = [posting]
             else:
                 # 完整的货件编号，精确匹配
                 logger.info(f"识别为货件编号（精确匹配）: {search_value}")
@@ -1283,6 +1285,8 @@ async def search_posting_by_tracking(
                     .where(OzonPosting.posting_number == search_value)
                 )
                 posting = result.scalar_one_or_none()
+                if posting:
+                    postings = [posting]
 
         elif search_value[-1].isalpha() and any(c.isdigit() for c in search_value):
             # 规则2: 结尾是字母 且 包含数字 → OZON追踪号码（字母+数字+字母）
@@ -1308,6 +1312,8 @@ async def search_posting_by_tracking(
                     .where(OzonPosting.id == package.posting_id)
                 )
                 posting = result.scalar_one_or_none()
+                if posting:
+                    postings = [posting]
             else:
                 logger.warning(f"未找到包裹，尝试从raw_payload查询: {search_value}")
                 # 如果packages表中没有，尝试从raw_payload查询
@@ -1323,11 +1329,14 @@ async def search_posting_by_tracking(
                     .where(OzonPosting.raw_payload['tracking_number'].astext == search_value)
                 )
                 posting = result.scalar_one_or_none()
+                if posting:
+                    postings = [posting]
 
         else:
             # 规则3: 纯数字 或 字母开头+数字 → 国内单号（结尾是数字）
+            # 可能匹配多个posting，返回所有结果
             logger.info(f"识别为国内单号（纯数字或字母开头+数字）: {search_value}")
-            # 通过关联表查询
+            # 通过关联表查询，返回所有匹配的posting
             result = await db.execute(
                 select(OzonPosting)
                 .options(
@@ -1340,24 +1349,21 @@ async def search_posting_by_tracking(
                 .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
                 .where(OzonDomesticTracking.tracking_number == search_value)
             )
-            posting = result.scalar_one_or_none()
+            postings = result.scalars().all()
 
-        if not posting:
+        if not postings:
             raise HTTPException(status_code=404, detail=f"未找到单号为 {tracking_number} 的货件")
 
-        # 获取订单信息
-        order = posting.order
-        if not order:
-            raise HTTPException(status_code=404, detail="订单信息不存在")
-
-        # 查询商品图片（从posting.products收集offer_id）
-        offer_id_images = {}
+        # 收集所有offer_id（用于批量查询图片）
         all_offer_ids = set()
-        if posting.raw_payload and 'products' in posting.raw_payload:
-            for product in posting.raw_payload['products']:
-                if product.get('offer_id'):
-                    all_offer_ids.add(product.get('offer_id'))
+        for posting in postings:
+            if posting.raw_payload and 'products' in posting.raw_payload:
+                for product in posting.raw_payload['products']:
+                    if product.get('offer_id'):
+                        all_offer_ids.add(product.get('offer_id'))
 
+        # 批量查询商品图片
+        offer_id_images = {}
         if all_offer_ids:
             product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
                 OzonProduct.offer_id.in_(list(all_offer_ids))
@@ -1374,45 +1380,56 @@ async def search_posting_by_tracking(
                     elif isinstance(images, list) and images:
                         offer_id_images[offer_id] = images[0]
 
-        # 转换为字典
-        order_dict = order.to_dict()
+        # 构建返回数据列表
+        result_list = []
+        for posting in postings:
+            order = posting.order
+            if not order:
+                continue
 
-        # 添加前端期望的字段（从查询到的 posting 提取，而不是 order.postings[0]）
-        # 添加 status（前端期望的字段名）
-        order_dict['status'] = posting.status
-        # 添加 operation_status
-        order_dict['operation_status'] = posting.operation_status
-        # 添加 tracking_number（从 packages 或 raw_payload 提取）
-        if posting.packages and len(posting.packages) > 0:
-            order_dict['tracking_number'] = posting.packages[0].tracking_number
-        elif posting.raw_payload and 'tracking_number' in posting.raw_payload:
-            order_dict['tracking_number'] = posting.raw_payload['tracking_number']
-        else:
-            order_dict['tracking_number'] = None
-        # 添加 delivery_method（配送方式）
-        order_dict['delivery_method'] = posting.delivery_method_name or order.delivery_method
-        # 添加 domestic_tracking_numbers（国内单号列表）
-        order_dict['domestic_tracking_numbers'] = posting.get_domestic_tracking_numbers()
+            # 转换为字典
+            order_dict = order.to_dict()
 
-        # 添加商品列表（从 posting.raw_payload.products 提取，包含图片）
-        items = []
-        if posting.raw_payload and 'products' in posting.raw_payload:
-            for product in posting.raw_payload['products']:
-                offer_id = product.get('offer_id')
-                item = {
-                    'sku': product.get('sku'),
-                    'name': product.get('name'),
-                    'quantity': product.get('quantity'),
-                    'price': product.get('price'),
-                    'offer_id': offer_id,
-                    'image': offer_id_images.get(offer_id) if offer_id else None
-                }
-                items.append(item)
-        order_dict['items'] = items
+            # 添加前端期望的字段（从查询到的 posting 提取，而不是 order.postings[0]）
+            # 添加 status（前端期望的字段名）
+            order_dict['status'] = posting.status
+            # 添加 operation_status
+            order_dict['operation_status'] = posting.operation_status
+            # 添加 tracking_number（从 packages 或 raw_payload 提取）
+            if posting.packages and len(posting.packages) > 0:
+                order_dict['tracking_number'] = posting.packages[0].tracking_number
+            elif posting.raw_payload and 'tracking_number' in posting.raw_payload:
+                order_dict['tracking_number'] = posting.raw_payload['tracking_number']
+            else:
+                order_dict['tracking_number'] = None
+            # 添加 delivery_method（配送方式）
+            order_dict['delivery_method'] = posting.delivery_method_name or order.delivery_method
+            # 添加 domestic_tracking_numbers（国内单号列表）
+            order_dict['domestic_tracking_numbers'] = posting.get_domestic_tracking_numbers()
 
-        # 返回与其他标签一致的数据结构
+            # 添加商品列表（从 posting.raw_payload.products 提取，包含图片）
+            items = []
+            if posting.raw_payload and 'products' in posting.raw_payload:
+                for product in posting.raw_payload['products']:
+                    offer_id = product.get('offer_id')
+                    item = {
+                        'sku': product.get('sku'),
+                        'name': product.get('name'),
+                        'quantity': product.get('quantity'),
+                        'price': product.get('price'),
+                        'offer_id': offer_id,
+                        'image': offer_id_images.get(offer_id) if offer_id else None
+                    }
+                    items.append(item)
+            order_dict['items'] = items
+
+            result_list.append(order_dict)
+
+        # 返回列表格式（支持多个结果）
+        logger.info(f"国内单号 {search_value} 匹配到 {len(result_list)} 个货件")
         return {
-            "data": order_dict,
+            "data": result_list,
+            "total": len(result_list),
             "offer_id_images": offer_id_images
         }
 
