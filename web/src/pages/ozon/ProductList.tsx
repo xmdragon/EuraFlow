@@ -257,7 +257,6 @@ const ProductList: React.FC = () => {
 
       return result;
     },
-    refetchInterval: 30000, // 30秒自动刷新
     // 只有选中店铺后才发送请求
     enabled: selectedShop !== null && selectedShop !== undefined,
     staleTime: 5000, // 数据5秒内不会被认为是过期的
@@ -269,7 +268,6 @@ const ProductList: React.FC = () => {
   const { data: globalStats } = useQuery({
     queryKey: ['ozonStatistics', selectedShop],
     queryFn: () => ozonApi.getStatistics(selectedShop),
-    refetchInterval: 30000, // 30秒自动刷新
     // 只有选中店铺后才发送请求
     enabled: selectedShop !== null && selectedShop !== undefined,
     staleTime: 5000, // 数据5秒内不会被认为是过期的
