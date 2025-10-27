@@ -42,8 +42,7 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
     queryKey: ['productSyncErrors', productId],
     queryFn: async () => {
       if (!productId) throw new Error('Product ID is required');
-      const response = await ozonApi.get(`/products/${productId}/sync-errors`);
-      return response.data;
+      return await ozonApi.getProductSyncErrors(productId);
     },
     enabled: visible && productId !== null,
   });

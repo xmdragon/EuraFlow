@@ -259,6 +259,12 @@ export const getProduct = async (productId: number) => {
   return response.data;
 };
 
+// 获取商品同步错误信息
+export const getProductSyncErrors = async (productId: number) => {
+  const response = await apiClient.get(`/ozon/products/${productId}/sync-errors`);
+  return response.data;
+};
+
 // 同步商品
 export const syncProducts = async (
   shopId?: number | null,
