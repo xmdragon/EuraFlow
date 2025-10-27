@@ -33,9 +33,13 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
     mutationFn: (data: ozonApi.SubmitDomesticTrackingRequest) => {
       return ozonApi.submitDomesticTracking(postingNumber, data);
     },
-    onSuccess: () => {
-      // 提交成功，后台会通过 WebSocket 推送同步结果
-      notifySuccess('国内单号已保存', '正在后台同步到跨境巴士，稍后将收到通知');
+    onSuccess: (response, variables) => {
+      // 提交成功，根据是否同步到跨境巴士显示不同提示
+      if (variables.sync_to_kuajing84) {
+        notifySuccess('国内单号已保存', '正在后台同步到跨境巴士，稍后将收到通知');
+      } else {
+        notifySuccess('国内单号已保存', '国内单号已成功保存');
+      }
       // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       // 调用父组件回调（用于从列表中移除）
