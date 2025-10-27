@@ -48,29 +48,62 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
   });
 
   const renderErrorItem = (error: any, index: number) => {
+    // 获取错误描述（优先使用 texts.description，其次使用 description）
+    const description = error.texts?.description || error.description;
+    const attributeName = error.texts?.attribute_name || error.attribute_name;
+
     return (
       <List.Item key={index}>
         <div style={{ width: '100%' }}>
-          {error.code && (
-            <div style={{ marginBottom: 8 }}>
+          {/* 错误代码和级别 */}
+          <div style={{ marginBottom: 8 }}>
+            {error.code && (
               <Tag color="red">{error.code}</Tag>
+            )}
+            {error.level && (
+              <Tag color="orange">{error.level}</Tag>
+            )}
+            {error.state && (
+              <Tag color="blue">{error.state}</Tag>
+            )}
+          </div>
+
+          {/* 错误描述（用户友好） */}
+          {description && (
+            <div style={{ marginBottom: 8, padding: '8px 12px', backgroundColor: '#fff2e8', borderRadius: '4px' }}>
+              <Text strong style={{ color: '#d46b08' }}>错误说明：</Text>
+              <div style={{ marginTop: 4 }}>
+                <Text>{description}</Text>
+              </div>
             </div>
           )}
+
+          {/* 属性名称 */}
+          {attributeName && (
+            <div style={{ marginBottom: 4 }}>
+              <Text strong>属性名称：</Text>
+              <Text>{attributeName}</Text>
+              {error.attribute_id && (
+                <Text type="secondary"> (ID: {error.attribute_id})</Text>
+              )}
+            </div>
+          )}
+
+          {/* 字段 */}
           {error.field && (
             <div style={{ marginBottom: 4 }}>
               <Text strong>字段：</Text>
               <Text code>{error.field}</Text>
             </div>
           )}
-          {error.message && (
-            <Paragraph style={{ marginBottom: 0, marginTop: 4 }}>
-              <Text>{error.message}</Text>
-            </Paragraph>
-          )}
-          {!error.code && !error.message && (
-            <Paragraph style={{ marginBottom: 0 }}>
-              <Text type="secondary">{JSON.stringify(error)}</Text>
-            </Paragraph>
+
+          {/* 技术消息（折叠显示） */}
+          {error.message && error.message !== description && (
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                技术信息：{error.message}
+              </Text>
+            </div>
           )}
         </div>
       </List.Item>
