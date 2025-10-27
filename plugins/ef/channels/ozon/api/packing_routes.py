@@ -318,11 +318,12 @@ async def get_packing_orders(
         )
 
     elif operation_status == 'allocated':
-        # 已分配：status='awaiting_deliver' AND 有追踪号码 AND (无国内单号 OR operation_status='allocated')
+        # 已分配：status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 有追踪号码 AND (无国内单号 OR operation_status='allocated')
         # 注意：当用户删除所有国内单号后，会自动设置 operation_status='allocated'
+        # 支持多种状态，因为订单在不同阶段都可能处于"已分配"状态
         query = query.where(
             and_(
-                OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
                 # 有追踪号码
                 OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
                 OzonPosting.raw_payload['tracking_number'].astext != '',
@@ -450,7 +451,7 @@ async def get_packing_orders(
     elif operation_status == 'allocated':
         count_query = count_query.where(
             and_(
-                OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
                 OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
                 OzonPosting.raw_payload['tracking_number'].astext != '',
                 # 无国内单号 OR operation_status='allocated'（后者覆盖删除国内单号的情况）
@@ -1710,9 +1711,9 @@ async def get_packing_stats(
         result = await db.execute(count_query)
         stats['allocating'] = result.scalar() or 0
 
-        # 3. 已分配：status='awaiting_deliver' AND 有追踪号码 AND (无国内单号 OR operation_status='allocated')
+        # 3. 已分配：status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 有追踪号码 AND (无国内单号 OR operation_status='allocated')
         count_query = select(func.count(OzonPosting.id)).where(
-            OzonPosting.status == 'awaiting_deliver',
+            OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
             OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
             OzonPosting.raw_payload['tracking_number'].astext != '',
             or_(
