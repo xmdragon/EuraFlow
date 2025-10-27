@@ -142,22 +142,19 @@ const PackingShipment: React.FC = () => {
 
   // 扫描单号状态
   const [scanTrackingNumber, setScanTrackingNumber] = useState<string>('');
-  const [scanResult, setScanResult] = useState<any>(null);
+  const [scanResults, setScanResults] = useState<any[]>([]); // 改为数组，支持多个结果
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
-  // 多结果选择状态
-  const [multipleResults, setMultipleResults] = useState<any[]>([]);
-  const [showMultipleResultsModal, setShowMultipleResultsModal] = useState(false);
+  // 扫描结果的批量打印状态
+  const [scanSelectedPostings, setScanSelectedPostings] = useState<string[]>([]);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  // 编辑备注弹窗状态
+  const [editNotesModalVisible, setEditNotesModalVisible] = useState(false);
+  const [editingPosting, setEditingPosting] = useState<any>(null);
   // 打印标签弹窗状态
   const [showPrintLabelModal, setShowPrintLabelModal] = useState(false);
   const [printLabelUrl, setPrintLabelUrl] = useState<string>('');
   const [currentPrintingPosting, setCurrentPrintingPosting] = useState<string>('');
-
-  // 国内单号编辑状态
-  const [isEditingTracking, setIsEditingTracking] = useState(false);
-  const [editingTrackingNumbers, setEditingTrackingNumbers] = useState<string[]>([]);
-  const [isSavingTracking, setIsSavingTracking] = useState(false);
 
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<any>(null);
@@ -1083,35 +1080,26 @@ const PackingShipment: React.FC = () => {
     }
 
     setIsScanning(true);
-    setScanResult(null);
+    setScanResults([]);
     setScanError('');
-    setMultipleResults([]);
-    setShowMultipleResultsModal(false);
+    setScanSelectedPostings([]);
 
     try {
       const result = await ozonApi.searchPostingByTracking(scanTrackingNumber.trim());
       if (result.data && Array.isArray(result.data) && result.data.length > 0) {
-        // 新版API返回数组格式
-        if (result.data.length === 1) {
-          // 只有一个结果，直接显示
-          setScanResult(result.data[0]);
-          setScanError('');
-        } else {
-          // 多个结果，弹出选择框
-          setMultipleResults(result.data);
-          setShowMultipleResultsModal(true);
-          setScanError('');
-        }
+        // API返回数组格式，直接显示表格
+        setScanResults(result.data);
+        setScanError('');
       } else if (result.data && !Array.isArray(result.data)) {
-        // 兼容旧版API（返回单个对象）
-        setScanResult(result.data);
+        // 兼容旧版API（返回单个对象），转为数组
+        setScanResults([result.data]);
         setScanError('');
       } else {
-        setScanResult(null);
+        setScanResults([]);
         setScanError('未找到对应的订单');
       }
     } catch (error) {
-      setScanResult(null);
+      setScanResults([]);
       setScanError(`查询失败: ${error.response?.data?.error?.title || error.message}`);
     } finally {
       // 无论成功失败都清空输入框
@@ -1154,9 +1142,11 @@ const PackingShipment: React.FC = () => {
       setPrintLabelUrl('');
       setCurrentPrintingPosting('');
       // 刷新扫描结果
-      if (scanResult && scanResult.posting_number === currentPrintingPosting) {
-        setScanResult({ ...scanResult, operation_status: 'printed' });
-      }
+      setScanResults((prev) =>
+        prev.map((p) =>
+          p.posting_number === currentPrintingPosting ? { ...p, operation_status: 'printed' } : p
+        )
+      );
       // 刷新计数
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       // 从当前列表中移除该posting
@@ -1211,16 +1201,85 @@ const PackingShipment: React.FC = () => {
     }
   };
 
+  // 扫描结果批量打印标签
+  const handleScanBatchPrint = async () => {
+    if (scanSelectedPostings.length === 0) {
+      notifyWarning('操作失败', '请先选择需要打印的订单');
+      return;
+    }
+
+    if (scanSelectedPostings.length > 20) {
+      notifyError('打印失败', '最多支持同时打印20个标签');
+      return;
+    }
+
+    setIsPrinting(true);
+
+    try {
+      const result = await ozonApi.batchPrintLabels(scanSelectedPostings);
+      if (result.success && result.pdf_url) {
+        // 打开PDF
+        window.open(result.pdf_url, '_blank');
+        notifySuccess(
+          '打印成功',
+          `成功打印${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}）`
+        );
+        // 清空选择
+        setScanSelectedPostings([]);
+      } else if (result.error === 'PARTIAL_FAILURE') {
+        // 部分成功
+        setPrintErrors(result.failed_postings || []);
+        setPrintSuccessPostings(result.success_postings || []);
+        setPrintErrorModalVisible(true);
+        // 如果有成功的，打开PDF
+        if (result.pdf_url) {
+          window.open(result.pdf_url, '_blank');
+        }
+      }
+    } catch (error) {
+      if (error.response?.status === 422) {
+        const errorData = error.response.data?.error?.detail || error.response.data?.detail;
+        if (errorData && typeof errorData === 'object' && errorData.error === 'ALL_FAILED') {
+          setPrintErrors(errorData.failed_postings || []);
+          setPrintSuccessPostings([]);
+          setPrintErrorModalVisible(true);
+        } else {
+          notifyWarning('打印提醒', '部分标签尚未准备好，请在订单装配后45-60秒重试');
+        }
+      } else {
+        notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
+      }
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // 打开编辑备注弹窗
+  const handleOpenEditNotes = (posting: any) => {
+    setEditingPosting(posting);
+    setEditNotesModalVisible(true);
+  };
+
   // 保存订单备注
-  const handleSaveOrderNotes = async () => {
-    if (!scanResult) return;
+  const handleSaveEditingNotes = async () => {
+    if (!editingPosting) return;
 
     setIsSavingNotes(true);
     try {
-      await ozonApi.updatePostingBusinessInfo(scanResult.posting_number, {
-        order_notes: scanResult.order_notes,
+      await ozonApi.updatePostingBusinessInfo(editingPosting.posting_number, {
+        order_notes: editingPosting.order_notes,
       });
       notifySuccess('保存成功', '订单备注已更新');
+      // 更新扫描结果中的数据
+      setScanResults((prev) =>
+        prev.map((p) =>
+          p.posting_number === editingPosting.posting_number
+            ? { ...p, order_notes: editingPosting.order_notes }
+            : p
+        )
+      );
+      setEditNotesModalVisible(false);
+      setEditingPosting(null);
     } catch (error) {
       notifyError('保存失败', `保存失败: ${error.response?.data?.error?.title || error.message}`);
     } finally {
@@ -1228,120 +1287,6 @@ const PackingShipment: React.FC = () => {
     }
   };
 
-  // 开始编辑国内单号
-  const handleStartEditTracking = () => {
-    const currentNumbers = scanResult?.domestic_tracking_numbers || [];
-    setEditingTrackingNumbers([...currentNumbers]);
-    setIsEditingTracking(true);
-  };
-
-  // 取消编辑国内单号
-  const handleCancelEditTracking = () => {
-    setIsEditingTracking(false);
-    setEditingTrackingNumbers([]);
-  };
-
-  // 更新编辑中的单号
-  const handleUpdateEditingNumber = (index: number, value: string) => {
-    const newNumbers = [...editingTrackingNumbers];
-    newNumbers[index] = value.toUpperCase(); // 转大写
-    setEditingTrackingNumbers(newNumbers);
-  };
-
-  // 删除编辑中的单号（删除后自动保存）
-  const handleDeleteEditingNumber = async (index: number) => {
-    const newNumbers = editingTrackingNumbers.filter((_, i) => i !== index);
-
-    // 过滤掉空字符串
-    const validNumbers = newNumbers.filter((n) => n.trim() !== '');
-
-    // 立即保存
-    if (!scanResult) return;
-
-    setIsSavingTracking(true);
-    try {
-      if (validNumbers.length === 0) {
-        // 删除所有国内单号
-        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
-          domestic_tracking_numbers: [''], // 传空字符串表示删除所有
-        });
-      } else {
-        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
-          domestic_tracking_numbers: validNumbers,
-        });
-      }
-
-      notifySuccess('删除成功', '国内单号已删除');
-
-      // 更新 scanResult
-      setScanResult({
-        ...scanResult,
-        domestic_tracking_numbers: validNumbers.length > 0 ? validNumbers : [],
-        // 如果清空了所有国内单号，前端也同步更新状态为"已分配"
-        operation_status: validNumbers.length === 0 ? 'allocated' : scanResult.operation_status,
-      });
-
-      // 更新编辑状态
-      setEditingTrackingNumbers(validNumbers);
-
-      // 如果删除后没有单号了，退出编辑状态
-      if (validNumbers.length === 0) {
-        setIsEditingTracking(false);
-      }
-    } catch (error) {
-      notifyError('删除失败', `删除失败: ${error.response?.data?.error?.title || error.message}`);
-      // 失败时恢复原来的状态
-      setEditingTrackingNumbers(editingTrackingNumbers);
-    } finally {
-      setIsSavingTracking(false);
-    }
-  };
-
-  // 添加新单号
-  const handleAddTrackingNumber = () => {
-    setEditingTrackingNumbers([...editingTrackingNumbers, '']);
-  };
-
-  // 保存国内单号
-  const handleSaveTrackingNumbers = async () => {
-    if (!scanResult) return;
-
-    // 过滤掉空字符串
-    const validNumbers = editingTrackingNumbers.filter((n) => n.trim() !== '');
-
-    // 允许删除所有单号（validNumbers 可以为空数组）
-    setIsSavingTracking(true);
-    try {
-      if (validNumbers.length === 0) {
-        // 删除所有国内单号
-        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
-          domestic_tracking_numbers: [''], // 传空字符串表示删除所有
-        });
-      } else {
-        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
-          domestic_tracking_numbers: validNumbers,
-        });
-      }
-
-      notifySuccess('保存成功', '国内单号已更新');
-
-      // 更新 scanResult
-      setScanResult({
-        ...scanResult,
-        domestic_tracking_numbers: validNumbers.length > 0 ? validNumbers : [],
-        // 如果清空了所有国内单号，前端也同步更新状态为"已分配"
-        operation_status: validNumbers.length === 0 ? 'allocated' : scanResult.operation_status,
-      });
-
-      // 退出编辑状态
-      setIsEditingTracking(false);
-      setEditingTrackingNumbers([]);
-    } catch (error) {
-      notifyError('保存失败', `保存失败: ${error.response?.data?.error?.title || error.message}`);
-    } finally {
-      setIsSavingTracking(false);
-    }
-  };
 
   // 错误展示Modal
   const PrintErrorModal = () => (
@@ -1476,8 +1421,9 @@ const PackingShipment: React.FC = () => {
             // 切换到扫描标签时清空之前的扫描结果
             if (key === 'scan') {
               setScanTrackingNumber('');
-              setScanResult(null);
+              setScanResults([]);
               setScanError('');
+              setScanSelectedPostings([]);
             }
           }}
           items={[
@@ -1584,295 +1530,163 @@ const PackingShipment: React.FC = () => {
               )}
 
               {/* 扫描结果 */}
-              {scanResult && (
-                <Card title="查询结果">
-                  <Descriptions bordered column={2}>
-                    <Descriptions.Item label="货件编号" span={2}>
-                      <Space>
-                        <Text strong>{scanResult.posting_number}</Text>
-                        <CopyOutlined
-                          style={{ cursor: 'pointer', color: '#1890ff' }}
-                          onClick={() => handleCopy(scanResult.posting_number, '货件编号')}
-                        />
-                      </Space>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="追踪号码">
-                      {scanResult.tracking_number ? (
-                        <Space>
-                          <span>{scanResult.tracking_number}</span>
-                          <CopyOutlined
-                            style={{ cursor: 'pointer', color: '#1890ff' }}
-                            onClick={() => handleCopy(scanResult.tracking_number, '追踪号码')}
-                          />
-                        </Space>
-                      ) : (
-                        '-'
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="国内单号" span={2}>
-                      {isEditingTracking ? (
-                        // 编辑模式
-                        <div>
-                          {editingTrackingNumbers.map((number, index) => (
-                            <div key={index} style={{ marginBottom: '8px' }}>
-                              <Space>
-                                <Input
-                                  value={number}
-                                  onChange={(e) =>
-                                    handleUpdateEditingNumber(index, e.target.value)
-                                  }
-                                  placeholder="请输入国内单号"
-                                  style={{ width: '200px' }}
-                                  disabled={isSavingTracking}
-                                />
-                                <Button
-                                  type="text"
-                                  danger
-                                  size="small"
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => handleDeleteEditingNumber(index)}
-                                  loading={isSavingTracking}
-                                  disabled={isSavingTracking}
-                                />
-                              </Space>
-                            </div>
-                          ))}
-                          <div style={{ marginTop: '8px' }}>
-                            <Space>
-                              <Button
-                                type="dashed"
-                                size="small"
-                                icon={<PlusOutlined />}
-                                onClick={handleAddTrackingNumber}
-                              >
-                                添加单号
-                              </Button>
-                              <Button
-                                type="primary"
-                                size="small"
-                                icon={<SaveOutlined />}
-                                loading={isSavingTracking}
-                                onClick={handleSaveTrackingNumbers}
-                              >
-                                保存
-                              </Button>
-                              <Button
-                                size="small"
-                                onClick={handleCancelEditTracking}
-                                disabled={isSavingTracking}
-                              >
-                                取消
-                              </Button>
-                            </Space>
-                          </div>
-                        </div>
-                      ) : (
-                        // 显示模式
-                        <div>
-                          {scanResult.domestic_tracking_numbers &&
-                          scanResult.domestic_tracking_numbers.length > 0 ? (
-                            <>
-                              {scanResult.domestic_tracking_numbers.map(
-                                (number: string, index: number) => (
-                                  <div
-                                    key={index}
-                                    style={{
-                                      marginBottom:
-                                        index < scanResult.domestic_tracking_numbers.length - 1
-                                          ? '4px'
-                                          : 0,
-                                    }}
-                                  >
-                                    <Space>
-                                      <span>{number}</span>
-                                      <CopyOutlined
-                                        style={{
-                                          cursor: 'pointer',
-                                          color: '#1890ff',
-                                        }}
-                                        onClick={() => handleCopy(number, '国内单号')}
-                                      />
-                                    </Space>
-                                  </div>
-                                )
-                              )}
-                              <Button
-                                type="link"
-                                size="small"
-                                icon={<EditOutlined />}
-                                onClick={handleStartEditTracking}
-                                style={{ paddingLeft: 0, marginTop: '4px' }}
-                              >
-                                编辑
-                              </Button>
-                            </>
-                          ) : (
-                            <Space>
-                              <span>-</span>
-                              <Button
-                                type="link"
-                                size="small"
-                                icon={<PlusOutlined />}
-                                onClick={handleStartEditTracking}
-                              >
-                                添加
-                              </Button>
-                            </Space>
-                          )}
-                        </div>
-                      )}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="订单状态">
-                      <Tag color={statusConfig[scanResult.status]?.color || 'default'}>
-                        {statusConfig[scanResult.status]?.text || scanResult.status}
-                      </Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="操作状态">
-                      <Tag
-                        color={
-                          operationStatusConfig[scanResult.operation_status]?.color || 'default'
-                        }
+              {scanResults.length > 0 && (
+                <Card
+                  title={`查询结果 (${scanResults.length})`}
+                  extra={
+                    canOperate && (
+                      <Button
+                        type="primary"
+                        icon={<PrinterOutlined />}
+                        loading={isPrinting}
+                        disabled={scanSelectedPostings.length === 0}
+                        onClick={handleScanBatchPrint}
                       >
-                        {operationStatusConfig[scanResult.operation_status]?.text ||
-                          scanResult.operation_status ||
-                          '-'}
-                      </Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="配送方式" span={2}>
-                      {scanResult.delivery_method || '-'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="下单时间">
-                      {scanResult.ordered_at
-                        ? moment(scanResult.ordered_at).format('YYYY-MM-DD HH:mm')
-                        : '-'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="发货截止">
-                      <Text type="danger">
-                        {scanResult.shipment_date
-                          ? moment(scanResult.shipment_date).format('YYYY-MM-DD HH:mm')
-                          : '-'}
-                      </Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="订单备注" span={2}>
-                      <Input.TextArea
-                        value={scanResult.order_notes || ''}
-                        onChange={(e) => {
-                          setScanResult((prev) => ({
-                            ...prev,
-                            order_notes: e.target.value,
-                          }));
-                        }}
-                        placeholder="暂无备注"
-                        autoSize={{ minRows: 2, maxRows: 6 }}
-                        style={{ width: '100%' }}
-                      />
-                    </Descriptions.Item>
-                  </Descriptions>
-
-                  {/* 商品列表 */}
-                  {scanResult.items && scanResult.items.length > 0 && (
-                    <div style={{ marginTop: 16 }}>
-                      <Text strong>商品明细:</Text>
-                      <Table
-                        dataSource={scanResult.items}
-                        rowKey="sku"
-                        pagination={false}
-                        size="small"
-                        style={{ marginTop: 8 }}
-                        columns={[
-                          {
-                            title: '商品图片',
-                            dataIndex: 'image',
-                            width: 100,
-                            render: (image) =>
-                              image ? (
-                                <Tooltip
-                                  overlayInnerStyle={{ padding: 0 }}
-                                  title={
-                                    <img
-                                      src={optimizeOzonImageUrl(image, 400)}
-                                      alt=""
-                                      style={{ width: 400, height: 400 }}
-                                    />
-                                  }
-                                >
-                                  <img
-                                    src={optimizeOzonImageUrl(image, 160)}
-                                    alt=""
-                                    style={{
-                                      width: 160,
-                                      height: 160,
-                                      cursor: 'pointer',
-                                    }}
-                                  />
-                                </Tooltip>
-                              ) : (
-                                <Avatar size={160} icon={<ShoppingCartOutlined />} shape="square" />
-                              ),
-                          },
-                          {
-                            title: 'SKU',
-                            dataIndex: 'sku',
-                          },
-                          {
-                            title: '商品名称',
-                            dataIndex: 'name',
-                          },
-                          {
-                            title: '数量',
-                            dataIndex: 'quantity',
-                            width: 80,
-                            render: (qty) => `x${qty}`,
-                          },
-                          {
-                            title: '单价',
-                            dataIndex: 'price',
-                            width: 100,
-                            render: (price) => formatPrice(price),
-                          },
-                        ]}
-                      />
-                    </div>
-                  )}
-
-                  {/* 操作按钮 */}
-                  {canOperate && (
-                    <div style={{ marginTop: 16, textAlign: 'center' }}>
-                      <Space size="large">
-                        <Button
-                          type="primary"
-                          size="large"
-                          icon={<PrinterOutlined />}
-                          loading={isPrinting}
-                          onClick={() => handlePrintSingleLabel(scanResult.posting_number)}
-                          disabled={scanResult.status !== 'awaiting_deliver'}
-                        >
-                          打印标签
-                        </Button>
-                        <Button
-                          type="default"
-                          size="large"
-                          icon={<CheckCircleOutlined />}
-                          onClick={() => handleMarkPrinted(scanResult.posting_number)}
-                          disabled={
-                            scanResult.operation_status === 'printed' ||
-                            scanResult.status !== 'awaiting_deliver'
+                        批量打印 ({scanSelectedPostings.length}/{scanResults.length})
+                      </Button>
+                    )
+                  }
+                >
+                  <Table
+                    dataSource={scanResults}
+                    rowKey="posting_number"
+                    pagination={false}
+                    size="middle"
+                    rowSelection={
+                      canOperate
+                        ? {
+                            selectedRowKeys: scanSelectedPostings,
+                            onChange: (selectedRowKeys) => {
+                              setScanSelectedPostings(selectedRowKeys as string[]);
+                            },
                           }
-                        >
-                          {scanResult.operation_status === 'printed' ? '已打印' : '标记已打印'}
-                        </Button>
-                        <Button
-                          type="default"
-                          size="large"
-                          icon={<FileTextOutlined />}
-                          loading={isSavingNotes}
-                          onClick={handleSaveOrderNotes}
-                        >
-                          保存备注
-                        </Button>
-                      </Space>
-                    </div>
-                  )}
+                        : undefined
+                    }
+                    columns={[
+                      {
+                        title: '货件编号',
+                        dataIndex: 'posting_number',
+                        width: 180,
+                        render: (text, record) => (
+                          <Space direction="vertical" size={0}>
+                            <a
+                              onClick={() => handleOpenEditNotes(record)}
+                              style={{ cursor: 'pointer', color: '#1890ff' }}
+                            >
+                              {text}
+                            </a>
+                            <CopyOutlined
+                              style={{ cursor: 'pointer', color: '#1890ff' }}
+                              onClick={() => handleCopy(text, '货件编号')}
+                            />
+                          </Space>
+                        ),
+                      },
+                      {
+                        title: '追踪号码',
+                        dataIndex: 'tracking_number',
+                        width: 150,
+                        render: (text) =>
+                          text ? (
+                            <Space>
+                              <span>{text}</span>
+                              <CopyOutlined
+                                style={{ cursor: 'pointer', color: '#1890ff' }}
+                                onClick={() => handleCopy(text, '追踪号码')}
+                              />
+                            </Space>
+                          ) : (
+                            '-'
+                          ),
+                      },
+                      {
+                        title: '国内单号',
+                        dataIndex: 'domestic_tracking_numbers',
+                        width: 180,
+                        render: (numbers: string[]) =>
+                          numbers && numbers.length > 0 ? (
+                            <div>
+                              {numbers.map((num, idx) => (
+                                <div key={idx}>
+                                  <span>{num}</span>
+                                  <CopyOutlined
+                                    style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                                    onClick={() => handleCopy(num, '国内单号')}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            '-'
+                          ),
+                      },
+                      {
+                        title: '订单状态',
+                        dataIndex: 'status',
+                        width: 110,
+                        render: (status) => {
+                          const config = statusConfig[status] || statusConfig.pending;
+                          return (
+                            <Tag color={config.color}>
+                              {config.icon} {config.text}
+                            </Tag>
+                          );
+                        },
+                      },
+                      {
+                        title: '操作状态',
+                        dataIndex: 'operation_status',
+                        width: 110,
+                        render: (opStatus) => {
+                          const config = operationStatusConfig[opStatus];
+                          return config ? <Tag color={config.color}>{config.text}</Tag> : '-';
+                        },
+                      },
+                      {
+                        title: '配送方式',
+                        dataIndex: 'delivery_method',
+                        width: 120,
+                        render: (text) => text || '-',
+                      },
+                      {
+                        title: '下单时间',
+                        dataIndex: 'ordered_at',
+                        width: 130,
+                        render: (date) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
+                      },
+                      {
+                        title: '发货截止',
+                        dataIndex: 'shipment_date',
+                        width: 130,
+                        render: (date) => (
+                          <Text type="danger">
+                            {date ? moment(date).format('MM-DD HH:mm') : '-'}
+                          </Text>
+                        ),
+                      },
+                      {
+                        title: '操作',
+                        key: 'action',
+                        width: 100,
+                        fixed: 'right' as const,
+                        render: (_, record) => (
+                          <Space>
+                            {canOperate && (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<PrinterOutlined />}
+                                loading={isPrinting}
+                                onClick={() => handlePrintSingleLabel(record.posting_number)}
+                              >
+                                打印
+                              </Button>
+                            )}
+                          </Space>
+                        ),
+                      },
+                    ]}
+                  />
                 </Card>
               )}
             </Space>
@@ -2107,6 +1921,41 @@ const PackingShipment: React.FC = () => {
         sku={selectedSku}
         productName={selectedProductName}
       />
+
+      {/* 编辑备注弹窗 */}
+      {editingPosting && (
+        <Modal
+          title={`编辑备注 - ${editingPosting.posting_number}`}
+          open={editNotesModalVisible}
+          onCancel={() => {
+            setEditNotesModalVisible(false);
+            setEditingPosting(null);
+          }}
+          onOk={handleSaveEditingNotes}
+          confirmLoading={isSavingNotes}
+          okText="保存"
+          cancelText="取消"
+          width={600}
+        >
+          <Form layout="vertical">
+            <Form.Item label="订单备注">
+              <Input.TextArea
+                value={editingPosting.order_notes || ''}
+                onChange={(e) => {
+                  setEditingPosting({
+                    ...editingPosting,
+                    order_notes: e.target.value,
+                  });
+                }}
+                placeholder="请输入订单备注"
+                autoSize={{ minRows: 4, maxRows: 10 }}
+                maxLength={500}
+                showCount
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
+      )}
 
       {/* 批量打印错误展示Modal */}
       <PrintErrorModal />
