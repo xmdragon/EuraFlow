@@ -512,6 +512,11 @@ async def update_prices(
                     errors.append(f"商品货号 {offer_id}: 商品不存在")
                     continue
 
+                # 检查必需字段
+                if not product.ozon_product_id:
+                    errors.append(f"商品货号 {offer_id}: 缺少 OZON product_id，请先同步商品数据")
+                    continue
+
                 # 调用Ozon API更新价格
                 price_data = {
                     "prices": [{
@@ -524,16 +529,28 @@ async def update_prices(
 
                 api_result = await client.update_prices(price_data)
 
-                if api_result.get("result"):
-                    # 更新本地数据库
-                    product.price = Decimal(str(new_price))
-                    if old_price:
-                        product.old_price = Decimal(str(old_price))
-                    product.updated_at = datetime.now()
+                # 检查API返回结果
+                if api_result.get("result") and len(api_result["result"]) > 0:
+                    result_item = api_result["result"][0]
 
-                    updated_count += 1
+                    # 检查 updated 字段确认是否成功
+                    if result_item.get("updated") is True:
+                        # 更新本地数据库
+                        product.price = Decimal(str(new_price))
+                        if old_price:
+                            product.old_price = Decimal(str(old_price))
+                        product.updated_at = datetime.now()
+                        updated_count += 1
+                    else:
+                        # 提取错误信息
+                        error_msgs = []
+                        if result_item.get("errors"):
+                            for err in result_item["errors"]:
+                                error_msgs.append(f"{err.get('code', 'UNKNOWN')}: {err.get('message', '未知错误')}")
+                        error_detail = "; ".join(error_msgs) if error_msgs else "更新失败"
+                        errors.append(f"商品货号 {offer_id}: {error_detail}")
                 else:
-                    errors.append(f"商品货号 {offer_id}: Ozon API更新失败")
+                    errors.append(f"商品货号 {offer_id}: API返回结果为空")
 
             except Exception as e:
                 errors.append(f"商品货号 {offer_id}: {str(e)}")
@@ -625,6 +642,11 @@ async def update_stocks(
                     errors.append(f"商品货号 {offer_id}: 商品不存在")
                     continue
 
+                # 检查必需字段
+                if not product.ozon_product_id:
+                    errors.append(f"商品货号 {offer_id}: 缺少 OZON product_id，请先同步商品数据")
+                    continue
+
                 # 调用Ozon API更新库存
                 stock_data = {
                     "stocks": [{
@@ -637,15 +659,27 @@ async def update_stocks(
 
                 api_result = await client.update_stocks(stock_data)
 
-                if api_result.get("result"):
-                    # 更新本地数据库
-                    product.stock = int(stock)
-                    product.available = int(stock)  # 简化：认为所有库存都可用
-                    product.updated_at = datetime.now()
+                # 检查API返回结果
+                if api_result.get("result") and len(api_result["result"]) > 0:
+                    result_item = api_result["result"][0]
 
-                    updated_count += 1
+                    # 检查 updated 字段确认是否成功
+                    if result_item.get("updated") is True:
+                        # 更新本地数据库
+                        product.stock = int(stock)
+                        product.available = int(stock)  # 简化：认为所有库存都可用
+                        product.updated_at = datetime.now()
+                        updated_count += 1
+                    else:
+                        # 提取错误信息
+                        error_msgs = []
+                        if result_item.get("errors"):
+                            for err in result_item["errors"]:
+                                error_msgs.append(f"{err.get('code', 'UNKNOWN')}: {err.get('message', '未知错误')}")
+                        error_detail = "; ".join(error_msgs) if error_msgs else "更新失败"
+                        errors.append(f"商品货号 {offer_id}: {error_detail}")
                 else:
-                    errors.append(f"商品货号 {offer_id}: Ozon API更新失败")
+                    errors.append(f"商品货号 {offer_id}: API返回结果为空")
 
             except Exception as e:
                 errors.append(f"商品货号 {offer_id}: {str(e)}")
