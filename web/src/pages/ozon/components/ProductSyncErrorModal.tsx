@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, Alert, Empty, Spin, Typography, List, Tag } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { ozonApi } from '@/api/ozonApi';
+import * as ozonApi from '@/services/ozonApi';
 
 const { Text, Paragraph } = Typography;
 
