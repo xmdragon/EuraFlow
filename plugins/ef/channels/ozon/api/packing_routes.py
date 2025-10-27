@@ -1066,6 +1066,9 @@ async def batch_print_labels(
 
         # 5.2 获取未缓存的标签（逐个调用，避免一个失败影响全部）
         from ..api.client import OzonAPIClient
+        from ..services.label_service import LabelService
+
+        label_service = LabelService(db)
 
         async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
             for pn in need_fetch_postings:
@@ -1080,35 +1083,18 @@ async def batch_print_labels(
                     continue
 
                 try:
-                    # 单个调用OZON API
-                    result = await client.get_package_labels([pn])
-
-                    # 解析PDF数据
-                    pdf_content_base64 = result.get('file_content', '')
-                    if not pdf_content_base64:
-                        logger.error(f"OZON API返回的PDF内容为空，result keys: {list(result.keys())}")
-                        raise ValueError("OZON API返回的PDF内容为空")
-
-                    pdf_content = base64.b64decode(pdf_content_base64)
-
-                    # 保存PDF文件（保存到 public 目录，避免重新构建时丢失）
-                    label_dir = f"web/public/downloads/labels/{shop_id}"
-                    os.makedirs(label_dir, exist_ok=True)
-                    pdf_path = f"{label_dir}/{pn}.pdf"
-
-                    with open(pdf_path, 'wb') as f:
-                        f.write(pdf_content)
-
-                    logger.info(f"成功保存标签PDF: {pdf_path}")
-
-                    # 更新数据库
-                    await db.execute(
-                        update(OzonPosting)
-                        .where(OzonPosting.posting_number == pn)
-                        .values(label_pdf_path=pdf_path, updated_at=utcnow())
+                    # 使用标签服务下载并保存PDF
+                    download_result = await label_service.download_and_save_label(
+                        posting_number=pn,
+                        shop_id=shop_id,
+                        api_client=client,
+                        force=False  # 不强制重新下载
                     )
 
-                    pdf_files.append(pdf_path)
+                    if not download_result["success"]:
+                        raise ValueError(download_result.get("error", "未知错误"))
+
+                    pdf_files.append(download_result["pdf_path"])
                     success_postings.append(pn)
 
                 except httpx.HTTPStatusError as e:
@@ -1183,9 +1169,10 @@ async def batch_print_labels(
                 for pdf_file in pdf_files:
                     merger.append(pdf_file)
 
-                # 生成批量PDF文件名（按店铺保存到 public 目录，避免重新构建时丢失）
+                # 生成批量PDF文件名（使用标签服务的统一路径）
+                from ..services.label_service import LabelService
                 batch_filename = f"batch_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.pdf"
-                batch_path = f"web/public/downloads/labels/{shop_id}/{batch_filename}"
+                batch_path = f"{LabelService.get_label_dir(shop_id)}/{batch_filename}"
 
                 # 确保目录存在
                 os.makedirs(os.path.dirname(batch_path), exist_ok=True)

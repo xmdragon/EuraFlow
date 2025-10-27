@@ -65,38 +65,30 @@ async def _download_label_pdf_async(posting_number: str, shop_id: int):
                 logger.info(f"Posting {posting_number} 标签PDF已存在，跳过下载")
                 return
 
-            # 调用OZON API下载标签
+            # 使用标签服务下载标签
             from .api.client import OzonAPIClient
+            from .services.label_service import LabelService
+
+            label_service = LabelService(db)
 
             async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
                 try:
-                    result = await client.get_package_labels([posting_number])
-
-                    # 解析PDF数据
-                    pdf_content_base64 = result.get('file_content', '')
-                    if not pdf_content_base64:
-                        logger.warning(f"OZON API返回的标签PDF内容为空: {posting_number}")
-                        return
-
-                    pdf_content = base64.b64decode(pdf_content_base64)
-
-                    # 保存PDF文件（保存到 public 目录，避免重新构建时丢失）
-                    label_dir = f"web/public/downloads/labels/{shop_id}"
-                    os.makedirs(label_dir, exist_ok=True)
-                    pdf_path = f"{label_dir}/{posting_number}.pdf"
-
-                    with open(pdf_path, 'wb') as f:
-                        f.write(pdf_content)
-
-                    # 更新数据库
-                    await db.execute(
-                        update(OzonPosting)
-                        .where(OzonPosting.posting_number == posting_number)
-                        .values(label_pdf_path=pdf_path, updated_at=utcnow())
+                    # 使用标签服务下载并保存PDF
+                    download_result = await label_service.download_and_save_label(
+                        posting_number=posting_number,
+                        shop_id=shop_id,
+                        api_client=client,
+                        force=False  # 不强制重新下载，使用缓存
                     )
-                    await db.commit()
 
-                    logger.info(f"✅ 成功自动下载并保存标签PDF: {pdf_path}")
+                    if download_result["success"]:
+                        await db.commit()
+                        if download_result.get("cached"):
+                            logger.info(f"✅ 标签PDF已缓存，跳过下载: {posting_number}")
+                        else:
+                            logger.info(f"✅ 成功自动下载并保存标签PDF: {download_result['pdf_path']}")
+                    else:
+                        logger.warning(f"自动下载标签PDF失败 {posting_number}: {download_result.get('error')}")
 
                 except Exception as e:
                     logger.warning(f"自动下载标签PDF失败 {posting_number}: {e}")
