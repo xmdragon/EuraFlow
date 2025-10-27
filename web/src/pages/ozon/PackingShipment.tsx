@@ -333,6 +333,7 @@ const PackingShipment: React.FC = () => {
     allocated: { color: 'warning', text: '已分配' },
     tracking_confirmed: { color: 'success', text: '单号确认' },
     printed: { color: 'success', text: '已打印' },
+    shipping: { color: 'processing', text: '发货中' },
   };
 
   // 查询打包发货订单列表
