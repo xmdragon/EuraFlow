@@ -1015,7 +1015,9 @@ const PackingShipment: React.FC = () => {
           window.open(result.pdf_url, '_blank');
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('批量打印错误:', error);
+
       // 全部失败
       if (error.response?.status === 422) {
         // EuraFlow统一错误格式：error.response.data.error.detail
@@ -1026,11 +1028,42 @@ const PackingShipment: React.FC = () => {
           setPrintErrors(errorData.failed_postings || []);
           setPrintSuccessPostings([]);
           setPrintErrorModalVisible(true);
+        } else if (errorData && typeof errorData === 'object' && errorData.error === 'INVALID_STATUS') {
+          // 状态错误，显示详细信息
+          setPrintErrors(errorData.invalid_postings || []);
+          setPrintSuccessPostings([]);
+          setPrintErrorModalVisible(true);
         } else {
-          notifyWarning('打印提醒', '部分标签尚未准备好，请在订单装配后45-60秒重试');
+          // 提取错误信息
+          let errorMessage = '部分标签尚未准备好，请在订单装配后45-60秒重试';
+          if (error.response?.data?.error) {
+            const err = error.response.data.error;
+            if (typeof err.title === 'object' && err.title?.message) {
+              errorMessage = err.title.message;
+            } else if (typeof err.title === 'string') {
+              errorMessage = err.title;
+            } else if (err.detail?.message) {
+              errorMessage = err.detail.message;
+            }
+          }
+          notifyWarning('打印提醒', errorMessage);
         }
       } else {
-        notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
+        // 提取错误信息
+        let errorMessage = '打印失败';
+        if (error.response?.data?.error) {
+          const err = error.response.data.error;
+          if (typeof err.title === 'object' && err.title?.message) {
+            errorMessage = err.title.message;
+          } else if (typeof err.title === 'string') {
+            errorMessage = err.title;
+          } else if (err.detail?.message) {
+            errorMessage = err.detail.message;
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        notifyError('打印失败', errorMessage);
       }
     } finally {
       setIsPrinting(false);
@@ -1151,8 +1184,28 @@ const PackingShipment: React.FC = () => {
       } else {
         notifyError('打印失败', '打印失败');
       }
-    } catch (error) {
-      notifyError('打印失败', `打印失败: ${error.response?.data?.error?.title || error.message}`);
+    } catch (error: any) {
+      console.error('打印标签错误:', error);
+
+      // 提取错误信息
+      let errorMessage = '打印失败';
+      if (error.response?.data?.error) {
+        const errorData = error.response.data.error;
+        // 处理 title 为对象的情况
+        if (typeof errorData.title === 'object' && errorData.title?.message) {
+          errorMessage = errorData.title.message;
+        } else if (typeof errorData.title === 'string') {
+          errorMessage = errorData.title;
+        } else if (errorData.detail?.message) {
+          errorMessage = errorData.detail.message;
+        } else if (errorData.detail) {
+          errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      notifyError('打印失败', errorMessage);
     } finally {
       setIsPrinting(false);
     }
