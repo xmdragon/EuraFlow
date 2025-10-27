@@ -46,6 +46,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
+import ProductSyncErrorModal from './components/ProductSyncErrorModal';
 
 import styles from './ProductList.module.scss';
 
@@ -98,6 +99,8 @@ const ProductList: React.FC = () => {
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({
     status: 'on_sale',
   });
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [selectedProductForError, setSelectedProductForError] = useState<number | null>(null);
 
   // 排序状态管理
   const [sortBy, setSortBy] = useState<string | null>(null);
@@ -920,9 +923,23 @@ const ProductList: React.FC = () => {
           deleted: { color: 'error', text: '已删除' },
         };
 
+        const isError = status === 'error';
+        const handleErrorClick = () => {
+          if (isError) {
+            setSelectedProductForError(record.id);
+            setErrorModalVisible(true);
+          }
+        };
+
         return (
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            <Tag color={statusMap[status]?.color}>{statusMap[status]?.text || status}</Tag>
+            <Tag
+              color={statusMap[status]?.color}
+              style={{ cursor: isError ? 'pointer' : 'default' }}
+              onClick={handleErrorClick}
+            >
+              {statusMap[status]?.text || status}
+            </Tag>
             <div style={{ fontSize: 11, color: '#999' }}>
               {record.ozon_has_fbs_stocks && <div>FBS</div>}
             </div>
@@ -2394,6 +2411,16 @@ const ProductList: React.FC = () => {
       >
         <p>{syncFullMode ? '全量同步将拉取所有商品数据，耗时较长' : '增量同步将只拉取最近更新的商品'}</p>
       </Modal>
+
+      {/* 商品同步错误详情弹窗 */}
+      <ProductSyncErrorModal
+        visible={errorModalVisible}
+        productId={selectedProductForError}
+        onClose={() => {
+          setErrorModalVisible(false);
+          setSelectedProductForError(null);
+        }}
+      />
     </div>
   );
 };

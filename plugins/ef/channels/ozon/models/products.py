@@ -252,3 +252,39 @@ class OzonInventorySnapshot(Base):
         Index("idx_ozon_inventory_snapshot", "shop_id", "snapshot_date"),
         Index("idx_ozon_inventory_warehouse", "warehouse_id", "snapshot_date")
     )
+
+
+class OzonProductSyncError(Base):
+    """Ozon 商品同步错误记录"""
+    __tablename__ = "ozon_product_sync_errors"
+
+    # 主键
+    id = Column(BigInteger, primary_key=True)
+
+    # 店铺隔离
+    shop_id = Column(Integer, nullable=False, index=True, comment="店铺ID")
+
+    # 商品关联
+    product_id = Column(BigInteger, ForeignKey("ozon_products.id", ondelete="CASCADE"), nullable=True, index=True, comment="关联的商品ID")
+    offer_id = Column(String(100), nullable=False, index=True, comment="商品 offer_id")
+
+    # 任务信息
+    task_id = Column(BigInteger, nullable=True, index=True, comment="OZON 任务ID")
+
+    # 同步状态
+    status = Column(String(50), nullable=True, comment="同步状态")
+
+    # 错误详情（JSONB存储数组）
+    errors = Column(JSONB, nullable=True, comment="错误详情数组")
+
+    # 时间戳
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # 关系
+    product = relationship("OzonProduct", backref="sync_errors")
+
+    __table_args__ = (
+        Index("idx_ozon_product_sync_errors_composite", "shop_id", "product_id", "created_at"),
+        {"extend_existing": True}
+    )

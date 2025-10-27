@@ -1063,3 +1063,60 @@ async def import_products(
             "success": False,
             "message": f"导入失败: {str(e)}"
         }
+
+
+@router.get("/products/{product_id}/sync-errors")
+async def get_product_sync_errors(
+    product_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取商品的同步错误信息
+    """
+    from ..models.products import OzonProductSyncError
+
+    # 先查询商品，确保商品存在并且用户有权限访问
+    product_query = select(OzonProduct).where(OzonProduct.id == product_id)
+    product_result = await db.execute(product_query)
+    product = product_result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="商品不存在")
+
+    # 权限检查：确保用户有权限访问该店铺的商品
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, product.shop_id)
+        if product.shop_id not in allowed_shop_ids:
+            raise HTTPException(status_code=403, detail="无权访问此商品")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    # 查询最新的同步错误记录
+    error_query = (
+        select(OzonProductSyncError)
+        .where(OzonProductSyncError.product_id == product_id)
+        .order_by(OzonProductSyncError.created_at.desc())
+        .limit(1)
+    )
+    error_result = await db.execute(error_query)
+    sync_error = error_result.scalar_one_or_none()
+
+    if not sync_error:
+        return {
+            "has_errors": False,
+            "message": "该商品没有同步错误记录"
+        }
+
+    return {
+        "has_errors": True,
+        "sync_error": {
+            "id": sync_error.id,
+            "offer_id": sync_error.offer_id,
+            "task_id": sync_error.task_id,
+            "status": sync_error.status,
+            "errors": sync_error.errors or [],
+            "created_at": sync_error.created_at.isoformat() if sync_error.created_at else None,
+            "updated_at": sync_error.updated_at.isoformat() if sync_error.updated_at else None
+        }
+    }
