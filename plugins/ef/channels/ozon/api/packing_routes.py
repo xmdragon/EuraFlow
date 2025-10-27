@@ -1086,7 +1086,6 @@ async def batch_print_labels(
                     # 使用标签服务下载并保存PDF
                     download_result = await label_service.download_and_save_label(
                         posting_number=pn,
-                        shop_id=shop_id,
                         api_client=client,
                         force=False  # 不强制重新下载
                     )
@@ -1172,7 +1171,7 @@ async def batch_print_labels(
                 # 生成批量PDF文件名（使用标签服务的统一路径）
                 from ..services.label_service import LabelService
                 batch_filename = f"batch_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.pdf"
-                batch_path = f"{LabelService.get_label_dir(shop_id)}/{batch_filename}"
+                batch_path = f"{LabelService.get_label_dir()}/{batch_filename}"
 
                 # 确保目录存在
                 os.makedirs(os.path.dirname(batch_path), exist_ok=True)

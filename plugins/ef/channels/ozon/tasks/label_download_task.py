@@ -76,7 +76,6 @@ async def _download_label_pdf_async(posting_number: str, shop_id: int):
                     # 使用标签服务下载并保存PDF
                     download_result = await label_service.download_and_save_label(
                         posting_number=posting_number,
-                        shop_id=shop_id,
                         api_client=client,
                         force=False  # 不强制重新下载，使用缓存
                     )

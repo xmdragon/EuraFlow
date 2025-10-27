@@ -25,57 +25,53 @@ def utcnow():
 class LabelService:
     """标签管理服务"""
 
-    # 标签存储根目录（使用 public 目录，避免重新构建时丢失）
-    LABEL_ROOT_DIR = "web/public/downloads/labels"
+    # 标签存储目录（使用 public 目录，避免重新构建时丢失）
+    # 所有标签统一保存在同一目录下，不按店铺分目录
+    # 原因：1) OZON标签以posting为单位 2) 国内单号可能跨店铺
+    LABEL_DIR = "web/public/downloads/labels"
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
     @classmethod
-    def get_label_dir(cls, shop_id: int) -> str:
+    def get_label_dir(cls) -> str:
         """
         获取标签存储目录
-
-        Args:
-            shop_id: 店铺ID
 
         Returns:
             标签存储目录路径
         """
-        return f"{cls.LABEL_ROOT_DIR}/{shop_id}"
+        return cls.LABEL_DIR
 
     @classmethod
-    def get_label_path(cls, shop_id: int, posting_number: str) -> str:
+    def get_label_path(cls, posting_number: str) -> str:
         """
         获取标签文件路径
 
         Args:
-            shop_id: 店铺ID
             posting_number: 货件编号
 
         Returns:
             标签文件完整路径
         """
-        return f"{cls.get_label_dir(shop_id)}/{posting_number}.pdf"
+        return f"{cls.LABEL_DIR}/{posting_number}.pdf"
 
     @classmethod
-    def get_label_url(cls, shop_id: int, posting_number: str) -> str:
+    def get_label_url(cls, posting_number: str) -> str:
         """
         获取标签访问URL
 
         Args:
-            shop_id: 店铺ID
             posting_number: 货件编号
 
         Returns:
             标签访问URL（相对路径）
         """
-        return f"/downloads/labels/{shop_id}/{posting_number}.pdf"
+        return f"/downloads/labels/{posting_number}.pdf"
 
     async def download_and_save_label(
         self,
         posting_number: str,
-        shop_id: int,
         api_client: OzonAPIClient,
         force: bool = False
     ) -> Dict[str, Any]:
@@ -84,7 +80,6 @@ class LabelService:
 
         Args:
             posting_number: 货件编号
-            shop_id: 店铺ID
             api_client: OZON API客户端
             force: 是否强制重新下载（默认False，如果已有缓存则跳过）
 
@@ -128,9 +123,9 @@ class LabelService:
             pdf_content = base64.b64decode(pdf_content_base64)
 
             # 4. 保存PDF文件
-            label_dir = self.get_label_dir(shop_id)
+            label_dir = self.get_label_dir()
             os.makedirs(label_dir, exist_ok=True)
-            pdf_path = self.get_label_path(shop_id, posting_number)
+            pdf_path = self.get_label_path(posting_number)
 
             with open(pdf_path, 'wb') as f:
                 f.write(pdf_content)
