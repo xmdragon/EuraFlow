@@ -1754,38 +1754,33 @@ const PackingShipment: React.FC = () => {
                                     />
                                   )}
                                 </div>
-                                <div>
-                                  {posting.domestic_tracking_numbers &&
-                                  posting.domestic_tracking_numbers.length > 0 ? (
-                                    <>
-                                      <Text type="secondary">国内: </Text>
-                                      <div style={{ display: 'inline-block' }}>
-                                        {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
-                                          <div key={idx} style={{ display: 'inline' }}>
-                                            {idx > 0 && ', '}
-                                            <a
-                                              href={`https://t.17track.net/zh-cn#nums=${num}`}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              style={{ color: '#1890ff' }}
-                                            >
-                                              {num}
-                                            </a>
-                                            <CopyOutlined
-                                              style={{ marginLeft: 4, cursor: 'pointer', color: '#1890ff' }}
-                                              onClick={() => handleCopy(num, '国内单号')}
-                                            />
-                                          </div>
-                                        ))}
+                                {posting.domestic_tracking_numbers &&
+                                posting.domestic_tracking_numbers.length > 0 ? (
+                                  <>
+                                    {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
+                                      <div key={idx}>
+                                        {idx === 0 && <Text type="secondary">国内: </Text>}
+                                        <a
+                                          href={`https://t.17track.net/zh-cn#nums=${num}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          style={{ color: '#1890ff' }}
+                                        >
+                                          {num}
+                                        </a>
+                                        <CopyOutlined
+                                          style={{ marginLeft: 4, cursor: 'pointer', color: '#1890ff' }}
+                                          onClick={() => handleCopy(num, '国内单号')}
+                                        />
                                       </div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Text type="secondary">国内: </Text>
-                                      <span>-</span>
-                                    </>
-                                  )}
-                                </div>
+                                    ))}
+                                  </>
+                                ) : (
+                                  <div>
+                                    <Text type="secondary">国内: </Text>
+                                    <span>-</span>
+                                  </div>
+                                )}
                               </div>
                             ),
                             props: {
