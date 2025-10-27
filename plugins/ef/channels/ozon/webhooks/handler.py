@@ -368,6 +368,11 @@ class OzonWebhookHandler:
                 webhook_event.entity_type = "posting"
                 webhook_event.entity_id = str(posting.id)
 
+                # 如果状态变为"awaiting_deliver"（等待发运），自动下载PDF标签
+                if new_status == "awaiting_deliver":
+                    logger.info(f"Posting {posting_number} 状态变为等待发运，触发标签PDF下载")
+                    asyncio.create_task(self._download_label_pdf(posting_number, posting.shop_id))
+
                 # 发送 WebSocket 通知（全局广播）
                 try:
                     from ef_core.websocket.manager import notification_manager
@@ -540,6 +545,89 @@ class OzonWebhookHandler:
                 logger.error(f"Error updating posting {posting_number} with API data (attempt {attempt}): {e}")
 
         logger.warning(f"Failed to update posting {posting_number} with API data after {len(retry_delays)} attempts")
+
+    async def _download_label_pdf(self, posting_number: str, shop_id: int) -> None:
+        """异步下载并保存标签PDF
+
+        Args:
+            posting_number: 货件编号
+            shop_id: 店铺ID
+        """
+        import os
+        import base64
+        from ..models import OzonShop, OzonPosting
+        from sqlalchemy import select, update
+
+        try:
+            # 延迟45秒，等待OZON准备好标签
+            await asyncio.sleep(45)
+
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as db:
+                # 获取店铺信息
+                shop_result = await db.execute(
+                    select(OzonShop).where(OzonShop.id == shop_id)
+                )
+                shop = shop_result.scalar_one_or_none()
+
+                if not shop:
+                    logger.error(f"Shop {shop_id} not found for label download")
+                    return
+
+                # 检查posting是否已有缓存的标签
+                posting_result = await db.execute(
+                    select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+                )
+                posting = posting_result.scalar_one_or_none()
+
+                if not posting:
+                    logger.error(f"Posting {posting_number} not found for label download")
+                    return
+
+                # 如果已有标签文件且文件存在，跳过下载
+                if posting.label_pdf_path and os.path.exists(posting.label_pdf_path):
+                    logger.info(f"Posting {posting_number} 标签PDF已存在，跳过下载")
+                    return
+
+                # 调用OZON API下载标签
+                from ..api.client import OzonAPIClient
+
+                async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
+                    try:
+                        result = await client.get_package_labels([posting_number])
+
+                        # 解析PDF数据
+                        pdf_content_base64 = result.get('file_content', '')
+                        if not pdf_content_base64:
+                            logger.warning(f"OZON API返回的标签PDF内容为空: {posting_number}")
+                            return
+
+                        pdf_content = base64.b64decode(pdf_content_base64)
+
+                        # 保存PDF文件
+                        label_dir = f"web/dist/downloads/labels/{shop_id}"
+                        os.makedirs(label_dir, exist_ok=True)
+                        pdf_path = f"{label_dir}/{posting_number}.pdf"
+
+                        with open(pdf_path, 'wb') as f:
+                            f.write(pdf_content)
+
+                        # 更新数据库
+                        await db.execute(
+                            update(OzonPosting)
+                            .where(OzonPosting.posting_number == posting_number)
+                            .values(label_pdf_path=pdf_path, updated_at=utcnow())
+                        )
+                        await db.commit()
+
+                        logger.info(f"成功自动下载并保存标签PDF: {pdf_path}")
+
+                    except Exception as e:
+                        logger.warning(f"自动下载标签PDF失败 {posting_number}: {e}")
+                        # 不抛出异常，避免影响webhook处理
+
+        except Exception as e:
+            logger.error(f"下载标签PDF异常 {posting_number}: {e}")
 
     async def _trigger_order_sync(self, posting_number: str) -> None:
         """触发特定订单的同步（只从当前店铺获取）"""
