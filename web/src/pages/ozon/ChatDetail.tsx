@@ -558,15 +558,6 @@ const ChatDetail: React.FC = () => {
     <div>
       <PageTitle icon={<MessageOutlined />} title="聊天详情" />
 
-      {/* 返回按钮 */}
-      <Button
-        icon={<ArrowLeftOutlined />}
-        onClick={() => navigate('/dashboard/ozon/chats')}
-        className={styles.backButton}
-      >
-        返回聊天列表
-      </Button>
-
       <Spin spinning={chatLoading}>
         {isChatError && (
           <Card>
@@ -615,6 +606,12 @@ const ChatDetail: React.FC = () => {
                     )}
                     <Button icon={<SyncOutlined />} onClick={() => refetchMessages()}>
                       刷新
+                    </Button>
+                    <Button
+                      icon={<ArrowLeftOutlined />}
+                      onClick={() => navigate('/dashboard/ozon/chats')}
+                    >
+                      返回聊天列表
                     </Button>
                   </Space>
                 </div>
