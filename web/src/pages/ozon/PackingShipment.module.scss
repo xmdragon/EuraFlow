@@ -371,3 +371,12 @@
     padding: 2px !important;
   }
 }
+
+// 商品信息列的 hover 样式
+.productInfoCell {
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #f0f7ff !important;
+  }
+}

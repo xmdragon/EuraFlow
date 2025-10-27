@@ -1666,6 +1666,9 @@ const PackingShipment: React.FC = () => {
                         title: '商品信息',
                         key: 'product_info',
                         width: '20%',
+                        onCell: () => ({
+                          className: styles.productInfoCell,
+                        }),
                         render: (_: any, row: ScanResultItemRow) => {
                           const item = row.item;
                           const price = item.price ? parseFloat(item.price) : 0;
@@ -1724,9 +1727,15 @@ const PackingShipment: React.FC = () => {
                           }
 
                           const posting = row.posting;
+                          const shopName = shopNameMap[posting.shop_id] || `店铺ID: ${posting.shop_id}`;
+
                           return {
                             children: (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div>
+                                  <Text type="secondary">店铺: </Text>
+                                  <span>{shopName}</span>
+                                </div>
                                 <div>
                                   <Text type="secondary">货件: </Text>
                                   <span>{posting.posting_number}</span>
@@ -1746,29 +1755,35 @@ const PackingShipment: React.FC = () => {
                                   )}
                                 </div>
                                 <div>
-                                  <Text type="secondary">国内: </Text>
                                   {posting.domestic_tracking_numbers &&
                                   posting.domestic_tracking_numbers.length > 0 ? (
-                                    <div style={{ display: 'inline-block' }}>
-                                      {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
-                                        <div key={idx}>
-                                          <a
-                                            href={`https://t.17track.net/zh-cn#nums=${num}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{ color: '#1890ff' }}
-                                          >
-                                            {num}
-                                          </a>
-                                          <CopyOutlined
-                                            style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
-                                            onClick={() => handleCopy(num, '国内单号')}
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
+                                    <>
+                                      <Text type="secondary">国内: </Text>
+                                      <div style={{ display: 'inline-block' }}>
+                                        {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
+                                          <div key={idx} style={{ display: 'inline' }}>
+                                            {idx > 0 && ', '}
+                                            <a
+                                              href={`https://t.17track.net/zh-cn#nums=${num}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              style={{ color: '#1890ff' }}
+                                            >
+                                              {num}
+                                            </a>
+                                            <CopyOutlined
+                                              style={{ marginLeft: 4, cursor: 'pointer', color: '#1890ff' }}
+                                              onClick={() => handleCopy(num, '国内单号')}
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </>
                                   ) : (
-                                    <span>-</span>
+                                    <>
+                                      <Text type="secondary">国内: </Text>
+                                      <span>-</span>
+                                    </>
                                   )}
                                 </div>
                               </div>
