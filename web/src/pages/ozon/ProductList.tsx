@@ -1104,6 +1104,8 @@ const ProductList: React.FC = () => {
       notifyWarning('操作失败', '请先选择店铺');
       return;
     }
+    // 清空单个商品选择，避免弹窗标题显示错误
+    setSelectedProduct(null);
     setPriceModalVisible(true);
   };
 
@@ -1113,6 +1115,8 @@ const ProductList: React.FC = () => {
       notifyWarning('操作失败', '请先选择店铺');
       return;
     }
+    // 清空单个商品选择，避免弹窗标题显示错误
+    setSelectedProduct(null);
     setStockModalVisible(true);
   };
 

@@ -529,6 +529,9 @@ async def update_prices(
 
                 api_result = await client.update_prices(price_data)
 
+                # 记录OZON API完整响应用于调试
+                logger.info(f"OZON API价格更新响应 - 商品货号: {offer_id}, product_id: {product.ozon_product_id}, 响应: {api_result}")
+
                 # 检查API返回结果
                 if api_result.get("result") and len(api_result["result"]) > 0:
                     result_item = api_result["result"][0]
@@ -557,8 +560,11 @@ async def update_prices(
 
         await db.commit()
 
+        # 判断整体成功标志：updated_count=0 且有错误时 success 应为 false
+        success = updated_count > 0 or len(errors) == 0
+
         result = {
-            "success": True,
+            "success": success,
             "message": f"成功更新 {updated_count} 个商品价格",
             "updated_count": updated_count
         }
@@ -648,16 +654,18 @@ async def update_stocks(
                     continue
 
                 # 调用Ozon API更新库存
-                stock_data = {
-                    "stocks": [{
-                        "offer_id": product.offer_id,
-                        "product_id": product.ozon_product_id,
-                        "stock": int(stock),
-                        "warehouse_id": warehouse_id
-                    }]
+                stock_item = {
+                    "offer_id": product.offer_id,
+                    "product_id": product.ozon_product_id,
+                    "stock": int(stock),
+                    "warehouse_id": warehouse_id
                 }
 
-                api_result = await client.update_stocks(stock_data)
+                # update_stocks 期望的是列表，不是字典
+                api_result = await client.update_stocks([stock_item])
+
+                # 记录OZON API完整响应用于调试
+                logger.info(f"OZON API库存更新响应 - 商品货号: {offer_id}, product_id: {product.ozon_product_id}, 响应: {api_result}")
 
                 # 检查API返回结果
                 if api_result.get("result") and len(api_result["result"]) > 0:
@@ -686,8 +694,11 @@ async def update_stocks(
 
         await db.commit()
 
+        # 判断整体成功标志：updated_count=0 且有错误时 success 应为 false
+        success = updated_count > 0 or len(errors) == 0
+
         result = {
-            "success": True,
+            "success": success,
             "message": f"成功更新 {updated_count} 个商品库存",
             "updated_count": updated_count
         }
