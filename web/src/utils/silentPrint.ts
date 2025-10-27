@@ -9,16 +9,44 @@ interface PrintResponse {
   jobId?: string;
 }
 
-let extensionReady = false;
 let requestIdCounter = 0;
 
-// 监听扩展就绪消息
-window.addEventListener('message', (event) => {
-  if (event.origin === window.location.origin && event.data.type === 'EURAFLOW_PRINT_READY') {
-    extensionReady = true;
-    console.log('[Silent Print] EuraFlow 打印助手扩展已就绪');
-  }
-});
+/**
+ * 检测打印助手扩展是否可用（ping-pong 机制）
+ * @returns Promise<boolean> 扩展是否可用
+ */
+async function detectExtension(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      console.log('[Silent Print] 打印助手扩展未响应');
+      resolve(false);
+    }, 500); // 500ms 超时
+
+    const messageHandler = (event: MessageEvent) => {
+      if (
+        event.origin === window.location.origin &&
+        event.data.type === 'EURAFLOW_PRINT_PONG'
+      ) {
+        cleanup();
+        console.log('[Silent Print] 打印助手扩展已就绪');
+        resolve(true);
+      }
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      window.removeEventListener('message', messageHandler);
+    };
+
+    window.addEventListener('message', messageHandler);
+
+    // 发送 ping 请求
+    window.postMessage({
+      type: 'EURAFLOW_PRINT_PING'
+    }, window.location.origin);
+  });
+}
 
 /**
  * 尝试静默打印 PDF
@@ -26,7 +54,9 @@ window.addEventListener('message', (event) => {
  * @returns Promise<boolean> 是否成功
  */
 export async function trySilentPrint(pdfUrl: string): Promise<boolean> {
-  if (!extensionReady) {
+  // 先检测扩展是否可用
+  const extensionAvailable = await detectExtension();
+  if (!extensionAvailable) {
     console.log('[Silent Print] 打印助手扩展未安装，降级到普通打印');
     return false;
   }
@@ -94,11 +124,4 @@ export async function printPDF(pdfUrl: string, iframeId?: string): Promise<void>
       iframe.contentWindow.print();
     }
   }
-}
-
-/**
- * 检查打印助手扩展是否已安装
- */
-export function isPrintExtensionAvailable(): boolean {
-  return extensionReady;
 }

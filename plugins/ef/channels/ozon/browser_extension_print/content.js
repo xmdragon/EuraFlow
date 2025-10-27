@@ -11,7 +11,13 @@ window.addEventListener('message', (event) => {
   }
 
   // 检查消息类型
-  if (event.data && event.data.type === 'EURAFLOW_PRINT_PDF') {
+  if (event.data && event.data.type === 'EURAFLOW_PRINT_PING') {
+    // 立即回复 pong，告知扩展已就绪
+    window.postMessage({
+      type: 'EURAFLOW_PRINT_PONG'
+    }, window.location.origin);
+    console.log('[EuraFlow Print Content] 已响应 ping 请求');
+  } else if (event.data && event.data.type === 'EURAFLOW_PRINT_PDF') {
     const { url, requestId } = event.data;
 
     console.log('[EuraFlow Print Content] 接收到打印请求:', url);
@@ -32,21 +38,5 @@ window.addEventListener('message', (event) => {
     );
   }
 });
-
-// 通知页面扩展已就绪（定期发送，确保前端能接收到）
-let readyMessageCount = 0;
-const maxReadyMessages = 10; // 最多发送10次
-
-function sendReadyMessage() {
-  window.postMessage({ type: 'EURAFLOW_PRINT_READY' }, window.location.origin);
-  readyMessageCount++;
-
-  if (readyMessageCount < maxReadyMessages) {
-    setTimeout(sendReadyMessage, 500); // 每500ms发送一次
-  }
-}
-
-// 立即发送第一次
-sendReadyMessage();
 
 console.log('[EuraFlow Print Content] Content script 已加载');
