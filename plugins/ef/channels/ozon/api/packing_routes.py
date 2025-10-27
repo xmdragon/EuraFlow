@@ -1395,8 +1395,8 @@ async def search_posting_by_tracking(
             if not order:
                 continue
 
-            # 转换为字典
-            order_dict = order.to_dict()
+            # 转换为字典，指定 target_posting_number 确保只返回查询到的 posting 数据
+            order_dict = order.to_dict(target_posting_number=posting.posting_number)
 
             # 添加前端期望的字段（从查询到的 posting 提取，而不是 order.postings[0]）
             # 添加 status（前端期望的字段名）
