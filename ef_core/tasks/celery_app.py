@@ -18,6 +18,7 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
     include=[
         "ef_core.tasks.core_tasks",
+        "plugins.ef.channels.ozon.tasks",  # Ozon插件任务
     ]
 )
 
