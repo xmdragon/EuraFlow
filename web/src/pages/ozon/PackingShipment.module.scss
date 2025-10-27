@@ -364,3 +364,10 @@
   display: block;
   object-fit: contain;
 }
+
+// 扫描结果表格样式
+.scanResultTable {
+  :global(.ant-table-cell) {
+    padding: 2px !important;
+  }
+}

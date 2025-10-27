@@ -1579,6 +1579,11 @@ const PackingShipment: React.FC = () => {
                     rowKey="key"
                     pagination={false}
                     size="middle"
+                    style={{
+                      '--ant-table-padding-vertical': '2px',
+                      '--ant-table-padding-horizontal': '2px',
+                    } as React.CSSProperties}
+                    className={styles.scanResultTable}
                     rowSelection={
                       canOperate
                         ? {
@@ -1659,6 +1664,10 @@ const PackingShipment: React.FC = () => {
                         width: '20%',
                         render: (_: any, row: ScanResultItemRow) => {
                           const item = row.item;
+                          const price = item.price ? parseFloat(item.price) : 0;
+                          const quantity = item.quantity || 0;
+                          const amount = price * quantity;
+
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                               <div>
@@ -1683,8 +1692,16 @@ const PackingShipment: React.FC = () => {
                                 </Tooltip>
                               </div>
                               <div>
+                                <Text type="secondary">单价: </Text>
+                                <span>{price > 0 ? price.toFixed(2) : '-'}</span>
+                              </div>
+                              <div>
                                 <Text type="secondary">数量: </Text>
-                                <span>{item.quantity || 0}</span>
+                                <span>{quantity}</span>
+                              </div>
+                              <div>
+                                <Text type="secondary">金额: </Text>
+                                <span style={{ fontWeight: 500 }}>{amount > 0 ? amount.toFixed(2) : '-'}</span>
                               </div>
                             </div>
                           );
@@ -1703,12 +1720,7 @@ const PackingShipment: React.FC = () => {
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 <div>
                                   <Text type="secondary">货件: </Text>
-                                  <a
-                                    onClick={() => handleOpenEditNotes(posting)}
-                                    style={{ cursor: 'pointer' }}
-                                  >
-                                    {posting.posting_number}
-                                  </a>
+                                  <span>{posting.posting_number}</span>
                                   <CopyOutlined
                                     style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
                                     onClick={() => handleCopy(posting.posting_number, '货件编号')}
@@ -1762,12 +1774,24 @@ const PackingShipment: React.FC = () => {
                           const statusCfg = statusConfig[posting.status] || statusConfig.pending;
                           const opStatusCfg = operationStatusConfig[posting.operation_status];
 
+                          // 解析配送方式，提取括号前和括号内的内容
+                          const deliveryMethod = posting.delivery_method || '';
+                          const match = deliveryMethod.match(/^(.+?)[（(](.+?)[）)]$/);
+                          const mainText = match ? match[1].trim() : deliveryMethod;
+                          const detailText = match ? match[2].trim() : '';
+
                           return {
                             children: (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 <div>
                                   <Text type="secondary">配送: </Text>
-                                  <span>{posting.delivery_method || '-'}</span>
+                                  {detailText ? (
+                                    <Tooltip title={detailText}>
+                                      <span>{mainText || '-'}</span>
+                                    </Tooltip>
+                                  ) : (
+                                    <span>{mainText || '-'}</span>
+                                  )}
                                 </div>
                                 <div>
                                   <Text type="secondary">状态: </Text>
@@ -1799,7 +1823,43 @@ const PackingShipment: React.FC = () => {
                           };
                         },
                       },
-                      // 第五列：操作（使用rowSpan合并）
+                      // 第五列：备注（使用rowSpan合并）
+                      {
+                        title: '备注',
+                        key: 'notes',
+                        width: 150,
+                        render: (_: any, row: ScanResultItemRow) => {
+                          if (!row.isFirstItem) return null;
+
+                          const posting = row.posting;
+                          return {
+                            children: (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Tooltip title={posting.order_notes || '暂无备注'}>
+                                  <span
+                                    style={{
+                                      flex: 1,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {posting.order_notes || '-'}
+                                  </span>
+                                </Tooltip>
+                                <EditOutlined
+                                  style={{ cursor: 'pointer', color: '#1890ff', fontSize: '14px' }}
+                                  onClick={() => handleOpenEditNotes(posting)}
+                                />
+                              </div>
+                            ),
+                            props: {
+                              rowSpan: row.itemCount,
+                            },
+                          };
+                        },
+                      },
+                      // 第六列：操作（使用rowSpan合并）
                       {
                         title: '操作',
                         key: 'action',
