@@ -79,3 +79,17 @@ supervisor.sock
 
 # API documentation (too large for git)
 docs/OzonSellerAPI.html
+
+# Browser extension builds
+plugins/ef/channels/ozon/browser_extension/dist/
+
+# CSV imports
+imports/
+
+# Generated label PDFs
+web/public/downloads/labels/*.pdf
+web/dist/downloads/labels/
+
+# Temporary CSV files
+*.csv
+!web/src/**/*.csv
