@@ -80,8 +80,8 @@ async def _download_label_pdf_async(posting_number: str, shop_id: int):
 
                     pdf_content = base64.b64decode(pdf_content_base64)
 
-                    # 保存PDF文件
-                    label_dir = f"web/dist/downloads/labels/{shop_id}"
+                    # 保存PDF文件（保存到 public 目录，避免重新构建时丢失）
+                    label_dir = f"web/public/downloads/labels/{shop_id}"
                     os.makedirs(label_dir, exist_ok=True)
                     pdf_path = f"{label_dir}/{posting_number}.pdf"
 
