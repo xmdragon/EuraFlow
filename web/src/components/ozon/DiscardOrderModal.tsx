@@ -65,7 +65,7 @@ const DiscardOrderModal: React.FC<DiscardOrderModalProps> = ({
       const values = await form.validateFields();
 
       const data: ozonApi.DiscardOrderRequest = {
-        sync_to_kuajing84: values.sync_to_kuajing84 === true, // 默认为true
+        sync_to_kuajing84: values.sync_to_kuajing84 === true, // 默认为false
       };
       discardOrderMutation.mutate(data);
     } catch (error) {
@@ -107,24 +107,10 @@ const DiscardOrderModal: React.FC<DiscardOrderModalProps> = ({
         <Form.Item
           name="sync_to_kuajing84"
           valuePropName="checked"
-          initialValue={true}
-          tooltip="勾选后将同步到跨境巴士并更新订单状态，不勾选则只更新本地状态"
+          initialValue={false}
         >
           <Checkbox>同步到跨境巴士</Checkbox>
         </Form.Item>
-
-        <Alert
-          message="提示"
-          description={
-            <div>
-              <p style={{ marginBottom: 4 }}>• 勾选"同步到跨境巴士"：订单将同步到跨境巴士并更新为取消状态</p>
-              <p style={{ marginBottom: 0 }}>• 不勾选：仅在本地标记为废弃，不会同步到跨境巴士</p>
-            </div>
-          }
-          type="info"
-          showIcon
-          style={{ fontSize: '12px' }}
-        />
       </Form>
     </Modal>
   );

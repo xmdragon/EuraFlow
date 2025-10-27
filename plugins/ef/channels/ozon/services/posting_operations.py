@@ -713,14 +713,14 @@ class PostingOperationsService:
     async def discard_posting_async(
         self,
         posting_number: str,
-        sync_to_kuajing84: bool = True
+        sync_to_kuajing84: bool = False
     ) -> Dict[str, Any]:
         """
         异步废弃订单（可选同步到跨境84并更新本地状态）
 
         Args:
             posting_number: 货件编号
-            sync_to_kuajing84: 是否同步到跨境巴士（默认True，保持向后兼容）
+            sync_to_kuajing84: 是否同步到跨境巴士（默认False）
 
         Returns:
             操作结果（立即返回，如果同步跨境巴士则包含 sync_log_id 用于轮询）

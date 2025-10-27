@@ -831,7 +831,7 @@ async def prepare_order(
 
 class DiscardPostingDTO(BaseModel):
     """废弃订单请求 DTO"""
-    sync_to_kuajing84: bool = Field(True, description="是否同步到跨境巴士（默认true）")
+    sync_to_kuajing84: bool = Field(False, description="是否同步到跨境巴士（默认false）")
 
 
 @router.post("/packing/postings/{posting_number}/discard")
@@ -978,11 +978,14 @@ async def batch_print_labels(
             raise HTTPException(status_code=404, detail="未找到任何货件记录")
 
         # 3. 验证所有posting的状态必须为"awaiting_deliver"（等待发运）
+        # 并且 operation_status 不能是 tracking_confirmed 或 shipping（已确认运单号后OZON不允许再获取标签）
         invalid_status_postings = []
         for pn in posting_numbers:
             posting = postings.get(pn)
             if not posting:
                 continue
+
+            # 检查 OZON 状态
             if posting.status != 'awaiting_deliver':
                 invalid_status_postings.append({
                     "posting_number": pn,
@@ -995,13 +998,22 @@ async def batch_print_labels(
                         "cancelled": "已取消"
                     }.get(posting.status, posting.status)
                 })
+                continue
+
+            # 检查操作状态：已确认运单号后不能再打印
+            if posting.operation_status in ('tracking_confirmed', 'shipping'):
+                invalid_status_postings.append({
+                    "posting_number": pn,
+                    "current_status": f"运单号已确认 ({posting.operation_status})",
+                    "status_display": "运单号已确认，OZON不允许重新获取标签"
+                })
 
         if invalid_status_postings:
             raise HTTPException(
                 status_code=422,
                 detail={
                     "error": "INVALID_STATUS",
-                    "message": "只能打印'等待发运'状态的订单标签",
+                    "message": "只能打印'等待发运'且未确认运单号的订单标签",
                     "invalid_postings": invalid_status_postings
                 }
             )
