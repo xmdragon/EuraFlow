@@ -1,10 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import fs from 'fs'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // 构建完成后删除 dist/downloads 目录（nginx 直接提供 public/downloads）
+    {
+      name: 'remove-downloads',
+      closeBundle() {
+        const downloadsPath = path.resolve(__dirname, 'dist/downloads')
+        if (fs.existsSync(downloadsPath)) {
+          fs.rmSync(downloadsPath, { recursive: true, force: true })
+        }
+      }
+    }
+  ],
   server: {
     host: '0.0.0.0',  // 允许局域网访问
     port: 3000,

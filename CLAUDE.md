@@ -273,6 +273,10 @@ logger.info('订单同步开始', extra={'order_id': order_id})
   ```
 - **包含文件**：`dist/manifest.json`、`dist/service-worker-loader.js`、`dist/assets/*`、`dist/src/popup/popup.html`
 - **排除文件**：`.vite/`、`icons/`、`README.md`、`*.map`、源代码
+- **⚠️ 注意**：
+  - 文件必须放在 `web/public/downloads/`（**不是** `web/dist/downloads/`）
+  - Nginx 已配置 `/downloads` 路径直接指向 `public/downloads/`
+  - Vite 构建时会自动排除 downloads 目录，避免冗余复制
 
 ### 版本管理规则
 - **版本清理**：`web/public/downloads/` 目录只保留最近 3 个版本的 zip 包

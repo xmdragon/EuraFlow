@@ -1158,33 +1158,40 @@ async def batch_print_labels(
 
         await db.commit()
 
-        # 6. 合并PDF文件
+        # 6. 处理PDF文件（单个直接返回，多个合并）
         pdf_url = None
         if pdf_files:
-            try:
-                from PyPDF2 import PdfMerger
-
-                merger = PdfMerger()
-                for pdf_file in pdf_files:
-                    merger.append(pdf_file)
-
-                # 生成批量PDF文件名（使用标签服务的统一路径）
+            if len(pdf_files) == 1:
+                # 单个 posting，直接返回单文件 URL（避免冗余的 batch 文件）
                 from ..services.label_service import LabelService
-                batch_filename = f"batch_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.pdf"
-                batch_path = f"{LabelService.get_label_dir()}/{batch_filename}"
+                pdf_url = LabelService.get_label_url(success_postings[0])
+                logger.info(f"单个标签打印: {pdf_url}")
+            else:
+                # 多个 posting，合并成 batch（但每个单独的 PDF 已保存在 labels/ 目录）
+                try:
+                    from PyPDF2 import PdfMerger
+                    from ..services.label_service import LabelService
 
-                # 确保目录存在
-                os.makedirs(os.path.dirname(batch_path), exist_ok=True)
+                    merger = PdfMerger()
+                    for pdf_file in pdf_files:
+                        merger.append(pdf_file)
 
-                merger.write(batch_path)
-                merger.close()
+                    # 生成批量PDF文件名
+                    batch_filename = f"batch_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.pdf"
+                    batch_path = f"{LabelService.get_label_dir()}/{batch_filename}"
 
-                pdf_url = f"/downloads/labels/{batch_filename}"
-                logger.info(f"成功合并PDF: {batch_path}")
-            except Exception as e:
-                logger.error(f"合并PDF失败: {e}")
-                # 合并失败不影响结果，只是没有合并后的PDF
-                pdf_url = None
+                    # 确保目录存在
+                    os.makedirs(os.path.dirname(batch_path), exist_ok=True)
+
+                    merger.write(batch_path)
+                    merger.close()
+
+                    pdf_url = f"/downloads/labels/{batch_filename}"
+                    logger.info(f"批量标签打印: 成功合并{len(pdf_files)}个PDF -> {batch_path}")
+                except Exception as e:
+                    logger.error(f"合并PDF失败: {e}")
+                    # 合并失败不影响结果，只是没有合并后的PDF
+                    pdf_url = None
 
         # 7. 返回结果（不再自动标记已打印状态，需用户手动标记）
         if failed_postings and not success_postings:
