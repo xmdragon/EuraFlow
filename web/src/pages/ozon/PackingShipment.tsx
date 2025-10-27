@@ -50,6 +50,7 @@ import { printPDF } from '../../utils/silentPrint';
 
 import styles from './PackingShipment.module.scss';
 
+import DiscardOrderModal from '@/components/ozon/DiscardOrderModal';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import OrderCardComponent, { type OrderCard } from '@/components/ozon/packing/OrderCardComponent';
@@ -115,6 +116,7 @@ const PackingShipment: React.FC = () => {
   const [prepareStockModalVisible, setPrepareStockModalVisible] = useState(false);
   const [updateBusinessInfoModalVisible, setUpdateBusinessInfoModalVisible] = useState(false);
   const [domesticTrackingModalVisible, setDomesticTrackingModalVisible] = useState(false);
+  const [discardOrderModalVisible, setDiscardOrderModalVisible] = useState(false);
   const [currentPosting, setCurrentPosting] = useState<ozonApi.PostingWithOrder | null>(null);
 
   // 进货价格历史弹窗状态
@@ -752,21 +754,7 @@ const PackingShipment: React.FC = () => {
     },
   });
 
-  // 废弃订单
-  const discardOrderMutation = useMutation({
-    mutationFn: (postingNumber: string) => ozonApi.discardOrder(postingNumber),
-    onSuccess: (_, postingNumber) => {
-      // 提交成功，后台会通过 WebSocket 推送同步结果
-      notifySuccess('废弃请求已提交', '正在后台同步到跨境巴士，请稍候...');
-      // 刷新计数查询
-      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
-      // 从当前列表中移除该posting
-      setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
-    },
-    onError: (error: Error) => {
-      notifyError('废弃失败', `废弃失败: ${error.response?.data?.message || error.message}`);
-    },
-  });
+  // 注意：废弃订单现在使用 DiscardOrderModal 组件处理，不再需要单独的 mutation
 
   // 异步执行批量同步（后台任务）
   const executeBatchSync = async (postings: unknown[]) => {
@@ -937,19 +925,11 @@ const PackingShipment: React.FC = () => {
   }, []);
 
   const handleDiscardOrderCallback = React.useCallback(
-    (postingNumber: string) => {
-      confirm({
-        title: '确认废弃订单？',
-        content: `货件号: ${postingNumber}。废弃后订单将同步到跨境84并更新为取消状态。`,
-        okText: '确认废弃',
-        okType: 'danger',
-        cancelText: '取消',
-        onOk: () => {
-          discardOrderMutation.mutate(postingNumber);
-        },
-      });
+    (posting: ozonApi.PostingWithOrder) => {
+      setCurrentPosting(posting);
+      setDiscardOrderModalVisible(true);
     },
-    [discardOrderMutation]
+    []
   );
 
   const handleCheckboxChangeCallback = React.useCallback(
@@ -1910,6 +1890,22 @@ const PackingShipment: React.FC = () => {
               prev.filter((p) => p.posting_number !== currentPosting.posting_number)
             );
             setDomesticTrackingModalVisible(false);
+          }}
+        />
+      )}
+
+      {/* 废弃订单弹窗 */}
+      {currentPosting && (
+        <DiscardOrderModal
+          visible={discardOrderModalVisible}
+          onCancel={() => setDiscardOrderModalVisible(false)}
+          postingNumber={currentPosting.posting_number}
+          onSuccess={() => {
+            // 操作成功后，从当前列表中移除该posting
+            setAllPostings((prev) =>
+              prev.filter((p) => p.posting_number !== currentPosting.posting_number)
+            );
+            setDiscardOrderModalVisible(false);
           }}
         />
       )}

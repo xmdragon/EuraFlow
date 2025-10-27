@@ -829,34 +829,45 @@ async def prepare_order(
         }
 
 
+class DiscardPostingDTO(BaseModel):
+    """废弃订单请求 DTO"""
+    sync_to_kuajing84: bool = Field(True, description="是否同步到跨境巴士（默认true）")
+
+
 @router.post("/packing/postings/{posting_number}/discard")
 async def discard_posting(
     posting_number: str,
+    request: DiscardPostingDTO,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
     """
-    异步废弃订单（立即返回，后台同步到跨境84）（需要操作员权限）
+    异步废弃订单（可选后台同步到跨境84）（需要操作员权限）
 
     流程说明:
     1. 验证 posting 是否存在
-    2. 创建同步日志（状态：pending）
-    3. 启动后台任务（异步执行废弃操作）
-    4. **立即返回**（不等待跨境84同步完成）
+    2. 根据参数决定是否同步到跨境巴士：
+       - 如果勾选：创建同步日志（状态：pending），启动后台任务
+       - 如果不勾选：直接更新本地状态为取消
+    3. **立即返回**（不等待跨境84同步完成）
 
-    前端应使用 /kuajing84/sync-status/{sync_log_id} 轮询同步状态
+    如果勾选同步，前端应使用 /kuajing84/sync-status/{sync_log_id} 轮询同步状态
 
     Args:
         posting_number: 发货单号
+        request: 包含 sync_to_kuajing84 参数（是否同步到跨境巴士）
 
     Returns:
-        废弃结果，包含 sync_log_id 用于轮询
+        废弃结果，如果同步跨境巴士则包含 sync_log_id 用于轮询
     """
     from ..services.posting_operations import PostingOperationsService
 
     try:
         service = PostingOperationsService(db)
-        result = await service.discard_posting_async(posting_number)
+        result = await service.discard_posting_async(
+            posting_number=posting_number,
+            sync_to_kuajing84=request.sync_to_kuajing84
+        )
 
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["message"])

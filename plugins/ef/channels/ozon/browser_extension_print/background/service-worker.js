@@ -20,6 +20,11 @@ async function handlePrintRequest(pdfUrl, sendResponse) {
   try {
     console.log('[EuraFlow Print] 开始打印:', pdfUrl);
 
+    // 检查 Chrome Printing API 是否可用
+    if (!chrome.printing || !chrome.printing.submitJob) {
+      throw new Error('浏览器不支持静默打印API（需要 Chrome/Edge 81+），或扩展未正确加载。请尝试：1) 刷新扩展 2) 重启浏览器 3) 检查浏览器版本');
+    }
+
     // 获取 PDF 数据
     const response = await fetch(pdfUrl);
     if (!response.ok) {

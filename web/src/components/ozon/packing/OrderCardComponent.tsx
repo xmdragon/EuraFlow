@@ -42,7 +42,7 @@ export interface OrderCardComponentProps {
   onPrepareStock: (posting: ozonApi.PostingWithOrder) => void;
   onUpdateBusinessInfo: (posting: ozonApi.PostingWithOrder) => void;
   onSubmitTracking: (posting: ozonApi.PostingWithOrder) => void;
-  onDiscardOrder: (postingNumber: string) => void;
+  onDiscardOrder: (posting: ozonApi.PostingWithOrder) => void;
   onCheckboxChange: (postingNumber: string, checked: boolean) => void;
   canOperate: boolean;
 }
@@ -432,7 +432,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                         <Button
                           type="default"
                           size="small"
-                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          onClick={() => onDiscardOrder(posting)}
                           danger
                         >
                           废弃
@@ -451,7 +451,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                         <Button
                           type="default"
                           size="small"
-                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          onClick={() => onDiscardOrder(posting)}
                           danger
                         >
                           废弃
@@ -470,7 +470,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                         <Button
                           type="default"
                           size="small"
-                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          onClick={() => onDiscardOrder(posting)}
                           danger
                         >
                           废弃
@@ -483,7 +483,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                         <Button
                           type="default"
                           size="small"
-                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          onClick={() => onDiscardOrder(posting)}
                           danger
                         >
                           废弃
@@ -496,7 +496,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                         <Button
                           type="default"
                           size="small"
-                          onClick={() => onDiscardOrder(posting.posting_number)}
+                          onClick={() => onDiscardOrder(posting)}
                           danger
                         >
                           废弃
