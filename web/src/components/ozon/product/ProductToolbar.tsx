@@ -91,22 +91,42 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
           </Button>
         )}
         {canOperate && (
-          <Button
-            icon={<DollarOutlined />}
-            onClick={onBatchPriceUpdate}
-            disabled={selectedRowsCount === 0}
+          <Tooltip
+            title={
+              !hasSelectedShop
+                ? '请先选择店铺'
+                : selectedRowsCount === 0
+                  ? '未选择商品时将对全店铺商品操作'
+                  : `已选择 ${selectedRowsCount} 个商品`
+            }
           >
-            批量调价
-          </Button>
+            <Button
+              icon={<DollarOutlined />}
+              onClick={onBatchPriceUpdate}
+              disabled={!hasSelectedShop}
+            >
+              批量调价
+            </Button>
+          </Tooltip>
         )}
         {canOperate && (
-          <Button
-            icon={<ShoppingOutlined />}
-            onClick={onBatchStockUpdate}
-            disabled={selectedRowsCount === 0}
+          <Tooltip
+            title={
+              !hasSelectedShop
+                ? '请先选择店铺'
+                : selectedRowsCount === 0
+                  ? '未选择商品时将对全店铺商品操作'
+                  : `已选择 ${selectedRowsCount} 个商品`
+            }
           >
-            批量改库存
-          </Button>
+            <Button
+              icon={<ShoppingOutlined />}
+              onClick={onBatchStockUpdate}
+              disabled={!hasSelectedShop}
+            >
+              批量改库存
+            </Button>
+          </Tooltip>
         )}
         {canImport && (
           <Button icon={<UploadOutlined />} onClick={onImport}>

@@ -897,7 +897,7 @@ const ProductList: React.FC = () => {
       render: (_, record) => (
         <Space direction="vertical" size={2} style={{ width: '100%' }}>
           <span style={{ fontSize: 12 }}>可售: {record.available}</span>
-          <span style={{ fontSize: 12, color: '#999' }}>总: {record.stock}</span>
+          <span style={{ fontSize: 12, color: '#999' }}>库存: {record.stock}</span>
           <span style={{ fontSize: 12, color: '#999' }}>预留: {record.reserved}</span>
         </Space>
       ),
