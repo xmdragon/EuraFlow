@@ -46,7 +46,6 @@ import { useSearchParams } from 'react-router-dom';
 
 import { useCurrency } from '../../hooks/useCurrency';
 import { formatPriceWithFallback, _getCurrencySymbol } from '../../utils/currency';
-import { printPDF } from '../../utils/silentPrint';
 
 import styles from './PackingShipment.module.scss';
 
@@ -2276,10 +2275,11 @@ const PackingShipment: React.FC = () => {
             key="print"
             type="default"
             icon={<PrinterOutlined />}
-            onClick={async () => {
-              // 优先尝试静默打印，失败则降级到普通打印
-              if (printLabelUrl) {
-                await printPDF(printLabelUrl, 'print-label-iframe');
+            onClick={() => {
+              // 触发浏览器打印对话框
+              const iframe = document.getElementById('print-label-iframe') as HTMLIFrameElement;
+              if (iframe?.contentWindow) {
+                iframe.contentWindow.print();
               }
             }}
           >
