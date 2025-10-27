@@ -13,6 +13,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import OzonShop, OzonProduct, OzonOrder, OzonOrderItem, OzonPosting, OzonShipmentPackage
+from ..models.products import OzonProductSyncError
 from ..api.client import OzonAPIClient
 from ..utils.datetime_utils import parse_datetime, utcnow
 
@@ -54,6 +55,101 @@ def safe_decimal_conversion(value) -> Optional[Decimal]:
 
 class OzonSyncService:
     """Ozon同步服务"""
+
+    @staticmethod
+    async def _save_product_sync_error(
+        db: AsyncSession,
+        shop_id: int,
+        product_id: Optional[int],
+        offer_id: str,
+        task_id: Optional[int],
+        status: Optional[str],
+        errors: list
+    ) -> None:
+        """保存商品同步错误信息
+
+        Args:
+            db: 数据库会话
+            shop_id: 店铺ID
+            product_id: 商品ID（可能为None，如果是新商品）
+            offer_id: 商品offer_id
+            task_id: 任务ID（可选）
+            status: 同步状态
+            errors: 错误列表
+        """
+        if not errors:
+            return
+
+        try:
+            # 查找现有错误记录
+            existing_error_result = await db.execute(
+                select(OzonProductSyncError).where(
+                    and_(
+                        OzonProductSyncError.shop_id == shop_id,
+                        OzonProductSyncError.offer_id == offer_id
+                    )
+                ).order_by(OzonProductSyncError.created_at.desc()).limit(1)
+            )
+            existing_error = existing_error_result.scalar_one_or_none()
+
+            if existing_error:
+                # 更新现有错误记录
+                existing_error.product_id = product_id
+                existing_error.task_id = task_id
+                existing_error.status = status
+                existing_error.errors = errors
+                existing_error.updated_at = utcnow()
+                logger.info(f"Updated sync error for product {offer_id}: {len(errors)} errors")
+            else:
+                # 创建新错误记录
+                sync_error = OzonProductSyncError(
+                    shop_id=shop_id,
+                    product_id=product_id,
+                    offer_id=offer_id,
+                    task_id=task_id,
+                    status=status,
+                    errors=errors,
+                    created_at=utcnow(),
+                    updated_at=utcnow()
+                )
+                db.add(sync_error)
+                logger.info(f"Created sync error for product {offer_id}: {len(errors)} errors")
+
+        except Exception as e:
+            logger.error(f"Failed to save sync error for product {offer_id}: {e}")
+
+    @staticmethod
+    async def _clear_product_sync_error(
+        db: AsyncSession,
+        shop_id: int,
+        offer_id: str
+    ) -> None:
+        """清除商品同步错误信息（当商品错误已修复时）
+
+        Args:
+            db: 数据库会话
+            shop_id: 店铺ID
+            offer_id: 商品offer_id
+        """
+        try:
+            # 查找并删除现有错误记录
+            existing_error_result = await db.execute(
+                select(OzonProductSyncError).where(
+                    and_(
+                        OzonProductSyncError.shop_id == shop_id,
+                        OzonProductSyncError.offer_id == offer_id
+                    )
+                )
+            )
+            existing_errors = existing_error_result.scalars().all()
+
+            if existing_errors:
+                for error in existing_errors:
+                    await db.delete(error)
+                logger.info(f"Cleared {len(existing_errors)} sync error(s) for product {offer_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to clear sync error for product {offer_id}: {e}")
 
     @staticmethod
     async def sync_products(shop_id: int, db: AsyncSession, task_id: str, mode: str = "incremental") -> Dict[str, Any]:
@@ -487,6 +583,23 @@ class OzonSyncService:
                                     product.ozon_status = "error"
                                     status_reason = "商品信息有误或违规"
                                     error_count += 1
+
+                                    # 保存错误信息到数据库
+                                    error_list = []
+                                    if product_details.get("errors"):
+                                        error_list.extend(product_details["errors"])
+                                    if product_details.get("warnings"):
+                                        error_list.extend(product_details["warnings"])
+
+                                    await OzonSyncService._save_product_sync_error(
+                                        db=db,
+                                        shop_id=shop_id,
+                                        product_id=product.id,
+                                        offer_id=product.offer_id,
+                                        task_id=None,
+                                        status="error",
+                                        errors=error_list
+                                    )
                                 # 检查是否需要修改（如待审核、待补充信息）
                                 elif product_details and product_details.get("moderation_status") == "PENDING":
                                     product.status = "pending_modification"
@@ -534,6 +647,14 @@ class OzonSyncService:
 
                             # 保存状态原因
                             product.status_reason = status_reason
+
+                            # 如果商品不是error状态，清除旧的错误记录
+                            if product.status != "error":
+                                await OzonSyncService._clear_product_sync_error(
+                                    db=db,
+                                    shop_id=shop_id,
+                                    offer_id=product.offer_id
+                                )
 
                             # 更新价格（使用安全转换，自动处理空字符串等无效值）
                             price_decimal = safe_decimal_conversion(price)
@@ -717,6 +838,13 @@ class OzonSyncService:
                                     product.ozon_status = "error"
                                     status_reason = "商品信息有误或违规"
                                     error_count += 1
+
+                                    # 标记需要保存错误信息（在add之后处理）
+                                    product._has_sync_errors = True
+                                    product._sync_error_details = {
+                                        "errors": product_details.get("errors", []),
+                                        "warnings": product_details.get("warnings", [])
+                                    }
                                 # 检查是否需要修改
                                 elif product_details and product_details.get("moderation_status") == "PENDING":
                                     product.status = "pending_modification"
@@ -802,6 +930,26 @@ class OzonSyncService:
                                     product.depth = safe_decimal_conversion(attr_info.get("depth"))
 
                             db.add(product)
+
+                            # 如果新商品有错误信息，先flush获取product.id，然后保存错误
+                            if hasattr(product, '_has_sync_errors') and product._has_sync_errors:
+                                await db.flush()
+
+                                error_list = []
+                                if product._sync_error_details.get("errors"):
+                                    error_list.extend(product._sync_error_details["errors"])
+                                if product._sync_error_details.get("warnings"):
+                                    error_list.extend(product._sync_error_details["warnings"])
+
+                                await OzonSyncService._save_product_sync_error(
+                                    db=db,
+                                    shop_id=shop_id,
+                                    product_id=product.id,
+                                    offer_id=product.offer_id,
+                                    task_id=None,
+                                    status="error",
+                                    errors=error_list
+                                )
 
                     # 处理完这一页的商品，更新计数并检查下一页
                     total_synced += len(items)
