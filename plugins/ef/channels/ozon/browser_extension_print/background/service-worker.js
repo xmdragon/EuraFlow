@@ -56,7 +56,7 @@ async function handlePrintRequest(pdfUrl, sendResponse) {
             },
             media_size: {
               width_microns: 100000,  // 100mm
-              height_microns: 100000  // 100mm (OZON 标签尺寸)
+              height_microns: 150000  // 150mm (OZON 标签尺寸 100x150)
             }
           }
         },
