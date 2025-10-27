@@ -1195,10 +1195,53 @@ const PackingShipment: React.FC = () => {
     setEditingTrackingNumbers(newNumbers);
   };
 
-  // 删除编辑中的单号
-  const handleDeleteEditingNumber = (index: number) => {
+  // 删除编辑中的单号（删除后自动保存）
+  const handleDeleteEditingNumber = async (index: number) => {
     const newNumbers = editingTrackingNumbers.filter((_, i) => i !== index);
-    setEditingTrackingNumbers(newNumbers);
+
+    // 过滤掉空字符串
+    const validNumbers = newNumbers.filter((n) => n.trim() !== '');
+
+    // 立即保存
+    if (!scanResult) return;
+
+    setIsSavingTracking(true);
+    try {
+      if (validNumbers.length === 0) {
+        // 删除所有国内单号
+        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
+          domestic_tracking_numbers: [''], // 传空字符串表示删除所有
+        });
+      } else {
+        await ozonApi.updateDomesticTracking(scanResult.posting_number, {
+          domestic_tracking_numbers: validNumbers,
+        });
+      }
+
+      notifySuccess('删除成功', '国内单号已删除');
+
+      // 更新 scanResult
+      setScanResult({
+        ...scanResult,
+        domestic_tracking_numbers: validNumbers.length > 0 ? validNumbers : [],
+        // 如果清空了所有国内单号，前端也同步更新状态为"已分配"
+        operation_status: validNumbers.length === 0 ? 'allocated' : scanResult.operation_status,
+      });
+
+      // 更新编辑状态
+      setEditingTrackingNumbers(validNumbers);
+
+      // 如果删除后没有单号了，退出编辑状态
+      if (validNumbers.length === 0) {
+        setIsEditingTracking(false);
+      }
+    } catch (error) {
+      notifyError('删除失败', `删除失败: ${error.response?.data?.error?.title || error.message}`);
+      // 失败时恢复原来的状态
+      setEditingTrackingNumbers(editingTrackingNumbers);
+    } finally {
+      setIsSavingTracking(false);
+    }
   };
 
   // 添加新单号
@@ -1527,6 +1570,7 @@ const PackingShipment: React.FC = () => {
                                   }
                                   placeholder="请输入国内单号"
                                   style={{ width: '200px' }}
+                                  disabled={isSavingTracking}
                                 />
                                 <Button
                                   type="text"
@@ -1534,6 +1578,8 @@ const PackingShipment: React.FC = () => {
                                   size="small"
                                   icon={<DeleteOutlined />}
                                   onClick={() => handleDeleteEditingNumber(index)}
+                                  loading={isSavingTracking}
+                                  disabled={isSavingTracking}
                                 />
                               </Space>
                             </div>
