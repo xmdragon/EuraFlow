@@ -330,7 +330,14 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
                   <div style={{ flex: 1 }}>
                     {domesticTrackingNumbers.map((number, index) => (
                       <div key={index}>
-                        <span className={styles.value}>{number}</span>
+                        <a
+                          href={`https://t.17track.net/zh-cn#nums=${number}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.link}
+                        >
+                          {number}
+                        </a>
                         <CopyOutlined
                           className={styles.copyIcon}
                           onClick={() => onCopy(number, '国内单号')}

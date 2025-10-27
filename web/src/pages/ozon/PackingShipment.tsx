@@ -1743,7 +1743,14 @@ const PackingShipment: React.FC = () => {
                                     <div style={{ display: 'inline-block' }}>
                                       {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
                                         <div key={idx}>
-                                          {num}
+                                          <a
+                                            href={`https://t.17track.net/zh-cn#nums=${num}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: '#1890ff' }}
+                                          >
+                                            {num}
+                                          </a>
                                           <CopyOutlined
                                             style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
                                             onClick={() => handleCopy(num, '国内单号')}
@@ -1834,24 +1841,18 @@ const PackingShipment: React.FC = () => {
                           const posting = row.posting;
                           return {
                             children: (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Tooltip title={posting.order_notes || '暂无备注'}>
-                                  <span
-                                    style={{
-                                      flex: 1,
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                  >
-                                    {posting.order_notes || '-'}
-                                  </span>
-                                </Tooltip>
-                                <EditOutlined
-                                  style={{ cursor: 'pointer', color: '#1890ff', fontSize: '14px' }}
-                                  onClick={() => handleOpenEditNotes(posting)}
-                                />
-                              </div>
+                              <Tooltip title={posting.order_notes || '暂无备注'}>
+                                <span
+                                  style={{
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    display: 'block',
+                                  }}
+                                >
+                                  {posting.order_notes || '-'}
+                                </span>
+                              </Tooltip>
                             ),
                             props: {
                               rowSpan: row.itemCount,
@@ -1863,26 +1864,38 @@ const PackingShipment: React.FC = () => {
                       {
                         title: '操作',
                         key: 'action',
-                        width: 100,
+                        width: 80,
                         fixed: 'right' as const,
                         render: (_: any, row: ScanResultItemRow) => {
                           if (!row.isFirstItem) return null;
 
                           return {
                             children: (
-                              <Space>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 {canOperate && (
-                                  <Button
-                                    type="link"
-                                    size="small"
-                                    icon={<PrinterOutlined />}
-                                    loading={isPrinting}
-                                    onClick={() => handlePrintSingleLabel(row.posting.posting_number)}
-                                  >
-                                    打印
-                                  </Button>
+                                  <>
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      icon={<EditOutlined />}
+                                      style={{ padding: 0, height: 'auto' }}
+                                      onClick={() => handleOpenEditNotes(row.posting)}
+                                    >
+                                      编辑
+                                    </Button>
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      icon={<PrinterOutlined />}
+                                      loading={isPrinting}
+                                      style={{ padding: 0, height: 'auto' }}
+                                      onClick={() => handlePrintSingleLabel(row.posting.posting_number)}
+                                    >
+                                      打印
+                                    </Button>
+                                  </>
                                 )}
-                              </Space>
+                              </div>
                             ),
                             props: {
                               rowSpan: row.itemCount,
