@@ -1180,6 +1180,8 @@ const PackingShipment: React.FC = () => {
       setScanResult({
         ...scanResult,
         domestic_tracking_numbers: validNumbers.length > 0 ? validNumbers : [],
+        // 如果清空了所有国内单号，前端也同步更新状态为"已分配"
+        operation_status: validNumbers.length === 0 ? 'allocated' : scanResult.operation_status,
       });
 
       // 退出编辑状态

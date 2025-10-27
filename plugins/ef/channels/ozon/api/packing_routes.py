@@ -181,7 +181,7 @@ async def update_domestic_tracking(
     操作说明：
     - 传入完整的国内单号列表，会**替换**现有的所有单号
     - 支持编辑、删除、添加单号
-    - 不会改变 operation_status（保持当前状态）
+    - 如果清空所有国内单号（传空列表），会自动将 operation_status 改为 "allocated"（已分配）
     - 不会同步到跨境巴士（仅更新本地数据）
 
     Args:
@@ -217,6 +217,11 @@ async def update_domestic_tracking(
                 created_at=utcnow()
             )
             db.add(new_tracking)
+
+        # 4. 如果清空了所有国内单号，自动将状态改为"已分配"
+        if len(valid_numbers) == 0:
+            posting.operation_status = "allocated"
+            logger.info(f"清空国内单号，将状态改为已分配: {posting_number}")
 
         await db.commit()
 
