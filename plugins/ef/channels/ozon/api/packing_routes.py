@@ -1183,9 +1183,9 @@ async def batch_print_labels(
                 for pdf_file in pdf_files:
                     merger.append(pdf_file)
 
-                # 生成批量PDF文件名（保存到 dist 目录，Nginx 可直接访问）
+                # 生成批量PDF文件名（按店铺保存到 dist 目录，Nginx 可直接访问）
                 batch_filename = f"batch_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}.pdf"
-                batch_path = f"web/dist/downloads/labels/{batch_filename}"
+                batch_path = f"web/dist/downloads/labels/{shop_id}/{batch_filename}"
 
                 # 确保目录存在
                 os.makedirs(os.path.dirname(batch_path), exist_ok=True)
@@ -1193,7 +1193,7 @@ async def batch_print_labels(
                 merger.write(batch_path)
                 merger.close()
 
-                pdf_url = f"/downloads/labels/{batch_filename}"
+                pdf_url = f"/downloads/labels/{shop_id}/{batch_filename}"
                 logger.info(f"成功合并PDF: {batch_path}")
             except Exception as e:
                 logger.error(f"合并PDF失败: {e}")

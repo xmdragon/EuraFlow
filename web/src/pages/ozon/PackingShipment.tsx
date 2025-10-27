@@ -79,6 +79,16 @@ interface _OrderItemRow {
   isFirstItem: boolean; // 是否是第一个商品（用于rowSpan）
   itemCount: number; // 该posting的商品总数（用于rowSpan）
 }
+
+// 扫描结果商品行数据结构（用于表格展示，与订单管理格式一致）
+interface ScanResultItemRow {
+  key: string;
+  item: any;
+  itemIndex: number;
+  posting: any;
+  isFirstItem: boolean;
+  itemCount: number;
+}
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
@@ -153,6 +163,43 @@ const PackingShipment: React.FC = () => {
   // 编辑备注弹窗状态
   const [editNotesModalVisible, setEditNotesModalVisible] = useState(false);
   const [editingPosting, setEditingPosting] = useState<any>(null);
+
+  // 将扫描结果转换为商品维度的行数据（与订单管理格式一致）
+  const scanItemRows = React.useMemo<ScanResultItemRow[]>(() => {
+    const rows: ScanResultItemRow[] = [];
+
+    scanResults.forEach((posting) => {
+      const items = posting.items || [];
+      const itemCount = items.length;
+
+      if (itemCount === 0) {
+        // 如果没有商品，创建一行空数据
+        rows.push({
+          key: `${posting.posting_number}_0`,
+          item: {} as any,
+          itemIndex: 0,
+          posting: posting,
+          isFirstItem: true,
+          itemCount: 1,
+        });
+      } else {
+        // 为每个商品创建一行
+        items.forEach((item: any, index: number) => {
+          rows.push({
+            key: `${posting.posting_number}_${index}`,
+            item: item,
+            itemIndex: index,
+            posting: posting,
+            isFirstItem: index === 0,
+            itemCount: itemCount,
+          });
+        });
+      }
+    });
+
+    return rows;
+  }, [scanResults]);
+
   // 打印标签弹窗状态
   const [showPrintLabelModal, setShowPrintLabelModal] = useState(false);
   const [printLabelUrl, setPrintLabelUrl] = useState<string>('');
@@ -1528,202 +1575,260 @@ const PackingShipment: React.FC = () => {
                   }
                 >
                   <Table
-                    dataSource={scanResults}
-                    rowKey="posting_number"
+                    dataSource={scanItemRows}
+                    rowKey="key"
                     pagination={false}
                     size="middle"
                     rowSelection={
                       canOperate
                         ? {
-                            selectedRowKeys: scanSelectedPostings,
+                            // 将 posting_number 转换为第一行的 key
+                            selectedRowKeys: scanSelectedPostings.map((pn) => `${pn}_0`),
                             onChange: (selectedRowKeys) => {
-                              setScanSelectedPostings(selectedRowKeys as string[]);
+                              // 从 key 中提取 posting_number
+                              const postingNumbers = Array.from(
+                                new Set(
+                                  (selectedRowKeys as string[]).map((key) => key.split('_').slice(0, -1).join('_'))
+                                )
+                              );
+                              setScanSelectedPostings(postingNumbers);
+                            },
+                            getCheckboxProps: (row: ScanResultItemRow) => ({
+                              // 非第一行不显示复选框
+                              disabled: !row.isFirstItem,
+                            }),
+                            renderCell: (_checked, row: ScanResultItemRow, _index, originNode) => {
+                              // 只在第一行显示复选框，并使用rowSpan
+                              if (!row.isFirstItem) return null;
+                              return {
+                                props: { rowSpan: row.itemCount },
+                                children: originNode,
+                              };
                             },
                           }
                         : undefined
                     }
                     columns={[
+                      // 第一列：商品图片
                       {
-                        title: '货件编号',
-                        dataIndex: 'posting_number',
+                        title: '商品图片',
+                        key: 'product_image',
                         width: 180,
-                        render: (text, record) => (
-                          <Space direction="vertical" size={0}>
-                            <a
-                              onClick={() => handleOpenEditNotes(record)}
-                              style={{ cursor: 'pointer', color: '#1890ff' }}
+                        render: (_: any, row: ScanResultItemRow) => {
+                          const item = row.item;
+                          const imageUrl = item.image ? optimizeOzonImageUrl(item.image, 160) : null;
+
+                          return (
+                            <div
+                              style={{
+                                width: '160px',
+                                height: '160px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: '#f5f5f5',
+                                borderRadius: '4px',
+                              }}
                             >
-                              {text}
-                            </a>
-                            <CopyOutlined
-                              style={{ cursor: 'pointer', color: '#1890ff' }}
-                              onClick={() => handleCopy(text, '货件编号')}
-                            />
-                          </Space>
-                        ),
+                              {imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={item.name || item.sku || '商品图片'}
+                                  style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '100%',
+                                    objectFit: 'contain',
+                                  }}
+                                />
+                              ) : (
+                                <Avatar
+                                  size={160}
+                                  icon={<ShoppingCartOutlined />}
+                                  shape="square"
+                                  style={{ backgroundColor: '#f0f0f0' }}
+                                />
+                              )}
+                            </div>
+                          );
+                        },
                       },
+                      // 第二列：商品信息
                       {
                         title: '商品信息',
-                        dataIndex: 'items',
-                        width: 250,
-                        render: (items: any[]) => {
-                          if (!items || items.length === 0) {
-                            return <span>-</span>;
-                          }
+                        key: 'product_info',
+                        width: '20%',
+                        render: (_: any, row: ScanResultItemRow) => {
+                          const item = row.item;
                           return (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              {items.map((item, index) => (
-                                <div
-                                  key={index}
-                                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                                >
-                                  {item.image && (
-                                    <img
-                                      src={item.image}
-                                      alt={item.name || item.sku}
-                                      style={{
-                                        width: '40px',
-                                        height: '40px',
-                                        objectFit: 'cover',
-                                        borderRadius: '4px',
-                                      }}
-                                    />
-                                  )}
-                                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <div
-                                      style={{
-                                        fontSize: '12px',
-                                        color: '#666',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                      }}
-                                    >
-                                      SKU: {item.sku || '-'}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: '12px',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                      }}
-                                      title={item.name}
-                                    >
-                                      {item.name || '-'}
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: '#999' }}>
-                                      数量: {item.quantity || 0}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div>
+                                <Text type="secondary">SKU: </Text>
+                                <span>{item.sku || '-'}</span>
+                              </div>
+                              <div>
+                                <Text type="secondary">名称: </Text>
+                                <Tooltip title={item.name}>
+                                  <span
+                                    style={{
+                                      maxWidth: '200px',
+                                      display: 'inline-block',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      verticalAlign: 'bottom',
+                                    }}
+                                  >
+                                    {item.name || '-'}
+                                  </span>
+                                </Tooltip>
+                              </div>
+                              <div>
+                                <Text type="secondary">数量: </Text>
+                                <span>{item.quantity || 0}</span>
+                              </div>
                             </div>
                           );
                         },
                       },
+                      // 第三列：货件信息（使用rowSpan合并）
                       {
-                        title: '追踪号码',
-                        dataIndex: 'tracking_number',
-                        width: 150,
-                        render: (text) =>
-                          text ? (
-                            <Space>
-                              <span>{text}</span>
-                              <CopyOutlined
-                                style={{ cursor: 'pointer', color: '#1890ff' }}
-                                onClick={() => handleCopy(text, '追踪号码')}
-                              />
-                            </Space>
-                          ) : (
-                            '-'
-                          ),
-                      },
-                      {
-                        title: '国内单号',
-                        dataIndex: 'domestic_tracking_numbers',
-                        width: 180,
-                        render: (numbers: string[]) =>
-                          numbers && numbers.length > 0 ? (
-                            <div>
-                              {numbers.map((num, idx) => (
-                                <div key={idx}>
-                                  <span>{num}</span>
+                        title: '货件信息',
+                        key: 'posting_info',
+                        render: (_: any, row: ScanResultItemRow) => {
+                          if (!row.isFirstItem) return null;
+
+                          const posting = row.posting;
+                          return {
+                            children: (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div>
+                                  <Text type="secondary">货件: </Text>
+                                  <a
+                                    onClick={() => handleOpenEditNotes(posting)}
+                                    style={{ cursor: 'pointer' }}
+                                  >
+                                    {posting.posting_number}
+                                  </a>
                                   <CopyOutlined
                                     style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
-                                    onClick={() => handleCopy(num, '国内单号')}
+                                    onClick={() => handleCopy(posting.posting_number, '货件编号')}
                                   />
                                 </div>
-                              ))}
-                            </div>
-                          ) : (
-                            '-'
-                          ),
-                      },
-                      {
-                        title: '订单状态',
-                        dataIndex: 'status',
-                        width: 110,
-                        render: (status) => {
-                          const config = statusConfig[status] || statusConfig.pending;
-                          return (
-                            <Tag color={config.color}>
-                              {config.icon} {config.text}
-                            </Tag>
-                          );
+                                <div>
+                                  <Text type="secondary">追踪: </Text>
+                                  <span>{posting.tracking_number || '-'}</span>
+                                  {posting.tracking_number && (
+                                    <CopyOutlined
+                                      style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                                      onClick={() => handleCopy(posting.tracking_number, '追踪号码')}
+                                    />
+                                  )}
+                                </div>
+                                <div>
+                                  <Text type="secondary">国内: </Text>
+                                  {posting.domestic_tracking_numbers &&
+                                  posting.domestic_tracking_numbers.length > 0 ? (
+                                    <div style={{ display: 'inline-block' }}>
+                                      {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
+                                        <div key={idx}>
+                                          {num}
+                                          <CopyOutlined
+                                            style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                                            onClick={() => handleCopy(num, '国内单号')}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span>-</span>
+                                  )}
+                                </div>
+                              </div>
+                            ),
+                            props: {
+                              rowSpan: row.itemCount,
+                            },
+                          };
                         },
                       },
+                      // 第四列：订单信息（使用rowSpan合并）
                       {
-                        title: '操作状态',
-                        dataIndex: 'operation_status',
-                        width: 110,
-                        render: (opStatus) => {
-                          const config = operationStatusConfig[opStatus];
-                          return config ? <Tag color={config.color}>{config.text}</Tag> : '-';
+                        title: '订单信息',
+                        key: 'order_info',
+                        render: (_: any, row: ScanResultItemRow) => {
+                          if (!row.isFirstItem) return null;
+
+                          const posting = row.posting;
+                          const statusCfg = statusConfig[posting.status] || statusConfig.pending;
+                          const opStatusCfg = operationStatusConfig[posting.operation_status];
+
+                          return {
+                            children: (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div>
+                                  <Text type="secondary">配送: </Text>
+                                  <span>{posting.delivery_method || '-'}</span>
+                                </div>
+                                <div>
+                                  <Text type="secondary">状态: </Text>
+                                  <Tag color={statusCfg.color}>{statusCfg.text}</Tag>
+                                </div>
+                                {opStatusCfg && (
+                                  <div>
+                                    <Text type="secondary">操作: </Text>
+                                    <Tag color={opStatusCfg.color}>{opStatusCfg.text}</Tag>
+                                  </div>
+                                )}
+                                <div>
+                                  <Text type="secondary">下单: </Text>
+                                  {posting.ordered_at ? moment(posting.ordered_at).format('MM-DD HH:mm') : '-'}
+                                </div>
+                                <div>
+                                  <Text type="secondary">截止: </Text>
+                                  <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+                                    {posting.shipment_date
+                                      ? moment(posting.shipment_date).format('MM-DD HH:mm')
+                                      : '-'}
+                                  </span>
+                                </div>
+                              </div>
+                            ),
+                            props: {
+                              rowSpan: row.itemCount,
+                            },
+                          };
                         },
                       },
-                      {
-                        title: '配送方式',
-                        dataIndex: 'delivery_method',
-                        width: 120,
-                        render: (text) => text || '-',
-                      },
-                      {
-                        title: '下单时间',
-                        dataIndex: 'ordered_at',
-                        width: 130,
-                        render: (date) => (date ? moment(date).format('MM-DD HH:mm') : '-'),
-                      },
-                      {
-                        title: '发货截止',
-                        dataIndex: 'shipment_date',
-                        width: 130,
-                        render: (date) => (
-                          <Text type="danger">
-                            {date ? moment(date).format('MM-DD HH:mm') : '-'}
-                          </Text>
-                        ),
-                      },
+                      // 第五列：操作（使用rowSpan合并）
                       {
                         title: '操作',
                         key: 'action',
                         width: 100,
                         fixed: 'right' as const,
-                        render: (_, record) => (
-                          <Space>
-                            {canOperate && (
-                              <Button
-                                type="link"
-                                size="small"
-                                icon={<PrinterOutlined />}
-                                loading={isPrinting}
-                                onClick={() => handlePrintSingleLabel(record.posting_number)}
-                              >
-                                打印
-                              </Button>
-                            )}
-                          </Space>
-                        ),
+                        render: (_: any, row: ScanResultItemRow) => {
+                          if (!row.isFirstItem) return null;
+
+                          return {
+                            children: (
+                              <Space>
+                                {canOperate && (
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    icon={<PrinterOutlined />}
+                                    loading={isPrinting}
+                                    onClick={() => handlePrintSingleLabel(row.posting.posting_number)}
+                                  >
+                                    打印
+                                  </Button>
+                                )}
+                              </Space>
+                            ),
+                            props: {
+                              rowSpan: row.itemCount,
+                            },
+                          };
+                        },
                       },
                     ]}
                   />
