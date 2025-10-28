@@ -128,10 +128,12 @@ const Dashboard: React.FC = () => {
   // 创建带添加按钮的菜单项标签
   const createMenuLabel = (key: string, label: string, path: string) => {
     const isAdded = isInQuickMenu(key);
+    // 仪表板不显示添加按钮，因为登录后默认就在这一页
+    const showAddButton = key !== 'dashboard';
     return (
       <div className={styles.menuItemWrapper}>
         <span>{label}</span>
-        {!collapsed && (
+        {!collapsed && showAddButton && (
           <Button
             type="text"
             size="small"
