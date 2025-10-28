@@ -18,6 +18,8 @@ interface DomesticTrackingModalProps {
   onCancel: () => void;
   postingNumber: string;
   onSuccess?: () => void; // 操作成功后的回调
+  initialTrackingNumbers?: string[]; // 已有的国内单号列表
+  initialOrderNotes?: string; // 已有的订单备注
 }
 
 const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
@@ -25,9 +27,21 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
   onCancel,
   postingNumber,
   onSuccess,
+  initialTrackingNumbers,
+  initialOrderNotes,
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+
+  // 当 Modal 打开时，加载已有的国内单号和备注
+  React.useEffect(() => {
+    if (visible) {
+      form.setFieldsValue({
+        domestic_tracking_numbers: initialTrackingNumbers || [],
+        order_notes: initialOrderNotes || '',
+      });
+    }
+  }, [visible, initialTrackingNumbers, initialOrderNotes, form]);
 
   // 提交国内物流单号 mutation
   const submitTrackingMutation = useMutation({

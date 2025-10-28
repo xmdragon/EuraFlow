@@ -2240,6 +2240,8 @@ const PackingShipment: React.FC = () => {
           visible={domesticTrackingModalVisible}
           onCancel={() => setDomesticTrackingModalVisible(false)}
           postingNumber={currentPosting.posting_number}
+          initialTrackingNumbers={currentPosting.domestic_tracking_numbers}
+          initialOrderNotes={currentPosting.order?.order_notes}
           onSuccess={async () => {
             // 判断是否在扫描结果页面
             if (operationStatus === 'scan' && scanResults.length > 0) {
