@@ -8,6 +8,7 @@ import {
   DeleteOutlined,
   ReloadOutlined,
   SafetyOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import {
   Card,
@@ -38,6 +39,7 @@ import {
 
 import styles from './ApiKeysTab.module.scss';
 
+import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -46,6 +48,7 @@ const { Option } = Select;
 
 const ApiKeysTab: React.FC = () => {
   const { canOperate } = usePermission();
+  const { copyToClipboard } = useCopy();
   const [keys, setKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -245,9 +248,13 @@ const ApiKeysTab: React.FC = () => {
             <Text strong className={styles.apiLabel}>
               📡 API 地址：
             </Text>
-            <Text code copyable={{ text: window.location.origin }} className={styles.apiAddress}>
+            <Text code className={styles.apiAddress}>
               {window.location.origin}
             </Text>
+            <CopyOutlined
+              style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+              onClick={() => copyToClipboard(window.location.origin, 'API地址')}
+            />
           </div>
         </div>
         <Text type="secondary" className={styles.apiHint}>
@@ -370,9 +377,11 @@ const ApiKeysTab: React.FC = () => {
           className={styles.modalAlert}
         />
         <div className={styles.keyDisplay}>
-          <Text code copyable={{ text: newKeyData?.key || '' }}>
-            {newKeyData?.key}
-          </Text>
+          <Text code>{newKeyData?.key}</Text>
+          <CopyOutlined
+            style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff', fontSize: 16 }}
+            onClick={() => copyToClipboard(newKeyData?.key || '', 'API Key')}
+          />
         </div>
       </Modal>
     </div>
