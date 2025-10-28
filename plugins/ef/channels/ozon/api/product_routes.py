@@ -518,16 +518,18 @@ async def update_prices(
                     continue
 
                 # 调用Ozon API更新价格
-                price_data = {
-                    "prices": [{
-                        "offer_id": product.offer_id,
-                        "price": str(new_price),
-                        "old_price": str(old_price) if old_price else "",
-                        "product_id": product.ozon_product_id
-                    }]
+                price_item = {
+                    "offer_id": product.offer_id,
+                    "price": str(new_price),
+                    "product_id": product.ozon_product_id
                 }
 
-                api_result = await client.update_prices(price_data)
+                # 只有当old_price有值时才传递
+                if old_price:
+                    price_item["old_price"] = str(old_price)
+
+                # update_prices 期望的是列表，不是字典
+                api_result = await client.update_prices([price_item])
 
                 # 记录OZON API完整响应用于调试
                 logger.info(f"OZON API价格更新响应 - 商品货号: {offer_id}, product_id: {product.ozon_product_id}, 响应: {api_result}")

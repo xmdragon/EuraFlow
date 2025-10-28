@@ -904,6 +904,10 @@ async def batch_print_labels(
 
     说明：shop_id从posting记录中自动获取，无需手动指定
 
+    状态要求：
+    - OZON状态必须是 'awaiting_deliver'（等待发运）
+    - 操作状态必须是 'tracking_confirmed'（单号确认）或 'printed'（已打印，允许重新打印）
+
     错误处理策略：
     1. 预检查：检查每个posting的缓存状态
     2. 逐个调用：避免一个失败导致全部失败
@@ -1001,8 +1005,8 @@ async def batch_print_labels(
                 })
                 continue
 
-            # 检查操作状态：必须先确认运单号才能打印标签
-            if posting.operation_status != 'tracking_confirmed':
+            # 检查操作状态：必须先确认运单号才能打印标签（允许已打印状态重新打印）
+            if posting.operation_status not in ('tracking_confirmed', 'printed'):
                 invalid_status_postings.append({
                     "posting_number": pn,
                     "current_status": f"运单号未确认 ({posting.operation_status or '未设置'})",
@@ -1014,7 +1018,7 @@ async def batch_print_labels(
                 status_code=422,
                 detail={
                     "error": "INVALID_STATUS",
-                    "message": "只能打印'等待发运'且已确认运单号的订单标签",
+                    "message": "只能打印'等待发运'且已确认运单号（或已打印）的订单标签",
                     "invalid_postings": invalid_status_postings
                 }
             )

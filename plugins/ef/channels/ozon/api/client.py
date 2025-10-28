@@ -387,7 +387,7 @@ class OzonAPIClient:
             # 价格字段（转换为字符串格式）
             price_item["price"] = str(price.get("price", 0))
 
-            # 原价（可选）
+            # 原价（可选）- 只有当存在且不为空时才添加
             if price.get("old_price"):
                 price_item["old_price"] = str(price["old_price"])
 
