@@ -129,8 +129,10 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
           className={styles.orderCard}
           cover={
             <div className={styles.orderCover}>
-              {/* 复选框 - 左上角 */}
-              {posting.status === 'awaiting_deliver' && (
+              {/* 复选框 - 左上角，只在"已分配"及之后的标签显示（用于批量打印） */}
+              {posting.status === 'awaiting_deliver' &&
+               operationStatus !== 'awaiting_stock' &&
+               operationStatus !== 'allocating' && (
                 <Checkbox
                   className={styles.orderCheckbox}
                   checked={isSelected}

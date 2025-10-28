@@ -894,9 +894,8 @@ const PackingShipment: React.FC = () => {
     setSyncProgress({ success: 0, failed: 0, total: 0 });
   };
 
-  // 批量同步处理函数（非阻塞）
+  // 批量同步处理函数（直接执行，不弹窗确认）
   const handleBatchSync = () => {
-    // 使用 console.error 确保日志可见（生产环境也会显示）
     console.error('【批量同步调试】按钮被点击', { allPostingsLength: allPostings.length });
     logger.info('批量同步按钮被点击', { allPostingsLength: allPostings.length });
 
@@ -907,32 +906,20 @@ const PackingShipment: React.FC = () => {
       return;
     }
 
-    console.error('【批量同步调试】准备显示确认对话框', {
+    console.error('【批量同步调试】开始执行批量同步', {
       postings: allPostings.map(p => ({ posting_number: p.posting_number, status: p.status }))
     });
-    logger.info('显示批量同步确认对话框');
+    logger.info('开始执行批量同步');
 
-    Modal.confirm({
-      title: '确认批量同步？',
-      content: `将同步当前页面的 ${allPostings.length} 个订单，是否继续？`,
-      onOk: () => {
-        console.error('【批量同步调试】用户确认同步');
-        logger.info('用户确认批量同步');
-        // 立即设置同步状态
-        setIsBatchSyncing(true);
-        setSyncProgress({ success: 0, failed: 0, total: allPostings.length });
+    // 提示用户操作已开始
+    notifyInfo('批量同步', `开始同步 ${allPostings.length} 个订单...`);
 
-        // 在后台执行同步任务（非阻塞）
-        executeBatchSync([...allPostings]);
+    // 立即设置同步状态
+    setIsBatchSyncing(true);
+    setSyncProgress({ success: 0, failed: 0, total: allPostings.length });
 
-        // 立即返回，对话框会关闭
-        return Promise.resolve();
-      },
-      onCancel: () => {
-        console.error('【批量同步调试】用户取消同步');
-        logger.info('用户取消批量同步');
-      },
-    });
+    // 在后台执行同步任务（非阻塞）
+    executeBatchSync([...allPostings]);
   };
 
   // 稳定化的回调函数 - 使用 useCallback 避免重复渲染
