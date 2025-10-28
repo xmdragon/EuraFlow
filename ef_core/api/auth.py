@@ -679,7 +679,8 @@ async def update_user(
 
     try:
         await session.commit()
-        await session.refresh(user, attribute_names=["shops"])
+        # 刷新所有属性，避免 MissingGreenlet 错误
+        await session.refresh(user)
         logger.info(f"用户{user_id}更新成功")
     except Exception as e:
         logger.error(f"提交用户更新失败: {e}", exc_info=True)
@@ -690,6 +691,11 @@ async def update_user(
                 "message": f"提交更新失败: {str(e)}"
             }
         )
+
+    # 重新加载用户及其关联的 shops，确保所有属性都是最新的
+    stmt = select(User).where(User.id == user_id).options(selectinload(User.shops))
+    result = await session.execute(stmt)
+    user = result.scalar_one()
 
     return UserResponse(**{**user.to_dict(), "shop_ids": [shop.id for shop in user.shops]})
 
