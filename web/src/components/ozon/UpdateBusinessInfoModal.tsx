@@ -4,6 +4,7 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal, Form, Input, Select, InputNumber } from 'antd';
+import axios from 'axios';
 import React, { useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
@@ -60,8 +61,10 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
       // 关闭弹窗并重置表单
       handleClose();
     },
-    onError: (error: Error) => {
-      const errorMsg = error.response?.data?.message || error.message || '更新失败';
+    onError: (error: unknown) => {
+      const errorMsg = axios.isAxiosError(error)
+        ? (error.response?.data?.message || error.message || '更新失败')
+        : (error instanceof Error ? error.message : '更新失败');
       notifyError('更新失败', errorMsg);
     },
   });

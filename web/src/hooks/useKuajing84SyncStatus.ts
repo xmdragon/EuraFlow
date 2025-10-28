@@ -8,6 +8,8 @@
 import axios from 'axios';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
+import { logger } from '@/utils/logger';
+
 export interface Kuajing84SyncStatus {
   sync_log_id: number;
   status: 'pending' | 'in_progress' | 'success' | 'failed';

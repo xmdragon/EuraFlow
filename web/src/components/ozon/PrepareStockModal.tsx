@@ -4,6 +4,7 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal, Form, Input, Select, InputNumber, Checkbox } from 'antd';
+import axios from 'axios';
 import React from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
@@ -17,7 +18,7 @@ interface PrepareStockModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
-  posting?: unknown; // 传入完整的posting对象，用于加载原有值
+  posting?: ozonApi.Posting; // 传入完整的posting对象，用于加载原有值
   onSuccess?: () => void; // 操作成功后的回调
 }
 
@@ -64,8 +65,10 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       // 关闭弹窗并重置表单
       handleClose();
     },
-    onError: (error: Error) => {
-      const errorMsg = error.response?.data?.message || error.message || '备货操作失败';
+    onError: (error: unknown) => {
+      const errorMsg = axios.isAxiosError(error)
+        ? (error.response?.data?.message || error.message || '备货操作失败')
+        : (error instanceof Error ? error.message : '备货操作失败');
       notifyError('操作失败', errorMsg);
     },
   });

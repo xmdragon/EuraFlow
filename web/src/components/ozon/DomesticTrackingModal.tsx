@@ -4,6 +4,7 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal, Form, Input, message, Select, Checkbox } from 'antd';
+import axios from 'axios';
 import React from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
@@ -49,8 +50,10 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       // 立即关闭弹窗，等待 WebSocket 推送结果通知
       handleClose();
     },
-    onError: (error: Error) => {
-      const errorMsg = error.response?.data?.message || error.message || '提交失败';
+    onError: (error: unknown) => {
+      const errorMsg = axios.isAxiosError(error)
+        ? (error.response?.data?.message || error.message || '提交失败')
+        : (error instanceof Error ? error.message : '提交失败');
       notifyError('国内单号提交失败', errorMsg);
     },
   });

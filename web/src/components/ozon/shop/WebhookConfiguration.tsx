@@ -35,6 +35,10 @@ interface Shop {
   status: 'active' | 'inactive' | 'suspended';
 }
 
+interface WebhookConfig {
+  webhook_url: string;
+}
+
 export interface WebhookConfigurationProps {
   selectedShop: Shop | null;
 }
@@ -60,7 +64,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
 
   // 配置webhook
   const configureWebhookMutation = useMutation({
-    mutationFn: async (config: unknown) => {
+    mutationFn: async (config: WebhookConfig) => {
       if (!selectedShop?.id) throw new Error('未选择店铺');
       return ozonApi.configureWebhook(selectedShop.id, config);
     },
@@ -152,7 +156,8 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
       const response = await ozonApi.getWebhookEvents(selectedShop.id);
       setWebhookEvents(response.events || []);
     } catch (error) {
-      notifyError('获取失败', `获取事件失败: ${error.message}`);
+      const errorMsg = error instanceof Error ? error.message : '获取事件失败';
+      notifyError('获取失败', `获取事件失败: ${errorMsg}`);
     } finally {
       setLoading(false);
     }

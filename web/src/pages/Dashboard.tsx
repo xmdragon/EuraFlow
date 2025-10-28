@@ -15,6 +15,9 @@ import {
   DollarOutlined,
   CloudUploadOutlined,
   AppstoreOutlined,
+  PlusOutlined,
+  CheckOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -26,6 +29,8 @@ import {
   Row,
   Col,
   Spin,
+  Button,
+  Space,
 } from "antd";
 import React, { Suspense, lazy, useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
@@ -41,6 +46,7 @@ import styles from "./Dashboard.module.scss";
 
 import PageTitle from "@/components/PageTitle";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuickMenu } from "@/hooks/useQuickMenu";
 import type { User } from "@/types/auth";
 
 // 加载中组件
@@ -64,6 +70,7 @@ const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { quickMenuItems, addQuickMenu, removeQuickMenu, isInQuickMenu } = useQuickMenu();
 
   // 侧边栏折叠状态，从 localStorage 读取初始值
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -78,6 +85,28 @@ const Dashboard: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
+  };
+
+  // 处理添加快捷菜单
+  const handleAddQuickMenu = (key: string, label: string, path: string) => {
+    addQuickMenu({ key, label, path });
+  };
+
+  // 图标映射（用于快捷菜单渲染）
+  const iconMap: Record<string, React.ReactNode> = {
+    DashboardOutlined: <DashboardOutlined />,
+    CalculatorOutlined: <CalculatorOutlined />,
+    FilterOutlined: <FilterOutlined />,
+    ShoppingOutlined: <ShoppingOutlined />,
+    CloudUploadOutlined: <CloudUploadOutlined />,
+    DollarOutlined: <DollarOutlined />,
+    ShoppingCartOutlined: <ShoppingCartOutlined />,
+    FileTextOutlined: <FileTextOutlined />,
+    MessageOutlined: <MessageOutlined />,
+    PictureOutlined: <PictureOutlined />,
+    SyncOutlined: <SyncOutlined />,
+    SettingOutlined: <SettingOutlined />,
+    UserOutlined: <UserOutlined />,
   };
 
   const userMenuItems = [
@@ -96,17 +125,41 @@ const Dashboard: React.FC = () => {
     },
   ];
 
+  // 创建带添加按钮的菜单项标签
+  const createMenuLabel = (key: string, label: string, path: string) => {
+    const isAdded = isInQuickMenu(key);
+    return (
+      <div className={styles.menuItemWrapper}>
+        <span>{label}</span>
+        {!collapsed && (
+          <Button
+            type="text"
+            size="small"
+            className={styles.addMenuButton}
+            icon={isAdded ? <CheckOutlined /> : <PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isAdded) {
+                handleAddQuickMenu(key, label, path);
+              }
+            }}
+          />
+        )}
+      </div>
+    );
+  };
+
   const menuItems = [
     {
       key: "dashboard",
       icon: <DashboardOutlined />,
-      label: "仪表板",
+      label: createMenuLabel("dashboard", "仪表板", "/dashboard"),
       onClick: () => navigate("/dashboard"),
     },
     {
       key: "finance",
       icon: <CalculatorOutlined />,
-      label: "财务计算",
+      label: createMenuLabel("finance", "财务计算", "/dashboard/finance"),
       onClick: () => navigate("/dashboard/finance"),
     },
     {
@@ -117,61 +170,61 @@ const Dashboard: React.FC = () => {
         {
           key: "ozon-selection",
           icon: <FilterOutlined />,
-          label: "选品助手",
+          label: createMenuLabel("ozon-selection", "选品助手", "/dashboard/ozon/selection"),
           onClick: () => navigate("/dashboard/ozon/selection"),
         },
         {
           key: "ozon-products-list",
           icon: <ShoppingOutlined />,
-          label: "商品列表",
+          label: createMenuLabel("ozon-products-list", "商品列表", "/dashboard/ozon/products"),
           onClick: () => navigate("/dashboard/ozon/products"),
         },
         {
           key: "ozon-listing",
           icon: <CloudUploadOutlined />,
-          label: "商品上架",
+          label: createMenuLabel("ozon-listing", "商品上架", "/dashboard/ozon/listing"),
           onClick: () => navigate("/dashboard/ozon/listing"),
         },
         {
           key: "ozon-promotions",
           icon: <DollarOutlined />,
-          label: "促销活动",
+          label: createMenuLabel("ozon-promotions", "促销活动", "/dashboard/ozon/promotions"),
           onClick: () => navigate("/dashboard/ozon/promotions"),
         },
         {
           key: "ozon-orders",
           icon: <ShoppingCartOutlined />,
-          label: "订单管理",
+          label: createMenuLabel("ozon-orders", "订单管理", "/dashboard/ozon/orders"),
           onClick: () => navigate("/dashboard/ozon/orders"),
         },
         {
           key: "ozon-packing",
           icon: <ShoppingCartOutlined />,
-          label: "打包发货",
+          label: createMenuLabel("ozon-packing", "打包发货", "/dashboard/ozon/packing"),
           onClick: () => navigate("/dashboard/ozon/packing"),
         },
         {
           key: "ozon-reports",
           icon: <FileTextOutlined />,
-          label: "订单报表",
+          label: createMenuLabel("ozon-reports", "订单报表", "/dashboard/ozon/reports"),
           onClick: () => navigate("/dashboard/ozon/reports"),
         },
         {
           key: "ozon-finance-transactions",
           icon: <DollarOutlined />,
-          label: "财务交易",
+          label: createMenuLabel("ozon-finance-transactions", "财务交易", "/dashboard/ozon/finance-transactions"),
           onClick: () => navigate("/dashboard/ozon/finance-transactions"),
         },
         {
           key: "ozon-chats",
           icon: <MessageOutlined />,
-          label: "聊天管理",
+          label: createMenuLabel("ozon-chats", "聊天管理", "/dashboard/ozon/chats"),
           onClick: () => navigate("/dashboard/ozon/chats"),
         },
         {
           key: "ozon-watermark",
           icon: <PictureOutlined />,
-          label: "水印管理",
+          label: createMenuLabel("ozon-watermark", "水印管理", "/dashboard/ozon/watermark"),
           onClick: () => navigate("/dashboard/ozon/watermark"),
         },
       ],
@@ -186,13 +239,13 @@ const Dashboard: React.FC = () => {
               {
                 key: "system-sync-services",
                 icon: <SyncOutlined />,
-                label: "后台服务",
+                label: createMenuLabel("system-sync-services", "后台服务", "/dashboard/system/sync-services"),
                 onClick: () => navigate("/dashboard/system/sync-services"),
               },
               {
                 key: "system-configuration",
                 icon: <SettingOutlined />,
-                label: "系统配置",
+                label: createMenuLabel("system-configuration", "系统配置", "/dashboard/system/configuration"),
                 onClick: () => navigate("/dashboard/system/configuration"),
               },
             ],
@@ -200,7 +253,7 @@ const Dashboard: React.FC = () => {
           {
             key: "users",
             icon: <UserOutlined />,
-            label: "用户管理",
+            label: createMenuLabel("users", "用户管理", "/dashboard/users"),
             onClick: () => navigate("/dashboard/users"),
           },
         ]
@@ -316,6 +369,10 @@ const Dashboard: React.FC = () => {
                         updated_at: new Date().toISOString(),
                       }
                     }
+                    quickMenuItems={quickMenuItems}
+                    removeQuickMenu={removeQuickMenu}
+                    navigate={navigate}
+                    iconMap={iconMap}
                   />
                 }
               />
@@ -337,44 +394,52 @@ const Dashboard: React.FC = () => {
 };
 
 // 仪表板首页组件
-const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
+interface DashboardHomeProps {
+  user: User;
+  quickMenuItems: Array<{ key: string; label: string; path: string }>;
+  removeQuickMenu: (key: string) => void;
+  navigate: (path: string) => void;
+  iconMap: Record<string, React.ReactNode>;
+}
+
+const DashboardHome: React.FC<DashboardHomeProps> = ({
+  user,
+  quickMenuItems,
+  removeQuickMenu,
+  navigate,
+  iconMap,
+}) => {
   return (
     <div>
       <PageTitle icon={<DashboardOutlined />} title="系统状态" />
 
       <Card>
-        <div style={{ padding: "40px 20px", textAlign: "center" }}>
-          <Title level={2} style={{ marginBottom: 40 }}>
+        <div className={styles.welcomeSection}>
+          <Title level={2} className={styles.welcomeTitle}>
             欢迎使用 EuraFlow 跨境电商管理平台
           </Title>
 
           <Row gutter={[16, 24]} justify="center">
             <Col xs={24} sm={12} md={8}>
               <Card type="inner">
-                <p style={{ marginBottom: 8, color: "#999" }}>账户角色</p>
-                <p style={{ fontSize: 18, fontWeight: "bold" }}>
+                <p className={styles.cardLabel}>账户角色</p>
+                <p className={styles.cardValue}>
                   {user?.role || "未设置"}
                 </p>
               </Card>
             </Col>
             <Col xs={24} sm={12} md={8}>
               <Card type="inner">
-                <p style={{ marginBottom: 8, color: "#999" }}>账户状态</p>
-                <p
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "bold",
-                    color: user?.is_active ? "#52c41a" : "#f5222d",
-                  }}
-                >
+                <p className={styles.cardLabel}>账户状态</p>
+                <p className={user?.is_active ? styles.cardValueActive : styles.cardValueInactive}>
                   {user?.is_active ? "活跃" : "未激活"}
                 </p>
               </Card>
             </Col>
             <Col xs={24} sm={12} md={8}>
               <Card type="inner">
-                <p style={{ marginBottom: 8, color: "#999" }}>最后登录</p>
-                <p style={{ fontSize: 16, fontWeight: "bold" }}>
+                <p className={styles.cardLabel}>最后登录</p>
+                <p className={styles.cardValueTime}>
                   {user?.last_login_at
                     ? new Date(user.last_login_at).toLocaleString("zh-CN")
                     : "首次登录"}
@@ -384,6 +449,42 @@ const DashboardHome: React.FC<{ user: User }> = ({ user }) => {
           </Row>
         </div>
       </Card>
+
+      {/* 快捷菜单区域 */}
+      {quickMenuItems.length > 0 && (
+        <Card className={styles.quickMenuContainer}>
+          <Title level={4}>快捷菜单</Title>
+          <Row gutter={[16, 16]}>
+            {quickMenuItems.map((item) => (
+              <Col xs={12} sm={8} md={6} lg={4} key={item.key}>
+                <Card
+                  hoverable
+                  className={styles.quickMenuItem}
+                  onClick={() => navigate(item.path)}
+                >
+                  <div className={styles.quickMenuContent}>
+                    <Button
+                      type="text"
+                      danger
+                      size="small"
+                      className={styles.removeButton}
+                      icon={<CloseOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeQuickMenu(item.key);
+                      }}
+                    />
+                    <div className={styles.quickMenuIcon}>
+                      {iconMap[item.key] || <DashboardOutlined />}
+                    </div>
+                    <div className={styles.quickMenuLabel}>{item.label}</div>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </Card>
+      )}
     </div>
   );
 };

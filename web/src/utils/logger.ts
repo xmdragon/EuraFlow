@@ -113,6 +113,7 @@ export const loggers = {
   notification: createLogger('notification'),
   websocket: createLogger('websocket'),
   sync: createLogger('sync'),
+  promotion: createLogger('promotion'),
 } as const;
 
 /**

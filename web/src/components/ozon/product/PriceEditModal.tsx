@@ -154,7 +154,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                     style={{ width: 200 }}
                     placeholder="输入百分比 (正数加价，负数降价)"
                     value={percentageChange}
-                    onChange={setPercentageChange}
+                    onChange={(value) => setPercentageChange(typeof value === 'number' ? value : 0)}
                     formatter={(value) => `${value}%`}
                     parser={(value) => value?.replace('%', '') as unknown as number}
                     step={5}
@@ -250,7 +250,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                         <InputNumber
                           style={{ width: 140 }}
                           value={priceData.newPrice}
-                          onChange={(value) => updateProductPrice(product.offer_id, value || 0)}
+                          onChange={(value) => updateProductPrice(product.offer_id, typeof value === 'number' ? value : 0)}
                           min={0}
                           formatter={getNumberFormatter(2)}
                           parser={getNumberParser()}

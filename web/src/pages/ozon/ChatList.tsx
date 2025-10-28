@@ -210,7 +210,15 @@ const ChatList: React.FC = () => {
       currentPage,
     ],
     queryFn: async () => {
-      const params = {
+      const params: {
+        limit: number;
+        offset: number;
+        shop_ids?: string;
+        status?: string;
+        has_unread?: boolean;
+        is_archived?: boolean;
+        order_number?: string;
+      } = {
         limit: pageSize,
         offset: (currentPage - 1) * pageSize,
       };

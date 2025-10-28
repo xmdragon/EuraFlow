@@ -144,6 +144,7 @@ export interface Product {
   id: number;
   shop_id: number;
   offer_id: string;
+  sku?: string; // SKU别名（与offer_id相同）
   ozon_product_id?: number;
   ozon_sku?: number;
   title: string;
@@ -297,7 +298,7 @@ export const syncProducts = async (
 
 // 批量更新价格
 export const updatePrices = async (updates: PriceUpdate[], shopId?: number) => {
-  const data = { updates };
+  const data: { updates: PriceUpdate[]; shop_id?: number } = { updates };
   if (shopId) {
     data.shop_id = shopId;
   }
@@ -307,7 +308,7 @@ export const updatePrices = async (updates: PriceUpdate[], shopId?: number) => {
 
 // 批量更新库存
 export const updateStocks = async (updates: StockUpdate[], shopId?: number) => {
-  const data = { updates };
+  const data: { updates: StockUpdate[]; shop_id?: number } = { updates };
   if (shopId) {
     data.shop_id = shopId;
   }
@@ -427,6 +428,7 @@ export interface Posting {
   domestic_tracking_number?: string; // 国内物流单号（常用字段，提升到 Posting）
   domestic_tracking_numbers?: string[]; // 国内物流单号列表（一对多关系）
   source_platform?: string; // 采集平台（常用字段，提升到 Posting）
+  order_notes?: string; // 订单备注
   // 财务字段
   purchase_price?: string; // 进货价格
   material_cost?: string; // 打包费用（物料成本）
@@ -604,7 +606,7 @@ export interface Statistics {
 
 // 获取统计数据
 export const getStatistics = async (shopId?: number | null) => {
-  const params = {};
+  const params: { shop_id?: number } = {};
   if (shopId) {
     params.shop_id = shopId;
   }
@@ -652,7 +654,7 @@ export const getOrderDetail = async (
   postingNumber: string,
   shopId?: number,
 ) => {
-  const params = {};
+  const params: { shop_id?: number } = {};
   if (shopId) {
     params.shop_id = shopId;
   }
@@ -735,7 +737,7 @@ export const getWebhookEvents = async (
   limit: number;
   offset: number;
 }> => {
-  const params = {
+  const params: { shop_id: number; limit: number; offset: number; status?: string } = {
     shop_id: shopId,
     limit,
     offset,
@@ -1106,7 +1108,7 @@ export const getKuajing84SyncLogs = async (
   status?: string,
   limit: number = 50,
 ): Promise<{ success: boolean; data: Kuajing84SyncLog[] }> => {
-  const params = { limit };
+  const params: { limit: number; status?: string } = { limit };
   if (status) {
     params.status = status;
   }
@@ -1788,7 +1790,7 @@ export const getFinanceTransactionsSummary = async (
   dateTo?: string,
   transactionType?: string,
 ): Promise<FinanceTransactionsSummary> => {
-  const params = { shop_id: shopId };
+  const params: { shop_id: number; date_from?: string; date_to?: string; transaction_type?: string } = { shop_id: shopId };
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
   if (transactionType) params.transaction_type = transactionType;

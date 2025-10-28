@@ -309,7 +309,7 @@ const ChatDetail: React.FC = () => {
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
-  const getChatDisplayName = (chatData: unknown) => {
+  const getChatDisplayName = (chatData: ozonApi.OzonChat) => {
     // 如果有客户名称且不是旧数据的"未知客户"，直接显示
     if (chatData.customer_name && chatData.customer_name !== '未知客户') {
       return chatData.customer_name;

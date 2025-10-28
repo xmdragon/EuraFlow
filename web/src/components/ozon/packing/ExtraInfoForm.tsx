@@ -5,6 +5,7 @@
  */
 import { SendOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { Form, Input, Select, Button, Space, Row, Col } from 'antd';
 import React, { useEffect } from 'react';
 
@@ -18,6 +19,12 @@ import type { FormValues } from '@/types/common';
 
 const { Option } = Select;
 
+interface SyncKuajing84Params {
+  ozonOrderId: number;
+  postingNumber: string;
+  logisticsOrder: string;
+}
+
 export interface ExtraInfoFormProps {
   /** 选中的订单 */
   selectedOrder: ozonApi.Order | null;
@@ -26,7 +33,7 @@ export interface ExtraInfoFormProps {
   /** 设置更新加载状态 */
   setIsUpdatingExtraInfo: (_isLoading: boolean) => void;
   /** 同步到跨境巴士的 mutation */
-  syncToKuajing84Mutation: unknown;
+  syncToKuajing84Mutation: UseMutationResult<any, Error, SyncKuajing84Params, unknown>;
   /** 是否有操作权限 */
   canOperate: boolean;
 }

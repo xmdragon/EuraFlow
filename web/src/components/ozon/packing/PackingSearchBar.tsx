@@ -11,13 +11,15 @@ import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 
-import type { FormValues } from '@/types/common';
-
 export interface SearchParams {
   sku?: string;
   posting_number?: string;
   tracking_number?: string;
   domestic_tracking_number?: string;
+}
+
+interface PackingSearchFormValues {
+  search_text?: string;
 }
 
 export interface PackingSearchBarProps {
@@ -40,7 +42,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
   onShopChange,
   onSearchParamsChange,
 }) => {
-  const handleSearch = (values: FormValues) => {
+  const handleSearch = (values: PackingSearchFormValues) => {
     const searchValue = values.search_text?.trim();
 
     if (!searchValue) {

@@ -76,7 +76,21 @@ import {
 } from "@/utils/notification";
 import { optimizeOzonImageUrl } from "@/utils/ozonImageOptimizer";
 
-import type { FormValues } from "@/types/common";
+import type { Dayjs } from 'dayjs';
+
+// 选品助手表单值接口
+interface ProductSelectionFormValues {
+  brand?: string;
+  monthly_sales_min?: number;
+  monthly_sales_max?: number;
+  weight_max?: number;
+  competitor_count_min?: number;
+  competitor_count_max?: number;
+  competitor_min_price_min?: number;
+  competitor_min_price_max?: number;
+  listing_date?: Dayjs;
+  sort_by?: 'sales_desc' | 'sales_asc' | 'weight_asc' | 'price_asc' | 'price_desc' | 'created_desc' | 'created_asc';
+}
 
 const { Option } = Select;
 const { Text, Link, Paragraph, Title } = Typography;
@@ -118,6 +132,7 @@ const ProductSelection: React.FC = () => {
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
   const [isCalculated, setIsCalculated] = useState(false); // 是否已完成初始计算（避免重复请求）
   const loadingLockRef = useRef(false); // 请求锁，防止并发请求
+  const lastRequestPageRef = useRef(0); // 上次请求的页码
   const [lastId, setLastId] = useState<number>(0); // 游标：上次最后一个商品的ID
 
   // 字段配置状态
@@ -502,7 +517,7 @@ const ProductSelection: React.FC = () => {
   };
 
   // 处理搜索
-  const handleSearch = (values: FormValues) => {
+  const handleSearch = (values: ProductSelectionFormValues) => {
     const params: api.ProductSearchParams = {};
 
     if (values.brand) params.brand = values.brand;

@@ -570,9 +570,9 @@ const OrderList: React.FC = () => {
             // 匹配 "正在同步 awaiting_deliver 订单 56210030-0227-1..." 格式
             const matchWithStatus = displayMessage.match(/正在同步\s+(\w+)\s+订单\s+([0-9-]+)/);
             if (matchWithStatus) {
-              const statusKey = matchWithStatus[1];
+              const status = matchWithStatus[1];
               const postingNumber = matchWithStatus[2];
-              const statusText = statusMap[statusKey]?.text || statusKey;
+              const statusText = status || status;
               displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
             } else {
               // 简单匹配订单号
@@ -795,7 +795,7 @@ const OrderList: React.FC = () => {
             <div>
               <Text type="secondary">金额: </Text>
               <span className={styles.price}>
-                {symbol} {formatPrice((item.price || 0) * (item.quantity || 1))}
+                {symbol} {formatPrice((Number(item.price) || 0) * (item.quantity || 1))}
               </span>
             </div>
           </div>

@@ -87,6 +87,158 @@
   transition: all 0.2s;
 }
 
+// 菜单项包装器（包含标签和添加按钮）
+.menuItemWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+
+  span {
+    flex: 1;
+  }
+}
+
+// 添加菜单按钮
+.addMenuButton {
+  opacity: 0;
+  transition: all 0.2s;
+  padding: 0 4px;
+  min-width: 24px;
+  height: 24px;
+  color: rgba(255, 255, 255, 0.45);
+
+  &:hover {
+    color: #fff !important;
+    background: rgba(24, 144, 255, 0.2);
+    border-radius: 4px;
+  }
+}
+
+// 菜单项悬停时显示添加按钮
+:global(.ant-menu-item),
+:global(.ant-menu-submenu-title) {
+  &:hover .addMenuButton {
+    opacity: 1;
+  }
+}
+
+// 快捷菜单容器
+.quickMenuContainer {
+  margin: 16px 0 0;
+  border-radius: 8px;
+
+  h4 {
+    margin-bottom: 16px;
+  }
+}
+
+// 快捷菜单项
+.quickMenuItem {
+  position: relative;
+  border-radius: 8px;
+  transition: all 0.3s;
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  :global(.ant-card-body) {
+    padding: 16px;
+  }
+}
+
+// 快捷菜单内容
+.quickMenuContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+// 快捷菜单图标
+.quickMenuIcon {
+  font-size: 32px;
+  color: #1890ff;
+}
+
+// 快捷菜单标签
+.quickMenuLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+// 删除按钮
+.removeButton {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 0;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    background: rgba(255, 77, 79, 0.1);
+  }
+}
+
+.quickMenuItem:hover .removeButton {
+  opacity: 1;
+}
+
+// 欢迎区域
+.welcomeSection {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.welcomeTitle {
+  margin-bottom: 40px;
+}
+
+// 卡片标签
+.cardLabel {
+  margin-bottom: 8px;
+  color: #999;
+}
+
+// 卡片值
+.cardValue {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.cardValueActive {
+  font-size: 18px;
+  font-weight: bold;
+  color: #52c41a;
+  margin: 0;
+}
+
+.cardValueInactive {
+  font-size: 18px;
+  font-weight: bold;
+  color: #f5222d;
+  margin: 0;
+}
+
+.cardValueTime {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 0;
+}
+
 // 响应式适配
 @media (max-width: 768px) {
   .userProfile {
@@ -100,5 +252,22 @@
 
   .userEmail {
     font-size: 11px;
+  }
+
+  .quickMenuIcon {
+    font-size: 24px;
+  }
+
+  .quickMenuLabel {
+    font-size: 12px;
+  }
+
+  .welcomeSection {
+    padding: 20px 10px;
+  }
+
+  .welcomeTitle {
+    font-size: 20px;
+    margin-bottom: 24px;
   }
 }

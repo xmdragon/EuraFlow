@@ -45,7 +45,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { useCurrency } from '../../hooks/useCurrency';
-import { formatPriceWithFallback, _getCurrencySymbol } from '../../utils/currency';
+import { formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 
 import styles from './PackingShipment.module.scss';
 
@@ -824,7 +824,7 @@ const PackingShipment: React.FC = () => {
   // 注意：废弃订单现在使用 DiscardOrderModal 组件处理，不再需要单独的 mutation
 
   // 异步执行批量同步（后台任务）
-  const executeBatchSync = async (postings: unknown[]) => {
+  const executeBatchSync = async (postings: ozonApi.PostingWithOrder[]) => {
     const notificationKey = 'batch-sync';
     let successCount = 0;
     let failedCount = 0;

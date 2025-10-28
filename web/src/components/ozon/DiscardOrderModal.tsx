@@ -5,6 +5,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal, Form, Checkbox, Alert, Space } from 'antd';
+import axios from 'axios';
 import React from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
@@ -49,8 +50,10 @@ const DiscardOrderModal: React.FC<DiscardOrderModalProps> = ({
       // 关闭弹窗
       handleClose();
     },
-    onError: (error: Error) => {
-      const errorMsg = error.response?.data?.message || error.message || '废弃失败';
+    onError: (error: unknown) => {
+      const errorMsg = axios.isAxiosError(error)
+        ? (error.response?.data?.message || error.message || '废弃失败')
+        : (error instanceof Error ? error.message : '废弃失败');
       notifyError('废弃订单失败', errorMsg);
     },
   });

@@ -24,8 +24,6 @@ import * as ozonApi from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 
-import type { FormValues } from '@/types/common';
-
 // 类目选项接口
 interface CategoryOption {
   value: number;
@@ -43,6 +41,21 @@ interface ProductVariant {
   sku: string;
   price: number;
   oldPrice?: number;
+}
+
+// 商品表单值接口
+interface ProductFormValues {
+  sku: string;
+  offer_id: string;
+  title: string;
+  description: string;
+  price?: number;
+  old_price?: number;
+  stock?: number;
+  height: number;
+  width: number;
+  depth: number;
+  weight: number;
 }
 
 const { TextArea } = Input;
@@ -182,7 +195,7 @@ const ProductCreate: React.FC = () => {
   };
 
   // 提交商品表单
-  const handleProductSubmit = async (values: FormValues) => {
+  const handleProductSubmit = async (values: ProductFormValues) => {
     if (!selectedShop) {
       notifyError('操作失败', '请先选择店铺');
       return;
@@ -218,7 +231,8 @@ const ProductCreate: React.FC = () => {
         weight_unit: 'g',
       });
     } catch (error) {
-      notifyError('操作失败', `操作失败: ${error.message}`);
+      const errorMsg = error instanceof Error ? error.message : '操作失败';
+      notifyError('操作失败', `操作失败: ${errorMsg}`);
     }
   };
 

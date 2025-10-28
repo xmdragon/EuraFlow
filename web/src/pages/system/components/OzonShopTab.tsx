@@ -39,6 +39,7 @@ import {
   Tooltip,
   Spin,
 } from 'antd';
+import axios from 'axios';
 import React, { useState, useEffect } from 'react';
 
 import styles from './OzonShopTab.module.scss';
@@ -47,7 +48,19 @@ import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
-import type { FormValues } from '@/types/common';
+// OZON店铺表单值接口
+interface OzonShopFormValues {
+  shop_name?: string;
+  shop_name_cn?: string;
+  client_id?: string;
+  api_key?: string;
+  webhook_url?: string;
+  sync_interval_minutes?: number;
+  auto_sync_enabled?: boolean;
+  rate_limit_products?: number;
+  rate_limit_orders?: number;
+  rate_limit_postings?: number;
+}
 
 const { Text, Paragraph, Title } = Typography;
 const { confirm } = Modal;
@@ -109,7 +122,7 @@ const OzonShopTab: React.FC = () => {
 
   // 添加店铺
   const addShopMutation = useMutation({
-    mutationFn: async (values: FormValues) => {
+    mutationFn: async (values: OzonShopFormValues) => {
       return ozonApi.createShop({
         name: values.shop_name,
         shop_name_cn: values.shop_name_cn,
@@ -132,7 +145,7 @@ const OzonShopTab: React.FC = () => {
 
   // 保存店铺配置
   const saveShopMutation = useMutation({
-    mutationFn: async (values: FormValues) => {
+    mutationFn: async (values: OzonShopFormValues) => {
       if (!selectedShop) {
         throw new Error('请先选择要编辑的店铺');
       }
@@ -232,7 +245,10 @@ const OzonShopTab: React.FC = () => {
       }
     },
     onError: (error: Error) => {
-      notifyError('同步失败', `同步失败: ${error.response?.data?.detail || error.message}`);
+      const errorMsg = axios.isAxiosError(error)
+        ? (error.response?.data?.detail || error.message || '同步失败')
+        : (error.message || '同步失败');
+      notifyError('同步失败', `同步失败: ${errorMsg}`);
     },
   });
 
@@ -262,7 +278,7 @@ const OzonShopTab: React.FC = () => {
     }
   }, [selectedShop, form]);
 
-  const handleSave = (values: FormValues) => {
+  const handleSave = (values: OzonShopFormValues) => {
     if (!selectedShop) return;
     saveShopMutation.mutate(values);
   };

@@ -775,7 +775,7 @@ const Promotions: React.FC = () => {
           <Space>
             <ShopSelector
               value={selectedShop}
-              onChange={setSelectedShop}
+              onChange={(value) => setSelectedShop(typeof value === 'number' ? value : value[0])}
               showAllOption={false}
               style={{ width: 200 }}
             />

@@ -1500,9 +1500,9 @@ const ProductList: React.FC = () => {
       <PriceEditModal
         visible={priceModalVisible}
         onCancel={() => setPriceModalVisible(false)}
-        onSubmit={(updates) => updatePricesMutation.mutate(updates)}
-        selectedProduct={selectedProduct}
-        selectedRows={selectedRows}
+        onSubmit={(updates) => updatePricesMutation.mutate(updates as any)}
+        selectedProduct={selectedProduct as any}
+        selectedRows={selectedRows as any}
         loading={updatePricesMutation.isPending}
       />
 
@@ -1510,9 +1510,9 @@ const ProductList: React.FC = () => {
       <StockEditModal
         visible={stockModalVisible}
         onCancel={() => setStockModalVisible(false)}
-        onSubmit={(updates) => updateStocksMutation.mutate(updates)}
-        selectedProduct={selectedProduct}
-        selectedRows={selectedRows}
+        onSubmit={(updates) => updateStocksMutation.mutate(updates as any)}
+        selectedProduct={selectedProduct as any}
+        selectedRows={selectedRows as any}
         loading={updateStocksMutation.isPending}
         shopId={selectedShop}
       />
@@ -1835,7 +1835,7 @@ const ProductList: React.FC = () => {
             const productIds = selectedRows.map((p) => p.id);
 
             // 构建每张图片的独立配置映射
-            const imageOverrides: Record<string, unknown> = {};
+            const imageOverrides: Record<string, Record<string, any>> = {};
             imageWatermarkSettings.forEach((settings, key) => {
               const [productId, imageIndex] = key.split('_');
               if (!imageOverrides[productId]) {

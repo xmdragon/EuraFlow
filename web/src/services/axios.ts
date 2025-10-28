@@ -1,7 +1,17 @@
 /* eslint-disable no-unused-vars */
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 import authService from './authService';
+
+// 扩展InternalAxiosRequestConfig以包含_retry属性
+interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
+
+// 类型保护：判断是否为AxiosError
+const isAxiosError = (error: unknown): error is AxiosError => {
+  return axios.isAxiosError(error);
+};
 
 // 请求拦截器
 axios.interceptors.request.use(
@@ -41,6 +51,8 @@ const processQueue = (_error: unknown, _token: string | null = null) => {
  * 检查是否是认证相关错误
  */
 const isAuthenticationError = (error: unknown): boolean => {
+  if (!isAxiosError(error)) return false;
+
   const status = error.response?.status;
 
   // 401是认证错误（未登录或token过期）
@@ -79,7 +91,11 @@ const handlePermissionDenied = (error: unknown) => {
   // 使用动态导入避免循环依赖
   import('antd')
     .then(({ message: antdMessage }) => {
-      const errorDetail = error.response?.data?.error?.detail || '您没有执行此操作的权限';
+      let errorDetail = '您没有执行此操作的权限';
+      if (isAxiosError(error) && error.response?.data) {
+        const data = error.response.data as any;
+        errorDetail = data?.error?.detail || data?.detail || errorDetail;
+      }
       antdMessage.error(`权限不足: ${errorDetail}`);
     })
     .catch(() => {
@@ -115,13 +131,17 @@ const handleAuthenticationFailure = (message: string = '登录已过期，请重
 
 axios.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: unknown) => {
+    if (!isAxiosError(error)) {
+      return Promise.reject(error);
+    }
+
+    const originalRequest = error.config as CustomAxiosRequestConfig | undefined;
 
     // 如果是登录页或刷新token请求，不处理
     if (
-      originalRequest.url?.includes('/auth/login') ||
-      originalRequest.url?.includes('/auth/refresh')
+      originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/refresh')
     ) {
       return Promise.reject(error);
     }
@@ -137,7 +157,7 @@ axios.interceptors.response.use(
       }
 
       // 401错误尝试刷新token
-      if (status === 401 && !originalRequest._retry) {
+      if (status === 401 && !originalRequest?._retry) {
         // 如果没有refresh token，直接跳转登录页
         if (!authService.refreshToken) {
           handleAuthenticationFailure();
@@ -150,7 +170,9 @@ axios.interceptors.response.use(
             failedQueue.push({ resolve, reject });
           })
             .then(() => {
-              originalRequest.headers['Authorization'] = `Bearer ${authService.accessToken}`;
+              if (originalRequest?.headers) {
+                originalRequest.headers['Authorization'] = `Bearer ${authService.accessToken}`;
+              }
               return axios(originalRequest);
             })
             .catch((err) => {
@@ -158,14 +180,18 @@ axios.interceptors.response.use(
             });
         }
 
-        originalRequest._retry = true;
+        if (originalRequest) {
+          originalRequest._retry = true;
+        }
         isRefreshing = true;
 
         try {
           await authService.refresh();
           processQueue(null);
           isRefreshing = false;
-          originalRequest.headers['Authorization'] = `Bearer ${authService.accessToken}`;
+          if (originalRequest?.headers) {
+            originalRequest.headers['Authorization'] = `Bearer ${authService.accessToken}`;
+          }
           return axios(originalRequest);
         } catch (refreshError) {
           processQueue(refreshError, null);
