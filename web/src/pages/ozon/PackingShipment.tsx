@@ -1503,7 +1503,7 @@ const PackingShipment: React.FC = () => {
             return (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 {icon}
-                {label}({count})
+                {label}{key !== 'scan' && `(${count})`}
                 <Button
                   type="text"
                   size="small"
@@ -1574,12 +1574,7 @@ const PackingShipment: React.FC = () => {
                 },
                 {
                   key: 'scan',
-                  label: (
-                    <span>
-                      <SearchOutlined />
-                      扫描单号
-                    </span>
-                  ),
+                  label: createTabLabel('scan', <SearchOutlined />, '扫描单号', 0),
                 },
               ]}
               style={{ marginTop: 16 }}
