@@ -71,7 +71,8 @@
   position: absolute;
   right: 0;
   top: 0;
-  min-width: 200px;
+  width: max-content;
+  min-width: auto;
   max-width: 250px;
   background: #fff;
   border-radius: 8px;
@@ -184,7 +185,8 @@
 
   .menu {
     right: 52px;
-    min-width: 180px;
+    width: max-content;
+    min-width: auto;
     max-width: 200px;
   }
 
@@ -208,7 +210,8 @@
 // 平板适配
 @media (max-width: 1024px) and (min-width: 769px) {
   .menu {
-    min-width: 190px;
+    width: max-content;
+    min-width: auto;
     max-width: 220px;
   }
 }
