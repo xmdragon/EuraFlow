@@ -235,19 +235,26 @@ const Dashboard: React.FC = () => {
         },
       ],
     },
-    ...(user?.role === "admin"
+    // 系统管理菜单 - 根据角色显示不同子菜单
+    ...(user?.role === "admin" || user?.role === "operator"
       ? [
           {
             key: "system",
             icon: <AppstoreOutlined />,
             label: "系统管理",
             children: [
-              {
-                key: "system-sync-services",
-                icon: <SyncOutlined />,
-                label: createMenuLabel("system-sync-services", "后台服务", "/dashboard/system/sync-services"),
-                onClick: () => navigate("/dashboard/system/sync-services"),
-              },
+              // 后台服务 - 仅管理员可见
+              ...(user?.role === "admin"
+                ? [
+                    {
+                      key: "system-sync-services",
+                      icon: <SyncOutlined />,
+                      label: createMenuLabel("system-sync-services", "后台服务", "/dashboard/system/sync-services"),
+                      onClick: () => navigate("/dashboard/system/sync-services"),
+                    },
+                  ]
+                : []),
+              // 系统配置 - 管理员和操作员都可见
               {
                 key: "system-configuration",
                 icon: <SettingOutlined />,
@@ -256,6 +263,11 @@ const Dashboard: React.FC = () => {
               },
             ],
           },
+        ]
+      : []),
+    // 用户管理 - 仅管理员可见
+    ...(user?.role === "admin"
+      ? [
           {
             key: "users",
             icon: <UserOutlined />,
