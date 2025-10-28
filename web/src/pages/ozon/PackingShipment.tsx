@@ -18,6 +18,7 @@ import {
   DeleteOutlined,
   PlusOutlined,
   SaveOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -240,7 +241,7 @@ const PackingShipment: React.FC = () => {
     const postingNumber = urlSearchParams.get('posting_number');
 
     // 如果 URL 有 tab 参数，设置操作状态
-    if (tab && ['awaiting_stock', 'allocating', 'allocated', 'tracking_confirmed'].includes(tab)) {
+    if (tab && ['awaiting_stock', 'allocating', 'allocated', 'tracking_confirmed', 'shipping'].includes(tab)) {
       setOperationStatus(tab);
     }
 
@@ -595,6 +596,7 @@ const PackingShipment: React.FC = () => {
     allocating: statsData?.data?.allocating || 0,
     allocated: statsData?.data?.allocated || 0,
     tracking_confirmed: statsData?.data?.tracking_confirmed || 0,
+    shipping: statsData?.data?.shipping || 0,
     printed: statsData?.data?.printed || 0,
   };
 
@@ -1539,6 +1541,15 @@ const PackingShipment: React.FC = () => {
                 <span>
                   <CheckCircleOutlined />
                   单号确认({statusCounts.tracking_confirmed})
+                </span>
+              ),
+            },
+            {
+              key: 'shipping',
+              label: (
+                <span>
+                  <RocketOutlined />
+                  运输中({statusCounts.shipping})
                 </span>
               ),
             },

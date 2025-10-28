@@ -255,6 +255,7 @@ async def get_packing_orders(
     domestic_tracking_number: Optional[str] = Query(None, description="按国内单号搜索（在domestic_trackings中查找）"),
     operation_status: Optional[str] = Query(None, description="操作状态筛选：awaiting_stock/allocating/allocated/tracking_confirmed/shipping"),
     ozon_status: Optional[str] = Query(None, description="OZON原生状态筛选，支持逗号分隔的多个状态，如：awaiting_packaging,awaiting_deliver"),
+    days_within: Optional[int] = Query(None, description="运输中状态的天数筛选（仅在operation_status=shipping时有效，默认7天）"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -265,12 +266,13 @@ async def get_packing_orders(
     - 支持按 sku 搜索（在posting的products中查找，SKU为整数）
     - 支持按 tracking_number 搜索（OZON追踪号码，在packages中查找）
     - 支持按 domestic_tracking_number 搜索（国内单号，在domestic_trackings中查找）
+    - 运输中状态支持时间筛选：默认显示7天内改为运输中状态的订单
     - ozon_status 优先级高于 operation_status
     - 如果都不指定，返回所有订单
 
     注意：返回以Posting为粒度的数据，一个订单拆分成多个posting时会显示为多条记录
     """
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     # 构建查询：以Posting为主体，JOIN Order获取订单信息
     from sqlalchemy.orm import selectinload
@@ -355,6 +357,19 @@ async def get_packing_orders(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
                 OzonPosting.operation_status == 'printed'
+            )
+        )
+
+    elif operation_status == 'shipping':
+        # 运输中：operation_status = 'shipping' AND operation_time在指定天数内（默认7天）
+        # 计算时间阈值
+        days = days_within if days_within is not None else 7
+        time_threshold = utcnow() - timedelta(days=days)
+
+        query = query.where(
+            and_(
+                OzonPosting.operation_status == 'shipping',
+                OzonPosting.operation_time >= time_threshold
             )
         )
 
@@ -479,6 +494,18 @@ async def get_packing_orders(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
                 OzonPosting.operation_status == 'printed'
+            )
+        )
+
+    elif operation_status == 'shipping':
+        # 运输中：计算时间阈值（默认7天）
+        days = days_within if days_within is not None else 7
+        time_threshold = utcnow() - timedelta(days=days)
+
+        count_query = count_query.where(
+            and_(
+                OzonPosting.operation_status == 'shipping',
+                OzonPosting.operation_time >= time_threshold
             )
         )
 
@@ -1641,7 +1668,8 @@ async def get_packing_stats(
                 "allocating": 5,
                 "allocated": 8,
                 "tracking_confirmed": 3,
-                "printed": 2
+                "printed": 2,
+                "shipping": 6
             }
         }
     """
@@ -1770,6 +1798,18 @@ async def get_packing_stats(
         count_query = apply_search_conditions(count_query)
         result = await db.execute(count_query)
         stats['printed'] = result.scalar() or 0
+
+        # 6. 运输中：operation_status = 'shipping' AND operation_time在7天内
+        from datetime import timedelta
+        time_threshold = utcnow() - timedelta(days=7)
+        count_query = select(func.count(OzonPosting.id)).where(
+            OzonPosting.operation_status == 'shipping',
+            OzonPosting.operation_time >= time_threshold,
+            *base_conditions
+        )
+        count_query = apply_search_conditions(count_query)
+        result = await db.execute(count_query)
+        stats['shipping'] = result.scalar() or 0
 
         logger.info(f"统计查询完成: shop_id={shop_id}, stats={stats}")
 
