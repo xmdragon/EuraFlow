@@ -71,7 +71,8 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
       setPercentageChange(null);
       setReason('');
     }
-  }, [visible, products]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, selectedProduct, selectedRows]);
 
   // 获取货币符号
   const getCurrencyPrefix = () => {
