@@ -520,8 +520,11 @@ async def update_prices(
                 # 调用Ozon API更新价格
                 price_item = {
                     "offer_id": product.offer_id,
+                    "product_id": product.ozon_product_id,
                     "price": str(new_price),
-                    "product_id": product.ozon_product_id
+                    "currency_code": "RUB",  # 必需：货币代码
+                    "auto_action_enabled": "DISABLED",  # 禁用自动定价（避免被自动改价）
+                    "price_strategy_enabled": "DISABLED"  # 禁用价格策略（确保手动价格生效）
                 }
 
                 # 只有当old_price有值时才传递
@@ -632,9 +635,14 @@ async def update_stocks(
             stock = update.get("stock")
             warehouse_id = update.get("warehouse_id")
 
+            # 明确验证：stock可以为0，但不能为None
             if not offer_id or stock is None or not warehouse_id:
                 errors.append(f"商品货号 {offer_id}: 缺少必要字段")
                 continue
+
+            # 记录0库存的更新请求
+            if stock == 0:
+                logger.info(f"更新库存为0 - 商品货号: {offer_id}, warehouse_id: {warehouse_id}")
 
             try:
                 # 查找本地商品（使用 offer_id）

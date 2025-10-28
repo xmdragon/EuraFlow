@@ -92,9 +92,23 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
           <Form.Item
             name="stock"
             label="库存数量"
-            rules={[{ required: true, message: '请输入库存数量' }]}
+            rules={[
+              { required: true, message: '请输入库存数量' },
+              {
+                validator: (_, value) => {
+                  if (value === undefined || value === null) {
+                    return Promise.reject(new Error('请输入库存数量'));
+                  }
+                  if (value < 0) {
+                    return Promise.reject(new Error('库存数量不能为负数'));
+                  }
+                  // 明确允许0值
+                  return Promise.resolve();
+                },
+              },
+            ]}
           >
-            <InputNumber style={{ width: '100%' }} min={0} placeholder="请输入库存数量" />
+            <InputNumber style={{ width: '100%' }} min={0} placeholder="请输入库存数量（可以为0）" />
           </Form.Item>
           <Form.Item
             name="warehouse_id"

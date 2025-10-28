@@ -479,7 +479,9 @@ class ProductListingService:
             price_item = {
                 "offer_id": offer_id,
                 "price": str(price),
-                "currency_code": currency_code
+                "currency_code": currency_code,
+                "auto_action_enabled": "ENABLED" if auto_action_enabled else "DISABLED",
+                "price_strategy_enabled": "DISABLED"  # 禁用价格策略，确保手动价格生效
             }
 
             if old_price:
@@ -487,9 +489,6 @@ class ProductListingService:
 
             if min_price:
                 price_item["min_price"] = str(min_price)
-
-            if auto_action_enabled:
-                price_item["auto_action_enabled"] = "ENABLED"
 
             # 调用OZON API
             response = await self.client.update_prices(prices=[price_item])

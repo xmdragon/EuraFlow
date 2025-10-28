@@ -387,6 +387,15 @@ class OzonAPIClient:
             # 价格字段（转换为字符串格式）
             price_item["price"] = str(price.get("price", 0))
 
+            # 货币代码（必需，默认RUB）
+            price_item["currency_code"] = price.get("currency_code", "RUB")
+
+            # 自动定价开关（默认禁用，避免手动价格被自动改价覆盖）
+            price_item["auto_action_enabled"] = price.get("auto_action_enabled", "DISABLED")
+
+            # 价格策略开关（默认禁用，确保手动价格生效）
+            price_item["price_strategy_enabled"] = price.get("price_strategy_enabled", "DISABLED")
+
             # 原价（可选）- 只有当存在且不为空时才添加
             if price.get("old_price"):
                 price_item["old_price"] = str(price["old_price"])
