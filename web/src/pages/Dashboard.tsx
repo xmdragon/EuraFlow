@@ -45,6 +45,7 @@ const UserManagement = lazy(() => import("./UserManagement"));
 import styles from "./Dashboard.module.scss";
 
 import PageTitle from "@/components/PageTitle";
+import QuickAccessButton from "@/components/QuickAccessButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuickMenu } from "@/hooks/useQuickMenu";
 import type { User } from "@/types/auth";
@@ -390,6 +391,8 @@ const Dashboard: React.FC = () => {
             </Routes>
           </Suspense>
         </Content>
+        {/* 全局悬浮快捷按钮 */}
+        <QuickAccessButton />
       </Layout>
     </Layout>
   );

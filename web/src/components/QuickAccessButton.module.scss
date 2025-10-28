@@ -6,14 +6,27 @@
   right: 20px;
   top: 66.67vh; // 2/3 高度
   z-index: 1000;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 12px;
+
+  // 悬停时隐藏图标，显示菜单
+  &:hover {
+    .iconButton {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .menu {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+  }
 }
 
 // 图标按钮
 .iconButton {
+  position: absolute;
+  right: 0;
+  top: 0;
   width: 48px;
   height: 48px;
   background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
@@ -25,6 +38,7 @@
   box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1001;
+  opacity: 1;
 
   &:hover {
     transform: scale(1.1);
@@ -55,7 +69,7 @@
 // 展开的菜单
 .menu {
   position: absolute;
-  right: 60px;
+  right: 0;
   top: 0;
   min-width: 200px;
   max-width: 250px;
@@ -67,12 +81,7 @@
   transform: translateX(20px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
-
-  &.expanded {
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-  }
+  z-index: 1000;
 }
 
 // 菜单头部

@@ -896,19 +896,27 @@ const PackingShipment: React.FC = () => {
 
   // 批量同步处理函数（非阻塞）
   const handleBatchSync = () => {
+    // 使用 console.error 确保日志可见（生产环境也会显示）
+    console.error('【批量同步调试】按钮被点击', { allPostingsLength: allPostings.length });
     logger.info('批量同步按钮被点击', { allPostingsLength: allPostings.length });
 
     if (allPostings.length === 0) {
+      console.error('【批量同步调试】没有可同步的订单');
       logger.warn('没有可同步的订单');
       notifyWarning('操作失败', '当前页面没有可同步的订单');
       return;
     }
 
+    console.error('【批量同步调试】准备显示确认对话框', {
+      postings: allPostings.map(p => ({ posting_number: p.posting_number, status: p.status }))
+    });
     logger.info('显示批量同步确认对话框');
+
     Modal.confirm({
       title: '确认批量同步？',
       content: `将同步当前页面的 ${allPostings.length} 个订单，是否继续？`,
       onOk: () => {
+        console.error('【批量同步调试】用户确认同步');
         logger.info('用户确认批量同步');
         // 立即设置同步状态
         setIsBatchSyncing(true);
@@ -921,6 +929,7 @@ const PackingShipment: React.FC = () => {
         return Promise.resolve();
       },
       onCancel: () => {
+        console.error('【批量同步调试】用户取消同步');
         logger.info('用户取消批量同步');
       },
     });
