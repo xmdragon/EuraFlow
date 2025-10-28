@@ -69,50 +69,41 @@ const ProductListing: React.FC = () => {
   const [currentStatus, setCurrentStatus] = useState<ozonApi.ListingStatus | null>(null);
   const [form] = Form.useForm();
 
-  // 获取商品列表（优先显示draft和可上架的商品）
+  // 获取已下架商品列表（可重新上架）
   const {
     data: productsData,
     isLoading: productsLoading,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ['products', selectedShop, 'listable'],
+    queryKey: ['products', selectedShop, 'inactive'],
     queryFn: async () => {
       if (!selectedShop) return { data: [], total: 0 };
       return await ozonApi.getProducts(1, 100, {
         shop_id: selectedShop,
-        // 不限制状态，显示所有商品
+        status: 'inactive', // 只显示已下架商品
       });
     },
     enabled: !!selectedShop,
   });
 
-  // 上架操作
-  const listProductMutation = useMutation({
-    mutationFn: async (values: {
-      offer_id: string;
-      mode: 'NEW_CARD' | 'FOLLOW_PDP';
-      auto_advance: boolean;
-    }) => {
-      if (!selectedShop) throw new Error('请先选择店铺');
-      return await ozonApi.importProduct(
-        selectedShop,
-        values.offer_id,
-        values.mode,
-        values.auto_advance
-      );
+  // 重新上架操作
+  const unarchiveProductMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedShop || !selectedProduct) throw new Error('请先选择店铺和商品');
+      // TODO: 调用unarchiveProduct API
+      return await ozonApi.unarchiveProduct(selectedShop, selectedProduct.ozon_product_id);
     },
     onSuccess: (data) => {
       if (data.success) {
-        notifySuccess('上架请求已提交', '商品上架请求已提交');
+        notifySuccess('重新上架成功', '商品已重新上架');
         setListingModalVisible(false);
-        form.resetFields();
         queryClient.invalidateQueries({ queryKey: ['products'] });
       } else {
-        notifyError('上架失败', `上架失败: ${data.error || '未知错误'}`);
+        notifyError('重新上架失败', `重新上架失败: ${data.error || '未知错误'}`);
       }
     },
     onError: (error: Error) => {
-      notifyError('上架失败', `上架失败: ${error.message}`);
+      notifyError('重新上架失败', `重新上架失败: ${error.message}`);
     },
   });
 
@@ -222,22 +213,17 @@ const ProductListing: React.FC = () => {
               状态
             </Button>
           </Tooltip>
-          <Tooltip title="上架到OZON">
+          <Tooltip title="重新上架到OZON">
             <Button
               type="primary"
               size="small"
               icon={<RocketOutlined />}
               onClick={() => {
                 setSelectedProduct(record);
-                form.setFieldsValue({
-                  offer_id: record.offer_id,
-                  mode: record.barcode ? 'FOLLOW_PDP' : 'NEW_CARD',
-                  auto_advance: true,
-                });
                 setListingModalVisible(true);
               }}
             >
-              上架
+              重新上架
             </Button>
           </Tooltip>
         </Space>
@@ -249,20 +235,17 @@ const ProductListing: React.FC = () => {
   const stats = productsData?.data
     ? {
         total: productsData.data.length,
-        draft: productsData.data.filter(
-          (p: ozonApi.Product) => !p.ozon_product_id && (!p.price || p.stock <= 0)
-        ).length,
-        listed: productsData.data.filter((p: ozonApi.Product) => p.ozon_product_id).length,
-        ready: productsData.data.filter(
-          (p: ozonApi.Product) => p.price && p.stock > 0 && !p.ozon_product_id
-        ).length,
+        archived: productsData.data.filter((p: ozonApi.Product) => p.ozon_archived).length,
+        inactive: productsData.data.filter((p: ozonApi.Product) => p.status === 'inactive').length,
+        hasStock: productsData.data.filter((p: ozonApi.Product) => p.stock > 0).length,
+        noStock: productsData.data.filter((p: ozonApi.Product) => p.stock <= 0).length,
       }
-    : { total: 0, draft: 0, listed: 0, ready: 0 };
+    : { total: 0, archived: 0, inactive: 0, hasStock: 0, noStock: 0 };
 
   return (
     <div>
       {/* 页面标题和店铺选择器 */}
-      <PageTitle icon={<CloudUploadOutlined />} title="商品上架管理" />
+      <PageTitle icon={<CloudUploadOutlined />} title="已下架商品 - 重新上架" />
       <div className={styles.shopSelectorContainer}>
         <ShopSelectorWithLabel
           label="选择店铺"
@@ -278,14 +261,24 @@ const ProductListing: React.FC = () => {
         <Row gutter={16} className={styles.statsRow}>
           <Col span={6}>
             <Card>
-              <Statistic title="商品总数" value={stats.total} prefix={<CloudUploadOutlined />} />
+              <Statistic title="已下架总数" value={stats.total} prefix={<CloudUploadOutlined />} />
             </Card>
           </Col>
           <Col span={6}>
             <Card>
               <Statistic
-                title="可上架商品"
-                value={stats.ready}
+                title="已归档"
+                value={stats.archived}
+                valueStyle={{ color: '#999' }}
+                prefix={<ExclamationCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic
+                title="有库存"
+                value={stats.hasStock}
                 valueStyle={{ color: '#3f8600' }}
                 prefix={<CheckCircleOutlined />}
               />
@@ -294,20 +287,10 @@ const ProductListing: React.FC = () => {
           <Col span={6}>
             <Card>
               <Statistic
-                title="草稿状态"
-                value={stats.draft}
+                title="无库存"
+                value={stats.noStock}
                 valueStyle={{ color: '#cf1322' }}
                 prefix={<ExclamationCircleOutlined />}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic
-                title="已上架"
-                value={stats.listed}
-                valueStyle={{ color: '#1890ff' }}
-                prefix={<RocketOutlined />}
               />
             </Card>
           </Col>
@@ -341,101 +324,66 @@ const ProductListing: React.FC = () => {
         />
       </Card>
 
-      {/* 上架Modal */}
+      {/* 重新上架Modal */}
       <Modal
-        title="商品上架"
+        title="重新上架商品"
         open={listingModalVisible}
         onCancel={() => {
           setListingModalVisible(false);
-          form.resetFields();
+          setSelectedProduct(null);
         }}
-        onOk={() => form.submit()}
-        confirmLoading={listProductMutation.isPending}
+        onOk={() => unarchiveProductMutation.mutate()}
+        confirmLoading={unarchiveProductMutation.isPending}
         width={600}
+        okText="确认重新上架"
+        cancelText="取消"
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={(values) => listProductMutation.mutate(values)}
-        >
+        <Alert
+          message="重新上架说明"
+          description={
+            <div>
+              <p>
+                <strong>此操作将从档案中还原商品</strong>，使其重新在OZON平台可见。
+              </p>
+              <p>
+                <strong>注意</strong>：自动归档的商品每天最多恢复10个（莫斯科时间03:00重置），手动归档的无限制。
+              </p>
+            </div>
+          }
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+
+        {selectedProduct && (
           <Alert
-            message="上架说明"
+            message="商品信息"
             description={
               <div>
                 <p>
-                  <strong>NEW_CARD</strong>: 创建全新商品卡片（需要填写类目和属性）
+                  <strong>商品货号</strong>: {selectedProduct.offer_id}
                 </p>
                 <p>
-                  <strong>FOLLOW_PDP</strong>: 跟随已有商品（需要条形码，共享商品详情页）
+                  <strong>名称</strong>: {selectedProduct.title}
                 </p>
                 <p>
-                  <strong>自动推进</strong>: 自动完成图片上传、商品创建、价格设置、库存设置等步骤
+                  <strong>OZON商品ID</strong>: {selectedProduct.ozon_product_id}
+                </p>
+                <p>
+                  <strong>价格</strong>: {selectedProduct.price || '未设置'}
+                </p>
+                <p>
+                  <strong>库存</strong>: {selectedProduct.stock || 0}
+                </p>
+                <p>
+                  <strong>当前状态</strong>: {selectedProduct.status === 'inactive' ? '已下架' : selectedProduct.ozon_archived ? '已归档' : '其他'}
                 </p>
               </div>
             }
-            type="info"
+            type="warning"
             showIcon
-            style={{ marginBottom: 16 }}
           />
-
-          <Form.Item
-            label="Offer ID"
-            name="offer_id"
-            rules={[{ required: true, message: '请输入Offer ID' }]}
-          >
-            <Input disabled placeholder="自动填充" />
-          </Form.Item>
-
-          <Form.Item
-            label="上架模式"
-            name="mode"
-            rules={[{ required: true, message: '请选择上架模式' }]}
-          >
-            <Select>
-              <Option value="NEW_CARD">NEW_CARD - 创建新商品卡片</Option>
-              <Option value="FOLLOW_PDP" disabled={!selectedProduct?.barcode}>
-                FOLLOW_PDP - 跟随已有商品
-                {!selectedProduct?.barcode && ' (需要条形码)'}
-              </Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            label="自动推进"
-            name="auto_advance"
-            valuePropName="checked"
-            tooltip="自动完成后续所有步骤（图片、创建、价格、库存）"
-          >
-            <Select>
-              <Option value={true}>是 - 自动完成所有步骤</Option>
-              <Option value={false}>否 - 仅提交，手动推进</Option>
-            </Select>
-          </Form.Item>
-
-          {selectedProduct && (
-            <Alert
-              message="商品信息"
-              description={
-                <div>
-                  <p>
-                    <strong>名称</strong>: {selectedProduct.title}
-                  </p>
-                  <p>
-                    <strong>价格</strong>: {selectedProduct.price || '未设置'}
-                  </p>
-                  <p>
-                    <strong>库存</strong>: {selectedProduct.stock || 0}
-                  </p>
-                  <p>
-                    <strong>条形码</strong>: {selectedProduct.barcode || '无'}
-                  </p>
-                </div>
-              }
-              type="warning"
-              showIcon
-            />
-          )}
-        </Form>
+        )}
       </Modal>
 
       {/* 状态查看Modal */}

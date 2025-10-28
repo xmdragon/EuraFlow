@@ -1475,6 +1475,15 @@ export const importProduct = async (
   return response.data;
 };
 
+// 重新上架商品（从归档中还原）
+export const unarchiveProduct = async (shopId: number, productId: number) => {
+  const response = await apiClient.post("/ozon/listings/products/unarchive", {
+    shop_id: shopId,
+    product_id: productId,
+  });
+  return response.data;
+};
+
 // 获取商品上架状态
 export const getListingStatus = async (shopId: number, offerId: string) => {
   const response = await apiClient.get(

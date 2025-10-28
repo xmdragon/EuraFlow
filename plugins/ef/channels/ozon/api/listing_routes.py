@@ -527,6 +527,63 @@ async def update_product_stock(
         }
 
 
+@router.post("/listings/products/unarchive")
+async def unarchive_product(
+    request: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    重新上架商品（从归档中还原）（需要操作员权限）
+
+    将已下架/归档的商品重新激活
+    """
+    try:
+        shop_id = request.get("shop_id")
+        product_id = request.get("product_id")
+
+        if not shop_id or not product_id:
+            raise HTTPException(status_code=400, detail="shop_id and product_id are required")
+
+        client = await get_ozon_client(shop_id, db)
+
+        # 调用OZON API取消归档
+        result = await client.unarchive_products([product_id])
+
+        if result.get("result"):
+            # 更新数据库中的商品状态
+            from ..models.products import OzonProduct
+            stmt = select(OzonProduct).where(
+                OzonProduct.shop_id == shop_id,
+                OzonProduct.ozon_product_id == product_id
+            )
+            product = await db.scalar(stmt)
+
+            if product:
+                product.ozon_archived = False
+                product.status = "on_sale"  # 重新设置为在售状态
+                await db.commit()
+
+            return {
+                "success": True,
+                "message": "商品已重新上架"
+            }
+        else:
+            error_msg = result.get("error", {}).get("message", "Unknown error")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
+    except Exception as e:
+        logger.error(f"Unarchive product failed: {e}", exc_info=True)
+        await db.rollback()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 # ============ 图片导入接口 ============
 
 @router.post("/listings/products/{offer_id}/images")

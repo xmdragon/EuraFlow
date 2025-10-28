@@ -489,7 +489,7 @@ class OzonAPIClient:
             恢复结果
         """
         return await self._request(
-            "POST", "/v1/product/unarchive", data={"product_ids": product_ids}, resource_type="products"
+            "POST", "/v1/product/unarchive", data={"product_id": product_ids}, resource_type="products"
         )
 
     async def delete_products(self, product_ids: List[int]) -> Dict[str, Any]:
