@@ -1810,29 +1810,59 @@ const PackingShipment: React.FC = () => {
                                 </div>
                                 {posting.domestic_tracking_numbers &&
                                 posting.domestic_tracking_numbers.length > 0 ? (
-                                  <>
-                                    {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
-                                      <div key={idx}>
-                                        {idx === 0 && <Text type="secondary">国内: </Text>}
-                                        <a
-                                          href={`https://t.17track.net/zh-cn#nums=${num}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          style={{ color: '#1890ff' }}
+                                  <div style={{ display: 'flex', gap: '4px' }}>
+                                    <Text type="secondary" style={{ flexShrink: 0 }}>国内: </Text>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      {posting.domestic_tracking_numbers.map((num: string, idx: number) => (
+                                        <div key={idx}>
+                                          <a
+                                            href={`https://t.17track.net/zh-cn#nums=${num}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: '#1890ff' }}
+                                          >
+                                            {num}
+                                          </a>
+                                          <CopyOutlined
+                                            style={{ marginLeft: 4, cursor: 'pointer', color: '#1890ff' }}
+                                            onClick={() => handleCopy(num, '国内单号')}
+                                          />
+                                        </div>
+                                      ))}
+                                      {canOperate && (
+                                        <Button
+                                          type="link"
+                                          size="small"
+                                          icon={<EditOutlined />}
+                                          style={{ padding: 0, height: 'auto', alignSelf: 'flex-start' }}
+                                          onClick={() => {
+                                            setCurrentPosting(posting);
+                                            setDomesticTrackingModalVisible(true);
+                                          }}
                                         >
-                                          {num}
-                                        </a>
-                                        <CopyOutlined
-                                          style={{ marginLeft: 4, cursor: 'pointer', color: '#1890ff' }}
-                                          onClick={() => handleCopy(num, '国内单号')}
-                                        />
-                                      </div>
-                                    ))}
-                                  </>
+                                          编辑
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
                                 ) : (
                                   <div>
                                     <Text type="secondary">国内: </Text>
                                     <span>-</span>
+                                    {canOperate && (
+                                      <Button
+                                        type="link"
+                                        size="small"
+                                        icon={<EditOutlined />}
+                                        style={{ padding: 0, height: 'auto', marginLeft: 8 }}
+                                        onClick={() => {
+                                          setCurrentPosting(posting);
+                                          setDomesticTrackingModalVisible(true);
+                                        }}
+                                      >
+                                        编辑
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2210,12 +2240,42 @@ const PackingShipment: React.FC = () => {
           visible={domesticTrackingModalVisible}
           onCancel={() => setDomesticTrackingModalVisible(false)}
           postingNumber={currentPosting.posting_number}
-          onSuccess={() => {
-            // 操作成功后，从当前列表中移除该posting
-            setAllPostings((prev) =>
-              prev.filter((p) => p.posting_number !== currentPosting.posting_number)
-            );
+          onSuccess={async () => {
+            // 判断是否在扫描结果页面
+            if (operationStatus === 'scan' && scanResults.length > 0) {
+              // 扫描结果页面：重新查询该订单数据
+              try {
+                const result = await ozonApi.searchPostingByTracking(currentPosting.posting_number);
+                if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+                  // 更新扫描结果
+                  setScanResults((prev) =>
+                    prev.map((p) =>
+                      p.posting_number === currentPosting.posting_number ? result.data[0] : p
+                    )
+                  );
+                } else {
+                  // 如果查询不到了（可能被清空单号变为已分配），从列表移除
+                  setScanResults((prev) =>
+                    prev.filter((p) => p.posting_number !== currentPosting.posting_number)
+                  );
+                }
+              } catch (error) {
+                // 查询失败，从列表移除
+                setScanResults((prev) =>
+                  prev.filter((p) => p.posting_number !== currentPosting.posting_number)
+                );
+              }
+            } else {
+              // 其他页面：从当前列表中移除该posting
+              setAllPostings((prev) =>
+                prev.filter((p) => p.posting_number !== currentPosting.posting_number)
+              );
+            }
             setDomesticTrackingModalVisible(false);
+            // 重新聚焦输入框
+            setTimeout(() => {
+              scanInputRef.current?.focus();
+            }, 100);
           }}
         />
       )}
