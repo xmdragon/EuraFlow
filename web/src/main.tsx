@@ -7,12 +7,26 @@ import { BrowserRouter } from 'react-router-dom';
 
 import App from './App';
 
+import ErrorBoundary from '@/components/ErrorBoundary';
 import NotificationInitializer from '@/components/NotificationInitializer';
 import { AuthProvider } from '@/hooks/useAuth';
+import { initHMRErrorHandler } from '@/utils/hmrErrorHandler';
 import './services/simpleAxios'; // 导入简化的axios配置
 import './index.css';
 
-const queryClient = new QueryClient();
+// 初始化 HMR 错误处理（仅开发环境）
+initHMRErrorHandler();
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 查询失败时重试 1 次（默认 3 次太多）
+      retry: 1,
+      // 不自动抛出错误，由组件层面处理数据加载失败
+      throwOnError: false,
+    },
+  },
+});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -21,23 +35,26 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ConfigProvider locale={zhCN}>
-        <AntApp>
-          <NotificationInitializer>
-            <BrowserRouter
-              future={{
-                v7_startTransition: true,
-                v7_relativeSplatPath: true,
-              }}
-            >
-              <AuthProvider>
-                <App />
-              </AuthProvider>
-            </BrowserRouter>
-          </NotificationInitializer>
-        </AntApp>
-      </ConfigProvider>
-    </QueryClientProvider>
+    {/* 全局错误边界：捕获整个应用的未处理错误 */}
+    <ErrorBoundary name="应用根组件">
+      <QueryClientProvider client={queryClient}>
+        <ConfigProvider locale={zhCN}>
+          <AntApp>
+            <NotificationInitializer>
+              <BrowserRouter
+                future={{
+                  v7_startTransition: true,
+                  v7_relativeSplatPath: true,
+                }}
+              >
+                <AuthProvider>
+                  <App />
+                </AuthProvider>
+              </BrowserRouter>
+            </NotificationInitializer>
+          </AntApp>
+        </ConfigProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

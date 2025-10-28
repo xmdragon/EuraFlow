@@ -202,6 +202,9 @@ class OzonOrder(Base):
                     'last_mile_delivery_fee_cny': str(posting.last_mile_delivery_fee_cny) if posting.last_mile_delivery_fee_cny else None,
                     'international_logistics_fee_cny': str(posting.international_logistics_fee_cny) if posting.international_logistics_fee_cny else None,
                     'ozon_commission_cny': str(posting.ozon_commission_cny) if posting.ozon_commission_cny else None,
+                    # 添加打印状态字段
+                    'label_printed_at': posting.label_printed_at.isoformat() if posting.label_printed_at else None,
+                    'label_print_count': posting.label_print_count or 0,
                     'packages': packages,
                     # 添加该 posting 的商品列表（从 raw_payload 提取）
                     'products': posting_products
@@ -322,6 +325,10 @@ class OzonPosting(Base):
 
     # 标签PDF文件路径
     label_pdf_path = Column(String(500), comment="标签PDF文件路径（70x125mm竖向格式）")
+
+    # 打印追踪字段
+    label_printed_at = Column(DateTime(timezone=True), comment="标签首次打印时间")
+    label_print_count = Column(Integer, nullable=False, default=0, server_default='0', comment="标签打印次数")
 
     # 时间
     in_process_at = Column(DateTime(timezone=True))

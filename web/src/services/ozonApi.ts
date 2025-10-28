@@ -435,6 +435,9 @@ export interface Posting {
   last_mile_delivery_fee_cny?: string; // 尾程派送费(CNY)
   international_logistics_fee_cny?: string; // 国际物流费(CNY)
   ozon_commission_cny?: string; // Ozon佣金(CNY)
+  // 打印追踪字段
+  label_printed_at?: string; // 标签首次打印时间
+  label_print_count?: number; // 标签打印次数
 }
 
 // 货件与订单的组合类型（用于列表展示）

@@ -2019,7 +2019,7 @@ const PackingShipment: React.FC = () => {
                                       style={{ padding: 0, height: 'auto' }}
                                       onClick={() => handlePrintSingleLabel(row.posting.posting_number)}
                                     >
-                                      打印
+                                      {(row.posting.label_print_count || 0) > 0 && row.posting.operation_status === 'printed' ? '补打' : '打印'}
                                     </Button>
                                   </>
                                 )}

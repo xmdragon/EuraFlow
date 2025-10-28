@@ -32,18 +32,21 @@ import {
   Button,
   Space,
 } from "antd";
-import React, { Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 
-// 路由懒加载
-const FinanceCalculator = lazy(() => import("./finance"));
-const OzonManagement = lazy(() => import("./ozon"));
-const SystemManagement = lazy(() => import("./system"));
-const Profile = lazy(() => import("./Profile"));
-const UserManagement = lazy(() => import("./UserManagement"));
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
+
+// 路由懒加载（带重试机制，处理HMR更新导致的模块失效）
+const FinanceCalculator = lazyWithRetry(() => import("./finance"));
+const OzonManagement = lazyWithRetry(() => import("./ozon"));
+const SystemManagement = lazyWithRetry(() => import("./system"));
+const Profile = lazyWithRetry(() => import("./Profile"));
+const UserManagement = lazyWithRetry(() => import("./UserManagement"));
 
 import styles from "./Dashboard.module.scss";
 
+import ErrorBoundary from "@/components/ErrorBoundary";
 import PageTitle from "@/components/PageTitle";
 import QuickAccessButton from "@/components/QuickAccessButton";
 import { useAuth } from "@/hooks/useAuth";
@@ -355,41 +358,44 @@ const Dashboard: React.FC = () => {
 
       <Layout style={{ marginLeft: collapsed ? 80 : 240 }}>
         <Content style={{ margin: 0, padding: 0, background: "#f5f5f5" }}>
-          <Suspense fallback={<PageLoading />}>
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  <DashboardHome
-                    user={
-                      user || {
-                        id: 0,
-                        username: "Guest",
-                        role: "guest",
-                        permissions: [],
-                        is_active: false,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
+          {/* 路由级错误边界：隔离各页面错误，防止单个页面崩溃影响整体导航 */}
+          <ErrorBoundary name="页面路由">
+            <Suspense fallback={<PageLoading />}>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <DashboardHome
+                      user={
+                        user || {
+                          id: 0,
+                          username: "Guest",
+                          role: "guest",
+                          permissions: [],
+                          is_active: false,
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString(),
+                        }
                       }
-                    }
-                    quickMenuItems={quickMenuItems}
-                    removeQuickMenu={removeQuickMenu}
-                    navigate={navigate}
-                    iconMap={iconMap}
-                  />
-                }
-              />
-              <Route path="/ozon/*" element={<OzonManagement />} />
-              <Route path="/finance" element={<FinanceCalculator />} />
-              <Route path="/profile" element={<Profile />} />
-              {user?.role === "admin" && (
-                <>
-                  <Route path="/system/*" element={<SystemManagement />} />
-                  <Route path="/users" element={<UserManagement />} />
-                </>
-              )}
-            </Routes>
-          </Suspense>
+                      quickMenuItems={quickMenuItems}
+                      removeQuickMenu={removeQuickMenu}
+                      navigate={navigate}
+                      iconMap={iconMap}
+                    />
+                  }
+                />
+                <Route path="/ozon/*" element={<OzonManagement />} />
+                <Route path="/finance" element={<FinanceCalculator />} />
+                <Route path="/profile" element={<Profile />} />
+                {user?.role === "admin" && (
+                  <>
+                    <Route path="/system/*" element={<SystemManagement />} />
+                    <Route path="/users" element={<UserManagement />} />
+                  </>
+                )}
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </Content>
         {/* 全局悬浮快捷按钮 */}
         <QuickAccessButton />
