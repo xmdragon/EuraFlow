@@ -81,6 +81,14 @@ class PostingStatusManager:
         if ozon_status in PostingStatusManager.SIMPLE_STATUS_MAP:
             new_status = PostingStatusManager.SIMPLE_STATUS_MAP[ozon_status]
 
+            # cancelled状态特殊处理：作为终态，应该能覆盖任何状态
+            if new_status == "cancelled":
+                logger.info(
+                    f"Posting {posting.posting_number}: OZON status changed to cancelled, "
+                    f"updating operation_status from {old_operation_status} to cancelled"
+                )
+                return new_status, new_status != old_operation_status
+
             # 检查优先级：防止状态回退
             if preserve_manual and old_operation_status:
                 old_priority = PostingStatusManager.STATUS_PRIORITY.get(old_operation_status, -999)
