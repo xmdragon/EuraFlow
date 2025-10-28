@@ -739,11 +739,32 @@ class PostingOperationsService:
                 "message": f"发货单 {posting_number} 不存在"
             }
 
-        # 2. 检查是否已经是取消状态
+        # 2. 检查 operation_status 是否已经是取消状态（幂等）
         if posting.operation_status == "cancelled":
             return {
-                "success": False,
-                "message": "订单已经是取消状态"
+                "success": True,
+                "message": "订单已经是取消状态（幂等操作）",
+                "data": {
+                    "posting_number": posting_number,
+                    "operation_status": posting.operation_status
+                }
+            }
+
+        # 2.1 如果OZON状态已经是cancelled，直接更新operation_status（无需同步跨境巴士）
+        if posting.status == "cancelled":
+            posting.operation_status = "cancelled"
+            posting.operation_time = utcnow()
+            await self.db.commit()
+            await self.db.refresh(posting)
+
+            logger.info(f"订单OZON状态已取消，更新operation_status，posting_number: {posting_number}")
+            return {
+                "success": True,
+                "message": "订单已在OZON取消，已更新本地状态",
+                "data": {
+                    "posting_number": posting_number,
+                    "operation_status": posting.operation_status
+                }
             }
 
         # 3. 查询关联的订单

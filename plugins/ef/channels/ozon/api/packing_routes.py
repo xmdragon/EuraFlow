@@ -294,9 +294,11 @@ async def get_packing_orders(
         # 等待备货：ozon_status IN ('awaiting_packaging', 'awaiting_registration') AND (operation_status IS NULL OR = 'awaiting_stock')
         # 包含：awaiting_packaging（待打包）、awaiting_registration（等待登记）
         # 排除已经进入后续状态的订单（allocating/allocated/tracking_confirmed/printed等）
+        # 排除OZON已取消的订单
         query = query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
+                OzonPosting.status != 'cancelled',
                 or_(
                     OzonPosting.operation_status.is_(None),
                     OzonPosting.operation_status == 'awaiting_stock'
@@ -307,10 +309,12 @@ async def get_packing_orders(
     elif operation_status == 'allocating':
         # 分配中：operation_status='allocating' AND 无追踪号码
         # status限制：awaiting_packaging（刚备货）、awaiting_registration（等待登记）或 awaiting_deliver（已同步到OZON）
+        # 排除OZON已取消的订单
         query = query.where(
             and_(
                 OzonPosting.operation_status == 'allocating',
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
+                OzonPosting.status != 'cancelled',
                 or_(
                     OzonPosting.raw_payload['tracking_number'].astext.is_(None),
                     OzonPosting.raw_payload['tracking_number'].astext == '',
@@ -323,9 +327,11 @@ async def get_packing_orders(
         # 已分配：status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 有追踪号码 AND (无国内单号 OR operation_status='allocated')
         # 注意：当用户删除所有国内单号后，会自动设置 operation_status='allocated'
         # 支持多种状态，因为订单在不同阶段都可能处于"已分配"状态
+        # 排除OZON已取消的订单
         query = query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
+                OzonPosting.status != 'cancelled',
                 # 有追踪号码
                 OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
                 OzonPosting.raw_payload['tracking_number'].astext != '',
@@ -343,9 +349,11 @@ async def get_packing_orders(
 
     elif operation_status == 'tracking_confirmed':
         # 确认单号：ozon_status = 'awaiting_deliver' AND operation_status = 'tracking_confirmed'
+        # 排除OZON已取消的订单
         query = query.where(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.status != 'cancelled',
                 OzonPosting.operation_status == 'tracking_confirmed'
             )
         )
@@ -353,9 +361,11 @@ async def get_packing_orders(
     elif operation_status == 'printed':
         # 已打印：ozon_status = 'awaiting_deliver' AND operation_status = 'printed'
         # 这是一个手动标记的状态，不依赖字段存在性
+        # 排除OZON已取消的订单
         query = query.where(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.status != 'cancelled',
                 OzonPosting.operation_status == 'printed'
             )
         )
@@ -443,6 +453,7 @@ async def get_packing_orders(
         count_query = count_query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
+                OzonPosting.status != 'cancelled',
                 or_(
                     OzonPosting.operation_status.is_(None),
                     OzonPosting.operation_status == 'awaiting_stock'
@@ -455,6 +466,7 @@ async def get_packing_orders(
             and_(
                 OzonPosting.operation_status == 'allocating',
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
+                OzonPosting.status != 'cancelled',
                 or_(
                     OzonPosting.raw_payload['tracking_number'].astext.is_(None),
                     OzonPosting.raw_payload['tracking_number'].astext == '',
@@ -467,6 +479,7 @@ async def get_packing_orders(
         count_query = count_query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
+                OzonPosting.status != 'cancelled',
                 OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
                 OzonPosting.raw_payload['tracking_number'].astext != '',
                 # 无国内单号 OR operation_status='allocated'（后者覆盖删除国内单号的情况）
@@ -485,6 +498,7 @@ async def get_packing_orders(
         count_query = count_query.where(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.status != 'cancelled',
                 OzonPosting.operation_status == 'tracking_confirmed'
             )
         )
@@ -493,6 +507,7 @@ async def get_packing_orders(
         count_query = count_query.where(
             and_(
                 OzonPosting.status == 'awaiting_deliver',
+                OzonPosting.status != 'cancelled',
                 OzonPosting.operation_status == 'printed'
             )
         )
@@ -972,6 +987,7 @@ async def batch_print_labels(
     import httpx
     from datetime import datetime
     import json
+    from ef_core.services.audit_service import AuditService
 
     # 获取请求参数
     posting_numbers = body.posting_numbers
@@ -1089,12 +1105,17 @@ async def batch_print_labels(
         success_postings = []
         pdf_files = []
 
-        # 5.1 添加已缓存的PDF
+        # 5.1 添加已缓存的PDF（并记录打印）
         for pn in cached_postings:
             posting = postings.get(pn)
             if posting and posting.label_pdf_path:
                 pdf_files.append(posting.label_pdf_path)
                 success_postings.append(pn)
+
+                # 更新打印追踪字段
+                if posting.label_printed_at is None:
+                    posting.label_printed_at = utcnow()
+                posting.label_print_count = (posting.label_print_count or 0) + 1
 
         # 5.2 获取未缓存的标签（逐个调用，避免一个失败影响全部）
         from ..api.client import OzonAPIClient
@@ -1127,6 +1148,11 @@ async def batch_print_labels(
 
                     pdf_files.append(download_result["pdf_path"])
                     success_postings.append(pn)
+
+                    # 更新打印追踪字段
+                    if posting.label_printed_at is None:
+                        posting.label_printed_at = utcnow()
+                    posting.label_print_count = (posting.label_print_count or 0) + 1
 
                 except httpx.HTTPStatusError as e:
                     # 捕获HTTP错误，解析OZON API返回的错误信息
@@ -1188,9 +1214,34 @@ async def batch_print_labels(
                     })
                     logger.error(f"获取标签异常 {pn}: {error_msg}")
 
+        # 6. 记录审计日志（批量记录所有成功打印的操作）
+        request_ip = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        request_id = request.headers.get("x-request-id")
+
+        for pn in success_postings:
+            posting = postings.get(pn)
+            if posting:
+                try:
+                    is_reprint = (posting.label_print_count or 0) > 1
+                    await AuditService.log_print(
+                        db=db,
+                        user_id=current_user.id,
+                        username=current_user.username,
+                        posting_number=pn,
+                        print_count=posting.label_print_count or 1,
+                        is_reprint=is_reprint,
+                        ip_address=request_ip,
+                        user_agent=user_agent,
+                        request_id=request_id,
+                    )
+                except Exception as e:
+                    # 审计日志失败不应阻塞主流程
+                    logger.error(f"记录打印审计日志失败 {pn}: {str(e)}")
+
         await db.commit()
 
-        # 6. 处理PDF文件（单个直接返回，多个合并）
+        # 7. 处理PDF文件（单个直接返回，多个合并）
         pdf_url = None
         if pdf_files:
             if len(pdf_files) == 1:
@@ -1225,7 +1276,7 @@ async def batch_print_labels(
                     # 合并失败不影响结果，只是没有合并后的PDF
                     pdf_url = None
 
-        # 7. 返回结果（不再自动标记已打印状态，需用户手动标记）
+        # 8. 返回结果
         if failed_postings and not success_postings:
             # 全部失败
             raise HTTPException(
@@ -1462,6 +1513,10 @@ async def search_posting_by_tracking(
             order_dict['delivery_method'] = posting.delivery_method_name or order.delivery_method
             # 添加 domestic_tracking_numbers（国内单号列表）
             order_dict['domestic_tracking_numbers'] = posting.get_domestic_tracking_numbers()
+
+            # 添加打印状态字段
+            order_dict['label_printed_at'] = posting.label_printed_at.isoformat() if posting.label_printed_at else None
+            order_dict['label_print_count'] = posting.label_print_count or 0
 
             # 添加商品列表（从 posting.raw_payload.products 提取，包含图片）
             items = []
@@ -1732,9 +1787,10 @@ async def get_packing_stats(
         stats = {}
         base_conditions = build_base_conditions()
 
-        # 1. 等待备货：(awaiting_packaging OR awaiting_registration) AND (operation_status IS NULL OR = 'awaiting_stock')
+        # 1. 等待备货：(awaiting_packaging OR awaiting_registration) AND (operation_status IS NULL OR = 'awaiting_stock') AND NOT cancelled
         count_query = select(func.count(OzonPosting.id)).where(
             OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
+            OzonPosting.status != 'cancelled',
             or_(
                 OzonPosting.operation_status.is_(None),
                 OzonPosting.operation_status == 'awaiting_stock'
@@ -1745,10 +1801,11 @@ async def get_packing_stats(
         result = await db.execute(count_query)
         stats['awaiting_stock'] = result.scalar() or 0
 
-        # 2. 分配中：operation_status='allocating' AND status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 无追踪号码
+        # 2. 分配中：operation_status='allocating' AND status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 无追踪号码 AND NOT cancelled
         count_query = select(func.count(OzonPosting.id)).where(
             OzonPosting.operation_status == 'allocating',
             OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
+            OzonPosting.status != 'cancelled',
             or_(
                 OzonPosting.raw_payload['tracking_number'].astext.is_(None),
                 OzonPosting.raw_payload['tracking_number'].astext == '',
@@ -1760,9 +1817,10 @@ async def get_packing_stats(
         result = await db.execute(count_query)
         stats['allocating'] = result.scalar() or 0
 
-        # 3. 已分配：status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 有追踪号码 AND (无国内单号 OR operation_status='allocated')
+        # 3. 已分配：status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 有追踪号码 AND (无国内单号 OR operation_status='allocated') AND NOT cancelled
         count_query = select(func.count(OzonPosting.id)).where(
             OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
+            OzonPosting.status != 'cancelled',
             OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
             OzonPosting.raw_payload['tracking_number'].astext != '',
             or_(
@@ -1779,9 +1837,10 @@ async def get_packing_stats(
         result = await db.execute(count_query)
         stats['allocated'] = result.scalar() or 0
 
-        # 4. 单号确认：awaiting_deliver AND operation_status = 'tracking_confirmed'
+        # 4. 单号确认：awaiting_deliver AND operation_status = 'tracking_confirmed' AND NOT cancelled
         count_query = select(func.count(OzonPosting.id)).where(
             OzonPosting.status == 'awaiting_deliver',
+            OzonPosting.status != 'cancelled',
             OzonPosting.operation_status == 'tracking_confirmed',
             *base_conditions
         )
@@ -1789,9 +1848,10 @@ async def get_packing_stats(
         result = await db.execute(count_query)
         stats['tracking_confirmed'] = result.scalar() or 0
 
-        # 5. 已打印：awaiting_deliver AND operation_status = 'printed'
+        # 5. 已打印：awaiting_deliver AND operation_status = 'printed' AND NOT cancelled
         count_query = select(func.count(OzonPosting.id)).where(
             OzonPosting.status == 'awaiting_deliver',
+            OzonPosting.status != 'cancelled',
             OzonPosting.operation_status == 'printed',
             *base_conditions
         )
