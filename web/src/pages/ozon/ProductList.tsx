@@ -56,6 +56,7 @@ import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
 import ProductToolbar from '@/components/ozon/product/ProductToolbar';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
 import PageTitle from '@/components/PageTitle';
+import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import * as watermarkApi from '@/services/watermarkApi';
@@ -75,6 +76,7 @@ const ProductList: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canSync, canImport, canExport, canDelete } = usePermission();
+  const { copyToClipboard } = useCopy();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -796,7 +798,7 @@ const ProductList: React.FC = () => {
                 type="text"
                 size="small"
                 icon={copyIcon}
-                onClick={() => handleCopyToClipboard(record.offer_id, '商品货号')}
+                onClick={() => copyToClipboard(record.offer_id, '商品货号')}
                 style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
                 title="复制商品货号"
               />
@@ -826,7 +828,7 @@ const ProductList: React.FC = () => {
                   type="text"
                   size="small"
                   icon={copyIcon}
-                  onClick={() => handleCopyToClipboard(String(record.ozon_sku), 'SKU')}
+                  onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
                   style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
                   title="复制SKU"
                 />
@@ -1159,22 +1161,6 @@ const ProductList: React.FC = () => {
     refetch();
   };
 
-  // 复制到剪贴板
-  const handleCopyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      notifySuccess('复制成功', `${label} 已复制到剪贴板`);
-    } catch {
-      // 降级方案：创建临时输入框
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      notifySuccess('复制成功', `${label} 已复制到剪贴板`);
-    }
-  };
 
   const handleSyncSingle = async (product: ozonApi.Product) => {
     confirm({

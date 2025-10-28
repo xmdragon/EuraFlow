@@ -57,6 +57,7 @@ import styles from "./OrderReport.module.scss";
 
 import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
 import PageTitle from "@/components/PageTitle";
+import { useCopy } from "@/hooks/useCopy";
 import * as ozonApi from "@/services/ozonApi";
 import { notifySuccess, notifyError } from "@/utils/notification";
 
@@ -156,6 +157,8 @@ interface ReportSummary {
 // ===== 主组件 =====
 
 const OrderReport: React.FC = () => {
+  const { copyToClipboard } = useCopy();
+
   // ===== 状态管理 =====
   const [selectedMonth, setSelectedMonth] = useState(
     dayjs().subtract(1, "month").format("YYYY-MM"),
@@ -300,18 +303,6 @@ const OrderReport: React.FC = () => {
     return options;
   };
 
-  // 复制文本到剪贴板
-  const handleCopy = (text: string) => {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        notifySuccess("复制成功", "已复制到剪贴板");
-      })
-      .catch(() => {
-        notifyError("复制失败", "复制失败，请重试");
-      });
-  };
-
   // 打开OZON商品链接
   const openProductLink = (sku: string) => {
     const url = `https://www.ozon.ru/product/${sku}/`;
@@ -402,7 +393,7 @@ const OrderReport: React.FC = () => {
               className={styles.copyIcon}
               onClick={(e) => {
                 e.stopPropagation();
-                handleCopy(row.product.sku);
+                copyToClipboard(row.product.sku, 'SKU');
               }}
             />
           </div>
@@ -432,7 +423,7 @@ const OrderReport: React.FC = () => {
                   className={styles.copyIcon}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleCopy(row.posting.posting_number);
+                    copyToClipboard(row.posting.posting_number, 'Posting号');
                   }}
                 />
               </div>
@@ -1154,7 +1145,7 @@ const OrderReport: React.FC = () => {
                                     className={styles.copyIcon}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleCopy(record.sku);
+                                      copyToClipboard(record.sku, 'SKU');
                                     }}
                                   />
                                 </div>
@@ -1256,7 +1247,7 @@ const OrderReport: React.FC = () => {
                                     className={styles.copyIcon}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleCopy(record.sku);
+                                      copyToClipboard(record.sku, 'SKU');
                                     }}
                                   />
                                 </div>

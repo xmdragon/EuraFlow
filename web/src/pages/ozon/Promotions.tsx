@@ -31,6 +31,7 @@ import React, { useState, useEffect } from 'react';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
+import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import * as promotionApi from '@/services/ozonPromotionApi';
@@ -148,6 +149,7 @@ const Promotions: React.FC = () => {
   const queryClient = useQueryClient();
   const { canOperate, canSync } = usePermission();
   const { symbol: currencySymbol } = useCurrency();
+  const { copyToClipboard } = useCopy();
 
   // 添加样式
   React.useEffect(() => {
@@ -181,18 +183,6 @@ const Promotions: React.FC = () => {
       document.head.removeChild(style);
     };
   }, []);
-
-  // 复制到剪贴板
-  const handleCopySKU = (sku: string) => {
-    navigator.clipboard
-      .writeText(sku)
-      .then(() => {
-        message.success('SKU已复制到剪贴板');
-      })
-      .catch(() => {
-        message.error('复制失败');
-      });
-  };
 
   // 生成OZON商品链接
   const getOzonProductUrl = (productId: number) => {
@@ -574,7 +564,7 @@ const Promotions: React.FC = () => {
                 <Tooltip title="复制SKU">
                   <CopyOutlined
                     style={{ cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => handleCopySKU(String(record.ozon_sku))}
+                    onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
                   />
                 </Tooltip>
               )}
@@ -656,7 +646,7 @@ const Promotions: React.FC = () => {
                 <Tooltip title="复制SKU">
                   <CopyOutlined
                     style={{ cursor: 'pointer', color: '#1890ff' }}
-                    onClick={() => handleCopySKU(String(record.ozon_sku))}
+                    onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
                   />
                 </Tooltip>
               )}

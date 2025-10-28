@@ -3,15 +3,18 @@
  * 价格编辑模态框组件
  * 支持单个商品或批量商品的价格更新
  */
-import { Modal, InputNumber, Input, Button, Space, Avatar, List, Form, Select, Alert } from 'antd';
+import { Modal, InputNumber, Input, Button, Space, Avatar, List, Form, Select, Alert, Tooltip } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
 import React, { useState, useEffect } from 'react';
 
 import { getCurrencySymbol } from '@/utils/currency';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+import { useCopy } from '@/hooks/useCopy';
 
 export interface Product {
   offer_id: string;
+  ozon_sku?: number;
   title?: string;
   price?: number;
   old_price?: number;
@@ -50,6 +53,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
   const [productPrices, setProductPrices] = useState<Record<string, ProductPrice>>({});
   const [percentageChange, setPercentageChange] = useState<number | null>(null);
   const [reason, setReason] = useState<string>('');
+  const { copyToClipboard } = useCopy();
 
   // 获取要编辑的商品列表
   const products = selectedProduct ? [selectedProduct] : selectedRows;
@@ -102,6 +106,17 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
       [offerId]: {
         ...prev[offerId],
         newPrice,
+      },
+    }));
+  };
+
+  // 更新单个商品旧价格
+  const updateProductOldPrice = (offerId: string, oldPrice: number | undefined) => {
+    setProductPrices((prev) => ({
+      ...prev,
+      [offerId]: {
+        ...prev[offerId],
+        oldPrice,
       },
     }));
   };
@@ -195,7 +210,10 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
               if (!priceData) return null;
 
               const imageUrl = product.images?.primary
-                ? optimizeOzonImageUrl(product.images.primary, 60)
+                ? optimizeOzonImageUrl(product.images.primary, 80)
+                : '';
+              const largeImageUrl = product.images?.primary
+                ? optimizeOzonImageUrl(product.images.primary, 160)
                 : '';
 
               const priceChange = priceData.newPrice - priceData.currentPrice;
@@ -207,28 +225,28 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
               return (
                 <List.Item key={product.offer_id}>
                   <Space style={{ width: '100%', justifyContent: 'space-between' }} align="start">
-                    {/* 左侧：图片和商品信息 */}
+                    {/* 左侧：图片和SKU */}
                     <Space>
-                      <Avatar
-                        src={imageUrl}
-                        size={60}
-                        shape="square"
-                        style={{ border: '1px solid #f0f0f0' }}
-                      />
+                      <Tooltip
+                        title={<img src={largeImageUrl} alt="商品大图" style={{ width: 160, height: 160, display: 'block' }} />}
+                        placement="right"
+                        overlayInnerStyle={{ backgroundColor: '#fff', padding: 8 }}
+                      >
+                        <Avatar
+                          src={imageUrl}
+                          size={80}
+                          shape="square"
+                          style={{ border: '1px solid #f0f0f0', cursor: 'pointer' }}
+                        />
+                      </Tooltip>
                       <div>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 500,
-                            maxWidth: 300,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {product.title || product.offer_id}
-                        </div>
-                        <div style={{ fontSize: 12, color: '#999' }}>货号: {product.offer_id}</div>
+                        <Space>
+                          <span style={{ fontSize: 14, fontWeight: 500 }}>SKU: {product.ozon_sku}</span>
+                          <CopyOutlined
+                            style={{ color: '#1890ff', cursor: 'pointer' }}
+                            onClick={() => product.ozon_sku && copyToClipboard(product.ozon_sku, 'SKU')}
+                          />
+                        </Space>
                       </div>
                     </Space>
 
@@ -249,13 +267,28 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>新价格</div>
                         <InputNumber
-                          style={{ width: 140 }}
+                          style={{ width: 80 }}
                           value={priceData.newPrice}
                           onChange={(value) => updateProductPrice(product.offer_id, typeof value === 'number' ? value : 0)}
                           min={0}
                           formatter={getNumberFormatter(2)}
                           parser={getNumberParser()}
                           prefix={getCurrencyPrefix()}
+                        />
+                      </div>
+
+                      {/* 旧价格（划线价） */}
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>旧价格（划线价）</div>
+                        <InputNumber
+                          style={{ width: 80 }}
+                          value={priceData.oldPrice}
+                          onChange={(value) => updateProductOldPrice(product.offer_id, typeof value === 'number' ? value : undefined)}
+                          min={0}
+                          formatter={getNumberFormatter(2)}
+                          parser={getNumberParser()}
+                          prefix={getCurrencyPrefix()}
+                          placeholder="可选"
                         />
                       </div>
 

@@ -28,6 +28,7 @@ import {
 import moment from 'moment';
 import React, { useState } from 'react';
 
+import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import styles from '@/pages/ozon/OrderList.module.scss';
 import * as ozonApi from '@/services/ozonApi';
@@ -64,6 +65,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 }) => {
   // 权限检查
   const { canOperate, canSync } = usePermission();
+  const { copyToClipboard } = useCopy();
 
   // 本地状态存储订单和posting数据，用于立即更新显示
   const [localOrder, setLocalOrder] = useState(selectedOrder);
@@ -96,22 +98,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   // 同步状态管理
   const [syncingMaterialCost, setSyncingMaterialCost] = useState(false);
   const [syncingFinance, setSyncingFinance] = useState(false);
-
-  // 复制功能处理函数
-  const handleCopy = (text: string | undefined, label: string) => {
-    if (!text || text === '-') {
-      notifyWarning('复制失败', `${label}为空，无法复制`);
-      return;
-    }
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        notifySuccess('复制成功', `${label}已复制`);
-      })
-      .catch(() => {
-        notifyError('复制失败', '复制失败，请手动复制');
-      });
-  };
 
   // 保存进货金额
   const handleSavePurchasePrice = async () => {
@@ -379,7 +365,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                     cursor: 'pointer',
                                     color: '#1890ff',
                                   }}
-                                  onClick={() => handleCopy(number, '国内单号')}
+                                  onClick={() => number && number !== '-' && copyToClipboard(number, '国内单号')}
                                 />
                               </Space>
                             </div>
@@ -555,7 +541,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                         cursor: 'pointer',
                                         color: '#1890ff',
                                       }}
-                                      onClick={() => handleCopy(number, '国内单号')}
+                                      onClick={() => number && number !== '-' && copyToClipboard(number, '国内单号')}
                                     />
                                   </Space>
                                 </div>
