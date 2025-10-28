@@ -243,7 +243,7 @@ const PackingShipment: React.FC = () => {
     const postingNumber = urlSearchParams.get('posting_number');
 
     // 如果 URL 有 tab 参数，设置操作状态
-    if (tab && ['awaiting_stock', 'allocating', 'allocated', 'tracking_confirmed', 'shipping'].includes(tab)) {
+    if (tab && ['awaiting_stock', 'allocating', 'allocated', 'tracking_confirmed', 'shipping', 'printed', 'scan'].includes(tab)) {
       setOperationStatus(tab);
     }
 
@@ -1521,7 +1521,7 @@ const PackingShipment: React.FC = () => {
                     if (!isAdded) {
                       addQuickMenu({
                         key: `packing-${key}`,
-                        label: `打包发货-${label}`,
+                        label: label,
                         path: path
                       });
                     }
