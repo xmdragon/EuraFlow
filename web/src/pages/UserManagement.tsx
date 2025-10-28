@@ -6,6 +6,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   UserOutlined,
+  KeyOutlined,
 } from '@ant-design/icons';
 import {
   Table,
@@ -57,8 +58,10 @@ const UserManagement: React.FC = () => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form] = Form.useForm();
+  const [passwordForm] = Form.useForm();
 
   // 获取用户列表
   const fetchUsers = async () => {
@@ -219,6 +222,41 @@ const UserManagement: React.FC = () => {
     setModalVisible(true);
   };
 
+  // 打开修改密码模态框
+  const handleChangePassword = (user: User) => {
+    setEditingUser(user);
+    passwordForm.resetFields();
+    setPasswordModalVisible(true);
+  };
+
+  // 修改密码
+  const handlePasswordSubmit = async (values: FormValues) => {
+    if (!editingUser) return;
+
+    try {
+      await axios.patch(`/api/ef/v1/auth/users/${editingUser.id}/password`, {
+        new_password: values.new_password,
+      });
+      notifySuccess('修改成功', '密码已重置');
+      setPasswordModalVisible(false);
+      passwordForm.resetFields();
+    } catch (error) {
+      let errorMsg = '修改密码失败';
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'object') {
+          errorMsg = error.response.data.detail.message || error.response.data.detail.msg || '修改密码失败';
+        } else {
+          errorMsg = error.response.data.detail;
+        }
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      notifyError('修改失败', errorMsg);
+    }
+  };
+
   const columns = [
     {
       title: '用户名',
@@ -277,6 +315,9 @@ const UserManagement: React.FC = () => {
           <Space size="middle">
             <Tooltip title="编辑">
               <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
+            </Tooltip>
+            <Tooltip title="修改密码">
+              <Button type="link" icon={<KeyOutlined />} onClick={() => handleChangePassword(record)} />
             </Tooltip>
             <Tooltip title={record.is_active ? '停用' : '启用'}>
               <Switch
@@ -440,6 +481,70 @@ const UserManagement: React.FC = () => {
                 onClick={() => {
                   setModalVisible(false);
                   form.resetFields();
+                }}
+              >
+                取消
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 修改密码模态框 */}
+      <Modal
+        title={`修改密码 - ${editingUser?.username || ''}`}
+        visible={passwordModalVisible}
+        onCancel={() => {
+          setPasswordModalVisible(false);
+          passwordForm.resetFields();
+        }}
+        footer={null}
+        width={500}
+      >
+        <Form
+          form={passwordForm}
+          layout="vertical"
+          onFinish={handlePasswordSubmit}
+        >
+          <Form.Item
+            name="new_password"
+            label="新密码"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { min: 8, message: '密码至少8个字符' },
+            ]}
+          >
+            <Input.Password placeholder="至少8个字符" />
+          </Form.Item>
+
+          <Form.Item
+            name="confirm_password"
+            label="确认密码"
+            dependencies={['new_password']}
+            rules={[
+              { required: true, message: '请确认新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('new_password') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('两次输入的密码不一致'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="再次输入新密码" />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit">
+                确认修改
+              </Button>
+              <Button
+                onClick={() => {
+                  setPasswordModalVisible(false);
+                  passwordForm.resetFields();
                 }}
               >
                 取消

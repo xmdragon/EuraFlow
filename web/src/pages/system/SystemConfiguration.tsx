@@ -45,7 +45,9 @@ const SystemConfiguration: React.FC = () => {
       children: <ConfigGuideTab />,
       visible: true, // 所有角色可见（操作员只能看到部分内容）
     },
-  ].filter(item => item.visible);
+  ]
+    .filter(item => item.visible)
+    .map(({ key, label, children }) => ({ key, label, children }));
 
   return (
     <div className={styles.container}>
