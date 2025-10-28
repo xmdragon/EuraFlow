@@ -1,16 +1,8 @@
 // 促销活动页面样式
 // 遵守 CLAUDE.md §8 规范：禁止 inline style
 
-// 页面容器（防止内容超出导致横向滚动）
-.pageContainer {
-  padding: 24px;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-// 响应式适配
-@media (max-width: 768px) {
-  .pageContainer {
-    padding: 16px;
-  }
+// 页面容器（防止内容溢出）
+// Row gutter={16} 会产生 margin: 0 -8px，所以左右至少需要 8px padding
+.pageWrapper {
+  padding: 24px 8px;
 }

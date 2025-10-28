@@ -421,51 +421,47 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
   iconMap,
 }) => {
   return (
-    <div className={styles.pageContainer}>
+    <div className={styles.pageWrapper}>
       <PageTitle icon={<DashboardOutlined />} title="系统状态" />
 
-      <Card>
-        <div className={styles.welcomeSection}>
-          <Title level={2} className={styles.welcomeTitle}>
-            欢迎使用 EuraFlow 跨境电商管理平台
-          </Title>
+      <Title level={2} className={styles.welcomeTitle}>
+        欢迎使用 EuraFlow 跨境电商管理平台
+      </Title>
 
-          <Row gutter={[16, 24]} justify="center">
-            <Col xs={24} sm={12} md={8}>
-              <Card type="inner">
-                <p className={styles.cardLabel}>账户角色</p>
-                <p className={styles.cardValue}>
-                  {user?.role || "未设置"}
-                </p>
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Card type="inner">
-                <p className={styles.cardLabel}>账户状态</p>
-                <p className={user?.is_active ? styles.cardValueActive : styles.cardValueInactive}>
-                  {user?.is_active ? "活跃" : "未激活"}
-                </p>
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Card type="inner">
-                <p className={styles.cardLabel}>最后登录</p>
-                <p className={styles.cardValueTime}>
-                  {user?.last_login_at
-                    ? new Date(user.last_login_at).toLocaleString("zh-CN")
-                    : "首次登录"}
-                </p>
-              </Card>
-            </Col>
-          </Row>
-        </div>
-      </Card>
+      <Row gutter={16} className={styles.statsRow}>
+        <Col xs={24} sm={12} md={8}>
+          <Card>
+            <p className={styles.cardLabel}>账户角色</p>
+            <p className={styles.cardValue}>
+              {user?.role || "未设置"}
+            </p>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8}>
+          <Card>
+            <p className={styles.cardLabel}>账户状态</p>
+            <p className={user?.is_active ? styles.cardValueActive : styles.cardValueInactive}>
+              {user?.is_active ? "活跃" : "未激活"}
+            </p>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8}>
+          <Card>
+            <p className={styles.cardLabel}>最后登录</p>
+            <p className={styles.cardValueTime}>
+              {user?.last_login_at
+                ? new Date(user.last_login_at).toLocaleString("zh-CN")
+                : "首次登录"}
+            </p>
+          </Card>
+        </Col>
+      </Row>
 
       {/* 快捷菜单区域 */}
       {quickMenuItems.length > 0 && (
-        <Card className={styles.quickMenuContainer}>
-          <Title level={4}>快捷菜单</Title>
-          <Row gutter={[16, 16]}>
+        <div>
+          <Title level={4} className={styles.quickMenuTitle}>快捷菜单</Title>
+          <Row gutter={16} className={styles.quickMenuRow}>
             {quickMenuItems.map((item) => (
               <Col xs={12} sm={8} md={6} lg={4} key={item.key}>
                 <Card
@@ -494,7 +490,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
               </Col>
             ))}
           </Row>
-        </Card>
+        </div>
       )}
     </div>
   );

@@ -13,38 +13,49 @@ import ConfigGuideTab from './components/ConfigGuideTab';
 import OzonShopTab from './components/OzonShopTab';
 import ThirdPartyServicesTab from './components/ThirdPartyServicesTab';
 import PageTitle from '@/components/PageTitle';
+import { useAuth } from '@/hooks/useAuth';
 
 const SystemConfiguration: React.FC = () => {
+  const { user } = useAuth();
+  const isOperator = user?.role === 'operator';
+
+  // 根据角色过滤标签
+  const tabItems = [
+    {
+      key: 'ozon-shops',
+      label: '📦 OZON店铺',
+      children: <OzonShopTab />,
+      visible: true, // 所有角色可见（操作员只能看到绑定的店铺）
+    },
+    {
+      key: 'third-party',
+      label: '🔌 第三方服务',
+      children: <ThirdPartyServicesTab />,
+      visible: !isOperator, // 操作员不可见
+    },
+    {
+      key: 'api-keys',
+      label: '🔑 API密钥',
+      children: <ApiKeysTab />,
+      visible: true, // 所有角色可见
+    },
+    {
+      key: 'guide',
+      label: 'ℹ️ 配置说明',
+      children: <ConfigGuideTab />,
+      visible: true, // 所有角色可见（操作员只能看到部分内容）
+    },
+  ].filter(item => item.visible);
+
   return (
     <div className={styles.container}>
       <PageTitle icon={<SettingOutlined />} title="系统配置" />
 
       <div className={styles.content}>
         <Tabs
-          defaultActiveKey="ozon-shops"
+          defaultActiveKey={isOperator ? 'api-keys' : 'ozon-shops'}
           size="large"
-          items={[
-            {
-              key: 'ozon-shops',
-              label: '📦 OZON店铺',
-              children: <OzonShopTab />,
-            },
-            {
-              key: 'third-party',
-              label: '🔌 第三方服务',
-              children: <ThirdPartyServicesTab />,
-            },
-            {
-              key: 'api-keys',
-              label: '🔑 API密钥',
-              children: <ApiKeysTab />,
-            },
-            {
-              key: 'guide',
-              label: 'ℹ️ 配置说明',
-              children: <ConfigGuideTab />,
-            },
-          ]}
+          items={tabItems}
         />
       </div>
     </div>

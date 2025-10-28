@@ -124,14 +124,20 @@
   }
 }
 
-// 快捷菜单容器
-.quickMenuContainer {
-  margin: 16px 0 0;
-  border-radius: 8px;
+// 统计卡片行
+.statsRow {
+  margin-bottom: 24px;
+}
 
-  h4 {
-    margin-bottom: 16px;
-  }
+// 快捷菜单标题
+.quickMenuTitle {
+  margin-top: 24px;
+  margin-bottom: 16px;
+}
+
+// 快捷菜单行
+.quickMenuRow {
+  margin-bottom: 24px;
 }
 
 // 快捷菜单项
@@ -196,14 +202,16 @@
   opacity: 1;
 }
 
-// 欢迎区域
-.welcomeSection {
-  padding: 40px 20px;
-  text-align: center;
+// 页面容器（防止 Row gutter 负 margin 溢出）
+// Row gutter={16} 会产生 margin: 0 -8px，所以左右至少需要 8px padding
+.pageWrapper {
+  padding: 24px 8px;
 }
 
+// 欢迎标题
 .welcomeTitle {
-  margin-bottom: 40px;
+  text-align: center;
+  margin-bottom: 24px;
 }
 
 // 卡片标签
@@ -239,18 +247,8 @@
   margin: 0;
 }
 
-// 页面容器（防止 Row gutter 负 margin 导致横向滚动）
-.pageContainer {
-  padding: 24px;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
 // 响应式适配
 @media (max-width: 768px) {
-  .pageContainer {
-    padding: 16px;
-  }
   .userProfile {
     margin: 0 8px 8px;
     padding: 12px;
@@ -272,12 +270,8 @@
     font-size: 12px;
   }
 
-  .welcomeSection {
-    padding: 20px 10px;
-  }
-
   .welcomeTitle {
     font-size: 20px;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
 }

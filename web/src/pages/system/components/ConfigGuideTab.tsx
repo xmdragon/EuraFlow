@@ -5,10 +5,15 @@
 import { Typography, Card, Collapse, Alert } from 'antd';
 import React from 'react';
 
+import { useAuth } from '@/hooks/useAuth';
+
 const { Title, Paragraph, Text, Link } = Typography;
 const { Panel } = Collapse;
 
 const ConfigGuideTab: React.FC = () => {
+  const { user } = useAuth();
+  const isOperator = user?.role === 'operator';
+
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       <Alert
@@ -43,8 +48,9 @@ const ConfigGuideTab: React.FC = () => {
           </Paragraph>
         </Panel>
 
-        {/* Cloudinary配置 */}
-        <Panel header="🖼️ Cloudinary图床配置" key="cloudinary">
+        {/* Cloudinary配置 - 仅管理员可见 */}
+        {!isOperator && (
+          <Panel header="🖼️ Cloudinary图床配置" key="cloudinary">
           <Title level={5}>如何获取Cloudinary凭据？</Title>
           <Paragraph>
             <ol>
@@ -73,9 +79,11 @@ const ConfigGuideTab: React.FC = () => {
             </ul>
           </Paragraph>
         </Panel>
+        )}
 
-        {/* 跨境巴士配置 */}
-        <Panel header="🚚 跨境巴士配置" key="kuajing84">
+        {/* 跨境巴士配置 - 仅管理员可见 */}
+        {!isOperator && (
+          <Panel header="🚚 跨境巴士配置" key="kuajing84">
           <Title level={5}>跨境巴士是什么？</Title>
           <Paragraph>
             跨境巴士（kuajing84.com）是一个跨境物流服务平台，支持将国内物流单号同步到国际物流系统。
@@ -100,9 +108,11 @@ const ConfigGuideTab: React.FC = () => {
             </ul>
           </Paragraph>
         </Panel>
+        )}
 
-        {/* 汇率API配置 */}
-        <Panel header="💱 汇率API配置" key="exchange-rate">
+        {/* 汇率API配置 - 仅管理员可见 */}
+        {!isOperator && (
+          <Panel header="💱 汇率API配置" key="exchange-rate">
           <Title level={5}>如何获取汇率API Key？</Title>
           <Paragraph>
             <ol>
@@ -123,8 +133,9 @@ const ConfigGuideTab: React.FC = () => {
             </ul>
           </Paragraph>
         </Panel>
+        )}
 
-        {/* API密钥管理 */}
+        {/* API密钥管理 - 所有角色可见 */}
         <Panel header="🔑 API密钥管理" key="api-keys">
           <Title level={5}>API密钥用途</Title>
           <Paragraph>
@@ -152,8 +163,9 @@ const ConfigGuideTab: React.FC = () => {
           </Paragraph>
         </Panel>
 
-        {/* 常见问题 */}
-        <Panel header="❓ 常见问题" key="faq">
+        {/* 常见问题 - 仅管理员可见 */}
+        {!isOperator && (
+          <Panel header="❓ 常见问题" key="faq">
           <Title level={5}>配置保存失败怎么办？</Title>
           <Paragraph>
             <ul>
@@ -179,6 +191,7 @@ const ConfigGuideTab: React.FC = () => {
             大部分配置保存后立即生效。部分配置（如汇率）需等待下次自动刷新，也可手动刷新立即生效。
           </Paragraph>
         </Panel>
+        )}
       </Collapse>
 
       <Card style={{ marginTop: 24 }}>

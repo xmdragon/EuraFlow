@@ -388,14 +388,13 @@ const Promotions: React.FC = () => {
       title: '活动ID',
       dataIndex: 'action_id',
       key: 'action_id',
-      width: 100,
+      width: 90,
       fixed: 'left',
     },
     {
       title: '活动名称',
       dataIndex: 'title',
       key: 'title',
-      width: 200,
       ellipsis: true,
       fixed: 'left',
       render: (title: string, record: promotionApi.PromotionAction) => (
@@ -416,41 +415,53 @@ const Promotions: React.FC = () => {
       title: '活动类型',
       dataIndex: 'action_type',
       key: 'action_type',
-      width: 150,
+      width: 100,
       render: (type: string) => ACTION_TYPE_MAP[type] || type || '-',
     },
     {
-      title: '参与状态',
+      title: () => (
+        <Tooltip title="参与状态">
+          <span>状态</span>
+        </Tooltip>
+      ),
       dataIndex: 'is_participating',
       key: 'is_participating',
-      width: 120,
+      width: 70,
       render: (value: boolean) => (
         <Tag color={value ? 'green' : 'default'}>{value ? '是' : '否'}</Tag>
       ),
     },
     {
-      title: '有目标定位',
+      title: () => (
+        <Tooltip title="有目标定位">
+          <span>定位</span>
+        </Tooltip>
+      ),
       dataIndex: 'with_targeting',
       key: 'with_targeting',
-      width: 120,
+      width: 70,
       render: (value: boolean) => (
         <Tag color={value ? 'blue' : 'default'}>{value ? '是' : '否'}</Tag>
       ),
     },
     {
-      title: '优惠券活动',
+      title: () => (
+        <Tooltip title="优惠券活动">
+          <span>优惠券</span>
+        </Tooltip>
+      ),
       dataIndex: 'is_voucher_action',
       key: 'is_voucher_action',
-      width: 120,
+      width: 80,
       render: (value: boolean) => (
         <Tag color={value ? 'purple' : 'default'}>{value ? '是' : '否'}</Tag>
       ),
     },
     {
-      title: '状态',
+      title: '活动状态',
       dataIndex: 'status',
       key: 'status',
-      width: 120,
+      width: 90,
       render: (status: string) => {
         const colorMap: Record<string, string> = {
           active: 'green',
@@ -463,38 +474,54 @@ const Promotions: React.FC = () => {
       },
     },
     {
-      title: '开始时间 (莫斯科)',
+      title: () => (
+        <Tooltip title="开始时间 (莫斯科)">
+          <span>开始时间</span>
+        </Tooltip>
+      ),
       dataIndex: 'date_start',
       key: 'date_start',
-      width: 150,
+      width: 90,
       render: (date: string) => formatMoscowDate(date),
     },
     {
-      title: '结束时间 (莫斯科)',
+      title: () => (
+        <Tooltip title="结束时间 (莫斯科)">
+          <span>结束时间</span>
+        </Tooltip>
+      ),
       dataIndex: 'date_end',
       key: 'date_end',
-      width: 150,
+      width: 90,
       render: (date: string) => formatMoscowDate(date),
     },
     {
-      title: '候选商品',
+      title: () => (
+        <Tooltip title="候选商品">
+          <span>候选</span>
+        </Tooltip>
+      ),
       dataIndex: 'candidate_count',
       key: 'candidate_count',
-      width: 120,
+      width: 70,
       render: (count: number) => <Tag color="blue">{count || 0}</Tag>,
     },
     {
-      title: '参与商品',
+      title: () => (
+        <Tooltip title="参与商品">
+          <span>参与</span>
+        </Tooltip>
+      ),
       dataIndex: 'active_count',
       key: 'active_count',
-      width: 120,
+      width: 70,
       render: (count: number) => <Tag color="green">{count || 0}</Tag>,
     },
     {
       title: '自动取消',
       dataIndex: 'auto_cancel_enabled',
       key: 'auto_cancel_enabled',
-      width: 120,
+      width: 90,
       fixed: 'right',
       render: (enabled: boolean, record) => (
         <Switch
@@ -928,7 +955,7 @@ const Promotions: React.FC = () => {
   };
 
   return (
-    <div className={styles.pageContainer}>
+    <div className={styles.pageWrapper}>
       <PageTitle title="促销活动管理" />
       {viewMode === 'list' ? renderListView() : renderDetailView()}
 

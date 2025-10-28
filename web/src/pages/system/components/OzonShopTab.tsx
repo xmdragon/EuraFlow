@@ -44,6 +44,7 @@ import React, { useState, useEffect } from 'react';
 
 import styles from './OzonShopTab.module.scss';
 
+import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
@@ -102,11 +103,16 @@ interface Shop {
 
 const OzonShopTab: React.FC = () => {
   const queryClient = useQueryClient();
-  const { canOperate, canSync } = usePermission();
+  const { user } = useAuth();
+  const { canOperate, canSync, isAdmin } = usePermission();
   const [form] = Form.useForm();
   const [testingConnection, setTestingConnection] = useState(false);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [addShopModalVisible, setAddShopModalVisible] = useState(false);
+
+  // 判断用户是否为操作员
+  const isOperator = user?.role === 'operator';
+  const userShopIds = user?.shop_ids || [];
 
   // 获取店铺列表
   const {
@@ -335,17 +341,23 @@ const OzonShopTab: React.FC = () => {
     );
   }
 
-  const shops = shopsData?.data || [];
+  // 根据用户角色过滤店铺列表
+  const allShops = shopsData?.data || [];
+  const shops = isOperator
+    ? allShops.filter(shop => userShopIds.includes(shop.id))
+    : allShops;
 
   return (
     <div className={styles.container}>
       {/* 店铺列表 */}
       <Card className={styles.shopListCard}>
-        {canOperate && (
+        {(isAdmin || canSync) && (
           <div className={styles.addButtonRow}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
-              添加店铺
-            </Button>
+            {isAdmin && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
+                添加店铺
+              </Button>
+            )}
             {canSync && (
               <Button
                 icon={<TruckOutlined />}
@@ -365,10 +377,12 @@ const OzonShopTab: React.FC = () => {
               暂无店铺
             </Title>
             <Text type="secondary" className={styles.emptyText}>
-              您还没有添加任何Ozon店铺
-              {canOperate && '，点击上方"添加店铺"按钮开始配置'}
+              {isOperator
+                ? '您还没有绑定任何Ozon店铺，请联系管理员进行绑定'
+                : '您还没有添加任何Ozon店铺'}
+              {isAdmin && '，点击上方"添加店铺"按钮开始配置'}
             </Text>
-            {canOperate && (
+            {isAdmin && (
               <Button type="primary" icon={<PlusOutlined />} onClick={handleAddShop}>
                 立即添加店铺
               </Button>
@@ -453,14 +467,16 @@ const OzonShopTab: React.FC = () => {
                           >
                             编辑
                           </Button>
-                          <Button
-                            type="link"
-                            size="small"
-                            danger
-                            onClick={() => handleDeleteShop(record)}
-                          >
-                            删除
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              type="link"
+                              size="small"
+                              danger
+                              onClick={() => handleDeleteShop(record)}
+                            >
+                              删除
+                            </Button>
+                          )}
                         </Space>
                       ),
                     },
