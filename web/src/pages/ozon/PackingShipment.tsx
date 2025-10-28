@@ -896,19 +896,14 @@ const PackingShipment: React.FC = () => {
 
   // 批量同步处理函数（直接执行，不弹窗确认）
   const handleBatchSync = () => {
-    console.error('【批量同步调试】按钮被点击', { allPostingsLength: allPostings.length });
     logger.info('批量同步按钮被点击', { allPostingsLength: allPostings.length });
 
     if (allPostings.length === 0) {
-      console.error('【批量同步调试】没有可同步的订单');
       logger.warn('没有可同步的订单');
       notifyWarning('操作失败', '当前页面没有可同步的订单');
       return;
     }
 
-    console.error('【批量同步调试】开始执行批量同步', {
-      postings: allPostings.map(p => ({ posting_number: p.posting_number, status: p.status }))
-    });
     logger.info('开始执行批量同步');
 
     // 提示用户操作已开始
