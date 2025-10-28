@@ -808,3 +808,55 @@ async def change_password(
     await session.commit()
 
     return None
+
+
+class AdminResetPasswordRequest(BaseModel):
+    """管理员重置密码请求"""
+    new_password: str = Field(..., min_length=8, description="新密码")
+
+
+@router.patch("/users/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_reset_user_password(
+    user_id: int,
+    password_data: AdminResetPasswordRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    """
+    管理员重置用户密码（仅admin）
+
+    - 管理员可以直接重置子账号密码
+    - 不需要验证原密码
+    - 密码最少8位
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "INSUFFICIENT_PERMISSIONS",
+                "message": "只有管理员可以重置用户密码"
+            }
+        )
+
+    # 获取要重置密码的用户
+    stmt = select(User).where(User.id == user_id, User.parent_user_id == current_user.id)
+    result = await session.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "USER_NOT_FOUND",
+                "message": "用户不存在或无权限访问"
+            }
+        )
+
+    # 重置密码
+    auth_service = get_auth_service()
+    user.password_hash = auth_service.hash_password(password_data.new_password)
+    await session.commit()
+
+    logger.info(f"管理员 {current_user.id} 重置了用户 {user_id} 的密码")
+
+    return None

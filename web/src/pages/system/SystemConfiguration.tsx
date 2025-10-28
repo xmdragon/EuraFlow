@@ -20,7 +20,7 @@ const SystemConfiguration: React.FC = () => {
   const isOperator = user?.role === 'operator';
 
   // 根据角色过滤标签
-  const tabItems = [
+  const allTabs = [
     {
       key: 'ozon-shops',
       label: '📦 OZON店铺',
@@ -45,20 +45,29 @@ const SystemConfiguration: React.FC = () => {
       children: <ConfigGuideTab />,
       visible: true, // 所有角色可见（操作员只能看到部分内容）
     },
-  ]
-    .filter(item => item.visible)
+  ];
+
+  const tabItems = allTabs
+    .filter((item) => item.visible)
     .map(({ key, label, children }) => ({ key, label, children }));
+
+  // 确定默认选中的标签
+  const defaultActiveKey = tabItems.length > 0 ? tabItems[0].key : 'ozon-shops';
 
   return (
     <div className={styles.container}>
       <PageTitle icon={<SettingOutlined />} title="系统配置" />
 
       <div className={styles.content}>
-        <Tabs
-          defaultActiveKey={isOperator ? 'api-keys' : 'ozon-shops'}
-          size="large"
-          items={tabItems}
-        />
+        {tabItems.length > 0 ? (
+          <Tabs
+            defaultActiveKey={defaultActiveKey}
+            size="large"
+            items={tabItems}
+          />
+        ) : (
+          <div>没有可用的配置选项</div>
+        )}
       </div>
     </div>
   );
