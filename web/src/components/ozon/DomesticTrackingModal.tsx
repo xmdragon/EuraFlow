@@ -43,7 +43,7 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
     }
   }, [visible, initialTrackingNumbers, initialOrderNotes, form]);
 
-  // 提交国内物流单号 mutation
+  // 提交国内物流单号 mutation（用于新增单号或有单号时提交）
   const submitTrackingMutation = useMutation({
     mutationFn: (data: ozonApi.SubmitDomesticTrackingRequest) => {
       return ozonApi.submitDomesticTracking(postingNumber, data);
@@ -72,6 +72,29 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
     },
   });
 
+  // 更新国内物流单号 mutation（用于修改或清空单号）
+  const updateTrackingMutation = useMutation({
+    mutationFn: (data: ozonApi.UpdateDomesticTrackingRequest) => {
+      return ozonApi.updateDomesticTracking(postingNumber, data);
+    },
+    onSuccess: () => {
+      notifySuccess('国内单号已更新', '国内单号已成功更新');
+      // 刷新计数查询
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 调用父组件回调（用于从列表中移除或更新）
+      if (onSuccess) {
+        onSuccess();
+      }
+      handleClose();
+    },
+    onError: (error: unknown) => {
+      const errorMsg = axios.isAxiosError(error)
+        ? (error.response?.data?.message || error.message || '更新失败')
+        : (error instanceof Error ? error.message : '更新失败');
+      notifyError('国内单号更新失败', errorMsg);
+    },
+  });
+
   const handleClose = () => {
     form.resetFields();
     onCancel();
@@ -87,17 +110,29 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
         .map((n: string) => n.trim())
         .filter((n: string) => n.length > 0);
 
-      if (cleanedNumbers.length === 0) {
-        message.error('请至少输入一个国内物流单号');
-        return;
-      }
+      // 判断是更新还是新增
+      const hasInitialNumbers = initialTrackingNumbers && initialTrackingNumbers.length > 0;
 
-      const data: ozonApi.SubmitDomesticTrackingRequest = {
-        domestic_tracking_numbers: cleanedNumbers,
-        order_notes: values.order_notes,
-        sync_to_kuajing84: values.sync_to_kuajing84 === true, // 默认为false
-      };
-      submitTrackingMutation.mutate(data);
+      if (hasInitialNumbers) {
+        // 已有单号，使用更新接口（支持清空）
+        const updateData: ozonApi.UpdateDomesticTrackingRequest = {
+          domestic_tracking_numbers: cleanedNumbers,
+        };
+        updateTrackingMutation.mutate(updateData);
+      } else {
+        // 没有单号，使用提交接口（不允许空）
+        if (cleanedNumbers.length === 0) {
+          message.error('请至少输入一个国内物流单号');
+          return;
+        }
+
+        const submitData: ozonApi.SubmitDomesticTrackingRequest = {
+          domestic_tracking_numbers: cleanedNumbers,
+          order_notes: values.order_notes,
+          sync_to_kuajing84: values.sync_to_kuajing84 === true, // 默认为false
+        };
+        submitTrackingMutation.mutate(submitData);
+      }
     } catch (error) {
       logger.error('Form validation failed:', error);
     }
@@ -105,11 +140,11 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
 
   return (
     <Modal
-      title="填写国内物流单号"
+      title={initialTrackingNumbers && initialTrackingNumbers.length > 0 ? "编辑国内物流单号" : "填写国内物流单号"}
       open={visible}
       onCancel={handleClose}
       onOk={handleSubmit}
-      confirmLoading={submitTrackingMutation.isPending}
+      confirmLoading={submitTrackingMutation.isPending || updateTrackingMutation.isPending}
       okText="提交"
       cancelText="取消"
       width={600}
@@ -119,11 +154,11 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
           name="domestic_tracking_numbers"
           label="国内物流单号"
           rules={[
-            { required: true, message: '请至少输入一个国内物流单号' },
             {
               validator: (_, value) => {
+                // 允许空数组（用于清空单号）
                 if (!value || value.length === 0) {
-                  return Promise.reject('请至少输入一个国内物流单号');
+                  return Promise.resolve();
                 }
                 if (value.length > 10) {
                   return Promise.reject('最多支持10个单号');
@@ -137,8 +172,8 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
               },
             },
           ]}
-          tooltip="支持输入多个国内物流单号（按回车或逗号分隔）"
-          extra={`已添加 ${form.getFieldValue('domestic_tracking_numbers')?.length || 0} 个单号`}
+          tooltip="支持输入多个国内物流单号（按回车或逗号分隔），清空所有单号可删除国内单号"
+          extra={`已添加 ${form.getFieldValue('domestic_tracking_numbers')?.length || 0} 个单号${initialTrackingNumbers && initialTrackingNumbers.length > 0 ? '（清空后提交可删除所有单号）' : ''}`}
         >
           <Select
             mode="tags"
@@ -149,18 +184,23 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item name="order_notes" label="订单备注" tooltip="订单相关的备注信息（可选）">
-          <TextArea
-            placeholder="请输入订单备注"
-            autoSize={{ minRows: 3, maxRows: 6 }}
-            maxLength={500}
-            showCount
-          />
-        </Form.Item>
+        {/* 只在新增模式下显示订单备注和同步选项 */}
+        {(!initialTrackingNumbers || initialTrackingNumbers.length === 0) && (
+          <>
+            <Form.Item name="order_notes" label="订单备注" tooltip="订单相关的备注信息（可选）">
+              <TextArea
+                placeholder="请输入订单备注"
+                autoSize={{ minRows: 3, maxRows: 6 }}
+                maxLength={500}
+                showCount
+              />
+            </Form.Item>
 
-        <Form.Item name="sync_to_kuajing84" valuePropName="checked" initialValue={false}>
-          <Checkbox>同步到跨境巴士</Checkbox>
-        </Form.Item>
+            <Form.Item name="sync_to_kuajing84" valuePropName="checked" initialValue={false}>
+              <Checkbox>同步到跨境巴士</Checkbox>
+            </Form.Item>
+          </>
+        )}
       </Form>
     </Modal>
   );
