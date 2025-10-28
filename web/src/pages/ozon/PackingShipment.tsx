@@ -203,6 +203,7 @@ const PackingShipment: React.FC = () => {
   const [showPrintLabelModal, setShowPrintLabelModal] = useState(false);
   const [printLabelUrl, setPrintLabelUrl] = useState<string>('');
   const [currentPrintingPosting, setCurrentPrintingPosting] = useState<string>('');
+  const [currentPrintingPostings, setCurrentPrintingPostings] = useState<string[]>([]); // 批量打印的postings
 
   // 扫描输入框的 ref，用于重新聚焦
   const scanInputRef = React.useRef<any>(null);
@@ -1176,27 +1177,54 @@ const PackingShipment: React.FC = () => {
     }
   };
 
-  // 从打印弹窗标记为已打印
+  // 从打印弹窗标记为已打印（支持单个和批量）
   const handleMarkPrintedFromModal = async () => {
-    if (!currentPrintingPosting) return;
+    // 判断是单个还是批量
+    const isBatch = currentPrintingPostings.length > 0;
+    const postingsToMark = isBatch ? currentPrintingPostings : [currentPrintingPosting];
+
+    if (postingsToMark.length === 0 || (postingsToMark.length === 1 && !postingsToMark[0])) {
+      return;
+    }
 
     try {
-      await ozonApi.markPostingPrinted(currentPrintingPosting);
-      notifySuccess('标记成功', '已标记为已打印');
+      // 批量标记
+      const promises = postingsToMark.map((pn) => ozonApi.markPostingPrinted(pn));
+      await Promise.all(promises);
+
+      notifySuccess(
+        '标记成功',
+        isBatch ? `已标记${postingsToMark.length}个订单为已打印` : '已标记为已打印'
+      );
+
       // 关闭弹窗
       setShowPrintLabelModal(false);
       setPrintLabelUrl('');
       setCurrentPrintingPosting('');
+      setCurrentPrintingPostings([]);
+
       // 刷新扫描结果
       setScanResults((prev) =>
         prev.map((p) =>
-          p.posting_number === currentPrintingPosting ? { ...p, operation_status: 'printed' } : p
+          postingsToMark.includes(p.posting_number) ? { ...p, operation_status: 'printed' } : p
         )
       );
+
+      // 清空选择
+      if (isBatch) {
+        setScanSelectedPostings([]);
+      }
+
       // 刷新计数
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
-      // 从当前列表中移除该posting
-      setAllPostings((prev) => prev.filter((p) => p.posting_number !== currentPrintingPosting));
+
+      // 从当前列表中移除这些posting
+      setAllPostings((prev) => prev.filter((p) => !postingsToMark.includes(p.posting_number)));
+
+      // 重新聚焦输入框
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 100);
     } catch (error) {
       notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
     }
@@ -1211,11 +1239,13 @@ const PackingShipment: React.FC = () => {
         // 弹出窗口显示PDF，而不是直接打开
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPosting(postingNumber);
+        setCurrentPrintingPostings([]); // 单张打印，清空批量标记
         setShowPrintLabelModal(true);
         notifySuccess('标签加载成功', '请在弹窗中查看并打印');
       } else if (result.error === 'PARTIAL_FAILURE' && result.pdf_url) {
         setPrintLabelUrl(result.pdf_url);
         setCurrentPrintingPosting(postingNumber);
+        setCurrentPrintingPostings([]);
         setShowPrintLabelModal(true);
       } else {
         notifyError('打印失败', '打印失败');
@@ -1264,22 +1294,26 @@ const PackingShipment: React.FC = () => {
     try {
       const result = await ozonApi.batchPrintLabels(scanSelectedPostings);
       if (result.success && result.pdf_url) {
-        // 打开PDF
-        window.open(result.pdf_url, '_blank');
+        // 弹出窗口显示PDF（与单张打印一致）
+        setPrintLabelUrl(result.pdf_url);
+        setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
+        setCurrentPrintingPosting(''); // 清空单个posting标记
+        setShowPrintLabelModal(true);
         notifySuccess(
-          '打印成功',
-          `成功打印${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}）`
+          '标签加载成功',
+          `成功加载${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}），请在弹窗中查看并打印`
         );
-        // 清空选择
-        setScanSelectedPostings([]);
       } else if (result.error === 'PARTIAL_FAILURE') {
         // 部分成功
         setPrintErrors(result.failed_postings || []);
         setPrintSuccessPostings(result.success_postings || []);
         setPrintErrorModalVisible(true);
-        // 如果有成功的，打开PDF
+        // 如果有成功的，也弹出PDF
         if (result.pdf_url) {
-          window.open(result.pdf_url, '_blank');
+          setPrintLabelUrl(result.pdf_url);
+          setCurrentPrintingPostings(result.success_postings || []);
+          setCurrentPrintingPosting('');
+          setShowPrintLabelModal(true);
         }
       }
     } catch (error) {
@@ -2313,6 +2347,17 @@ const PackingShipment: React.FC = () => {
           setShowPrintLabelModal(false);
           setPrintLabelUrl('');
           setCurrentPrintingPosting('');
+          setCurrentPrintingPostings([]);
+          // 重新聚焦输入框
+          setTimeout(() => {
+            scanInputRef.current?.focus();
+          }, 100);
+        }}
+        afterClose={() => {
+          // 确保弹窗完全关闭后再聚焦
+          setTimeout(() => {
+            scanInputRef.current?.focus();
+          }, 100);
         }}
         width={900}
         footer={[
@@ -2322,6 +2367,11 @@ const PackingShipment: React.FC = () => {
               setShowPrintLabelModal(false);
               setPrintLabelUrl('');
               setCurrentPrintingPosting('');
+              setCurrentPrintingPostings([]);
+              // 重新聚焦输入框
+              setTimeout(() => {
+                scanInputRef.current?.focus();
+              }, 100);
             }}
           >
             关闭
