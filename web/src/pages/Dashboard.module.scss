@@ -239,8 +239,18 @@
   margin: 0;
 }
 
+// 页面容器（防止 Row gutter 负 margin 导致横向滚动）
+.pageContainer {
+  padding: 24px;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 // 响应式适配
 @media (max-width: 768px) {
+  .pageContainer {
+    padding: 16px;
+  }
   .userProfile {
     margin: 0 8px 8px;
     padding: 12px;

@@ -517,12 +517,66 @@ async def update_prices(
                     errors.append(f"商品货号 {offer_id}: 缺少 OZON product_id，请先同步商品数据")
                     continue
 
+                # 使用商品本身的货币代码（不能更改货币）
+                currency_code = product.currency_code or "CNY"
+
+                # 将价格转换为Decimal进行计算
+                new_price_decimal = Decimal(str(new_price))
+                old_price_decimal = Decimal(str(old_price)) if old_price else None
+
+                # OZON折扣规则验证（仅当old_price>0时才需要验证）
+                if old_price_decimal and old_price_decimal > 0 and new_price_decimal:
+                    from ef_core.services.exchange_rate_service import ExchangeRateService
+
+                    try:
+                        # 获取CNY→RUB汇率
+                        exchange_service = ExchangeRateService()
+                        cny_to_rub_rate = await exchange_service.get_rate(db, "CNY", "RUB")
+
+                        # 转换为RUB等价值
+                        price_rub = new_price_decimal * cny_to_rub_rate
+                        old_price_rub = old_price_decimal * cny_to_rub_rate
+                        discount_amount_rub = old_price_rub - price_rub
+
+                        # 规则1: price < 400 RUB → 差额至少20 RUB
+                        if price_rub < 400:
+                            if discount_amount_rub < 20:
+                                discount_amount_cny = old_price_decimal - new_price_decimal
+                                min_discount_cny = Decimal("20") / cny_to_rub_rate
+                                errors.append(
+                                    f"商品货号 {offer_id}: 价格低于400₽时，折扣差额必须≥20₽（约{min_discount_cny:.2f}￥）"
+                                    f"（当前差额：{discount_amount_cny:.2f}￥）"
+                                )
+                                continue
+                        # 规则2: 400 <= price <= 10000 RUB → 折扣至少5%
+                        elif price_rub <= 10000:
+                            discount_percent = (discount_amount_rub / old_price_rub) * 100
+                            if discount_percent < 5:
+                                errors.append(
+                                    f"商品货号 {offer_id}: 价格在400-10000₽时，折扣必须≥5%"
+                                    f"（当前折扣：{discount_percent:.1f}%）"
+                                )
+                                continue
+                        # 规则3: price > 10000 RUB → 差额至少500 RUB
+                        else:
+                            if discount_amount_rub < 500:
+                                discount_amount_cny = old_price_decimal - new_price_decimal
+                                min_discount_cny = Decimal("500") / cny_to_rub_rate
+                                errors.append(
+                                    f"商品货号 {offer_id}: 价格高于10000₽时，折扣差额必须≥500₽（约{min_discount_cny:.2f}￥）"
+                                    f"（当前差额：{discount_amount_cny:.2f}￥）"
+                                )
+                                continue
+                    except Exception as e:
+                        logger.warning(f"无法获取汇率进行折扣验证: {e}")
+                        # 汇率获取失败时跳过验证，继续更新（避免阻塞）
+
                 # 调用Ozon API更新价格
                 price_item = {
                     "offer_id": product.offer_id,
                     "product_id": product.ozon_product_id,
                     "price": str(new_price),
-                    "currency_code": "RUB",  # 必需：货币代码
+                    "currency_code": currency_code,  # 使用商品原货币（不可变）
                     "auto_action_enabled": "DISABLED",  # 禁用自动定价（避免被自动改价）
                     "price_strategy_enabled": "DISABLED"  # 禁用价格策略（确保手动价格生效）
                 }

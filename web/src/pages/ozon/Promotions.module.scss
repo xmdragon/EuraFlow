@@ -1,0 +1,16 @@
+// 促销活动页面样式
+// 遵守 CLAUDE.md §8 规范：禁止 inline style
+
+// 页面容器（防止内容超出导致横向滚动）
+.pageContainer {
+  padding: 24px;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+// 响应式适配
+@media (max-width: 768px) {
+  .pageContainer {
+    padding: 16px;
+  }
+}

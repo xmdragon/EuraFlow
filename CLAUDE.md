@@ -88,6 +88,7 @@
 - **无超时/无限重试** → 外部 API 默认超时（10s）与指数退避（≤5 次）
 - **漏指标/日志脱敏** → JSON 日志脱敏电话/邮箱/地址；指标按 `ef_*` 命名
 - **使用 console.log/debug/info** → 前端用 `loglevel`（`import { loggers } from '@/utils/logger'`）；后端用 Python `logging`；仅允许 `console.error/warn` 错误处理
+- **直接实现复制功能** → 统一使用 `useCopy` Hook（`@/hooks/useCopy`）；禁止手写 `navigator.clipboard` 或 `execCommand`
 - **幂等缺失** → 写操作支持 `Idempotency-Key`
 - **样式硬编码** → 禁止 `style={{...}}`，写入 `.module.scss`
 
@@ -117,6 +118,11 @@
 - **日志规范**：
   - 前端：`import { loggers } from '@/utils/logger'`，使用 `loggers.auth.info()` 等；禁止 `console.log/debug/info`
   - 后端：`logger = logging.getLogger(__name__)`；禁止 `print()`
+- **复制功能规范**：
+  - **统一使用** `useCopy` Hook（`@/hooks/useCopy`）
+  - **禁止**直接使用 `navigator.clipboard.writeText` 或 `document.execCommand('copy')`
+  - 示例：`const { copyToClipboard } = useCopy(); copyToClipboard(text, '标签名');`
+  - 提供统一的成功/失败提示（右下角通知）+ 降级方案
 - **命名**：表/索引/约束按 `CODESTYLE.md`；事件 `ef.{domain}.{object}.{verb}`
 
 ---

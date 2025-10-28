@@ -39,6 +39,8 @@ import { formatCurrency } from '@/utils/currency';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
+import styles from './Promotions.module.scss';
+
 const { confirm } = Modal;
 
 type ViewMode = 'list' | 'detail';
@@ -926,7 +928,7 @@ const Promotions: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className={styles.pageContainer}>
       <PageTitle title="促销活动管理" />
       {viewMode === 'list' ? renderListView() : renderDetailView()}
 

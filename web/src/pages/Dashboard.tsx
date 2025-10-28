@@ -421,7 +421,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({
   iconMap,
 }) => {
   return (
-    <div>
+    <div className={styles.pageContainer}>
       <PageTitle icon={<DashboardOutlined />} title="系统状态" />
 
       <Card>
