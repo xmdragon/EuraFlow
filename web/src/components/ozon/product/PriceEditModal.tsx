@@ -287,24 +287,30 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
 
         {/* 调价原因（可选） */}
         <Form.Item label="调价原因（可选）" style={{ marginBottom: 0 }}>
-          <Select
-            placeholder="选择或输入调价原因"
-            value={reason}
-            onChange={setReason}
-            allowClear
-            showSearch
-            mode="tags"
-            maxCount={1}
-            style={{ width: '100%' }}
-            options={[
-              { value: '促销活动', label: '促销活动' },
-              { value: '成本调整', label: '成本调整' },
-              { value: '市场竞争', label: '市场竞争' },
-              { value: '库存清理', label: '库存清理' },
-              { value: '季节调价', label: '季节调价' },
-              { value: '汇率变化', label: '汇率变化' },
-            ]}
-          />
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              placeholder="输入调价原因（可选）"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              allowClear
+              style={{ flex: 1 }}
+            />
+          </Space.Compact>
+          <div style={{ marginTop: 8 }}>
+            <Space wrap size="small">
+              <span style={{ fontSize: 12, color: '#999' }}>快捷选择：</span>
+              {['促销活动', '成本调整', '市场竞争', '库存清理', '季节调价', '汇率变化'].map((text) => (
+                <Button
+                  key={text}
+                  size="small"
+                  type={reason === text ? 'primary' : 'default'}
+                  onClick={() => setReason(text)}
+                >
+                  {text}
+                </Button>
+              ))}
+            </Space>
+          </div>
         </Form.Item>
 
         {/* 底部按钮 */}
