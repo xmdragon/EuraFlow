@@ -19,9 +19,6 @@ const SystemConfiguration: React.FC = () => {
   const { user } = useAuth();
   const isOperator = user?.role === 'operator';
 
-  console.log('[SystemConfiguration] User:', user);
-  console.log('[SystemConfiguration] isOperator:', isOperator);
-
   // 根据角色过滤标签
   const allTabs = [
     {
@@ -54,27 +51,14 @@ const SystemConfiguration: React.FC = () => {
     .filter((item) => item.visible)
     .map(({ key, label, children }) => ({ key, label, children }));
 
-  console.log('[SystemConfiguration] tabItems:', tabItems);
-  console.log('[SystemConfiguration] tabItems.length:', tabItems.length);
-
   // 确定默认选中的标签
   const defaultActiveKey = tabItems.length > 0 ? tabItems[0].key : 'ozon-shops';
-
-  console.log('[SystemConfiguration] defaultActiveKey:', defaultActiveKey);
 
   return (
     <div className={styles.container}>
       <PageTitle icon={<SettingOutlined />} title="系统配置" />
 
       <div className={styles.content}>
-        <div style={{ padding: '20px', background: '#f0f0f0', marginBottom: '20px' }}>
-          <p>调试信息：</p>
-          <p>用户角色: {user?.role || '未知'}</p>
-          <p>是否操作员: {isOperator ? '是' : '否'}</p>
-          <p>标签数量: {tabItems.length}</p>
-          <p>默认标签: {defaultActiveKey}</p>
-        </div>
-
         {tabItems.length > 0 ? (
           <Tabs
             defaultActiveKey={defaultActiveKey}

@@ -399,11 +399,13 @@ const Dashboard: React.FC = () => {
                 <Route path="/ozon/*" element={<OzonManagement />} />
                 <Route path="/finance" element={<FinanceCalculator />} />
                 <Route path="/profile" element={<Profile />} />
+                {/* 系统管理路由 - 管理员和操作员都可以访问 */}
+                {(user?.role === "admin" || user?.role === "operator") && (
+                  <Route path="/system/*" element={<SystemManagement />} />
+                )}
+                {/* 用户管理路由 - 仅管理员可以访问 */}
                 {user?.role === "admin" && (
-                  <>
-                    <Route path="/system/*" element={<SystemManagement />} />
-                    <Route path="/users" element={<UserManagement />} />
-                  </>
+                  <Route path="/users" element={<UserManagement />} />
                 )}
               </Routes>
             </Suspense>
