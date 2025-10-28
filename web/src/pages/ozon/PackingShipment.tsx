@@ -60,6 +60,7 @@ import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryMod
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
+import { useQuickMenu } from '@/hooks/useQuickMenu';
 import * as ozonApi from '@/services/ozonApi';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
@@ -94,6 +95,7 @@ const PackingShipment: React.FC = () => {
   const { currency: userCurrency } = useCurrency();
   const { canOperate, canSync } = usePermission();
   const [urlSearchParams] = useSearchParams();
+  const { addQuickMenu, isInQuickMenu } = useQuickMenu();
 
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
@@ -1492,9 +1494,47 @@ const PackingShipment: React.FC = () => {
       {/* 打包发货列表 */}
       <Card className={styles.listCard}>
         {/* 操作状态 Tabs */}
-        <Tabs
-          activeKey={operationStatus}
-          onChange={(key) => {
+        {/* 创建带快捷菜单按钮的标签label */}
+        {React.useMemo(() => {
+          const createTabLabel = (key: string, icon: React.ReactNode, label: string, count: number) => {
+            const isAdded = isInQuickMenu(`packing-${key}`);
+            const path = `/dashboard/ozon/packing?tab=${key}`;
+
+            return (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                {icon}
+                {label}({count})
+                <Button
+                  type="text"
+                  size="small"
+                  icon={isAdded ? <CheckCircleOutlined /> : <PlusOutlined />}
+                  style={{
+                    marginLeft: '4px',
+                    fontSize: '12px',
+                    color: isAdded ? '#52c41a' : '#1890ff',
+                    padding: '0 4px',
+                    height: '20px',
+                    lineHeight: '20px'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isAdded) {
+                      addQuickMenu({
+                        key: `packing-${key}`,
+                        label: `打包发货-${label}`,
+                        path: path
+                      });
+                    }
+                  }}
+                />
+              </span>
+            );
+          };
+
+          return (
+            <Tabs
+              activeKey={operationStatus}
+              onChange={(key) => {
             setOperationStatus(key);
             // 记录访问过的标签（用于按需加载统计数据）
             setVisitedTabs((prev) => new Set(prev).add(key));
@@ -1507,73 +1547,46 @@ const PackingShipment: React.FC = () => {
               setScanSelectedPostings([]);
             }
           }}
-          items={[
-            {
-              key: 'awaiting_stock',
-              label: (
-                <span>
-                  <ClockCircleOutlined />
-                  等待备货({statusCounts.awaiting_stock})
-                </span>
-              ),
-            },
-            {
-              key: 'allocating',
-              label: (
-                <span>
-                  <SyncOutlined spin />
-                  分配中({statusCounts.allocating})
-                </span>
-              ),
-            },
-            {
-              key: 'allocated',
-              label: (
-                <span>
-                  <CheckCircleOutlined />
-                  已分配({statusCounts.allocated})
-                </span>
-              ),
-            },
-            {
-              key: 'tracking_confirmed',
-              label: (
-                <span>
-                  <CheckCircleOutlined />
-                  单号确认({statusCounts.tracking_confirmed})
-                </span>
-              ),
-            },
-            {
-              key: 'shipping',
-              label: (
-                <span>
-                  <RocketOutlined />
-                  运输中({statusCounts.shipping})
-                </span>
-              ),
-            },
-            {
-              key: 'printed',
-              label: (
-                <span>
-                  <PrinterOutlined />
-                  已打印({statusCounts.printed})
-                </span>
-              ),
-            },
-            {
-              key: 'scan',
-              label: (
-                <span>
-                  <SearchOutlined />
-                  扫描单号
-                </span>
-              ),
-            },
-          ]}
-          style={{ marginTop: 16 }}
-        />
+              items={[
+                {
+                  key: 'awaiting_stock',
+                  label: createTabLabel('awaiting_stock', <ClockCircleOutlined />, '等待备货', statusCounts.awaiting_stock),
+                },
+                {
+                  key: 'allocating',
+                  label: createTabLabel('allocating', <SyncOutlined spin />, '分配中', statusCounts.allocating),
+                },
+                {
+                  key: 'allocated',
+                  label: createTabLabel('allocated', <CheckCircleOutlined />, '已分配', statusCounts.allocated),
+                },
+                {
+                  key: 'tracking_confirmed',
+                  label: createTabLabel('tracking_confirmed', <CheckCircleOutlined />, '单号确认', statusCounts.tracking_confirmed),
+                },
+                {
+                  key: 'shipping',
+                  label: createTabLabel('shipping', <RocketOutlined />, '运输中', statusCounts.shipping),
+                },
+                {
+                  key: 'printed',
+                  label: createTabLabel('printed', <PrinterOutlined />, '已打印', statusCounts.printed),
+                },
+                {
+                  key: 'scan',
+                  label: (
+                    <span>
+                      <SearchOutlined />
+                      扫描单号
+                    </span>
+                  ),
+                },
+              ]}
+              style={{ marginTop: 16 }}
+            />
+          );
+        }, [operationStatus, statusCounts, addQuickMenu, isInQuickMenu])}
+
 
         {/* 根据不同标签显示不同内容 */}
         {operationStatus === 'scan' ? (
