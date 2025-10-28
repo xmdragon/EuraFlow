@@ -45,7 +45,7 @@ class PostingStatusManager:
         "printed": 4,                # 已打印
         "shipping": 5,               # 运输中
         "delivered": 6,              # 已送达
-        "cancelled": -1,             # 已取消（终态，不参与优先级比较）
+        "cancelled": 99,             # 已取消（终态，最高优先级，不可被覆盖）
     }
 
     @staticmethod
