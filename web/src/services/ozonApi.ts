@@ -302,6 +302,24 @@ export const syncProducts = async (
   return response.data;
 };
 
+// 同步单个商品
+export const syncSingleProduct = async (productId: number) => {
+  const response = await apiClient.post(`/ozon/products/${productId}/sync`);
+  return response.data;
+};
+
+// 归档商品
+export const archiveProduct = async (productId: number) => {
+  const response = await apiClient.post(`/ozon/products/${productId}/archive`);
+  return response.data;
+};
+
+// 删除商品
+export const deleteProduct = async (productId: number) => {
+  const response = await apiClient.delete(`/ozon/products/${productId}`);
+  return response.data;
+};
+
 // 批量更新价格
 export const updatePrices = async (updates: PriceUpdate[], shopId?: number) => {
   const data: { updates: PriceUpdate[]; shop_id?: number } = { updates };
@@ -1219,7 +1237,7 @@ export const getPackingStats = async (params?: {
 // 备货操作请求参数
 export interface PrepareStockRequest {
   purchase_price: string; // 进货价格（必填）
-  source_platform?: string; // 采购平台（可选：1688/拼多多/咸鱼/淘宝）
+  source_platform?: string[]; // 采购平台列表（可选：1688/拼多多/咸鱼/淘宝/库存）
   order_notes?: string; // 订单备注（可选）
   sync_to_ozon?: boolean; // 是否同步到Ozon（可选，默认true）
 }
@@ -1228,7 +1246,7 @@ export interface PrepareStockRequest {
 export interface UpdateBusinessInfoRequest {
   purchase_price?: string; // 进货价格（可选）
   material_cost?: string; // 打包费用（可选）
-  source_platform?: string; // 采购平台（可选）
+  source_platform?: string[]; // 采购平台列表（可选）
   order_notes?: string; // 订单备注（可选）
 }
 

@@ -38,6 +38,7 @@ import {
   Empty,
   Tag,
   Modal,
+  App,
   Table,
   Typography,
   Tabs,
@@ -96,6 +97,7 @@ const { Option } = Select;
 const { Text, Link, Paragraph, Title } = Typography;
 
 const ProductSelection: React.FC = () => {
+  const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
   const { symbol: userSymbol } = useCurrency();
@@ -492,7 +494,7 @@ const ProductSelection: React.FC = () => {
 
   // 处理清空数据
   const handleClearData = () => {
-    Modal.confirm({
+    modal.confirm({
       title: "确认清空所有数据？",
       content: (
         <div>

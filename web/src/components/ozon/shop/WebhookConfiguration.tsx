@@ -13,6 +13,7 @@ import {
   Alert,
   Badge,
   Modal,
+  App,
   Table,
   Tag,
   Typography,
@@ -25,7 +26,6 @@ import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text } = Typography;
-const { confirm } = Modal;
 
 interface Shop {
   id: number;
@@ -44,6 +44,7 @@ export interface WebhookConfigurationProps {
 }
 
 export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ selectedShop }) => {
+  const { modal } = App.useApp();
   const [_webhookConfig, _setWebhookConfig] = useState<any>(null);
   const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -180,7 +181,7 @@ export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ sele
   };
 
   const handleDeleteWebhook = () => {
-    confirm({
+    modal.confirm({
       title: '确认删除',
       content: '确定要删除Webhook配置吗？删除后将无法接收实时事件通知。',
       onOk: () => deleteWebhookMutation.mutate(),

@@ -20,7 +20,7 @@ interface UpdateBusinessInfoModalProps {
   postingNumber: string;
   currentData?: {
     purchase_price?: string;
-    source_platform?: string;
+    source_platform?: string | string[];
     order_notes?: string;
   };
   onUpdate?: () => void; // 更新成功后的回调
@@ -41,7 +41,10 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
     if (visible && currentData) {
       form.setFieldsValue({
         purchase_price: currentData.purchase_price ? Number(currentData.purchase_price) : undefined,
-        source_platform: currentData.source_platform,
+        // 兼容旧数据（字符串）和新数据（数组）
+        source_platform: Array.isArray(currentData.source_platform)
+          ? currentData.source_platform
+          : (currentData.source_platform ? [currentData.source_platform] : undefined),
         order_notes: currentData.order_notes,
       });
     }
@@ -118,12 +121,13 @@ const UpdateBusinessInfoModal: React.FC<UpdateBusinessInfoModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item name="source_platform" label="采购平台" tooltip="商品采购来源平台（可选）">
-          <Select placeholder="请选择采购平台" allowClear>
+        <Form.Item name="source_platform" label="采购平台" tooltip="商品采购来源平台（可多选）">
+          <Select mode="multiple" placeholder="请选择采购平台（可多选）" allowClear>
             <Option value="1688">1688</Option>
             <Option value="拼多多">拼多多</Option>
             <Option value="咸鱼">咸鱼</Option>
             <Option value="淘宝">淘宝</Option>
+            <Option value="库存">库存</Option>
           </Select>
         </Form.Item>
 

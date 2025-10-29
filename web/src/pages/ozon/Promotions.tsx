@@ -41,8 +41,6 @@ import { notifySuccess, notifyError } from '@/utils/notification';
 
 import styles from './Promotions.module.scss';
 
-const { confirm } = Modal;
-
 type ViewMode = 'list' | 'detail';
 
 // 活动类型中文映射

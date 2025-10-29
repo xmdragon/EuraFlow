@@ -48,6 +48,7 @@ import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
+import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { getGlobalNotification } from '@/utils/globalNotification';
@@ -56,7 +57,6 @@ import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/n
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { RangePicker } = DatePicker;
-const { confirm } = Modal;
 const { Text } = Typography;
 
 // 订单商品行数据结构（用于表格展示）
@@ -74,6 +74,7 @@ const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
   const { canOperate, canSync, canExport } = usePermission();
+  const { copyToClipboard } = useCopy();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -105,22 +106,6 @@ const OrderList: React.FC = () => {
   const [printErrorModalVisible, setPrintErrorModalVisible] = useState(false);
   const [printErrors, setPrintErrors] = useState<ozonApi.FailedPosting[]>([]);
   const [printSuccessPostings, setPrintSuccessPostings] = useState<string[]>([]);
-
-  // 复制功能处理函数
-  const handleCopy = (text: string | undefined, label: string) => {
-    if (!text || text === '-') {
-      notifyWarning('复制失败', `${label}为空，无法复制`);
-      return;
-    }
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        notifySuccess('复制成功', `${label}已复制`);
-      })
-      .catch(() => {
-        notifyError('复制失败', '复制失败，请手动复制');
-      });
-  };
 
   // 查询店铺列表（用于显示店铺名称）
   const { data: shopsData } = useQuery({
@@ -776,7 +761,7 @@ const OrderList: React.FC = () => {
                       cursor: 'pointer',
                       color: '#1890ff',
                     }}
-                    onClick={() => handleCopy(item.sku, 'SKU')}
+                    onClick={() => item.sku && copyToClipboard(item.sku, 'SKU')}
                   />
                 </>
               ) : (
@@ -831,7 +816,7 @@ const OrderList: React.FC = () => {
                 </a>
                 <CopyOutlined
                   style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
-                  onClick={() => handleCopy(posting.posting_number, '货件编号')}
+                  onClick={() => copyToClipboard(posting.posting_number, '货件编号')}
                 />
               </div>
               <div>
@@ -844,7 +829,7 @@ const OrderList: React.FC = () => {
                       cursor: 'pointer',
                       color: '#1890ff',
                     }}
-                    onClick={() => handleCopy(trackingNumber, '追踪号码')}
+                    onClick={() => copyToClipboard(trackingNumber, '追踪号码')}
                   />
                 )}
               </div>
@@ -861,7 +846,7 @@ const OrderList: React.FC = () => {
                             cursor: 'pointer',
                             color: '#1890ff',
                           }}
-                          onClick={() => handleCopy(number, '国内单号')}
+                          onClick={() => copyToClipboard(number, '国内单号')}
                         />
                       </div>
                     ))}

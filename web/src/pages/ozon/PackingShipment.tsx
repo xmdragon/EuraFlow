@@ -67,7 +67,6 @@ import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/n
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { Option } = Select;
-const { confirm } = Modal;
 const { Text } = Typography;
 
 // 订单商品行数据结构（用于表格展示）
@@ -202,7 +201,10 @@ const PackingShipment: React.FC = () => {
     return rows;
   }, [scanResults]);
 
-  // 打印标签弹窗状态
+  // 采购平台筛选状态（单选）
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
+
+  // 打印标签弹窗状态（保留用于其他tab）
   const [showPrintLabelModal, setShowPrintLabelModal] = useState(false);
   const [printLabelUrl, setPrintLabelUrl] = useState<string>('');
   const [currentPrintingPosting, setCurrentPrintingPosting] = useState<string>('');
@@ -2064,10 +2066,28 @@ const PackingShipment: React.FC = () => {
                 </Button>
               )}
 
-              {/* 批量打印按钮 - 只在"已分配"及之后的标签显示 */}
+              {/* 采购平台筛选下拉框 - 只在"已分配"标签显示 */}
+              {operationStatus === 'allocated' && (
+                <Select
+                  value={selectedPlatform}
+                  onChange={setSelectedPlatform}
+                  style={{ width: 200 }}
+                  suffixIcon={<ShoppingCartOutlined />}
+                >
+                  <Option value="all">全部</Option>
+                  <Option value="1688">1688</Option>
+                  <Option value="拼多多">拼多多</Option>
+                  <Option value="咸鱼">咸鱼</Option>
+                  <Option value="淘宝">淘宝</Option>
+                  <Option value="库存">库存</Option>
+                </Select>
+              )}
+
+              {/* 批量打印按钮 - 在其他标签页显示（除了已分配和前两个状态） */}
               {canOperate &&
                 operationStatus !== 'awaiting_stock' &&
-                operationStatus !== 'allocating' && (
+                operationStatus !== 'allocating' &&
+                operationStatus !== 'allocated' && (
                   <Button
                     type="primary"
                     icon={<PrinterOutlined />}
@@ -2092,7 +2112,23 @@ const PackingShipment: React.FC = () => {
             ) : (
               <>
                 <div className={styles.orderGrid}>
-                  {orderCards.map((card) => (
+                  {orderCards
+                    .filter((card) => {
+                      // 如果在"已分配"标签页且设置了平台筛选，则应用筛选
+                      if (operationStatus === 'allocated' && selectedPlatform !== 'all') {
+                        if (!card.source_platform) return false;
+
+                        // 兼容字符串和数组格式
+                        const platformList = Array.isArray(card.source_platform)
+                          ? card.source_platform
+                          : [card.source_platform];
+
+                        // 检查是否包含所选平台
+                        return platformList.includes(selectedPlatform);
+                      }
+                      return true;
+                    })
+                    .map((card) => (
                     <OrderCardComponent
                       key={card.key}
                       card={card}

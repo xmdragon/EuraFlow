@@ -28,6 +28,7 @@ import {
   Tag,
   Dropdown,
   Modal,
+  App,
   Tooltip,
   Switch,
   InputNumber,
@@ -70,9 +71,9 @@ import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import './ProductList.css';
 
 const { Option } = Select;
-const { confirm } = Modal;
 
 const ProductList: React.FC = () => {
+  const { modal } = App.useApp();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canSync, canImport, canExport, canDelete } = usePermission();
@@ -1180,19 +1181,12 @@ const ProductList: React.FC = () => {
 
 
   const handleSyncSingle = async (product: ozonApi.Product) => {
-    confirm({
+    modal.confirm({
       title: '确认同步商品？',
-      content: `商品SKU: ${product.sku}`,
+      content: `商品货号: ${product.offer_id}`,
       onOk: async () => {
         try {
-          const response = await fetch(`/api/ef/v1/ozon/products/${product.id}/sync`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-
-          const result = await response.json();
+          const result = await ozonApi.syncSingleProduct(product.id);
 
           if (result.success) {
             notifySuccess('同步成功', result.message || '商品同步成功');
@@ -1201,26 +1195,20 @@ const ProductList: React.FC = () => {
             notifyError('同步失败', result.message || '商品同步失败');
           }
         } catch (error) {
-          notifyError('同步失败', `同步失败: ${error.message}`);
+          const errorMsg = error instanceof Error ? error.message : '同步失败';
+          notifyError('同步失败', errorMsg);
         }
       },
     });
   };
 
   const handleArchive = (product: ozonApi.Product) => {
-    confirm({
+    modal.confirm({
       title: '确认归档商品？',
-      content: `商品SKU: ${product.sku}`,
+      content: `商品货号: ${product.offer_id}`,
       onOk: async () => {
         try {
-          const response = await fetch(`/api/ef/v1/ozon/products/${product.id}/archive`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-
-          const result = await response.json();
+          const result = await ozonApi.archiveProduct(product.id);
 
           if (result.success) {
             notifySuccess('归档成功', result.message || '商品归档成功');
@@ -1229,27 +1217,21 @@ const ProductList: React.FC = () => {
             notifyError('归档失败', result.message || '商品归档失败');
           }
         } catch (error) {
-          notifyError('归档失败', `归档失败: ${error.message}`);
+          const errorMsg = error instanceof Error ? error.message : '归档失败';
+          notifyError('归档失败', errorMsg);
         }
       },
     });
   };
 
   const handleDelete = (product: ozonApi.Product) => {
-    confirm({
+    modal.confirm({
       title: '确认删除商品？',
-      content: `商品SKU: ${product.sku}，此操作不可恢复！`,
+      content: `商品货号: ${product.offer_id}，此操作不可恢复！`,
       okType: 'danger',
       onOk: async () => {
         try {
-          const response = await fetch(`/api/ef/v1/ozon/products/${product.id}`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-
-          const result = await response.json();
+          const result = await ozonApi.deleteProduct(product.id);
 
           if (result.success) {
             notifySuccess('删除成功', result.message || '商品删除成功');
@@ -1258,7 +1240,8 @@ const ProductList: React.FC = () => {
             notifyError('删除失败', result.message || '商品删除失败');
           }
         } catch (error) {
-          notifyError('删除失败', `删除失败: ${error.message}`);
+          const errorMsg = error instanceof Error ? error.message : '删除失败';
+          notifyError('删除失败', errorMsg);
         }
       },
     });
@@ -1364,7 +1347,7 @@ const ProductList: React.FC = () => {
     try {
       // 准备CSV数据
       const csvData = productsData.data.map((product) => ({
-        SKU: product.sku,
+        商品货号: product.offer_id,
         商品标题: product.title || '',
         品牌: product.brand || '',
         条形码: product.barcode || '',
@@ -1455,7 +1438,7 @@ const ProductList: React.FC = () => {
       />
 
       {/* 操作按钮 */}
-      <Card className={styles.productListCard}>
+      <Card className={styles.listCard}>
         <ProductToolbar
           canSync={canSync}
           canOperate={canOperate}
@@ -2307,9 +2290,9 @@ const ProductList: React.FC = () => {
           setPreviewVisible(false);
         }}
         onRestore={() => {
-          confirm({
+          modal.confirm({
             title: '确认还原',
-            content: `确定要还原商品 "${currentPreviewProduct?.sku}" 的原图吗？`,
+            content: `确定要还原商品 "${currentPreviewProduct?.offer_id}" 的原图吗？`,
             onOk: () => {
               restoreOriginalMutation.mutate([currentPreviewProduct.id]);
               setPreviewVisible(false);

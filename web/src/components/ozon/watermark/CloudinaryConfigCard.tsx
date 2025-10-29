@@ -15,6 +15,7 @@ import {
   Divider,
   Spin,
   Modal,
+  App,
   FormInstance,
 } from 'antd';
 import React from 'react';
@@ -58,6 +59,7 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
   testCloudinaryMutation,
   cleanupResourcesMutation,
 }) => {
+  const { modal } = App.useApp();
   return (
     <Card title="Cloudinary全局配置" className={styles.cloudinaryCard}>
       <Spin spinning={cloudinaryLoading}>
@@ -161,7 +163,7 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
                     type="default"
                     icon={<DeleteOutlined />}
                     onClick={() => {
-                      Modal.confirm({
+                      modal.confirm({
                         title: '资源清理',
                         content: (
                           <div>

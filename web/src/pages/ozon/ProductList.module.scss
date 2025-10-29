@@ -41,7 +41,7 @@
   margin-bottom: $spacing-xs;
 
   :global(.ant-card-body) {
-    padding: $spacing-xs;
+    padding: $spacing-md;
   }
 }
 
@@ -58,9 +58,9 @@
 }
 
 // ===== 产品列表区域 =====
-.productListCard {
+.listCard {
   :global(.ant-card-body) {
-    padding: $spacing-xs;
+    padding: $spacing-md;
   }
 }
 

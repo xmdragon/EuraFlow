@@ -10,7 +10,7 @@ import {
   EditOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Form, Input, InputNumber, Button, Space, Upload, Cascader, Modal, Table } from 'antd';
+import { Form, Input, InputNumber, Button, Space, Upload, Cascader, Modal, App, Table } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -61,6 +61,7 @@ interface ProductFormValues {
 const { TextArea } = Input;
 
 const ProductCreate: React.FC = () => {
+  const { modal } = App.useApp();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -136,7 +137,7 @@ const ProductCreate: React.FC = () => {
       return;
     }
 
-    Modal.confirm({
+    modal.confirm({
       title: '确认同步类目',
       icon: <ExclamationCircleOutlined />,
       content: (

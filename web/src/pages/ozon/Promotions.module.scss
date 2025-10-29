@@ -1,16 +1,18 @@
+@use '@/styles/variables' as *;
+
 // 促销活动页面样式
 // 遵守 CLAUDE.md §8 规范：禁止 inline style
 
 // 页面容器（防止内容溢出）
 // Row gutter={16} 会产生 margin: 0 -8px，所以左右至少需要 8px padding
 .pageWrapper {
-  padding: 24px 8px;
+  padding: $spacing-lg $spacing-xs;
 
-  // 表格单元格 padding
+  // 表格单元格 padding（促销活动页面需要压缩单元格以显示更多内容）
   :global {
     th,
     td {
-      padding: 2px !important;
+      padding: $spacing-xs !important;
     }
   }
 }

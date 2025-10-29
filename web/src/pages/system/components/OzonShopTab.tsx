@@ -34,6 +34,7 @@ import {
   Col,
   Badge,
   Modal,
+  App,
   Table,
   Tag,
   Tooltip,
@@ -64,7 +65,6 @@ interface OzonShopFormValues {
 }
 
 const { Text, Paragraph, Title } = Typography;
-const { confirm } = Modal;
 
 interface Shop {
   id: number;
@@ -102,6 +102,7 @@ interface Shop {
 }
 
 const OzonShopTab: React.FC = () => {
+  const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { canOperate, canSync, isAdmin } = usePermission();
@@ -299,7 +300,7 @@ const OzonShopTab: React.FC = () => {
   };
 
   const handleDeleteShop = (shop: Shop) => {
-    confirm({
+    modal.confirm({
       title: '确认删除店铺？',
       content: `店铺名称: ${shop.shop_name_cn || shop.shop_name}`,
       okText: '确认删除',

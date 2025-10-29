@@ -3,10 +3,10 @@
 
 // ===== 顶部筛选区域 =====
 .filterCard {
-  margin-bottom: 2px;
+  margin-bottom: $spacing-xs;
 
   :global(.ant-card-body) {
-    padding: 16px !important;
+    padding: $spacing-md;
   }
 }
 
@@ -21,16 +21,14 @@
 
 // ===== 列表卡片 =====
 .listCard {
-  margin-top: 2px; // 最小间距
-
   // 移除Tabs默认的margin-top
   :global(.ant-tabs) {
-    margin-top: 0 !important;
+    margin-top: 0;
   }
 
   // Tabs头部间距调整
   :global(.ant-tabs-nav) {
-    margin-bottom: 8px !important;
+    margin-bottom: $spacing-xs;
   }
 }
 
@@ -232,6 +230,10 @@
 .batchActions {
   margin-bottom: 16px;
   margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 // ===== 加载更多提示 =====
