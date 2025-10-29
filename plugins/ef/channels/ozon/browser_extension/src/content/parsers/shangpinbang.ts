@@ -28,6 +28,48 @@ export class ShangpinbangParser implements PageDataParser {
     }
   }
 
+  /**
+   * 等待单个商品卡片的数据完整注入（特别是跟卖数据）
+   * 参考用户脚本的智能等待逻辑
+   */
+  async waitForCardData(cardElement: HTMLElement, maxWait = 2000): Promise<boolean> {
+    const interval = 200;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWait) {
+      const bangElement = cardElement.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+
+      if (bangElement) {
+        const bangText = bangElement.textContent || '';
+
+        // 数据完整性检查条件（对齐用户脚本）
+        // 1. 内容充足（> 50字符）
+        const hasContent = bangText.trim().length > 50;
+
+        // 2. 包含"跟卖最低价"字段（可能是价格或"无跟卖"）
+        const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,]+/.test(bangText);  // 有价格
+        const hasNoCompetitor = /跟卖最低价[：:]\s*无跟卖/.test(bangText);  // 明确无跟卖
+        const hasCompetitorData = hasMinPrice || hasNoCompetitor;
+
+        // 3. 包含rFBS佣金数据（至少匹配一个档位）
+        const hasRFBSCommission = /rFBS佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+
+        // 4. 包含FBP佣金数据（至少匹配一个档位）
+        const hasFBPCommission = /FBP佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+
+        // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
+        if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
+          return true;
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+
+    // 超时后返回false，但不抛出错误（允许部分数据采集）
+    return false;
+  }
+
   async parseProductCard(cardElement: HTMLElement): Promise<Partial<ProductData>> {
     // 提取OZON原生数据
     const ozonData = this.extractOzonData(cardElement);

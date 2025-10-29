@@ -312,9 +312,14 @@ logger.info('订单同步开始', extra={'order_id': order_id})
 - **版本清理**：`web/public/downloads/` 目录只保留最近 3 个版本的 zip 包
   - 生成新版本后，自动删除旧版本（保留最新3个）
   - 命令：`ls -t web/public/downloads/euraflow-ozon-selector-*.zip | tail -n +4 | xargs rm -f`
-- **文档更新**：生成新版本后，必须更新选品助手使用指南中的下载链接
-  - 文档文件：`docs/product-selection-guide.md`（或对应的文档位置）
-  - 确保链接指向最新版本的 zip 包
+- **页面下载链接更新**：生成新版本后，**必须**更新选品助手页面中的下载链接
+  - 文件位置：`web/src/pages/ozon/ProductSelection.tsx`
+  - 搜索关键字：`euraflow-ozon-selector-v`
+  - 更新内容：
+    - `href="/downloads/euraflow-ozon-selector-v1.x.x.zip"`
+    - 下载按钮文本中的版本号
+    - 文件大小说明（如有变化）
+  - 确保链接版本号与实际打包文件版本号一致
 
 ---
 
