@@ -868,7 +868,11 @@ const ProductSelection: React.FC = () => {
           {fieldConfig.brand && (
             <div className={styles.brandInfo}>
               <Text type="secondary">品牌: </Text>
-              <Text>{product.brand || "无品牌"}</Text>
+              <Text>
+                {product.brand === "非热销,无数据"
+                  ? "-"
+                  : (product.brand || "无品牌")}
+              </Text>
             </div>
           )}
 
@@ -1397,6 +1401,7 @@ const ProductSelection: React.FC = () => {
                               min={0}
                               precision={1}
                               controls={false}
+                              placeholder="0"
                               addonBefore="打包费"
                               addonAfter="RMB"
                               style={{ width: "150px" }}
@@ -1981,13 +1986,16 @@ const ProductSelection: React.FC = () => {
                                           </Text>
                                           <br />
                                           <Text code>
-                                            真实售价 =
-                                            ceil((黑标价-绿标价)×2.5+黑标价)
+                                            真实售价 = ((黑标价-绿标价)×2.5+黑标价) 保留2位小数
+                                          </Text>
+                                          <br />
+                                          <Text code>
+                                            修正规则: 1-100减1, 101-200减2, 201-300减3...
                                           </Text>
                                           <br />
                                           <Text type="secondary">
                                             示例：绿标价 1219¥，黑标价 1258¥ →
-                                            真实售价 1356¥
+                                            计算值 1355.50¥ → 最终 1342.50¥
                                           </Text>
                                         </div>
                                       ),

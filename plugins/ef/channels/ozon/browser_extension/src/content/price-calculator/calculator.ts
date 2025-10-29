@@ -167,9 +167,21 @@ export function calculateRealPrice(
 
   // 统一使用公式计算：有绿标价时，使用公式
   if (greenPrice !== null) {
-    const realPrice = Math.ceil(
-      (blackPrice - greenPrice) * CONFIG.FORMULA_MULTIPLIER + blackPrice
-    );
+    // 计算基础价格，保留2位小数
+    const basePrice = (blackPrice - greenPrice) * CONFIG.FORMULA_MULTIPLIER + blackPrice;
+    const roundedPrice = Math.round(basePrice * 100) / 100; // 保留2位小数
+
+    // 按价格区间修正：1-100减1，101-200减2，201-300减3...
+    let adjustment = 0;
+    if (roundedPrice > 0) {
+      adjustment = Math.floor(roundedPrice / 100);
+      // 如果刚好是100的倍数，则属于上一个区间
+      if (roundedPrice % 100 === 0 && adjustment > 0) {
+        adjustment -= 1;
+      }
+    }
+
+    const realPrice = roundedPrice - adjustment;
     return {
       price: realPrice,
       message: `真实售价：${realPrice.toFixed(2)} ¥`,
