@@ -903,8 +903,9 @@ const ProductList: React.FC = () => {
                 const totalStock = ws.present + ws.reserved;
 
                 return (
-                  <span key={index} className={styles.warehouseStockText}>
-                    {warehouseAbbr}:{totalStock}
+                  <span key={index} style={{ fontSize: 12 }}>
+                    {warehouseAbbr}:
+                    <span className={styles.warehouseStockNumber}>{totalStock}</span>
                   </span>
                 );
               })}
@@ -915,9 +916,15 @@ const ProductList: React.FC = () => {
         // 降级：如果没有仓库库存详情，显示总计
         return (
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            <span className={styles.stockDetailText}>可售: {record.available}</span>
-            <span className={styles.stockDetailSecondary}>库存: {record.stock}</span>
-            <span className={styles.stockDetailSecondary}>预留: {record.reserved}</span>
+            <span style={{ fontSize: 12 }}>
+              可售: <span className={styles.stockDetailNumber}>{record.available}</span>
+            </span>
+            <span style={{ fontSize: 12, color: '#999' }}>
+              库存: <span className={styles.stockDetailSecondaryNumber}>{record.stock}</span>
+            </span>
+            <span style={{ fontSize: 12, color: '#999' }}>
+              预留: <span className={styles.stockDetailSecondaryNumber}>{record.reserved}</span>
+            </span>
           </Space>
         );
       },

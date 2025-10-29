@@ -268,6 +268,17 @@
   display: inline-block;
 }
 
+// 仓库库存数字部分样式（只对数字应用样式）
+.warehouseStockNumber {
+  font-weight: $font-weight-bold;
+  padding: 2px 6px;
+  background-color: #f0f5ff;
+  border: 1px solid #d6e4ff;
+  border-radius: 4px;
+  display: inline-block;
+  margin-left: 2px;
+}
+
 .stockDetailText {
   font-size: 12px;
   font-weight: $font-weight-bold;
@@ -276,6 +287,17 @@
   border: 1px solid #b7eb8f;
   border-radius: 4px;
   display: inline-block;
+}
+
+// 可售库存数字部分样式（只对数字应用样式）
+.stockDetailNumber {
+  font-weight: $font-weight-bold;
+  padding: 2px 6px;
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+  display: inline-block;
+  margin-left: 2px;
 }
 
 .stockDetailSecondary {
@@ -287,6 +309,17 @@
   border: 1px solid #d9d9d9;
   border-radius: 4px;
   display: inline-block;
+}
+
+// 次要库存数字部分样式（只对数字应用样式）
+.stockDetailSecondaryNumber {
+  font-weight: $font-weight-bold;
+  padding: 2px 6px;
+  background-color: #fafafa;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  display: inline-block;
+  margin-left: 2px;
 }
 
 // ===== 同步状态 =====
