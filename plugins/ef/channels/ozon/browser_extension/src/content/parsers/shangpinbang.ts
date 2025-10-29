@@ -281,11 +281,25 @@ export class ShangpinbangParser implements PageDataParser {
    * 从上品帮注入的DOM中提取数据（新结构化格式）
    */
   private extractBangData(element: HTMLElement): Partial<ProductData> {
-    const bangElement = element.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+    const bangElement = element.querySelector('.ozon-bang-item, [class*="ozon-bang"]') as HTMLElement;
     if (!bangElement) {
       return {};
     }
 
+    // 方式1：结构化提取（现有方式）
+    const structuredData = this.extractStructuredBangData(bangElement);
+
+    // 方式2：文本匹配提取（新增，作为补充）
+    const textData = this.extractTextBangData(bangElement);
+
+    // 合并两种方式的结果，textData 优先（因为它能处理HTML标签格式）
+    return { ...structuredData, ...textData };
+  }
+
+  /**
+   * 结构化提取（原有方式）
+   */
+  private extractStructuredBangData(bangElement: HTMLElement): Partial<ProductData> {
     // 提取所有 li 元素中的数据
     const listItems = bangElement.querySelectorAll<HTMLElement>('li .text-class');
     if (!listItems || listItems.length === 0) {
@@ -321,6 +335,37 @@ export class ShangpinbangParser implements PageDataParser {
     });
 
     return bangData;
+  }
+
+  /**
+   * 文本匹配提取（新增，参考用户脚本）
+   */
+  private extractTextBangData(bangElement: HTMLElement): Partial<ProductData> {
+    const bangText = bangElement.textContent || '';
+    const bangHtml = bangElement.innerHTML || '';
+    const data: Partial<ProductData> = {};
+
+    // 跟卖者数量（支持两种格式）
+    // 格式1: "等1个卖家"
+    // 格式2: HTML标签格式 "<span style='color:red'>1</span>个卖家"
+    const sellerCountMatch = bangText.match(/等(\d+)个卖家/) ||
+                           bangHtml.match(/>(\d+)<\/span>\s*个卖家/);
+    if (sellerCountMatch) {
+      data.competitor_count = parseInt(sellerCountMatch[1]);
+    }
+
+    // 跟卖最低价
+    if (/跟卖最低价[：:]\s*无跟卖/.test(bangText)) {
+      data.competitor_min_price = 0;
+    } else {
+      const priceMatch = bangText.match(/跟卖最低价[：:]\s*([\d\s,]+)/);
+      if (priceMatch) {
+        const cleanPrice = priceMatch[1].replace(/[\s,]/g, '');
+        data.competitor_min_price = parseFloat(cleanPrice);
+      }
+    }
+
+    return data;
   }
 
   /**

@@ -235,6 +235,13 @@ export class ProductCollector {
         break;
       }
 
+      // 等待整行数据就绪（关键优化：参考用户脚本）
+      const isRowReady = await this.waitForRowData(row);
+      if (!isRowReady) {
+        console.warn(`[Collector] 行数据未就绪，跳过该行（${row.length}个商品）`);
+        continue;
+      }
+
       // 并行采集同一行的商品
       const rowPromises = row.map(async (card) => {
         try {
@@ -261,6 +268,45 @@ export class ProductCollector {
         console.log(`[Collector] 本行采集成功 ${successCount}/${row.length} 个商品`);
       }
     }
+  }
+
+  /**
+   * 等待整行数据就绪（参考用户脚本逻辑）
+   */
+  private async waitForRowData(row: HTMLElement[], maxWait = 2000): Promise<boolean> {
+    if (row.length === 0) return false;
+
+    const startTime = Date.now();
+    const interval = 200;
+
+    // 检查最后一个商品的数据是否完整（上品帮按行注入数据）
+    const lastCard = row[row.length - 1];
+
+    while (Date.now() - startTime < maxWait) {
+      const bangElement = lastCard.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+
+      if (bangElement) {
+        const bangText = bangElement.textContent || '';
+
+        // 数据完整性检查（与用户脚本保持一致）
+        const hasContent = bangText.trim().length > 50;
+        const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,]+/.test(bangText);
+        const hasNoCompetitor = /跟卖最低价[：:]\s*无跟卖/.test(bangText);
+        const hasCompetitorData = hasMinPrice || hasNoCompetitor;
+        const hasRFBSCommission = /rFBS佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+        const hasFBPCommission = /FBP佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+
+        // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
+        if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
+          console.log('[Collector] 行数据就绪');
+          return true;
+        }
+      }
+
+      await this.sleep(interval);
+    }
+
+    return false;
   }
 
   /**

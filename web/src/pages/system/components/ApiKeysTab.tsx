@@ -22,9 +22,9 @@ import {
   Tag,
   Typography,
   Alert,
-  Popconfirm,
   Tooltip,
   Empty,
+  App,
 } from 'antd';
 import React, { useState, useEffect } from 'react';
 
@@ -47,6 +47,7 @@ const { Text } = Typography;
 const { Option } = Select;
 
 const ApiKeysTab: React.FC = () => {
+  const { modal } = App.useApp(); // 使用 App.useApp() hook 获取 modal 实例
   const { canOperate } = usePermission();
   const { copyToClipboard } = useCopy();
   const [keys, setKeys] = useState<APIKey[]>([]);
@@ -193,30 +194,41 @@ const ApiKeysTab: React.FC = () => {
             render: (_, record: APIKey) => (
               <Space size="small">
                 <Tooltip title="重新生成">
-                  <Popconfirm
-                    title="确定要重新生成吗？"
-                    description="旧的Key将立即失效"
-                    onConfirm={() => handleRegenerate(record.id, record.name)}
-                    okText="确定"
-                    cancelText="取消"
+                  <Button
+                    type="link"
+                    icon={<ReloadOutlined />}
+                    size="small"
+                    onClick={() => {
+                      modal.confirm({
+                        title: '确定要重新生成吗？',
+                        content: '旧的Key将立即失效',
+                        okText: '确定',
+                        cancelText: '取消',
+                        onOk: () => handleRegenerate(record.id, record.name)
+                      });
+                    }}
                   >
-                    <Button type="link" icon={<ReloadOutlined />} size="small">
-                      重新生成
-                    </Button>
-                  </Popconfirm>
+                    重新生成
+                  </Button>
                 </Tooltip>
                 <Tooltip title="删除">
-                  <Popconfirm
-                    title="确定要删除吗？"
-                    description="此操作不可恢复"
-                    onConfirm={() => handleDelete(record.id, record.name)}
-                    okText="确定"
-                    cancelText="取消"
+                  <Button
+                    type="link"
+                    danger
+                    icon={<DeleteOutlined />}
+                    size="small"
+                    onClick={() => {
+                      modal.confirm({
+                        title: '确定要删除吗？',
+                        content: '此操作不可恢复',
+                        okText: '确定',
+                        cancelText: '取消',
+                        onOk: () => handleDelete(record.id, record.name)
+                      });
+                    }}
                   >
-                    <Button type="link" danger icon={<DeleteOutlined />} size="small">
-                      删除
-                    </Button>
-                  </Popconfirm>
+                    删除
+                  </Button>
                 </Tooltip>
               </Space>
             ),

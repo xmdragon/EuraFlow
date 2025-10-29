@@ -34,7 +34,7 @@ import {
   InputNumber,
   DatePicker,
   Select,
-  Popconfirm,
+  App,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState, useEffect } from 'react';
@@ -105,6 +105,7 @@ interface HandlerInfo {
 }
 
 const SyncServices = () => {
+  const { modal } = App.useApp(); // 使用 App.useApp() hook 获取 modal 实例
   const { canOperate } = usePermission();
   const [services, setServices] = useState<SyncService[]>([]);
   const [handlers, setHandlers] = useState<HandlerInfo[]>([]);
@@ -692,33 +693,25 @@ const SyncServices = () => {
           footer={
             <Space>
               {canOperate && (
-                <Popconfirm
-                  title="清空日志"
-                  description={
-                    <div>
-                      <p>选择清空范围：</p>
-                      <DatePicker
-                        placeholder="清空此日期前的日志（可选）"
-                        onChange={(date) => {
-                          if (selectedService) {
-                            clearLogs(selectedService, date ? date.toISOString() : undefined);
-                          }
-                        }}
-                      />
-                    </div>
-                  }
-                  onConfirm={() => {
-                    if (selectedService) {
-                      clearLogs(selectedService);
-                    }
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    modal.confirm({
+                      title: '清空日志',
+                      content: '确定要清空此服务的全部日志吗？',
+                      okText: '全部清空',
+                      cancelText: '取消',
+                      onOk: () => {
+                        if (selectedService) {
+                          clearLogs(selectedService);
+                        }
+                      }
+                    });
                   }}
-                  okText="全部清空"
-                  cancelText="取消"
                 >
-                  <Button danger icon={<DeleteOutlined />}>
-                    清空日志
-                  </Button>
-                </Popconfirm>
+                  清空日志
+                </Button>
               )}
               <Button
                 icon={<ReloadOutlined />}
@@ -749,21 +742,25 @@ const SyncServices = () => {
           footer={
             <Space>
               {canOperate && (
-                <Popconfirm
-                  title="重置统计数据"
-                  description="确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。"
-                  onConfirm={() => {
-                    if (selectedService) {
-                      resetStats(selectedService);
-                    }
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    modal.confirm({
+                      title: '重置统计数据',
+                      content: '确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。',
+                      okText: '确定',
+                      cancelText: '取消',
+                      onOk: () => {
+                        if (selectedService) {
+                          resetStats(selectedService);
+                        }
+                      }
+                    });
                   }}
-                  okText="确定"
-                  cancelText="取消"
                 >
-                  <Button danger icon={<DeleteOutlined />}>
-                    重置统计
-                  </Button>
-                </Popconfirm>
+                  重置统计
+                </Button>
               )}
               <Button onClick={() => setStatsModalVisible(false)}>关闭</Button>
             </Space>
