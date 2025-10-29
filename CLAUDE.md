@@ -185,6 +185,10 @@
 ## 13) 远程部署流程
 - **SSH 访问**：`ssh ozon`
 - **部署路径**：`/opt/euraflow`
+- **版本号检查**：
+  - 更新浏览器扩展版本前，必须先检查 `manifest.json` 中的版本号
+  - 确保 `manifest.json` 版本号与打包文件名版本号一致
+  - 用户脚本版本号也需同步更新
 - **标准流程**：
   1. 本地提交并推送：`git add . && git commit -m "描述" && git push`
   2. 远程同步：`ssh ozon "cd /opt/euraflow && git pull"`
@@ -284,12 +288,18 @@ logger.info('订单同步开始', extra={'order_id': order_id})
 
 ## 19) 浏览器扩展打包
 - **目录**：`plugins/ef/channels/ozon/browser_extension/`
+- **版本号更新步骤**：
+  1. **先检查** `manifest.json` 中的当前版本号
+  2. 更新 `manifest.json` 中的 `version` 字段
+  3. 确保打包文件名版本号与 `manifest.json` 一致
+  4. 同步更新相关用户脚本的版本号
 - **打包命令**：
   ```bash
   cd plugins/ef/channels/ozon/browser_extension
+  # 检查并更新 manifest.json 版本号
   npm run build
-  cd dist && zip -r ../euraflow-ozon-selector-v1.0.0.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map"
-  cp ../euraflow-ozon-selector-v1.0.0.zip /home/grom/EuraFlow/web/public/downloads/
+  cd dist && zip -r ../euraflow-ozon-selector-v1.x.x.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map"
+  cp ../euraflow-ozon-selector-v1.x.x.zip /home/grom/EuraFlow/web/public/downloads/
   ```
 - **包含文件**：`dist/manifest.json`、`dist/service-worker-loader.js`、`dist/assets/*`、`dist/src/popup/popup.html`
 - **排除文件**：`.vite/`、`icons/`、`README.md`、`*.map`、源代码
