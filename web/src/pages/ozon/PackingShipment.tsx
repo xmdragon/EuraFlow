@@ -1603,7 +1603,7 @@ const PackingShipment: React.FC = () => {
                       ref={scanInputRef}
                       placeholder="请输入或扫描追踪号码"
                       value={scanTrackingNumber}
-                      onChange={(e) => setScanTrackingNumber(e.target.value.toUpperCase())}
+                      onChange={(e) => setScanTrackingNumber(e.target.value)}
                       onPressEnter={handleScanSearch}
                       disabled={isScanning}
                       autoFocus

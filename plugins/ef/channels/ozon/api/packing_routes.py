@@ -208,8 +208,8 @@ async def update_domestic_tracking(
             )
         )
 
-        # 3. 插入新的国内单号记录（过滤空字符串）
-        valid_numbers = [n.strip() for n in request.domestic_tracking_numbers if n.strip()]
+        # 3. 插入新的国内单号记录（过滤空字符串，统一转大写）
+        valid_numbers = [n.strip().upper() for n in request.domestic_tracking_numbers if n.strip()]
         for tracking_number in valid_numbers:
             new_tracking = OzonDomesticTracking(
                 posting_id=posting.id,
@@ -421,24 +421,24 @@ async def get_packing_orders(
             logger.warning(f"Invalid SKU format: {sku}, expected integer")
             pass
 
-    # 搜索条件：OZON追踪号码搜索（在packages中查找）
+    # 搜索条件：OZON追踪号码搜索（在packages中查找，统一转大写）
     if tracking_number:
         # 在packages数组中查找tracking_number
         query = query.join(
             OzonShipmentPackage,
             OzonShipmentPackage.posting_id == OzonPosting.id
         ).where(
-            OzonShipmentPackage.tracking_number == tracking_number.strip()
+            OzonShipmentPackage.tracking_number == tracking_number.strip().upper()
         )
 
-    # 搜索条件：国内单号搜索（在domestic_trackings中查找）
+    # 搜索条件：国内单号搜索（在domestic_trackings中查找，统一转大写）
     if domestic_tracking_number:
         # 在domestic_trackings表中查找
         query = query.join(
             OzonDomesticTracking,
             OzonDomesticTracking.posting_id == OzonPosting.id
         ).where(
-            OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
+            OzonDomesticTracking.tracking_number == domestic_tracking_number.strip().upper()
         )
 
     # 搜索条件：采购平台筛选（source_platform是JSONB数组）
@@ -558,20 +558,20 @@ async def get_packing_orders(
         except ValueError:
             pass
     if tracking_number:
-        # OZON追踪号码搜索（count查询也需要应用）
+        # OZON追踪号码搜索（count查询也需要应用，统一转大写）
         count_query = count_query.join(
             OzonShipmentPackage,
             OzonShipmentPackage.posting_id == OzonPosting.id
         ).where(
-            OzonShipmentPackage.tracking_number == tracking_number.strip()
+            OzonShipmentPackage.tracking_number == tracking_number.strip().upper()
         )
     if domestic_tracking_number:
-        # 国内单号搜索（count查询也需要应用）
+        # 国内单号搜索（count查询也需要应用，统一转大写）
         count_query = count_query.join(
             OzonDomesticTracking,
             OzonDomesticTracking.posting_id == OzonPosting.id
         ).where(
-            OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
+            OzonDomesticTracking.tracking_number == domestic_tracking_number.strip().upper()
         )
 
     # 采购平台筛选（count查询也需要应用）
@@ -1364,7 +1364,8 @@ async def search_posting_by_tracking(
     from ..models import OzonShipmentPackage
 
     try:
-        search_value = tracking_number.strip()
+        # 统一转大写，兼容OZON单号和国内单号（Posting Number包含数字和连字符，不受影响）
+        search_value = tracking_number.strip().upper()
         postings = []
 
         # 智能识别单号类型
@@ -1777,22 +1778,22 @@ async def get_packing_stats(
                 except ValueError:
                     pass
 
-            # OZON追踪号码搜索
+            # OZON追踪号码搜索（统一转大写）
             if tracking_number:
                 query = query.join(
                     OzonShipmentPackage,
                     OzonShipmentPackage.posting_id == OzonPosting.id
                 ).where(
-                    OzonShipmentPackage.tracking_number == tracking_number.strip()
+                    OzonShipmentPackage.tracking_number == tracking_number.strip().upper()
                 )
 
-            # 国内单号搜索
+            # 国内单号搜索（统一转大写）
             if domestic_tracking_number:
                 query = query.join(
                     OzonDomesticTracking,
                     OzonDomesticTracking.posting_id == OzonPosting.id
                 ).where(
-                    OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
+                    OzonDomesticTracking.tracking_number == domestic_tracking_number.strip().upper()
                 )
 
             return query

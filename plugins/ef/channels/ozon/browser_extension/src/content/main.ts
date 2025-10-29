@@ -12,8 +12,6 @@ import { getCollectorConfig } from '../shared/storage';
 import { ControlPanel } from './components/ControlPanel';
 import { RealPriceCalculator } from './price-calculator';
 
-console.log('[EuraFlow] Content script loaded');
-
 // 检测当前页面是否为商品列表页
 function isProductListPage(): boolean {
   return window.location.href.includes('ozon.ru') &&
@@ -33,22 +31,15 @@ if (document.readyState === 'loading') {
 }
 
 async function init() {
-  console.log('[EuraFlow] Initializing...');
-
   // 分支处理：商品详情页 vs 商品列表页
   if (isProductDetailPage()) {
-    console.log('[EuraFlow] Product detail page detected');
-
     // 初始化真实售价计算器
     const priceCalculator = new RealPriceCalculator();
     priceCalculator.init();
-
-    console.log('[EuraFlow] Real Price Calculator initialized');
     return;
   }
 
   if (isProductListPage()) {
-    console.log('[EuraFlow] Product list page detected');
 
     // 1. 初始化解析器
     const parsers = [
@@ -72,11 +63,8 @@ async function init() {
       config: collectorConfig
     });
 
-    console.log('[EuraFlow] Product Collector initialized');
     return;
   }
-
-  console.log('[EuraFlow] Unknown page type, skipping initialization');
 }
 
 // 导出类型（供TypeScript使用）

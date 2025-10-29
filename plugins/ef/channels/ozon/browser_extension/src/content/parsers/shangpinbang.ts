@@ -88,14 +88,9 @@ export class ShangpinbangParser implements PageDataParser {
     // 提取上品帮注入的数据
     const bangData = this.extractBangData(cardElement);
 
-    // 只有在真正没有提取到跟卖数据时才警告
+    // 只有在真正没有提取到跟卖数据时才跳过
     // competitor_count 或 competitor_min_price 为 0 表示"无跟卖"，也是有效数据
     // 只有都是 undefined 才表示数据缺失
-    if (bangData.competitor_min_price === undefined && bangData.competitor_count === undefined) {
-      console.warn('[ShangpinbangParser] 跟卖数据缺失', {
-        sku: ozonData.product_id
-      });
-    }
 
     // 合并数据
     return {

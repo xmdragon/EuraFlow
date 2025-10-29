@@ -33,7 +33,7 @@ import {
   Divider,
   Spin,
   Image,
-  Popconfirm,
+  App,
 } from 'antd';
 import React, { useState } from 'react';
 
@@ -55,6 +55,7 @@ const OPACITY_MAX: number = 1;
 const OPACITY_STEP: number = 0.1;
 
 const WatermarkManagement: React.FC = () => {
+  const { modal } = App.useApp(); // 使用 App.useApp() hook 获取 modal 实例
   const _queryClient = useQueryClient();
   const { canOperate } = usePermission();
   const [activeTab, setActiveTab] = useState('watermarks');
@@ -318,22 +319,23 @@ const WatermarkManagement: React.FC = () => {
                 >
                   编辑
                 </Button>
-                <Popconfirm
-                  title="确认删除"
-                  description={`确定要删除水印配置 "${record.name}" 吗？`}
-                  onConfirm={() => deleteWatermarkMutation.mutate(record.id)}
-                  okText="确认"
-                  cancelText="取消"
-                  okButtonProps={{ danger: true }}
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    modal.confirm({
+                      title: '确认删除',
+                      content: `确定要删除水印配置 "${record.name}" 吗？`,
+                      okText: '确认',
+                      cancelText: '取消',
+                      okButtonProps: { danger: true },
+                      onOk: () => deleteWatermarkMutation.mutate(record.id)
+                    });
+                  }}
                 >
-                  <Button
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                  >
-                    删除
-                  </Button>
-                </Popconfirm>
+                  删除
+                </Button>
               </Space>
             ),
           },
@@ -538,24 +540,26 @@ const WatermarkManagement: React.FC = () => {
                       <Space>
                         <span>已选中: {selectedResources.length} 个</span>
                         {canOperate && (
-                          <Popconfirm
-                            title="确认删除"
-                            description={`确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`}
-                            onConfirm={() => deleteResourcesMutation.mutate(selectedResources)}
-                            okText="确认"
-                            cancelText="取消"
-                            okButtonProps={{ danger: true }}
+                          <Button
+                            danger
+                            icon={<DeleteOutlined />}
                             disabled={selectedResources.length === 0}
+                            loading={deleteResourcesMutation.isPending}
+                            onClick={() => {
+                              if (selectedResources.length > 0) {
+                                modal.confirm({
+                                  title: '确认删除',
+                                  content: `确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`,
+                                  okText: '确认',
+                                  cancelText: '取消',
+                                  okButtonProps: { danger: true },
+                                  onOk: () => deleteResourcesMutation.mutate(selectedResources)
+                                });
+                              }
+                            }}
                           >
-                            <Button
-                              danger
-                              icon={<DeleteOutlined />}
-                              disabled={selectedResources.length === 0}
-                              loading={deleteResourcesMutation.isPending}
-                            >
-                              删除选中
-                            </Button>
-                          </Popconfirm>
+                            删除选中
+                          </Button>
                         )}
                         <Button icon={<ReloadOutlined />} onClick={() => refetchResources()}>
                           刷新

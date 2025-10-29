@@ -13,6 +13,7 @@ import type { ProductData, CollectionProgress, CollectorConfig } from '../shared
 export class ProductCollector {
   public isRunning = false;
   private collected = new Map<string, ProductData>(); // SKU -> ProductData
+  private uploadedFingerprints = new Set<string>(); // 已上传商品的SKU集合（页面级生命周期）
   private progress: CollectionProgress = {
     collected: 0,
     target: 0,
@@ -73,7 +74,7 @@ export class ProductCollector {
 
     try {
       // 初始扫描当前可见商品
-      await this.collectVisibleProducts();
+      await this.collectVisibleProducts(targetCount);
       onProgress?.(this.progress);
 
       let lastCollectedCount = this.collected.size;
@@ -118,7 +119,7 @@ export class ProductCollector {
 
         // 采集新商品（并行轮询）
         const beforeCount = this.collected.size;
-        await this.collectVisibleProducts();
+        await this.collectVisibleProducts(targetCount);
         const afterCount = this.collected.size;
         const actualNewCount = afterCount - beforeCount;
 
@@ -225,7 +226,7 @@ export class ProductCollector {
   /**
    * 采集当前可见的商品（优化：按行分组并行处理）
    */
-  private async collectVisibleProducts(): Promise<void> {
+  private async collectVisibleProducts(targetCount?: number): Promise<void> {
     const cards = this.getVisibleProductCards();
 
     // 参考用户脚本：按行分组处理（通常一行4个商品）
@@ -241,12 +242,16 @@ export class ProductCollector {
         break;
       }
 
+      // 如果已经达到目标数量，停止采集
+      if (targetCount && this.collected.size >= targetCount) {
+        break;
+      }
+
       // 等待整行数据就绪（关键优化：参考用户脚本）
       // 更新进度状态，让用户知道正在等待
       this.progress.status = `等待第${Math.floor(rows.indexOf(row) / 4) + 1}批数据加载...`;
       const isRowReady = await this.waitForRowData(row);
       if (!isRowReady) {
-        console.warn(`[Collector] 行数据未就绪，跳过该行（${row.length}个商品）`);
         continue;
       }
       this.progress.status = '正在采集...';
@@ -257,14 +262,16 @@ export class ProductCollector {
           const product = await this.fusionEngine.fuseProductData(card);
 
           // 去重：使用 SKU 作为唯一标识
-          if (product.product_id && !this.collected.has(product.product_id)) {
+          if (product.product_id &&
+              !this.collected.has(product.product_id) &&
+              !this.uploadedFingerprints.has(product.product_id)) {
+            // 只有不在已采集集合且不在已上传指纹集中的商品才采集
             this.collected.set(product.product_id, product);
             // 实时更新进度（每个商品采集成功就更新）
             this.progress.collected = this.collected.size;
             return product;
           }
         } catch (error: any) {
-          console.warn('[Collector] Failed to extract product:', error.message);
           this.progress.errors.push(error.message);
         }
         return null;
@@ -276,7 +283,6 @@ export class ProductCollector {
       // 统计本行成功采集的商品数
       const successCount = rowResults.filter(p => p !== null).length;
       if (successCount > 0) {
-        console.log(`[Collector] 本行采集成功 ${successCount}/${row.length} 个商品`);
         // 每行采集完成后立即更新UI进度
         this.onProgressCallback?.(this.progress);
       }
@@ -329,19 +335,9 @@ export class ProductCollector {
 
         // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
         if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
-          console.log('[Collector] 行数据就绪（上品帮）');
           return true;
         }
 
-        // 调试：如果有上品帮元素但数据不完整
-        if (hasContent) {
-          console.log('[Collector] 上品帮元素存在但数据不完整', {
-            hasCompetitorData,
-            hasRFBSCommission,
-            hasFBPCommission,
-            textLength: bangText.length
-          });
-        }
       }
 
       // 同时检查毛子ERP（data-mz-widget）
@@ -369,7 +365,6 @@ export class ProductCollector {
 
         // 数据就绪条件：内容充足 + 跟卖数据 + 佣金数据
         if (hasContent && hasCompetitorData && hasCommission) {
-          console.log('[Collector] 行数据就绪（毛子ERP）');
           return true;
         }
       }
@@ -432,5 +427,42 @@ export class ProductCollector {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 更新指纹集（用于精确数量控制）
+   * @param uploaded 已上传的商品SKU列表
+   * @param notUploaded 未上传的商品SKU列表（需要从指纹集移除）
+   */
+  updateFingerprints(uploaded: string[], notUploaded: string[]): void {
+    // 添加已上传的商品到指纹集
+    uploaded.forEach(sku => this.uploadedFingerprints.add(sku));
+    // 移除未上传的商品（确保下次能重新采集）
+    notUploaded.forEach(sku => this.uploadedFingerprints.delete(sku));
+  }
+
+  /**
+   * 获取累计采集统计
+   */
+  getCumulativeStats(): { totalUploaded: number; currentBatch: number } {
+    return {
+      totalUploaded: this.uploadedFingerprints.size,
+      currentBatch: this.collected.size
+    };
+  }
+
+  /**
+   * 重置采集器（清空所有数据）
+   * 注意：这个方法一般不需要调用，因为页面刷新/跳转时会自动重置
+   */
+  reset(): void {
+    this.collected.clear();
+    this.uploadedFingerprints.clear();
+    this.progress = {
+      collected: 0,
+      target: 0,
+      isRunning: false,
+      errors: []
+    };
   }
 }

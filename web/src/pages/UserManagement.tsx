@@ -21,7 +21,7 @@ import {
   Tag,
   Typography,
   Tooltip,
-  Popconfirm,
+  App,
 } from 'antd';
 import React, { useState, useEffect } from 'react';
 
@@ -53,6 +53,7 @@ interface Shop {
 }
 
 const UserManagement: React.FC = () => {
+  const { modal } = App.useApp(); // 使用 App.useApp() hook 获取 modal 实例
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
@@ -326,17 +327,22 @@ const UserManagement: React.FC = () => {
                 size="small"
               />
             </Tooltip>
-            <Popconfirm
-              title="确定要删除此用户吗？"
-              description="删除后无法恢复，请谨慎操作"
-              onConfirm={() => handleDelete(record.id)}
-              okText="确定"
-              cancelText="取消"
-            >
-              <Tooltip title="删除">
-                <Button type="link" danger icon={<DeleteOutlined />} />
-              </Tooltip>
-            </Popconfirm>
+            <Tooltip title="删除">
+              <Button
+                type="link"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  modal.confirm({
+                    title: '确定要删除此用户吗？',
+                    content: '删除后无法恢复，请谨慎操作',
+                    okText: '确定',
+                    cancelText: '取消',
+                    onOk: () => handleDelete(record.id)
+                  });
+                }}
+              />
+            </Tooltip>
           </Space>
         );
       },

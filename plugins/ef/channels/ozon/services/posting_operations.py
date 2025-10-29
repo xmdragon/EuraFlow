@@ -256,8 +256,8 @@ class PostingOperationsService:
                 "message": "至少需要提供一个国内物流单号"
             }
 
-        # 去重并清理空值
-        unique_numbers = list(set([n.strip() for n in domestic_tracking_numbers if n and n.strip()]))
+        # 去重并清理空值，统一转大写（国内单号和国际单号统一规范）
+        unique_numbers = list(set([n.strip().upper() for n in domestic_tracking_numbers if n and n.strip()]))
         if not unique_numbers:
             return {
                 "success": False,

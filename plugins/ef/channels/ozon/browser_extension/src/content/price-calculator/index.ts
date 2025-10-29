@@ -52,16 +52,12 @@ export class RealPriceCalculator {
    * 初始化计算器
    */
   public init(): void {
-    console.log('[EuraFlow] Real Price Calculator initializing...');
-
     try {
       // 首次执行计算和显示
       this.calculateAndDisplay();
 
       // 设置动态监听
       this.setupDynamicListener();
-
-      console.log('[EuraFlow] Real Price Calculator initialized successfully');
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator initialization error:', error);
     }
@@ -139,6 +135,5 @@ export class RealPriceCalculator {
       this.observer.disconnect();
       this.observer = null;
     }
-    console.log('[EuraFlow] Real Price Calculator destroyed');
   }
 }

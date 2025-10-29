@@ -288,12 +288,10 @@ export function ControlPanel(props: ControlPanelProps) {
         (testConnectionBtn as HTMLButtonElement).disabled = true;
 
         try {
-          console.log('[ControlPanel] Testing connection...', { apiUrl });
           const response = await chrome.runtime.sendMessage({
             type: 'TEST_CONNECTION',
             data: { apiUrl, apiKey }
           });
-          console.log('[ControlPanel] Test response:', response);
 
           if (response.success) {
             const username = response.data?.username || '未知用户';
@@ -379,7 +377,13 @@ export function ControlPanel(props: ControlPanelProps) {
     const targetCountInput = document.getElementById('ef-target-count') as HTMLInputElement;
     const targetCount = parseInt(targetCountInput?.value || '100');
 
-    updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品`);
+    // 获取累计统计
+    const stats = collector.getCumulativeStats();
+    if (stats.totalUploaded > 0) {
+      updateStatus(`🚀 继续采集，已有 ${stats.totalUploaded} 个，目标: ${targetCount} 个`);
+    } else {
+      updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品`);
+    }
 
     try {
       await collector.startCollection(targetCount, async (progress) => {
@@ -413,7 +417,14 @@ export function ControlPanel(props: ControlPanelProps) {
     const toggleBtn = document.getElementById('ef-toggle-btn');
     if (toggleBtn) {
       toggleBtn.style.background = '#48bb78';
-      toggleBtn.innerHTML = '🚀 开始';
+
+      // 根据累计统计更新按钮文字
+      const stats = collector.getCumulativeStats();
+      if (stats.totalUploaded > 0) {
+        toggleBtn.innerHTML = `🚀 继续采集（已有 ${stats.totalUploaded} 个）`;
+      } else {
+        toggleBtn.innerHTML = '🚀 开始';
+      }
     }
 
     if (!collectedCount) {
@@ -424,8 +435,8 @@ export function ControlPanel(props: ControlPanelProps) {
   // 上传到 API
   async function uploadToAPI() {
     try {
-      const products = collector.getCollectedProducts();
-      if (products.length === 0) {
+      const allProducts = collector.getCollectedProducts();
+      if (allProducts.length === 0) {
         updateStatus('⚠️ 没有可上传的商品');
         return;
       }
@@ -436,12 +447,36 @@ export function ControlPanel(props: ControlPanelProps) {
         return;
       }
 
-      updateStatus(`📤 正在上传 ${products.length} 个商品...`);
+      // 获取目标数量（来自输入框）
+      const targetCountInput = document.querySelector('#ef-target-count') as HTMLInputElement;
+      const targetCount = targetCountInput ? parseInt(targetCountInput.value) : allProducts.length;
+
+      // 精确切片：只上传目标数量的商品
+      const toUpload = allProducts.slice(0, targetCount);
+      const notUploaded = allProducts.slice(targetCount);
+
+      updateStatus(`📤 正在上传 ${toUpload.length} 个商品...`);
 
       const apiClient = new ApiClient(apiConfig.apiUrl, apiConfig.apiKey);
-      const result = await apiClient.uploadProducts(products);
+      const result = await apiClient.uploadProducts(toUpload);
 
-      updateStatus(`✅ 上传成功！共 ${result.total} 个商品`);
+      // 更新指纹集：已上传的加入，未上传的移除
+      collector.updateFingerprints(
+        toUpload.map(p => p.product_id),
+        notUploaded.map(p => p.product_id)
+      );
+
+      // 获取累计统计
+      const stats = collector.getCumulativeStats();
+
+      updateStatus(`✅ 本次上传 ${result.total} 个，累计已采集 ${stats.totalUploaded} 个`);
+
+      // 如果有未上传的商品，提示用户
+      if (notUploaded.length > 0) {
+        setTimeout(() => {
+          updateStatus(`💡 还有 ${notUploaded.length} 个商品未上传，可继续采集`);
+        }, 2000);
+      }
     } catch (error: any) {
       updateStatus(`❌ 上传失败: ${error.message}`);
     }
@@ -465,7 +500,10 @@ export function ControlPanel(props: ControlPanelProps) {
       progressBg.style.width = `${progress}%`;
     }
     if (progressNumbers) {
-      progressNumbers.textContent = `${current} [${Math.round(progress)}%]`;
+      // 获取累计统计
+      const stats = collector.getCumulativeStats();
+      const totalCollected = stats.totalUploaded + current;
+      progressNumbers.textContent = `本次: ${current} | 累计: ${totalCollected} [${Math.round(progress)}%]`;
     }
 
     collectedCount = current;
@@ -482,7 +520,19 @@ export function ControlPanel(props: ControlPanelProps) {
   // 初始加载配置
   loadAPIConfig();
 
-  console.log('[EuraFlow] Control panel initialized');
+  // 初始化时更新累计统计显示
+  const stats = collector.getCumulativeStats();
+  if (stats.totalUploaded > 0) {
+    const toggleBtn = document.getElementById('ef-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.innerHTML = `🚀 继续采集（已有 ${stats.totalUploaded} 个）`;
+    }
+    const progressNumbers = document.getElementById('ef-progress-numbers');
+    if (progressNumbers) {
+      progressNumbers.textContent = `本次: 0 | 累计: ${stats.totalUploaded} [0%]`;
+    }
+    updateStatus(`✨ 就绪，已有 ${stats.totalUploaded} 个商品，可继续采集`);
+  }
 
   // 返回一个空的 div（React 兼容）
   return document.createElement('div');
