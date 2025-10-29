@@ -1033,15 +1033,15 @@ const ProductList: React.FC = () => {
                 icon: <SyncOutlined />,
                 label: '立即同步',
               },
-              canOperate && {
+              canOperate && !record.is_archived && {
                 key: 'archive',
                 icon: <DeleteOutlined />,
                 label: '归档',
               },
-              canDelete && {
+              canDelete && record.is_archived && {
                 type: 'divider' as const,
               },
-              canDelete && {
+              canDelete && record.is_archived && {
                 key: 'delete',
                 icon: <DeleteOutlined />,
                 label: '删除',
