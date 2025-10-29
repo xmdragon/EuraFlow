@@ -1772,11 +1772,11 @@ const ProductSelection: React.FC = () => {
                                           <Button
                                             type="primary"
                                             icon={<DownloadOutlined />}
-                                            href="/downloads/euraflow-ozon-selector-v1.2.4.zip"
+                                            href="/downloads/euraflow-ozon-selector-v1.2.5.zip"
                                             download
                                           >
                                             下载
-                                            euraflow-ozon-selector-v1.2.4.zip
+                                            euraflow-ozon-selector-v1.2.5.zip
                                           </Button>
                                           <Text type="secondary">
                                             扩展包大小：约 63 KB
@@ -2439,8 +2439,8 @@ const ProductSelection: React.FC = () => {
                           </Paragraph>
                           <Paragraph>
                             <Text type="secondary">
-                              浏览器扩展版本：v1.0.0 | 用户脚本版本：v4.3 |
-                              更新时间：2024-10-18
+                              浏览器扩展版本：v1.2.5 | 用户脚本版本：v4.7 |
+                              更新时间：2025-10-29
                             </Text>
                           </Paragraph>
                         </div>
