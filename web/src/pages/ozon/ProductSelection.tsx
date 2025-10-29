@@ -48,7 +48,6 @@ import {
   DatePicker,
   Tooltip,
   Checkbox,
-  Popconfirm,
   Descriptions,
 } from "antd";
 import dayjs from "dayjs";
@@ -1402,6 +1401,8 @@ const ProductSelection: React.FC = () => {
                               precision={1}
                               controls={false}
                               placeholder="0"
+                              formatter={getNumberFormatter(1)}
+                              parser={getNumberParser()}
                               addonBefore="打包费"
                               addonAfter="RMB"
                               style={{ width: "150px" }}
@@ -1637,25 +1638,26 @@ const ProductSelection: React.FC = () => {
                       key: "action",
                       width: 120,
                       render: (_: any, record: api.ImportHistory) => (
-                        <Popconfirm
-                          title="确认删除该批次？"
-                          description={`此操作将删除批次 #${record.id} 的所有商品数据，无法恢复！`}
-                          onConfirm={() => {
-                            deleteBatchMutation.mutate(record.id);
+                        <Button
+                          type="link"
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => {
+                            modal.confirm({
+                              title: "确认删除该批次？",
+                              content: `此操作将删除批次 #${record.id} 的所有商品数据，无法恢复！`,
+                              okText: "确认删除",
+                              cancelText: "取消",
+                              okType: "danger",
+                              onOk: () => {
+                                deleteBatchMutation.mutate(record.id);
+                              },
+                            });
                           }}
-                          okText="确认删除"
-                          cancelText="取消"
-                          okButtonProps={{ danger: true }}
                         >
-                          <Button
-                            type="link"
-                            danger
-                            size="small"
-                            icon={<DeleteOutlined />}
-                          >
-                            删除
-                          </Button>
-                        </Popconfirm>
+                          删除
+                        </Button>
                       ),
                     },
                   ]}
