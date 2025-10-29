@@ -37,27 +37,35 @@ export class ShangpinbangParser implements PageDataParser {
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
-      const bangElement = cardElement.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+      // 使用正确的选择器（与collector.ts保持一致）
+      const bangElement = cardElement.querySelector('.ozon-bang-item[data-ozon-bang="true"]') as HTMLElement;
 
       if (bangElement) {
         const bangText = bangElement.textContent || '';
+        const bangHtml = bangElement.innerHTML || '';
 
         // 数据完整性检查条件（对齐用户脚本）
         // 1. 内容充足（> 50字符）
         const hasContent = bangText.trim().length > 50;
 
-        // 2. 包含"跟卖最低价"字段（可能是价格或"无跟卖"）
-        const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,]+/.test(bangText);  // 有价格
-        const hasNoCompetitor = /跟卖最低价[：:]\s*无跟卖/.test(bangText);  // 明确无跟卖
-        const hasCompetitorData = hasMinPrice || hasNoCompetitor;
+        // 2. 检查跟卖数据（支持多种格式）
+        // 跟卖最低价：xxx ¥
+        const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,．]+\s*[¥₽]/.test(bangText);
+        // 跟卖最低价：无跟卖
+        const hasNoCompetitorPrice = /跟卖最低价[：:]\s*无跟卖/.test(bangText);
+        // 跟卖者：无跟卖
+        const hasNoCompetitorSeller = /跟卖者[：:]\s*.*无跟卖/.test(bangText);
+        // 等X个卖家（HTML格式）
+        const hasSellerCount = />(\d+)<\/span>\s*个卖家/.test(bangHtml) || /等\d+个卖家/.test(bangText);
 
-        // 3. 包含rFBS佣金数据（至少匹配一个档位）
-        const hasRFBSCommission = /rFBS佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+        // 任何一种跟卖数据格式都算有效
+        const hasCompetitorData = hasMinPrice || hasNoCompetitorPrice || hasNoCompetitorSeller || hasSellerCount;
 
-        // 4. 包含FBP佣金数据（至少匹配一个档位）
-        const hasFBPCommission = /FBP佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+        // 3. 检查佣金数据（新格式：支持多个佣金段）
+        const hasRFBSCommission = /rFBS佣金[：:]/.test(bangText) && /%/.test(bangText);
+        const hasFBPCommission = /FBP佣金[：:]/.test(bangText) && /%/.test(bangText);
 
-        // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
+        // 数据就绪条件：内容充足 + 跟卖数据 + 佣金数据
         if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
           return true;
         }
