@@ -70,17 +70,15 @@ export default defineConfig({
         manualChunks(id) {
           // 将node_modules中的代码单独打包
           if (id.includes('node_modules')) {
-            // React相关库
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'react-vendor';
-            }
-            // Ant Design相关
-            if (id.includes('antd') || id.includes('@ant-design')) {
-              return 'antd-vendor';
-            }
-            // 图表库
+            // 图表库单独打包（体积大且独立）
             if (id.includes('recharts') || id.includes('d3')) {
               return 'charts-vendor';
+            }
+            // React + Ant Design必须在一起，避免依赖问题
+            // Ant Design依赖React，必须确保它们在同一个chunk中
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') ||
+                id.includes('antd') || id.includes('@ant-design') || id.includes('rc-')) {
+              return 'ui-vendor';
             }
             // 其他第三方库
             return 'vendor';
