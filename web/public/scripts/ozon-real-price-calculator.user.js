@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OZON真实售价计算器
 // @namespace    http://tampermonkey.net/
-// @version      1.0.4
+// @version      1.2.4
 // @description  在OZON商品页面显示计算后的真实售价（统一使用公式计算）
 // @author       EuraFlow
 // @match        https://www.ozon.ru/product/*
@@ -17,7 +17,7 @@
   // ========== 配置常量 ==========
   const CONFIG = {
     // 计算公式系数
-    FORMULA_MULTIPLIER: 2.5,
+    FORMULA_MULTIPLIER: 2.2,
 
     // 防抖延迟（毫秒）
     DEBOUNCE_DELAY: 500,
@@ -188,7 +188,7 @@
 
     // 统一使用公式计算：有绿标价时，使用公式
     if (greenPrice !== null) {
-      const realPrice = Math.ceil(
+      const realPrice = Math.round(
         (blackPrice - greenPrice) * CONFIG.FORMULA_MULTIPLIER + blackPrice
       );
       return {
