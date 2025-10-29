@@ -415,7 +415,7 @@ const PackingShipment: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, pageSize],
+    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, pageSize, selectedPlatform],
     queryFn: () => {
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
       const queryParams = {
@@ -429,6 +429,11 @@ const PackingShipment: React.FC = () => {
         queryParams.operation_status = operationStatus;
       }
 
+      // 已分配页面的采购平台筛选
+      if (operationStatus === 'allocated' && selectedPlatform !== 'all') {
+        queryParams.source_platform = selectedPlatform;
+      }
+
       return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
@@ -439,7 +444,7 @@ const PackingShipment: React.FC = () => {
     staleTime: 30000, // 数据30秒内不会被认为是过期的
   });
 
-  // 当店铺、状态或搜索参数变化时，重置分页
+  // 当店铺、状态、搜索参数或平台筛选变化时，重置分页
   useEffect(() => {
     setCurrentPage(1);
     currentPageRef.current = 1; // 同步更新 ref
@@ -447,7 +452,7 @@ const PackingShipment: React.FC = () => {
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
     setPageSize(initialPageSize); // 重置为初始pageSize
-  }, [selectedShop, operationStatus, searchParams, initialPageSize]);
+  }, [selectedShop, operationStatus, searchParams, initialPageSize, selectedPlatform]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
