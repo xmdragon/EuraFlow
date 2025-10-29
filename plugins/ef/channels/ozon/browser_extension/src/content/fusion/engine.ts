@@ -29,11 +29,13 @@ export class DataFusionEngine {
     }
 
     // 1. 等待所有可用工具完成数据注入
+    // 注意：parseProductCard 方法内部已经包含了对单个卡片的等待逻辑
     await Promise.all(
       available.map(p => p.waitForInjection?.() || Promise.resolve())
     );
 
     // 2. 从所有解析器并行提取数据
+    // 每个解析器的 parseProductCard 方法会自行等待数据就绪
     const dataList = await Promise.all(
       available.map(async parser => ({
         parser,
@@ -47,6 +49,14 @@ export class DataFusionEngine {
     // 4. 验证必需字段
     if (!fused.product_id) {
       throw new Error('无法提取商品ID（所有数据源都没有）');
+    }
+
+    // 5. 验证关键数据完整性（特别是跟卖数据）
+    if (fused.competitor_min_price === undefined && fused.competitor_count === undefined) {
+      console.warn('[DataFusionEngine] 警告：跟卖数据可能缺失', {
+        sku: fused.product_id,
+        product_name: fused.product_name_ru
+      });
     }
 
     return fused as ProductData;

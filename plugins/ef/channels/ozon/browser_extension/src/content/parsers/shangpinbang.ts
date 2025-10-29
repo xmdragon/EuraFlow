@@ -71,11 +71,22 @@ export class ShangpinbangParser implements PageDataParser {
   }
 
   async parseProductCard(cardElement: HTMLElement): Promise<Partial<ProductData>> {
-    // 提取OZON原生数据
+    // 先等待数据完整注入（特别是跟卖数据）
+    const dataReady = await this.waitForCardData(cardElement);
+
+    // 提取OZON原生数据（总是可以提取的）
     const ozonData = this.extractOzonData(cardElement);
 
     // 提取上品帮注入的数据
     const bangData = this.extractBangData(cardElement);
+
+    // 如果数据未就绪，添加警告标记
+    if (!dataReady) {
+      console.warn('[ShangpinbangParser] 数据可能不完整，跟卖数据可能缺失', {
+        sku: ozonData.product_id,
+        hasCompetitorData: !!bangData.competitor_min_price
+      });
+    }
 
     // 合并数据
     return {

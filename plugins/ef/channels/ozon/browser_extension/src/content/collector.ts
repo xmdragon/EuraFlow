@@ -217,26 +217,48 @@ export class ProductCollector {
   }
 
   /**
-   * 采集当前可见的商品
+   * 采集当前可见的商品（优化：按行分组并行处理）
    */
   private async collectVisibleProducts(): Promise<void> {
     const cards = this.getVisibleProductCards();
 
-    for (const card of cards) {
+    // 参考用户脚本：按行分组处理（通常一行4个商品）
+    const rowSize = 4;
+    const rows: HTMLElement[][] = [];
+    for (let i = 0; i < cards.length; i += rowSize) {
+      rows.push(cards.slice(i, i + rowSize));
+    }
+
+    // 逐行采集（每行内并行处理）
+    for (const row of rows) {
       if (!this.isRunning) {
         break;
       }
 
-      try {
-        const product = await this.fusionEngine.fuseProductData(card);
+      // 并行采集同一行的商品
+      const rowPromises = row.map(async (card) => {
+        try {
+          const product = await this.fusionEngine.fuseProductData(card);
 
-        // 去重：使用 SKU 作为唯一标识
-        if (product.product_id && !this.collected.has(product.product_id)) {
-          this.collected.set(product.product_id, product);
+          // 去重：使用 SKU 作为唯一标识
+          if (product.product_id && !this.collected.has(product.product_id)) {
+            this.collected.set(product.product_id, product);
+            return product;
+          }
+        } catch (error: any) {
+          console.warn('[Collector] Failed to extract product:', error.message);
+          this.progress.errors.push(error.message);
         }
-      } catch (error: any) {
-        console.warn('[Collector] Failed to extract product:', error.message);
-        this.progress.errors.push(error.message);
+        return null;
+      });
+
+      // 等待整行采集完成
+      const rowResults = await Promise.all(rowPromises);
+
+      // 统计本行成功采集的商品数
+      const successCount = rowResults.filter(p => p !== null).length;
+      if (successCount > 0) {
+        console.log(`[Collector] 本行采集成功 ${successCount}/${row.length} 个商品`);
       }
     }
   }
