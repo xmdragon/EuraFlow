@@ -91,7 +91,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [isEditingOrderNotes, setIsEditingOrderNotes] = useState(false);
   const [editPurchasePrice, setEditPurchasePrice] = useState<string>('');
   const [editMaterialCost, setEditMaterialCost] = useState<string>('');
-  const [editSourcePlatform, setEditSourcePlatform] = useState<string>('');
+  const [editSourcePlatform, setEditSourcePlatform] = useState<string[]>([]);
   const [editOrderNotes, setEditOrderNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
@@ -697,15 +697,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         {canEdit && isEditingSourcePlatform && canOperate ? (
                           <Space>
                             <Select
+                              mode="multiple"
                               value={editSourcePlatform}
                               onChange={(value) => setEditSourcePlatform(value)}
-                              placeholder="请选择采购平台"
-                              style={{ width: 150 }}
+                              placeholder="请选择采购平台（可多选）"
+                              style={{ width: 250 }}
                               options={[
                                 { label: '1688', value: '1688' },
                                 { label: '拼多多', value: '拼多多' },
                                 { label: '咸鱼', value: '咸鱼' },
                                 { label: '淘宝', value: '淘宝' },
+                                { label: '库存', value: '库存' },
                               ]}
                             />
                             <Button
@@ -727,14 +729,55 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           </Space>
                         ) : (
                           <Space>
-                            <Text>{localPosting?.source_platform || '-'}</Text>
+                            <Text>
+                              {(() => {
+                                const sourcePlatform = localPosting?.source_platform;
+                                if (!sourcePlatform) return '-';
+
+                                // 解析 JSON 字符串为数组（兼容字符串和数组格式）
+                                let platformList: string[] = [];
+                                try {
+                                  if (typeof sourcePlatform === 'string') {
+                                    // 尝试解析 JSON 字符串
+                                    platformList = JSON.parse(sourcePlatform);
+                                  } else if (Array.isArray(sourcePlatform)) {
+                                    platformList = sourcePlatform;
+                                  } else {
+                                    platformList = [sourcePlatform];
+                                  }
+                                } catch {
+                                  // 如果解析失败，视为普通字符串
+                                  platformList = [sourcePlatform];
+                                }
+
+                                return platformList.length > 0 ? platformList.join(', ') : '-';
+                              })()}
+                            </Text>
                             {canEdit && canOperate && (
                               <Button
                                 type="link"
                                 size="small"
                                 icon={<EditOutlined />}
                                 onClick={() => {
-                                  setEditSourcePlatform(localPosting?.source_platform || '');
+                                  const sourcePlatform = localPosting?.source_platform;
+                                  let platformList: string[] = [];
+
+                                  // 解析当前值为数组
+                                  if (sourcePlatform) {
+                                    try {
+                                      if (typeof sourcePlatform === 'string') {
+                                        platformList = JSON.parse(sourcePlatform);
+                                      } else if (Array.isArray(sourcePlatform)) {
+                                        platformList = sourcePlatform;
+                                      } else {
+                                        platformList = [sourcePlatform];
+                                      }
+                                    } catch {
+                                      platformList = [sourcePlatform];
+                                    }
+                                  }
+
+                                  setEditSourcePlatform(platformList);
                                   setIsEditingSourcePlatform(true);
                                 }}
                               >

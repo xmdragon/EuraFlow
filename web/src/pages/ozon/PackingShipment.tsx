@@ -2068,19 +2068,22 @@ const PackingShipment: React.FC = () => {
 
               {/* 采购平台筛选下拉框 - 只在"已分配"标签显示 */}
               {operationStatus === 'allocated' && (
-                <Select
-                  className={styles.platformSelect}
-                  value={selectedPlatform}
-                  onChange={setSelectedPlatform}
-                  suffixIcon={<ShoppingCartOutlined />}
-                >
-                  <Option value="all">全部</Option>
-                  <Option value="1688">1688</Option>
-                  <Option value="拼多多">拼多多</Option>
-                  <Option value="咸鱼">咸鱼</Option>
-                  <Option value="淘宝">淘宝</Option>
-                  <Option value="库存">库存</Option>
-                </Select>
+                <Space>
+                  <Text>采购平台</Text>
+                  <Select
+                    className={styles.platformSelect}
+                    value={selectedPlatform}
+                    onChange={setSelectedPlatform}
+                    suffixIcon={<ShoppingCartOutlined />}
+                  >
+                    <Option value="all">全部</Option>
+                    <Option value="1688">1688</Option>
+                    <Option value="拼多多">拼多多</Option>
+                    <Option value="咸鱼">咸鱼</Option>
+                    <Option value="淘宝">淘宝</Option>
+                    <Option value="库存">库存</Option>
+                  </Select>
+                </Space>
               )}
 
               {/* 批量打印按钮 - 在其他标签页显示（除了已分配和前两个状态） */}
@@ -2116,12 +2119,24 @@ const PackingShipment: React.FC = () => {
                     .filter((card) => {
                       // 如果在"已分配"标签页且设置了平台筛选，则应用筛选
                       if (operationStatus === 'allocated' && selectedPlatform !== 'all') {
-                        if (!card.source_platform) return false;
+                        const sourcePlatform = card.posting.source_platform;
+                        if (!sourcePlatform) return false;
 
-                        // 兼容字符串和数组格式
-                        const platformList = Array.isArray(card.source_platform)
-                          ? card.source_platform
-                          : [card.source_platform];
+                        // 解析 JSON 字符串为数组（兼容字符串和数组格式）
+                        let platformList: string[] = [];
+                        try {
+                          if (typeof sourcePlatform === 'string') {
+                            // 尝试解析 JSON 字符串
+                            platformList = JSON.parse(sourcePlatform);
+                          } else if (Array.isArray(sourcePlatform)) {
+                            platformList = sourcePlatform;
+                          } else {
+                            platformList = [sourcePlatform];
+                          }
+                        } catch {
+                          // 如果解析失败，视为普通字符串
+                          platformList = [sourcePlatform];
+                        }
 
                         // 检查是否包含所选平台
                         return platformList.includes(selectedPlatform);
