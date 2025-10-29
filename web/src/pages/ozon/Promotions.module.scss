@@ -5,4 +5,12 @@
 // Row gutter={16} 会产生 margin: 0 -8px，所以左右至少需要 8px padding
 .pageWrapper {
   padding: 24px 8px;
+
+  // 表格单元格 padding
+  :global {
+    th,
+    td {
+      padding: 2px !important;
+    }
+  }
 }
