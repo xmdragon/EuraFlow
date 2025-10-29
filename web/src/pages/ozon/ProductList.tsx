@@ -903,7 +903,7 @@ const ProductList: React.FC = () => {
                 const totalStock = ws.present + ws.reserved;
 
                 return (
-                  <span key={index} style={{ fontSize: 12 }}>
+                  <span key={index} className={styles.warehouseStockText}>
                     {warehouseAbbr}:{totalStock}
                   </span>
                 );
@@ -915,9 +915,9 @@ const ProductList: React.FC = () => {
         // 降级：如果没有仓库库存详情，显示总计
         return (
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            <span style={{ fontSize: 12 }}>可售: {record.available}</span>
-            <span style={{ fontSize: 12, color: '#999' }}>库存: {record.stock}</span>
-            <span style={{ fontSize: 12, color: '#999' }}>预留: {record.reserved}</span>
+            <span className={styles.stockDetailText}>可售: {record.available}</span>
+            <span className={styles.stockDetailSecondary}>库存: {record.stock}</span>
+            <span className={styles.stockDetailSecondary}>预留: {record.reserved}</span>
           </Space>
         );
       },
@@ -1059,7 +1059,7 @@ const ProductList: React.FC = () => {
                   canOperate && {
                     key: 'price',
                     icon: <DollarOutlined />,
-                    label: '更新价格',
+                    label: '价格',
                   },
                   canOperate && {
                     type: 'divider' as const,
@@ -1103,12 +1103,12 @@ const ProductList: React.FC = () => {
                 canOperate && {
                   key: 'price',
                   icon: <DollarOutlined />,
-                  label: '更新价格',
+                  label: '价格',
                 },
                 canOperate && {
                   key: 'stock',
                   icon: <ShoppingOutlined />,
-                  label: '更新库存',
+                  label: '库存',
                 },
                 (canOperate || canSync) && {
                   type: 'divider' as const,
@@ -1116,7 +1116,7 @@ const ProductList: React.FC = () => {
                 canSync && {
                   key: 'sync',
                   icon: <SyncOutlined />,
-                  label: '立即同步',
+                  label: '同步',
                 },
                 canOperate && {
                   key: 'archive',

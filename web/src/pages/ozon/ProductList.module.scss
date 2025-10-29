@@ -258,6 +258,22 @@
   &.high { color: $success-color; }
 }
 
+.warehouseStockText {
+  font-size: 12px;
+  font-weight: $font-weight-bold;
+}
+
+.stockDetailText {
+  font-size: 12px;
+  font-weight: $font-weight-bold;
+}
+
+.stockDetailSecondary {
+  font-size: 12px;
+  font-weight: $font-weight-bold;
+  color: #999;
+}
+
 // ===== 同步状态 =====
 .syncInfo {
   @include flex-row;
