@@ -63,47 +63,17 @@ export default defineConfig({
   },
   build: {
     // 设置chunk大小警告限制
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        // 手动分割代码块，优化加载性能
-        manualChunks(id) {
-          // 将node_modules中的代码单独打包
-          if (id.includes('node_modules')) {
-            // 图表库单独打包（体积大且独立）
-            if (id.includes('recharts') || id.includes('d3')) {
-              return 'charts-vendor';
-            }
-            // React + Ant Design必须在一起，避免依赖问题
-            // Ant Design依赖React，必须确保它们在同一个chunk中
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router') ||
-                id.includes('antd') || id.includes('@ant-design') || id.includes('rc-')) {
-              return 'ui-vendor';
-            }
-            // 其他第三方库
-            return 'vendor';
-          }
-        },
-        // 使用contenthash确保文件内容变化才更新文件名
-        // 这样可以最大化利用浏览器缓存
-        chunkFileNames: (chunkInfo) => {
-          // 对于vendor chunks，使用更稳定的命名
-          const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop() : 'chunk';
-          return `assets/js/${chunkInfo.name || facadeModuleId}-[hash].js`;
-        },
-        // 入口文件命名
+        // 让Vite自动处理代码分割，避免手动分割导致的依赖问题
+        // Vite会自动分析依赖关系，确保加载顺序正确
+        // 用于命名代码拆分的块
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        // 用于命名入口文件
         entryFileNames: 'assets/js/[name]-[hash].js',
-        // 静态资源命名
-        assetFileNames: (assetInfo) => {
-          const info = assetInfo.name.split('.');
-          const extType = info[info.length - 1];
-          // CSS文件使用contenthash
-          if (/css/.test(extType)) {
-            return `assets/css/[name]-[hash].css`;
-          }
-          // 其他资源
-          return `assets/[ext]/[name]-[hash].[ext]`;
-        },
+        // 用于命名静态资源
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
       },
     },
     // 压缩配置
