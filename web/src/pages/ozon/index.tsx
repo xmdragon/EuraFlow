@@ -2,22 +2,23 @@
  * Ozon 管理主页面
  */
 import { Spin } from "antd";
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-// 路由懒加载
-const OrderList = lazy(() => import("./OrderList"));
-const PackingShipment = lazy(() => import("./PackingShipment"));
-const OrderReport = lazy(() => import("./OrderReport"));
-const FinanceTransactions = lazy(() => import("./FinanceTransactions"));
-const ProductList = lazy(() => import("./ProductList"));
-const ProductListing = lazy(() => import("./ProductListing"));
-const ProductCreate = lazy(() => import("./ProductCreate"));
-const WatermarkManagement = lazy(() => import("./WatermarkManagement"));
-const ProductSelection = lazy(() => import("./ProductSelection"));
-const ChatList = lazy(() => import("./ChatList"));
-const ChatDetail = lazy(() => import("./ChatDetail"));
-const Promotions = lazy(() => import("./Promotions"));
+// 路由懒加载 - 使用带重试机制的加载器防止chunk加载失败
+const OrderList = lazyWithRetry(() => import("./OrderList"));
+const PackingShipment = lazyWithRetry(() => import("./PackingShipment"));
+const OrderReport = lazyWithRetry(() => import("./OrderReport"));
+const FinanceTransactions = lazyWithRetry(() => import("./FinanceTransactions"));
+const ProductList = lazyWithRetry(() => import("./ProductList"));
+const ProductListing = lazyWithRetry(() => import("./ProductListing"));
+const ProductCreate = lazyWithRetry(() => import("./ProductCreate"));
+const WatermarkManagement = lazyWithRetry(() => import("./WatermarkManagement"));
+const ProductSelection = lazyWithRetry(() => import("./ProductSelection"));
+const ChatList = lazyWithRetry(() => import("./ChatList"));
+const ChatDetail = lazyWithRetry(() => import("./ChatDetail"));
+const Promotions = lazyWithRetry(() => import("./Promotions"));
 
 // 加载中组件
 const PageLoading = () => (

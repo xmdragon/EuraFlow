@@ -16,6 +16,20 @@ export default defineConfig({
           fs.rmSync(downloadsPath, { recursive: true, force: true })
         }
       }
+    },
+    // 生成版本文件，用于检测更新
+    {
+      name: 'generate-version',
+      closeBundle() {
+        const distPath = path.resolve(__dirname, 'dist')
+        const versionFile = path.join(distPath, 'version.json')
+        const version = {
+          version: Date.now().toString(), // 使用时间戳作为版本号
+          buildTime: new Date().toISOString(),
+        }
+        fs.writeFileSync(versionFile, JSON.stringify(version, null, 2))
+        console.log('✓ Generated version.json:', version)
+      }
     }
   ],
   server: {
@@ -52,31 +66,46 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // 让 Vite 自动处理代码分割，确保依赖加载顺序正确
-        // 注释掉自定义 manualChunks 以避免 React/Antd 加载顺序问题
-        // manualChunks(id) {
-        //   if (id.includes('node_modules')) {
-        //     if (id.includes('antd') || id.includes('@ant-design/icons')) {
-        //       return 'antd';
-        //     }
-        //     if (id.includes('recharts')) {
-        //       return 'charts';
-        //     }
-        //     if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-        //       return 'react';
-        //     }
-        //     if (id.includes('@tanstack/react-query')) {
-        //       return 'query';
-        //     }
-        //     return 'vendor';
-        //   }
-        // },
-        // 用于命名代码拆分的块
-        chunkFileNames: 'assets/js/[name]-[hash].js',
-        // 用于命名入口文件
+        // 手动分割代码块，优化加载性能
+        manualChunks(id) {
+          // 将node_modules中的代码单独打包
+          if (id.includes('node_modules')) {
+            // React相关库
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-vendor';
+            }
+            // Ant Design相关
+            if (id.includes('antd') || id.includes('@ant-design')) {
+              return 'antd-vendor';
+            }
+            // 图表库
+            if (id.includes('recharts') || id.includes('d3')) {
+              return 'charts-vendor';
+            }
+            // 其他第三方库
+            return 'vendor';
+          }
+        },
+        // 使用contenthash确保文件内容变化才更新文件名
+        // 这样可以最大化利用浏览器缓存
+        chunkFileNames: (chunkInfo) => {
+          // 对于vendor chunks，使用更稳定的命名
+          const facadeModuleId = chunkInfo.facadeModuleId ? chunkInfo.facadeModuleId.split('/').pop() : 'chunk';
+          return `assets/js/${chunkInfo.name || facadeModuleId}-[hash].js`;
+        },
+        // 入口文件命名
         entryFileNames: 'assets/js/[name]-[hash].js',
-        // 用于命名静态资源
-        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+        // 静态资源命名
+        assetFileNames: (assetInfo) => {
+          const info = assetInfo.name.split('.');
+          const extType = info[info.length - 1];
+          // CSS文件使用contenthash
+          if (/css/.test(extType)) {
+            return `assets/css/[name]-[hash].css`;
+          }
+          // 其他资源
+          return `assets/[ext]/[name]-[hash].[ext]`;
+        },
       },
     },
     // 压缩配置

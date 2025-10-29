@@ -5,6 +5,7 @@
 
 import { ComponentType, lazy } from 'react';
 import { loggers } from './logger';
+import { handleChunkLoadError } from './versionCheck';
 
 interface RetryOptions {
   /** 最大重试次数 */
@@ -83,12 +84,17 @@ export function lazyWithRetry<T extends ComponentType<any>>(
       maxRetries,
     });
 
-    // 检查是否为 HMR 相关错误
+    // 检查是否为chunk加载错误
     if (
       lastError?.message.includes('Failed to fetch') ||
-      lastError?.message.includes('importing a module script failed')
+      lastError?.message.includes('importing a module script failed') ||
+      lastError?.message.includes('Loading chunk') ||
+      lastError?.message.includes('ChunkLoadError')
     ) {
-      // 对于 HMR 错误，建议用户刷新页面
+      // 检查是否因为版本更新导致的chunk加载失败
+      await handleChunkLoadError();
+
+      // 对于chunk加载错误，建议用户刷新页面
       const error = new Error(
         '模块加载失败，这可能是由于代码更新导致的。请刷新页面重试。'
       );

@@ -11,11 +11,17 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import NotificationInitializer from '@/components/NotificationInitializer';
 import { AuthProvider } from '@/hooks/useAuth';
 import { initHMRErrorHandler } from '@/utils/hmrErrorHandler';
+import { startVersionCheck } from '@/utils/versionCheck';
 import './services/simpleAxios'; // 导入简化的axios配置
 import './index.css';
 
 // 初始化 HMR 错误处理（仅开发环境）
 initHMRErrorHandler();
+
+// 启动版本检查（仅生产环境）
+if (import.meta.env.PROD) {
+  startVersionCheck();
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -119,24 +119,45 @@ class ErrorBoundary extends Component<Props, State> {
         return fallback(error, errorInfo, this.resetError);
       }
 
+      // 检查是否为chunk加载错误
+      const isChunkLoadError = error.name === 'ChunkLoadError' ||
+        error.message.includes('Loading chunk') ||
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('importing a module script failed');
+
       // 默认降级 UI
       return (
         <div style={{ padding: '50px 20px', maxWidth: '800px', margin: '0 auto' }}>
           <Result
-            status="error"
-            title="页面加载失败"
-            subTitle={`很抱歉，${name === 'Unknown' ? '此页面' : name}遇到了一些问题。您可以尝试刷新页面或返回首页。`}
-            extra={[
-              <Button type="primary" key="retry" onClick={this.resetError}>
-                重试
-              </Button>,
-              <Button key="reload" onClick={this.reloadPage}>
-                刷新页面
-              </Button>,
-              <Button key="home" onClick={() => (window.location.href = '/dashboard')}>
-                返回首页
-              </Button>,
-            ]}
+            status={isChunkLoadError ? "warning" : "error"}
+            title={isChunkLoadError ? "页面资源加载失败" : "页面加载失败"}
+            subTitle={
+              isChunkLoadError
+                ? "系统可能已更新到新版本，请刷新页面以获取最新内容。"
+                : `很抱歉，${name === 'Unknown' ? '此页面' : name}遇到了一些问题。您可以尝试刷新页面或返回首页。`
+            }
+            extra={
+              isChunkLoadError
+                ? [
+                    <Button type="primary" key="reload" onClick={this.reloadPage}>
+                      立即刷新
+                    </Button>,
+                    <Button key="home" onClick={() => (window.location.href = '/dashboard')}>
+                      返回首页
+                    </Button>,
+                  ]
+                : [
+                    <Button type="primary" key="retry" onClick={this.resetError}>
+                      重试
+                    </Button>,
+                    <Button key="reload" onClick={this.reloadPage}>
+                      刷新页面
+                    </Button>,
+                    <Button key="home" onClick={() => (window.location.href = '/dashboard')}>
+                      返回首页
+                    </Button>,
+                  ]
+            }
           >
             {import.meta.env.MODE === 'development' && (
               <div style={{

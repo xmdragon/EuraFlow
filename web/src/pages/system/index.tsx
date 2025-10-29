@@ -2,13 +2,14 @@
  * 系统管理主页面
  */
 import { Spin } from 'antd';
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
-// 路由懒加载
-const SyncServices = lazy(() => import('./SyncServices'));
-const SystemConfiguration = lazy(() => import('./SystemConfiguration'));
-const LogManagement = lazy(() => import('./LogManagement'));
+// 路由懒加载 - 使用带重试机制的加载器防止chunk加载失败
+const SyncServices = lazyWithRetry(() => import('./SyncServices'));
+const SystemConfiguration = lazyWithRetry(() => import('./SystemConfiguration'));
+const LogManagement = lazyWithRetry(() => import('./LogManagement'));
 
 // 加载中组件
 const PageLoading = () => (

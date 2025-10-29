@@ -256,6 +256,7 @@ async def get_packing_orders(
     operation_status: Optional[str] = Query(None, description="操作状态筛选：awaiting_stock/allocating/allocated/tracking_confirmed/shipping"),
     ozon_status: Optional[str] = Query(None, description="OZON原生状态筛选，支持逗号分隔的多个状态，如：awaiting_packaging,awaiting_deliver"),
     days_within: Optional[int] = Query(None, description="运输中状态的天数筛选（仅在operation_status=shipping时有效，默认7天）"),
+    source_platform: Optional[str] = Query(None, description="按采购平台筛选（1688/拼多多/咸鱼/淘宝/库存）"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -440,6 +441,13 @@ async def get_packing_orders(
             OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
         )
 
+    # 搜索条件：采购平台筛选（source_platform是JSONB数组）
+    if source_platform:
+        # 使用JSONB包含操作符，检查数组是否包含指定平台
+        query = query.where(
+            OzonPosting.source_platform.contains([source_platform])
+        )
+
     # 排序：按订单创建时间倒序
     query = query.order_by(OzonOrder.ordered_at.desc())
 
@@ -564,6 +572,12 @@ async def get_packing_orders(
             OzonDomesticTracking.posting_id == OzonPosting.id
         ).where(
             OzonDomesticTracking.tracking_number == domestic_tracking_number.strip()
+        )
+
+    # 采购平台筛选（count查询也需要应用）
+    if source_platform:
+        count_query = count_query.where(
+            OzonPosting.source_platform.contains([source_platform])
         )
 
     total_result = await db.execute(count_query)
