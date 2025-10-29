@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class PrepareStockDTO(BaseModel):
     """备货请求 DTO"""
     purchase_price: Decimal = Field(..., description="进货价格（必填）")
-    source_platform: Optional[str] = Field(None, description="采购平台（可选：1688/拼多多/咸鱼/淘宝）")
+    source_platform: Optional[List[str]] = Field(None, description="采购平台列表（可选：1688/拼多多/咸鱼/淘宝/库存）")
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
     sync_to_ozon: Optional[bool] = Field(True, description="是否同步到Ozon（默认true）")
 
@@ -34,7 +34,7 @@ class UpdateBusinessInfoDTO(BaseModel):
     """更新业务信息请求 DTO"""
     purchase_price: Optional[Decimal] = Field(None, description="进货价格（可选）")
     material_cost: Optional[Decimal] = Field(None, description="打包费用（可选）")
-    source_platform: Optional[str] = Field(None, description="采购平台（可选）")
+    source_platform: Optional[List[str]] = Field(None, description="采购平台列表（可选）")
     order_notes: Optional[str] = Field(None, description="订单备注（可选）")
 
 

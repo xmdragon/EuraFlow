@@ -299,7 +299,7 @@ class OzonPosting(Base):
     purchase_price = Column(Numeric(18, 2), comment="进货价格")
     purchase_price_updated_at = Column(DateTime(timezone=True), comment="进货价格更新时间")
     order_notes = Column(String(1000), comment="订单备注")
-    source_platform = Column(String(50), comment="采集平台")
+    source_platform = Column(JSONB, comment="采购平台列表")
     operation_time = Column(DateTime(timezone=True), comment="用户操作时间（备货/打包等操作的时间戳）")
     operation_status = Column(
         String(50),

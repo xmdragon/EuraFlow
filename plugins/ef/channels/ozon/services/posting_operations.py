@@ -34,7 +34,7 @@ class PostingOperationsService:
         self,
         posting_number: str,
         purchase_price: Decimal,
-        source_platform: Optional[str] = None,
+        source_platform: Optional[List[str]] = None,
         order_notes: Optional[str] = None,
         sync_to_ozon: Optional[bool] = True
     ) -> Dict[str, Any]:
@@ -44,7 +44,7 @@ class PostingOperationsService:
         Args:
             posting_number: 货件编号
             purchase_price: 进货价格（必填）
-            source_platform: 采购平台（可选：1688/拼多多/咸鱼/淘宝）
+            source_platform: 采购平台列表（可选：1688/拼多多/咸鱼/淘宝/库存）
             order_notes: 订单备注（可选）
             sync_to_ozon: 是否同步到Ozon（默认True）
 
@@ -76,6 +76,7 @@ class PostingOperationsService:
         posting.purchase_price = purchase_price
         posting.purchase_price_updated_at = utcnow()
         if source_platform:
+            # 存储为 JSON 数组
             posting.source_platform = source_platform
         if order_notes:
             posting.order_notes = order_notes

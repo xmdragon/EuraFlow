@@ -13,9 +13,11 @@
 - **DRY**：消除重复代码
 
 ### 工作流程
-1. **Plan-First**：先给出 Plan & Impact，再给出 Patch；未获确认不输出大段代码
-2. **架构决策**：提供 3 个备选方案，按复杂度/兼容性/风险排序
-3. **全局视角**：考虑影响面（API、数据、任务、观测、回滚）
+1. **FAQ-First**：遇到问题先查阅 `FAQ.md`，避免重复踩坑（尤其是前端 Modal/Form/Upload、后端 N+1 查询、异步阻塞等常见问题）
+2. **Plan-First**：先给出 Plan & Impact，再给出 Patch；未获确认不输出大段代码
+3. **架构决策**：提供 3 个备选方案，按复杂度/兼容性/风险排序
+4. **全局视角**：考虑影响面（API、数据、任务、观测、回滚）
+5. **FAQ-Update**：解决新的疑难问题后，将问题、原因、排查步骤、解决方案更新到 `FAQ.md`
 
 ### 禁止行为
 - ❌ 不做架构分析就改代码
@@ -26,6 +28,8 @@
 - ❌ 使用 console.log/debug/info（前端用 loglevel，后端用 logging）
 - ❌ 缺失可观测性（关键路径必须有指标/日志/Trace）
 - ❌ 危险数据库操作（禁止 DROP/TRUNCATE/DELETE FROM 无 WHERE）
+- ❌ 模块级解构 Ant Design 组件方法（必须在组件内直接调用 `Modal.confirm()` 等）
+- ❌ 循环中执行数据库查询（导致 N+1 问题；必须使用批量查询或预加载）
 
 ### 项目焦点
 优先面向 **Ozon 渠道插件** `ef.channels.ozon`，同时覆盖整个微内核+插件生态系统。
@@ -113,6 +117,11 @@
 
 ## 8) 代码风格与组织
 - **Python**：`mypy --strict`、`ruff`、`black 120 cols`；分层：路由 → 服务 → 仓储
+- **数据库查询规范**：
+  - **禁止 N+1 查询**：禁止在循环中执行数据库查询（除非有明确理由并注释说明）
+  - **使用批量查询**：使用 `IN` 查询 + `GROUP BY` 聚合，或使用 `joinedload`/`selectinload`
+  - **性能目标**：单个 API 接口的数据库查询次数应 ≤ 10 次，响应时间 < 500ms
+  - **参考**: 详见 `FAQ.md` 的 "N+1 查询问题导致 API 响应缓慢" 章节
 - **TypeScript**：`strict: true`；React 组件大写、Hook 以 `use*`；错误边界/空态齐全
 - **样式分离**：禁止 `style={{...}}`，写入 `.module.scss`
 - **日志规范**：
@@ -123,6 +132,11 @@
   - **禁止**直接使用 `navigator.clipboard.writeText` 或 `document.execCommand('copy')`
   - 示例：`const { copyToClipboard } = useCopy(); copyToClipboard(text, '标签名');`
   - 提供统一的成功/失败提示（右下角通知）+ 降级方案
+- **Ant Design 规范**：
+  - **禁止模块级解构**：禁止在组件外部使用 `const { confirm } = Modal;` 等解构
+  - **正确用法**：在组件函数内直接调用 `Modal.confirm({...})`、`message.success()` 等
+  - **App 上下文**：`App.tsx` 必须使用 `<App>` 组件包裹（Ant Design v5 要求）
+  - **参考**: 详见 `FAQ.md` 的 "Ant Design Modal.confirm 不弹出" 章节
 - **命名**：表/索引/约束按 `CODESTYLE.md`；事件 `ef.{domain}.{object}.{verb}`
 
 ---

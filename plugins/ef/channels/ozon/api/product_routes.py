@@ -819,15 +819,18 @@ async def sync_single_product(
         # 获取商品详情（使用offer_id）
         product_info = await client.get_product_info(product.offer_id)
 
-        if product_info.get("result"):
-            item = product_info["result"]
+        # OZON API 新版格式：数据直接在顶层，而不是包装在 result 中
+        # 兼容新旧格式
+        item = product_info.get("result") or product_info
+
+        if item and item.get("id"):  # 检查是否获取到有效数据
             # 更新商品信息
             product.title = item.get("name", product.title)
-            product.ozon_product_id = item.get("product_id")
+            product.ozon_product_id = item.get("id") or item.get("product_id")
             product.ozon_sku = item.get("sku")
-            product.status = "active" if item.get("is_visible") else "inactive"
-            product.visibility = item.get("is_visible", False)
-            product.is_archived = item.get("is_archived", False)
+            product.status = "active" if item.get("visible") or item.get("is_visible") else "inactive"
+            product.visibility = item.get("visible") or item.get("is_visible", False)
+            product.is_archived = item.get("archived") or item.get("is_archived", False)
             if item.get("price"):
                 product.price = Decimal(str(item.get("price")))
             if item.get("old_price"):

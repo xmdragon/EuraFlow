@@ -1454,7 +1454,7 @@ const PackingShipment: React.FC = () => {
   );
 
   return (
-    <div>
+    <div className={styles.pageContainer}>
       {/* 页面标题 */}
       <PageTitle icon={<TruckOutlined />} title="打包发货" />
 
@@ -2069,9 +2069,9 @@ const PackingShipment: React.FC = () => {
               {/* 采购平台筛选下拉框 - 只在"已分配"标签显示 */}
               {operationStatus === 'allocated' && (
                 <Select
+                  className={styles.platformSelect}
                   value={selectedPlatform}
                   onChange={setSelectedPlatform}
-                  style={{ width: 200 }}
                   suffixIcon={<ShoppingCartOutlined />}
                 >
                   <Option value="all">全部</Option>

@@ -1,6 +1,18 @@
 @use '@/styles/variables' as *;
 @use '@/styles/mixins' as *;
 
+// ===== 页面容器 =====
+.pageContainer {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
 // ===== 顶部筛选区域 =====
 .filterCard {
   margin-bottom: $spacing-xs;
@@ -21,6 +33,9 @@
 
 // ===== 列表卡片 =====
 .listCard {
+  width: 100%;
+  max-width: 100%;
+
   // 移除Tabs默认的margin-top
   :global(.ant-tabs) {
     margin-top: 0;
@@ -29,6 +44,13 @@
   // Tabs头部间距调整
   :global(.ant-tabs-nav) {
     margin-bottom: $spacing-xs;
+  }
+
+  // 防止内容溢出
+  :global(.ant-card-body) {
+    overflow-x: hidden;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
 
@@ -39,6 +61,8 @@
   gap: 4px;
   margin-top: 16px;
   justify-content: start; // 左对齐
+  width: 100%;
+  max-width: 100%;
 }
 
 // ===== 订单卡片 =====
@@ -234,6 +258,13 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+// ===== 采购平台选择器 =====
+.platformSelect {
+  min-width: 120px;
+  max-width: 150px;
+  flex-shrink: 0;
 }
 
 // ===== 加载更多提示 =====

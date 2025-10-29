@@ -55,10 +55,18 @@ class ShopResponseDTO(BaseModel):
 
 @router.get("/shops")
 async def get_shops(
+    include_stats: bool = Query(False, description="是否包含统计数据（商品数、订单数）"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
-    """获取 Ozon 店铺列表（只返回用户关联的店铺）"""
+    """
+    获取 Ozon 店铺列表（只返回用户关联的店铺）
+
+    参数：
+    - include_stats: 是否包含统计数据（默认 false，用于下拉选择等场景）
+      - false: 只返回基本信息（id, shop_name, shop_name_cn, status, platform）
+      - true: 返回完整信息（包含统计数据、API凭证等）
+    """
     from ef_core.models.users import user_shops
 
     # 根据用户角色过滤店铺
@@ -74,23 +82,55 @@ async def get_shops(
     result = await db.execute(stmt.order_by(OzonShop.created_at.desc()))
     shops = result.scalars().all()
 
-    # 计算真实的统计数据
+    # 如果没有店铺，直接返回空列表
+    if not shops:
+        return {"data": []}
+
+    # 简化模式：只返回基本信息（用于下拉选择等场景）
+    if not include_stats:
+        shops_data = []
+        for shop in shops:
+            shops_data.append({
+                "id": shop.id,
+                "shop_name": shop.shop_name,
+                "shop_name_cn": shop.shop_name_cn,
+                "display_name": shop.shop_name_cn or shop.shop_name,
+                "platform": shop.platform,
+                "status": shop.status
+            })
+        return {"data": shops_data}
+
+    # 完整模式：包含统计数据（用于店铺管理页面）
+    # 优化：使用 GROUP BY 一次性获取所有店铺的统计数据（避免 N+1 查询）
+    shop_ids = [shop.id for shop in shops]
+
+    # 获取所有店铺的商品数量
+    products_stmt = (
+        select(OzonProduct.shop_id, func.count(OzonProduct.id).label('count'))
+        .where(OzonProduct.shop_id.in_(shop_ids))
+        .group_by(OzonProduct.shop_id)
+    )
+    products_result = await db.execute(products_stmt)
+    products_count_map = {row.shop_id: row.count for row in products_result}
+
+    # 获取所有店铺的订单数量
+    orders_stmt = (
+        select(OzonOrder.shop_id, func.count(OzonOrder.id).label('count'))
+        .where(OzonOrder.shop_id.in_(shop_ids))
+        .group_by(OzonOrder.shop_id)
+    )
+    orders_result = await db.execute(orders_stmt)
+    orders_count_map = {row.shop_id: row.count for row in orders_result}
+
+    # 组装响应数据
     shops_data = []
     for shop in shops:
         shop_dict = shop.to_dict(include_credentials=True)
 
-        # 获取真实的商品和订单数量
-        products_count = await db.execute(
-            select(func.count()).select_from(OzonProduct).where(OzonProduct.shop_id == shop.id)
-        )
-        orders_count = await db.execute(
-            select(func.count()).select_from(OzonOrder).where(OzonOrder.shop_id == shop.id)
-        )
-
-        # 更新统计数据为真实值
+        # 从预加载的统计数据中获取数量（默认为 0）
         shop_dict["stats"] = {
-            "total_products": products_count.scalar() or 0,
-            "total_orders": orders_count.scalar() or 0,
+            "total_products": products_count_map.get(shop.id, 0),
+            "total_orders": orders_count_map.get(shop.id, 0),
             "last_sync_at": shop.last_sync_at.isoformat() if shop.last_sync_at else None,
             "sync_status": "success" if shop.last_sync_at else "pending"
         }

@@ -318,6 +318,15 @@ class OzonSyncService:
                         except Exception as e:
                             logger.error(f"Failed to get {filter_label} products prices batch: {e}")
 
+                    # 预加载店铺的仓库信息（用于匹配仓库名称）
+                    from ..models import OzonWarehouse
+                    warehouse_map = {}
+                    warehouses_result = await db.execute(
+                        select(OzonWarehouse).where(OzonWarehouse.shop_id == shop_id)
+                    )
+                    for warehouse in warehouses_result.scalars().all():
+                        warehouse_map[warehouse.warehouse_id] = warehouse.name
+
                     # 批量获取库存信息
                     products_stock_map = {}
                     if offer_ids:
@@ -328,8 +337,9 @@ class OzonSyncService:
                                 batch_ids = offer_ids[i : i + stock_batch_size]
                                 stock_response = await client.get_product_stocks(offer_ids=batch_ids)
 
-                                if stock_response.get("result", {}).get("items"):
-                                    for stock_item in stock_response["result"]["items"]:
+                                # 根据 Ozon API 文档，/v4/product/info/stocks 直接返回 items
+                                if stock_response.get("items"):
+                                    for stock_item in stock_response["items"]:
                                         if stock_item.get("offer_id"):
                                             # 获取所有仓库的库存
                                             total_present = 0
@@ -341,10 +351,15 @@ class OzonSyncService:
                                                     total_present += stock_info.get("present", 0)
                                                     total_reserved += stock_info.get("reserved", 0)
 
+                                                    # OZON API 返回 warehouse_ids 数组，需要从中提取 warehouse_id
+                                                    warehouse_ids = stock_info.get("warehouse_ids", [])
+                                                    warehouse_id = warehouse_ids[0] if warehouse_ids else None
+                                                    warehouse_name = warehouse_map.get(warehouse_id) if warehouse_id else None
+
                                                     # 保存每个仓库的库存详情
                                                     warehouse_stocks.append({
-                                                        "warehouse_id": stock_info.get("warehouse_id"),
-                                                        "warehouse_name": stock_info.get("warehouse_name"),
+                                                        "warehouse_id": warehouse_id,
+                                                        "warehouse_name": warehouse_name,
                                                         "present": stock_info.get("present", 0),
                                                         "reserved": stock_info.get("reserved", 0)
                                                     })
@@ -357,7 +372,7 @@ class OzonSyncService:
                                             }
 
                                             # 调试第一个库存信息（仅在VISIBLE时显示）
-                                            if i == 0 and stock_item == stock_response["result"]["items"][0] and visibility_desc == "VISIBLE":
+                                            if i == 0 and stock_item == stock_response["items"][0] and visibility_desc == "VISIBLE":
                                                 logger.info(f"Stock info from v4 API: offer_id={stock_item.get('offer_id')}, present={total_present}, reserved={total_reserved}")
                         except Exception as e:
                             logger.error(f"Failed to get {filter_label} products stock batch: {e}")

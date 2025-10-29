@@ -102,39 +102,43 @@ class OzonSyncLog(Base):
 class OzonWebhookEvent(Base):
     """Webhook 事件记录"""
     __tablename__ = "ozon_webhook_events"
-    
+
     id = Column(BigInteger, primary_key=True)
-    
+
     # 事件信息
     event_id = Column(String(200), nullable=False, unique=True)
     event_type = Column(String(100), nullable=False)  # order.created/posting.status_changed等
-    
+
     # 店铺
     shop_id = Column(Integer, nullable=False)
-    
+
     # 载荷
     payload = Column(JSONB, nullable=False)
     headers = Column(JSONB)
-    
+
     # 签名验证
     signature = Column(String(500))
     is_verified = Column(Boolean, default=False)
-    
+
     # 处理状态
     status = Column(String(50), default="pending")  # pending/processing/processed/failed/ignored
     processed_at = Column(DateTime(timezone=True))
     retry_count = Column(Integer, default=0)
-    
+
     # 幂等性
     idempotency_key = Column(String(200))
-    
+
     # 错误信息
     error_message = Column(String(1000))
-    
+
+    # 处理结果（用于日志管理）
+    result_message = Column(String(500))  # 处理结果摘要（成功、失败原因等）
+    processing_duration_ms = Column(Integer)  # 处理耗时（毫秒）
+
     # 关联实体
     entity_type = Column(String(50))  # order/posting/product等
     entity_id = Column(String(100))  # 关联的实体ID
-    
+
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
