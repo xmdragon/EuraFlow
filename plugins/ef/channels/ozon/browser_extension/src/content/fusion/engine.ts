@@ -157,33 +157,49 @@ export class DataFusionEngine {
 
     // SKU：应该相同，如果不同取长的
     if (field === 'product_id') {
-      const longest = values.reduce((max, { value }) => {
-        return value.length > max.value.length ? value : max;
-      }, values[0].value);
-      return longest;
+      let longestValue = values[0].value;
+      for (const { value } of values) {
+        if (String(value).length > String(longestValue).length) {
+          longestValue = value;
+        }
+      }
+      return longestValue;
     }
 
     // 商品名称：取更长/更完整的
     if (field === 'product_name_ru' || field === 'product_name_cn') {
-      const longest = values.reduce((max, { value }) => {
-        return value.length > max.value.length ? value : max;
-      }, values[0].value);
-      return longest;
+      let longestValue = values[0].value;
+      for (const { value } of values) {
+        if (String(value).length > String(longestValue).length) {
+          longestValue = value;
+        }
+      }
+      return longestValue;
     }
 
     // URL类：优先有效的（以http开头）
     if (field === 'ozon_link' || field === 'image_url') {
-      const validUrl = values.find(({ value }) => value.startsWith('http'));
-      if (validUrl) {
-        return validUrl.value;
+      for (const { value } of values) {
+        if (String(value).startsWith('http')) {
+          return value;
+        }
       }
     }
 
-    // 默认：取更长的（信息更完整）
-    const longest = values.reduce((max, { value }) => {
-      return value.length > max.value.length ? value : max;
-    }, values[0].value);
-    return longest;
+    // 默认：对于字符串类型，取更长的（信息更完整）
+    // 对于其他类型，返回第一个值
+    if (typeof values[0].value === 'string') {
+      let longestValue = values[0].value;
+      for (const { value } of values) {
+        if (String(value).length > String(longestValue).length) {
+          longestValue = value;
+        }
+      }
+      return longestValue;
+    }
+
+    // 对于非字符串类型，返回第一个值
+    return values[0].value;
   }
 
   /**
