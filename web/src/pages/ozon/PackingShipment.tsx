@@ -1783,7 +1783,13 @@ const PackingShipment: React.FC = () => {
                               </div>
                               <div>
                                 <Text type="secondary">数量: </Text>
-                                <span>{quantity}</span>
+                                {quantity > 1 ? (
+                                  <span className={styles.quantityMultiple}>
+                                    {quantity}
+                                  </span>
+                                ) : (
+                                  <span>{quantity}</span>
+                                )}
                               </div>
                               <div>
                                 <Text type="secondary">金额: </Text>

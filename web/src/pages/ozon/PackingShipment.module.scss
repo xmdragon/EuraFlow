@@ -413,3 +413,14 @@
     background-color: #f0f7ff !important;
   }
 }
+
+// 扫描单号列表 - 数量大于1的高亮样式
+.quantityMultiple {
+  color: #ff0000;
+  font-weight: bold;
+  background-color: #ffe0e0;
+  border: 2px solid #ff0000;
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+}
