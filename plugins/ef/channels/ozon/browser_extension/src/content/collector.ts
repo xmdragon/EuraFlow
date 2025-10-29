@@ -283,22 +283,66 @@ export class ProductCollector {
     const lastCard = row[row.length - 1];
 
     while (Date.now() - startTime < maxWait) {
-      const bangElement = lastCard.querySelector('.ozon-bang-item, [class*="ozon-bang"]');
+      // 上品帮的根容器选择器（注意：data-ozon-bang="true" 是关键标识）
+      const bangElement = lastCard.querySelector('.ozon-bang-item[data-ozon-bang="true"]') as HTMLElement;
 
       if (bangElement) {
         const bangText = bangElement.textContent || '';
+        const bangHtml = bangElement.innerHTML || '';
 
         // 数据完整性检查（与用户脚本保持一致）
         const hasContent = bangText.trim().length > 50;
-        const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,]+/.test(bangText);
-        const hasNoCompetitor = /跟卖最低价[：:]\s*无跟卖/.test(bangText);
-        const hasCompetitorData = hasMinPrice || hasNoCompetitor;
-        const hasRFBSCommission = /rFBS佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
-        const hasFBPCommission = /FBP佣金[（(](?:1501~5000|<=1500|>5000)[₽￥][）)][：:]\s*\d+(?:\.\d+)?\s*%/.test(bangText);
+
+        // 检查跟卖数据（支持多种格式）
+        // 1. 跟卖最低价：xxx ¥
+        const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,．]+\s*[¥₽]/.test(bangText);
+        // 2. 跟卖最低价：无跟卖
+        const hasNoCompetitorPrice = /跟卖最低价[：:]\s*无跟卖/.test(bangText);
+        // 3. 跟卖者：无跟卖
+        const hasNoCompetitorSeller = /跟卖者[：:]\s*.*无跟卖/.test(bangText);
+        // 4. 等X个卖家（HTML格式）
+        const hasSellerCount = />(\d+)<\/span>\s*个卖家/.test(bangHtml) || /等\d+个卖家/.test(bangText);
+
+        // 任何一种跟卖数据格式都算有效
+        const hasCompetitorData = hasMinPrice || hasNoCompetitorPrice || hasNoCompetitorSeller || hasSellerCount;
+
+        // 检查佣金数据（新格式：支持多个佣金段）
+        const hasRFBSCommission = /rFBS佣金[：:]/.test(bangText) && /%/.test(bangText);
+        const hasFBPCommission = /FBP佣金[：:]/.test(bangText) && /%/.test(bangText);
 
         // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
         if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
-          console.log('[Collector] 行数据就绪');
+          console.log('[Collector] 行数据就绪（上品帮）');
+          return true;
+        }
+      }
+
+      // 同时检查毛子ERP（data-mz-widget）
+      const mzElement = lastCard.querySelector('[data-mz-widget]') as HTMLElement;
+      if (mzElement) {
+        const mzText = mzElement.textContent || '';
+        const mzHtml = mzElement.innerHTML || '';
+
+        // 毛子ERP的数据完整性检查
+        const hasContent = mzText.trim().length > 50;
+
+        // 检查跟卖数据（毛子ERP格式）
+        // 1. 跟卖列表：无 或 等X个卖家
+        const hasSellerList = /跟卖列表[：:]\s*无/.test(mzText) ||
+                            /等\s*\d+\s*个\s*卖家/.test(mzText) ||
+                            />(\d+)<\/span>\s*个?\s*卖家/.test(mzHtml);
+        // 2. 跟卖最低价：无 或 数字
+        const hasMinPrice = /跟卖最低价[：:]\s*无/.test(mzText) ||
+                          /跟卖最低价[：:]\s*[\d\s,．]+/.test(mzText);
+
+        const hasCompetitorData = hasSellerList || hasMinPrice;
+
+        // 检查佣金数据
+        const hasCommission = /rFBS佣金[：:]/.test(mzText) || /FBP佣金[：:]/.test(mzText);
+
+        // 数据就绪条件：内容充足 + 跟卖数据 + 佣金数据
+        if (hasContent && hasCompetitorData && hasCommission) {
+          console.log('[Collector] 行数据就绪（毛子ERP）');
           return true;
         }
       }
