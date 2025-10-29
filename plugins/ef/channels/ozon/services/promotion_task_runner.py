@@ -29,6 +29,7 @@ class PromotionTaskRunner:
         )
         self.async_session = async_sessionmaker(
             self.engine,
+            class_=AsyncSession,
             expire_on_commit=False
         )
         self.running = False
