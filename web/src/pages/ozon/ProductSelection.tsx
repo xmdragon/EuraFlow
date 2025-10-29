@@ -1988,7 +1988,7 @@ const ProductSelection: React.FC = () => {
                                           </Text>
                                           <br />
                                           <Text code>
-                                            真实售价 = ((黑标价-绿标价)×2.5+黑标价) 保留2位小数
+                                            真实售价 = round((黑标价-绿标价)×2.2+黑标价)
                                           </Text>
                                           <br />
                                           <Text code>
@@ -1997,7 +1997,7 @@ const ProductSelection: React.FC = () => {
                                           <br />
                                           <Text type="secondary">
                                             示例：绿标价 1219¥，黑标价 1258¥ →
-                                            计算值 1355.50¥ → 最终 1342.50¥
+                                            计算值 1344¥ → 最终 1331¥
                                           </Text>
                                         </div>
                                       ),

@@ -7,7 +7,7 @@
 // ========== 配置常量 ==========
 export const CONFIG = {
   // 计算公式系数
-  FORMULA_MULTIPLIER: 2.5,
+  FORMULA_MULTIPLIER: 2.2,
 
   // 选择器
   SELECTORS: {
@@ -167,9 +167,10 @@ export function calculateRealPrice(
 
   // 统一使用公式计算：有绿标价时，使用公式
   if (greenPrice !== null) {
-    // 计算基础价格，保留2位小数
+    // 计算基础价格
     const basePrice = (blackPrice - greenPrice) * CONFIG.FORMULA_MULTIPLIER + blackPrice;
-    const roundedPrice = Math.round(basePrice * 100) / 100; // 保留2位小数
+    // 四舍五入到整数
+    const roundedPrice = Math.round(basePrice);
 
     // 按价格区间修正：1-100减1，101-200减2，201-300减3...
     let adjustment = 0;
