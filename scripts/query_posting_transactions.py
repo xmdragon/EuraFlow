@@ -151,7 +151,11 @@ async def query_transactions(posting_number: str):
                 print("=" * 80)
 
                 # 保存详细数据到JSON文件（可选）
-                output_file = project_root / f"transaction_details_{posting_number}.json"
+                # 创建 logs 目录（如果不存在）
+                logs_dir = project_root / "logs"
+                logs_dir.mkdir(exist_ok=True)
+
+                output_file = logs_dir / f"transaction_details_{posting_number}.json"
                 with open(output_file, 'w', encoding='utf-8') as f:
                     json.dump(response, f, ensure_ascii=False, indent=2, default=str)
                 print(f"\n💾 详细数据已保存到: {output_file}")
