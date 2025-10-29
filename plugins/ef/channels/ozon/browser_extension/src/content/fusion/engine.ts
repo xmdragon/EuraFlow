@@ -51,13 +51,8 @@ export class DataFusionEngine {
       throw new Error('无法提取商品ID（所有数据源都没有）');
     }
 
-    // 5. 验证关键数据完整性（特别是跟卖数据）
-    if (fused.competitor_min_price === undefined && fused.competitor_count === undefined) {
-      console.warn('[DataFusionEngine] 警告：跟卖数据可能缺失', {
-        sku: fused.product_id,
-        product_name: fused.product_name_ru
-      });
-    }
+    // 5. 验证关键数据完整性（注意：0 值也是有效的，表示无跟卖）
+    // 不再警告跟卖数据缺失，因为有些商品确实没有跟卖是正常的
 
     return fused as ProductData;
   }

@@ -79,8 +79,8 @@ export class ShangpinbangParser implements PageDataParser {
   }
 
   async parseProductCard(cardElement: HTMLElement): Promise<Partial<ProductData>> {
-    // 先等待数据完整注入（特别是跟卖数据）
-    const dataReady = await this.waitForCardData(cardElement);
+    // 尝试等待数据完整注入（但不阻塞采集）
+    await this.waitForCardData(cardElement);
 
     // 提取OZON原生数据（总是可以提取的）
     const ozonData = this.extractOzonData(cardElement);
@@ -88,11 +88,12 @@ export class ShangpinbangParser implements PageDataParser {
     // 提取上品帮注入的数据
     const bangData = this.extractBangData(cardElement);
 
-    // 如果数据未就绪，添加警告标记
-    if (!dataReady) {
-      console.warn('[ShangpinbangParser] 数据可能不完整，跟卖数据可能缺失', {
-        sku: ozonData.product_id,
-        hasCompetitorData: !!bangData.competitor_min_price
+    // 只有在真正没有提取到跟卖数据时才警告
+    // competitor_count 或 competitor_min_price 为 0 表示"无跟卖"，也是有效数据
+    // 只有都是 undefined 才表示数据缺失
+    if (bangData.competitor_min_price === undefined && bangData.competitor_count === undefined) {
+      console.warn('[ShangpinbangParser] 跟卖数据缺失', {
+        sku: ozonData.product_id
       });
     }
 
@@ -353,23 +354,31 @@ export class ShangpinbangParser implements PageDataParser {
     const bangHtml = bangElement.innerHTML || '';
     const data: Partial<ProductData> = {};
 
-    // 跟卖者数量（支持两种格式）
-    // 格式1: "等1个卖家"
-    // 格式2: HTML标签格式 "<span style='color:red'>1</span>个卖家"
-    const sellerCountMatch = bangText.match(/等(\d+)个卖家/) ||
-                           bangHtml.match(/>(\d+)<\/span>\s*个卖家/);
-    if (sellerCountMatch) {
-      data.competitor_count = parseInt(sellerCountMatch[1]);
-    }
-
-    // 跟卖最低价
-    if (/跟卖最低价[：:]\s*无跟卖/.test(bangText)) {
+    // 检查"跟卖者：无跟卖"的情况
+    if (/跟卖者[：:]\s*无跟卖/.test(bangText)) {
+      data.competitor_count = 0;
       data.competitor_min_price = 0;
     } else {
-      const priceMatch = bangText.match(/跟卖最低价[：:]\s*([\d\s,]+)/);
-      if (priceMatch) {
-        const cleanPrice = priceMatch[1].replace(/[\s,]/g, '');
-        data.competitor_min_price = parseFloat(cleanPrice);
+      // 跟卖者数量（支持两种格式）
+      // 格式1: "等1个卖家"
+      // 格式2: HTML标签格式 "<span style='color:red'>1</span>个卖家"
+      const sellerCountMatch = bangText.match(/等(\d+)个卖家/) ||
+                             bangHtml.match(/>(\d+)<\/span>\s*个卖家/);
+      if (sellerCountMatch) {
+        data.competitor_count = parseInt(sellerCountMatch[1]);
+      }
+    }
+
+    // 跟卖最低价（只在没有设置过的情况下处理）
+    if (data.competitor_min_price === undefined) {
+      if (/跟卖最低价[：:]\s*无跟卖/.test(bangText)) {
+        data.competitor_min_price = 0;
+      } else {
+        const priceMatch = bangText.match(/跟卖最低价[：:]\s*([\d\s,]+)/);
+        if (priceMatch) {
+          const cleanPrice = priceMatch[1].replace(/[\s,]/g, '');
+          data.competitor_min_price = parseFloat(cleanPrice);
+        }
       }
     }
 
