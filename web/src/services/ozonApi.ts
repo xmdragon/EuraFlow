@@ -314,6 +314,12 @@ export const archiveProduct = async (productId: number) => {
   return response.data;
 };
 
+// 恢复归档商品（简单版，仅改变归档状态）
+export const restoreArchivedProduct = async (productId: number) => {
+  const response = await apiClient.post(`/ozon/products/${productId}/unarchive`);
+  return response.data;
+};
+
 // 删除商品
 export const deleteProduct = async (productId: number) => {
   const response = await apiClient.delete(`/ozon/products/${productId}`);

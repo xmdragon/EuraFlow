@@ -1006,75 +1006,149 @@ const ProductList: React.FC = () => {
       key: 'action',
       width: 60,
       fixed: 'right',
-      render: (_, record) => (
-        <Dropdown
-          menu={{
-            items: [
-              canOperate && {
-                key: 'edit',
-                icon: <EditOutlined />,
-                label: '编辑',
+      render: (_, record) => {
+        // 归档商品：只显示"恢复"和"删除"
+        if (record.is_archived) {
+          return (
+            <Dropdown
+              menu={{
+                items: [
+                  canOperate && {
+                    key: 'restore',
+                    icon: <ReloadOutlined />,
+                    label: '恢复',
+                  },
+                  canDelete && {
+                    type: 'divider' as const,
+                  },
+                  canDelete && {
+                    key: 'delete',
+                    icon: <DeleteOutlined />,
+                    label: '删除',
+                    danger: true,
+                  },
+                ].filter(Boolean),
+                onClick: ({ key }) => {
+                  switch (key) {
+                    case 'restore':
+                      handleRestore(record);
+                      break;
+                    case 'delete':
+                      handleDelete(record);
+                      break;
+                  }
+                },
+              }}
+            >
+              <Button type="text" size="small" icon={<EllipsisOutlined />} />
+            </Dropdown>
+          );
+        }
+
+        // 下架商品：显示"编辑"、"更新价格"和"归档"
+        if (record.status === 'inactive') {
+          return (
+            <Dropdown
+              menu={{
+                items: [
+                  canOperate && {
+                    key: 'edit',
+                    icon: <EditOutlined />,
+                    label: '编辑',
+                  },
+                  canOperate && {
+                    key: 'price',
+                    icon: <DollarOutlined />,
+                    label: '更新价格',
+                  },
+                  canOperate && {
+                    type: 'divider' as const,
+                  },
+                  canOperate && {
+                    key: 'archive',
+                    icon: <DeleteOutlined />,
+                    label: '归档',
+                  },
+                ].filter(Boolean),
+                onClick: ({ key }) => {
+                  switch (key) {
+                    case 'edit':
+                      handleEdit(record);
+                      break;
+                    case 'price':
+                      handlePriceUpdate(record);
+                      break;
+                    case 'archive':
+                      handleArchive(record);
+                      break;
+                  }
+                },
+              }}
+            >
+              <Button type="text" size="small" icon={<EllipsisOutlined />} />
+            </Dropdown>
+          );
+        }
+
+        // 其他状态：显示完整的操作菜单
+        return (
+          <Dropdown
+            menu={{
+              items: [
+                canOperate && {
+                  key: 'edit',
+                  icon: <EditOutlined />,
+                  label: '编辑',
+                },
+                canOperate && {
+                  key: 'price',
+                  icon: <DollarOutlined />,
+                  label: '更新价格',
+                },
+                canOperate && {
+                  key: 'stock',
+                  icon: <ShoppingOutlined />,
+                  label: '更新库存',
+                },
+                (canOperate || canSync) && {
+                  type: 'divider' as const,
+                },
+                canSync && {
+                  key: 'sync',
+                  icon: <SyncOutlined />,
+                  label: '立即同步',
+                },
+                canOperate && {
+                  key: 'archive',
+                  icon: <DeleteOutlined />,
+                  label: '归档',
+                },
+              ].filter(Boolean),
+              onClick: ({ key }) => {
+                switch (key) {
+                  case 'edit':
+                    handleEdit(record);
+                    break;
+                  case 'price':
+                    handlePriceUpdate(record);
+                    break;
+                  case 'stock':
+                    handleStockUpdate(record);
+                    break;
+                  case 'sync':
+                    handleSyncSingle(record);
+                    break;
+                  case 'archive':
+                    handleArchive(record);
+                    break;
+                }
               },
-              canOperate && {
-                key: 'price',
-                icon: <DollarOutlined />,
-                label: '更新价格',
-              },
-              canOperate && {
-                key: 'stock',
-                icon: <ShoppingOutlined />,
-                label: '更新库存',
-              },
-              (canOperate || canSync) && {
-                type: 'divider' as const,
-              },
-              canSync && {
-                key: 'sync',
-                icon: <SyncOutlined />,
-                label: '立即同步',
-              },
-              canOperate && !record.is_archived && {
-                key: 'archive',
-                icon: <DeleteOutlined />,
-                label: '归档',
-              },
-              canDelete && record.is_archived && {
-                type: 'divider' as const,
-              },
-              canDelete && record.is_archived && {
-                key: 'delete',
-                icon: <DeleteOutlined />,
-                label: '删除',
-                danger: true,
-              },
-            ].filter(Boolean),
-            onClick: ({ key }) => {
-              switch (key) {
-                case 'edit':
-                  handleEdit(record);
-                  break;
-                case 'price':
-                  handlePriceUpdate(record);
-                  break;
-                case 'stock':
-                  handleStockUpdate(record);
-                  break;
-                case 'sync':
-                  handleSyncSingle(record);
-                  break;
-                case 'archive':
-                  handleArchive(record);
-                  break;
-                case 'delete':
-                  handleDelete(record);
-                  break;
-              }
-            },
-          }}
-        >
-          <Button type="text" size="small" icon={<EllipsisOutlined />} />
-        </Dropdown>
-      ),
+            }}
+          >
+            <Button type="text" size="small" icon={<EllipsisOutlined />} />
+          </Dropdown>
+        );
+      },
     },
   ];
 
@@ -1219,6 +1293,28 @@ const ProductList: React.FC = () => {
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : '归档失败';
           notifyError('归档失败', errorMsg);
+        }
+      },
+    });
+  };
+
+  const handleRestore = (product: ozonApi.Product) => {
+    modal.confirm({
+      title: '确认恢复商品？',
+      content: `商品货号: ${product.offer_id}，将从归档状态恢复`,
+      onOk: async () => {
+        try {
+          const result = await ozonApi.restoreArchivedProduct(product.id);
+
+          if (result.success) {
+            notifySuccess('恢复成功', result.message || '商品恢复成功');
+            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+          } else {
+            notifyError('恢复失败', result.message || '商品恢复失败');
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : '恢复失败';
+          notifyError('恢复失败', errorMsg);
         }
       },
     });
