@@ -82,14 +82,9 @@ const ProductList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRows, setSelectedRows] = useState<ozonApi.Product[]>([]);
-  // 初始化时从localStorage读取店铺选择，默认为null让用户手动选择
-  const [selectedShop, setSelectedShop] = useState<number | null>(() => {
-    const saved = localStorage.getItem('ozon_selected_shop');
-    if (saved && saved !== 'all') {
-      return parseInt(saved, 10);
-    }
-    return null; // 默认不选择任何店铺
-  });
+  // 初始化为null，让ShopSelector组件控制店铺选择和验证
+  // ShopSelector会从localStorage读取并验证权限，然后通过onChange回调设置
+  const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
   const [priceModalVisible, setPriceModalVisible] = useState(false);
   const [stockModalVisible, setStockModalVisible] = useState(false);
@@ -261,7 +256,10 @@ const ProductList: React.FC = () => {
     },
     // 只有选中店铺后才发送请求
     enabled: selectedShop !== null && selectedShop !== undefined,
-    staleTime: 5000, // 数据5秒内不会被认为是过期的
+    staleTime: Infinity, // 数据永不过期，不自动刷新
+    refetchOnWindowFocus: false, // 窗口聚焦时不自动刷新
+    refetchOnMount: false, // 组件挂载时不自动刷新（如有缓存）
+    refetchOnReconnect: false, // 网络重连时不自动刷新
     retry: 1, // 减少重试次数
     retryDelay: 1000, // 重试延迟1秒
   });
@@ -272,7 +270,10 @@ const ProductList: React.FC = () => {
     queryFn: () => ozonApi.getStatistics(selectedShop),
     // 只有选中店铺后才发送请求
     enabled: selectedShop !== null && selectedShop !== undefined,
-    staleTime: 5000, // 数据5秒内不会被认为是过期的
+    staleTime: Infinity, // 数据永不过期，不自动刷新
+    refetchOnWindowFocus: false, // 窗口聚焦时不自动刷新
+    refetchOnMount: false, // 组件挂载时不自动刷新（如有缓存）
+    refetchOnReconnect: false, // 网络重连时不自动刷新
     retry: 1, // 减少重试次数
     retryDelay: 1000, // 重试延迟1秒
   });
@@ -865,17 +866,11 @@ const ProductList: React.FC = () => {
 
         return (
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            {/* 定价（如果有old_price，显示它作为定价） */}
-            {oldPrice && oldPrice > price && (
-              <span style={{ fontSize: 11, color: '#999' }}>
-                {formatPriceWithCurrency(oldPrice, record.currency_code)}
-              </span>
-            )}
-            {/* 当前价格（绿色） */}
+            {/* 当前价格（绿色加粗） */}
             <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 13 }}>
               {formatPriceWithCurrency(price, record.currency_code)}
             </span>
-            {/* 划线价（如果有） */}
+            {/* 划线价（如果有old_price且大于当前价格） */}
             {oldPrice && oldPrice > price && (
               <span
                 style={{
@@ -896,13 +891,35 @@ const ProductList: React.FC = () => {
       title: <SortableColumnTitle title="库存" field="stock" />,
       key: 'stock',
       width: 80,
-      render: (_, record) => (
-        <Space direction="vertical" size={2} style={{ width: '100%' }}>
-          <span style={{ fontSize: 12 }}>可售: {record.available}</span>
-          <span style={{ fontSize: 12, color: '#999' }}>库存: {record.stock}</span>
-          <span style={{ fontSize: 12, color: '#999' }}>预留: {record.reserved}</span>
-        </Space>
-      ),
+      render: (_, record) => {
+        // 如果有仓库库存详情，按仓库显示
+        if (record.warehouse_stocks && record.warehouse_stocks.length > 0) {
+          return (
+            <Space direction="vertical" size={2} style={{ width: '100%' }}>
+              {record.warehouse_stocks.map((ws, index) => {
+                // 提取仓库名称缩写（取前4个字符）
+                const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
+                const totalStock = ws.present + ws.reserved;
+
+                return (
+                  <span key={index} style={{ fontSize: 12 }}>
+                    {warehouseAbbr}:{totalStock}
+                  </span>
+                );
+              })}
+            </Space>
+          );
+        }
+
+        // 降级：如果没有仓库库存详情，显示总计
+        return (
+          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+            <span style={{ fontSize: 12 }}>可售: {record.available}</span>
+            <span style={{ fontSize: 12, color: '#999' }}>库存: {record.stock}</span>
+            <span style={{ fontSize: 12, color: '#999' }}>预留: {record.reserved}</span>
+          </Space>
+        );
+      },
     },
     // 第六列：状态（80px）
     {

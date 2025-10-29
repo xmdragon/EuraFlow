@@ -42,7 +42,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '≤500g',
     priceRange: '<1500 RUB',
     defaultPlatformRate: 0.14,
-    packingFee: 2,
+    packingFee: 0,
     shipping: {
       base: 3,
       rate: 0.035,
@@ -71,7 +71,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '≤500g',
     priceRange: '<1500 RUB',
     defaultPlatformRate: 0.14,
-    packingFee: 2,
+    packingFee: 0,
     shipping: {
       base: 3,
       rate: 0.026,
@@ -100,7 +100,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '501g-25kg',
     priceRange: '<1500 RUB',
     defaultPlatformRate: 0.14,
-    packingFee: 2,
+    packingFee: 0,
     shipping: {
       base: 23,
       rate: 0.017,
@@ -129,7 +129,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '1g-2kg',
     priceRange: '1500-7000 RUB',
     defaultPlatformRate: 0.2,
-    packingFee: 2,
+    packingFee: 0,
     shipping: {
       base: 16,
       rate: 0.025,
@@ -159,7 +159,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '2.1kg-25kg',
     priceRange: '1501-7000 RUB',
     defaultPlatformRate: 0.2,
-    packingFee: 2,
+    packingFee: 0,
     shipping: {
       base: 36,
       rate: 0.025,
@@ -189,7 +189,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '1g-5kg',
     priceRange: '>7000 RUB',
     defaultPlatformRate: 0.2,
-    packingFee: 5,
+    packingFee: 0,
     shipping: {
       base: 22,
       rate: 0.035,
@@ -218,7 +218,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     weightRange: '5.1kg-25kg',
     priceRange: '>7000 RUB',
     defaultPlatformRate: 0.2,
-    packingFee: 5,
+    packingFee: 0,
     shipping: {
       base: 62,
       rate: 0.028,

@@ -26,7 +26,7 @@ import { getExchangeRate } from '@/services/exchangeRateApi';
 
 import type { FormValues } from '@/types/common';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface CalculationInputData {
   cost?: number; // 成本 (RMB)
@@ -41,7 +41,7 @@ const ProfitCalculatorV2: React.FC = () => {
     cost: undefined,
     price: undefined,
     weight: undefined,
-    packingFee: 2, // 默认2 RMB
+    packingFee: 0, // 默认0 RMB
   });
   const [activeKey, setActiveKey] = useState<string>('super-light');
 
@@ -83,15 +83,16 @@ const ProfitCalculatorV2: React.FC = () => {
   return (
     <div>
       <div className={styles.contentContainer}>
-        <Space align="center" className={styles.titleSpace}>
-          <CalculatorOutlined className={styles.titleIcon} />
-          <Title level={3} className={styles.titleText}>
-            利润计算器
-          </Title>
-        </Space>
-
         {/* 统一输入区域 */}
-        <Card title="商品信息" className={styles.infoCard}>
+        <Card
+          title={
+            <Space align="center">
+              <CalculatorOutlined />
+              利润计算器
+            </Space>
+          }
+          className={styles.infoCard}
+        >
           <Form
             form={form}
             layout="horizontal"
@@ -144,7 +145,7 @@ const ProfitCalculatorV2: React.FC = () => {
                         className={styles.fullWidthInput}
                         min={0}
                         precision={1}
-                        placeholder="默认2.0"
+                        placeholder="默认0.0"
                         controls={false}
                       />
                     </Form.Item>
@@ -201,16 +202,6 @@ const ProfitCalculatorV2: React.FC = () => {
                           <Col>
                             <Text strong>
                               {(primaryScenario.defaultPlatformRate * 100).toFixed(1)}%
-                            </Text>
-                          </Col>
-                        </Row>
-                        <Row justify="space-between">
-                          <Col>
-                            <Text>运费公式：</Text>
-                          </Col>
-                          <Col>
-                            <Text code className={styles.formulaText}>
-                              {primaryScenario.shipping.formula}
                             </Text>
                           </Col>
                         </Row>

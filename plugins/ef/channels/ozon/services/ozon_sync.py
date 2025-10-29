@@ -334,16 +334,26 @@ class OzonSyncService:
                                             # 获取所有仓库的库存
                                             total_present = 0
                                             total_reserved = 0
+                                            warehouse_stocks = []
 
                                             if stock_item.get("stocks"):
                                                 for stock_info in stock_item["stocks"]:
                                                     total_present += stock_info.get("present", 0)
                                                     total_reserved += stock_info.get("reserved", 0)
 
+                                                    # 保存每个仓库的库存详情
+                                                    warehouse_stocks.append({
+                                                        "warehouse_id": stock_info.get("warehouse_id"),
+                                                        "warehouse_name": stock_info.get("warehouse_name"),
+                                                        "present": stock_info.get("present", 0),
+                                                        "reserved": stock_info.get("reserved", 0)
+                                                    })
+
                                             products_stock_map[stock_item["offer_id"]] = {
                                                 "present": total_present,
                                                 "reserved": total_reserved,
-                                                "total": total_present + total_reserved
+                                                "total": total_present + total_reserved,
+                                                "warehouse_stocks": warehouse_stocks
                                             }
 
                                             # 调试第一个库存信息（仅在VISIBLE时显示）
@@ -673,12 +683,15 @@ class OzonSyncService:
                                 product.stock = stock_info["total"]
                                 product.reserved = stock_info["reserved"]
                                 product.available = stock_info["present"]
+                                # 保存仓库库存详情
+                                product.warehouse_stocks = stock_info.get("warehouse_stocks", [])
                             else:
                                 # 如果没有库存信息，使用原有的逻辑作为后备
                                 stocks = item.get("stocks", {})
                                 product.stock = stocks.get("present", 0) + stocks.get("reserved", 0)
                                 product.reserved = stocks.get("reserved", 0)
                                 product.available = stocks.get("present", 0)
+                                product.warehouse_stocks = []
 
                             # 更新图片（无条件更新，允许None清空）
                             product.images = images_data

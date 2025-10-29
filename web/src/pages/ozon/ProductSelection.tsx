@@ -66,7 +66,7 @@ import FieldConfigModal, {
 import PageTitle from "@/components/PageTitle";
 import { getExchangeRate } from "@/services/exchangeRateApi";
 import * as api from "@/services/productSelectionApi";
-import { getNumberFormatter, getNumberParser } from "@/utils/formatNumber";
+import { getNumberFormatter, getNumberParser, formatNumber as formatNumberUtil } from "@/utils/formatNumber";
 import { logger } from "@/utils/logger";
 import {
   notifySuccess,
@@ -153,7 +153,7 @@ const ProductSelection: React.FC = () => {
   });
   const [packingFee, setPackingFee] = useState<number>(() => {
     const saved = localStorage.getItem("productSelectionPackingFee");
-    return saved ? parseFloat(saved) : 2.0; // 默认2.0 RMB
+    return saved ? parseFloat(saved) : 0; // 默认0 RMB
   });
 
   // 记住我的选择状态
@@ -666,8 +666,8 @@ const ProductSelection: React.FC = () => {
 
   // 格式化价格（OZON采集的是分，需要除以100转换为元）
   const formatPrice = (priceInFen: number | null | undefined): string => {
-    if (priceInFen === null || priceInFen === undefined) return "0.00";
-    return (priceInFen / 100).toFixed(2);
+    if (priceInFen === null || priceInFen === undefined) return "0";
+    return formatNumberUtil(priceInFen / 100);
   };
 
   // 格式化百分比显示（不显示%符号）
@@ -686,7 +686,7 @@ const ProductSelection: React.FC = () => {
   const formatWeight = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return "-";
     if (value >= 1000) {
-      return `${(value / 1000).toFixed(2)}kg`;
+      return `${formatNumberUtil(value / 1000)}kg`;
     }
     return `${value}g`;
   };
@@ -699,24 +699,15 @@ const ProductSelection: React.FC = () => {
     if (!rubAmount || !rate) return "-";
     const cny = rubAmount / rate;
     if (cny >= 10000) {
-      return `${(cny / 10000).toFixed(2)}万¥`;
+      return `${formatNumberUtil(cny / 10000)}万¥`;
     }
-    return `${cny.toFixed(2)}¥`;
+    return `${formatNumberUtil(cny)}¥`;
   };
 
   // 格式化百分比（带%符号，智能去除无意义的小数）
   const formatPercent = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return "-";
-
-    // 100及以上只显示整数
-    if (value >= 100) {
-      return `${Math.round(value)}%`;
-    }
-
-    // 去掉无意义的小数（92.00 → 92，92.80 → 92.8）
-    const formatted = value.toFixed(2);
-    const trimmed = parseFloat(formatted).toString();
-    return `${trimmed}%`;
+    return `${formatNumberUtil(value)}%`;
   };
 
   // 格式化普通数字（带千分位）
@@ -1214,7 +1205,7 @@ const ProductSelection: React.FC = () => {
                       onFinish={handleSearch}
                       initialValues={{ sort_by: "source_order" }}
                     >
-                      <Row gutter={[16, 0]} wrap>
+                      <Row wrap>
                         {/* 所有搜索项在同一行，根据屏幕宽度自适应换行 */}
                         <Col flex="auto" style={{ minWidth: "150px" }}>
                           <Form.Item label="品牌" name="brand">
@@ -1400,7 +1391,7 @@ const ProductSelection: React.FC = () => {
                           <Space.Compact>
                             <InputNumber
                               value={packingFee}
-                              onChange={(val) => setPackingFee(val || 2)}
+                              onChange={(val) => setPackingFee(val || 0)}
                               min={0}
                               precision={1}
                               controls={false}
@@ -1468,12 +1459,12 @@ const ProductSelection: React.FC = () => {
                         </Space>
                       </Col>
                       <Col>
-                        <Tooltip title="配置字段">
-                          <Button
-                            icon={<SettingOutlined />}
-                            onClick={() => setFieldConfigVisible(true)}
-                          />
-                        </Tooltip>
+                        <Button
+                          icon={<SettingOutlined />}
+                          onClick={() => setFieldConfigVisible(true)}
+                        >
+                          列配置
+                        </Button>
                       </Col>
                     </Row>
                   )}

@@ -3,6 +3,7 @@
  */
 
 import { ScenarioConfig } from './constants';
+import { formatNumber } from '@/utils/formatNumber';
 
 export interface CalculationData {
   // 用户输入
@@ -77,7 +78,7 @@ export function formatPercentage(value: number | undefined): string {
   if (value === undefined) {
     return '--';
   }
-  return `${(value * 100).toFixed(2)}%`;
+  return `${formatNumber(value * 100)}%`;
 }
 
 /**
@@ -87,7 +88,7 @@ export function formatMoney(value: number | undefined): string {
   if (value === undefined) {
     return '--';
   }
-  return value.toFixed(2);
+  return formatNumber(value);
 }
 
 /**

@@ -68,6 +68,7 @@ class OzonProduct(Base):
     stock = Column(Integer, default=0)
     reserved = Column(Integer, default=0)
     available = Column(Integer, default=0)
+    warehouse_stocks = Column(JSONB, comment="按仓库分组的库存详情: [{warehouse_id, warehouse_name, present, reserved}]")
     
     # 商品属性
     weight = Column(Numeric(10, 3), comment="重量(kg)")

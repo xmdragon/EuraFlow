@@ -43,7 +43,7 @@ export interface ProductToolbarProps {
   onImport: () => void;
   /** 导出回调 */
   onExport: () => void;
-  /** 列设置回调 */
+  /** 列配置回调 */
   onColumnSettings: () => void;
 }
 
@@ -139,11 +139,9 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
           </Button>
         )}
       </Space>
-      <Tooltip title="列显示设置">
-        <Button icon={<SettingOutlined />} onClick={onColumnSettings}>
-          列设置
-        </Button>
-      </Tooltip>
+      <Button icon={<SettingOutlined />} onClick={onColumnSettings}>
+        列配置
+      </Button>
     </div>
   );
 };

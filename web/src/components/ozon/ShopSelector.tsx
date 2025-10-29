@@ -48,6 +48,17 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
     // 避免不必要的状态更新
     if (shops.length === 0) return;
 
+    // 特殊情况：只有一个店铺且不显示"全部"选项时，自动选择唯一的店铺
+    if (!isMultiple && shops.length === 1 && !showAllOption) {
+      const shopId = shops[0].id;
+      if (selectedShop !== shopId) {
+        setSelectedShop(shopId);
+        onChange?.(shopId);
+        localStorage.setItem('ozon_selected_shop', shopId.toString());
+      }
+      return;
+    }
+
     // 如果外部已经设置了value，优先使用外部value
     if (value !== undefined) {
       if (isMultiple) {
@@ -57,6 +68,16 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         setSelectedShop(value as number | null);
       }
       return;
+    }
+
+    // 检查当前选中的店铺是否在授权列表中
+    if (!isMultiple && selectedShop !== null && !shops.find((s) => s.id === selectedShop)) {
+      // 当前选中的店铺不在授权列表中，清除localStorage并重置
+      console.warn(`店铺 ${selectedShop} 不在授权列表中，自动清除`);
+      localStorage.removeItem('ozon_selected_shop');
+      setSelectedShop(null);
+      // 触发onChange，让父组件知道需要重置
+      onChange?.(null);
     }
 
     // 如果已经有选中店铺，且该店铺仍然存在，则不需要改变

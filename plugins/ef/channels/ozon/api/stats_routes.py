@@ -9,6 +9,7 @@ from datetime import timedelta
 import logging
 
 from ef_core.database import get_async_session
+from ef_core.api.auth import get_current_user_flexible
 from ..utils.datetime_utils import utcnow
 
 router = APIRouter(tags=["ozon-stats"])
@@ -146,7 +147,8 @@ async def get_sync_logs(
 @router.get("/statistics")
 async def get_statistics(
     shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user = Depends(get_current_user_flexible)
 ):
     """
     获取统计数据
@@ -154,12 +156,24 @@ async def get_statistics(
     Args:
         shop_id: 店铺ID，可选
         db: 数据库会话
+        current_user: 当前用户
 
     Returns:
         统计数据
+
+    权限控制：
+    - admin: 可以访问所有店铺的统计
+    - operator/viewer: 只能访问已授权店铺的统计
     """
     from ..models import OzonShop, OzonProduct, OzonOrder, OzonPosting
     from sqlalchemy import select, func
+    from .permissions import filter_by_shop_permission
+
+    # 权限验证
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     try:
         # 构建查询条件

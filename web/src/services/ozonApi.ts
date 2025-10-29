@@ -180,6 +180,12 @@ export interface Product {
   stock: number;
   reserved: number;
   available: number;
+  warehouse_stocks?: Array<{
+    warehouse_id: number;
+    warehouse_name: string;
+    present: number;
+    reserved: number;
+  }>;
   weight?: number;
   width?: number;
   height?: number;

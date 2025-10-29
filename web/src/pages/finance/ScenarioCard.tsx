@@ -17,6 +17,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ScenarioConfig } from './constants';
 import { calculateDefaultShipping, formatPercentage, formatMoney } from './utils';
 
+import { formatNumber } from '@/utils/formatNumber';
+
 const { Text } = Typography;
 
 interface SharedInputData {
@@ -320,7 +322,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
                     <Text style={{ fontSize: 12 }}>采购成本：</Text>
                   </Col>
                   <Col>
-                    <Text style={{ fontSize: 12 }}>¥{sharedInputData.cost.toFixed(2)}</Text>
+                    <Text style={{ fontSize: 12 }}>¥{formatNumber(sharedInputData.cost)}</Text>
                   </Col>
                 </Row>
                 <Row justify="space-between">
@@ -329,7 +331,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
                   </Col>
                   <Col>
                     <Text style={{ fontSize: 12 }}>
-                      ¥{shipping !== undefined ? shipping.toFixed(2) : '--'}
+                      ¥{shipping !== undefined ? formatNumber(shipping) : '--'}
                     </Text>
                   </Col>
                 </Row>
@@ -339,7 +341,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
                   </Col>
                   <Col>
                     <Text style={{ fontSize: 12 }}>
-                      ¥{(sharedInputData.price * platformRate).toFixed(2)}
+                      ¥{formatNumber(sharedInputData.price * platformRate)}
                     </Text>
                   </Col>
                 </Row>
@@ -349,7 +351,7 @@ const ScenarioCard: React.FC<ScenarioCardProps> = ({
                   </Col>
                   <Col>
                     <Text style={{ fontSize: 12 }}>
-                      ¥{packingFee !== undefined ? packingFee.toFixed(2) : '--'}
+                      ¥{packingFee !== undefined ? formatNumber(packingFee) : '--'}
                     </Text>
                   </Col>
                 </Row>
