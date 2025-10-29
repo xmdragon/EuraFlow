@@ -8,6 +8,7 @@ import { Routes, Route } from 'react-router-dom';
 // 路由懒加载
 const SyncServices = lazy(() => import('./SyncServices'));
 const SystemConfiguration = lazy(() => import('./SystemConfiguration'));
+const LogManagement = lazy(() => import('./LogManagement'));
 
 // 加载中组件
 const PageLoading = () => (
@@ -29,6 +30,7 @@ const SystemManagement: React.FC = () => {
       <Routes>
         <Route path="sync-services" element={<SyncServices />} />
         <Route path="configuration" element={<SystemConfiguration />} />
+        <Route path="logs" element={<LogManagement />} />
       </Routes>
     </Suspense>
   );

@@ -261,6 +261,17 @@ const Dashboard: React.FC = () => {
                 label: createMenuLabel("system-configuration", "系统配置", "/dashboard/system/configuration"),
                 onClick: () => navigate("/dashboard/system/configuration"),
               },
+              // 日志管理 - 仅管理员可见
+              ...(user?.role === "admin"
+                ? [
+                    {
+                      key: "system-logs",
+                      icon: <FileTextOutlined />,
+                      label: createMenuLabel("system-logs", "日志管理", "/dashboard/system/logs"),
+                      onClick: () => navigate("/dashboard/system/logs"),
+                    },
+                  ]
+                : []),
             ],
           },
         ]
@@ -293,6 +304,7 @@ const Dashboard: React.FC = () => {
       return "ozon-finance-transactions";
     if (path.includes("/ozon/chat")) return "ozon-chats";
     if (path.includes("/ozon/watermark")) return "ozon-watermark";
+    if (path.includes("/system/logs")) return "system-logs";
     if (path.includes("/system/configuration")) return "system-configuration";
     if (path.includes("/system/sync-services")) return "system-sync-services";
     if (path.includes("/finance")) return "finance";

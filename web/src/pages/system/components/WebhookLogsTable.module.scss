@@ -1,0 +1,60 @@
+.formContainer {
+  margin-bottom: 16px;
+}
+
+.shopSelect {
+  min-width: 150px;
+}
+
+.eventTypeSelect {
+  width: 200px;
+}
+
+.statusSelect {
+  width: 150px;
+}
+
+.loadMoreContainer {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.detailLoadingContainer {
+  text-align: center;
+  padding: 40px;
+}
+
+.detailContent {
+  width: 100%;
+}
+
+.detailPayload {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.detailHeaders {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.copyButton {
+  padding: 0 4px;
+  height: 20px;
+  min-width: 20px;
+}
+
+// 表格单元格紧凑样式
+:global {
+  .ant-table-wrapper {
+    :global(.ant-table-cell) {
+      padding: 2px 8px !important;
+    }
+  }
+}

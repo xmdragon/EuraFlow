@@ -13,16 +13,16 @@ class ApiResponse(BaseModel, Generic[T]):
     data: Optional[T] = Field(default=None, description="响应数据")
     error: Optional[Dict[str, Any]] = Field(default=None, description="错误信息（RFC7807 Problem Details）")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
-    
+
     @classmethod
     def success(cls, data: T, metadata: Optional[Dict[str, Any]] = None) -> "ApiResponse[T]":
         """创建成功响应"""
-        return cls(ok=True, data=data, metadata=metadata)
-    
+        return cls(ok=True, data=data, error=None, metadata=metadata)
+
     @classmethod
-    def error(cls, error: Dict[str, Any]) -> "ApiResponse[None]":
+    def create_error(cls, error_dict: Dict[str, Any]) -> "ApiResponse[None]":
         """创建错误响应"""
-        return cls(ok=False, error=error)
+        return cls(ok=False, data=None, error=error_dict, metadata=None)
 
 
 class PaginatedResponse(BaseModel, Generic[T]):

@@ -1,0 +1,7 @@
+@use '@/styles/variables' as *;
+
+.logCard {
+  :global(.ant-card-body) {
+    padding: $spacing-xs;
+  }
+}

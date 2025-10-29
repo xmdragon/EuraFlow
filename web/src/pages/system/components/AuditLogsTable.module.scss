@@ -1,0 +1,45 @@
+.formContainer {
+  margin-bottom: 16px;
+}
+
+.userSelect {
+  width: 200px;
+}
+
+.moduleSelect {
+  width: 150px;
+}
+
+.actionSelect {
+  width: 120px;
+}
+
+.loadMoreContainer {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.detailContent {
+  width: 100%;
+}
+
+.detailChanges {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 4px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.detailUserAgent {
+  font-size: 12px;
+}
+
+// 表格单元格紧凑样式
+:global {
+  .ant-table-wrapper {
+    :global(.ant-table-cell) {
+      padding: 2px 8px !important;
+    }
+  }
+}

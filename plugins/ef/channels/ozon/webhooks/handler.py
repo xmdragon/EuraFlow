@@ -381,7 +381,7 @@ class OzonWebhookHandler:
 
                 # 更新Webhook事件关联
                 webhook_event.entity_type = "posting"
-                webhook_event.entity_id = str(posting.id)
+                webhook_event.entity_id = posting.posting_number
 
                 # 如果状态变为"awaiting_deliver"（等待发运），自动下载PDF标签
                 if new_status == "awaiting_deliver":
@@ -710,7 +710,7 @@ class OzonWebhookHandler:
                 await session.commit()
 
                 webhook_event.entity_type = "posting"
-                webhook_event.entity_id = str(posting.id)
+                webhook_event.entity_id = posting.posting_number
 
                 # 发送 WebSocket 通知（全局广播）
                 try:
@@ -775,7 +775,7 @@ class OzonWebhookHandler:
                 await session.commit()
 
                 webhook_event.entity_type = "posting"
-                webhook_event.entity_id = str(posting.id)
+                webhook_event.entity_id = posting.posting_number
 
                 # 发送 WebSocket 通知（全局广播）
                 try:
@@ -1089,7 +1089,7 @@ class OzonWebhookHandler:
                 logger.error(f"Failed to send WebSocket notification: {e}", exc_info=True)
 
             webhook_event.entity_type = "posting"
-            webhook_event.entity_id = str(posting.id)
+            webhook_event.entity_id = posting.posting_number
 
             # 步骤3：后台异步获取完整信息并更新（不阻塞webhook响应）
             asyncio.create_task(self._update_posting_with_api_data(posting_number))
@@ -1133,7 +1133,7 @@ class OzonWebhookHandler:
                 await session.commit()
 
                 webhook_event.entity_type = "posting"
-                webhook_event.entity_id = str(posting.id)
+                webhook_event.entity_id = posting.posting_number
                 return {"posting_id": posting.id, "cutoff_date_updated": True}
 
             return {"message": "Posting not found"}
@@ -1166,7 +1166,7 @@ class OzonWebhookHandler:
                 # 记录日志，不直接更新delivered_at（实际妥投由posting.delivered事件处理）
                 logger.info(f"Delivery date updated for posting {posting.id}")
                 webhook_event.entity_type = "posting"
-                webhook_event.entity_id = str(posting.id)
+                webhook_event.entity_id = posting.posting_number
                 return {"posting_id": posting.id, "delivery_date_recorded": True}
 
             return {"message": "Posting not found"}
