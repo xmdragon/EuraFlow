@@ -102,6 +102,7 @@ export interface CollectionProgress {
   target: number;
   isRunning: boolean;
   errors: string[];
+  status?: string;  // 当前状态描述
 }
 
 /**

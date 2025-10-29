@@ -25,6 +25,9 @@ export class ProductCollector {
   private scrollCount = 0;
   private noChangeCount = 0;
 
+  // 进度更新回调
+  private onProgressCallback?: (progress: CollectionProgress) => void;
+
   constructor(
     private fusionEngine: DataFusionEngine,
     private config: CollectorConfig
@@ -42,6 +45,9 @@ export class ProductCollector {
     if (this.isRunning) {
       throw new Error('采集已在运行中');
     }
+
+    // 保存进度回调
+    this.onProgressCallback = onProgress;
 
     // 【检测数据工具】必须安装上品帮或毛子ERP
     const availableParsers = this.fusionEngine.getAvailableParsers();
@@ -236,11 +242,14 @@ export class ProductCollector {
       }
 
       // 等待整行数据就绪（关键优化：参考用户脚本）
+      // 更新进度状态，让用户知道正在等待
+      this.progress.status = `等待第${Math.floor(rows.indexOf(row) / 4) + 1}批数据加载...`;
       const isRowReady = await this.waitForRowData(row);
       if (!isRowReady) {
         console.warn(`[Collector] 行数据未就绪，跳过该行（${row.length}个商品）`);
         continue;
       }
+      this.progress.status = '正在采集...';
 
       // 并行采集同一行的商品
       const rowPromises = row.map(async (card) => {
@@ -250,6 +259,8 @@ export class ProductCollector {
           // 去重：使用 SKU 作为唯一标识
           if (product.product_id && !this.collected.has(product.product_id)) {
             this.collected.set(product.product_id, product);
+            // 实时更新进度（每个商品采集成功就更新）
+            this.progress.collected = this.collected.size;
             return product;
           }
         } catch (error: any) {
@@ -266,6 +277,8 @@ export class ProductCollector {
       const successCount = rowResults.filter(p => p !== null).length;
       if (successCount > 0) {
         console.log(`[Collector] 本行采集成功 ${successCount}/${row.length} 个商品`);
+        // 每行采集完成后立即更新UI进度
+        this.onProgressCallback?.(this.progress);
       }
     }
   }
@@ -283,8 +296,12 @@ export class ProductCollector {
     const lastCard = row[row.length - 1];
 
     while (Date.now() - startTime < maxWait) {
-      // 上品帮的根容器选择器（注意：data-ozon-bang="true" 是关键标识）
-      const bangElement = lastCard.querySelector('.ozon-bang-item[data-ozon-bang="true"]') as HTMLElement;
+      // 先尝试多种上品帮选择器
+      let bangElement = lastCard.querySelector('.ozon-bang-item[data-ozon-bang="true"]') as HTMLElement;
+      if (!bangElement) {
+        // 备用选择器：可能没有 data-ozon-bang 属性
+        bangElement = lastCard.querySelector('.ozon-bang-item') as HTMLElement;
+      }
 
       if (bangElement) {
         const bangText = bangElement.textContent || '';
@@ -314,6 +331,16 @@ export class ProductCollector {
         if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
           console.log('[Collector] 行数据就绪（上品帮）');
           return true;
+        }
+
+        // 调试：如果有上品帮元素但数据不完整
+        if (hasContent) {
+          console.log('[Collector] 上品帮元素存在但数据不完整', {
+            hasCompetitorData,
+            hasRFBSCommission,
+            hasFBPCommission,
+            textLength: bangText.length
+          });
         }
       }
 
