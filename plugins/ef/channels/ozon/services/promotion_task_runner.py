@@ -80,16 +80,20 @@ class PromotionTaskRunner:
 
                 # 同步每个店铺
                 for shop in shops:
+                    # 提前获取shop属性，避免在异常处理时触发懒加载
+                    shop_id = shop.id
+                    shop_name = shop.shop_name
+
                     try:
-                        logger.info(f"Syncing shop {shop.id}: {shop.shop_name}")
+                        logger.info(f"Syncing shop {shop_id}: {shop_name}")
 
                         # 1. 同步活动清单
-                        result1 = await PromotionService.sync_actions(shop.id, session)
+                        result1 = await PromotionService.sync_actions(shop_id, session)
                         synced_actions = result1.get("synced_count", 0)
                         total_actions += synced_actions
 
                         # 2. 获取所有活动
-                        actions = await PromotionService.get_actions_with_stats(shop.id, session)
+                        actions = await PromotionService.get_actions_with_stats(shop_id, session)
 
                         # 3. 同步每个活动的商品
                         for action in actions:
@@ -97,20 +101,20 @@ class PromotionTaskRunner:
 
                             # 同步候选商品
                             result2 = await PromotionService.sync_action_candidates(
-                                shop.id, action_id, session
+                                shop_id, action_id, session
                             )
                             total_candidates += result2.get("synced_count", 0)
 
                             # 同步参与商品
                             result3 = await PromotionService.sync_action_products(
-                                shop.id, action_id, session
+                                shop_id, action_id, session
                             )
                             total_products += result3.get("synced_count", 0)
 
                             # 4. 执行自动取消（如果开启）
                             if action.get("auto_cancel_enabled"):
                                 result4 = await PromotionService.auto_cancel_task(
-                                    shop.id, action_id, session
+                                    shop_id, action_id, session
                                 )
                                 cancelled = result4.get("deactivated_count", 0)
                                 total_auto_cancelled += cancelled
@@ -119,11 +123,11 @@ class PromotionTaskRunner:
                                         f"Auto-cancelled {cancelled} products in action {action_id}"
                                     )
 
-                        logger.info(f"Shop {shop.id} sync completed: "
+                        logger.info(f"Shop {shop_id} sync completed: "
                                   f"{synced_actions} actions synced")
 
                     except Exception as e:
-                        logger.error(f"Error syncing shop {shop.id}: {e}", exc_info=True)
+                        logger.error(f"Error syncing shop {shop_id}: {e}", exc_info=True)
                         continue
 
                 # 记录总结
