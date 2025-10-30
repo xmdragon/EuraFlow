@@ -116,7 +116,11 @@ class OzonShop(Base):
     owner = relationship("User", backref="ozon_shops", foreign_keys=[owner_user_id])
     
     def __repr__(self) -> str:
-        return f"<OzonShop(id={self.id}, shop_name={self.shop_name}, status={self.status})>"
+        # 使用 __dict__.get() 避免触发懒加载
+        id_val = self.__dict__.get('id', '?')
+        name_val = self.__dict__.get('shop_name', '?')
+        status_val = self.__dict__.get('status', '?')
+        return f"<OzonShop(id={id_val}, shop_name={name_val}, status={status_val})>"
     
     def to_dict(self, include_credentials: bool = False) -> dict:
         """转换为字典"""
