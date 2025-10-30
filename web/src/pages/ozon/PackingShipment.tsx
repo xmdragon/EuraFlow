@@ -605,7 +605,6 @@ const PackingShipment: React.FC = () => {
     allocating: statsData?.data?.allocating || 0,
     allocated: statsData?.data?.allocated || 0,
     tracking_confirmed: statsData?.data?.tracking_confirmed || 0,
-    shipping: statsData?.data?.shipping || 0,
     printed: statsData?.data?.printed || 0,
   };
 
@@ -1572,10 +1571,6 @@ const PackingShipment: React.FC = () => {
                   label: createTabLabel('tracking_confirmed', <CheckCircleOutlined />, '单号确认', statusCounts.tracking_confirmed),
                 },
                 {
-                  key: 'shipping',
-                  label: createTabLabel('shipping', <RocketOutlined />, '运输中', statusCounts.shipping),
-                },
-                {
                   key: 'printed',
                   label: createTabLabel('printed', <PrinterOutlined />, '已打印', statusCounts.printed),
                 },
@@ -2133,24 +2128,8 @@ const PackingShipment: React.FC = () => {
                         const sourcePlatform = card.posting.source_platform;
                         if (!sourcePlatform) return false;
 
-                        // 解析 JSON 字符串为数组（兼容字符串和数组格式）
-                        let platformList: string[] = [];
-                        try {
-                          if (typeof sourcePlatform === 'string') {
-                            // 尝试解析 JSON 字符串
-                            platformList = JSON.parse(sourcePlatform);
-                          } else if (Array.isArray(sourcePlatform)) {
-                            platformList = sourcePlatform;
-                          } else {
-                            platformList = [sourcePlatform];
-                          }
-                        } catch {
-                          // 如果解析失败，视为普通字符串
-                          platformList = [sourcePlatform];
-                        }
-
                         // 检查是否包含所选平台
-                        return platformList.includes(selectedPlatform);
+                        return sourcePlatform.includes(selectedPlatform);
                       }
                       return true;
                     })

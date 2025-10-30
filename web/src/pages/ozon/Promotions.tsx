@@ -761,7 +761,7 @@ const Promotions: React.FC = () => {
       return;
     }
 
-    confirm({
+    Modal.confirm({
       title: '确认取消促销',
       content: `确定要取消 ${selectedActiveRows.length} 个商品的促销吗？`,
       onOk: () => {

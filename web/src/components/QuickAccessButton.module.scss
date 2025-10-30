@@ -4,11 +4,12 @@
 .container {
   position: fixed;
   right: 20px;
-  top: 66.67vh; // 2/3 高度
+  // top 通过 inline style 动态设置（默认 66.67vh，拖动后使用 px）
   z-index: 1000;
+  transition: none; // 禁用过渡，避免拖动时卡顿
 
-  // 悬停时隐藏图标，显示菜单
-  &:hover {
+  // 悬停时隐藏图标，显示菜单（拖动时禁用）
+  &:hover:not(.dragging) {
     .iconButton {
       opacity: 0;
       pointer-events: none;
@@ -18,6 +19,21 @@
       opacity: 1;
       transform: translateX(0);
       pointer-events: auto;
+    }
+  }
+
+  // 拖动中状态
+  &.dragging {
+    cursor: move;
+    user-select: none; // 禁止文本选择
+
+    .iconButton {
+      box-shadow: 0 8px 24px rgba(24, 144, 255, 0.6);
+      transform: scale(1.05);
+    }
+
+    .menu {
+      pointer-events: none; // 拖动时禁用菜单交互
     }
   }
 }
@@ -34,7 +50,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: move; // 拖动光标
   box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1001;

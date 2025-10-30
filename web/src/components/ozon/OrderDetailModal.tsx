@@ -732,25 +732,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                             <Text>
                               {(() => {
                                 const sourcePlatform = localPosting?.source_platform;
-                                if (!sourcePlatform) return '-';
-
-                                // 解析 JSON 字符串为数组（兼容字符串和数组格式）
-                                let platformList: string[] = [];
-                                try {
-                                  if (typeof sourcePlatform === 'string') {
-                                    // 尝试解析 JSON 字符串
-                                    platformList = JSON.parse(sourcePlatform);
-                                  } else if (Array.isArray(sourcePlatform)) {
-                                    platformList = sourcePlatform;
-                                  } else {
-                                    platformList = [sourcePlatform];
-                                  }
-                                } catch {
-                                  // 如果解析失败，视为普通字符串
-                                  platformList = [sourcePlatform];
-                                }
-
-                                return platformList.length > 0 ? platformList.join(', ') : '-';
+                                if (!sourcePlatform || sourcePlatform.length === 0) return '-';
+                                return sourcePlatform.join(', ');
                               })()}
                             </Text>
                             {canEdit && canOperate && (
@@ -759,25 +742,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                 size="small"
                                 icon={<EditOutlined />}
                                 onClick={() => {
-                                  const sourcePlatform = localPosting?.source_platform;
-                                  let platformList: string[] = [];
-
-                                  // 解析当前值为数组
-                                  if (sourcePlatform) {
-                                    try {
-                                      if (typeof sourcePlatform === 'string') {
-                                        platformList = JSON.parse(sourcePlatform);
-                                      } else if (Array.isArray(sourcePlatform)) {
-                                        platformList = sourcePlatform;
-                                      } else {
-                                        platformList = [sourcePlatform];
-                                      }
-                                    } catch {
-                                      platformList = [sourcePlatform];
-                                    }
-                                  }
-
-                                  setEditSourcePlatform(platformList);
+                                  const sourcePlatform = localPosting?.source_platform || [];
+                                  setEditSourcePlatform(sourcePlatform);
                                   setIsEditingSourcePlatform(true);
                                 }}
                               >

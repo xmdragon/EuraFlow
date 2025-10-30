@@ -404,7 +404,7 @@ export interface Order {
   domestic_tracking_number?: string;
   domestic_tracking_numbers?: string[]; // 国内物流单号列表（一对多关系）
   material_cost?: string;
-  source_platform?: string;
+  source_platform?: string[]; // 采购平台列表
   order_notes?: string;
   delivery_price?: string;
   total_price?: string;
@@ -457,7 +457,7 @@ export interface Posting {
   /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string; // 国内物流单号（常用字段，提升到 Posting）
   domestic_tracking_numbers?: string[]; // 国内物流单号列表（一对多关系）
-  source_platform?: string; // 采集平台（常用字段，提升到 Posting）
+  source_platform?: string[]; // 采购平台列表（常用字段，提升到 Posting）
   order_notes?: string; // 订单备注
   // 财务字段
   purchase_price?: string; // 进货价格
@@ -1323,7 +1323,7 @@ export interface PurchasePriceHistory {
   posting_number: string;
   purchase_price: string | null;
   updated_at: string | null;
-  source_platform?: string;
+  source_platform?: string[]; // 采购平台列表
 }
 
 export interface PurchasePriceHistoryResponse {
