@@ -194,7 +194,7 @@ async def setup(hooks) -> None:
             try:
                 async with db_manager.get_session() as db:
                     # 获取所有活跃的店铺
-                    stmt = select(OzonShop).where(OzonShop.is_active == True)
+                    stmt = select(OzonShop).where(OzonShop.status == "active")
                     result = await db.execute(stmt)
                     shops = result.scalars().all()
 
