@@ -27,6 +27,10 @@ export default defineConfig({
           version: Date.now().toString(), // 使用时间戳作为版本号
           buildTime: new Date().toISOString(),
         }
+        // 确保 dist 目录存在
+        if (!fs.existsSync(distPath)) {
+          fs.mkdirSync(distPath, { recursive: true })
+        }
         fs.writeFileSync(versionFile, JSON.stringify(version, null, 2))
         console.log('✓ Generated version.json:', version)
       }
