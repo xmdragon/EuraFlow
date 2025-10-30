@@ -241,7 +241,7 @@ const ApiKeysTab: React.FC = () => {
     <div className={styles.container}>
       {/* 顶部说明和操作 */}
       <div className={styles.header}>
-        <Text type="secondary">用于Tampermonkey脚本等外部工具的身份认证</Text>
+        <Text type="secondary">用于浏览器扩展插件等外部工具的身份认证</Text>
         {canOperate && (
           <Button
             type="primary"
@@ -270,7 +270,7 @@ const ApiKeysTab: React.FC = () => {
           </div>
         </div>
         <Text type="secondary" className={styles.apiHint}>
-          在 Tampermonkey 脚本中填写此地址和下方创建的 API Key
+          在浏览器扩展插件的设置界面中填写此地址和下方创建的 API Key
         </Text>
       </Card>
 
@@ -280,11 +280,11 @@ const ApiKeysTab: React.FC = () => {
         description={
           <ol className={styles.usageList}>
             <li>点击"创建API Key"生成新密钥，立即复制保存（仅显示一次）</li>
-            <li>在 Ozon 网站打开 Tampermonkey 脚本控制面板，展开"⚙️ API设置"</li>
+            <li>在浏览器中打开 EuraFlow 选品助手扩展插件，点击右上角的"设置"图标</li>
             <li>
-              填写上方的 <strong>API 地址</strong> 和刚才复制的 <strong>API Key</strong>
+              在设置界面中填写上方的 <strong>API 地址</strong> 和刚才复制的 <strong>API Key</strong>
             </li>
-            <li>点击"测试连接"验证配置，然后即可使用自动上传功能</li>
+            <li>点击"测试连接"验证配置，测试成功后即可使用数据采集和自动上传功能</li>
             <li>如果 Key 泄露，请立即删除或重新生成</li>
           </ol>
         }
@@ -339,7 +339,7 @@ const ApiKeysTab: React.FC = () => {
             name="name"
             rules={[{ required: true, message: '请输入Key名称' }]}
           >
-            <Input placeholder="例如：Tampermonkey脚本" />
+            <Input placeholder="例如：选品助手插件" />
           </Form.Item>
 
           <Form.Item label="过期时间" name="expires_in_days">

@@ -139,7 +139,7 @@ const ConfigGuideTab: React.FC = () => {
         <Panel header="🔑 API密钥管理" key="api-keys">
           <Title level={5}>API密钥用途</Title>
           <Paragraph>
-            API密钥用于Tampermonkey脚本、浏览器扩展等外部工具访问系统，主要用于OZON选品助手功能。
+            API密钥用于浏览器扩展插件等外部工具访问系统，主要用于OZON选品助手功能。
           </Paragraph>
 
           <Title level={5}>创建步骤</Title>
@@ -148,7 +148,7 @@ const ConfigGuideTab: React.FC = () => {
               <li>在API密钥Tab点击"创建API Key"</li>
               <li>设置密钥名称和过期时间</li>
               <li>立即复制生成的密钥（仅显示一次）</li>
-              <li>在Tampermonkey脚本中配置API地址和密钥</li>
+              <li>在浏览器扩展插件的设置界面中配置API地址和密钥</li>
             </ol>
           </Paragraph>
 
