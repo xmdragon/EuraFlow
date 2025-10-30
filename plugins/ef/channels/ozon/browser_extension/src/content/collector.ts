@@ -1,6 +1,18 @@
 import { DataFusionEngine } from './fusion/engine';
 import type { ProductData, CollectionProgress, CollectorConfig } from '../shared/types';
 
+// 全局DEBUG变量，可在控制台修改: window.EURAFLOW_DEBUG = true
+declare global {
+  interface Window {
+    EURAFLOW_DEBUG: boolean;
+  }
+}
+
+// 初始化DEBUG为false
+if (typeof window.EURAFLOW_DEBUG === 'undefined') {
+  window.EURAFLOW_DEBUG = false;
+}
+
 /**
  * 商品采集器（完全对齐原 Tampermonkey 版本）
  *
@@ -21,7 +33,7 @@ export class ProductCollector {
     errors: []
   };
 
-  // 滚动控制参数（原版配置）
+  // 滚动控制参数
   private scrollStepSize = 0.5;  // 每次滚动视口倍数（0.5 = 半屏）
   private scrollCount = 0;
   private noChangeCount = 0;
@@ -37,7 +49,7 @@ export class ProductCollector {
   }
 
   /**
-   * 开始采集（完全对齐原版）
+   * 开始采集
    */
   async startCollection(
     targetCount: number,
@@ -72,6 +84,11 @@ export class ProductCollector {
       errors: []
     };
 
+    if (window.EURAFLOW_DEBUG) {
+      console.log('[DEBUG] 开始采集，目标数量:', targetCount);
+      console.log('[DEBUG] 已上传指纹集大小:', this.uploadedFingerprints.size);
+    }
+
     try {
       // 初始扫描当前可见商品
       await this.collectVisibleProducts(targetCount);
@@ -83,7 +100,7 @@ export class ProductCollector {
       const maxScrollAttempts = 200;
       const noChangeThreshold = 5;
 
-      // 自动滚动采集（原版逻辑）
+      // 自动滚动采集
       while (this.isRunning && this.scrollCount < maxScrollAttempts) {
         this.scrollCount++;
 
@@ -98,7 +115,7 @@ export class ProductCollector {
         const viewportHeight = window.innerHeight;
         const isNearBottom = currentScroll + viewportHeight >= pageHeight - 100;
 
-        // 【智能滚动策略】原版逻辑
+        // 【智能滚动策略】
         let scrollDistance;
         if (isNearBottom) {
           // 接近底部：滚到最底部
@@ -114,7 +131,7 @@ export class ProductCollector {
           behavior: 'smooth'
         });
 
-        // 【关键修复】先等待页面加载（对齐 Tampermonkey 版本）
+        // 【关键修复】先等待页面加载
         await this.sleep(this.config.scrollWaitTime);
 
         // 采集新商品（并行轮询）
@@ -126,7 +143,14 @@ export class ProductCollector {
         this.progress.collected = this.collected.size;
         onProgress?.(this.progress);
 
-        // 【智能重试机制】原版逻辑
+        if (window.EURAFLOW_DEBUG) {
+          console.log('[DEBUG] 滚动次数:', this.scrollCount);
+          console.log('[DEBUG] 新增商品数:', actualNewCount);
+          console.log('[DEBUG] 当前采集总数:', afterCount, '/', targetCount);
+          console.log('[DEBUG] 进度更新:', this.progress);
+        }
+
+        // 【智能重试机制】
         if (actualNewCount === 0) {
           this.noChangeCount++;
 
@@ -170,7 +194,7 @@ export class ProductCollector {
           forceScrollCount = 0;
           lastCollectedCount = afterCount;
 
-          // 【动态调整滚动速度】原版逻辑
+          // 【动态调整滚动速度】.
           if (actualNewCount > 5) {
             // 新增较多：加速
             this.scrollStepSize = Math.min(this.scrollStepSize * 1.1, 2);
@@ -188,6 +212,13 @@ export class ProductCollector {
 
       const products = Array.from(this.collected.values());
 
+      if (window.EURAFLOW_DEBUG) {
+        console.log('[DEBUG] 采集完成！');
+        console.log('[DEBUG] 总采集数:', products.length);
+        console.log('[DEBUG] 目标数量:', targetCount);
+        console.log('[DEBUG] 滚动次数:', this.scrollCount);
+      }
+
       // 上传数据（如果配置了自动上传）
       // 注意：自动上传由外部控制，这里不自动上传
       // 上传逻辑应该在 ControlPanel 的 stopCollection 中处理
@@ -198,6 +229,10 @@ export class ProductCollector {
       this.isRunning = false;
       this.progress.isRunning = false;
       onProgress?.(this.progress);
+
+      if (window.EURAFLOW_DEBUG) {
+        console.log('[DEBUG] 采集器已停止');
+      }
     }
   }
 
@@ -249,7 +284,7 @@ export class ProductCollector {
 
       // 等待整行数据就绪（关键优化：参考用户脚本）
       // 更新进度状态，让用户知道正在等待
-      this.progress.status = `等待第${Math.floor(rows.indexOf(row) / 4) + 1}批数据加载...`;
+      this.progress.status = `数据加载...`;
       const isRowReady = await this.waitForRowData(row);
       if (!isRowReady) {
         continue;
@@ -269,6 +304,11 @@ export class ProductCollector {
             this.collected.set(product.product_id, product);
             // 实时更新进度（每个商品采集成功就更新）
             this.progress.collected = this.collected.size;
+
+            if (window.EURAFLOW_DEBUG) {
+              console.log('[DEBUG] 采集到新商品:', product.product_id, '当前总数:', this.collected.size);
+            }
+
             return product;
           }
         } catch (error: any) {

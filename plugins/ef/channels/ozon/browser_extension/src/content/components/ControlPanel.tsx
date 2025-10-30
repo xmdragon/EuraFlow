@@ -1,7 +1,6 @@
 /**
  * 控制面板组件（原生样式版本）
  *
- * 完全对齐原 Tampermonkey 脚本的 UI 设计
  */
 
 import type { DataFusionEngine } from '../fusion/engine';
@@ -380,9 +379,9 @@ export function ControlPanel(props: ControlPanelProps) {
     // 获取累计统计
     const stats = collector.getCumulativeStats();
     if (stats.totalUploaded > 0) {
-      updateStatus(`🚀 继续采集，已有 ${stats.totalUploaded} 个，目标: ${targetCount} 个`);
+      updateStatus(`🚀 已有 ${stats.totalUploaded} 个，目标: ${targetCount} 个`);
     } else {
-      updateStatus(`🚀 开始采集，目标: ${targetCount} 个商品`);
+      updateStatus(`🚀 开始采集，目标: ${targetCount} 个`);
     }
 
     try {
@@ -390,7 +389,7 @@ export function ControlPanel(props: ControlPanelProps) {
         updateProgress(progress.collected, progress.target);
         if (!progress.isRunning) {
           stopCollection();
-          updateStatus(`✅ 采集完成！共采集 ${progress.collected} 个商品`);
+          updateStatus(`✅ 采集完成！共采集 ${progress.collected}`);
 
           // 自动上传（如果有 API 配置）
           if (progress.collected > 0) {
@@ -421,7 +420,7 @@ export function ControlPanel(props: ControlPanelProps) {
       // 根据累计统计更新按钮文字
       const stats = collector.getCumulativeStats();
       if (stats.totalUploaded > 0) {
-        toggleBtn.innerHTML = `🚀 继续采集（已有 ${stats.totalUploaded} 个）`;
+        toggleBtn.innerHTML = `🚀 继续采集，已有 ${stats.totalUploaded} 个`;
       } else {
         toggleBtn.innerHTML = '🚀 开始';
       }
@@ -469,14 +468,8 @@ export function ControlPanel(props: ControlPanelProps) {
       // 获取累计统计
       const stats = collector.getCumulativeStats();
 
-      updateStatus(`✅ 本次上传 ${result.total} 个，累计已采集 ${stats.totalUploaded} 个`);
+      updateStatus(`✅ 本次上传 ${result.total} 个，已采集 ${stats.totalUploaded} 个`);
 
-      // 如果有未上传的商品，提示用户
-      if (notUploaded.length > 0) {
-        setTimeout(() => {
-          updateStatus(`💡 还有 ${notUploaded.length} 个商品未上传，可继续采集`);
-        }, 2000);
-      }
     } catch (error: any) {
       updateStatus(`❌ 上传失败: ${error.message}`);
     }

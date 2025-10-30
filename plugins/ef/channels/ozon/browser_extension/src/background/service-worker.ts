@@ -9,7 +9,6 @@
 
 // 监听扩展安装
 chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {
-  console.log('[EuraFlow] Extension installed:', details.reason);
 
   if (details.reason === 'install') {
     // 首次安装：设置默认配置
@@ -22,14 +21,12 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
       scrollWaitTime: 1000
     });
 
-    // 不再自动打开欢迎页面，用户可以从扩展图标访问配置
-    console.log('[EuraFlow] Extension installed successfully. Please configure API settings.');
   }
 });
 
 // 监听来自内容脚本的消息
 chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-  console.log('[EuraFlow] Message received:', message);
+
 
   if (message.type === 'UPLOAD_PRODUCTS') {
     // 处理商品数据上传
@@ -79,8 +76,6 @@ async function handleUploadProducts(data: { apiUrl: string; apiKey: string; prod
 async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
   const { apiUrl, apiKey } = data;
 
-  console.log('[EuraFlow] Testing connection to:', apiUrl);
-
   const response = await fetch(`${apiUrl}/api/ef/v1/auth/me`, {
     method: 'GET',
     headers: {
@@ -88,16 +83,12 @@ async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
     }
   });
 
-  console.log('[EuraFlow] Test connection response status:', response.status);
-
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[EuraFlow] Test connection failed:', errorText);
     throw new Error(`HTTP ${response.status}: ${errorText}`);
   }
 
   const userData = await response.json();
-  console.log('[EuraFlow] Test connection success, user:', userData.username);
   return { status: 'ok', username: userData.username };
 }
 
