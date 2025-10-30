@@ -797,6 +797,10 @@ class PostingOperationsService:
             )
             self.db.add(sync_log)
 
+            # 立即更新本地状态为取消（确保用户看到立即生效，无需等待后台任务完成）
+            posting.operation_status = "cancelled"
+            posting.operation_time = utcnow()
+
             # 5. 提交数据库事务（必须先提交，异步任务才能访问）
             await self.db.commit()
             await self.db.refresh(sync_log)

@@ -296,6 +296,7 @@ async def get_packing_orders(
         # 包含：awaiting_packaging（待打包）、awaiting_registration（等待登记）
         # 排除已经进入后续状态的订单（allocating/allocated/tracking_confirmed/printed等）
         # 排除OZON已取消的订单
+        # 排除已废弃的订单（operation_status = 'cancelled'）
         query = query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
@@ -303,7 +304,8 @@ async def get_packing_orders(
                 or_(
                     OzonPosting.operation_status.is_(None),
                     OzonPosting.operation_status == 'awaiting_stock'
-                )
+                ),
+                OzonPosting.operation_status != 'cancelled'
             )
         )
 
@@ -329,6 +331,7 @@ async def get_packing_orders(
         # 注意：当用户删除所有国内单号后，会自动设置 operation_status='allocated'
         # 支持多种状态，因为订单在不同阶段都可能处于"已分配"状态
         # 排除OZON已取消的订单
+        # 排除已废弃的订单（operation_status = 'cancelled'）
         query = query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
@@ -344,7 +347,9 @@ async def get_packing_orders(
                         )
                     ),
                     OzonPosting.operation_status == 'allocated'
-                )
+                ),
+                # 排除已废弃状态
+                OzonPosting.operation_status != 'cancelled'
             )
         )
 
@@ -470,7 +475,8 @@ async def get_packing_orders(
                 or_(
                     OzonPosting.operation_status.is_(None),
                     OzonPosting.operation_status == 'awaiting_stock'
-                )
+                ),
+                OzonPosting.operation_status != 'cancelled'
             )
         )
 
@@ -503,7 +509,9 @@ async def get_packing_orders(
                         )
                     ),
                     OzonPosting.operation_status == 'allocated'
-                )
+                ),
+                # 排除已废弃状态
+                OzonPosting.operation_status != 'cancelled'
             )
         )
 
@@ -1815,6 +1823,7 @@ async def get_packing_stats(
                 OzonPosting.operation_status.is_(None),
                 OzonPosting.operation_status == 'awaiting_stock'
             ),
+            OzonPosting.operation_status != 'cancelled',
             *base_conditions
         )
         count_query = apply_search_conditions(count_query)
@@ -1851,6 +1860,7 @@ async def get_packing_stats(
                 ),
                 OzonPosting.operation_status == 'allocated'
             ),
+            OzonPosting.operation_status != 'cancelled',
             *base_conditions
         )
         count_query = apply_search_conditions(count_query)
