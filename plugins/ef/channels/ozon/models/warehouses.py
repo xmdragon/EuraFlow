@@ -166,7 +166,12 @@ class OzonWarehouse(Base):
     shop = relationship("OzonShop", backref="warehouses", foreign_keys=[shop_id])
 
     def __repr__(self) -> str:
-        return f"<OzonWarehouse(id={self.id}, warehouse_id={self.warehouse_id}, name={self.name}, status={self.status})>"
+        # Use __dict__.get() to avoid lazy loading
+        id_val = self.__dict__.get('id', '?')
+        warehouse_id_val = self.__dict__.get('warehouse_id', '?')
+        name_val = self.__dict__.get('name', '?')
+        status_val = self.__dict__.get('status', '?')
+        return f"<OzonWarehouse(id={id_val}, warehouse_id={warehouse_id_val}, name={name_val}, status={status_val})>"
 
     def to_dict(self) -> dict:
         """转换为字典"""

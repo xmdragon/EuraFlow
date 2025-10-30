@@ -56,21 +56,30 @@ async def sync_all_promotions(config: Dict[str, Any] = None) -> Dict[str, Any]:
     try:
         async with db_manager.get_session() as db:
             # 获取所有活跃的店铺
-            stmt = select(OzonShop).where(OzonShop.is_active == True)
+            stmt = select(OzonShop).where(OzonShop.status == "active")
             result = await db.execute(stmt)
-            shops = result.scalars().all()
+            shops_orm = result.scalars().all()
+
+            # 立即提取所有店铺信息到字典，完全脱离ORM对象
+            shops = []
+            for shop in shops_orm:
+                shops.append({
+                    'id': shop.id,
+                    'shop_name': shop.shop_name
+                })
 
             logger.info(f"Found {len(shops)} active shops to sync")
 
-            for shop in shops:
+            for shop_data in shops:
+                shop_id = shop_data['id']
                 try:
-                    await _sync_shop_promotions(shop, db, results)
+                    await _sync_shop_promotions(shop_data, db, results)
                     results["shops_processed"] += 1
                 except Exception as e:
-                    error_msg = f"Failed to sync shop {shop.id}: {str(e)}"
+                    error_msg = f"Failed to sync shop {shop_id}: {str(e)}"
                     logger.error(error_msg, exc_info=True)
                     results["errors"].append({
-                        "shop_id": shop.id,
+                        "shop_id": shop_id,
                         "error": error_msg
                     })
 
@@ -105,7 +114,7 @@ async def sync_all_promotions(config: Dict[str, Any] = None) -> Dict[str, Any]:
 
 
 async def _sync_shop_promotions(
-    shop: "OzonShop",
+    shop_data: Dict[str, Any],
     db: AsyncSession,
     results: Dict[str, Any]
 ) -> None:
@@ -113,46 +122,58 @@ async def _sync_shop_promotions(
     同步单个店铺的促销数据
 
     Args:
-        shop: 店铺对象
+        shop_data: 店铺数据字典 (id, shop_name)
         db: 数据库会话
         results: 结果统计字典（会被修改）
     """
-    logger.info(f"Syncing promotions for shop {shop.id} ({shop.name})")
+    shop_id = shop_data['id']
+    shop_name = shop_data['shop_name']
+
+    logger.info(f"Syncing promotions for shop {shop_id} ({shop_name})")
 
     try:
         # 1. 同步活动清单
-        sync_result = await PromotionService.sync_actions(shop.id, db)
+        sync_result = await PromotionService.sync_actions(shop_id, db)
         actions_count = sync_result.get("synced_count", 0)
         results["actions_synced"] += actions_count
-        logger.info(f"Synced {actions_count} actions for shop {shop.id}")
+        logger.info(f"Synced {actions_count} actions for shop {shop_id}")
 
         # 2. 获取所有活动
         stmt = select(OzonPromotionAction).where(
-            OzonPromotionAction.shop_id == shop.id
+            OzonPromotionAction.shop_id == shop_id
         )
         result = await db.execute(stmt)
-        actions = result.scalars().all()
+        actions_orm = result.scalars().all()
 
-        for action in actions:
+        # 立即提取活动信息到字典，脱离ORM对象
+        actions = []
+        for action in actions_orm:
+            actions.append({
+                'action_id': action.action_id,
+                'auto_cancel_enabled': action.auto_cancel_enabled
+            })
+
+        for action_data in actions:
+            action_id = action_data['action_id']
             try:
-                await _sync_action_products(shop.id, action, db, results)
+                await _sync_action_products(shop_id, action_data, db, results)
             except Exception as e:
-                error_msg = f"Failed to sync action {action.action_id}: {str(e)}"
+                error_msg = f"Failed to sync action {action_id}: {str(e)}"
                 logger.error(error_msg, exc_info=True)
                 results["errors"].append({
-                    "shop_id": shop.id,
-                    "action_id": action.action_id,
+                    "shop_id": shop_id,
+                    "action_id": action_id,
                     "error": error_msg
                 })
 
     except Exception as e:
-        logger.error(f"Failed to sync shop {shop.id}", exc_info=True)
+        logger.error(f"Failed to sync shop {shop_id}", exc_info=True)
         raise
 
 
 async def _sync_action_products(
     shop_id: int,
-    action: "OzonPromotionAction",
+    action_data: Dict[str, Any],
     db: AsyncSession,
     results: Dict[str, Any]
 ) -> None:
@@ -161,11 +182,12 @@ async def _sync_action_products(
 
     Args:
         shop_id: 店铺ID
-        action: 活动对象
+        action_data: 活动数据字典 (action_id, auto_cancel_enabled)
         db: 数据库会话
         results: 结果统计字典（会被修改）
     """
-    action_id = action.action_id
+    action_id = action_data['action_id']
+    auto_cancel_enabled = action_data['auto_cancel_enabled']
 
     try:
         # 2.1 同步候选商品
@@ -187,7 +209,7 @@ async def _sync_action_products(
         )
 
         # 2.3 执行自动取消（如果开启）
-        if action.auto_cancel_enabled:
+        if auto_cancel_enabled:
             try:
                 cancel_result = await PromotionService.auto_cancel_task(
                     shop_id, action_id, db

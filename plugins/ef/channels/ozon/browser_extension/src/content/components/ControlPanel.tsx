@@ -420,7 +420,7 @@ export function ControlPanel(props: ControlPanelProps) {
       // 根据累计统计更新按钮文字
       const stats = collector.getCumulativeStats();
       if (stats.totalUploaded > 0) {
-        toggleBtn.innerHTML = `🚀 继续采集，已有 ${stats.totalUploaded} 个`;
+        toggleBtn.innerHTML = `🚀 继续`;
       } else {
         toggleBtn.innerHTML = '🚀 开始';
       }
@@ -454,7 +454,7 @@ export function ControlPanel(props: ControlPanelProps) {
       const toUpload = allProducts.slice(0, targetCount);
       const notUploaded = allProducts.slice(targetCount);
 
-      updateStatus(`📤 正在上传 ${toUpload.length} 个商品...`);
+      updateStatus(`📤 正在上传 ${toUpload.length} 个...`);
 
       const apiClient = new ApiClient(apiConfig.apiUrl, apiConfig.apiKey);
       const result = await apiClient.uploadProducts(toUpload);
@@ -468,7 +468,7 @@ export function ControlPanel(props: ControlPanelProps) {
       // 获取累计统计
       const stats = collector.getCumulativeStats();
 
-      updateStatus(`✅ 本次上传 ${result.total} 个，已采集 ${stats.totalUploaded} 个`);
+      updateStatus(`✅ 本次上传 ${result.total} 个`);
 
     } catch (error: any) {
       updateStatus(`❌ 上传失败: ${error.message}`);
@@ -494,9 +494,9 @@ export function ControlPanel(props: ControlPanelProps) {
     }
     if (progressNumbers) {
       // 获取累计统计
-      const stats = collector.getCumulativeStats();
-      const totalCollected = stats.totalUploaded + current;
-      progressNumbers.textContent = `本次: ${current} | 累计: ${totalCollected} [${Math.round(progress)}%]`;
+      // const stats = collector.getCumulativeStats();
+      // const totalCollected = stats.totalUploaded + current;
+      progressNumbers.textContent = `本次: ${current} [${Math.round(progress)}%]`;
     }
 
     collectedCount = current;
@@ -518,13 +518,13 @@ export function ControlPanel(props: ControlPanelProps) {
   if (stats.totalUploaded > 0) {
     const toggleBtn = document.getElementById('ef-toggle-btn');
     if (toggleBtn) {
-      toggleBtn.innerHTML = `🚀 继续采集（已有 ${stats.totalUploaded} 个）`;
+      toggleBtn.innerHTML = `继续`;
     }
     const progressNumbers = document.getElementById('ef-progress-numbers');
     if (progressNumbers) {
-      progressNumbers.textContent = `本次: 0 | 累计: ${stats.totalUploaded} [0%]`;
+      progressNumbers.textContent = `本次: 0 [0%]`;
     }
-    updateStatus(`✨ 就绪，已有 ${stats.totalUploaded} 个商品，可继续采集`);
+    updateStatus(`✨ 就绪，可继续采集`);
   }
 
   // 返回一个空的 div（React 兼容）

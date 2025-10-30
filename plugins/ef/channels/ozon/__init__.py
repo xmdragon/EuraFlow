@@ -510,14 +510,26 @@ async def pull_orders_task() -> None:
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active")
             )
-            shops = result.scalars().all()
+            shops_orm = result.scalars().all()
 
-            for shop in shops:
+            # 立即提取所有店铺信息到字典，避免懒加载
+            shops = []
+            for shop in shops_orm:
+                shops.append({
+                    'id': shop.id,
+                    'shop_name': shop.shop_name,
+                    'client_id': shop.client_id,
+                    'api_key_enc': shop.api_key_enc
+                })
+
+            for shop_data in shops:
+                shop_id = shop_data['id']
+                shop_name = shop_data['shop_name']
                 try:
                     # 创建API客户端
                     client = OzonAPIClient(
-                        client_id=shop.client_id,
-                        api_key=shop.api_key_enc
+                        client_id=shop_data['client_id'],
+                        api_key=shop_data['api_key_enc']
                     )
 
                     # 计算时间范围（最近24小时的订单）
@@ -538,7 +550,7 @@ async def pull_orders_task() -> None:
                             # 检查订单是否已存在（使用 ozon_order_id）
                             existing = await db.execute(
                                 select(OzonOrder).where(
-                                    OzonOrder.shop_id == shop.id,
+                                    OzonOrder.shop_id == shop_id,
                                     OzonOrder.ozon_order_id == str(posting.get("order_id", ""))
                                 )
                             )
@@ -561,7 +573,7 @@ async def pull_orders_task() -> None:
 
                                 # 创建新订单
                                 order = OzonOrder(
-                                    shop_id=shop.id,
+                                    shop_id=shop_id,
                                     order_id=posting.get("order_id", ""),
                                     order_number=posting.get("order_number", ""),
                                     posting_number=posting.get("posting_number", ""),
@@ -586,12 +598,12 @@ async def pull_orders_task() -> None:
 
                         if new_orders > 0:
                             await db.commit()
-                            logger.info(f"[{shop.shop_name}] Pulled {new_orders} new orders")
+                            logger.info(f"[{shop_name}] Pulled {new_orders} new orders")
 
                     await client.close()
 
                 except Exception as e:
-                    logger.info(f"Error pulling orders for shop {shop.shop_name}: {e}")
+                    logger.info(f"Error pulling orders for shop {shop_name}: {e}")
 
     except Exception as e:
         logger.info(f"Error pulling orders: {e}")
@@ -616,60 +628,81 @@ async def sync_inventory_task() -> None:
             result = await db.execute(
                 select(OzonShop).where(OzonShop.status == "active")
             )
-            shops = result.scalars().all()
+            shops_orm = result.scalars().all()
 
-            for shop in shops:
+            # 立即提取所有店铺信息到字典，避免懒加载
+            shops = []
+            for shop in shops_orm:
+                shops.append({
+                    'id': shop.id,
+                    'shop_name': shop.shop_name,
+                    'client_id': shop.client_id,
+                    'api_key_enc': shop.api_key_enc
+                })
+
+            for shop_data in shops:
+                shop_id = shop_data['id']
+                shop_name = shop_data['shop_name']
                 try:
                     # 创建API客户端
                     client = OzonAPIClient(
-                        client_id=shop.client_id,
-                        api_key=shop.api_key_enc
+                        client_id=shop_data['client_id'],
+                        api_key=shop_data['api_key_enc']
                     )
 
                     # 获取该店铺所有需要同步库存的商品
                     products_result = await db.execute(
                         select(OzonProduct).where(
-                            OzonProduct.shop_id == shop.id,
+                            OzonProduct.shop_id == shop_id,
                             OzonProduct.status == "active"
                         ).limit(100)  # 批量处理，每次最多100个
                     )
-                    products = products_result.scalars().all()
+                    products_orm = products_result.scalars().all()
 
-                    if products:
-                        # 准备批量库存更新数据
-                        stocks_data = []
-                        for product in products:
-                            if product.offer_id and product.stock is not None:
-                                stocks_data.append({
-                                    "offer_id": product.offer_id,
-                                    "product_id": product.ozon_product_id,
-                                    "stock": int(product.stock),
-                                    "warehouse_id": 1  # 默认仓库ID
-                                })
+                    # 立即提取商品信息到字典，避免懒加载
+                    products_data = []
+                    product_ids = []
+                    for product in products_orm:
+                        offer_id = product.offer_id
+                        stock = product.stock
+                        ozon_product_id = product.ozon_product_id
+                        if offer_id and stock is not None:
+                            products_data.append({
+                                "offer_id": offer_id,
+                                "product_id": ozon_product_id,
+                                "stock": int(stock),
+                                "warehouse_id": 1  # 默认仓库ID
+                            })
+                            product_ids.append(product.id)
 
-                        if stocks_data:
-                            # 批量更新库存到Ozon
-                            stock_update = {
-                                "stocks": stocks_data
-                            }
+                    if products_data:
+                        # 批量更新库存到Ozon
+                        stock_update = {
+                            "stocks": products_data
+                        }
 
-                            result = await client.update_stocks(stock_update)
+                        result = await client.update_stocks(stock_update)
 
-                            if result.get("result"):
-                                # 更新本地同步状态
-                                for product in products:
+                        if result.get("result"):
+                            # 更新本地同步状态（重新查询以避免使用detached对象）
+                            for product_id in product_ids:
+                                product_update = await db.execute(
+                                    select(OzonProduct).where(OzonProduct.id == product_id)
+                                )
+                                product = product_update.scalar_one_or_none()
+                                if product:
                                     product.sync_status = "success"
                                     product.last_sync_at = current_time
 
-                                await db.commit()
-                                logger.info(f"[{shop.shop_name}] Synced inventory for {len(stocks_data)} products")
-                            else:
-                                logger.info(f"[{shop.shop_name}] Failed to sync inventory: {result}")
+                            await db.commit()
+                            logger.info(f"[{shop_name}] Synced inventory for {len(products_data)} products")
+                        else:
+                            logger.info(f"[{shop_name}] Failed to sync inventory: {result}")
 
                     await client.close()
 
                 except Exception as e:
-                    logger.info(f"Error syncing inventory for shop {shop.shop_name}: {e}")
+                    logger.info(f"Error syncing inventory for shop {shop_name}: {e}")
 
     except Exception as e:
         logger.info(f"Error syncing inventory: {e}")

@@ -119,10 +119,21 @@ class Kuajing84MaterialCostSyncService:
 
             logger.info(f"Found {len(postings)} postings to process (within 90 days, excluding awaiting_packaging, cancelled, and '订单不存在' errors)")
 
-            # 4. 循环处理每个货件
+            # 立即提取所有posting信息到字典，避免懒加载
+            postings_data = []
             for posting in postings:
-                posting_number = posting.posting_number
-                logger.info(f"Processing posting {posting.id} with posting_number: {posting_number}")
+                postings_data.append({
+                    'id': posting.id,
+                    'posting_number': posting.posting_number,
+                    'order_id': posting.order_id
+                })
+
+            # 4. 循环处理每个货件
+            for posting_data in postings_data:
+                posting_id = posting_data['id']
+                posting_number = posting_data['posting_number']
+                order_id = posting_data['order_id']
+                logger.info(f"Processing posting {posting_id} with posting_number: {posting_number}")
                 stats["records_processed"] += 1
                 stats["posting_numbers"].append(posting_number)
 
@@ -173,6 +184,17 @@ class Kuajing84MaterialCostSyncService:
                     if result["success"]:
                         # 检查订单状态是否为"已打包"
                         if result["order_status_info"] == "已打包":
+                            # 重新查询posting对象（因为需要更新它的属性）
+                            posting_result = await session.execute(
+                                select(OzonPosting).where(OzonPosting.id == posting_id)
+                            )
+                            posting = posting_result.scalar_one_or_none()
+
+                            if not posting:
+                                logger.error(f"Posting {posting_id} not found, skipping")
+                                stats["records_skipped"] += 1
+                                continue
+
                             # 更新物料成本（posting维度）
                             material_cost = Decimal(str(result["money"]))
                             posting.material_cost = material_cost
@@ -233,37 +255,61 @@ class Kuajing84MaterialCostSyncService:
                         stats["records_skipped"] += 1
                         # 简化错误信息
                         raw_error = result.get("message", "Unknown error")
-                        logger.info(f"Processing error for posting {posting.id}, raw_error='{raw_error}'")
+                        logger.info(f"Processing error for posting {posting_id}, raw_error='{raw_error}'")
                         if "跨境巴士没有记录" in raw_error:
                             error_message = "订单不存在"
                             # 记录错误到数据库，下次同步时跳过
-                            logger.info(f"Setting kuajing84_sync_error for posting {posting.id} to '订单不存在'")
-                            posting.kuajing84_sync_error = "订单不存在"
-                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
-                            logger.info(f"Before commit: posting.kuajing84_sync_error={posting.kuajing84_sync_error}")
-                            await session.commit()
-                            logger.info(f"After commit: Marked posting {posting.id} as '订单不存在', will skip in future syncs")
+                            # 重新查询posting对象以更新错误状态
+                            posting_result = await session.execute(
+                                select(OzonPosting).where(OzonPosting.id == posting_id)
+                            )
+                            posting = posting_result.scalar_one_or_none()
+                            if posting:
+                                logger.info(f"Setting kuajing84_sync_error for posting {posting_id} to '订单不存在'")
+                                posting.kuajing84_sync_error = "订单不存在"
+                                posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                                logger.info(f"Before commit: posting.kuajing84_sync_error={posting.kuajing84_sync_error}")
+                                await session.commit()
+                                logger.info(f"After commit: Marked posting {posting_id} as '订单不存在', will skip in future syncs")
                         elif "Cookie" in raw_error and "过期" in raw_error:
                             error_message = "Cookie过期"
-                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
-                            await session.commit()
+                            # 重新查询posting对象
+                            posting_result = await session.execute(
+                                select(OzonPosting).where(OzonPosting.id == posting_id)
+                            )
+                            posting = posting_result.scalar_one_or_none()
+                            if posting:
+                                posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                                await session.commit()
                         elif "API返回错误" in raw_error:
                             # 提取 code 和简短描述
                             error_message = "API错误"
-                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
-                            await session.commit()
+                            # 重新查询posting对象
+                            posting_result = await session.execute(
+                                select(OzonPosting).where(OzonPosting.id == posting_id)
+                            )
+                            posting = posting_result.scalar_one_or_none()
+                            if posting:
+                                posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                                await session.commit()
                         else:
                             error_message = raw_error[:50]  # 限制长度
-                            posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
-                            await session.commit()
+                            # 重新查询posting对象
+                            posting_result = await session.execute(
+                                select(OzonPosting).where(OzonPosting.id == posting_id)
+                            )
+                            posting = posting_result.scalar_one_or_none()
+                            if posting:
+                                posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                                await session.commit()
                         stats["errors"].append({
-                            "posting_id": posting.id,
+                            "posting_id": posting_id,
                             "posting_number": posting_number,
                             "error": error_message
                         })
 
                 except Exception as e:
-                    logger.error(f"Error syncing posting {posting.id}: {e}", exc_info=True)
+                    logger.error(f"Error syncing posting {posting_id}: {e}", exc_info=True)
                     # 简化异常信息
                     error_str = str(e)
                     if "timeout" in error_str.lower():
@@ -276,11 +322,17 @@ class Kuajing84MaterialCostSyncService:
                     order_updated = False
 
                     # 记录同步时间（但不标记为永久失败）
-                    posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
-                    await session.commit()
+                    # 重新查询posting对象
+                    posting_result = await session.execute(
+                        select(OzonPosting).where(OzonPosting.id == posting_id)
+                    )
+                    posting = posting_result.scalar_one_or_none()
+                    if posting:
+                        posting.kuajing84_last_sync_at = datetime.now(timezone.utc)
+                        await session.commit()
 
                     stats["errors"].append({
-                        "posting_id": posting.id,
+                        "posting_id": posting_id,
                         "posting_number": posting_number,
                         "error": error_message
                     })
@@ -301,8 +353,8 @@ class Kuajing84MaterialCostSyncService:
                     error_message=error_message,
                     extra_data={
                         "posting_number": posting_number,
-                        "posting_id": posting.id,
-                        "order_id": posting.order_id
+                        "posting_id": posting_id,
+                        "order_id": order_id
                     }
                 )
                 session.add(sync_log)
@@ -310,7 +362,7 @@ class Kuajing84MaterialCostSyncService:
                 logger.info(f"Created log for posting_number={posting_number}, status={log_status}")
 
                 # 频率控制：等待指定秒数（除最后一个货件）
-                if posting != postings[-1]:
+                if posting_data != postings_data[-1]:
                     await asyncio.sleep(delay_seconds)
 
         logger.info(

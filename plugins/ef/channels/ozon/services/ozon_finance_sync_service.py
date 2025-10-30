@@ -85,11 +85,20 @@ class OzonFinanceSyncService:
 
             logger.info(f"Found {len(postings)} postings to process (status=delivered, finance_synced_at IS NULL, time range OK)")
 
+            # 立即提取所有posting信息到字典，避免懒加载
+            postings_data = []
+            for posting in postings:
+                postings_data.append({
+                    'id': posting.id,
+                    'shop_id': posting.shop_id,
+                    'posting_number': posting.posting_number
+                })
+
             # 2. 按店铺分组postings
             from collections import defaultdict
             postings_by_shop = defaultdict(list)
-            for posting in postings:
-                postings_by_shop[posting.shop_id].append(posting)
+            for posting_data in postings_data:
+                postings_by_shop[posting_data['shop_id']].append(posting_data)
 
             logger.info(f"Postings grouped by {len(postings_by_shop)} shop(s)")
 
@@ -99,32 +108,49 @@ class OzonFinanceSyncService:
                 shop_result = await session.execute(
                     select(OzonShop).where(OzonShop.id == shop_id)
                 )
-                shop = shop_result.scalar_one_or_none()
+                shop_orm = shop_result.scalar_one_or_none()
 
-                if not shop:
+                if not shop_orm:
                     logger.error(f"Shop {shop_id} not found, skipping {len(shop_postings)} postings")
-                    for posting in shop_postings:
+                    for posting_data in shop_postings:
                         stats["errors"].append({
-                            "posting_id": posting.id,
-                            "posting_number": posting.posting_number,
+                            "posting_id": posting_data['id'],
+                            "posting_number": posting_data['posting_number'],
                             "error": f"店铺{shop_id}不存在"
                         })
                     continue
 
-                logger.info(f"Processing {len(shop_postings)} postings for shop: {shop.shop_name} (ID: {shop.id})")
+                # 立即提取shop属性，避免懒加载
+                shop_name = shop_orm.shop_name
+                client_id = shop_orm.client_id
+                api_key_enc = shop_orm.api_key_enc
+
+                logger.info(f"Processing {len(shop_postings)} postings for shop: {shop_name} (ID: {shop_id})")
 
                 # 4. 创建API客户端
-                async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop.id) as client:
+                async with OzonAPIClient(client_id, api_key_enc, shop_id=shop_id) as client:
                     # 5. 循环处理该店铺的每个货件（每5秒处理一个）
-                    for idx, posting in enumerate(shop_postings):
-                        posting_number = posting.posting_number
-                        logger.info(f"Processing posting {posting.id} ({idx+1}/{len(shop_postings)}) with posting_number: {posting_number}")
+                    for idx, posting_data in enumerate(shop_postings):
+                        posting_id = posting_data['id']
+                        posting_number = posting_data['posting_number']
+                        logger.info(f"Processing posting {posting_id} ({idx+1}/{len(shop_postings)}) with posting_number: {posting_number}")
                         stats["records_processed"] += 1
                         stats["posting_numbers"].append(posting_number)
 
                         # 记录开始时间
                         started_at = datetime.now(timezone.utc)
                         run_id = f"ozon_finance_sync_{uuid.uuid4().hex[:12]}"
+
+                        # 重新查询posting对象（因为需要更新它的属性）
+                        posting_result = await session.execute(
+                            select(OzonPosting).where(OzonPosting.id == posting_id)
+                        )
+                        posting = posting_result.scalar_one_or_none()
+
+                        if not posting:
+                            logger.error(f"Posting {posting_id} not found, skipping")
+                            stats["records_skipped"] += 1
+                            continue
 
                         try:
                             # 5. 调用财务交易API
@@ -143,7 +169,7 @@ class OzonFinanceSyncService:
                                 logger.warning(f"No finance transactions found for {posting_number}")
                                 stats["records_skipped"] += 1
                                 await self._create_log(
-                                    session, run_id, posting_number, posting.id,
+                                    session, run_id, posting_number, posting_id,
                                     started_at, "skipped", "无财务交易记录"
                                 )
                                 continue
@@ -155,7 +181,7 @@ class OzonFinanceSyncService:
                                 logger.warning(f"Invalid exchange rate for {posting_number}, skipping")
                                 stats["records_skipped"] += 1
                                 await self._create_log(
-                                    session, run_id, posting_number, posting.id,
+                                    session, run_id, posting_number, posting_id,
                                     started_at, "skipped", "无法计算汇率"
                                 )
                                 continue
@@ -190,7 +216,7 @@ class OzonFinanceSyncService:
                             await session.commit()
 
                             logger.info(
-                                f"Updated finance costs for posting {posting.id}, "
+                                f"Updated finance costs for posting {posting_id}, "
                                 f"posting_number={posting_number}, "
                                 f"last_mile={fees['last_mile_delivery']}, "
                                 f"intl_logistics={fees['international_logistics']}, "
@@ -199,12 +225,12 @@ class OzonFinanceSyncService:
 
                             stats["records_updated"] += 1
                             await self._create_log(
-                                session, run_id, posting_number, posting.id,
+                                session, run_id, posting_number, posting_id,
                                 started_at, "success", None
                             )
 
                         except Exception as e:
-                            logger.error(f"Error syncing finance for posting {posting.id}: {e}", exc_info=True)
+                            logger.error(f"Error syncing finance for posting {posting_id}: {e}", exc_info=True)
 
                             # 简化异常信息
                             error_str = str(e)
@@ -216,13 +242,13 @@ class OzonFinanceSyncService:
                                 error_message = error_str[:50]
 
                             stats["errors"].append({
-                                "posting_id": posting.id,
+                                "posting_id": posting_id,
                                 "posting_number": posting_number,
                                 "error": error_message
                             })
 
                             await self._create_log(
-                                session, run_id, posting_number, posting.id,
+                                session, run_id, posting_number, posting_id,
                                 started_at, "failed", error_message
                             )
 

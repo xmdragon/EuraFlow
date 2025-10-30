@@ -74,7 +74,11 @@ class Kuajing84SyncLog(Base):
     )
 
     def __repr__(self) -> str:
+        # Use __dict__.get() to avoid lazy loading
+        id_val = self.__dict__.get('id', '?')
+        order_number_val = self.__dict__.get('order_number', '?')
+        status_val = self.__dict__.get('sync_status', '?')
         return (
-            f"<Kuajing84SyncLog(id={self.id}, order_number={self.order_number}, "
-            f"status={self.sync_status})>"
+            f"<Kuajing84SyncLog(id={id_val}, order_number={order_number_val}, "
+            f"status={status_val})>"
         )

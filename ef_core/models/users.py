@@ -120,7 +120,11 @@ class User(Base):
     )
     
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, username={self.username}, role={self.role})>"
+        # Use __dict__.get() to avoid lazy loading
+        id_val = self.__dict__.get('id', '?')
+        username_val = self.__dict__.get('username', '?')
+        role_val = self.__dict__.get('role', '?')
+        return f"<User(id={id_val}, username={username_val}, role={role_val})>"
     
     def has_permission(self, permission: str) -> bool:
         """检查用户是否有指定权限"""
@@ -282,7 +286,10 @@ class UserSettings(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<UserSettings(user_id={self.user_id}, currency={self.display_currency})>"
+        # Use __dict__.get() to avoid lazy loading
+        user_id_val = self.__dict__.get('user_id', '?')
+        currency_val = self.__dict__.get('display_currency', '?')
+        return f"<UserSettings(user_id={user_id_val}, currency={currency_val})>"
 
     def to_dict(self) -> dict:
         """转换为字典（按前端格式分组）"""
