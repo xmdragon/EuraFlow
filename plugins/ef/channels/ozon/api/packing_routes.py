@@ -448,8 +448,13 @@ async def get_packing_orders(
             OzonPosting.source_platform.contains([source_platform])
         )
 
-    # 排序：按订单创建时间倒序
-    query = query.order_by(OzonOrder.ordered_at.desc())
+    # 排序：已打印状态按操作时间倒序，其他状态按订单创建时间倒序
+    if operation_status == 'printed':
+        # 已打印：按标记已打印的时间（operation_time）降序排列
+        query = query.order_by(OzonPosting.operation_time.desc())
+    else:
+        # 其他状态：按订单创建时间倒序
+        query = query.order_by(OzonOrder.ordered_at.desc())
 
     # 执行查询获取总数（统计Posting数量）
     count_query = select(func.count(OzonPosting.id)).select_from(OzonPosting).join(
