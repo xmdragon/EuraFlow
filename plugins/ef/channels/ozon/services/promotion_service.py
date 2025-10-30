@@ -39,8 +39,12 @@ class PromotionService:
             if not shop:
                 raise ValueError(f"Shop {shop_id} not found")
 
+            # 提前提取属性，避免懒加载
+            client_id = shop.client_id
+            api_key_enc = shop.api_key_enc
+
             # 创建API客户端
-            client = OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop_id)
+            client = OzonAPIClient(client_id, api_key_enc, shop_id=shop_id)
 
             # 调用OZON API获取活动列表
             response = await client.get_actions()
@@ -121,8 +125,12 @@ class PromotionService:
             if not shop:
                 raise ValueError(f"Shop {shop_id} not found")
 
+            # 提前提取属性，避免懒加载
+            client_id = shop.client_id
+            api_key_enc = shop.api_key_enc
+
             # 创建API客户端
-            client = OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop_id)
+            client = OzonAPIClient(client_id, api_key_enc, shop_id=shop_id)
 
             # 分页获取候选商品
             offset = 0
@@ -220,8 +228,12 @@ class PromotionService:
             if not shop:
                 raise ValueError(f"Shop {shop_id} not found")
 
+            # 提前提取属性，避免懒加载
+            client_id = shop.client_id
+            api_key_enc = shop.api_key_enc
+
             # 创建API客户端
-            client = OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop_id)
+            client = OzonAPIClient(client_id, api_key_enc, shop_id=shop_id)
 
             # 分页获取参与商品
             offset = 0
@@ -501,8 +513,12 @@ class PromotionService:
             if not shop:
                 raise ValueError(f"Shop {shop_id} not found")
 
+            # 提前提取属性，避免懒加载
+            client_id = shop.client_id
+            api_key_enc = shop.api_key_enc
+
             # 创建API客户端
-            client = OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop_id)
+            client = OzonAPIClient(client_id, api_key_enc, shop_id=shop_id)
 
             # 构建OZON API请求数据
             api_products = []
@@ -599,8 +615,12 @@ class PromotionService:
             if not shop:
                 raise ValueError(f"Shop {shop_id} not found")
 
+            # 提前提取属性，避免懒加载
+            client_id = shop.client_id
+            api_key_enc = shop.api_key_enc
+
             # 创建API客户端
-            client = OzonAPIClient(shop.client_id, shop.api_key_enc, shop_id=shop_id)
+            client = OzonAPIClient(client_id, api_key_enc, shop_id=shop_id)
 
             # 获取OZON商品ID列表
             ozon_product_ids = []
