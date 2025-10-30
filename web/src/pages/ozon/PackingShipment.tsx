@@ -730,10 +730,10 @@ const PackingShipment: React.FC = () => {
     }
   };
 
-  // 清除自动填充的内容
-  const handleClearScanAutoFilled = () => {
-    if (scanTrackingNumber) {
-      // 标记为拒绝，1分钟内不再自动填充相同内容
+  // 清除扫描输入框内容
+  const handleClearScanInput = () => {
+    // 仅当是自动填充的内容时，才标记为拒绝
+    if (scanTrackingNumber && isScanAutoFilled) {
       markClipboardRejected(scanTrackingNumber);
     }
     setScanTrackingNumber('');
@@ -1084,9 +1084,9 @@ const PackingShipment: React.FC = () => {
                       size="large"
                       prefix={<SearchOutlined />}
                       suffix={
-                        isScanAutoFilled && scanTrackingNumber ? (
+                        scanTrackingNumber ? (
                           <CloseCircleOutlined
-                            onClick={handleClearScanAutoFilled}
+                            onClick={handleClearScanInput}
                             style={{ color: '#999', cursor: 'pointer' }}
                           />
                         ) : null

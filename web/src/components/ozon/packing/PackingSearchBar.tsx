@@ -45,6 +45,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
 }) => {
   // 自动填充相关状态
   const [isAutoFilled, setIsAutoFilled] = useState(false);
+  const [searchValue, setSearchValue] = useState<string>('');
   const searchInputRef = useRef<InputRef>(null);
 
   // 输入框获得焦点时，尝试自动填充剪贴板内容
@@ -59,26 +60,34 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
     const clipboardText = await readAndValidateClipboard();
     if (clipboardText) {
       form.setFieldValue('search_text', clipboardText);
+      setSearchValue(clipboardText);
       setIsAutoFilled(true);
     }
   };
 
-  // 清除自动填充的内容
-  const handleClearAutoFilled = () => {
-    const currentValue = form.getFieldValue('search_text');
-    if (currentValue) {
-      // 标记为拒绝，1分钟内不再自动填充相同内容
-      markClipboardRejected(currentValue);
+  // 处理输入变化
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchValue(value);
+    setIsAutoFilled(false);
+  };
+
+  // 清除输入框内容
+  const handleClearInput = () => {
+    // 仅当是自动填充的内容时，才标记为拒绝
+    if (searchValue && isAutoFilled) {
+      markClipboardRejected(searchValue);
     }
     form.setFieldValue('search_text', '');
+    setSearchValue('');
     setIsAutoFilled(false);
     searchInputRef.current?.focus();
   };
 
   const handleSearch = (values: PackingSearchFormValues) => {
-    const searchValue = values.search_text?.trim();
+    const searchText = values.search_text?.trim();
 
-    if (!searchValue) {
+    if (!searchText) {
       onSearchParamsChange({});
       return;
     }
@@ -87,29 +96,29 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
     const params: SearchParams = {};
 
     // 规则1: SKU - 10位数字
-    if (/^\d{10}$/.test(searchValue)) {
-      params.sku = searchValue;
+    if (/^\d{10}$/.test(searchText)) {
+      params.sku = searchText;
     }
     // 规则2: 货件编号 - 包含数字和"-"
     // 如果是"数字-数字"格式，添加通配符用于模糊匹配
-    else if (/\d/.test(searchValue) && searchValue.includes('-')) {
-      if (/^\d+-\d+$/.test(searchValue)) {
-        params.posting_number = searchValue + '-%';
+    else if (/\d/.test(searchText) && searchText.includes('-')) {
+      if (/^\d+-\d+$/.test(searchText)) {
+        params.posting_number = searchText + '-%';
       } else {
-        params.posting_number = searchValue;
+        params.posting_number = searchText;
       }
     }
     // 规则3: 追踪号码 - 字母开头+中间数字+字母结尾
-    else if (/^[A-Za-z]+\d+[A-Za-z]+$/.test(searchValue)) {
-      params.tracking_number = searchValue;
+    else if (/^[A-Za-z]+\d+[A-Za-z]+$/.test(searchText)) {
+      params.tracking_number = searchText;
     }
     // 规则4: 国内单号 - 纯数字或字母开头+数字
-    else if (/^\d+$/.test(searchValue) || /^[A-Za-z]+\d+$/.test(searchValue)) {
-      params.domestic_tracking_number = searchValue;
+    else if (/^\d+$/.test(searchText) || /^[A-Za-z]+\d+$/.test(searchText)) {
+      params.domestic_tracking_number = searchText;
     }
     // 其他情况默认按货件编号搜索
     else {
-      params.posting_number = searchValue;
+      params.posting_number = searchText;
     }
 
     onSearchParamsChange(params);
@@ -117,6 +126,8 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
 
   const handleReset = () => {
     form.resetFields();
+    setSearchValue('');
+    setIsAutoFilled(false);
     onSearchParamsChange({});
   };
 
@@ -144,11 +155,11 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
                 prefix={<SearchOutlined />}
                 style={{ width: 320 }}
                 onFocus={handleSearchInputFocus}
-                onChange={() => setIsAutoFilled(false)}
+                onChange={handleInputChange}
                 suffix={
-                  isAutoFilled && form.getFieldValue('search_text') ? (
+                  searchValue ? (
                     <CloseCircleOutlined
-                      onClick={handleClearAutoFilled}
+                      onClick={handleClearInput}
                       style={{ color: '#999', cursor: 'pointer' }}
                     />
                   ) : null
