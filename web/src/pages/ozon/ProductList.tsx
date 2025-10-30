@@ -2,76 +2,40 @@
 /**
  * Ozon 商品列表页面
  */
-import {
-  UploadOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  SyncOutlined,
-  DollarOutlined,
-  ShoppingOutlined,
-  SettingOutlined,
-  SearchOutlined,
-  FileImageOutlined,
-  EllipsisOutlined,
-  LinkOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Table,
-  Button,
-  Space,
-  Card,
-  Row,
-  Col,
-  Input,
-  Select,
-  Tag,
-  Dropdown,
-  Modal,
-  App,
-  Tooltip,
-  Switch,
-  InputNumber,
-  Form,
-  Progress,
-  Alert,
-  Upload,
-  Divider,
-  Popover,
-  Avatar,
-  notification,
-  message,
-} from 'antd';
-import { ColumnsType } from 'antd/es/table';
-import React, { useState, useEffect } from 'react';
+import { ShoppingOutlined } from '@ant-design/icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Table, Button, Space, Card, Row, Col, Input, Modal, App, InputNumber, Form } from 'antd';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currency';
-import ProductSyncErrorModal from './components/ProductSyncErrorModal';
+import { getCurrencySymbol } from '../../utils/currency';
 
+import ProductSyncErrorModal from './components/ProductSyncErrorModal';
 import styles from './ProductList.module.scss';
 
 import ImagePreview from '@/components/ImagePreview';
+import { ColumnConfigModal } from '@/components/ozon/product/ColumnConfigModal';
 import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
+import { ProductImportModal } from '@/components/ozon/product/ProductImportModal';
 import ProductToolbar from '@/components/ozon/product/ProductToolbar';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
+import { WatermarkApplyModal } from '@/components/ozon/watermark/WatermarkApplyModal';
 import PageTitle from '@/components/PageTitle';
+import { getProductTableColumns } from '@/config/ozon/productTableColumns';
+import { useColumnConfig } from '@/hooks/ozon/useColumnConfig';
+import { useProductOperations } from '@/hooks/ozon/useProductOperations';
+import { useProductSync } from '@/hooks/ozon/useProductSync';
+import { useWatermark } from '@/hooks/ozon/useWatermark';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
-import * as watermarkApi from '@/services/watermarkApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
-import { getGlobalNotification } from '@/utils/globalNotification';
 import { loggers } from '@/utils/logger';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import { generateOzonSlug } from '@/utils/ozon/productUtils';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { exportProductsToCSV } from '@/utils/ozon/productExport';
 
 import './ProductList.css';
-
-const { Option } = Select;
 
 const ProductList: React.FC = () => {
   const { modal } = App.useApp();
@@ -88,13 +52,7 @@ const ProductList: React.FC = () => {
   // ShopSelector会从localStorage读取并验证权限，然后通过onChange回调设置
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [filterForm] = Form.useForm();
-  const [priceModalVisible, setPriceModalVisible] = useState(false);
-  const [stockModalVisible, setStockModalVisible] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [syncConfirmVisible, setSyncConfirmVisible] = useState(false);
-  const [syncFullMode, setSyncFullMode] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({
     status: 'on_sale',
   });
@@ -105,57 +63,17 @@ const ProductList: React.FC = () => {
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
-  // 列显示配置状态管理（从localStorage加载）
-  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem('ozon_product_visible_columns');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        loggers.product.error('Failed to parse visible columns config:', e);
-      }
-    }
-    // 默认显示所有列
-    return {
-      sku: true,
-      info: true,
-      price: true,
-      stock: true,
-      status: true,
-      visibility: true,
-      created_at: true,
-      last_sync: true,
-      actions: true, // 操作列始终显示
-    };
-  });
-  const [columnConfigVisible, setColumnConfigVisible] = useState(false);
-
-  // 水印相关状态
+  // 水印相关UI状态
   const [watermarkModalVisible, setWatermarkModalVisible] = useState(false);
-  const [watermarkConfigs, setWatermarkConfigs] = useState<watermarkApi.WatermarkConfig[]>([]);
-  const [selectedWatermarkConfig, setSelectedWatermarkConfig] = useState<number | null>(null);
-  const [watermarkBatchId, setWatermarkBatchId] = useState<string | null>(null);
   const [watermarkStep, setWatermarkStep] = useState<'select' | 'preview'>('select');
   const [watermarkPreviews, setWatermarkPreviews] = useState<any[]>([]);
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [watermarkAnalyzeMode] = useState<'individual' | 'fast'>('individual');
-  // 手动选择的水印位置 Map<productId_imageIndex, position>
-  const [manualPositions, setManualPositions] = useState<Map<string, string>>(new Map());
-  // 每张图片的独立水印设置 Map<productId_imageIndex, {watermarkId, position}>
-  const [imageWatermarkSettings, setImageWatermarkSettings] = useState<
-    Map<string, { watermarkId: number; position?: string }>
-  >(new Map());
 
   // 图片预览状态
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [currentPreviewProduct, setCurrentPreviewProduct] = useState<any>(null);
-
-  // 保存列配置到localStorage
-  useEffect(() => {
-    localStorage.setItem('ozon_product_visible_columns', JSON.stringify(visibleColumns));
-  }, [visibleColumns]);
 
   // 处理排序
   const handleSort = (field: string) => {
@@ -280,325 +198,56 @@ const ProductList: React.FC = () => {
     retryDelay: 1000, // 重试延迟1秒
   });
 
-  // 异步轮询商品同步状态（后台任务）
-  const pollProductSyncStatus = async (taskId: string) => {
-    const notificationKey = 'product-sync';
-    let completed = false;
+  // 商品操作 Hook
+  const {
+    priceModalVisible,
+    setPriceModalVisible,
+    stockModalVisible,
+    setStockModalVisible,
+    editModalVisible,
+    setEditModalVisible,
+    selectedProduct,
+    updatePricesMutation,
+    updateStocksMutation,
+    handleEdit,
+    handlePriceUpdate,
+    handleStockUpdate,
+    handleBatchPriceUpdate,
+    handleBatchStockUpdate,
+    handleSyncSingle,
+    handleArchive,
+    handleRestore,
+    handleDelete,
+  } = useProductOperations(selectedShop);
 
-    try {
-      // 显示初始进度通知
-      const notificationInstance = getGlobalNotification();
-      if (notificationInstance) {
-        notificationInstance.open({
-          key: notificationKey,
-          message: '商品同步进行中',
-          description: (
-            <div>
-              <Progress percent={0} size="small" status="active" />
-              <div style={{ marginTop: 8 }}>正在启动同步...</div>
-            </div>
-          ),
-          duration: 0, // 不自动关闭
-          placement: 'bottomRight',
-          icon: <SyncOutlined spin />,
-        });
-      }
+  // 商品同步 Hook
+  const {
+    syncProductsMutation,
+    syncConfirmVisible,
+    setSyncConfirmVisible,
+    syncFullMode,
+    handleSync,
+    handleSyncConfirm,
+  } = useProductSync(selectedShop, refetch);
 
-      // 持续轮询状态
-      while (!completed) {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
-          const result = await ozonApi.getSyncStatus(taskId);
-          const status = result.data || result;
+  // 水印 Hook
+  const {
+    watermarkConfigs,
+    watermarkBatchId,
+    previewLoading,
+    applyWatermarkMutation,
+    restoreOriginalMutation,
+    handlePreview,
+  } = useWatermark(selectedShop);
 
-          if (status.status === 'completed') {
-            completed = true;
-            const notificationInstance = getGlobalNotification();
-            if (notificationInstance) {
-              notificationInstance.destroy(notificationKey);
-            }
-            notifySuccess('同步完成', '商品同步已完成！');
-            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-            refetch();
-          } else if (status.status === 'failed') {
-            completed = true;
-            const notificationInstance = getGlobalNotification();
-            if (notificationInstance) {
-              notificationInstance.destroy(notificationKey);
-            }
-            notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
-          } else {
-            // 更新进度通知
-            const percent = Math.round(status.progress || 0);
-            // 格式化消息：简化显示格式
-            let displayMessage = status.message || '同步中...';
-            const match = displayMessage.match(/商品\s+([0-9A-Za-z-]+)/);
-            if (match) {
-              displayMessage = `同步商品：${match[1]}`;
-            }
-
-            const notificationInstance = getGlobalNotification();
-            if (notificationInstance) {
-              notificationInstance.open({
-                key: notificationKey,
-                message: '商品同步进行中',
-                description: (
-                  <div>
-                    <Progress percent={percent} size="small" status="active" />
-                    <div style={{ marginTop: 8 }}>{displayMessage}</div>
-                  </div>
-                ),
-                duration: 0,
-                placement: 'bottomRight',
-                icon: <SyncOutlined spin />,
-              });
-            }
-          }
-        } catch (error) {
-          // 静默处理错误，继续轮询
-        }
-      }
-    } catch (error) {
-      const notificationInstance = getGlobalNotification();
-      if (notificationInstance) {
-        notificationInstance.destroy(notificationKey);
-      }
-      notifyError('同步失败', '同步过程发生异常');
-    }
-  };
-
-  // 同步商品（非阻塞）
-  const syncProductsMutation = useMutation({
-    mutationFn: (fullSync: boolean) => ozonApi.syncProducts(selectedShop, fullSync),
-    onSuccess: (data) => {
-      const taskId = data?.task_id || data?.data?.task_id;
-      if (taskId) {
-        // 立即启动后台轮询任务
-        pollProductSyncStatus(taskId);
-      } else {
-        notifyError('同步失败', '未获取到任务ID，请稍后重试');
-      }
-    },
-    onError: (error: Error) => {
-      notifyError('同步失败', `同步失败: ${error.message}`);
-    },
-  });
-
-  // 批量更新价格
-  const updatePricesMutation = useMutation({
-    mutationFn: (updates: ozonApi.PriceUpdate[]) =>
-      ozonApi.updatePrices(updates, selectedShop || undefined),
-    onSuccess: () => {
-      notifySuccess('更新成功', '价格更新成功');
-      setPriceModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-    },
-    onError: (error: Error) => {
-      notifyError('更新失败', `价格更新失败: ${error.message}`);
-    },
-  });
-
-  // 查询水印配置
-  const { data: watermarkConfigsData, error: watermarkError } = useQuery({
-    queryKey: ['watermarkConfigs'],
-    queryFn: () => watermarkApi.getWatermarkConfigs(),
-    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
-    gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
-    retry: 1, // 减少重试次数
-    // 静默失败：水印配置查询失败不影响商品列表显示
-    throwOnError: false,
-  });
-
-  // 记录水印配置加载错误（不影响页面显示）
-  useEffect(() => {
-    if (watermarkError) {
-      loggers.product.warn('水印配置加载失败，水印功能将不可用:', watermarkError);
-    }
-  }, [watermarkError]);
-
-  useEffect(() => {
-    if (watermarkConfigsData && Array.isArray(watermarkConfigsData)) {
-      setWatermarkConfigs(watermarkConfigsData);
-    }
-  }, [watermarkConfigsData]);
-
-  // 设置表单默认值为"销售中"
-  useEffect(() => {
-    filterForm.setFieldsValue({ status: 'on_sale' });
-  }, [filterForm]);
-
-  // 预加载当前页所有商品的大图（160x160）
-  useEffect(() => {
-    if (productsData?.data && productsData.data.length > 0) {
-      productsData.data.forEach((product) => {
-        if (product.images?.primary) {
-          try {
-            // 使用 document.createElement 替代 new Image() 避免打包问题
-            const img = document.createElement('img');
-            img.src = optimizeOzonImageUrl(product.images.primary, 160);
-          } catch (error) {
-            // 图片预加载失败，静默处理
-            loggers.product.debug('Failed to preload image:', error);
-          }
-        }
-      });
-    }
-  }, [productsData]);
-
-  // 应用水印 - 默认使用异步模式
-  const applyWatermarkMutation = useMutation({
-    mutationFn: ({
-      productIds,
-      configId,
-      analyzeMode = 'individual',
-      positionOverrides,
-    }: {
-      productIds: number[];
-      configId: number;
-      analyzeMode?: 'individual' | 'fast';
-      positionOverrides?: Record<string, Record<string, string>>;
-    }) => {
-      if (!selectedShop) throw new Error('请先选择店铺');
-      return watermarkApi.applyWatermarkBatch(
-        selectedShop,
-        productIds,
-        configId,
-        false,
-        analyzeMode,
-        positionOverrides
-      ); // 强制使用异步模式
-    },
-    onSuccess: (data) => {
-      loggers.product.debug('Watermark batch response:', data);
-
-      if (!data.batch_id) {
-        notifyError('任务启动失败', '未获取到任务ID，请重试');
-        return;
-      }
-
-      // 异步模式 - 启动轮询
-      notifyInfo('水印处理已启动', `水印批处理已在后台启动，任务ID: ${data.batch_id}`);
-      setWatermarkBatchId(data.batch_id);
-
-      // 延迟1秒后开始轮询，给后端时间创建任务
-      setTimeout(() => {
-        loggers.product.debug('Starting polling for batch:', data.batch_id);
-        pollWatermarkTasks(data.batch_id);
-      }, 1000);
-
-      setWatermarkModalVisible(false);
-      setSelectedRows([]);
-    },
-    onError: (error: Error) => {
-      notifyError('水印应用失败', `水印应用失败: ${error.message}`);
-    },
-  });
-
-  // 还原原图
-  const restoreOriginalMutation = useMutation({
-    mutationFn: (productIds: number[]) => {
-      if (!selectedShop) throw new Error('请先选择店铺');
-      return watermarkApi.restoreOriginalBatch(selectedShop, productIds);
-    },
-    onSuccess: (data) => {
-      notifySuccess('原图还原已启动', `原图还原已启动，任务ID: ${data.batch_id}`);
-      setSelectedRows([]);
-      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-    },
-    onError: (error: Error) => {
-      notifyError('原图还原失败', `原图还原失败: ${error.message}`);
-    },
-  });
-
-  // 轮询水印任务状态
-  const pollWatermarkTasks = async (batchId: string) => {
-    if (!selectedShop) {
-      loggers.product.error('Cannot poll watermark tasks: no shop selected');
-      return;
-    }
-
-    loggers.product.debug('Starting to poll watermark tasks for batch:', batchId);
-    let completed = 0;
-    let failed = 0;
-    let hasShownProgress = false;
-    let pollCount = 0;
-
-    const interval = setInterval(async () => {
-      pollCount++;
-      loggers.product.debug(`Polling attempt ${pollCount} for batch ${batchId}`);
-
-      try {
-        const tasks = await watermarkApi.getTasks({
-          shop_id: selectedShop,
-          batch_id: batchId,
-        });
-        loggers.product.debug('Tasks received:', tasks);
-
-        completed = tasks.filter((t) => t.status === 'completed').length;
-        failed = tasks.filter((t) => t.status === 'failed').length;
-        const processing = tasks.filter((t) => t.status === 'processing').length;
-        const pending = tasks.filter((t) => t.status === 'pending').length;
-        const total = tasks.length;
-
-        loggers.product.debug(
-          `Status: ${completed} completed, ${failed} failed, ${processing} processing, ${pending} pending, total: ${total}`
-        );
-
-        // 显示进度
-        if (!hasShownProgress && (completed > 0 || processing > 0)) {
-          hasShownProgress = true;
-          notifyInfo('水印处理中', `水印处理进度：${completed}/${total} 完成`);
-        }
-
-        // 如果所有任务都完成了（无论成功还是失败）
-        if (total > 0 && completed + failed === total) {
-          clearInterval(interval);
-
-          // 使用通知而不是普通消息，更醒目
-          if (failed > 0) {
-            notifyWarning('水印批处理完成', `成功处理 ${completed} 个商品，失败 ${failed} 个商品`);
-          } else {
-            notifySuccess('水印批处理成功', `已成功为 ${completed} 个商品添加水印`);
-          }
-
-          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-          setWatermarkBatchId(null);
-        }
-      } catch (error) {
-        loggers.product.error('Failed to poll watermark tasks:', error);
-
-        // 如果连续失败3次，停止轮询
-        if (pollCount >= 3) {
-          clearInterval(interval);
-          message.destroy(); // 清除loading消息
-
-          notification.error({
-            message: '任务状态查询失败',
-            description: `无法获取水印处理进度：${error?.message || '网络错误'}。请刷新页面查看结果`,
-            duration: 0, // 不自动关闭
-            placement: 'topRight',
-          });
-        }
-      }
-    }, 3000);
-
-    // 5分钟后自动停止轮询
-    setTimeout(() => {
-      clearInterval(interval);
-      message.destroy(); // 清除所有消息
-
-      if (completed + failed === 0) {
-        notification.warning({
-          message: '任务超时',
-          description: '水印处理时间过长，请稍后刷新页面查看结果',
-          duration: 0, // 不自动关闭
-          placement: 'topRight',
-        });
-      }
-    }, 300000);
-  };
-
-  // 已移除旧的 useEffect 轮询逻辑，改为异步后台任务
+  // 列配置 Hook
+  const {
+    visibleColumns,
+    columnConfigVisible,
+    handleColumnVisibilityChange,
+    openColumnConfig,
+    closeColumnConfig,
+  } = useColumnConfig();
 
   // 处理图片点击
   const handleImageClick = (product: ozonApi.Product, images: string[], index: number = 0) => {
@@ -606,635 +255,6 @@ const ProductList: React.FC = () => {
     setPreviewImages(images);
     setPreviewIndex(index);
     setPreviewVisible(true);
-  };
-
-  // 批量更新库存
-  const updateStocksMutation = useMutation({
-    mutationFn: (updates: ozonApi.StockUpdate[]) =>
-      ozonApi.updateStocks(updates, selectedShop || undefined),
-    onSuccess: () => {
-      notifySuccess('更新成功', '库存更新成功');
-      setStockModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-    },
-    onError: (error: Error) => {
-      notifyError('更新失败', `库存更新失败: ${error.message}`);
-    },
-  });
-
-  // 表格列定义
-  const allColumns: ColumnsType<ozonApi.Product> = [
-    // 第一列：图片（80px）
-    {
-      title: '图片',
-      key: 'image',
-      width: 80,
-      render: (_, record) => {
-        const allImages: string[] = [];
-        if (record.images?.primary) {
-          allImages.push(record.images.primary);
-        }
-        if (record.images?.additional && Array.isArray(record.images.additional)) {
-          allImages.push(...record.images.additional);
-        }
-
-        const productUrl = record.ozon_sku
-          ? `https://ozon.ru/product/${generateOzonSlug(record.title)}-${record.ozon_sku}`
-          : '';
-
-        const imageUrl80 = record.images?.primary
-          ? optimizeOzonImageUrl(record.images.primary, 80)
-          : '';
-        const imageUrl160 = record.images?.primary
-          ? optimizeOzonImageUrl(record.images.primary, 160)
-          : '';
-
-        return (
-          <div style={{ position: 'relative', width: '80px', height: '80px' }}>
-            {record.images?.primary ? (
-              <Popover
-                content={<img src={imageUrl160} width={160} alt={record.title} />}
-                trigger="hover"
-              >
-                <div
-                  style={{
-                    position: 'relative',
-                    width: '80px',
-                    height: '80px',
-                  }}
-                >
-                  <Avatar
-                    src={imageUrl80}
-                    size={80}
-                    shape="square"
-                    style={{ border: '1px solid #f0f0f0' }}
-                  />
-                  {/* 左上角链接图标 */}
-                  {productUrl && (
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<LinkOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(productUrl, '_blank');
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '2px',
-                        left: '2px',
-                        width: '20px',
-                        height: '20px',
-                        padding: 0,
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                        borderRadius: '2px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                      title="在OZON查看"
-                    />
-                  )}
-                  {/* 右上角放大镜图标 */}
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<SearchOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleImageClick(record, allImages);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      top: '2px',
-                      right: '2px',
-                      width: '20px',
-                      height: '20px',
-                      padding: 0,
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      borderRadius: '2px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    title="查看图片"
-                  />
-                </div>
-              </Popover>
-            ) : (
-              <div
-                style={{
-                  width: '80px',
-                  height: '80px',
-                  backgroundColor: '#f5f5f5',
-                  border: '1px dashed #d9d9d9',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#bfbfbf',
-                }}
-              >
-                <FileImageOutlined style={{ fontSize: '24px' }} />
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    // 第二列：SKU信息（100px）
-    {
-      title: 'SKU',
-      key: 'sku',
-      width: 100,
-      render: (_, record) => {
-        const copyIcon = (
-          <div style={{ position: 'relative', width: '12px', height: '12px' }}>
-            <div
-              style={{
-                position: 'absolute',
-                top: '2px',
-                left: '2px',
-                width: '8px',
-                height: '8px',
-                border: '1px solid #666',
-                backgroundColor: 'white',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                top: '0px',
-                left: '0px',
-                width: '8px',
-                height: '8px',
-                border: '1px solid #666',
-                backgroundColor: 'white',
-              }}
-            />
-          </div>
-        );
-
-        return (
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
-            {/* 商品货号 */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                width: '100%',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 12,
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {record.offer_id}
-              </span>
-              <Button
-                type="text"
-                size="small"
-                icon={copyIcon}
-                onClick={() => copyToClipboard(record.offer_id, '商品货号')}
-                style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
-                title="复制商品货号"
-              />
-            </div>
-            {/* SKU */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                width: '100%',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 12,
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {record.ozon_sku || '-'}
-              </span>
-              {record.ozon_sku && (
-                <Button
-                  type="text"
-                  size="small"
-                  icon={copyIcon}
-                  onClick={() => copyToClipboard(String(record.ozon_sku), 'SKU')}
-                  style={{ padding: '0 4px', height: '18px', minWidth: '18px' }}
-                  title="复制SKU"
-                />
-              )}
-            </div>
-          </Space>
-        );
-      },
-    },
-    // 第三列：标题（自适应宽度）
-    {
-      title: <SortableColumnTitle title="商品名称" field="title" />,
-      dataIndex: 'title',
-      key: 'title',
-      render: (text) => {
-        const displayText = text && text.length > 80 ? text.substring(0, 80) + '...' : text;
-        return text && text.length > 80 ? (
-          <Tooltip title={text}>
-            <span>{displayText}</span>
-          </Tooltip>
-        ) : (
-          <span>{displayText || '-'}</span>
-        );
-      },
-    },
-    // 第四列：价格（80px）
-    {
-      title: <SortableColumnTitle title="价格" field="price" />,
-      key: 'price',
-      width: 80,
-      render: (_, record) => {
-        const price = parseFloat(record.price || '0');
-        const oldPrice = record.old_price ? parseFloat(record.old_price) : null;
-
-        return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            {/* 当前价格（绿色加粗） */}
-            <span style={{ fontWeight: 'bold', color: '#52c41a', fontSize: 13 }}>
-              {formatPriceWithCurrency(price, record.currency_code)}
-            </span>
-            {/* 划线价（如果有old_price且大于当前价格） */}
-            {oldPrice && oldPrice > price && (
-              <span
-                style={{
-                  textDecoration: 'line-through',
-                  color: '#999',
-                  fontSize: 11,
-                }}
-              >
-                {formatPriceWithCurrency(oldPrice, record.currency_code)}
-              </span>
-            )}
-          </Space>
-        );
-      },
-    },
-    // 第五列：库存（80px）
-    {
-      title: <SortableColumnTitle title="库存" field="stock" />,
-      key: 'stock',
-      width: 80,
-      render: (_, record) => {
-        // 如果有仓库库存详情，按仓库显示
-        if (record.warehouse_stocks && record.warehouse_stocks.length > 0) {
-          return (
-            <Space direction="vertical" size={2} style={{ width: '100%' }}>
-              {record.warehouse_stocks.map((ws, index) => {
-                // 提取仓库名称缩写（取前4个字符）
-                const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
-                const totalStock = ws.present + ws.reserved;
-
-                return (
-                  <span key={index} style={{ fontSize: 12 }}>
-                    {warehouseAbbr}:
-                    <span className={styles.warehouseStockNumber}>{totalStock}</span>
-                  </span>
-                );
-              })}
-            </Space>
-          );
-        }
-
-        // 降级：如果没有仓库库存详情，显示总计
-        return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            <span style={{ fontSize: 12 }}>
-              可售: <span className={styles.stockDetailNumber}>{record.available}</span>
-            </span>
-            <span style={{ fontSize: 12, color: '#999' }}>
-              库存: <span className={styles.stockDetailSecondaryNumber}>{record.stock}</span>
-            </span>
-            <span style={{ fontSize: 12, color: '#999' }}>
-              预留: <span className={styles.stockDetailSecondaryNumber}>{record.reserved}</span>
-            </span>
-          </Space>
-        );
-      },
-    },
-    // 第六列：状态（80px）
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 80,
-      render: (status, record) => {
-        const statusMap: Record<string, { color: string; text: string }> = {
-          on_sale: { color: 'success', text: '销售中' },
-          ready_to_sell: { color: 'warning', text: '准备' },
-          error: { color: 'error', text: '错误' },
-          pending_modification: { color: 'processing', text: '待修改' },
-          inactive: { color: 'default', text: '下架' },
-          archived: { color: 'default', text: '归档' },
-          draft: { color: 'default', text: '草稿' },
-          active: { color: 'success', text: '在售' },
-          deleted: { color: 'error', text: '已删除' },
-        };
-
-        const isError = status === 'error';
-        const handleErrorClick = () => {
-          if (isError) {
-            setSelectedProductForError(record.id);
-            setErrorModalVisible(true);
-          }
-        };
-
-        return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            <Tag
-              color={statusMap[status]?.color}
-              style={{ cursor: isError ? 'pointer' : 'default' }}
-              onClick={handleErrorClick}
-            >
-              {statusMap[status]?.text || status}
-            </Tag>
-            <div style={{ fontSize: 11, color: '#999' }}>
-              {record.ozon_has_fbs_stocks && <div>FBS</div>}
-            </div>
-          </Space>
-        );
-      },
-    },
-    // 第七列：可见性（80px）
-    {
-      title: '可见性',
-      dataIndex: 'visibility',
-      key: 'visibility',
-      width: 80,
-      render: (visible) => <Switch checked={visible} disabled size="small" />,
-    },
-    // 第八列：创建时间（110px）
-    {
-      title: <SortableColumnTitle title="创建时间" field="created_at" />,
-      dataIndex: 'ozon_created_at',
-      key: 'created_at',
-      width: 110,
-      render: (date, record) => {
-        const displayDate = date || record.created_at;
-        if (!displayDate) return '-';
-        const createDate = new Date(displayDate);
-
-        const formatDate = (d) => {
-          const year = d.getFullYear();
-          const month = d.getMonth() + 1;
-          const day = d.getDate();
-          const hours = d.getHours().toString().padStart(2, '0');
-          const minutes = d.getMinutes().toString().padStart(2, '0');
-          return `${year}/${month}/${day} ${hours}:${minutes}`;
-        };
-
-        return (
-          <Tooltip title={formatDate(createDate)}>
-            <span style={{ fontSize: 12 }}>{createDate.toLocaleDateString('zh-CN')}</span>
-          </Tooltip>
-        );
-      },
-    },
-    // 第九列：操作（60px）
-    {
-      title: '操作',
-      key: 'action',
-      width: 60,
-      fixed: 'right',
-      render: (_, record) => {
-        // 归档商品：只显示"恢复"和"删除"
-        if (record.is_archived) {
-          return (
-            <Dropdown
-              menu={{
-                items: [
-                  canOperate && {
-                    key: 'restore',
-                    icon: <ReloadOutlined />,
-                    label: '恢复',
-                  },
-                  canDelete && {
-                    type: 'divider' as const,
-                  },
-                  canDelete && {
-                    key: 'delete',
-                    icon: <DeleteOutlined />,
-                    label: '删除',
-                    danger: true,
-                  },
-                ].filter(Boolean),
-                onClick: ({ key }) => {
-                  switch (key) {
-                    case 'restore':
-                      handleRestore(record);
-                      break;
-                    case 'delete':
-                      handleDelete(record);
-                      break;
-                  }
-                },
-              }}
-            >
-              <Button type="text" size="small" icon={<EllipsisOutlined />} />
-            </Dropdown>
-          );
-        }
-
-        // 下架商品：显示"编辑"、"更新价格"和"归档"
-        if (record.status === 'inactive') {
-          return (
-            <Dropdown
-              menu={{
-                items: [
-                  canOperate && {
-                    key: 'edit',
-                    icon: <EditOutlined />,
-                    label: '编辑',
-                  },
-                  canOperate && {
-                    key: 'price',
-                    icon: <DollarOutlined />,
-                    label: '价格',
-                  },
-                  canOperate && {
-                    type: 'divider' as const,
-                  },
-                  canOperate && {
-                    key: 'archive',
-                    icon: <DeleteOutlined />,
-                    label: '归档',
-                  },
-                ].filter(Boolean),
-                onClick: ({ key }) => {
-                  switch (key) {
-                    case 'edit':
-                      handleEdit(record);
-                      break;
-                    case 'price':
-                      handlePriceUpdate(record);
-                      break;
-                    case 'archive':
-                      handleArchive(record);
-                      break;
-                  }
-                },
-              }}
-            >
-              <Button type="text" size="small" icon={<EllipsisOutlined />} />
-            </Dropdown>
-          );
-        }
-
-        // 其他状态：显示完整的操作菜单
-        return (
-          <Dropdown
-            menu={{
-              items: [
-                canOperate && {
-                  key: 'edit',
-                  icon: <EditOutlined />,
-                  label: '编辑',
-                },
-                canOperate && {
-                  key: 'price',
-                  icon: <DollarOutlined />,
-                  label: '价格',
-                },
-                canOperate && {
-                  key: 'stock',
-                  icon: <ShoppingOutlined />,
-                  label: '库存',
-                },
-                (canOperate || canSync) && {
-                  type: 'divider' as const,
-                },
-                canSync && {
-                  key: 'sync',
-                  icon: <SyncOutlined />,
-                  label: '同步',
-                },
-                canOperate && {
-                  key: 'archive',
-                  icon: <DeleteOutlined />,
-                  label: '归档',
-                },
-              ].filter(Boolean),
-              onClick: ({ key }) => {
-                switch (key) {
-                  case 'edit':
-                    handleEdit(record);
-                    break;
-                  case 'price':
-                    handlePriceUpdate(record);
-                    break;
-                  case 'stock':
-                    handleStockUpdate(record);
-                    break;
-                  case 'sync':
-                    handleSyncSingle(record);
-                    break;
-                  case 'archive':
-                    handleArchive(record);
-                    break;
-                }
-              },
-            }}
-          >
-            <Button type="text" size="small" icon={<EllipsisOutlined />} />
-          </Dropdown>
-        );
-      },
-    },
-  ];
-
-  // 根据visibleColumns过滤显示的列
-  const columns = allColumns.filter((col) => {
-    const key = col.key as string;
-    // 操作列始终显示
-    if (key === 'action') return true;
-    // 其他列根据配置显示
-    return visibleColumns[key] !== false;
-  });
-
-  // 列显示配置变更处理
-  const handleColumnVisibilityChange = (key: string, visible: boolean) => {
-    setVisibleColumns((prev) => ({
-      ...prev,
-      [key]: visible,
-    }));
-  };
-
-  // 处理函数
-  const handleEdit = (product: ozonApi.Product) => {
-    loggers.product.debug('📝 编辑商品数据:', product);
-    loggers.product.debug('📏 重量字段值:', product.weight, '类型:', typeof product.weight);
-    loggers.product.debug('📦 尺寸字段:', {
-      width: product.width,
-      height: product.height,
-      depth: product.depth,
-    });
-    setSelectedProduct(product);
-    setEditModalVisible(true);
-  };
-
-  const handlePriceUpdate = (product: ozonApi.Product) => {
-    setSelectedProduct(product);
-    setPriceModalVisible(true);
-  };
-
-  const handleStockUpdate = (product: ozonApi.Product) => {
-    setSelectedProduct(product);
-    setStockModalVisible(true);
-  };
-
-  const handleBatchPriceUpdate = () => {
-    // 不再检查是否选择商品，未选择时对全店铺商品批量操作
-    if (!selectedShop) {
-      notifyWarning('操作失败', '请先选择店铺');
-      return;
-    }
-    // 清空单个商品选择，避免弹窗标题显示错误
-    setSelectedProduct(null);
-    setPriceModalVisible(true);
-  };
-
-  const handleBatchStockUpdate = () => {
-    // 不再检查是否选择商品，未选择时对全店铺商品批量操作
-    if (!selectedShop) {
-      notifyWarning('操作失败', '请先选择店铺');
-      return;
-    }
-    // 清空单个商品选择，避免弹窗标题显示错误
-    setSelectedProduct(null);
-    setStockModalVisible(true);
-  };
-
-  const handleSync = (fullSync: boolean = false) => {
-    if (!selectedShop) {
-      notifyWarning('操作失败', '请先选择店铺');
-      return;
-    }
-
-    setSyncFullMode(fullSync);
-    setSyncConfirmVisible(true);
-  };
-
-  const handleSyncConfirm = () => {
-    setSyncConfirmVisible(false);
-    syncProductsMutation.mutate(syncFullMode);
   };
 
   const handleFilter = () => {
@@ -1261,251 +281,45 @@ const ProductList: React.FC = () => {
     refetch();
   };
 
+  // 表格列定义
+  // 使用列配置工厂函数生成表格列
+  const allColumns = getProductTableColumns({
+    handleEdit,
+    handlePriceUpdate,
+    handleStockUpdate,
+    handleSyncSingle,
+    handleArchive,
+    handleRestore: handleRestore,
+    handleDelete: handleDelete,
+    handleImageClick,
+    copyToClipboard,
+    canOperate,
+    canSync,
+    canDelete,
+    SortableColumnTitle,
+    onErrorClick: (productId) => {
+      setSelectedProductForError(productId);
+      setErrorModalVisible(true);
+    },
+  });
 
-  const handleSyncSingle = async (product: ozonApi.Product) => {
-    modal.confirm({
-      title: '确认同步商品？',
-      content: `商品货号: ${product.offer_id}`,
-      onOk: async () => {
-        try {
-          const result = await ozonApi.syncSingleProduct(product.id);
-
-          if (result.success) {
-            notifySuccess('同步成功', result.message || '商品同步成功');
-            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-          } else {
-            notifyError('同步失败', result.message || '商品同步失败');
-          }
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '同步失败';
-          notifyError('同步失败', errorMsg);
-        }
-      },
-    });
-  };
-
-  const handleArchive = (product: ozonApi.Product) => {
-    modal.confirm({
-      title: '确认归档商品？',
-      content: `商品货号: ${product.offer_id}`,
-      onOk: async () => {
-        try {
-          const result = await ozonApi.archiveProduct(product.id);
-
-          if (result.success) {
-            notifySuccess('归档成功', result.message || '商品归档成功');
-            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-          } else {
-            notifyError('归档失败', result.message || '商品归档失败');
-          }
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '归档失败';
-          notifyError('归档失败', errorMsg);
-        }
-      },
-    });
-  };
-
-  const handleRestore = (product: ozonApi.Product) => {
-    modal.confirm({
-      title: '确认恢复商品？',
-      content: `商品货号: ${product.offer_id}，将从归档状态恢复`,
-      onOk: async () => {
-        try {
-          const result = await ozonApi.restoreArchivedProduct(product.id);
-
-          if (result.success) {
-            notifySuccess('恢复成功', result.message || '商品恢复成功');
-            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-          } else {
-            notifyError('恢复失败', result.message || '商品恢复失败');
-          }
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '恢复失败';
-          notifyError('恢复失败', errorMsg);
-        }
-      },
-    });
-  };
-
-  const handleDelete = (product: ozonApi.Product) => {
-    modal.confirm({
-      title: '确认删除商品？',
-      content: `商品货号: ${product.offer_id}，此操作不可恢复！`,
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          const result = await ozonApi.deleteProduct(product.id);
-
-          if (result.success) {
-            notifySuccess('删除成功', result.message || '商品删除成功');
-            queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-          } else {
-            notifyError('删除失败', result.message || '商品删除失败');
-          }
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : '删除失败';
-          notifyError('删除失败', errorMsg);
-        }
-      },
-    });
-  };
+  // 根据visibleColumns过滤显示的列
+  const columns = allColumns.filter((col) => {
+    const key = col.key as string;
+    // 操作列始终显示
+    if (key === 'action') return true;
+    // 其他列根据配置显示
+    return visibleColumns[key] !== false;
+  });
 
   // 计算大预览图上的水印样式
-  const getPreviewWatermarkStyle = (position: string | undefined, config: unknown) => {
-    if (!position || !config) return {};
-
-    const configObj = config as { scale_ratio?: number; opacity?: number; margin_pixels?: number };
-    const scale = configObj.scale_ratio || 0.1;
-    const opacity = configObj.opacity || 0.8;
-    const margin = configObj.margin_pixels || 20;
-
-    const styles: React.CSSProperties = {
-      opacity: opacity,
-      width: `${scale * 100}%`,
-      maxWidth: '200px', // 限制最大尺寸
-      zIndex: 10,
-      transition: 'all 0.2s ease',
-    };
-
-    // 根据位置设置对齐方式
-    switch (position) {
-      case 'top_left':
-        styles.top = `${margin}px`;
-        styles.left = `${margin}px`;
-        break;
-      case 'top_center':
-        styles.top = `${margin}px`;
-        styles.left = '50%';
-        styles.transform = 'translateX(-50%)';
-        break;
-      case 'top_right':
-        styles.top = `${margin}px`;
-        styles.right = `${margin}px`;
-        break;
-      case 'center_left':
-        styles.top = '50%';
-        styles.left = `${margin}px`;
-        styles.transform = 'translateY(-50%)';
-        break;
-      case 'center_right':
-        styles.top = '50%';
-        styles.right = `${margin}px`;
-        styles.transform = 'translateY(-50%)';
-        break;
-      case 'bottom_left':
-        styles.bottom = `${margin}px`;
-        styles.left = `${margin}px`;
-        break;
-      case 'bottom_center':
-        styles.bottom = `${margin}px`;
-        styles.left = '50%';
-        styles.transform = 'translateX(-50%)';
-        break;
-      case 'bottom_right':
-      default:
-        styles.bottom = `${margin}px`;
-        styles.right = `${margin}px`;
-        break;
-    }
-
-    return styles;
-  };
-
-  // 处理手动选择位置变更
-  const handlePositionChange = async (productId: number, imageIndex: number, position: string) => {
-    // 找到对应的预览数据并更新
-    const updatedPreviews = watermarkPreviews.map((preview) => {
-      if (preview.product_id === productId) {
-        return {
-          ...preview,
-          images: preview.images?.map((img, idx: number) => {
-            if ((img.image_index || idx) === imageIndex) {
-              // 这里可以触发重新生成预览，暂时只更新位置标记
-              return {
-                ...img,
-                suggested_position: position,
-                manual_position: position,
-              };
-            }
-            return img;
-          }),
-        };
-      }
-      return preview;
-    });
-
-    setWatermarkPreviews(updatedPreviews);
-  };
 
   const handleImport = () => {
     setImportModalVisible(true);
   };
 
   const handleExport = () => {
-    if (!productsData?.data || productsData.data.length === 0) {
-      notifyWarning('导出失败', '没有商品数据可以导出');
-      return;
-    }
-
-    try {
-      // 准备CSV数据
-      const csvData = productsData.data.map((product) => ({
-        商品货号: product.offer_id,
-        商品标题: product.title || '',
-        品牌: product.brand || '',
-        条形码: product.barcode || '',
-        状态: product.status,
-        可见性: product.visibility ? '可见' : '不可见',
-        售价: product.price || '0',
-        原价: product.old_price || '',
-        成本价: product.cost || '',
-        总库存: product.stock,
-        可售库存: product.available,
-        预留库存: product.reserved,
-        '重量(g)': product.weight || '',
-        '宽度(mm)': product.width || '',
-        '高度(mm)': product.height || '',
-        '深度(mm)': product.depth || '',
-        同步状态: product.sync_status,
-        最后同步时间: product.last_sync_at || '',
-        创建时间: product.created_at,
-        更新时间: product.updated_at,
-      }));
-
-      // 转换为CSV格式
-      const headers = Object.keys(csvData[0]);
-      const csvContent = [
-        headers.join(','),
-        ...csvData.map((row) =>
-          headers
-            .map((header) => {
-              const value = row[header as keyof typeof row];
-              // 处理包含逗号的值，用双引号包围
-              return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
-            })
-            .join(',')
-        ),
-      ].join('\n');
-
-      // 创建下载
-      const blob = new Blob(['\uFEFF' + csvContent], {
-        type: 'text/csv;charset=utf-8;',
-      });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `商品数据_${new Date().toISOString().slice(0, 10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      notifySuccess('导出成功', `成功导出 ${csvData.length} 个商品的数据`);
-    } catch (error) {
-      loggers.product.error('Export error:', error);
-      notifyError('导出失败', '导出失败，请重试');
-    }
+    exportProductsToCSV(productsData?.data);
   };
 
   return (
@@ -1557,7 +371,7 @@ const ProductList: React.FC = () => {
           onBatchStockUpdate={handleBatchStockUpdate}
           onImport={handleImport}
           onExport={handleExport}
-          onColumnSettings={() => setColumnConfigVisible(true)}
+          onColumnSettings={openColumnConfig}
         />
 
         {/* 商品表格 */}
@@ -1765,617 +579,38 @@ const ProductList: React.FC = () => {
       </Modal>
 
       {/* 商品导入弹窗 */}
-      <Modal
-        title="导入商品"
-        open={importModalVisible}
+      {/* 导入商品Modal */}
+      <ProductImportModal
+        visible={importModalVisible}
         onCancel={() => setImportModalVisible(false)}
-        footer={null}
-        width={600}
-      >
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Upload.Dragger
-            name="file"
-            accept=".csv,.xlsx,.xls"
-            showUploadList={false}
-            beforeUpload={(file) => {
-              const isValidType =
-                file.type === 'text/csv' ||
-                file.type === 'application/vnd.ms-excel' ||
-                file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-              if (!isValidType) {
-                notifyError('上传失败', '只支持 CSV 和 Excel 文件格式');
-                return false;
-              }
-
-              const isLt10M = file.size / 1024 / 1024 < 10;
-              if (!isLt10M) {
-                notifyError('上传失败', '文件大小不能超过 10MB');
-                return false;
-              }
-
-              // 处理文件导入
-              const reader = new FileReader();
-              reader.onload = async (e) => {
-                try {
-                  const content = e.target?.result as string;
-                  const base64Content = btoa(unescape(encodeURIComponent(content)));
-
-                  const response = await fetch('/api/ef/v1/ozon/products/import', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      file_content: base64Content,
-                      shop_id: selectedShop || undefined, // 使用当前选中的店铺
-                    }),
-                  });
-
-                  const result = await response.json();
-
-                  if (result.success) {
-                    notifySuccess('导入成功', result.message || '商品导入成功');
-                    if (result.warnings && result.warnings.length > 0) {
-                      setTimeout(() => {
-                        notifyWarning(
-                          '导入警告',
-                          `导入过程中发现问题：${result.warnings.slice(0, 3).join('; ')}`
-                        );
-                      }, 1000);
-                    }
-                    queryClient.invalidateQueries({
-                      queryKey: ['ozonProducts'],
-                    });
-                  } else {
-                    notifyError('导入失败', result.message || '商品导入失败');
-                  }
-                } catch (error) {
-                  notifyError('导入失败', `导入失败: ${error.message}`);
-                }
-              };
-
-              reader.readAsText(file, 'UTF-8');
-              setImportModalVisible(false);
-              return false; // 阻止自动上传
-            }}
-          >
-            <p className="ant-upload-drag-icon">
-              <UploadOutlined style={{ fontSize: 48, color: '#1890ff' }} />
-            </p>
-            <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-            <p className="ant-upload-hint">支持 CSV 和 Excel 格式，文件大小不超过 10MB</p>
-          </Upload.Dragger>
-
-          <div style={{ marginTop: 24, textAlign: 'left' }}>
-            <Alert
-              message="导入说明"
-              description={
-                <ul style={{ margin: 0, paddingLeft: 20 }}>
-                  <li>CSV 文件请使用 UTF-8 编码</li>
-                  <li>必填字段：SKU、商品标题</li>
-                  <li>可选字段：品牌、条形码、价格、库存等</li>
-                  <li>重复SKU将更新现有商品信息</li>
-                </ul>
-              }
-              type="info"
-              showIcon
-            />
-          </div>
-
-          <div style={{ marginTop: 16, textAlign: 'right' }}>
-            <Space>
-              <Button onClick={() => setImportModalVisible(false)}>取消</Button>
-              <Button type="link" onClick={handleExport}>
-                下载模板
-              </Button>
-            </Space>
-          </div>
-        </div>
-      </Modal>
+        selectedShop={selectedShop}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+        }}
+        onDownloadTemplate={handleExport}
+      />
 
       {/* 水印应用模态框 */}
-      <Modal
-        title={watermarkStep === 'select' ? '选择水印配置' : '预览水印效果'}
-        open={watermarkModalVisible}
+      <WatermarkApplyModal
+        visible={watermarkModalVisible}
         onCancel={() => {
           setWatermarkModalVisible(false);
-          setWatermarkStep('select');
-          setWatermarkPreviews([]);
-          setManualPositions(new Map());
         }}
-        onOk={async () => {
-          if (watermarkStep === 'select') {
-            if (!selectedWatermarkConfig) {
-              notifyWarning('操作失败', '请选择水印配置');
-              return;
-            }
-            if (!selectedShop) {
-              notifyWarning('操作失败', '请先选择店铺');
-              return;
-            }
-            // 进入预览步骤
-            setPreviewLoading(true);
-            try {
-              const productIds = selectedRows.slice(0, 10).map((p) => p.id); // 最多预览10个
-              const result = await watermarkApi.previewWatermarkBatch(
-                selectedShop,
-                productIds,
-                selectedWatermarkConfig,
-                watermarkAnalyzeMode === 'individual' // 根据选择的模式决定是否单独分析
-              );
-              setWatermarkPreviews(result.previews);
-              setWatermarkStep('preview');
-              // 初始化手动位置为空，使用算法推荐的位置
-              setManualPositions(new Map());
-              // 初始化每张图片的水印设置为空
-              setImageWatermarkSettings(new Map());
-            } catch {
-              notifyError('预览失败', '预览失败');
-            } finally {
-              setPreviewLoading(false);
-            }
-          } else {
-            // 确认应用水印
-            if (!selectedWatermarkConfig) {
-              notifyWarning('操作失败', '请选择水印配置');
-              return;
-            }
-
-            const productIds = selectedRows.map((p) => p.id);
-
-            // 构建每张图片的独立配置映射
-            const imageOverrides: Record<string, Record<string, any>> = {};
-            imageWatermarkSettings.forEach((settings, key) => {
-              const [productId, imageIndex] = key.split('_');
-              if (!imageOverrides[productId]) {
-                imageOverrides[productId] = {};
-              }
-              imageOverrides[productId][imageIndex] = {
-                watermark_config_id: settings.watermarkId,
-                position: settings.position,
-              };
-            });
-
-            // 如果没有独立设置，使用旧的位置映射逻辑
-            if (Object.keys(imageOverrides).length === 0) {
-              manualPositions.forEach((position, key) => {
-                const [productId, imageIndex] = key.split('_');
-                if (!imageOverrides[productId]) {
-                  imageOverrides[productId] = {};
-                }
-                imageOverrides[productId][imageIndex] = {
-                  watermark_config_id: selectedWatermarkConfig,
-                  position: position,
-                };
-              });
-            }
-
-            applyWatermarkMutation.mutate({
-              productIds,
-              configId: selectedWatermarkConfig,
-              analyzeMode: watermarkAnalyzeMode,
-              positionOverrides:
-                Object.keys(imageOverrides).length > 0 ? imageOverrides : undefined,
-            });
-          }
+        onOk={(data) => {
+          applyWatermarkMutation.mutate(data);
         }}
-        okText={watermarkStep === 'select' ? '预览效果' : '确认应用'}
-        confirmLoading={applyWatermarkMutation.isPending || previewLoading}
-        width={watermarkStep === 'preview' ? 1200 : 600}
-      >
-        <div>
-          <Alert
-            message={`已选择 ${selectedRows.length} 个商品`}
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-
-          {/* 位置选择提示 */}
-          <div style={{ marginBottom: 16 }}>
-            <Alert
-              message="位置选择说明"
-              description={
-                <div>
-                  <p>• 预览时请点击图片上的9宫格选择水印位置</p>
-                  <p>• 未手动选择的图片将在应用时自动分析最佳位置</p>
-                  <p>• 蓝色高亮表示当前选择的位置</p>
-                </div>
-              }
-              type="info"
-              showIcon
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ marginRight: 8 }}>选择水印:</label>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="请选择水印配置"
-              value={selectedWatermarkConfig}
-              onChange={(value) => setSelectedWatermarkConfig(value)}
-            >
-              {(watermarkConfigs || []).map((config) => (
-                <Option key={config.id} value={config.id}>
-                  <Space>
-                    <img
-                      src={optimizeOzonImageUrl(config.image_url, 20)}
-                      alt={config.name}
-                      style={{ width: 20, height: 20, objectFit: 'contain' }}
-                    />
-                    <span>{config.name}</span>
-                    <Tag>{config.color_type}</Tag>
-                    <span style={{ color: '#999', fontSize: 12 }}>
-                      {(config.scale_ratio * 100).toFixed(0)}% / {(config.opacity * 100).toFixed(0)}
-                      %
-                    </span>
-                  </Space>
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          {watermarkBatchId && (
-            <Progress
-              percent={50}
-              status="active"
-              showInfo={true}
-              strokeColor={{ '0%': '#108ee9', '100%': '#87d068' }}
-            />
-          )}
-
-          {/* 预览结果 */}
-          {watermarkStep === 'preview' && watermarkPreviews.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <Divider>预览结果</Divider>
-              <div style={{ maxHeight: 600, overflowY: 'auto' }}>
-                {watermarkPreviews.map((preview) => (
-                  <div
-                    key={preview.product_id}
-                    style={{
-                      marginBottom: 24,
-                      padding: 16,
-                      border: '1px solid #f0f0f0',
-                      borderRadius: 8,
-                      backgroundColor: '#fafafa',
-                    }}
-                  >
-                    <div
-                      style={{
-                        marginBottom: 12,
-                        fontSize: 16,
-                        fontWeight: 500,
-                      }}
-                    >
-                      <strong>{preview.sku}</strong> - {preview.title}
-                      <Tag color="blue" style={{ marginLeft: 8 }}>
-                        {preview.total_images || preview.images?.length || 0} 张图片
-                      </Tag>
-                    </div>
-
-                    {preview.error ? (
-                      <Alert message={preview.error} type="error" />
-                    ) : preview.images && preview.images.length > 0 ? (
-                      <div>
-                        {/* 多图预览网格布局 */}
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                            gap: 12,
-                            marginTop: 8,
-                          }}
-                        >
-                          {preview.images.map((img, imgArrayIndex) => (
-                            <div
-                              key={imgArrayIndex}
-                              style={{
-                                border: '1px solid #e8e8e8',
-                                borderRadius: 8,
-                                padding: 8,
-                                backgroundColor: 'white',
-                              }}
-                            >
-                              {/* 图片类型标签 */}
-                              <div
-                                style={{
-                                  marginBottom: 8,
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                }}
-                              >
-                                <Tag color={img.image_type === 'primary' ? 'green' : 'default'}>
-                                  {img.image_type === 'primary'
-                                    ? '主图'
-                                    : `附加图 ${img.image_index + 1}`}
-                                </Tag>
-                                {img.suggested_position && (
-                                  <Tag color="blue">位置: {img.suggested_position}</Tag>
-                                )}
-                              </div>
-
-                              {/* 水印选择器 */}
-                              <div style={{ marginBottom: 8 }}>
-                                <Select
-                                  style={{ width: '100%' }}
-                                  size="small"
-                                  placeholder="选择水印"
-                                  value={
-                                    imageWatermarkSettings.get(
-                                      `${preview.product_id}_${imgArrayIndex}`
-                                    )?.watermarkId || selectedWatermarkConfig
-                                  }
-                                  onChange={(watermarkId) => {
-                                    const key = `${preview.product_id}_${imgArrayIndex}`;
-                                    const currentSettings = imageWatermarkSettings.get(key) || {};
-                                    const newSettings = new Map(imageWatermarkSettings);
-                                    newSettings.set(key, {
-                                      ...currentSettings,
-                                      watermarkId,
-                                      position: manualPositions.get(key),
-                                    });
-                                    setImageWatermarkSettings(newSettings);
-                                  }}
-                                >
-                                  {(watermarkConfigs || []).map((config) => (
-                                    <Option key={config.id} value={config.id}>
-                                      <Space size="small">
-                                        <img
-                                          src={optimizeOzonImageUrl(config.image_url, 16)}
-                                          alt={config.name}
-                                          style={{
-                                            width: 16,
-                                            height: 16,
-                                            objectFit: 'contain',
-                                          }}
-                                        />
-                                        <span style={{ fontSize: 12 }}>{config.name}</span>
-                                      </Space>
-                                    </Option>
-                                  ))}
-                                </Select>
-                              </div>
-
-                              {img.error ? (
-                                <Alert message={`处理失败: ${img.error}`} type="error" showIcon />
-                              ) : (
-                                <div
-                                  style={{
-                                    position: 'relative',
-                                    border: '1px solid #f0f0f0',
-                                    borderRadius: 4,
-                                    backgroundColor: '#f9f9f9',
-                                    height: 300,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                  }}
-                                >
-                                  {/* 图片和9宫格容器 - 确保两者尺寸完全一致 */}
-                                  <div
-                                    style={{
-                                      position: 'relative',
-                                      display: 'inline-block',
-                                    }}
-                                  >
-                                    {/* 原图显示 */}
-                                    <img
-                                      src={optimizeOzonImageUrl(img.original_url, 300)}
-                                      alt="原图预览"
-                                      style={{
-                                        display: 'block',
-                                        maxWidth: '100%',
-                                        maxHeight: '300px',
-                                        objectFit: 'contain',
-                                      }}
-                                      onError={(e) => {
-                                        loggers.product.error('原图加载失败:', img.original_url);
-                                        e.currentTarget.src =
-                                          'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
-                                      }}
-                                    />
-
-                                    {/* 水印预览层 - 只在选中位置时显示 */}
-                                    {(() => {
-                                      const key = `${preview.product_id}_${imgArrayIndex}`;
-                                      const settings = imageWatermarkSettings.get(key);
-                                      const watermarkId =
-                                        settings?.watermarkId || selectedWatermarkConfig;
-                                      const position =
-                                        settings?.position || manualPositions.get(key);
-
-                                      if (watermarkId && position) {
-                                        const watermarkConfig = (watermarkConfigs || []).find(
-                                          (c) => c.id === watermarkId
-                                        );
-                                        if (watermarkConfig) {
-                                          return (
-                                            <img
-                                              src={optimizeOzonImageUrl(
-                                                watermarkConfig.image_url,
-                                                100
-                                              )}
-                                              alt="水印预览"
-                                              style={{
-                                                position: 'absolute',
-                                                ...getPreviewWatermarkStyle(
-                                                  position,
-                                                  watermarkConfig
-                                                ),
-                                                pointerEvents: 'none',
-                                              }}
-                                            />
-                                          );
-                                        }
-                                      }
-                                      return null;
-                                    })()}
-
-                                    {/* 9宫格位置选择器 - 移到inline-block容器内 */}
-                                    <div
-                                      style={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        display: 'grid',
-                                        gridTemplateColumns: 'repeat(3, 1fr)',
-                                        gridTemplateRows: 'repeat(3, 1fr)',
-                                        gap: 0,
-                                      }}
-                                    >
-                                      {[
-                                        'top_left',
-                                        'top_center',
-                                        'top_right',
-                                        'center_left',
-                                        null,
-                                        'center_right',
-                                        'bottom_left',
-                                        'bottom_center',
-                                        'bottom_right',
-                                      ].map((position, index) => {
-                                        if (position === null) return <div key={index} />; // 中心格子跳过
-
-                                        const positionKey = `${preview.product_id}_${imgArrayIndex}`;
-                                        const currentSettings =
-                                          imageWatermarkSettings.get(positionKey);
-                                        const isSelected =
-                                          (currentSettings?.position ||
-                                            manualPositions.get(positionKey)) === position;
-
-                                        // 格子仅用于位置选择，水印显示在大预览图上
-
-                                        return (
-                                          <div
-                                            key={index}
-                                            onClick={() => {
-                                              // 更新位置到 manualPositions
-                                              const newPositions = new Map(manualPositions);
-                                              newPositions.set(positionKey, position);
-                                              setManualPositions(newPositions);
-
-                                              // 同时更新到 imageWatermarkSettings
-                                              const newSettings = new Map(imageWatermarkSettings);
-                                              const watermarkId =
-                                                currentSettings?.watermarkId ||
-                                                selectedWatermarkConfig;
-                                              if (watermarkId) {
-                                                newSettings.set(positionKey, {
-                                                  watermarkId,
-                                                  position,
-                                                });
-                                                setImageWatermarkSettings(newSettings);
-                                              }
-
-                                              // TODO: 触发重新预览
-                                              handlePositionChange(
-                                                preview.product_id,
-                                                imgArrayIndex,
-                                                position
-                                              );
-                                            }}
-                                            style={{
-                                              cursor: 'pointer',
-                                              backgroundColor: isSelected
-                                                ? 'rgba(24, 144, 255, 0.15)'
-                                                : 'transparent',
-                                              border: '1px solid transparent',
-                                              transition: 'all 0.2s',
-                                              position: 'relative',
-                                              overflow: 'hidden',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                              if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor =
-                                                  'rgba(24, 144, 255, 0.08)';
-                                              }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor =
-                                                  'transparent';
-                                              }
-                                            }}
-                                            title={`点击选择位置: ${position.replace('_', ' ')}`}
-                                          >
-                                            {/* 格子内容为空，仅通过边框显示选中状态 */}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      // 旧版单图预览兼容
-                      <div style={{ display: 'flex', justifyContent: 'center' }}>
-                        <div style={{ width: '60%' }}>
-                          <div
-                            style={{
-                              marginBottom: 8,
-                              fontSize: 12,
-                              color: '#999',
-                              textAlign: 'center',
-                            }}
-                          >
-                            水印预览
-                            {preview.suggested_position && (
-                              <Tag color="blue" style={{ marginLeft: 8 }}>
-                                位置: {preview.suggested_position}
-                              </Tag>
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              border: '1px solid #f0f0f0',
-                              borderRadius: 4,
-                              padding: 8,
-                              backgroundColor: '#f9f9f9',
-                            }}
-                          >
-                            <img
-                              src={preview.preview_image}
-                              alt="Preview"
-                              style={{
-                                width: '100%',
-                                maxHeight: 300,
-                                objectFit: 'contain',
-                              }}
-                              onError={(e) => {
-                                loggers.product.error(
-                                  '预览图片加载失败:',
-                                  preview.preview_image?.substring(0, 50)
-                                );
-                                e.currentTarget.src =
-                                  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwiPuWKoOi9veWksei0pTwvdGV4dD48L3N2Zz4=';
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {selectedRows.length > 10 && (
-                <Alert
-                  message={`仅显示前10个商品的预览，共选中${selectedRows.length}个商品`}
-                  type="info"
-                  style={{ marginTop: 8 }}
-                />
-              )}
-            </div>
-          )}
-        </div>
-      </Modal>
+        selectedRows={selectedRows}
+        watermarkConfigs={watermarkConfigs}
+        watermarkStep={watermarkStep}
+        setWatermarkStep={setWatermarkStep}
+        watermarkPreviews={watermarkPreviews}
+        setWatermarkPreviews={setWatermarkPreviews}
+        confirmLoading={applyWatermarkMutation.isPending}
+        previewLoading={previewLoading}
+        watermarkBatchId={watermarkBatchId}
+        watermarkAnalyzeMode={watermarkAnalyzeMode}
+        onPreview={handlePreview}
+      />
 
       {/* 图片预览组件 */}
       <ImagePreview
@@ -2406,93 +641,14 @@ const ProductList: React.FC = () => {
       />
 
       {/* 列显示配置Modal */}
-      <Modal
-        title="列显示设置"
-        open={columnConfigVisible}
-        onCancel={() => setColumnConfigVisible(false)}
-        onOk={() => setColumnConfigVisible(false)}
-        width={400}
-      >
-        <div style={{ padding: '12px 0' }}>
-          <Alert
-            message="选择要显示的列"
-            description="取消勾选可隐藏对应的列，设置会自动保存"
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <div>
-              <Switch
-                checked={visibleColumns.sku}
-                onChange={(checked) => handleColumnVisibilityChange('sku', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>SKU/编码</span>
-            </div>
-            <div>
-              <Switch
-                checked={visibleColumns.info}
-                onChange={(checked) => handleColumnVisibilityChange('info', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>商品信息</span>
-            </div>
-            <div>
-              <Switch
-                checked={visibleColumns.price}
-                onChange={(checked) => handleColumnVisibilityChange('price', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>价格</span>
-            </div>
-            <div>
-              <Switch
-                checked={visibleColumns.stock}
-                onChange={(checked) => handleColumnVisibilityChange('stock', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>库存</span>
-            </div>
-            <div>
-              <Switch
-                checked={visibleColumns.status}
-                onChange={(checked) => handleColumnVisibilityChange('status', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>状态</span>
-            </div>
-            <div>
-              <Switch
-                checked={visibleColumns.visibility}
-                onChange={(checked) => handleColumnVisibilityChange('visibility', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>可见性</span>
-            </div>
-            <div>
-              <Switch
-                checked={visibleColumns.created_at}
-                onChange={(checked) => handleColumnVisibilityChange('created_at', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>创建时间</span>
-            </div>
-            <div>
-              <Switch
-                checked={visibleColumns.last_sync}
-                onChange={(checked) => handleColumnVisibilityChange('last_sync', checked)}
-                style={{ marginRight: 8 }}
-              />
-              <span>最后同步</span>
-            </div>
-            <Divider style={{ margin: '12px 0' }} />
-            <div style={{ color: '#999', fontSize: 12 }}>
-              <SettingOutlined /> 操作列始终显示
-            </div>
-          </Space>
-        </div>
-      </Modal>
+      {/* 列显示配置Modal */}
+      <ColumnConfigModal
+        visible={columnConfigVisible}
+        onCancel={closeColumnConfig}
+        onOk={closeColumnConfig}
+        visibleColumns={visibleColumns}
+        onColumnVisibilityChange={handleColumnVisibilityChange}
+      />
 
       {/* 同步确认对话框 */}
       <Modal
@@ -2504,7 +660,9 @@ const ProductList: React.FC = () => {
         cancelText="取消"
         zIndex={10000}
       >
-        <p>{syncFullMode ? '全量同步将拉取所有商品数据，耗时较长' : '增量同步将只拉取最近更新的商品'}</p>
+        <p>
+          {syncFullMode ? '全量同步将拉取所有商品数据，耗时较长' : '增量同步将只拉取最近更新的商品'}
+        </p>
       </Modal>
 
       {/* 商品同步错误详情弹窗 */}
