@@ -196,14 +196,23 @@ async def setup(hooks) -> None:
                     # 获取所有活跃的店铺
                     stmt = select(OzonShop).where(OzonShop.status == "active")
                     result = await db.execute(stmt)
-                    shops = result.scalars().all()
+                    shops_orm = result.scalars().all()
+
+                    # 立即提取所有店铺信息到字典，完全脱离ORM对象
+                    shops = []
+                    for shop in shops_orm:
+                        shops.append({
+                            'id': shop.id,
+                            'shop_name': shop.shop_name,
+                            'status': shop.status
+                        })
 
                     logger_local.info(f"Found {len(shops)} active shops to sync")
 
-                    for shop in shops:
-                        # 提前提取shop属性，避免懒加载触发异步问题
-                        shop_id = shop.id
-                        shop_name = shop.shop_name
+                    for shop_data in shops:
+                        # 使用字典数据，不再依赖ORM对象
+                        shop_id = shop_data['id']
+                        shop_name = shop_data['shop_name']
 
                         try:
                             # 1. 同步活动清单
@@ -217,12 +226,20 @@ async def setup(hooks) -> None:
                                 OzonPromotionAction.shop_id == shop_id
                             )
                             result = await db.execute(stmt)
-                            actions = result.scalars().all()
+                            actions_orm = result.scalars().all()
 
-                            for action in actions:
-                                # 提前提取action属性
-                                action_id = action.action_id
-                                auto_cancel_enabled = action.auto_cancel_enabled
+                            # 立即提取活动信息到字典，脱离ORM对象
+                            actions = []
+                            for action in actions_orm:
+                                actions.append({
+                                    'action_id': action.action_id,
+                                    'auto_cancel_enabled': action.auto_cancel_enabled
+                                })
+
+                            for action_data in actions:
+                                # 使用字典数据
+                                action_id = action_data['action_id']
+                                auto_cancel_enabled = action_data['auto_cancel_enabled']
 
                                 try:
                                     # 2.1 同步候选商品
