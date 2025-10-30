@@ -201,34 +201,40 @@ async def setup(hooks) -> None:
                     logger_local.info(f"Found {len(shops)} active shops to sync")
 
                     for shop in shops:
+                        # 提前提取shop属性，避免懒加载触发异步问题
+                        shop_id = shop.id
+                        shop_name = shop.shop_name
+
                         try:
                             # 1. 同步活动清单
-                            sync_result = await PromotionService.sync_actions(shop.id, db)
+                            sync_result = await PromotionService.sync_actions(shop_id, db)
                             actions_count = sync_result.get("synced_count", 0)
                             results["actions_synced"] += actions_count
-                            logger_local.info(f"Synced {actions_count} actions for shop {shop.id}")
+                            logger_local.info(f"Synced {actions_count} actions for shop {shop_id}")
 
                             # 2. 获取所有活动
                             stmt = select(OzonPromotionAction).where(
-                                OzonPromotionAction.shop_id == shop.id
+                                OzonPromotionAction.shop_id == shop_id
                             )
                             result = await db.execute(stmt)
                             actions = result.scalars().all()
 
                             for action in actions:
-                                try:
-                                    action_id = action.action_id
+                                # 提前提取action属性
+                                action_id = action.action_id
+                                auto_cancel_enabled = action.auto_cancel_enabled
 
+                                try:
                                     # 2.1 同步候选商品
                                     sync_result = await PromotionService.sync_action_candidates(
-                                        shop.id, action_id, db
+                                        shop_id, action_id, db
                                     )
                                     candidates_count = sync_result.get("synced_count", 0)
                                     results["candidates_synced"] += candidates_count
 
                                     # 2.2 同步参与商品
                                     sync_result = await PromotionService.sync_action_products(
-                                        shop.id, action_id, db
+                                        shop_id, action_id, db
                                     )
                                     products_count = sync_result.get("synced_count", 0)
                                     results["products_synced"] += products_count
@@ -238,10 +244,10 @@ async def setup(hooks) -> None:
                                     )
 
                                     # 2.3 执行自动取消（如果开启）
-                                    if action.auto_cancel_enabled:
+                                    if auto_cancel_enabled:
                                         try:
                                             cancel_result = await PromotionService.auto_cancel_task(
-                                                shop.id, action_id, db
+                                                shop_id, action_id, db
                                             )
                                             cancelled_count = cancel_result.get("cancelled_count", 0)
                                             results["auto_cancelled"] += cancelled_count
@@ -250,7 +256,7 @@ async def setup(hooks) -> None:
                                                 logger_local.info(
                                                     f"Auto-cancelled {cancelled_count} products from action {action_id}",
                                                     extra={
-                                                        "shop_id": shop.id,
+                                                        "shop_id": shop_id,
                                                         "action_id": action_id,
                                                         "cancelled_count": cancelled_count
                                                     }
@@ -259,28 +265,28 @@ async def setup(hooks) -> None:
                                             error_msg = f"Failed to auto-cancel products for action {action_id}: {str(e)}"
                                             logger_local.error(error_msg, exc_info=True)
                                             results["errors"].append({
-                                                "shop_id": shop.id,
+                                                "shop_id": shop_id,
                                                 "action_id": action_id,
                                                 "error": error_msg,
                                                 "step": "auto_cancel"
                                             })
 
                                 except Exception as e:
-                                    error_msg = f"Failed to sync action {action.action_id}: {str(e)}"
+                                    error_msg = f"Failed to sync action {action_id}: {str(e)}"
                                     logger_local.error(error_msg, exc_info=True)
                                     results["errors"].append({
-                                        "shop_id": shop.id,
-                                        "action_id": action.action_id,
+                                        "shop_id": shop_id,
+                                        "action_id": action_id,
                                         "error": error_msg
                                     })
 
                             results["shops_processed"] += 1
 
                         except Exception as e:
-                            error_msg = f"Failed to sync shop {shop.id}: {str(e)}"
+                            error_msg = f"Failed to sync shop {shop_id}: {str(e)}"
                             logger_local.error(error_msg, exc_info=True)
                             results["errors"].append({
-                                "shop_id": shop.id,
+                                "shop_id": shop_id,
                                 "error": error_msg
                             })
 
