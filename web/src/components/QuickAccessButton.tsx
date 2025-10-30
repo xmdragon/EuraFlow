@@ -142,18 +142,18 @@ const QuickAccessButton: React.FC = () => {
       className={`${styles.container} ${isDragging ? styles.dragging : ''}`}
       style={{ top: `${topPosition}px` }}
     >
-      {/* 图标按钮（可拖动） */}
-      <div
-        className={styles.iconButton}
-        onMouseDown={handleMouseDown}
-        title="拖动调整位置"
-      >
+      {/* 图标按钮 */}
+      <div className={styles.iconButton}>
         <ThunderboltOutlined className={styles.icon} />
       </div>
 
       {/* 展开的菜单 */}
       <div className={styles.menu}>
-        <div className={styles.menuHeader}>
+        <div
+          className={styles.menuHeader}
+          onMouseDown={handleMouseDown}
+          title="拖动调整位置"
+        >
           <ThunderboltOutlined className={styles.menuHeaderIcon} />
           <span className={styles.menuHeaderText}>快捷菜单</span>
         </div>

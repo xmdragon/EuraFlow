@@ -27,13 +27,17 @@
     cursor: move;
     user-select: none; // 禁止文本选择
 
-    .iconButton {
-      box-shadow: 0 8px 24px rgba(24, 144, 255, 0.6);
-      transform: scale(1.05);
+    .menu {
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
     }
 
-    .menu {
-      pointer-events: none; // 拖动时禁用菜单交互
+    .menuHeader {
+      background: linear-gradient(135deg, #096dd9 0%, #0050b3 100%);
+      cursor: move;
+    }
+
+    .menuList {
+      pointer-events: none; // 拖动时禁用菜单项交互
     }
   }
 }
@@ -50,7 +54,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: move; // 拖动光标
+  cursor: pointer;
   box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1001;
@@ -101,7 +105,7 @@
   z-index: 1000;
 }
 
-// 菜单头部
+// 菜单头部（可拖动）
 .menuHeader {
   display: flex;
   align-items: center;
@@ -111,6 +115,17 @@
   color: #fff;
   font-weight: 500;
   font-size: 14px;
+  cursor: move;
+  user-select: none;
+  transition: background 0.2s;
+
+  &:hover {
+    background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
+  }
+
+  &:active {
+    background: linear-gradient(135deg, #096dd9 0%, #0050b3 100%);
+  }
 }
 
 .menuHeaderIcon {
