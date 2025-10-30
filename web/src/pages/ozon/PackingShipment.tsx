@@ -176,6 +176,8 @@ const PackingShipment: React.FC = () => {
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   // 扫描输入框自动填充状态
   const [isScanAutoFilled, setIsScanAutoFilled] = useState(false);
+  // 记录上次自动填充的内容（避免重复填充）
+  const [lastAutoFilledContent, setLastAutoFilledContent] = useState<string>('');
   // 编辑备注弹窗状态
   const [editNotesModalVisible, setEditNotesModalVisible] = useState(false);
   const [editingPosting, setEditingPosting] = useState<any>(null);
@@ -725,8 +727,15 @@ const PackingShipment: React.FC = () => {
     // 读取并验证剪贴板内容
     const clipboardText = await readAndValidateClipboard();
     if (clipboardText) {
+      // 如果与上次自动填充的内容相同，跳过填充
+      if (clipboardText === lastAutoFilledContent) {
+        logger.info('剪贴板内容与上次自动填充内容相同，跳过填充:', clipboardText);
+        return;
+      }
+
       setScanTrackingNumber(clipboardText);
       setIsScanAutoFilled(true);
+      setLastAutoFilledContent(clipboardText);
     }
   };
 
