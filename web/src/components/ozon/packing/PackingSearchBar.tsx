@@ -3,13 +3,14 @@
  * 打包发货搜索栏组件
  * 支持智能识别SKU/货件编号/追踪号码/国内单号
  */
-import { SearchOutlined } from '@ant-design/icons';
-import { Card, Row, Col, Space, Form, Input, Button, FormInstance } from 'antd';
-import React from 'react';
+import { SearchOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Space, Form, Input, Button, FormInstance, InputRef } from 'antd';
+import React, { useState, useRef } from 'react';
 
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
+import { readAndValidateClipboard, markClipboardRejected } from '@/hooks/useClipboard';
 
 export interface SearchParams {
   sku?: string;
@@ -42,6 +43,38 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
   onShopChange,
   onSearchParamsChange,
 }) => {
+  // 自动填充相关状态
+  const [isAutoFilled, setIsAutoFilled] = useState(false);
+  const searchInputRef = useRef<InputRef>(null);
+
+  // 输入框获得焦点时，尝试自动填充剪贴板内容
+  const handleSearchInputFocus = async () => {
+    // 如果输入框已有内容，不覆盖
+    const currentValue = form.getFieldValue('search_text');
+    if (currentValue) {
+      return;
+    }
+
+    // 读取并验证剪贴板内容
+    const clipboardText = await readAndValidateClipboard();
+    if (clipboardText) {
+      form.setFieldValue('search_text', clipboardText);
+      setIsAutoFilled(true);
+    }
+  };
+
+  // 清除自动填充的内容
+  const handleClearAutoFilled = () => {
+    const currentValue = form.getFieldValue('search_text');
+    if (currentValue) {
+      // 标记为拒绝，1分钟内不再自动填充相同内容
+      markClipboardRejected(currentValue);
+    }
+    form.setFieldValue('search_text', '');
+    setIsAutoFilled(false);
+    searchInputRef.current?.focus();
+  };
+
   const handleSearch = (values: PackingSearchFormValues) => {
     const searchValue = values.search_text?.trim();
 
@@ -106,9 +139,20 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
           <Form form={form} layout="inline" onFinish={handleSearch}>
             <Form.Item name="search_text">
               <Input
+                ref={searchInputRef}
                 placeholder="输入SKU/货件编号/追踪号码/国内单号"
                 prefix={<SearchOutlined />}
                 style={{ width: 320 }}
+                onFocus={handleSearchInputFocus}
+                onChange={() => setIsAutoFilled(false)}
+                suffix={
+                  isAutoFilled && form.getFieldValue('search_text') ? (
+                    <CloseCircleOutlined
+                      onClick={handleClearAutoFilled}
+                      style={{ color: '#999', cursor: 'pointer' }}
+                    />
+                  ) : null
+                }
               />
             </Form.Item>
             <Form.Item>
