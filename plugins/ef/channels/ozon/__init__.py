@@ -165,11 +165,157 @@ async def setup(hooks) -> None:
         )
         logger.info("✓ Registered ozon_finance_sync service handler")
 
-        # 3. 注册OZON促销活动同步服务
-        from .tasks.promotion_sync_task import sync_all_promotions
+        # 3. 注册OZON促销活动同步服务（封装）
+        async def ozon_promotion_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
+            """OZON促销活动同步处理函数"""
+            import logging
+            from datetime import datetime
+            from ef_core.database import get_db_manager
+            from .models import OzonShop, OzonPromotionAction
+            from .services.promotion_service import PromotionService
+            from sqlalchemy import select
+
+            logger_local = logging.getLogger(__name__)
+            start_time = datetime.utcnow()
+            results = {
+                "started_at": start_time.isoformat() + "Z",
+                "shops_processed": 0,
+                "actions_synced": 0,
+                "candidates_synced": 0,
+                "products_synced": 0,
+                "auto_cancelled": 0,
+                "errors": []
+            }
+
+            logger_local.info("Starting promotion sync task")
+
+            db_manager = get_db_manager()
+
+            try:
+                async with db_manager.get_session() as db:
+                    # 获取所有活跃的店铺
+                    stmt = select(OzonShop).where(OzonShop.is_active == True)
+                    result = await db.execute(stmt)
+                    shops = result.scalars().all()
+
+                    logger_local.info(f"Found {len(shops)} active shops to sync")
+
+                    for shop in shops:
+                        try:
+                            # 1. 同步活动清单
+                            sync_result = await PromotionService.sync_actions(shop.id, db)
+                            actions_count = sync_result.get("synced_count", 0)
+                            results["actions_synced"] += actions_count
+                            logger_local.info(f"Synced {actions_count} actions for shop {shop.id}")
+
+                            # 2. 获取所有活动
+                            stmt = select(OzonPromotionAction).where(
+                                OzonPromotionAction.shop_id == shop.id
+                            )
+                            result = await db.execute(stmt)
+                            actions = result.scalars().all()
+
+                            for action in actions:
+                                try:
+                                    action_id = action.action_id
+
+                                    # 2.1 同步候选商品
+                                    sync_result = await PromotionService.sync_action_candidates(
+                                        shop.id, action_id, db
+                                    )
+                                    candidates_count = sync_result.get("synced_count", 0)
+                                    results["candidates_synced"] += candidates_count
+
+                                    # 2.2 同步参与商品
+                                    sync_result = await PromotionService.sync_action_products(
+                                        shop.id, action_id, db
+                                    )
+                                    products_count = sync_result.get("synced_count", 0)
+                                    results["products_synced"] += products_count
+
+                                    logger_local.info(
+                                        f"Synced action {action_id}: {candidates_count} candidates, {products_count} products"
+                                    )
+
+                                    # 2.3 执行自动取消（如果开启）
+                                    if action.auto_cancel_enabled:
+                                        try:
+                                            cancel_result = await PromotionService.auto_cancel_task(
+                                                shop.id, action_id, db
+                                            )
+                                            cancelled_count = cancel_result.get("cancelled_count", 0)
+                                            results["auto_cancelled"] += cancelled_count
+
+                                            if cancelled_count > 0:
+                                                logger_local.info(
+                                                    f"Auto-cancelled {cancelled_count} products from action {action_id}",
+                                                    extra={
+                                                        "shop_id": shop.id,
+                                                        "action_id": action_id,
+                                                        "cancelled_count": cancelled_count
+                                                    }
+                                                )
+                                        except Exception as e:
+                                            error_msg = f"Failed to auto-cancel products for action {action_id}: {str(e)}"
+                                            logger_local.error(error_msg, exc_info=True)
+                                            results["errors"].append({
+                                                "shop_id": shop.id,
+                                                "action_id": action_id,
+                                                "error": error_msg,
+                                                "step": "auto_cancel"
+                                            })
+
+                                except Exception as e:
+                                    error_msg = f"Failed to sync action {action.action_id}: {str(e)}"
+                                    logger_local.error(error_msg, exc_info=True)
+                                    results["errors"].append({
+                                        "shop_id": shop.id,
+                                        "action_id": action.action_id,
+                                        "error": error_msg
+                                    })
+
+                            results["shops_processed"] += 1
+
+                        except Exception as e:
+                            error_msg = f"Failed to sync shop {shop.id}: {str(e)}"
+                            logger_local.error(error_msg, exc_info=True)
+                            results["errors"].append({
+                                "shop_id": shop.id,
+                                "error": error_msg
+                            })
+
+                    # 记录完成时间
+                    end_time = datetime.utcnow()
+                    duration = (end_time - start_time).total_seconds()
+                    results["completed_at"] = end_time.isoformat() + "Z"
+                    results["duration_seconds"] = duration
+
+                    logger_local.info(
+                        f"Promotion sync task completed",
+                        extra={
+                            "shops_processed": results["shops_processed"],
+                            "actions_synced": results["actions_synced"],
+                            "candidates_synced": results["candidates_synced"],
+                            "products_synced": results["products_synced"],
+                            "auto_cancelled": results["auto_cancelled"],
+                            "duration_seconds": duration,
+                            "error_count": len(results["errors"])
+                        }
+                    )
+
+                    return results
+
+            except Exception as e:
+                logger_local.error("Promotion sync task failed", exc_info=True)
+                results["errors"].append({
+                    "error": "Task failed",
+                    "message": str(e)
+                })
+                raise
+
         registry.register(
             service_key="ozon_promotion_sync",
-            handler=sync_all_promotions,
+            handler=ozon_promotion_sync_handler,
             name="OZON促销活动同步",
             description="同步所有店铺的促销活动、候选商品和参与商品，并执行自动取消逻辑（每30分钟执行）",
             plugin="ef.channels.ozon",
