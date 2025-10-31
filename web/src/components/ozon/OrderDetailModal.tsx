@@ -313,7 +313,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               children: (
                 <>
                   <Descriptions bordered column={2} labelStyle={{ width: '120px' }}>
-                    <Descriptions.Item label="Ozon订单号">
+                    <Descriptions.Item label="Ozon单号">
                       {localOrder.ozon_order_id || localOrder.order_id}
                     </Descriptions.Item>
                     <Descriptions.Item label="状态">
@@ -497,7 +497,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         column={1}
                         labelStyle={{ width: '120px' }}
                       >
-                        <Descriptions.Item label="Posting号">
+                        <Descriptions.Item label="货件编号">
                           {posting.posting_number}
                         </Descriptions.Item>
                         <Descriptions.Item label="状态">
