@@ -1,0 +1,43 @@
+.contentContainer {
+  padding: 16px;
+  overflow-x: hidden;
+}
+
+.titleRow {
+  margin-bottom: 16px;
+}
+
+.shopSelector {
+  min-width: 200px;
+}
+
+.statsRow {
+  margin-bottom: 16px;
+}
+
+.fixedWidthCard {
+  min-width: 160px;
+}
+
+.shopNameValue {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.chartCard {
+  margin-top: 16px;
+}
+
+.chartLoading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+}
+
+.chartEmpty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+}

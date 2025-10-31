@@ -83,17 +83,17 @@ celery_app.conf.beat_schedule = {
         "options": {"queue": "ef_core"}
     },
 
-    # OZON: 每周二凌晨4点同步类目树
+    # OZON: 每天凌晨4点同步类目树
     "ozon-scheduled-category-sync": {
         "task": "ef.ozon.scheduled_category_sync",
-        "schedule": crontab(day_of_week=2, hour=4, minute=0),  # 周二凌晨4点
+        "schedule": crontab(hour=4, minute=0),  # 每天凌晨4点
         "options": {"queue": "ef_core"}
     },
 
-    # OZON: 每周二凌晨4:30同步类目特征（在类目同步之后）
+    # OZON: 每周二凌晨4:10同步类目特征和字典值
     "ozon-scheduled-attributes-sync": {
         "task": "ef.ozon.scheduled_attributes_sync",
-        "schedule": crontab(day_of_week=2, hour=4, minute=30),  # 周二凌晨4:30
+        "schedule": crontab(day_of_week=2, hour=4, minute=10),  # 周二凌晨4:10
         "options": {"queue": "ef_core"}
     },
 

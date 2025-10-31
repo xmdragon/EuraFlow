@@ -34,15 +34,24 @@ def batch_update_prices_task(
     task_id = self.request.id if self.request.id else "unknown"
     logger.info(f"批量价格更新任务启动 - Task ID: {task_id}, shop_id: {shop_id}, 更新数量: {len(updates)}")
 
-    try:
-        # 直接运行异步代码（与其他任务保持一致）
-        result = asyncio.run(
-            _batch_update_prices_async(
-                task_id,
-                shop_id,
-                updates
+    def run_async_in_thread():
+        """在新线程中运行异步代码，显式管理 event loop"""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(
+                _batch_update_prices_async(
+                    task_id,
+                    shop_id,
+                    updates
+                )
             )
-        )
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+    try:
+        result = run_async_in_thread()
         return result
     except Exception as e:
         logger.error(f"批量价格更新任务执行错误: {e}", exc_info=True)

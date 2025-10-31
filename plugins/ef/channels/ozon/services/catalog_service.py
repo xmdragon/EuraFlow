@@ -39,7 +39,8 @@ class CatalogService:
     async def sync_category_tree(
         self,
         root_category_id: Optional[int] = None,
-        force_refresh: bool = False
+        force_refresh: bool = False,
+        progress_callback: Optional[callable] = None
     ) -> Dict[str, Any]:
         """
         同步类目树
@@ -47,6 +48,7 @@ class CatalogService:
         Args:
             root_category_id: 根类目ID(None表示从顶层开始)
             force_refresh: 是否强制刷新
+            progress_callback: 进度回调函数 (current, total, category_name)
 
         Returns:
             同步结果
@@ -78,14 +80,30 @@ class CatalogService:
                 return {"success": False, "error": error_msg}
 
             categories = response["result"]
+
+            # 先计算总类目数
+            total_count = self._count_categories_recursive(categories)
+            logger.info(f"Total categories to sync: {total_count}")
+
+            # 初始化进度追踪
+            progress_state = {"current": 0}
+
             synced_count = 0
+            new_count = 0
+            updated_count = 0
 
             # 递归保存类目
             for category_data in categories:
-                synced_count += await self._save_category_recursive(
+                result = await self._save_category_recursive(
                     category_data,
-                    parent_id=root_category_id
+                    parent_id=root_category_id,
+                    progress_state=progress_state,
+                    total_count=total_count,
+                    progress_callback=progress_callback
                 )
+                synced_count += result['count']
+                new_count += result['new']
+                updated_count += result['updated']
 
             # 标记废弃的类目（未在本次同步中更新的类目）
             from sqlalchemy import update
@@ -102,7 +120,7 @@ class CatalogService:
             if deprecated_count > 0:
                 logger.info(f"Marked {deprecated_count} categories as deprecated")
 
-            logger.info(f"Category tree sync completed: {synced_count} categories, {deprecated_count} deprecated")
+            logger.info(f"Category tree sync completed: {synced_count} categories ({new_count} new, {updated_count} updated), {deprecated_count} deprecated")
 
             # 生成前端可用的 JS 文件
             await self._generate_category_tree_js()
@@ -110,8 +128,9 @@ class CatalogService:
             return {
                 "success": True,
                 "total_categories": synced_count,
-                "synced_count": synced_count,
-                "deprecated_count": deprecated_count,
+                "new_categories": new_count,
+                "updated_categories": updated_count,
+                "deprecated_categories": deprecated_count,
                 "cached": False
             }
 
@@ -120,12 +139,25 @@ class CatalogService:
             await self.db.rollback()
             return {"success": False, "error": str(e)}
 
+    def _count_categories_recursive(self, categories: List[Dict[str, Any]]) -> int:
+        """递归计算类目树中的总类目数"""
+        count = 0
+        for category_data in categories:
+            count += 1
+            children = category_data.get("children", [])
+            if children:
+                count += self._count_categories_recursive(children)
+        return count
+
     async def _save_category_recursive(
         self,
         category_data: Dict[str, Any],
         parent_id: Optional[int] = None,
-        level: int = 0
-    ) -> int:
+        level: int = 0,
+        progress_state: Optional[Dict] = None,
+        total_count: int = 0,
+        progress_callback: Optional[callable] = None
+    ) -> Dict[str, int]:
         """
         递归保存类目（包含子类目）
 
@@ -133,16 +165,19 @@ class CatalogService:
             category_data: 类目数据
             parent_id: 父类目ID
             level: 层级深度
+            progress_state: 进度状态 {'current': 0}
+            total_count: 总类目数
+            progress_callback: 进度回调函数 (current, total, category_name)
 
         Returns:
-            保存的类目数量
+            保存结果 {'count': 总数, 'new': 新增数, 'updated': 更新数}
         """
         # 兼容两种字段名：
         # 1-2级使用 description_category_id 和 category_name
         # 3级（叶子）使用 type_id 和 type_name
         category_id = category_data.get("description_category_id") or category_data.get("type_id")
         if not category_id:
-            return 0
+            return {'count': 0, 'new': 0, 'updated': 0}
 
         # 检查类目是否已存在
         existing = await self.db.get(OzonCategory, category_id)
@@ -155,13 +190,14 @@ class CatalogService:
         # 判断是否叶子类目：初步判断，后续可能更新
         is_leaf = len(children) == 0
 
+        is_new = False
         if existing:
             # 更新现有类目
             existing.name = category_name
             existing.is_leaf = is_leaf
             existing.is_disabled = is_disabled
             existing.level = level
-            existing.last_updated_at = datetime.utcnow()
+            existing.last_updated_at = datetime.now(timezone.utc)
         else:
             # 创建新类目
             category = OzonCategory(
@@ -175,19 +211,40 @@ class CatalogService:
             self.db.add(category)
             # 立即flush确保后续查询能找到此记录，避免重复插入
             await self.db.flush()
+            is_new = True
 
-        count = 1
+        # 更新进度
+        if progress_state is not None:
+            progress_state['current'] += 1
+            if progress_callback:
+                progress_callback(
+                    progress_state['current'],
+                    total_count,
+                    category_name
+                )
+
+        result = {
+            'count': 1,
+            'new': 1 if is_new else 0,
+            'updated': 0 if is_new else 1
+        }
 
         # 递归处理子类目（OZON API已在第一次调用时返回完整树结构）
         if children:
             for child_data in children:
-                count += await self._save_category_recursive(
+                child_result = await self._save_category_recursive(
                     child_data,
                     parent_id=category_id,
-                    level=level + 1
+                    level=level + 1,
+                    progress_state=progress_state,
+                    total_count=total_count,
+                    progress_callback=progress_callback
                 )
+                result['count'] += child_result['count']
+                result['new'] += child_result['new']
+                result['updated'] += child_result['updated']
 
-        return count
+        return result
 
     async def sync_category_attributes(
         self,
@@ -742,7 +799,7 @@ class CatalogService:
 
             # 生成 TypeScript 文件内容
             ts_content = f"""// Auto-generated by OZON category sync
-// Generated at: {datetime.utcnow().isoformat()}Z
+// Generated at: {datetime.now(timezone.utc).isoformat()}Z
 // Total categories: {len(all_categories)}
 
 export interface CategoryOption {{

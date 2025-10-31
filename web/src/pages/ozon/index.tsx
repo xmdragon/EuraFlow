@@ -7,6 +7,7 @@ import { Routes, Route } from "react-router-dom";
 import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 // 路由懒加载 - 使用带重试机制的加载器防止chunk加载失败
+const OzonOverview = lazyWithRetry(() => import("./OzonOverview"));
 const OrderList = lazyWithRetry(() => import("./OrderList"));
 const PackingShipment = lazyWithRetry(() => import("./PackingShipment"));
 const OrderReport = lazyWithRetry(() => import("./OrderReport"));
@@ -38,6 +39,7 @@ const OzonManagement: React.FC = () => {
   return (
     <Suspense fallback={<PageLoading />}>
       <Routes>
+        <Route path="overview" element={<OzonOverview />} />
         <Route path="selection" element={<ProductSelection />} />
         <Route path="products" element={<ProductList />} />
         <Route path="products/create" element={<ProductCreate />} />

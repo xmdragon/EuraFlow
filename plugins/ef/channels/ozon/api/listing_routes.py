@@ -359,6 +359,91 @@ async def sync_category_tree(
             }
 
 
+@router.post("/listings/categories/sync-async")
+async def sync_category_tree_async(
+    request: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    异步同步类目树（异步后台任务，需要操作员权限）
+
+    从OZON拉取类目数据到本地数据库，使用后台任务执行
+
+    返回：
+    - task_id: 任务ID（用于查询任务状态）
+    """
+    try:
+        from ..tasks.batch_sync_task import sync_category_tree_task
+
+        shop_id = request.get("shop_id")
+        if not shop_id:
+            raise HTTPException(status_code=400, detail="shop_id is required")
+
+        force_refresh = request.get("force_refresh", True)
+
+        logger.info(f"Starting async category tree sync: shop_id={shop_id}, force_refresh={force_refresh}")
+
+        # 检查是否有正在执行的类目同步任务
+        import redis
+        import json
+        from celery.result import AsyncResult
+        from ef_core.tasks.celery_app import celery_app
+
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+        # 查找所有正在执行的任务
+        for key in redis_client.keys("celery-task-progress:*"):
+            task_data = redis_client.get(key)
+            if task_data:
+                progress = json.loads(task_data)
+                # 检查是否是类目同步任务（通过字段判断）
+                if progress.get('status') in ['starting', 'syncing'] and 'processed_categories' in progress:
+                    existing_task_id = key.replace("celery-task-progress:", "")
+
+                    # 检查 Celery 中任务是否真的在运行
+                    result = AsyncResult(existing_task_id, app=celery_app)
+
+                    # 如果任务状态是僵尸状态，清理掉
+                    if result.state in ['PENDING', 'FAILURE', 'SUCCESS', 'REVOKED']:
+                        redis_client.delete(key)
+                        logger.warning(
+                            f"Cleaned zombie category sync task {existing_task_id} with Celery state {result.state}"
+                        )
+                        continue
+
+                    # 任务确实在运行，返回已存在的任务
+                    logger.info(f"Found existing running category sync task: {existing_task_id}")
+                    return {
+                        "success": True,
+                        "task_id": existing_task_id,
+                        "message": "检测到正在执行的类目同步任务，将继续监控该任务"
+                    }
+
+        # 启动后台异步任务
+        task = sync_category_tree_task.delay(
+            shop_id=shop_id,
+            force_refresh=force_refresh
+        )
+
+        logger.info(f"Category tree sync task started: task_id={task.id}")
+
+        return {
+            "success": True,
+            "task_id": task.id,
+            "message": "类目同步任务已启动，请稍后查询任务状态"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to start category sync task: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @router.post("/listings/categories/batch-sync-attributes")
 async def batch_sync_category_attributes(
     request: Dict[str, Any],
@@ -462,13 +547,86 @@ async def batch_sync_category_attributes(
         }
 
 
+@router.get("/listings/categories/sync-async/status/{task_id}")
+async def get_category_sync_task_status(
+    task_id: str,
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    查询类目同步任务状态
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务状态信息
+    """
+    try:
+        from celery.result import AsyncResult
+        import redis
+        import json
+
+        task = AsyncResult(task_id)
+
+        # 尝试从 Redis 获取进度信息
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        progress_key = f"celery-task-progress:{task_id}"
+        progress_data = redis_client.get(progress_key)
+
+        response = {
+            "task_id": task_id,
+            "state": task.state,
+        }
+
+        # 如果有进度数据，使用进度数据
+        if progress_data:
+            progress_info = json.loads(progress_data)
+            response["info"] = progress_info
+            response["progress"] = progress_info.get('percent', 0)
+
+        if task.state == 'PENDING':
+            response["status"] = "等待执行"
+            if "progress" not in response:
+                response["progress"] = 0
+        elif task.state == 'PROGRESS':
+            response["status"] = "执行中"
+            if "progress" not in response:
+                response["progress"] = 50
+        elif task.state == 'SUCCESS':
+            response["status"] = "已完成"
+            response["result"] = task.result
+            if "progress" not in response:
+                response["progress"] = 100
+        elif task.state == 'FAILURE':
+            response["status"] = "失败"
+            response["error"] = str(task.info)
+            if "progress" not in response:
+                response["progress"] = 0
+        else:
+            response["status"] = task.state
+            response["info"] = str(task.info) if task.info else None
+            response["progress"] = 0
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Get category sync task status failed: {e}", exc_info=True)
+        return {
+            "task_id": task_id,
+            "state": "UNKNOWN",
+            "status": "未知",
+            "error": str(e),
+            "progress": 0
+        }
+
+
 @router.get("/listings/categories/batch-sync-attributes/status/{task_id}")
 async def get_batch_sync_task_status(
     task_id: str,
     current_user: User = Depends(require_role("operator"))
 ):
     """
-    查询批量同步任务状态
+    查询批量同步特征任务状态
 
     Args:
         task_id: 任务ID

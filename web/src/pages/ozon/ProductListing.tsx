@@ -7,6 +7,8 @@ import {
   ExclamationCircleOutlined,
   ReloadOutlined,
   RocketOutlined,
+  FileImageOutlined,
+  InboxOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -26,6 +28,8 @@ import {
   Row,
   Col,
   Statistic,
+  Avatar,
+  Popover,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import React, { useState } from 'react';
@@ -36,6 +40,7 @@ import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { Option } = Select;
 

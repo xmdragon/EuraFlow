@@ -360,6 +360,142 @@ async def get_statistics(
         raise HTTPException(status_code=500, detail=f"获取统计数据失败: {str(e)}")
 
 
+@router.get("/daily-posting-stats")
+async def get_daily_posting_stats(
+    shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
+    days: Optional[int] = Query(None, ge=1, le=365, description="统计天数（与start_date/end_date互斥）"),
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user = Depends(get_current_user_flexible)
+):
+    """
+    获取每日posting统计数据（按店铺分组）
+
+    Args:
+        shop_id: 店铺ID，可选
+        days: 统计天数，默认30天（与start_date/end_date互斥）
+        start_date: 开始日期（与days互斥）
+        end_date: 结束日期（与days互斥）
+        db: 数据库会话
+        current_user: 当前用户
+
+    Returns:
+        每日每个店铺的posting数量统计
+    """
+    from ..models import OzonPosting, OzonShop
+    from sqlalchemy import select, func, and_, cast, Date
+    from .permissions import filter_by_shop_permission
+    from datetime import date
+
+    # 权限验证
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        # 计算起始日期和结束日期
+        if start_date and end_date:
+            # 使用自定义日期范围
+            from datetime import datetime
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+        elif days:
+            # 使用天数计算
+            end_date_obj = utcnow().date()
+            start_date_obj = end_date_obj - timedelta(days=days - 1)
+        else:
+            # 默认30天
+            end_date_obj = utcnow().date()
+            start_date_obj = end_date_obj - timedelta(days=29)
+
+        # 构建查询条件
+        posting_filter = [
+            OzonPosting.status != 'cancelled',  # 根据 ozon status 排除取消的订单
+            OzonPosting.in_process_at.isnot(None),  # 必须有下单时间
+            cast(OzonPosting.in_process_at, Date) >= start_date_obj,
+            cast(OzonPosting.in_process_at, Date) <= end_date_obj
+        ]
+
+        # 如果指定了店铺，添加店铺过滤
+        if shop_id:
+            posting_filter.append(OzonPosting.shop_id == shop_id)
+        elif allowed_shop_ids:
+            # 如果没有指定店铺但有权限限制，使用权限列表
+            posting_filter.append(OzonPosting.shop_id.in_(allowed_shop_ids))
+
+        # 查询每日每店铺的posting数量
+        stats_result = await db.execute(
+            select(
+                cast(OzonPosting.in_process_at, Date).label('date'),
+                OzonPosting.shop_id,
+                func.count(OzonPosting.id).label('count')
+            )
+            .where(and_(*posting_filter))
+            .group_by(
+                cast(OzonPosting.in_process_at, Date),
+                OzonPosting.shop_id
+            )
+            .order_by(cast(OzonPosting.in_process_at, Date))
+        )
+        stats_rows = stats_result.all()
+
+        # 获取所有涉及的店铺信息
+        shop_ids = list(set([row.shop_id for row in stats_rows]))
+        if shop_ids:
+            shops_result = await db.execute(
+                select(OzonShop.id, OzonShop.shop_name)
+                .where(OzonShop.id.in_(shop_ids))
+            )
+            shops_data = {shop.id: shop.shop_name for shop in shops_result.all()}
+        else:
+            shops_data = {}
+
+        # 组织数据结构
+        # 1. 按日期分组
+        daily_stats = {}
+        for row in stats_rows:
+            date_str = row.date.isoformat()
+            if date_str not in daily_stats:
+                daily_stats[date_str] = {}
+            shop_name = shops_data.get(row.shop_id, f"店铺{row.shop_id}")
+            daily_stats[date_str][shop_name] = row.count
+
+        # 2. 生成完整的日期序列（填充缺失日期）
+        all_dates = []
+        current_date = start_date_obj
+        while current_date <= end_date_obj:
+            date_str = current_date.isoformat()
+            all_dates.append(date_str)
+            if date_str not in daily_stats:
+                daily_stats[date_str] = {}
+            current_date += timedelta(days=1)
+
+        # 3. 获取所有店铺名称列表
+        shop_names = sorted(set(shops_data.values()))
+
+        # 4. 确保每个日期都有所有店铺的数据（缺失的填0）
+        for date_str in all_dates:
+            for shop_name in shop_names:
+                if shop_name not in daily_stats[date_str]:
+                    daily_stats[date_str][shop_name] = 0
+
+        # 计算实际天数
+        actual_days = (end_date_obj - start_date_obj).days + 1
+
+        return {
+            "dates": all_dates,
+            "shops": shop_names,
+            "data": daily_stats,
+            "total_days": actual_days
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get daily posting stats: {e}")
+        raise HTTPException(status_code=500, detail=f"获取每日统计失败: {str(e)}")
+
+
 @router.post("/test-connection")
 async def test_connection(
     credentials: Dict[str, str] = Body(..., description="API凭证")

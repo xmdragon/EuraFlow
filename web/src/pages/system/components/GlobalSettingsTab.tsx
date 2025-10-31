@@ -36,6 +36,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
 
+import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from '@/utils/notification';
@@ -186,7 +187,6 @@ interface CategoryFeaturesSectionProps {
 
 const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdmin }) => {
   const queryClient = useQueryClient();
-  const { notification } = App.useApp();
   const [syncing, setSyncing] = useState(false);
   const [syncingFeatures, setSyncingFeatures] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -203,6 +203,109 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
 
   const firstShopId = shopsData?.shops?.[0]?.id || 1; // 取第一个店铺，兜底值为1
 
+  // 类目树同步轮询 Hook
+  const { startPolling: startCategorySyncPolling } = useAsyncTaskPolling({
+    getStatus: async (taskId) => {
+      const status = await ozonApi.getCategorySyncTaskStatus(taskId);
+
+      if (status.state === 'SUCCESS') {
+        return { state: 'SUCCESS', result: status.result };
+      } else if (status.state === 'FAILURE') {
+        return { state: 'FAILURE', error: status.error || '任务执行失败' };
+      } else {
+        return { state: 'PROGRESS', info: status.info };
+      }
+    },
+    pollingInterval: 5000,
+    timeout: 30 * 60 * 1000,
+    notificationKey: 'category-tree-sync',
+    initialMessage: '类目同步进行中',
+    formatProgressContent: (info) => {
+      const { processed_categories = 0, total_categories = 0, current_category = '', percent = 0 } = info;
+      return (
+        <div>
+          <Progress percent={percent} size="small" status="active" />
+          <div style={{ marginTop: 8 }}>
+            {current_category.includes('准备中') || current_category.includes('等待')
+              ? current_category
+              : `正在处理 "${current_category}"...`}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+            已完成 {processed_categories}/{total_categories} 个类目
+          </div>
+        </div>
+      );
+    },
+    formatSuccessMessage: (result) => ({
+      title: '同步完成',
+      description: `成功同步 ${result.total_categories || 0} 个类目（新增 ${result.new_categories || 0}，更新 ${result.updated_categories || 0}，废弃 ${result.deprecated_categories || 0}）`,
+    }),
+    onSuccess: () => {
+      setSyncing(false);
+      queryClient.invalidateQueries({ queryKey: ['category-tree'] });
+    },
+    onFailure: () => {
+      setSyncing(false);
+    },
+    onTimeout: () => {
+      setSyncing(false);
+    },
+    onCancel: () => {
+      setSyncing(false);
+    },
+  });
+
+  // 特征同步轮询 Hook
+  const { startPolling: startFeatureSyncPolling } = useAsyncTaskPolling({
+    getStatus: async (taskId) => {
+      const status = await ozonApi.getBatchSyncTaskStatus(taskId);
+
+      if (status.state === 'SUCCESS') {
+        return { state: 'SUCCESS', result: status.result };
+      } else if (status.state === 'FAILURE') {
+        return { state: 'FAILURE', error: status.error || '任务执行失败' };
+      } else {
+        return { state: 'PROGRESS', info: status.info };
+      }
+    },
+    pollingInterval: 10000,
+    timeout: 30 * 60 * 1000,
+    notificationKey: 'batch-sync-features',
+    initialMessage: '批量同步进行中',
+    formatProgressContent: (info) => {
+      const { synced_categories = 0, total_categories = 0, current_category = '', percent = 0 } = info;
+      return (
+        <div>
+          <Progress percent={percent} size="small" status="active" />
+          <div style={{ marginTop: 8 }}>
+            {current_category.includes('准备中') || current_category.includes('等待')
+              ? current_category
+              : `正在同步 "${current_category}" 特征...`}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+            已完成 {synced_categories}/{total_categories} 个类目
+          </div>
+        </div>
+      );
+    },
+    formatSuccessMessage: (result) => ({
+      title: '同步完成',
+      description: `成功同步 ${result.synced_categories || 0} 个类目，${result.synced_attributes || 0} 个特征`,
+    }),
+    onSuccess: () => {
+      setSyncingFeatures(false);
+    },
+    onFailure: () => {
+      setSyncingFeatures(false);
+    },
+    onTimeout: () => {
+      setSyncingFeatures(false);
+    },
+    onCancel: () => {
+      setSyncingFeatures(false);
+    },
+  });
+
   // 查询选中类目的属性
   const { data: attributesData, isLoading: attributesLoading } = useQuery({
     queryKey: ['category-attributes', selectedCategoryId, firstShopId],
@@ -214,24 +317,26 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
   });
 
   const handleSyncCategories = async () => {
-    setSyncing(true);
-    try {
-      // 直接调用类目树同步API（强制刷新）
-      const response = await ozonApi.syncCategoryTree(firstShopId, true);
+    // 防止重复点击
+    if (syncing) {
+      return;
+    }
 
-      if (response.success) {
-        notifySuccess(
-          '同步完成',
-          `类目数据已同步：${response.total_categories || 0} 个类目`
-        );
-        // 刷新类目树数据
-        queryClient.invalidateQueries({ queryKey: ['category-tree'] });
-      } else {
-        throw new Error(response.error || '类目同步失败');
+    setSyncing(true);
+
+    try {
+      // 调用异步类目树同步API
+      const response = await ozonApi.syncCategoryTreeAsync(firstShopId, true);
+
+      if (!response.success || !response.task_id) {
+        throw new Error(response.error || '启动同步任务失败');
       }
+
+      // 使用新的轮询 Hook 启动后台轮询任务
+      startCategorySyncPolling(response.task_id);
+
     } catch (error: any) {
       notifyError('同步失败', error.message || '类目同步失败');
-    } finally {
       setSyncing(false);
     }
   };
@@ -281,8 +386,6 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
 
     setSyncingFeatures(true);
 
-    const notificationKey = 'batch-sync-features';
-
     try {
       // 调用批量同步API，同步所有叶子类目的特征
       const response = await ozonApi.batchSyncCategoryAttributes(firstShopId, {
@@ -296,87 +399,10 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
         throw new Error(response.error || '启动同步任务失败');
       }
 
-      const taskId = response.task_id;
-
-      // 显示初始进度通知
-      notification.open({
-        key: notificationKey,
-        message: '批量同步进行中',
-        description: (
-          <div>
-            <Progress percent={0} size="small" status="active" />
-            <div style={{ marginTop: 8 }}>准备中...</div>
-          </div>
-        ),
-        duration: 0, // 不自动关闭
-        icon: <SyncOutlined spin />,
-        placement: 'bottomRight',
-      });
-
-      // 轮询任务状态
-      const pollInterval = setInterval(async () => {
-        try {
-          const status = await ozonApi.getBatchSyncTaskStatus(taskId);
-
-          // Check Redis progress info (status.info.status === 'syncing')
-          if (status.info && (status.info.status === 'syncing' || status.info.status === 'starting')) {
-            const { synced_categories = 0, total_categories = 0, current_category = '', percent = 0 } = status.info;
-
-            // 更新进度通知
-            notification.open({
-              key: notificationKey,
-              message: '批量同步进行中',
-              description: (
-                <div>
-                  <Progress percent={percent} size="small" status="active" />
-                  <div style={{ marginTop: 8 }}>
-                    正在同步 "{current_category}" 特征...
-                  </div>
-                  <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
-                    已完成 {synced_categories}/{total_categories} 个类目
-                  </div>
-                </div>
-              ),
-              duration: 0,
-              icon: <SyncOutlined spin />,
-              placement: 'bottomRight',
-            });
-          } else if (status.state === 'SUCCESS') {
-            // 任务完成
-            clearInterval(pollInterval);
-            notification.destroy(notificationKey);
-
-            const result = status.result || {};
-            notifySuccess(
-              '同步完成',
-              `成功同步 ${result.synced_categories || 0} 个类目，${result.synced_attributes || 0} 个特征`
-            );
-            setSyncingFeatures(false);
-          } else if (status.state === 'FAILURE') {
-            // 任务失败
-            clearInterval(pollInterval);
-            notification.destroy(notificationKey);
-            notifyError('同步失败', status.error || '任务执行失败');
-            setSyncingFeatures(false);
-          }
-        } catch (error: any) {
-          clearInterval(pollInterval);
-          notification.destroy(notificationKey);
-          notifyError('查询失败', error.message || '无法查询任务状态');
-          setSyncingFeatures(false);
-        }
-      }, 10000); // 每10秒轮询一次
-
-      // 30分钟后自动停止轮询
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        notification.destroy(notificationKey);
-        notifyWarning('同步超时', '任务执行时间过长，已停止监控。请稍后手动查看结果。');
-        setSyncingFeatures(false);
-      }, 30 * 60 * 1000);
+      // 使用新的轮询 Hook 启动后台轮询任务
+      startFeatureSyncPolling(response.task_id);
 
     } catch (error: any) {
-      notification.destroy(notificationKey);
       notifyError('同步失败', error.message || '特征同步失败');
       setSyncingFeatures(false);
     }

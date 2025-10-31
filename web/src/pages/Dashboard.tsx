@@ -174,6 +174,12 @@ const Dashboard: React.FC = () => {
       label: "Ozon管理",
       children: [
         {
+          key: "ozon-overview",
+          icon: <DashboardOutlined />,
+          label: createMenuLabel("ozon-overview", "概览", "/dashboard/ozon/overview"),
+          onClick: () => navigate("/dashboard/ozon/overview"),
+        },
+        {
           key: "ozon-selection",
           icon: <FilterOutlined />,
           label: createMenuLabel("ozon-selection", "选品助手", "/dashboard/ozon/selection"),
@@ -292,6 +298,7 @@ const Dashboard: React.FC = () => {
   // 根据路径获取选中的菜单项
   const getSelectedKey = () => {
     const path = location.pathname;
+    if (path.includes("/ozon/overview")) return "ozon-overview";
     if (path.includes("/ozon/selection")) return "ozon-selection";
     if (path.includes("/ozon/products/create")) return "ozon-products-create";
     if (path.includes("/ozon/products")) return "ozon-products-list";

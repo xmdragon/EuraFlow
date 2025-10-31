@@ -142,7 +142,59 @@ def register_ozon_handlers():
         )
         logger.info("✓ Registered ozon_sync_incremental service handler")
 
-        logger.info(f"OZON plugin: Successfully registered 3 sync service handlers")
+        # 4. 注册OZON类目树定时同步服务
+        async def category_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
+            """OZON类目树同步处理函数"""
+            from .tasks.scheduled_sync_task import _sync_all_shop_categories
+
+            result = await _sync_all_shop_categories()
+
+            if result.get("success"):
+                return {
+                    "records_processed": result.get("total_categories", 0),
+                    "records_updated": result.get("updated_categories", 0) + result.get("new_categories", 0),
+                    "message": f"类目同步完成：共{result.get('total_categories', 0)}个类目，新增{result.get('new_categories', 0)}个，更新{result.get('updated_categories', 0)}个，废弃{result.get('deprecated_categories', 0)}个"
+                }
+            else:
+                raise Exception(result.get("error", "Unknown error"))
+
+        registry.register(
+            service_key="ozon_scheduled_category_sync",
+            handler=category_sync_handler,
+            name="OZON类目树定时同步",
+            description="每天凌晨4:00自动同步类目树（使用第一家启用店铺，数据为平台级）",
+            plugin="ef.channels.ozon",
+            config_schema={}
+        )
+        logger.info("✓ Registered ozon_scheduled_category_sync service handler")
+
+        # 5. 注册OZON类目特征定时同步服务
+        async def attributes_sync_handler(config: Dict[str, Any]) -> Dict[str, Any]:
+            """OZON类目特征同步处理函数"""
+            from .tasks.scheduled_sync_task import _sync_all_shop_attributes
+
+            result = await _sync_all_shop_attributes()
+
+            if result.get("success"):
+                return {
+                    "records_processed": result.get("synced_categories", 0),
+                    "records_updated": result.get("synced_attributes", 0),
+                    "message": f"特征同步完成：{result.get('synced_categories', 0)}个类目，{result.get('synced_attributes', 0)}个特征，{result.get('synced_values', 0)}个字典值"
+                }
+            else:
+                raise Exception(result.get("error", "Unknown error"))
+
+        registry.register(
+            service_key="ozon_scheduled_attributes_sync",
+            handler=attributes_sync_handler,
+            name="OZON类目特征定时同步",
+            description="每周二凌晨4:10自动同步类目特征和字典值（使用第一家启用店铺，数据为平台级）",
+            plugin="ef.channels.ozon",
+            config_schema={}
+        )
+        logger.info("✓ Registered ozon_scheduled_attributes_sync service handler")
+
+        logger.info(f"OZON plugin: Successfully registered 5 sync service handlers")
 
     except Exception as e:
         logger.info(f"OZON plugin: Warning - Failed to register sync service handlers: {e}")

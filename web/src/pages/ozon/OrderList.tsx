@@ -48,10 +48,10 @@ import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
+import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
-import { getGlobalNotification } from '@/utils/globalNotification';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
@@ -75,6 +75,61 @@ const OrderList: React.FC = () => {
   const { currency: userCurrency } = useCurrency();
   const { canOperate, canSync, canExport } = usePermission();
   const { copyToClipboard } = useCopy();
+
+  // 订单同步轮询 Hook
+  const { startPolling: startOrderSyncPolling } = useAsyncTaskPolling({
+    getStatus: async (taskId) => {
+      const result = await ozonApi.getSyncStatus(taskId);
+      const status = result.data || result;
+
+      // 转换为统一格式
+      if (status.status === 'completed') {
+        return { state: 'SUCCESS', result: status };
+      } else if (status.status === 'failed') {
+        return { state: 'FAILURE', error: status.error || '未知错误' };
+      } else {
+        return { state: 'PROGRESS', info: status };
+      }
+    },
+    pollingInterval: 2000,
+    timeout: 30 * 60 * 1000,
+    notificationKey: 'order-sync',
+    initialMessage: '订单同步进行中',
+    formatProgressContent: (info) => {
+      const percent = Math.round(info.progress || 0);
+      let displayMessage = info.message || '同步中...';
+
+      // 匹配 "正在同步 awaiting_deliver 订单 56210030-0227-1..." 格式
+      const matchWithStatus = displayMessage.match(/正在同步\s+(\w+)\s+订单\s+([0-9-]+)/);
+      if (matchWithStatus) {
+        const status = matchWithStatus[1];
+        const postingNumber = matchWithStatus[2];
+        const statusText = status || status;
+        displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
+      } else {
+        // 简单匹配订单号
+        const match = displayMessage.match(/订单\s+([0-9-]+)/);
+        if (match) {
+          displayMessage = `同步订单：${match[1]}`;
+        }
+      }
+
+      return (
+        <div>
+          <Progress percent={percent} size="small" status="active" />
+          <div style={{ marginTop: 8 }}>{displayMessage}</div>
+        </div>
+      );
+    },
+    formatSuccessMessage: () => ({
+      title: '同步完成',
+      description: '订单同步已完成！',
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      refetch();
+    },
+  });
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -499,103 +554,6 @@ const OrderList: React.FC = () => {
     );
   };
 
-  // 异步轮询订单同步状态（后台任务）
-  const pollOrderSyncStatus = async (taskId: string) => {
-    const notificationKey = 'order-sync';
-    let completed = false;
-
-    try {
-      // 显示初始进度通知
-      const notificationInstance = getGlobalNotification();
-      if (notificationInstance) {
-        notificationInstance.open({
-          key: notificationKey,
-          message: '订单同步进行中',
-          description: (
-            <div>
-              <Progress percent={0} size="small" status="active" />
-              <div style={{ marginTop: 8 }}>正在启动同步...</div>
-            </div>
-          ),
-          duration: 0, // 不自动关闭
-          placement: 'bottomRight',
-          icon: <SyncOutlined spin />,
-        });
-      }
-
-      // 持续轮询状态
-      while (!completed) {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 2000)); // 每2秒检查一次
-          const result = await ozonApi.getSyncStatus(taskId);
-          const status = result.data || result;
-
-          if (status.status === 'completed') {
-            completed = true;
-            const notificationInstance = getGlobalNotification();
-            if (notificationInstance) {
-              notificationInstance.destroy(notificationKey);
-            }
-            notifySuccess('同步完成', '订单同步已完成！');
-            queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-            refetch();
-          } else if (status.status === 'failed') {
-            completed = true;
-            const notificationInstance = getGlobalNotification();
-            if (notificationInstance) {
-              notificationInstance.destroy(notificationKey);
-            }
-            notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
-          } else {
-            // 更新进度通知
-            const percent = Math.round(status.progress || 0);
-            // 格式化消息：将英文状态转为中文
-            let displayMessage = status.message || '同步中...';
-
-            // 匹配 "正在同步 awaiting_deliver 订单 56210030-0227-1..." 格式
-            const matchWithStatus = displayMessage.match(/正在同步\s+(\w+)\s+订单\s+([0-9-]+)/);
-            if (matchWithStatus) {
-              const status = matchWithStatus[1];
-              const postingNumber = matchWithStatus[2];
-              const statusText = status || status;
-              displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
-            } else {
-              // 简单匹配订单号
-              const match = displayMessage.match(/订单\s+([0-9-]+)/);
-              if (match) {
-                displayMessage = `同步订单：${match[1]}`;
-              }
-            }
-
-            const notificationInstance = getGlobalNotification();
-            if (notificationInstance) {
-              notificationInstance.open({
-                key: notificationKey,
-                message: '订单同步进行中',
-                description: (
-                  <div>
-                    <Progress percent={percent} size="small" status="active" />
-                    <div style={{ marginTop: 8 }}>{displayMessage}</div>
-                  </div>
-                ),
-                duration: 0,
-                placement: 'bottomRight',
-                icon: <SyncOutlined spin />,
-              });
-            }
-          }
-        } catch (error) {
-          // 静默处理错误，继续轮询
-        }
-      }
-    } catch (error) {
-      const notificationInstance = getGlobalNotification();
-      if (notificationInstance) {
-        notificationInstance.destroy(notificationKey);
-      }
-      notifyError('同步失败', '同步过程发生异常');
-    }
-  };
 
   // 同步订单（非阻塞）
   const syncOrdersMutation = useMutation({
@@ -608,8 +566,8 @@ const OrderList: React.FC = () => {
     onSuccess: (data) => {
       const taskId = data?.task_id || data?.data?.task_id;
       if (taskId) {
-        // 立即启动后台轮询任务
-        pollOrderSyncStatus(taskId);
+        // 使用新的轮询 Hook 启动后台轮询任务
+        startOrderSyncPolling(taskId);
       } else {
         notifyError('同步失败', '未获取到任务ID，请稍后重试');
       }

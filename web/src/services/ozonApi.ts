@@ -659,6 +659,39 @@ export const getStatistics = async (shopId?: number | null) => {
   return response.data;
 };
 
+// 每日Posting统计数据接口
+export interface DailyPostingStats {
+  dates: string[];
+  shops: string[];
+  data: Record<string, Record<string, number>>;
+  total_days: number;
+}
+
+// 获取每日Posting统计
+export const getDailyPostingStats = async (
+  shopId?: number | null,
+  days?: number,
+  startDate?: string,
+  endDate?: string
+) => {
+  const params: { shop_id?: number; days?: number; start_date?: string; end_date?: string } = {};
+
+  if (shopId) {
+    params.shop_id = shopId;
+  }
+
+  // 优先使用自定义日期范围
+  if (startDate && endDate) {
+    params.start_date = startDate;
+    params.end_date = endDate;
+  } else if (days) {
+    params.days = days;
+  }
+
+  const response = await apiClient.get<DailyPostingStats>("/ozon/daily-posting-stats", { params });
+  return response.data;
+};
+
 // ==================== 同步日志 API ====================
 
 export interface SyncLog {
@@ -1490,7 +1523,7 @@ export const searchDictionaryValues = async (
   return response.data;
 };
 
-// 同步类目树
+// 同步类目树（同步模式，会阻塞）
 export const syncCategoryTree = async (
   shopId: number,
   forceRefresh: boolean = false,
@@ -1501,6 +1534,26 @@ export const syncCategoryTree = async (
     force_refresh: forceRefresh,
     root_category_id: rootCategoryId,
   });
+  return response.data;
+};
+
+// 异步同步类目树（异步任务模式，推荐使用）
+export const syncCategoryTreeAsync = async (
+  shopId: number,
+  forceRefresh: boolean = true,
+) => {
+  const response = await apiClient.post("/ozon/listings/categories/sync-async", {
+    shop_id: shopId,
+    force_refresh: forceRefresh,
+  });
+  return response.data;
+};
+
+// 查询类目同步任务状态
+export const getCategorySyncTaskStatus = async (taskId: string) => {
+  const response = await apiClient.get(
+    `/ozon/listings/categories/sync-async/status/${taskId}`,
+  );
   return response.data;
 };
 
