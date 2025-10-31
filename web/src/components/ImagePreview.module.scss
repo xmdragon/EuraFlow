@@ -179,18 +179,18 @@
     right: 0 !important;
     bottom: 0 !important;
     z-index: 1000 !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: flex-start !important;
-    padding-top: 5vh !important;
+    pointer-events: none !important;
   }
 
   :global(.ant-modal) {
-    top: 0;
-    width: fit-content;
-    max-width: none;
-    margin: 0;
-    position: relative;
+    position: absolute !important;
+    top: 5vh !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: fit-content !important;
+    max-width: none !important;
+    margin: 0 !important;
+    pointer-events: auto !important;
   }
 
   :global(.ant-modal-content) {
