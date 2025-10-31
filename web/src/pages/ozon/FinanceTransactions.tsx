@@ -14,6 +14,7 @@ import {
   Row,
   Col,
   Pagination,
+  Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
@@ -31,6 +32,7 @@ import { notifyInfo, notifyError } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+const { Text } = Typography;
 
 // 交易类型中文映射
 const TRANSACTION_TYPE_MAP: Record<string, string> = {
@@ -222,12 +224,14 @@ const FinanceTransactions: React.FC = () => {
       title: '操作日期',
       dataIndex: 'operation_date',
       width: 110,
+      ellipsis: true,
       render: (date: string) => dayjs(date).format('YYYY-MM-DD'),
     },
     {
       title: '货件编号',
       dataIndex: 'posting_number',
       width: 140,
+      ellipsis: true,
       render: (text) => {
         if (!text) return '-';
         // 只有数字-数字-数字格式才显示为链接
@@ -251,31 +255,50 @@ const FinanceTransactions: React.FC = () => {
       title: '操作类型',
       dataIndex: 'operation_type_name',
       width: 120,
+      ellipsis: true,
       render: (text, record) => text || record.operation_type || '-',
     },
     {
       title: '交易类型',
       dataIndex: 'transaction_type',
       width: 100,
+      ellipsis: true,
       render: (type: string) => TRANSACTION_TYPE_MAP[type] || type,
     },
     {
       title: '商品SKU',
       dataIndex: 'ozon_sku',
       width: 140,
+      ellipsis: true,
       render: (text) => text || '-',
     },
     {
       title: '商品名称',
       dataIndex: 'item_name',
-      ellipsis: true,
-      render: (text) => text || '-',
+      width: 400,
+      ellipsis: {
+        showTitle: false,
+      },
+      render: (text) => {
+        if (!text) return '-';
+        const displayText = text.length > 50 ? text.substring(0, 50) + '...' : text;
+        return (
+          <Text
+            ellipsis={{
+              tooltip: text.length > 50 ? text : undefined,
+            }}
+          >
+            {displayText}
+          </Text>
+        );
+      },
     },
     {
       title: '数量',
       dataIndex: 'item_quantity',
       width: 70,
       align: 'right',
+      ellipsis: true,
       render: (qty) => qty || '-',
     },
     {
@@ -283,6 +306,7 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'accruals_for_sale',
       width: 110,
       align: 'right',
+      ellipsis: true,
       render: formatAmount,
     },
     {
@@ -290,6 +314,7 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'amount',
       width: 110,
       align: 'right',
+      ellipsis: true,
       render: (amount: string) => {
         const num = parseFloat(amount);
         return (
@@ -304,6 +329,7 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'delivery_charge',
       width: 100,
       align: 'right',
+      ellipsis: true,
       render: formatAmount,
     },
     {
@@ -311,6 +337,7 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'return_delivery_charge',
       width: 110,
       align: 'right',
+      ellipsis: true,
       render: formatAmount,
     },
     {
@@ -318,6 +345,7 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'sale_commission',
       width: 100,
       align: 'right',
+      ellipsis: true,
       render: formatAmount,
     },
   ];
