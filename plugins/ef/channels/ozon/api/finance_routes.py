@@ -139,7 +139,9 @@ async def get_finance_transactions(
                 conditions.append(OzonFinanceTransaction.posting_number == posting_number_value)
 
         # 查询总数
-        count_stmt = select(func.count()).select_from(OzonFinanceTransaction).where(and_(*conditions))
+        count_stmt = select(func.count()).select_from(OzonFinanceTransaction)
+        if conditions:
+            count_stmt = count_stmt.where(and_(*conditions))
         total_result = await db.execute(count_stmt)
         total = total_result.scalar()
 
@@ -147,11 +149,12 @@ async def get_finance_transactions(
         offset = (page - 1) * page_size
         stmt = (
             select(OzonFinanceTransaction)
-            .where(and_(*conditions))
             .order_by(OzonFinanceTransaction.operation_date.desc())
             .offset(offset)
             .limit(page_size)
         )
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
 
         result = await db.execute(stmt)
         transactions = result.scalars().all()
@@ -226,7 +229,9 @@ async def get_finance_transactions_summary(
             func.sum(OzonFinanceTransaction.delivery_charge).label("total_delivery_charge"),
             func.sum(OzonFinanceTransaction.return_delivery_charge).label("total_return_delivery_charge"),
             func.count().label("transaction_count")
-        ).where(and_(*conditions))
+        )
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
 
         result = await db.execute(stmt)
         row = result.one()
