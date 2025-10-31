@@ -49,7 +49,7 @@ const FinanceTransactions: React.FC = () => {
   // 状态管理
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([
-    dayjs().subtract(7, 'days'),
+    dayjs().subtract(45, 'days'),
     dayjs(),
   ]);
   const [transactionType, setTransactionType] = useState<string>('all');
