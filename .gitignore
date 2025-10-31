@@ -72,6 +72,9 @@ temp/
 supervisord.pid
 supervisor.sock
 
+# Celery
+celerybeat-schedule
+
 # IDE project files
 *.iml
 .project
