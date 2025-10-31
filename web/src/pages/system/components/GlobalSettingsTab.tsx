@@ -216,8 +216,8 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
   const handleSyncCategories = async () => {
     setSyncing(true);
     try {
-      // 直接调用类目树同步API（不显示"同步中"提示）
-      const response = await ozonApi.syncCategoryTree(firstShopId, false);
+      // 直接调用类目树同步API（强制刷新）
+      const response = await ozonApi.syncCategoryTree(firstShopId, true);
 
       if (response.success) {
         notifySuccess(
