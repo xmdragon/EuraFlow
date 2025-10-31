@@ -170,6 +170,14 @@
   overflow: hidden;
 }
 
+// Modal Wrap 样式（控制弹窗容器位置和宽度）
+.modalWrap {
+  :global(.ant-modal) {
+    top: 5vh;
+    width: auto;
+  }
+}
+
 .modalWrapper {
   pointer-events: auto;
 }
@@ -178,8 +186,9 @@
   position: relative;
   display: inline-block;
   background-color: #f0f0f0;
-  min-width: 400px;
-  min-height: 300px;
+  height: 66.67vh; /* 固定高度为屏幕的2/3 */
+  min-width: 66.67vh; /* 最小宽度等于高度，避免首次加载时宽度塌缩 */
+  vertical-align: top;
 }
 
 .loadingWrapper {
@@ -195,12 +204,15 @@
   align-items: center;
   justify-content: center;
   padding: 40px;
-  min-height: 300px;
+  height: 100%;
 }
 
 .previewImage {
-  max-width: 70vw;
-  max-height: 70vh;
+  max-width: calc(90vw - 80px); /* 最大宽度 = 屏幕90% - 左右padding */
+  max-height: calc(66.67vh - 80px); /* 最大高度 = 容器高度 - 上下padding */
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
   transition: transform 0.3s ease;
   user-select: none;
