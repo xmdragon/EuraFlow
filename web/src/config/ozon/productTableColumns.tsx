@@ -9,19 +9,16 @@ import {
   SyncOutlined,
   DeleteOutlined,
   EllipsisOutlined,
-  LinkOutlined,
-  SearchOutlined,
   ReloadOutlined,
   FileImageOutlined,
 } from '@ant-design/icons';
-import { Button, Tag, Dropdown, Tooltip, Avatar, Popover, Space, Switch } from 'antd';
+import { Button, Tag, Dropdown, Tooltip, Space, Switch } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React from 'react';
 
+import ProductImage from '@/components/ozon/ProductImage';
 import type * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithCurrency } from '@/utils/currency';
-import { generateOzonSlug } from '@/utils/ozon/productUtils';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 // 列配置工厂函数的参数接口
 /* eslint-disable no-unused-vars */
@@ -33,6 +30,7 @@ export interface ProductTableColumnsParams {
   handleArchive: (product: ozonApi.Product) => void;
   handleRestore?: (product: ozonApi.Product) => void;
   handleDelete?: (product: ozonApi.Product) => void;
+  handleWatermark?: (product: ozonApi.Product) => void;
   handleImageClick: (product: ozonApi.Product, images: string[], index?: number) => void;
   copyToClipboard: (text: string, label: string) => void;
   canOperate: boolean;
@@ -67,6 +65,7 @@ export const getProductTableColumns = (
     handleArchive,
     handleRestore,
     handleDelete,
+    handleWatermark,
     handleImageClick,
     copyToClipboard,
     canOperate,
@@ -77,7 +76,7 @@ export const getProductTableColumns = (
   } = params;
 
   return [
-    // 第一列：图片（80px）
+    // 第一列：图片（80px）- 使用统一的 ProductImage 组件
     {
       title: '图片',
       key: 'image',
@@ -91,107 +90,17 @@ export const getProductTableColumns = (
           allImages.push(...record.images.additional);
         }
 
-        const productUrl = record.ozon_sku
-          ? `https://ozon.ru/product/${generateOzonSlug(record.title)}-${record.ozon_sku}`
-          : '';
-
-        const imageUrl80 = record.images?.primary
-          ? optimizeOzonImageUrl(record.images.primary, 80)
-          : '';
-        const imageUrl160 = record.images?.primary
-          ? optimizeOzonImageUrl(record.images.primary, 160)
-          : '';
-
         return (
-          <div style={{ position: 'relative', width: '80px', height: '80px' }}>
-            {record.images?.primary ? (
-              <Popover
-                content={<img src={imageUrl160} width={160} alt={record.title} />}
-                trigger="hover"
-              >
-                <div
-                  style={{
-                    position: 'relative',
-                    width: '80px',
-                    height: '80px',
-                  }}
-                >
-                  <Avatar
-                    src={imageUrl80}
-                    size={80}
-                    shape="square"
-                    style={{ border: '1px solid #f0f0f0' }}
-                  />
-                  {/* 左上角链接图标 */}
-                  {productUrl && (
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<LinkOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(productUrl, '_blank');
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '2px',
-                        left: '2px',
-                        width: '20px',
-                        height: '20px',
-                        padding: 0,
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                        borderRadius: '2px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                      title="在OZON查看"
-                    />
-                  )}
-                  {/* 右上角放大镜图标 */}
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<SearchOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleImageClick(record, allImages);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      top: '2px',
-                      right: '2px',
-                      width: '20px',
-                      height: '20px',
-                      padding: 0,
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      borderRadius: '2px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    title="查看图片"
-                  />
-                </div>
-              </Popover>
-            ) : (
-              <div
-                style={{
-                  width: '80px',
-                  height: '80px',
-                  backgroundColor: '#f5f5f5',
-                  border: '1px dashed #d9d9d9',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#bfbfbf',
-                }}
-              >
-                <FileImageOutlined style={{ fontSize: '24px' }} />
-              </div>
-            )}
-          </div>
+          <ProductImage
+            imageUrl={record.images?.primary}
+            size="small"
+            hoverBehavior="medium"
+            name={record.title}
+            topLeftCorner="link"
+            sku={record.ozon_sku?.toString()}
+            offerId={record.offer_id}
+            onClick={() => handleImageClick(record, allImages)}
+          />
         );
       },
     },
@@ -570,6 +479,11 @@ export const getProductTableColumns = (
                   icon: <ShoppingOutlined />,
                   label: '库存',
                 },
+                canOperate && handleWatermark && {
+                  key: 'watermark',
+                  icon: <FileImageOutlined />,
+                  label: '图片',
+                },
                 (canOperate || canSync) && {
                   type: 'divider' as const,
                 },
@@ -594,6 +508,9 @@ export const getProductTableColumns = (
                     break;
                   case 'stock':
                     handleStockUpdate(record);
+                    break;
+                  case 'watermark':
+                    handleWatermark?.(record);
                     break;
                   case 'sync':
                     handleSyncSingle(record);

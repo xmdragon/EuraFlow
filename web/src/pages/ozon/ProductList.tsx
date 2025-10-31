@@ -279,6 +279,16 @@ const ProductList: React.FC = () => {
     refetch();
   };
 
+  // 处理水印操作
+  const handleWatermark = (product: ozonApi.Product) => {
+    if (!watermarkConfigs || watermarkConfigs.length === 0) {
+      notifyWarning('操作失败', '请先配置水印');
+      return;
+    }
+    setSelectedRows([product]);
+    setWatermarkModalVisible(true);
+  };
+
   // 表格列定义
   // 使用列配置工厂函数生成表格列
   const allColumns = getProductTableColumns({
@@ -289,6 +299,7 @@ const ProductList: React.FC = () => {
     handleArchive,
     handleRestore: handleRestore,
     handleDelete: handleDelete,
+    handleWatermark,
     handleImageClick,
     copyToClipboard,
     canOperate,
