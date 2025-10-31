@@ -180,12 +180,16 @@
     bottom: 0 !important;
     z-index: 1000 !important;
     pointer-events: none !important;
-    background: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    overflow: visible !important;
   }
 
   // 确保遮罩层不显示
   :global(.ant-modal-mask) {
     display: none !important;
+    opacity: 0 !important;
+    background: transparent !important;
   }
 
   :global(.ant-modal) {
