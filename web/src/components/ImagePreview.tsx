@@ -45,7 +45,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const [rotate, setRotate] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // 重置状态当打开预览时
+  // 重置状态当打开预览时或图片变化时
   useEffect(() => {
     if (visible) {
       setCurrentIndex(initialIndex);
@@ -53,7 +53,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       setRotate(0);
       setLoading(true);
     }
-  }, [visible, initialIndex]);
+  }, [visible, initialIndex, images]);
 
   // 导航函数 - 必须在使用它们的 useEffect 之前定义
   const handlePrevious = useCallback(() => {

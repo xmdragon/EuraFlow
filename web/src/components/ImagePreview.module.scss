@@ -180,6 +180,12 @@
     bottom: 0 !important;
     z-index: 1000 !important;
     pointer-events: none !important;
+    background: none !important;
+  }
+
+  // 确保遮罩层不显示
+  :global(.ant-modal-mask) {
+    display: none !important;
   }
 
   :global(.ant-modal) {
