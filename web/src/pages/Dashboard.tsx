@@ -82,10 +82,41 @@ const Dashboard: React.FC = () => {
     return saved ? JSON.parse(saved) : false;
   });
 
+  // 菜单展开状态（手风琴效果：同时只能展开一个菜单组）
+  const [openKeys, setOpenKeys] = useState<string[]>(() => {
+    const path = location.pathname;
+    if (path.includes("/ozon")) return ["ozon"];
+    if (path.includes("/system")) return ["system"];
+    return [];
+  });
+
   // 保存折叠状态到 localStorage
   useEffect(() => {
     localStorage.setItem("sidebarCollapsed", JSON.stringify(collapsed));
   }, [collapsed]);
+
+  // 处理菜单展开/收起（手风琴效果）
+  const handleOpenChange = (keys: string[]) => {
+    // 定义有子菜单的根级菜单组
+    const rootSubmenuKeys = ['ozon', 'system'];
+
+    // 获取最新展开的菜单 key
+    const latestOpenKey = keys.find((key) => openKeys.indexOf(key) === -1);
+
+    // 如果没有新展开的菜单（用户在收起菜单），直接更新状态
+    if (!latestOpenKey) {
+      setOpenKeys(keys);
+      return;
+    }
+
+    // 如果新展开的是根级菜单组，只保留这一个
+    if (rootSubmenuKeys.includes(latestOpenKey)) {
+      setOpenKeys([latestOpenKey]);
+    } else {
+      // 如果不是根级菜单组（理论上不会发生），保持当前状态
+      setOpenKeys(keys);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -320,14 +351,6 @@ const Dashboard: React.FC = () => {
     return "dashboard";
   };
 
-  // 根据路径获取展开的子菜单
-  const getOpenKeys = () => {
-    const path = location.pathname;
-    if (path.includes("/ozon")) return ["ozon"];
-    if (path.includes("/system")) return ["system"];
-    return [];
-  };
-
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sider
@@ -382,7 +405,8 @@ const Dashboard: React.FC = () => {
           theme="dark"
           mode="inline"
           selectedKeys={[getSelectedKey()]}
-          defaultOpenKeys={getOpenKeys()}
+          openKeys={openKeys}
+          onOpenChange={handleOpenChange}
           items={menuItems}
         />
       </Sider>

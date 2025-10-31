@@ -188,21 +188,6 @@ const OrderReport: React.FC = () => {
   const { currency: userCurrency } = useCurrency();
   const statusConfig = ORDER_STATUS_CONFIG;
 
-  // offer_id到图片的映射，从报表数据中提取
-  const offerIdImageMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    if (postingReportData?.data) {
-      postingReportData.data.forEach((posting: PostingReportItem) => {
-        posting.products.forEach((product: ProductInPosting) => {
-          if (product.offer_id && product.image_url) {
-            map[product.offer_id] = product.image_url;
-          }
-        });
-      });
-    }
-    return map;
-  }, [postingReportData]);
-
   // 格式化配送方式文本（用于白色背景显示）
   const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
     if (!text) return '-';
@@ -326,6 +311,21 @@ const OrderReport: React.FC = () => {
       setHasMore(page < (postingReportData.total_pages || 1));
     }
   }, [postingReportData, page]);
+
+  // offer_id到图片的映射，从报表数据中提取
+  const offerIdImageMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (postingReportData?.data) {
+      postingReportData.data.forEach((posting: PostingReportItem) => {
+        posting.products.forEach((product: ProductInPosting) => {
+          if (product.offer_id && product.image_url) {
+            map[product.offer_id] = product.image_url;
+          }
+        });
+      });
+    }
+    return map;
+  }, [postingReportData]);
 
   // 查询报表汇总数据（仅在订单汇总Tab激活时查询）
   const {

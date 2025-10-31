@@ -24,6 +24,7 @@ import {
   Switch,
   Tooltip,
   Empty,
+  Image,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';

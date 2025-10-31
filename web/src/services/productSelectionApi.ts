@@ -123,6 +123,16 @@ export interface ImportResponse {
   missing_columns?: string[];
 }
 
+export interface ImportHistoryResponse {
+  success: boolean;
+  data: {
+    items: ImportHistory[];
+    total: number;
+    page: number;
+    page_size: number;
+  };
+}
+
 export interface PreviewResponse {
   success: boolean;
   total_rows?: number;
@@ -222,15 +232,7 @@ export const getBrands = async (): Promise<{
 export const getImportHistory = async (
   page = 1,
   pageSize = 10
-): Promise<{
-  success: boolean;
-  data: {
-    items: ImportHistory[];
-    total: number;
-    page: number;
-    page_size: number;
-  };
-}> => {
+): Promise<ImportHistoryResponse> => {
   const response = await axios.get('/api/ef/v1/ozon/product-selection/import-history', {
     params: { page, page_size: pageSize },
   });
