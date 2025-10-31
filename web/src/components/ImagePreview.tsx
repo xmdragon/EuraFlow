@@ -147,7 +147,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       closable={false}
       mask={false}
       wrapClassName={styles.modalWrap}
-      modalRender={(modal) => <div className={styles.modalWrapper}>{modal}</div>}
       getContainer={() => document.body}
     >
       <div className={styles.container}>
