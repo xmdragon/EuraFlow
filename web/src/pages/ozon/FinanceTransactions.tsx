@@ -275,7 +275,6 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '商品名称',
       dataIndex: 'item_name',
-      width: 400,
       ellipsis: {
         showTitle: false,
       },
@@ -517,8 +516,9 @@ const FinanceTransactions: React.FC = () => {
             dataSource={transactionsData?.items || []}
             rowKey="id"
             pagination={false}
-            scroll={{ x: 'max-content' }}
+            scroll={{ x: '100%' }}
             size="small"
+            style={{ width: '100%' }}
           />
           <div className={styles.paginationWrapper}>
             <Pagination
