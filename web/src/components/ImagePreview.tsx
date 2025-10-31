@@ -46,6 +46,9 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const [loading, setLoading] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
 
+  // 当没有图片但visible为true时，也显示Modal（用于loading状态）
+  const hasImages = images && images.length > 0;
+
   // 打开预览时设置初始索引
   useEffect(() => {
     if (visible) {
@@ -155,9 +158,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     document.body.removeChild(link);
     notifySuccess('下载开始', '图片开始下载');
   };
-
-  // 当没有图片但visible为true时，也显示Modal（用于loading状态）
-  const hasImages = images && images.length > 0;
 
   return (
     <Modal

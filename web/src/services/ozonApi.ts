@@ -74,9 +74,12 @@ export const getShops = async () => {
 
 // 创建店铺
 interface ShopData {
-  name: string;
+  shop_name: string;
+  shop_name_cn?: string;
   client_id: string;
   api_key: string;
+  platform?: string;
+  config?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -1924,7 +1927,7 @@ export interface FinanceTransactionsSummary {
 }
 
 export interface FinanceTransactionsFilter {
-  shop_id: number;
+  shop_id?: number | null;
   date_from?: string;
   date_to?: string;
   transaction_type?: string;
@@ -1950,12 +1953,13 @@ export const getFinanceTransactions = async (
  * 获取财务交易汇总
  */
 export const getFinanceTransactionsSummary = async (
-  shopId: number,
+  shopId: number | null,
   dateFrom?: string,
   dateTo?: string,
   transactionType?: string,
 ): Promise<FinanceTransactionsSummary> => {
-  const params: { shop_id: number; date_from?: string; date_to?: string; transaction_type?: string } = { shop_id: shopId };
+  const params: { shop_id?: number; date_from?: string; date_to?: string; transaction_type?: string } = {};
+  if (shopId !== null) params.shop_id = shopId;
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
   if (transactionType) params.transaction_type = transactionType;

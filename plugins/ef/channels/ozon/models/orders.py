@@ -64,7 +64,19 @@ class OzonOrder(Base):
     delivery_method = Column(String(100))
     delivery_date = Column(DateTime(timezone=True))
     delivery_time_slot = Column(String(50))
-    
+
+    # 来自 analytics_data 的扩展字段
+    warehouse_id = Column(BigInteger, index=True, comment="仓库ID（来自analytics_data）")
+    warehouse_name = Column(String(200), comment="仓库名称（来自analytics_data）")
+    tpl_provider_id = Column(Integer, index=True, comment="物流提供商ID（来自analytics_data）")
+    tpl_provider_name = Column(String(200), comment="物流提供商名称（来自analytics_data）")
+    is_legal = Column(Boolean, index=True, comment="是否法人订单（来自analytics_data）")
+    payment_type = Column(String(100), index=True, comment="支付方式（来自analytics_data.payment_type_group_name）")
+    delivery_date_begin = Column(DateTime(timezone=True), comment="配送开始日期（来自analytics_data）")
+    delivery_date_end = Column(DateTime(timezone=True), comment="配送结束日期（来自analytics_data）")
+    client_delivery_date_begin = Column(DateTime(timezone=True), index=True, comment="客户期望配送开始日期（来自analytics_data）")
+    client_delivery_date_end = Column(DateTime(timezone=True), comment="客户期望配送结束日期（来自analytics_data）")
+
     # 原始数据
     raw_payload = Column(JSONB, comment="Ozon原始订单数据")
     

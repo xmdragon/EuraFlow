@@ -66,7 +66,7 @@ class FinanceTransactionsSummary(BaseModel):
     summary="获取财务交易列表"
 )
 async def get_finance_transactions(
-    shop_id: int = Query(..., description="店铺ID"),
+    shop_id: Optional[int] = Query(None, description="店铺ID（不传时查询所有店铺）"),
     date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     transaction_type: Optional[str] = Query(None, description="交易类型: orders/returns/services/compensation/transferDelivery/other/all"),
@@ -84,10 +84,15 @@ async def get_finance_transactions(
     - 交易类型
     - 操作类型
     - 发货单号
+    - 店铺ID（可选，不传时查询所有店铺）
     """
     try:
         # 构建查询条件
-        conditions = [OzonFinanceTransaction.shop_id == shop_id]
+        conditions = []
+
+        # 店铺ID筛选（可选）
+        if shop_id is not None:
+            conditions.append(OzonFinanceTransaction.shop_id == shop_id)
 
         # 日期范围筛选
         if date_from:
@@ -182,7 +187,7 @@ async def get_finance_transactions(
     summary="获取财务交易汇总"
 )
 async def get_finance_transactions_summary(
-    shop_id: int = Query(..., description="店铺ID"),
+    shop_id: Optional[int] = Query(None, description="店铺ID（不传时查询所有店铺）"),
     date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     transaction_type: Optional[str] = Query(None, description="交易类型"),
@@ -192,10 +197,15 @@ async def get_finance_transactions_summary(
     获取财务交易汇总数据
 
     返回指定条件下的金额汇总
+    支持查询所有店铺（不传 shop_id）
     """
     try:
         # 构建查询条件
-        conditions = [OzonFinanceTransaction.shop_id == shop_id]
+        conditions = []
+
+        # 店铺ID筛选（可选）
+        if shop_id is not None:
+            conditions.append(OzonFinanceTransaction.shop_id == shop_id)
 
         if date_from:
             date_from_obj = datetime.fromisoformat(date_from + "T00:00:00Z")

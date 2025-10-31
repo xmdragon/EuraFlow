@@ -147,6 +147,9 @@ async def create_shop(
     current_user: User = Depends(require_role("operator"))
 ):
     """创建新的 Ozon 店铺（需要操作员权限）"""
+    from ef_core.models.users import user_shops
+    from sqlalchemy import insert
+
     new_shop = OzonShop(
         shop_name=shop_data.shop_name,
         shop_name_cn=shop_data.shop_name_cn,
@@ -161,14 +164,17 @@ async def create_shop(
     db.add(new_shop)
     await db.flush()  # 先flush获取shop ID
 
-    # 关联所有 admin 用户到新店铺
+    # 关联所有 admin 用户到新店铺（使用关联表直接插入，避免greenlet错误）
     admin_users_result = await db.execute(
-        select(User).where(User.role == "admin")
+        select(User.id).where(User.role == "admin")
     )
-    admin_users = admin_users_result.scalars().all()
+    admin_user_ids = admin_users_result.scalars().all()
 
-    for admin in admin_users:
-        admin.shops.append(new_shop)
+    # 使用关联表直接插入，避免访问关系属性
+    for admin_id in admin_user_ids:
+        await db.execute(
+            insert(user_shops).values(user_id=admin_id, shop_id=new_shop.id)
+        )
 
     await db.commit()
     await db.refresh(new_shop)

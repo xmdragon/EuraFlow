@@ -17,14 +17,17 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
 import styles from './FinanceTransactions.module.scss';
 
+import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
+import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
+import { useCurrency } from '@/hooks/useCurrency';
 import * as ozonApi from '@/services/ozonApi';
-import { notifyInfo } from '@/utils/notification';
+import { notifyInfo, notifyError } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -53,6 +56,16 @@ const FinanceTransactions: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
 
+  // 订单详情Modal状态
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
+  const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // 货币和状态配置
+  const { currency: userCurrency } = useCurrency();
+  const statusConfig = ORDER_STATUS_CONFIG;
+
   // 查询财务交易列表
   const { data: transactionsData, isLoading } = useQuery({
     queryKey: [
@@ -66,8 +79,6 @@ const FinanceTransactions: React.FC = () => {
       pageSize,
     ],
     queryFn: async () => {
-      if (!selectedShop) return null;
-
       const filter: ozonApi.FinanceTransactionsFilter = {
         shop_id: selectedShop,
         page: currentPage,
@@ -93,7 +104,6 @@ const FinanceTransactions: React.FC = () => {
 
       return await ozonApi.getFinanceTransactions(filter);
     },
-    enabled: selectedShop !== null,
     staleTime: 60000, // 1分钟缓存
   });
 
@@ -101,17 +111,93 @@ const FinanceTransactions: React.FC = () => {
   const { data: summaryData } = useQuery({
     queryKey: ['financeTransactionsSummary', selectedShop, dateRange, transactionType],
     queryFn: async () => {
-      if (!selectedShop) return null;
-
       const dateFrom = dateRange?.[0]?.format('YYYY-MM-DD');
       const dateTo = dateRange?.[1]?.format('YYYY-MM-DD');
       const txType = transactionType !== 'all' ? transactionType : undefined;
 
       return await ozonApi.getFinanceTransactionsSummary(selectedShop, dateFrom, dateTo, txType);
     },
-    enabled: selectedShop !== null,
     staleTime: 60000,
   });
+
+  // 查询汇率（RUB to CNY）
+  const { data: exchangeRateData } = useQuery({
+    queryKey: ['exchangeRate', 'RUB', 'CNY'],
+    queryFn: async () => {
+      const { getExchangeRate } = await import('@/services/exchangeRateApi');
+      return await getExchangeRate('RUB', 'CNY');
+    },
+    staleTime: 5 * 60 * 1000, // 5分钟缓存
+  });
+
+  // offer_id到图片的映射（财务交易没有商品图片，返回空映射）
+  const offerIdImageMap = useMemo(() => {
+    return {};
+  }, []);
+
+  // 格式化配送方式文本（用于白色背景显示）
+  const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
+    if (!text) return '-';
+
+    // 如果包含括号，提取括号内的内容
+    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    if (!match) return text;
+
+    const mainPart = match[1].trim();
+    const detailPart = match[2].trim();
+
+    // 解析限制信息为三行：重量、价格、体积
+    const parseRestrictions = (restriction: string): string[] => {
+      // 移除"限制:"前缀
+      const content = restriction.replace(/^限制[:：]\s*/, '');
+
+      // 使用正则提取三个部分
+      const parts: string[] = [];
+      const weightMatch = content.match(/重量[:：\s]*([^，,]+)/);
+      const priceMatch = content.match(/价格[:：\s]*([^，,]+)/);
+      const volumeMatch = content.match(/体积[:：\s]*(.+)$/);
+
+      if (weightMatch) parts.push(weightMatch[1].trim());
+      if (priceMatch) parts.push(priceMatch[1].trim());
+      if (volumeMatch) parts.push(volumeMatch[1].trim());
+
+      return parts;
+    };
+
+    const restrictions = parseRestrictions(detailPart);
+
+    return (
+      <div>
+        <div>{mainPart}</div>
+        {restrictions.map((line, idx) => (
+          <div key={idx} style={{ fontSize: '12px', color: '#666' }}>
+            {line}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // 显示订单详情
+  const showPostingDetail = async (postingNumber: string, shopId?: number) => {
+    try {
+      setLoadingDetail(true);
+      const response = await ozonApi.getOrderDetail(postingNumber, shopId);
+
+      if (response.data) {
+        const orderData = response.data;
+        const posting = orderData.postings?.find(p => p.posting_number === postingNumber);
+
+        setSelectedOrder(orderData);
+        setSelectedPosting(posting || null);
+        setDetailModalVisible(true);
+      }
+    } catch (error) {
+      notifyError('加载失败', '无法加载订单详情');
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   // 格式化金额（添加货币符号）
   const formatAmount = (amount: string | undefined): string => {
@@ -123,6 +209,11 @@ const FinanceTransactions: React.FC = () => {
   // 导出CSV
   const handleExport = () => {
     notifyInfo('提示', 'CSV导出功能开发中');
+  };
+
+  // 判断货件编号是否为有效格式（数字-数字-数字）
+  const isValidPostingNumber = (postingNumber: string): boolean => {
+    return /^\d+-\d+-\d+$/.test(postingNumber);
   };
 
   // 表格列定义
@@ -137,7 +228,24 @@ const FinanceTransactions: React.FC = () => {
       title: '货件编号',
       dataIndex: 'posting_number',
       width: 140,
-      render: (text) => text || '-',
+      render: (text) => {
+        if (!text) return '-';
+        // 只有数字-数字-数字格式才显示为链接
+        if (isValidPostingNumber(text)) {
+          return (
+            <a
+              onClick={() => {
+                showPostingDetail(text, selectedShop || undefined);
+              }}
+              style={{ cursor: 'pointer', color: '#1890ff' }}
+            >
+              {text}
+            </a>
+          );
+        }
+        // 其它格式显示为纯文本
+        return <span>{text}</span>;
+      },
     },
     {
       title: '操作类型',
@@ -160,7 +268,6 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '商品名称',
       dataIndex: 'item_name',
-      width: 200,
       ellipsis: true,
       render: (text) => text || '-',
     },
@@ -287,7 +394,6 @@ const FinanceTransactions: React.FC = () => {
                 type="primary"
                 icon={<DownloadOutlined />}
                 onClick={handleExport}
-                disabled={!selectedShop}
               >
                 导出CSV
               </Button>
@@ -296,7 +402,7 @@ const FinanceTransactions: React.FC = () => {
         </Card>
 
         {/* 汇总统计卡片 */}
-        {summaryData && selectedShop && (
+        {summaryData && (
           <Row gutter={16} className={styles.summaryRow}>
             <Col span={4}>
               <Card>
@@ -316,6 +422,11 @@ const FinanceTransactions: React.FC = () => {
                   prefix="₽"
                   valueStyle={{ color: '#3f8600' }}
                 />
+                {exchangeRateData && (
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                    ≈ ¥{(parseFloat(summaryData.total_accruals_for_sale) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                  </div>
+                )}
               </Card>
             </Col>
             <Col span={5}>
@@ -329,6 +440,11 @@ const FinanceTransactions: React.FC = () => {
                     color: parseFloat(summaryData.total_amount) >= 0 ? '#3f8600' : '#cf1322',
                   }}
                 />
+                {exchangeRateData && (
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                    ≈ ¥{(parseFloat(summaryData.total_amount) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                  </div>
+                )}
               </Card>
             </Col>
             <Col span={5}>
@@ -340,6 +456,11 @@ const FinanceTransactions: React.FC = () => {
                   prefix="₽"
                   valueStyle={{ color: '#cf1322' }}
                 />
+                {exchangeRateData && (
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                    ≈ ¥{(parseFloat(summaryData.total_sale_commission) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                  </div>
+                )}
               </Card>
             </Col>
             <Col span={5}>
@@ -350,6 +471,11 @@ const FinanceTransactions: React.FC = () => {
                   precision={2}
                   prefix="₽"
                 />
+                {exchangeRateData && (
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                    ≈ ¥{(parseFloat(summaryData.total_delivery_charge) * parseFloat(exchangeRateData.rate)).toFixed(2)}
+                  </div>
+                )}
               </Card>
             </Col>
           </Row>
@@ -357,40 +483,47 @@ const FinanceTransactions: React.FC = () => {
 
         {/* 交易列表 */}
         <Card className={styles.listCard}>
-          {!selectedShop ? (
-            <div className={styles.emptyState}>
-              <p>请先选择店铺</p>
-            </div>
-          ) : (
-            <>
-              <Table
-                loading={isLoading}
-                columns={columns}
-                dataSource={transactionsData?.items || []}
-                rowKey="id"
-                pagination={false}
-                scroll={{ x: 'max-content' }}
-                size="small"
-              />
-              <div className={styles.paginationWrapper}>
-                <Pagination
-                  current={currentPage}
-                  pageSize={pageSize}
-                  total={transactionsData?.total || 0}
-                  showSizeChanger
-                  showQuickJumper
-                  pageSizeOptions={[50, 100, 200, 500]}
-                  showTotal={(total) => `共 ${total} 条记录`}
-                  onChange={(page, size) => {
-                    setCurrentPage(page);
-                    setPageSize(size || 100);
-                  }}
-                />
-              </div>
-            </>
-          )}
+          <Table
+            loading={isLoading}
+            columns={columns}
+            dataSource={transactionsData?.items || []}
+            rowKey="id"
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            size="small"
+          />
+          <div className={styles.paginationWrapper}>
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={transactionsData?.total || 0}
+              showSizeChanger
+              showQuickJumper
+              pageSizeOptions={[50, 100, 200, 500]}
+              showTotal={(total) => `共 ${total} 条记录`}
+              onChange={(page, size) => {
+                setCurrentPage(page);
+                setPageSize(size || 100);
+              }}
+            />
+          </div>
         </Card>
       </div>
+
+      {/* 订单详情Modal（统一组件） */}
+      <OrderDetailModal
+        visible={detailModalVisible}
+        onCancel={() => setDetailModalVisible(false)}
+        selectedOrder={selectedOrder}
+        selectedPosting={selectedPosting}
+        statusConfig={statusConfig}
+        userCurrency={userCurrency}
+        offerIdImageMap={offerIdImageMap}
+        formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
+        onUpdate={() => {
+          // 财务交易页面无需刷新
+        }}
+      />
     </div>
   );
 };

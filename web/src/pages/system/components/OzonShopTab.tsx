@@ -13,6 +13,7 @@ import {
   EditOutlined,
   DeleteOutlined,
   TruckOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -114,7 +115,7 @@ const OzonShopTab: React.FC = () => {
   const addShopMutation = useMutation({
     mutationFn: async (values: OzonShopFormValues) => {
       return ozonApi.createShop({
-        name: values.shop_name,
+        shop_name: values.shop_name,
         shop_name_cn: values.shop_name_cn,
         client_id: values.client_id,
         api_key: values.api_key,

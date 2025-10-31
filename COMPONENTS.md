@@ -273,7 +273,37 @@ interface ProductImageProps {
 
 #### `OrderDetailModal`
 **路径**：`web/src/components/ozon/OrderDetailModal.tsx`
-**用途**：订单详情弹窗
+**用途**：统一的订单详情弹窗组件
+**特性**：
+- ✅ 支持多标签页（基本信息、商品明细、物流信息、财务信息）
+- ✅ 根据订单状态控制可编辑字段
+- ✅ 支持编辑：进货金额、打包费用、采购平台、订单备注
+- ✅ 商品图片使用统一的 `ProductImage` 组件（80x80）
+- ✅ 财务信息自动计算利润和利润率
+- ✅ 权限判断：`canOperate`、`canSync`
+
+**可编辑条件**：
+- **从 `allocating`（分配中）状态开始**可编辑：进货金额、采购平台、订单备注
+- **`delivered`（已签收）状态**可编辑：打包费用（同时可同步）
+
+**Props**：
+```typescript
+interface OrderDetailModalProps {
+  visible: boolean;
+  onCancel: () => void;
+  selectedOrder: ozonApi.Order | null;
+  selectedPosting: ozonApi.Posting | null;
+  statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }>;
+  userCurrency: string;
+  offerIdImageMap: Record<string, string>;
+  formatDeliveryMethodTextWhite: (text: string | undefined) => React.ReactNode;
+  onUpdate?: () => void; // 数据更新回调
+}
+```
+
+**使用场景**：
+- 订单管理（OrderList.tsx）
+- 打包发货（PackingShipment.tsx）
 
 #### `ProductDetailModal`
 **路径**：`web/src/components/ozon/ProductDetailModal.tsx`
@@ -483,5 +513,24 @@ loggers.product.info('商品同步完成', { count: 10 });
 
 ---
 
-**最后更新**：2025-10-31（新增 useShopSelection Hook、增强 useCurrency Hook）
+## 📝 页面功能说明
+
+### Posting Number 链接
+
+所有显示 `posting_number`（货件编号）的页面都支持点击查看订单详情：
+
+| 页面 | 点击行为 | 说明 |
+|------|----------|------|
+| **订单管理** (OrderList.tsx) | 弹出 `OrderDetailModal` | 完整订单详情，支持编辑 |
+| **打包发货** (PackingShipment.tsx) | 弹出 `OrderDetailModal` | 完整订单详情，支持编辑 |
+| **订单报表** (OrderReport.tsx) | 弹出简化 Modal | 统计数据展示，不支持编辑 |
+| **财务交易** (FinanceTransactions.tsx) | 跳转到订单管理页面 | 自动搜索该 posting_number |
+
+**实现原则**：
+- 有完整订单数据的页面：使用 `OrderDetailModal`
+- 仅有统计数据的页面：使用简化 Modal 或跳转
+
+---
+
+**最后更新**：2025-10-31（新增 ProductImage 组件、优化 OrderDetailModal）
 **维护者**：开发团队

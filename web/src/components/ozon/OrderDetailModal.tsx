@@ -3,7 +3,6 @@
  * 订单详情弹窗组件 - 供 OrderList 和 PackingShipment 共用
  */
 import {
-  ShoppingCartOutlined,
   EditOutlined,
   SaveOutlined,
   CloseOutlined,
@@ -15,7 +14,6 @@ import {
   Tabs,
   Descriptions,
   Table,
-  Avatar,
   Card,
   Tag,
   Typography,
@@ -28,6 +26,7 @@ import {
 import moment from 'moment';
 import React, { useState } from 'react';
 
+import ProductImage from '@/components/ozon/ProductImage';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import styles from '@/pages/ozon/OrderList.module.scss';
@@ -35,7 +34,6 @@ import * as ozonApi from '@/services/ozonApi';
 import { formatPriceWithFallback } from '@/utils/currency';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -413,27 +411,21 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         title: '图片',
                         dataIndex: 'sku',
                         key: 'image',
-                        width: 80,
+                        width: 100,
                         render: (sku, record) => {
                           const rawImageUrl =
                             record.image ||
                             (record.offer_id && offerIdImageMap[record.offer_id]
                               ? offerIdImageMap[record.offer_id]
                               : undefined);
-                          const imageUrl = optimizeOzonImageUrl(rawImageUrl, 60);
-                          return imageUrl ? (
-                            <Avatar
-                              src={imageUrl}
-                              size={60}
-                              shape="square"
-                              className={styles.productImage}
-                            />
-                          ) : (
-                            <Avatar
-                              icon={<ShoppingCartOutlined />}
-                              size={60}
-                              shape="square"
-                              className={styles.productImagePlaceholder}
+                          return (
+                            <ProductImage
+                              imageUrl={rawImageUrl}
+                              size="small"
+                              hoverBehavior="medium"
+                              name={record.name}
+                              sku={record.sku}
+                              offerId={record.offer_id}
                             />
                           );
                         },
