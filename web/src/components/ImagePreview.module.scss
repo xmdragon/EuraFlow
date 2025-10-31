@@ -171,8 +171,10 @@
 }
 
 // Modal Wrap 样式（控制弹窗容器位置和宽度）
+// 注意：& 表示当前元素同时具有这两个类名
 .modalWrap {
-  :global(.ant-modal-wrap) {
+  // 对 wrap 本身的样式（modalWrap 和 ant-modal-wrap 是同一个元素）
+  &:global(.ant-modal-wrap) {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -185,13 +187,14 @@
     overflow: visible !important;
   }
 
-  // 确保遮罩层不显示
+  // wrap 内的遮罩层
   :global(.ant-modal-mask) {
     display: none !important;
     opacity: 0 !important;
     background: transparent !important;
   }
 
+  // wrap 内的 modal
   :global(.ant-modal) {
     position: absolute !important;
     top: 5vh !important;
@@ -203,11 +206,13 @@
     pointer-events: auto !important;
   }
 
+  // modal 内的 content
   :global(.ant-modal-content) {
     width: fit-content;
     padding: 0;
   }
 
+  // modal 内的 body
   :global(.ant-modal-body) {
     width: fit-content;
     padding: 0;
