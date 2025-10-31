@@ -232,14 +232,15 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'posting_number',
       width: 160,
       ellipsis: true,
-      render: (text) => {
+      render: (text, record) => {
         if (!text) return '-';
         // 只有数字-数字-数字格式才显示为链接
         if (isValidPostingNumber(text)) {
           return (
             <a
               onClick={() => {
-                showPostingDetail(text, selectedShop || undefined);
+                // 使用交易记录中的 shop_id，而不是全局选择的店铺
+                showPostingDetail(text, record.shop_id);
               }}
               style={{ cursor: 'pointer', color: '#1890ff' }}
             >
