@@ -3,18 +3,17 @@
  * 用于扫描单号功能，显示查询到的订单商品信息
  */
 import React, { useMemo } from "react";
-import { Table, Tag, Tooltip, Button, Avatar } from "antd";
+import { Table, Tag, Tooltip, Button } from "antd";
 import {
   CopyOutlined,
   EditOutlined,
   PrinterOutlined,
-  ShoppingCartOutlined,
 } from "@ant-design/icons";
 import { Typography } from "antd";
 import moment from "moment";
 
+import ProductImage from "@/components/ozon/ProductImage";
 import { statusConfig, operationStatusConfig } from "@/utils/packingHelpers";
-import { optimizeOzonImageUrl } from "@/utils/ozonImageOptimizer";
 import * as ozonApi from "@/services/ozonApi";
 import styles from "../../../pages/ozon/PackingShipment.module.scss";
 
@@ -153,41 +152,16 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
           width: 180,
           render: (_: any, row: ScanResultItemRow) => {
             const item = row.item;
-            const imageUrl = item.image
-              ? optimizeOzonImageUrl(item.image, 160)
-              : null;
 
             return (
-              <div
-                style={{
-                  width: "160px",
-                  height: "160px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "#f5f5f5",
-                  borderRadius: "4px",
-                }}
-              >
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={item.name || item.sku || "商品图片"}
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      objectFit: "contain",
-                    }}
-                  />
-                ) : (
-                  <Avatar
-                    size={160}
-                    icon={<ShoppingCartOutlined />}
-                    shape="square"
-                    style={{ backgroundColor: "#f0f0f0" }}
-                  />
-                )}
-              </div>
+              <ProductImage
+                imageUrl={item.image}
+                size="medium"
+                hoverBehavior="none"
+                name={item.name}
+                topRightCorner="link"
+                sku={item.sku}
+              />
             );
           },
         },

@@ -41,6 +41,8 @@ async def get_products(
     archived: Optional[bool] = Query(None, description="是否归档"),
     category_id: Optional[int] = Query(None, description="类目ID"),
     brand: Optional[str] = Query(None, description="品牌"),
+    created_from: Optional[str] = Query(None, description="创建日期起始（YYYY-MM-DD）"),
+    created_to: Optional[str] = Query(None, description="创建日期结束（YYYY-MM-DD）"),
     sort_by: Optional[str] = Query("updated_at", description="排序字段：price,stock,created_at,updated_at,title"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc,desc"),
     db: AsyncSession = Depends(get_async_session),
@@ -148,6 +150,21 @@ async def get_products(
     # 品牌筛选
     if brand:
         query = query.where(OzonProduct.brand.ilike(f"%{brand}%"))
+
+    # 创建日期范围筛选
+    if created_from:
+        try:
+            created_from_dt = datetime.fromisoformat(created_from + "T00:00:00")
+            query = query.where(OzonProduct.created_at >= created_from_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid created_from format, expected YYYY-MM-DD")
+
+    if created_to:
+        try:
+            created_to_dt = datetime.fromisoformat(created_to + "T23:59:59")
+            query = query.where(OzonProduct.created_at <= created_to_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid created_to format, expected YYYY-MM-DD")
 
     # 执行查询获取总数
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))

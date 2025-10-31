@@ -4,9 +4,10 @@
  */
 import { ShoppingOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Table, Button, Space, Card, Row, Col, Input, Modal, App, InputNumber, Form } from 'antd';
+import { Table, Button, Space, Card, Row, Col, Input, Modal, App, InputNumber, Form, Tabs } from 'antd';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 
 import { getCurrencySymbol } from '../../utils/currency';
 
@@ -52,8 +53,15 @@ const ProductList: React.FC = () => {
   const { selectedShop, handleShopChange } = useShopSelection();
   const [filterForm] = Form.useForm();
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({
-    status: 'on_sale',
+  const [activeTab, setActiveTab] = useState<string>('new_products');
+  const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>(() => {
+    // 默认为新增商品标签页：14天内创建的商品，按创建时间倒序
+    const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+    return {
+      created_from: fourteenDaysAgo,
+      sort_by: 'created_at',
+      sort_order: 'desc',
+    };
   });
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [selectedProductForError, setSelectedProductForError] = useState<number | null>(null);
@@ -273,10 +281,43 @@ const ProductList: React.FC = () => {
 
   const handleReset = () => {
     filterForm.resetFields();
-    filterForm.setFieldsValue({ status: 'on_sale' }); // 重置后保持"销售中"为默认值
-    setFilterValues({ status: 'on_sale' });
+    // 根据当前标签页设置默认筛选
+    if (activeTab === 'new_products') {
+      const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+      setFilterValues({
+        created_from: fourteenDaysAgo,
+        sort_by: 'created_at',
+        sort_order: 'desc',
+      });
+    } else if (activeTab === 'on_sale') {
+      filterForm.setFieldsValue({ status: 'on_sale' });
+      setFilterValues({ status: 'on_sale' });
+    }
     setCurrentPage(1);
     refetch();
+  };
+
+  // 处理标签页切换
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    filterForm.resetFields();
+    setCurrentPage(1);
+    setSelectedRows([]);
+
+    // 根据标签页设置不同的筛选条件
+    if (key === 'new_products') {
+      // 新增商品：14天内创建的商品，按创建时间倒序
+      const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+      setFilterValues({
+        created_from: fourteenDaysAgo,
+        sort_by: 'created_at',
+        sort_order: 'desc',
+      });
+    } else if (key === 'on_sale') {
+      // 销售中：status = on_sale
+      filterForm.setFieldsValue({ status: 'on_sale' });
+      setFilterValues({ status: 'on_sale' });
+    }
   };
 
   // 处理水印操作
@@ -359,6 +400,23 @@ const ProductList: React.FC = () => {
         onCreateProduct={() => navigate('/dashboard/ozon/products/create')}
         onPromotions={() => navigate('/dashboard/ozon/promotions')}
         stats={globalStats?.products}
+      />
+
+      {/* 标签页 */}
+      <Tabs
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        style={{ marginBottom: 16 }}
+        items={[
+          {
+            key: 'new_products',
+            label: '新增商品',
+          },
+          {
+            key: 'on_sale',
+            label: '销售中',
+          },
+        ]}
       />
 
       {/* 操作按钮 */}

@@ -232,6 +232,8 @@ export interface ProductFilter {
   visibility?: string;
   archived?: boolean;
   brand?: string;
+  created_from?: string; // 创建日期起始（YYYY-MM-DD）
+  created_to?: string; // 创建日期结束（YYYY-MM-DD）
   sort_by?: string; // 排序字段
   sort_order?: "asc" | "desc"; // 排序方向
 }
