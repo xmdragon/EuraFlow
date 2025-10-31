@@ -257,6 +257,7 @@ async def get_packing_orders(
     ozon_status: Optional[str] = Query(None, description="OZON原生状态筛选，支持逗号分隔的多个状态，如：awaiting_packaging,awaiting_deliver"),
     days_within: Optional[int] = Query(None, description="运输中状态的天数筛选（仅在operation_status=shipping时有效，默认7天）"),
     source_platform: Optional[str] = Query(None, description="按采购平台筛选（1688/拼多多/咸鱼/淘宝/库存）"),
+    delivery_method: Optional[str] = Query(None, description="按配送方式筛选（左匹配）"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -267,6 +268,7 @@ async def get_packing_orders(
     - 支持按 sku 搜索（在posting的products中查找，SKU为整数）
     - 支持按 tracking_number 搜索（OZON追踪号码，在packages中查找）
     - 支持按 domestic_tracking_number 搜索（国内单号，在domestic_trackings中查找）
+    - 支持按 delivery_method 筛选（配送方式，左匹配）
     - 运输中状态支持时间筛选：默认显示7天内改为运输中状态的订单
     - ozon_status 优先级高于 operation_status
     - 如果都不指定，返回所有订单
@@ -451,6 +453,14 @@ async def get_packing_orders(
         # 使用JSONB包含操作符，检查数组是否包含指定平台
         query = query.where(
             OzonPosting.source_platform.contains([source_platform])
+        )
+
+    # 搜索条件：配送方式筛选（左匹配）
+    if delivery_method:
+        delivery_method_value = delivery_method.strip()
+        # 左匹配：在delivery_method_name字段中查找
+        query = query.where(
+            OzonPosting.delivery_method_name.like(f"{delivery_method_value}%")
         )
 
     # 排序：已打印状态按操作时间倒序，其他状态按订单创建时间倒序

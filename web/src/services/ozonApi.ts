@@ -1241,8 +1241,10 @@ export const getPackingOrders = async (
     sku?: string; // SKU搜索
     tracking_number?: string; // OZON追踪号码搜索
     domestic_tracking_number?: string; // 国内单号搜索
+    delivery_method?: string; // 配送方式搜索（左匹配）
     operation_status?: string; // awaiting_stock/allocating/allocated/tracking_confirmed
     ozon_status?: string; // OZON原生状态，支持逗号分隔（如：awaiting_packaging,awaiting_deliver）
+    source_platform?: string; // 采购平台筛选
   },
 ) => {
   const requestParams = {

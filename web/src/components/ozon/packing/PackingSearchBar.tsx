@@ -17,10 +17,12 @@ export interface SearchParams {
   posting_number?: string;
   tracking_number?: string;
   domestic_tracking_number?: string;
+  delivery_method?: string;
 }
 
 interface PackingSearchFormValues {
   search_text?: string;
+  delivery_method?: string;
 }
 
 export interface PackingSearchBarProps {
@@ -86,14 +88,27 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
 
   const handleSearch = (values: PackingSearchFormValues) => {
     const searchText = values.search_text?.trim();
+    const deliveryMethod = values.delivery_method?.trim();
 
-    if (!searchText) {
+    // 如果没有任何搜索条件，清空搜索
+    if (!searchText && !deliveryMethod) {
       onSearchParamsChange({});
       return;
     }
 
     // 智能识别搜索类型
     const params: SearchParams = {};
+
+    // 处理配送方式（如果有输入）
+    if (deliveryMethod) {
+      params.delivery_method = deliveryMethod;
+    }
+
+    // 如果没有搜索文本，只有配送方式
+    if (!searchText) {
+      onSearchParamsChange(params);
+      return;
+    }
 
     // 规则1: SKU - 10位数字
     if (/^\d{10}$/.test(searchText)) {
@@ -165,6 +180,9 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
                   ) : null
                 }
               />
+            </Form.Item>
+            <Form.Item name="delivery_method">
+              <Input placeholder="配送方式" style={{ width: 100 }} />
             </Form.Item>
             <Form.Item>
               <Space>
