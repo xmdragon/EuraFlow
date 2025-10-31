@@ -7,8 +7,8 @@ import { Avatar, Tooltip, Popover, Checkbox } from 'antd';
 import React, { useState } from 'react';
 
 import styles from './ProductImage.module.scss';
-import ProductImagePreview from './ProductImagePreview';
 
+import ImagePreview from '@/components/ImagePreview';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 export interface ProductImageProps {
@@ -174,6 +174,9 @@ const ProductImage: React.FC<ProductImageProps> = ({
     </div>
   );
 
+  // 准备图片数组（用于高级预览组件）
+  const previewImages = optimizedImageUrl ? [imageUrl || ''] : [];
+
   // 根据悬浮行为包装容器
   if (hoverBehavior === 'medium' && mediumImageUrl) {
     return (
@@ -185,10 +188,10 @@ const ProductImage: React.FC<ProductImageProps> = ({
         >
           {imageContainer}
         </Popover>
-        <ProductImagePreview
+        <ImagePreview
+          images={previewImages}
           visible={previewVisible}
-          imageUrl={optimizedImageUrl || ''}
-          alt={name || offerId}
+          initialIndex={0}
           onClose={() => setPreviewVisible(false)}
         />
       </>
@@ -199,10 +202,10 @@ const ProductImage: React.FC<ProductImageProps> = ({
     return (
       <>
         <Tooltip title={name}>{imageContainer}</Tooltip>
-        <ProductImagePreview
+        <ImagePreview
+          images={previewImages}
           visible={previewVisible}
-          imageUrl={optimizedImageUrl || ''}
-          alt={name || offerId}
+          initialIndex={0}
           onClose={() => setPreviewVisible(false)}
         />
       </>
@@ -213,10 +216,10 @@ const ProductImage: React.FC<ProductImageProps> = ({
   return (
     <>
       {imageContainer}
-      <ProductImagePreview
+      <ImagePreview
+        images={previewImages}
         visible={previewVisible}
-        imageUrl={optimizedImageUrl || ''}
-        alt={name || offerId}
+        initialIndex={0}
         onClose={() => setPreviewVisible(false)}
       />
     </>

@@ -63,7 +63,7 @@ import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryMod
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
 import PrintErrorModal, { type FailedPosting } from '@/components/ozon/packing/PrintErrorModal';
 import EditNotesModal from '@/components/ozon/packing/EditNotesModal';
-import ImagePreviewModal from '@/components/ozon/packing/ImagePreviewModal';
+import ImagePreview from '@/components/ImagePreview';
 import PrintLabelModal from '@/components/ozon/packing/PrintLabelModal';
 import ShipOrderModal from '@/components/ozon/packing/ShipOrderModal';
 import ScanResultTable from '@/components/ozon/packing/ScanResultTable';
@@ -255,8 +255,6 @@ const PackingShipment: React.FC = () => {
   // 图片预览状态
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
-  const [imageLoading, setImageLoading] = useState(false);
-  const imageRef = React.useRef<HTMLImageElement>(null);
 
   // 计算每行显示数量（根据屏幕宽度预估）
   const calculateItemsPerRow = React.useCallback(() => {
@@ -623,30 +621,13 @@ const PackingShipment: React.FC = () => {
   );
 
   const handleOpenImagePreviewCallback = React.useCallback((url: string) => {
-    setImageLoading(true);
+    setPreviewImageUrl(url);
     setImagePreviewVisible(true);
-    setPreviewImageUrl(''); // 先清空旧图
-    // 下一帧再设置新图URL，确保旧图已被清除
-    requestAnimationFrame(() => {
-      setPreviewImageUrl(url);
-    });
   }, []);
 
   const handleCloseImagePreview = React.useCallback(() => {
     setImagePreviewVisible(false);
-    setPreviewImageUrl(''); // 关闭时清空图片URL
-    setImageLoading(false);
   }, []);
-
-  // 检查图片是否已从缓存加载（处理 onLoad 不触发的情况）
-  React.useEffect(() => {
-    if (previewImageUrl && imageRef.current) {
-      // 图片已经从缓存加载完成
-      if (imageRef.current.complete) {
-        setImageLoading(false);
-      }
-    }
-  }, [previewImageUrl]);
 
   const handleOpenPriceHistoryCallback = React.useCallback((sku: string, productName: string) => {
     setSelectedSku(sku);
@@ -1439,16 +1420,11 @@ const PackingShipment: React.FC = () => {
       />
 
       {/* 图片预览Modal */}
-      <ImagePreviewModal
+      <ImagePreview
+        images={previewImageUrl ? [previewImageUrl] : []}
         visible={imagePreviewVisible}
-        imageUrl={previewImageUrl}
-        loading={imageLoading}
+        initialIndex={0}
         onClose={handleCloseImagePreview}
-        onLoadComplete={() => setImageLoading(false)}
-        onLoadError={() => {
-          setImageLoading(false);
-          notifyError('加载失败', '图片加载失败');
-        }}
       />
 
       {/* 打印标签弹窗 */}
