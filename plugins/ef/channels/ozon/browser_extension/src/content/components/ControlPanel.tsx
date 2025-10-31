@@ -465,9 +465,6 @@ export function ControlPanel(props: ControlPanelProps) {
         notUploaded.map(p => p.product_id)
       );
 
-      // 获取累计统计
-      const stats = collector.getCumulativeStats();
-
       updateStatus(`✅ 本次上传 ${result.total} 个`);
 
     } catch (error: any) {
