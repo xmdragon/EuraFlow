@@ -10,6 +10,7 @@ import {
   WarningOutlined,
   InfoCircleOutlined,
   FileOutlined,
+  PlusCircleOutlined,
 } from '@ant-design/icons';
 import { Tabs } from 'antd';
 import React from 'react';
@@ -42,10 +43,19 @@ export const ProductStatusTabs: React.FC<ProductStatusTabsProps> = ({
 }) => {
   return (
     <Tabs
-      activeKey={activeStatus || 'on_sale'}
+      activeKey={activeStatus || 'new_products'}
       onChange={onStatusChange}
       style={{ marginTop: 16 }}
       items={[
+        {
+          key: 'new_products',
+          label: (
+            <span>
+              <PlusCircleOutlined />
+              新增商品
+            </span>
+          ),
+        },
         {
           key: 'on_sale',
           label: (

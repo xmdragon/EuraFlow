@@ -3,14 +3,14 @@
  * 价格编辑模态框组件
  * 支持单个商品或批量商品的价格更新
  */
-import { Modal, InputNumber, Input, Button, Space, Avatar, List, Form, Select, Alert, Tooltip } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
+import { Modal, InputNumber, Input, Button, Space, Avatar, List, Form, Alert, Tooltip } from 'antd';
 import React, { useState, useEffect } from 'react';
 
-import { getCurrencySymbol } from '@/utils/currency';
+import { useCopy } from '@/hooks/useCopy';
+import { useCurrency } from '@/hooks/useCurrency';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
-import { useCopy } from '@/hooks/useCopy';
 
 export interface Product {
   offer_id: string;
@@ -49,11 +49,11 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
   selectedRows = [],
   loading = false,
 }) => {
-  const [form] = Form.useForm();
   const [productPrices, setProductPrices] = useState<Record<string, ProductPrice>>({});
   const [percentageChange, setPercentageChange] = useState<number | null>(null);
   const [reason, setReason] = useState<string>('');
   const { copyToClipboard } = useCopy();
+  const { symbol: currencySymbol } = useCurrency();
 
   // 获取要编辑的商品列表
   const products = selectedProduct ? [selectedProduct] : selectedRows;
@@ -77,14 +77,6 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, selectedProduct, selectedRows]);
-
-  // 获取货币符号
-  const getCurrencyPrefix = () => {
-    if (products.length > 0) {
-      return getCurrencySymbol(products[0].currency_code);
-    }
-    return '¥';
-  };
 
   // 应用百分比调价
   const applyPercentageChange = (percentage: number | null) => {
@@ -151,7 +143,11 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
 
   return (
     <Modal
-      title={selectedProduct ? `更新价格 - ${selectedProduct.offer_id}` : `批量更新价格 (${products.length} 个商品)`}
+      title={
+        selectedProduct
+          ? `更新价格 - ${selectedProduct.offer_id}`
+          : `批量更新价格 (${products.length} 个商品)`
+      }
       open={visible}
       onCancel={onCancel}
       footer={null}
@@ -195,9 +191,9 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
         {/* 价格变化统计 */}
         {products.length > 1 && (
           <div style={{ fontSize: 12, color: '#666' }}>
-            涨价: <span style={{ color: '#f5222d' }}>{stats.increased}</span> 个 |
-            降价: <span style={{ color: '#52c41a' }}>{stats.decreased}</span> 个 |
-            不变: {stats.unchanged} 个
+            涨价: <span style={{ color: '#f5222d' }}>{stats.increased}</span> 个 | 降价:{' '}
+            <span style={{ color: '#52c41a' }}>{stats.decreased}</span> 个 | 不变: {stats.unchanged}{' '}
+            个
           </div>
         )}
 
@@ -228,23 +224,43 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                     {/* 左侧：图片和SKU */}
                     <Space>
                       <Tooltip
-                        title={<img src={largeImageUrl} alt="商品大图" style={{ width: 160, height: 160, display: 'block' }} />}
+                        title={
+                          <img
+                            src={largeImageUrl}
+                            alt="商品大图"
+                            style={{
+                              width: 160,
+                              height: 160,
+                              display: 'block',
+                            }}
+                          />
+                        }
                         placement="right"
-                        overlayInnerStyle={{ backgroundColor: '#fff', padding: 8 }}
+                        overlayInnerStyle={{
+                          backgroundColor: '#fff',
+                          padding: 8,
+                        }}
                       >
                         <Avatar
                           src={imageUrl}
                           size={80}
                           shape="square"
-                          style={{ border: '1px solid #f0f0f0', cursor: 'pointer' }}
+                          style={{
+                            border: '1px solid #f0f0f0',
+                            cursor: 'pointer',
+                          }}
                         />
                       </Tooltip>
                       <div>
                         <Space>
-                          <span style={{ fontSize: 14, fontWeight: 500 }}>SKU: {product.ozon_sku}</span>
+                          <span style={{ fontSize: 14, fontWeight: 500 }}>
+                            SKU: {product.ozon_sku}
+                          </span>
                           <CopyOutlined
                             style={{ color: '#1890ff', cursor: 'pointer' }}
-                            onClick={() => product.ozon_sku && copyToClipboard(product.ozon_sku, 'SKU')}
+                            onClick={() =>
+                              product.ozon_sku && copyToClipboard(product.ozon_sku, 'SKU')
+                            }
                           />
                         </Space>
                       </div>
@@ -254,9 +270,18 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
                     <Space size="large" align="center">
                       {/* 当前价格 */}
                       <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>当前价格</div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: '#999',
+                            marginBottom: 4,
+                          }}
+                        >
+                          当前价格
+                        </div>
                         <div style={{ fontSize: 16, fontWeight: 500 }}>
-                          {getCurrencyPrefix()}{priceData.currentPrice.toFixed(2)}
+                          {currencySymbol}
+                          {priceData.currentPrice.toFixed(2)}
                         </div>
                       </div>
 
@@ -265,41 +290,76 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
 
                       {/* 新价格 */}
                       <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>新价格</div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: '#999',
+                            marginBottom: 4,
+                          }}
+                        >
+                          新价格
+                        </div>
                         <InputNumber
                           style={{ width: 80 }}
                           value={priceData.newPrice}
-                          onChange={(value) => updateProductPrice(product.offer_id, typeof value === 'number' ? value : 0)}
+                          onChange={(value) =>
+                            updateProductPrice(
+                              product.offer_id,
+                              typeof value === 'number' ? value : 0
+                            )
+                          }
                           min={0}
                           formatter={getNumberFormatter(2)}
                           parser={getNumberParser()}
-                          prefix={getCurrencyPrefix()}
+                          prefix={currencySymbol}
                         />
                       </div>
 
                       {/* 旧价格（划线价） */}
                       <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>旧价格（划线价）</div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: '#999',
+                            marginBottom: 4,
+                          }}
+                        >
+                          旧价格（划线价）
+                        </div>
                         <InputNumber
                           style={{ width: 80 }}
                           value={priceData.oldPrice}
-                          onChange={(value) => updateProductOldPrice(product.offer_id, typeof value === 'number' ? value : undefined)}
+                          onChange={(value) =>
+                            updateProductOldPrice(
+                              product.offer_id,
+                              typeof value === 'number' ? value : undefined
+                            )
+                          }
                           min={0}
                           formatter={getNumberFormatter(2)}
                           parser={getNumberParser()}
-                          prefix={getCurrencyPrefix()}
+                          prefix={currencySymbol}
                           placeholder="可选"
                         />
                       </div>
 
                       {/* 价格变化 */}
                       <div style={{ textAlign: 'center', minWidth: 80 }}>
-                        <div style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>变化</div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: '#999',
+                            marginBottom: 4,
+                          }}
+                        >
+                          变化
+                        </div>
                         <div
                           style={{
                             fontSize: 14,
                             fontWeight: 500,
-                            color: priceChange > 0 ? '#f5222d' : priceChange < 0 ? '#52c41a' : '#999',
+                            color:
+                              priceChange > 0 ? '#f5222d' : priceChange < 0 ? '#52c41a' : '#999',
                           }}
                         >
                           {priceChange > 0 ? '+' : ''}
@@ -333,16 +393,18 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
           <div style={{ marginTop: 8 }}>
             <Space wrap size="small">
               <span style={{ fontSize: 12, color: '#999' }}>快捷选择：</span>
-              {['促销活动', '成本调整', '市场竞争', '库存清理', '季节调价', '汇率变化'].map((text) => (
-                <Button
-                  key={text}
-                  size="small"
-                  type={reason === text ? 'primary' : 'default'}
-                  onClick={() => setReason(text)}
-                >
-                  {text}
-                </Button>
-              ))}
+              {['促销活动', '成本调整', '市场竞争', '库存清理', '季节调价', '汇率变化'].map(
+                (text) => (
+                  <Button
+                    key={text}
+                    size="small"
+                    type={reason === text ? 'primary' : 'default'}
+                    onClick={() => setReason(text)}
+                  >
+                    {text}
+                  </Button>
+                )
+              )}
             </Space>
           </div>
         </Form.Item>

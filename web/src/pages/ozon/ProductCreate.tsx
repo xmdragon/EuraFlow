@@ -306,7 +306,13 @@ const ProductCreate: React.FC = () => {
       <PageTitle icon={<PlusOutlined />} title="新建商品" />
 
       <div className={styles.formCard}>
-        <Form form={form} layout="vertical" onFinish={handleProductSubmit}>
+        <Form
+          form={form}
+          layout="horizontal"
+          labelCol={{ span: 3 }}
+          wrapperCol={{ span: 21 }}
+          onFinish={handleProductSubmit}
+        >
           {/* 主要信息 */}
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>主要信息</h3>

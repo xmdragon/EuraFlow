@@ -16,7 +16,6 @@ import {
   App,
   InputNumber,
   Form,
-  Tabs,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useState } from 'react';
@@ -66,12 +65,11 @@ const ProductList: React.FC = () => {
   const { selectedShop, handleShopChange } = useShopSelection();
   const [filterForm] = Form.useForm();
   const [importModalVisible, setImportModalVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>('new_products');
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>(() => {
-    // 默认为新增商品标签页：销售中且14天内创建的商品，按创建时间倒序
+    // 默认为"新增商品"：销售中且14天内创建的商品，按创建时间倒序
     const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
     return {
-      status: 'on_sale',
+      status: 'new_products',
       created_from: fourteenDaysAgo,
       sort_by: 'created_at',
       sort_order: 'desc',
@@ -169,6 +167,13 @@ const ProductList: React.FC = () => {
         ...filterValues,
         shop_id: selectedShop,
       };
+
+      // 处理"新增商品"状态：转换为实际的查询条件
+      if (params.status === 'new_products') {
+        params.status = 'on_sale';
+        // created_from 已经在 filterValues 中设置了
+      }
+
       // 添加排序参数
       if (sortBy && sortOrder) {
         params.sort_by = sortBy;
@@ -295,48 +300,19 @@ const ProductList: React.FC = () => {
 
   const handleReset = () => {
     filterForm.resetFields();
-    // 根据当前标签页设置默认筛选
-    if (activeTab === 'new_products') {
-      const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
-      filterForm.setFieldsValue({ status: 'on_sale' });
-      setFilterValues({
-        status: 'on_sale',
-        created_from: fourteenDaysAgo,
-        sort_by: 'created_at',
-        sort_order: 'desc',
-      });
-    } else if (activeTab === 'on_sale') {
-      filterForm.setFieldsValue({ status: 'on_sale' });
-      setFilterValues({ status: 'on_sale' });
-    }
+    // 重置为默认的"新增商品"筛选
+    const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+    filterForm.setFieldsValue({ status: 'new_products' });
+    setFilterValues({
+      status: 'new_products',
+      created_from: fourteenDaysAgo,
+      sort_by: 'created_at',
+      sort_order: 'desc',
+    });
     setCurrentPage(1);
     refetch();
   };
 
-  // 处理标签页切换
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    filterForm.resetFields();
-    setCurrentPage(1);
-    setSelectedRows([]);
-
-    // 根据标签页设置不同的筛选条件
-    if (key === 'new_products') {
-      // 新增商品：销售中且14天内创建的商品，按创建时间倒序
-      const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
-      filterForm.setFieldsValue({ status: 'on_sale' });
-      setFilterValues({
-        status: 'on_sale',
-        created_from: fourteenDaysAgo,
-        sort_by: 'created_at',
-        sort_order: 'desc',
-      });
-    } else if (key === 'on_sale') {
-      // 销售中：status = on_sale（不限创建时间）
-      filterForm.setFieldsValue({ status: 'on_sale' });
-      setFilterValues({ status: 'on_sale' });
-    }
-  };
 
   // 处理水印操作
   const handleWatermark = (product: ozonApi.Product) => {
@@ -411,30 +387,29 @@ const ProductList: React.FC = () => {
         onFilter={handleFilter}
         onReset={handleReset}
         onStatusChange={(key) => {
-          filterForm.setFieldsValue({ status: key });
-          setFilterValues({ ...filterValues, status: key });
+          filterForm.resetFields();
           setCurrentPage(1);
+          setSelectedRows([]);
+
+          if (key === 'new_products') {
+            // 新增商品：销售中且14天内创建的商品，按创建时间倒序
+            const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+            filterForm.setFieldsValue({ status: 'new_products' });
+            setFilterValues({
+              status: 'new_products',
+              created_from: fourteenDaysAgo,
+              sort_by: 'created_at',
+              sort_order: 'desc',
+            });
+          } else {
+            // 其他状态：只设置状态筛选（不限创建时间）
+            filterForm.setFieldsValue({ status: key });
+            setFilterValues({ status: key });
+          }
         }}
         onCreateProduct={() => navigate('/dashboard/ozon/products/create')}
         onPromotions={() => navigate('/dashboard/ozon/promotions')}
         stats={globalStats?.products}
-      />
-
-      {/* 标签页 */}
-      <Tabs
-        activeKey={activeTab}
-        onChange={handleTabChange}
-        style={{ marginBottom: 16 }}
-        items={[
-          {
-            key: 'new_products',
-            label: '新增商品',
-          },
-          {
-            key: 'on_sale',
-            label: '销售中',
-          },
-        ]}
       />
 
       {/* 操作按钮 */}
