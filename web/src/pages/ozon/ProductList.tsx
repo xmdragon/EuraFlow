@@ -26,6 +26,7 @@ import { getProductTableColumns } from '@/config/ozon/productTableColumns';
 import { useColumnConfig } from '@/hooks/ozon/useColumnConfig';
 import { useProductOperations } from '@/hooks/ozon/useProductOperations';
 import { useProductSync } from '@/hooks/ozon/useProductSync';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { useWatermark } from '@/hooks/ozon/useWatermark';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
@@ -48,9 +49,7 @@ const ProductList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRows, setSelectedRows] = useState<ozonApi.Product[]>([]);
-  // 初始化为null，让ShopSelector组件控制店铺选择和验证
-  // ShopSelector会从localStorage读取并验证权限，然后通过onChange回调设置
-  const [selectedShop, setSelectedShop] = useState<number | null>(null);
+  const { selectedShop, handleShopChange } = useShopSelection();
   const [filterForm] = Form.useForm();
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>({
@@ -233,7 +232,6 @@ const ProductList: React.FC = () => {
   // 水印 Hook
   const {
     watermarkConfigs,
-    watermarkBatchId,
     previewLoading,
     applyWatermarkMutation,
     restoreOriginalMutation,
@@ -334,13 +332,10 @@ const ProductList: React.FC = () => {
         form={filterForm}
         selectedShop={selectedShop}
         onShopChange={(shopId) => {
-          const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
-          setSelectedShop(normalized);
+          handleShopChange(shopId);
           // 切换店铺时重置页码和选中的行
           setCurrentPage(1);
           setSelectedRows([]);
-          // 保存到localStorage
-          localStorage.setItem('ozon_selected_shop', normalized?.toString() || '');
         }}
         filterValues={filterValues}
         onFilter={handleFilter}
@@ -607,7 +602,6 @@ const ProductList: React.FC = () => {
         setWatermarkPreviews={setWatermarkPreviews}
         confirmLoading={applyWatermarkMutation.isPending}
         previewLoading={previewLoading}
-        watermarkBatchId={watermarkBatchId}
         watermarkAnalyzeMode={watermarkAnalyzeMode}
         onPreview={handlePreview}
       />

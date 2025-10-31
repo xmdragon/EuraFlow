@@ -1,6 +1,7 @@
+import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { getCurrencySymbol } from '../utils/currency';
+import { getCurrencySymbol, formatCurrency as formatCurrencyUtil } from '../utils/currency';
 
 interface UserSettings {
   display: {
@@ -9,8 +10,19 @@ interface UserSettings {
 }
 
 /**
- * 获取用户设置的默认货币
- * @returns { currency: 货币代码, symbol: 货币符号 }
+ * 货币 Hook
+ * 统一管理货币设置和格式化
+ *
+ * @example
+ * ```typescript
+ * const { currency, symbol, formatPrice } = useCurrency();
+ *
+ * // 使用符号
+ * <span>{symbol}{price}</span>
+ *
+ * // 格式化价格（自动使用用户货币）
+ * <span>{formatPrice(price)}</span>
+ * ```
  */
 export const useCurrency = () => {
   const { data: settings } = useQuery<UserSettings>({
@@ -32,5 +44,17 @@ export const useCurrency = () => {
   const currency = settings?.display?.currency || 'CNY';
   const symbol = getCurrencySymbol(currency);
 
-  return { currency, symbol };
+  /**
+   * 格式化价格，自动使用用户的货币符号
+   * @param value - 价格值（支持 string、number 或 null/undefined）
+   * @returns 格式化后的金额字符串（如：¥123.45 或 ₽456.78）
+   */
+  const formatPrice = useCallback(
+    (value: string | number | null | undefined): string => {
+      return formatCurrencyUtil(value, symbol);
+    },
+    [symbol]
+  );
+
+  return { currency, symbol, formatPrice };
 };

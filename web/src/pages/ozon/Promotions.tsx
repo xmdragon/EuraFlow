@@ -25,7 +25,6 @@ import {
   Tooltip,
   Empty,
   Image,
-  message,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
@@ -34,6 +33,7 @@ import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
 import * as promotionApi from '@/services/ozonPromotionApi';
 import { formatCurrency } from '@/utils/currency';
@@ -193,13 +193,7 @@ const Promotions: React.FC = () => {
 
   // 基础状态
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedShop, setSelectedShop] = useState<number | null>(() => {
-    const saved = localStorage.getItem('ozon_selected_shop');
-    if (saved && saved !== 'all') {
-      return parseInt(saved, 10);
-    }
-    return null;
-  });
+  const { selectedShop, handleShopChange } = useShopSelection();
   const [selectedAction, setSelectedAction] = useState<promotionApi.PromotionAction | null>(null);
 
   // 详情视图状态
@@ -212,13 +206,6 @@ const Promotions: React.FC = () => {
   // 弹窗状态
   const [activateModalVisible, setActivateModalVisible] = useState(false);
   const [activateForm] = Form.useForm();
-
-  // 保存店铺选择
-  useEffect(() => {
-    if (selectedShop) {
-      localStorage.setItem('ozon_selected_shop', selectedShop.toString());
-    }
-  }, [selectedShop]);
 
   // 查询活动列表
   const { data: actionsData, isLoading: actionsLoading } = useQuery({
@@ -842,7 +829,7 @@ const Promotions: React.FC = () => {
           <Space>
             <ShopSelector
               value={selectedShop}
-              onChange={(value) => setSelectedShop(typeof value === 'number' ? value : value[0])}
+              onChange={handleShopChange}
               showAllOption={false}
               style={{ width: 200 }}
             />

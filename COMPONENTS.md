@@ -68,12 +68,23 @@ mutation.mutate(data, {
 ### 货币处理
 
 #### `useCurrency`
-**路径**：`web/src/hooks/useCurrency.ts`
-**用途**：统一货币转换和显示逻辑
+**路径**：`web/src/hooks/useCurrency.tsx`
+**用途**：统一货币设置和格式化
 **API**：
 - `currency`: 当前用户货币（CNY/RUB）
-- `convertPrice(price, from, to)`: 价格转换
-- `formatPrice(price, currency)`: 格式化显示
+- `symbol`: 货币符号（¥/₽）
+- `formatPrice(value)`: 格式化价格，自动使用用户货币符号
+
+**使用示例**：
+```typescript
+const { currency, symbol, formatPrice } = useCurrency();
+
+// 使用符号
+<span>{symbol}{price}</span>
+
+// 格式化价格（自动使用用户货币）
+<span>{formatPrice(price)}</span>  // 输出: ¥123.45
+```
 
 ---
 
@@ -118,6 +129,43 @@ copyToClipboard(text, '订单号');
 ---
 
 ### OZON 业务专用
+
+#### `useShopSelection`
+**路径**：`web/src/hooks/ozon/useShopSelection.ts`
+**用途**：统一管理店铺选择状态和 localStorage 持久化
+**特性**：
+- ✅ 自动从 localStorage 读取并初始化
+- ✅ 自动持久化到 localStorage
+- ✅ 自动归一化输入格式（number | number[] | null）
+- ✅ 可配置持久化键和初始值
+
+**API**：
+- `selectedShop`: 当前选中的店铺 ID（number | null）
+- `setSelectedShop(shopId)`: 设置选中的店铺 ID
+- `handleShopChange(shopId)`: 处理店铺选择变化（自动归一化）
+
+**使用示例**：
+```typescript
+// 基础使用（带持久化）
+const { selectedShop, handleShopChange } = useShopSelection();
+
+// 配合 ShopSelector 使用
+<ShopSelector value={selectedShop} onChange={handleShopChange} />
+
+// 不持久化
+const { selectedShop, setSelectedShop } = useShopSelection({ persist: false });
+
+// 自定义持久化键
+const { selectedShop, handleShopChange } = useShopSelection({
+  persistKey: 'my_shop_key'
+});
+```
+
+**已应用场景**：
+- 促销活动管理（Promotions.tsx）
+- 商品列表（ProductList.tsx）
+
+---
 
 #### `useProductOperations`
 **路径**：`web/src/hooks/ozon/useProductOperations.ts`
@@ -435,5 +483,5 @@ loggers.product.info('商品同步完成', { count: 10 });
 
 ---
 
-**最后更新**：2025-10-31（新增订单状态 UI 配置、修复代码规范违规）
+**最后更新**：2025-10-31（新增 useShopSelection Hook、增强 useCurrency Hook）
 **维护者**：开发团队

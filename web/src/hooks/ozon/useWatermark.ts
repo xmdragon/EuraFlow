@@ -176,7 +176,6 @@ export const useWatermark = (selectedShop: number | null) => {
 
   return {
     watermarkConfigs,
-    watermarkBatchId,
     previewLoading,
     applyWatermarkMutation,
     restoreOriginalMutation,

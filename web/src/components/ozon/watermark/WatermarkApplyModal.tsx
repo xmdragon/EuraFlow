@@ -1,7 +1,7 @@
 /**
  * 水印应用Modal组件
  */
-import { Alert, Divider, Modal, Progress, Select, Space, Tag } from 'antd';
+import { Alert, Divider, Modal, Select, Space, Tag } from 'antd';
 import React, { useState } from 'react';
 
 import { getPreviewWatermarkStyle } from '@/utils/ozon/watermarkUtils';
@@ -29,7 +29,6 @@ export interface WatermarkApplyModalProps {
   setWatermarkPreviews: (previews: any[]) => void;
   confirmLoading: boolean;
   previewLoading: boolean;
-  watermarkBatchId: string | null;
   watermarkAnalyzeMode: 'individual' | 'fast';
   onPreview: (
     productIds: number[],
@@ -53,7 +52,6 @@ export const WatermarkApplyModal: React.FC<WatermarkApplyModalProps> = ({
   setWatermarkPreviews,
   confirmLoading,
   previewLoading,
-  watermarkBatchId,
   watermarkAnalyzeMode,
   onPreview,
 }) => {
@@ -224,15 +222,6 @@ export const WatermarkApplyModal: React.FC<WatermarkApplyModalProps> = ({
             ))}
           </Select>
         </div>
-
-        {watermarkBatchId && (
-          <Progress
-            percent={50}
-            status="active"
-            showInfo={true}
-            strokeColor={{ '0%': '#108ee9', '100%': '#87d068' }}
-          />
-        )}
 
         {/* 预览结果 */}
         {watermarkStep === 'preview' && watermarkPreviews.length > 0 && (

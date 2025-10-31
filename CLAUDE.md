@@ -13,15 +13,25 @@
 - **DRY**：消除重复代码
 
 ### 工作流程
-1. **FAQ-First**：遇到问题先查阅 `FAQ.md`，避免重复踩坑（尤其是前端 Modal/Form/Upload、后端 N+1 查询、异步阻塞等常见问题）
-2. **Plan-First**：先给出 Plan & Impact，再给出 Patch；未获确认不输出大段代码
-3. **架构决策**：提供 3 个备选方案，按复杂度/兼容性/风险排序
-4. **全局视角**：考虑影响面（API、数据、任务、观测、回滚）
-5. **FAQ-Update**：解决新的疑难问题后，将问题、原因、排查步骤、解决方案更新到 `FAQ.md`
+1. **Components-First（必须）**：实现任何功能前，**必须先查阅** `COMPONENTS.md`，检查是否有现成的 Hook/组件可复用
+   - 异步任务轮询 → 使用 `useAsyncTaskPolling`
+   - 权限判断 → 使用 `usePermission`
+   - 复制功能 → 使用 `useCopy`
+   - 货币转换 → 使用 `useCurrency`
+   - 状态映射 → 使用 `web/src/constants/ozonStatus.ts`
+   - 通知提示 → 使用 `notification` 工具（禁止直接用 `message.success()`）
+   - 日志记录 → 使用 `loggers`（禁止用 `console.log`）
+2. **FAQ-First**：遇到问题先查阅 `FAQ.md`，避免重复踩坑（尤其是前端 Modal/Form/Upload、后端 N+1 查询、异步阻塞等常见问题）
+3. **Plan-First**：先给出 Plan & Impact，再给出 Patch；未获确认不输出大段代码
+4. **架构决策**：提供 3 个备选方案，按复杂度/兼容性/风险排序
+5. **全局视角**：考虑影响面（API、数据、任务、观测、回滚）
+6. **FAQ-Update**：解决新的疑难问题后，将问题、原因、排查步骤、解决方案更新到 `FAQ.md`
+7. **Components-Update**：创建新的通用 Hook/组件后，**必须立即**更新 `COMPONENTS.md`
 
 ### 禁止行为
+- ❌ 不查阅 `COMPONENTS.md` 就实现功能（违反 DRY 原则）
 - ❌ 不做架构分析就改代码
-- ❌ 重复造轮子（检查现有服务）
+- ❌ 重复造轮子（必须检查 `COMPONENTS.md` 和现有服务）
 - ❌ 越界修改（禁止跨目录 import 私有实现）
 - ❌ 金额用 float（必须 Decimal）
 - ❌ 时间用本地时区（必须 UTC）
