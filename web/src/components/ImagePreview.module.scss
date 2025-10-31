@@ -179,18 +179,35 @@
     right: 0 !important;
     bottom: 0 !important;
     z-index: 1000 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    padding-top: 5vh !important;
   }
 
   :global(.ant-modal) {
-    top: 5vh;
-    width: auto;
+    top: 0;
+    width: fit-content;
     max-width: none;
-    margin: 0 auto;
+    margin: 0;
+    position: relative;
+  }
+
+  :global(.ant-modal-content) {
+    width: fit-content;
+    padding: 0;
+  }
+
+  :global(.ant-modal-body) {
+    width: fit-content;
+    padding: 0;
   }
 }
 
 .modalWrapper {
   pointer-events: auto;
+  width: fit-content;
+  display: inline-block;
 }
 
 .container {
