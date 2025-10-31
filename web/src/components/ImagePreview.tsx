@@ -59,6 +59,8 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
+      setScale(1); // 重置缩放
+      setRotate(0); // 重置旋转
       setLoading(true);
     }
   }, [currentIndex]);
@@ -66,6 +68,8 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const handleNext = useCallback(() => {
     if (currentIndex < images.length - 1) {
       setCurrentIndex(currentIndex + 1);
+      setScale(1); // 重置缩放
+      setRotate(0); // 重置旋转
       setLoading(true);
     }
   }, [currentIndex, images.length]);
@@ -142,13 +146,9 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       footer={null}
       closable={false}
       mask={false}
-      width="auto"
-      centered
-      style={{
-        maxWidth: '90vw',
-        top: '5vh',
-      }}
+      wrapClassName={styles.modalWrap}
       modalRender={(modal) => <div className={styles.modalWrapper}>{modal}</div>}
+      getContainer={() => document.body}
     >
       <div className={styles.container}>
         {/* 加载动画 - 当loading或没有图片时显示 */}
