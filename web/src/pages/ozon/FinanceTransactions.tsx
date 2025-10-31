@@ -230,7 +230,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '货件编号',
       dataIndex: 'posting_number',
-      width: 140,
+      width: 160,
       ellipsis: true,
       render: (text) => {
         if (!text) return '-';
@@ -254,21 +254,21 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '操作类型',
       dataIndex: 'operation_type_name',
-      width: 120,
+      width: 170,
       ellipsis: true,
       render: (text, record) => text || record.operation_type || '-',
     },
     {
       title: '交易类型',
       dataIndex: 'transaction_type',
-      width: 100,
+      width: 80,
       ellipsis: true,
       render: (type: string) => TRANSACTION_TYPE_MAP[type] || type,
     },
     {
       title: '商品SKU',
       dataIndex: 'ozon_sku',
-      width: 140,
+      width: 90,
       ellipsis: true,
       render: (text) => text || '-',
     },
@@ -291,14 +291,6 @@ const FinanceTransactions: React.FC = () => {
           </Text>
         );
       },
-    },
-    {
-      title: '数量',
-      dataIndex: 'item_quantity',
-      width: 70,
-      align: 'right',
-      ellipsis: true,
-      render: (qty) => qty || '-',
     },
     {
       title: '销售收入',
