@@ -24,11 +24,11 @@ import {
   Switch,
   Tooltip,
   Empty,
-  Image,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import React, { useState, useEffect } from 'react';
 
+import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useCopy } from '@/hooks/useCopy';
@@ -36,7 +36,6 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
 import * as promotionApi from '@/services/ozonPromotionApi';
-import { formatCurrency } from '@/utils/currency';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -90,66 +89,10 @@ const formatDescription = (html: string): string => {
   return formatted;
 };
 
-// 鼠标悬浮显示大图的组件
-const HoverImage: React.FC<{
-  src: string;
-  alt: string;
-}> = ({ src, alt }) => {
-  const [showPreview, setShowPreview] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    setPosition({ x: e.clientX + 10, y: e.clientY + 10 });
-  };
-
-  return (
-    <div
-      onMouseEnter={() => setShowPreview(true)}
-      onMouseLeave={() => setShowPreview(false)}
-      onMouseMove={handleMouseMove}
-      style={{ position: 'relative', display: 'inline-block' }}
-    >
-      <Image
-        src={src}
-        alt={alt}
-        width={80}
-        height={80}
-        style={{ objectFit: 'cover', borderRadius: 4, cursor: 'pointer' }}
-        preview={false}
-      />
-      {showPreview && (
-        <div
-          style={{
-            position: 'fixed',
-            left: position.x,
-            top: position.y,
-            zIndex: 9999,
-            pointerEvents: 'none',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            borderRadius: 4,
-          }}
-        >
-          <img
-            src={src}
-            alt={alt}
-            style={{
-              width: 160,
-              height: 160,
-              objectFit: 'cover',
-              borderRadius: 4,
-              border: '2px solid #fff',
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
 const Promotions: React.FC = () => {
   const queryClient = useQueryClient();
   const { canOperate, canSync } = usePermission();
-  const { symbol: currencySymbol } = useCurrency();
+  const { symbol: currencySymbol, formatPrice } = useCurrency();
   const { copyToClipboard } = useCopy();
   const { modal } = App.useApp();
 
@@ -529,28 +472,14 @@ const Promotions: React.FC = () => {
       dataIndex: 'images',
       key: 'images',
       width: 100,
-      render: (images: { primary?: string; additional?: string[] }) => {
-        const imageUrl = images?.primary;
-        return imageUrl ? (
-          <HoverImage src={imageUrl} alt="商品图片" />
-        ) : (
-          <div
-            style={{
-              width: 80,
-              height: 80,
-              background: '#f0f0f0',
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              color: '#999',
-            }}
-          >
-            无图片
-          </div>
-        );
-      },
+      render: (images: { primary?: string; additional?: string[] }, record: promotionApi.PromotionProduct) => (
+        <ProductImage
+          imageUrl={images?.primary}
+          size="small"
+          hoverBehavior="medium"
+          name={record.title}
+        />
+      ),
     },
     {
       title: '商品信息',
@@ -594,7 +523,7 @@ const Promotions: React.FC = () => {
       dataIndex: 'price',
       key: 'price',
       width: 120,
-      render: (price: number) => (price ? formatCurrency(price, currencySymbol) : '-'),
+      render: (price: number) => (price ? formatPrice(price) : '-'),
     },
     {
       title: '当前库存',
@@ -635,28 +564,14 @@ const Promotions: React.FC = () => {
       dataIndex: 'images',
       key: 'images',
       width: 100,
-      render: (images: { primary?: string; additional?: string[] }) => {
-        const imageUrl = images?.primary;
-        return imageUrl ? (
-          <HoverImage src={imageUrl} alt="商品图片" />
-        ) : (
-          <div
-            style={{
-              width: 80,
-              height: 80,
-              background: '#f0f0f0',
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              color: '#999',
-            }}
-          >
-            无图片
-          </div>
-        );
-      },
+      render: (images: { primary?: string; additional?: string[] }, record: promotionApi.PromotionProduct) => (
+        <ProductImage
+          imageUrl={images?.primary}
+          size="small"
+          hoverBehavior="medium"
+          name={record.title}
+        />
+      ),
     },
     {
       title: '商品信息',
@@ -707,10 +622,10 @@ const Promotions: React.FC = () => {
         return (
           <div>
             <div style={{ fontSize: 12, color: '#888', textDecoration: 'line-through' }}>
-              原价: {formatCurrency(originalPrice, currencySymbol)}
+              原价: {formatPrice(originalPrice)}
             </div>
             <div style={{ fontWeight: 500, color: '#ff4d4f', fontSize: 14 }}>
-              促销: {formatCurrency(promoPrice, currencySymbol)}
+              促销: {formatPrice(promoPrice)}
             </div>
             {Number(discount) > 0 && (
               <Tag color="red" style={{ marginTop: 4 }}>
@@ -1025,8 +940,7 @@ const Promotions: React.FC = () => {
                       <strong>{row.title || '未知商品'}</strong>
                     </div>
                     <div style={{ color: '#888', fontSize: 12 }}>
-                      SKU: {row.sku || '-'} | 当前价格:{' '}
-                      {formatCurrency(row.price || 0, currencySymbol)}
+                      SKU: {row.sku || '-'} | 当前价格: {formatPrice(row.price || 0)}
                     </div>
                   </div>
                 </Space>
