@@ -68,6 +68,9 @@ import PrintLabelModal from '@/components/ozon/packing/PrintLabelModal';
 import ShipOrderModal from '@/components/ozon/packing/ShipOrderModal';
 import ScanResultTable from '@/components/ozon/packing/ScanResultTable';
 import PageTitle from '@/components/PageTitle';
+import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
+import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
+import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import { useQuickMenu } from '@/hooks/useQuickMenu';
 import { useBatchPrint } from '@/hooks/useBatchPrint';
@@ -95,6 +98,7 @@ interface _OrderItemRow {
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
+  const { copyToClipboard } = useCopy();
   const { canOperate, canSync } = usePermission();
   const [urlSearchParams] = useSearchParams();
   const { addQuickMenu, isInQuickMenu } = useQuickMenu();
@@ -121,6 +125,62 @@ const PackingShipment: React.FC = () => {
     },
   });
 
+  // 订单同步轮询 Hook（与 OrderList.tsx 相同）
+  const { startPolling: startOrderSyncPolling } = useAsyncTaskPolling({
+    getStatus: async (taskId) => {
+      const result = await ozonApi.getSyncStatus(taskId);
+      const status = result.data || result;
+
+      if (status.status === 'completed') {
+        return { state: 'SUCCESS', result: status };
+      } else if (status.status === 'failed') {
+        return { state: 'FAILURE', error: status.error || '未知错误' };
+      } else {
+        return { state: 'PROGRESS', info: status };
+      }
+    },
+    pollingInterval: 2000,
+    timeout: 30 * 60 * 1000,
+    notificationKey: 'packing-order-sync',
+    initialMessage: '订单同步进行中',
+    formatProgressContent: (info) => {
+      const percent = Math.round(info.progress || 0);
+      let displayMessage = info.message || '同步中...';
+
+      // 匹配 "正在同步 awaiting_deliver 订单 56210030-0227-1..." 格式
+      const matchWithStatus = displayMessage.match(/正在同步\s+(\w+)\s+订单\s+([0-9-]+)/);
+      if (matchWithStatus) {
+        const status = matchWithStatus[1];
+        const postingNumber = matchWithStatus[2];
+        const statusText = OZON_ORDER_STATUS_MAP[status] || status;
+        displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
+      } else {
+        // 简单匹配订单号
+        const match = displayMessage.match(/订单\s+([0-9-]+)/);
+        if (match) {
+          displayMessage = `同步订单：${match[1]}`;
+        }
+      }
+
+      return (
+        <div>
+          <Progress percent={percent} size="small" status="active" />
+          <div style={{ marginTop: 8 }}>{displayMessage}</div>
+        </div>
+      );
+    },
+    formatSuccessMessage: () => ({
+      title: '同步完成',
+      description: '订单同步已完成！',
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingStats'] });
+      resetAndRefresh();
+    },
+  });
+
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
   const currentPageRef = React.useRef(1); // 使用 ref 跟踪当前页，避免 useEffect 依赖
@@ -139,8 +199,6 @@ const PackingShipment: React.FC = () => {
   const [shipModalVisible, setShipModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
-  const [syncTaskId, setSyncTaskId] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<any>(null);
 
   // 操作状态Tab（4个状态：等待备货、分配中、已分配、单号确认）
   const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
@@ -235,22 +293,6 @@ const PackingShipment: React.FC = () => {
       setSearchParams({ posting_number: postingNumber });
     }
   }, []); // 仅在组件挂载时执行一次
-
-  // 复制功能处理函数
-  const handleCopy = (text: string | undefined, label: string) => {
-    if (!text || text === '-') {
-      notifyWarning('复制失败', `${label}为空，无法复制`);
-      return;
-    }
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        notifySuccess('复制成功', `${label}已复制`);
-      })
-      .catch(() => {
-        notifyError('复制失败', '复制失败，请手动复制');
-      });
-  };
 
   // 查询店铺列表（用于显示店铺名称）
   const { data: shopsData } = useQuery({
@@ -515,7 +557,7 @@ const PackingShipment: React.FC = () => {
   };
 
   // 同步订单
-  const _syncOrdersMutation = useMutation({
+  const syncOrdersMutation = useMutation({
     mutationFn: (fullSync: boolean) => {
       if (!selectedShop) {
         throw new Error('请先选择店铺');
@@ -523,48 +565,17 @@ const PackingShipment: React.FC = () => {
       return ozonApi.syncOrdersDirect(selectedShop, fullSync ? 'full' : 'incremental');
     },
     onSuccess: (data) => {
-      notifySuccess('同步已启动', '订单同步任务已启动');
-      setSyncTaskId(data.task_id);
-      setSyncStatus({
-        status: 'running',
-        progress: 0,
-        message: '正在启动同步...',
-      });
+      const taskId = data?.task_id || data?.data?.task_id;
+      if (taskId) {
+        startOrderSyncPolling(taskId);
+      } else {
+        notifyError('同步失败', '未获取到任务ID，请稍后重试');
+      }
     },
     onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
     },
   });
-
-  // 轮询同步任务状态
-  useEffect(() => {
-    if (!syncTaskId || syncStatus?.status === 'completed' || syncStatus?.status === 'failed') {
-      return;
-    }
-
-    const interval = setInterval(async () => {
-      try {
-        const result = await ozonApi.getSyncStatus(syncTaskId);
-        const status = result.data || result; // 兼容不同响应格式
-        setSyncStatus(status);
-
-        if (status.status === 'completed') {
-          notifySuccess('同步完成', '订单同步已完成！');
-          queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-          // 重置分页并刷新页面数据
-          resetAndRefresh();
-          setSyncTaskId(null);
-        } else if (status.status === 'failed') {
-          notifyError('同步失败', `同步失败: ${status.error || '未知错误'}`);
-          setSyncTaskId(null);
-        }
-      } catch (error) {
-        logger.error('Failed to fetch sync status:', error);
-      }
-    }, 2000); // 每2秒检查一次
-
-    return () => clearInterval(interval);
-  }, [syncTaskId, syncStatus?.status, queryClient, resetAndRefresh]);
 
   // 发货
   const shipOrderMutation = useMutation({
@@ -604,21 +615,6 @@ const PackingShipment: React.FC = () => {
   };
 
   // 稳定化的回调函数 - 使用 useCallback 避免重复渲染
-  const handleCopyCallback = React.useCallback((text: string | undefined, label: string) => {
-    if (!text || text === '-') {
-      notifyWarning('复制失败', `${label}为空，无法复制`);
-      return;
-    }
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        notifySuccess('复制成功', `${label}已复制`);
-      })
-      .catch(() => {
-        notifyError('复制失败', '复制失败，请手动复制');
-      });
-  }, []);
-
   const handleShowDetailCallback = React.useCallback(
     (order: ozonApi.Order, posting: ozonApi.Posting) => {
       showOrderDetail(order, posting);
@@ -946,26 +942,6 @@ const PackingShipment: React.FC = () => {
       {/* 页面标题 */}
       <PageTitle icon={<TruckOutlined />} title="打包发货" />
 
-      {/* 同步进度显示 */}
-      {syncStatus && syncStatus.status === 'running' && (
-        <Alert
-          message="订单同步中"
-          description={
-            <div>
-              <p>{syncStatus.message}</p>
-              <Progress percent={Math.round(syncStatus.progress)} status="active" />
-            </div>
-          }
-          type="info"
-          showIcon
-          closable
-          onClose={() => {
-            setSyncStatus(null);
-            setSyncTaskId(null);
-          }}
-          className={styles.filterCard}
-        />
-      )}
 
       {/* 搜索过滤（扫描单号标签时隐藏） */}
       {operationStatus !== 'scan' && (
@@ -1156,7 +1132,7 @@ const PackingShipment: React.FC = () => {
                     shopNameMap={shopNameMap}
                     canOperate={canOperate}
                     isPrinting={isPrinting}
-                    onCopy={handleCopy}
+                    onCopy={copyToClipboard}
                   />
                 </Card>
               )}
@@ -1255,7 +1231,7 @@ const PackingShipment: React.FC = () => {
                       operationStatus={operationStatus}
                       formatPrice={formatPrice}
                       formatDeliveryMethodText={formatDeliveryMethodText}
-                      onCopy={handleCopyCallback}
+                      onCopy={copyToClipboard}
                       onShowDetail={handleShowDetailCallback}
                       onOpenImagePreview={handleOpenImagePreviewCallback}
                       onOpenPriceHistory={handleOpenPriceHistoryCallback}

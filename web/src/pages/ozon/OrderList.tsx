@@ -29,7 +29,6 @@ import {
   Form,
   Typography,
   Progress,
-  Avatar,
   Table,
   Pagination,
   notification,
@@ -45,16 +44,18 @@ import styles from './OrderList.module.scss';
 import PrintErrorModal from '@/components/ozon/order/PrintErrorModal';
 import ShipModal from '@/components/ozon/order/ShipModal';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
+import ProductImage from '@/components/ozon/ProductImage';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
+import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
+import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -104,7 +105,7 @@ const OrderList: React.FC = () => {
       if (matchWithStatus) {
         const status = matchWithStatus[1];
         const postingNumber = matchWithStatus[2];
-        const statusText = status || status;
+        const statusText = OZON_ORDER_STATUS_MAP[status] || status;
         displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
       } else {
         // 简单匹配订单号
@@ -180,114 +181,8 @@ const OrderList: React.FC = () => {
     return map;
   }, [shopsData]);
 
-  // 状态配置 - 与OZON官网对齐的7个主状态 + 兼容旧状态
-  const statusConfig: Record<string, { color: string; text: string; icon: React.ReactNode }> = {
-    // 【1】等待备货 - 订单刚创建，需要准备商品
-    awaiting_packaging: {
-      color: 'processing',
-      text: '等待备货',
-      icon: <ClockCircleOutlined />,
-    },
-    awaiting_registration: {
-      color: 'processing',
-      text: '等待备货', // 映射：等待注册 → 等待备货
-      icon: <ClockCircleOutlined />,
-    },
-    acceptance_in_progress: {
-      color: 'processing',
-      text: '等待备货', // 映射：正在验收 → 等待备货
-      icon: <SyncOutlined spin />,
-    },
-    awaiting_approve: {
-      color: 'processing',
-      text: '等待备货', // 映射：等待确认 → 等待备货
-      icon: <ClockCircleOutlined />,
-    },
-
-    // 【2】等待发运 - 商品已备好，等待交给快递
-    awaiting_deliver: {
-      color: 'warning',
-      text: '等待发运',
-      icon: <TruckOutlined />,
-    },
-
-    // 【3】已准备发运 - FBS模式：卖家已发货但快递未取件
-    sent_by_seller: {
-      color: 'cyan',
-      text: '已准备发运',
-      icon: <TruckOutlined />,
-    },
-
-    // 【4】运输中 - 快递配送中
-    delivering: {
-      color: 'cyan',
-      text: '运输中',
-      icon: <TruckOutlined />,
-    },
-    driver_pickup: {
-      color: 'cyan',
-      text: '运输中', // 映射：司机处 → 运输中
-      icon: <TruckOutlined />,
-    },
-
-    // 【5】有争议的 - 仲裁/纠纷
-    arbitration: {
-      color: 'warning',
-      text: '有争议的',
-      icon: <ClockCircleOutlined />,
-    },
-    client_arbitration: {
-      color: 'warning',
-      text: '有争议的', // 映射：快递客户仲裁 → 有争议的
-      icon: <ClockCircleOutlined />,
-    },
-
-    // 【6】已签收 - 订单完成
-    delivered: {
-      color: 'success',
-      text: '已签收',
-      icon: <CheckCircleOutlined />,
-    },
-
-    // 【7】已取消 - 订单取消
-    cancelled: {
-      color: 'error',
-      text: '已取消',
-      icon: <CloseCircleOutlined />,
-    },
-    not_accepted: {
-      color: 'error',
-      text: '已取消', // 映射：分拣中心未接受 → 已取消
-      icon: <CloseCircleOutlined />,
-    },
-
-    // -------- 以下为兼容旧数据的状态 --------
-    pending: {
-      color: 'processing',
-      text: '等待备货', // 映射：待确认 → 等待备货
-      icon: <ClockCircleOutlined />,
-    },
-    confirmed: {
-      color: 'processing',
-      text: '等待备货', // 映射：已确认 → 等待备货
-      icon: <CheckCircleOutlined />,
-    },
-    processing: {
-      color: 'processing',
-      text: '等待备货', // 映射：处理中 → 等待备货
-      icon: <SyncOutlined spin />,
-    },
-    shipped: {
-      color: 'cyan',
-      text: '运输中', // 映射：已发货 → 运输中
-      icon: <TruckOutlined />,
-    },
-    awaiting_debit: {
-      color: 'processing',
-      text: '等待备货', // 映射：等待扣款 → 等待备货
-      icon: <ClockCircleOutlined />,
-    },
-  };
+  // 使用统一的订单状态配置
+  const statusConfig = ORDER_STATUS_CONFIG;
 
   // 查询订单列表
   const {
@@ -622,7 +517,7 @@ const OrderList: React.FC = () => {
 
   // 表格列定义（商品维度 - 4列布局）
   const columns = [
-    // 第一列：商品图片（160x160固定容器，可点击打开OZON商品页）
+    // 第一列：商品图片（160x160固定容器，右上角显示OZON链接，点击图片放大预览）
     {
       title: '商品图片',
       key: 'product_image',
@@ -631,38 +526,17 @@ const OrderList: React.FC = () => {
       render: (_, row: OrderItemRow) => {
         const item = row.item;
         const rawImageUrl = item.image || (item.offer_id && offerIdImageMap[item.offer_id]);
-        const imageUrl = optimizeOzonImageUrl(rawImageUrl, 160);
-        const ozonProductUrl = item.sku ? `https://www.ozon.ru/product/${item.sku}/` : null;
-
-        const handleImageClick = () => {
-          if (ozonProductUrl) {
-            window.open(ozonProductUrl, '_blank', 'noopener,noreferrer');
-          }
-        };
 
         return (
-          <Tooltip title={item.name || item.sku || '点击打开OZON商品页'}>
-            <div
-              className={styles.productImageContainer}
-              onClick={handleImageClick}
-              style={{ cursor: ozonProductUrl ? 'pointer' : 'default' }}
-            >
-              {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={item.name || item.sku || '商品图片'}
-                  className={styles.productImage}
-                />
-              ) : (
-                <Avatar
-                  size={160}
-                  icon={<ShoppingCartOutlined />}
-                  shape="square"
-                  className={styles.productImagePlaceholder}
-                />
-              )}
-            </div>
-          </Tooltip>
+          <ProductImage
+            imageUrl={rawImageUrl}
+            size="medium"
+            hoverBehavior="name"
+            name={item.name || item.sku}
+            topRightCorner="link"
+            sku={item.sku}
+            offerId={item.offer_id}
+          />
         );
       },
     },

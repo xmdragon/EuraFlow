@@ -3,18 +3,73 @@
  * 处理水印应用、还原、轮询等操作
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { message, notification } from 'antd';
 import { useEffect, useState } from 'react';
 
+import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import * as watermarkApi from '@/services/watermarkApi';
 import { loggers } from '@/utils/logger';
-import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
+import { notifySuccess, notifyError, notifyInfo } from '@/utils/notification';
 
 export const useWatermark = (selectedShop: number | null) => {
   const queryClient = useQueryClient();
-  const [watermarkBatchId, setWatermarkBatchId] = useState<string | null>(null);
   const [watermarkConfigs, setWatermarkConfigs] = useState<watermarkApi.WatermarkConfig[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // 水印处理轮询 Hook
+  const { startPolling: startWatermarkPolling } = useAsyncTaskPolling({
+    getStatus: async (batchId) => {
+      if (!selectedShop) {
+        return { state: 'FAILURE', error: '未选择店铺' };
+      }
+
+      const tasks = await watermarkApi.getTasks({
+        shop_id: selectedShop,
+        batch_id: batchId,
+      });
+
+      const completed = tasks.filter((t) => t.status === 'completed').length;
+      const failed = tasks.filter((t) => t.status === 'failed').length;
+      const total = tasks.length;
+
+      // 如果所有任务都完成了（无论成功还是失败）
+      if (total > 0 && completed + failed === total) {
+        return {
+          state: 'SUCCESS',
+          result: { completed, failed, total },
+        };
+      } else {
+        return {
+          state: 'PROGRESS',
+          info: {
+            percent: total > 0 ? Math.round(((completed + failed) / total) * 100) : 0,
+            current: `已处理 ${completed + failed}/${total} 个商品`,
+          },
+        };
+      }
+    },
+    pollingInterval: 3000,
+    timeout: 5 * 60 * 1000, // 5分钟超时
+    notificationKey: 'watermark-apply',
+    initialMessage: '水印处理进行中',
+    formatProgressContent: (info) => {
+      return `${info.current || '处理中...'} (${info.percent || 0}%)`;
+    },
+    formatSuccessMessage: (result) => {
+      if (result.failed > 0) {
+        return {
+          title: '水印批处理完成',
+          description: `成功处理 ${result.completed} 个商品，失败 ${result.failed} 个商品`,
+        };
+      }
+      return {
+        title: '水印批处理成功',
+        description: `已成功为 ${result.completed} 个商品添加水印`,
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+    },
+  });
 
   // 查询水印配置
   const { data: watermarkConfigsData, error: watermarkError } = useQuery({
@@ -71,15 +126,8 @@ export const useWatermark = (selectedShop: number | null) => {
         return;
       }
 
-      // 异步模式 - 启动轮询
-      notifyInfo('水印处理已启动', `水印批处理已在后台启动，任务ID: ${data.batch_id}`);
-      setWatermarkBatchId(data.batch_id);
-
-      // 延迟1秒后开始轮询，给后端时间创建任务
-      setTimeout(() => {
-        loggers.product.debug('Starting polling for batch:', data.batch_id);
-        pollWatermarkTasks(data.batch_id);
-      }, 1000);
+      // 使用统一的轮询 Hook
+      startWatermarkPolling(data.batch_id);
     },
     onError: (error: Error) => {
       notifyError('水印应用失败', `水印应用失败: ${error.message}`);
@@ -100,94 +148,6 @@ export const useWatermark = (selectedShop: number | null) => {
       notifyError('原图还原失败', `原图还原失败: ${error.message}`);
     },
   });
-
-  // 轮询水印任务状态
-  const pollWatermarkTasks = async (batchId: string) => {
-    if (!selectedShop) {
-      loggers.product.error('Cannot poll watermark tasks: no shop selected');
-      return;
-    }
-
-    loggers.product.debug('Starting to poll watermark tasks for batch:', batchId);
-    let completed = 0;
-    let failed = 0;
-    let hasShownProgress = false;
-    let pollCount = 0;
-
-    const interval = setInterval(async () => {
-      pollCount++;
-      loggers.product.debug(`Polling attempt ${pollCount} for batch ${batchId}`);
-
-      try {
-        const tasks = await watermarkApi.getTasks({
-          shop_id: selectedShop,
-          batch_id: batchId,
-        });
-        loggers.product.debug('Tasks received:', tasks);
-
-        completed = tasks.filter((t) => t.status === 'completed').length;
-        failed = tasks.filter((t) => t.status === 'failed').length;
-        const processing = tasks.filter((t) => t.status === 'processing').length;
-        const pending = tasks.filter((t) => t.status === 'pending').length;
-        const total = tasks.length;
-
-        loggers.product.debug(
-          `Status: ${completed} completed, ${failed} failed, ${processing} processing, ${pending} pending, total: ${total}`
-        );
-
-        // 显示进度
-        if (!hasShownProgress && (completed > 0 || processing > 0)) {
-          hasShownProgress = true;
-          notifyInfo('水印处理中', `水印处理进度：${completed}/${total} 完成`);
-        }
-
-        // 如果所有任务都完成了（无论成功还是失败）
-        if (total > 0 && completed + failed === total) {
-          clearInterval(interval);
-
-          // 使用通知而不是普通消息，更醒目
-          if (failed > 0) {
-            notifyWarning('水印批处理完成', `成功处理 ${completed} 个商品，失败 ${failed} 个商品`);
-          } else {
-            notifySuccess('水印批处理成功', `已成功为 ${completed} 个商品添加水印`);
-          }
-
-          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-          setWatermarkBatchId(null);
-        }
-      } catch (error) {
-        loggers.product.error('Failed to poll watermark tasks:', error);
-
-        // 如果连续失败3次，停止轮询
-        if (pollCount >= 3) {
-          clearInterval(interval);
-          message.destroy(); // 清除loading消息
-
-          notification.error({
-            message: '任务状态查询失败',
-            description: `无法获取水印处理进度：${error?.message || '网络错误'}。请刷新页面查看结果`,
-            duration: 0, // 不自动关闭
-            placement: 'topRight',
-          });
-        }
-      }
-    }, 3000);
-
-    // 5分钟后自动停止轮询
-    setTimeout(() => {
-      clearInterval(interval);
-      message.destroy(); // 清除所有消息
-
-      if (completed + failed === 0) {
-        notification.warning({
-          message: '任务超时',
-          description: '水印处理时间过长，请稍后刷新页面查看结果',
-          duration: 0, // 不自动关闭
-          placement: 'topRight',
-        });
-      }
-    }, 300000);
-  };
 
   // 预览水印
   const handlePreview = async (

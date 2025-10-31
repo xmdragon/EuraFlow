@@ -19,7 +19,6 @@ import {
   Modal,
   Progress,
   App,
-  message,
   Tree,
   Spin,
 } from 'antd';
@@ -717,7 +716,7 @@ const CategoryCommissionsSection: React.FC<CategoryCommissionsSectionProps> = ({
 
   const handleUpload = () => {
     if (fileList.length === 0) {
-      message.warning('请先选择CSV文件');
+      notifyWarning('上传失败', '请先选择CSV文件');
       return;
     }
 

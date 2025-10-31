@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  App,
   Table,
   Button,
   Space,
@@ -150,6 +151,7 @@ const Promotions: React.FC = () => {
   const { canOperate, canSync } = usePermission();
   const { symbol: currencySymbol } = useCurrency();
   const { copyToClipboard } = useCopy();
+  const { modal } = App.useApp();
 
   // 添加样式
   React.useEffect(() => {
@@ -567,9 +569,9 @@ const Promotions: React.FC = () => {
       title: '商品信息',
       dataIndex: 'title',
       key: 'title',
-      ellipsis: true,
+      width: 400,
       render: (title: string, record: promotionApi.PromotionProduct) => (
-        <div>
+        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
           <div style={{ marginBottom: 4 }}>
             {record.ozon_product_id ? (
               <a
@@ -609,9 +611,33 @@ const Promotions: React.FC = () => {
     },
     {
       title: '当前库存',
-      dataIndex: 'stock',
       key: 'stock',
-      width: 100,
+      width: 140,
+      render: (_: unknown, record: promotionApi.PromotionProduct) => {
+        // 如果有仓库库存详情，按仓库显示
+        if ((record as any).warehouse_stocks && (record as any).warehouse_stocks.length > 0) {
+          return (
+            <Space direction="vertical" size={2} style={{ width: '100%' }}>
+              {(record as any).warehouse_stocks.map((ws: any, index: number) => {
+                const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
+                const totalStock = ws.present + ws.reserved;
+                return (
+                  <span key={index} style={{ fontSize: 12 }}>
+                    {warehouseAbbr}:
+                    <span style={{ fontWeight: 600, marginLeft: '4px' }}>{totalStock}</span>
+                  </span>
+                );
+              })}
+            </Space>
+          );
+        }
+        // 降级：显示总库存
+        return (
+          <span style={{ fontSize: 12 }}>
+            总计: <span style={{ fontWeight: 600, marginLeft: '4px' }}>{record.stock || 0}</span>
+          </span>
+        );
+      },
     },
   ];
 
@@ -649,9 +675,9 @@ const Promotions: React.FC = () => {
       title: '商品信息',
       dataIndex: 'title',
       key: 'title',
-      ellipsis: true,
+      width: 400,
       render: (title: string, record: promotionApi.PromotionProduct) => (
-        <div>
+        <div style={{ wordWrap: 'break-word', whiteSpace: 'normal' }}>
           <div style={{ marginBottom: 4 }}>
             {record.ozon_product_id ? (
               <a
@@ -711,15 +737,39 @@ const Promotions: React.FC = () => {
     {
       title: '库存信息',
       key: 'stock_info',
-      width: 120,
-      render: (_: unknown, record: promotionApi.PromotionProduct) => (
-        <div>
-          <div style={{ fontSize: 12, color: '#888' }}>总库存: {record.stock || 0}</div>
-          <div style={{ fontWeight: 500, color: '#1890ff' }}>
-            促销: {record.promotion_stock || 0}
+      width: 160,
+      render: (_: unknown, record: promotionApi.PromotionProduct) => {
+        // 如果有仓库库存详情，按仓库显示
+        if ((record as any).warehouse_stocks && (record as any).warehouse_stocks.length > 0) {
+          return (
+            <div>
+              <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                {(record as any).warehouse_stocks.map((ws: any, index: number) => {
+                  const warehouseAbbr = ws.warehouse_name?.substring(0, 4) || `W${ws.warehouse_id}`;
+                  const totalStock = ws.present + ws.reserved;
+                  return (
+                    <span key={index} style={{ fontSize: 12, color: '#888' }}>
+                      {warehouseAbbr}: {totalStock}
+                    </span>
+                  );
+                })}
+              </Space>
+              <div style={{ fontWeight: 500, color: '#1890ff', marginTop: 4 }}>
+                促销: {record.promotion_stock || 0}
+              </div>
+            </div>
+          );
+        }
+        // 降级：显示总库存
+        return (
+          <div>
+            <div style={{ fontSize: 12, color: '#888' }}>总库存: {record.stock || 0}</div>
+            <div style={{ fontWeight: 500, color: '#1890ff' }}>
+              促销: {record.promotion_stock || 0}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: '加入方式',
@@ -761,7 +811,7 @@ const Promotions: React.FC = () => {
       return;
     }
 
-    Modal.confirm({
+    modal.confirm({
       title: '确认取消促销',
       content: `确定要取消 ${selectedActiveRows.length} 个商品的促销吗？`,
       onOk: () => {
