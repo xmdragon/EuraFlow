@@ -75,14 +75,28 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="*/5"),  # 每5分钟
         "options": {"queue": "ef_core"}
     },
-    
+
     # 清理过期任务结果
     "cleanup-expired-results": {
         "task": "ef.core.cleanup_results",
         "schedule": crontab(hour="2", minute="0"),  # 每天凌晨2点
         "options": {"queue": "ef_core"}
     },
-    
+
+    # OZON: 每周二凌晨4点同步类目树
+    "ozon-scheduled-category-sync": {
+        "task": "ef.ozon.scheduled_category_sync",
+        "schedule": crontab(day_of_week=2, hour=4, minute=0),  # 周二凌晨4点
+        "options": {"queue": "ef_core"}
+    },
+
+    # OZON: 每周二凌晨4:30同步类目特征（在类目同步之后）
+    "ozon-scheduled-attributes-sync": {
+        "task": "ef.ozon.scheduled_attributes_sync",
+        "schedule": crontab(day_of_week=2, hour=4, minute=30),  # 周二凌晨4:30
+        "options": {"queue": "ef_core"}
+    },
+
     # 插件任务将通过 TaskRegistry 动态注册
 }
 
@@ -144,3 +158,57 @@ def task_failure_handler(sender=None, task_id=None, exception=None, traceback=No
 def task_retry_handler(sender=None, task_id=None, reason=None, einfo=None, **kwds):
     """任务重试的处理"""
     logger.warning(f"Task retrying: {sender.name}", task_id=task_id, reason=str(reason))
+
+
+@signals.worker_ready.connect
+def cleanup_stale_tasks_on_startup(**kwargs):
+    """
+    Worker 启动时清理所有僵死的任务进度记录
+
+    当 Celery worker 重启时，Redis 中可能还保留着旧的任务进度状态。
+    这些状态会导致前端认为任务还在运行，但实际上 worker 已经重启，任务已经丢失。
+    """
+    try:
+        import redis
+        import json
+        from celery.result import AsyncResult
+
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        cleaned_count = 0
+        zombie_count = 0
+
+        for key in redis_client.keys("celery-task-progress:*"):
+            try:
+                data = redis_client.get(key)
+                if not data:
+                    continue
+
+                progress = json.loads(data)
+                task_id = key.replace("celery-task-progress:", "")
+
+                # 检查任务状态
+                if progress.get('status') in ['starting', 'syncing']:
+                    # 检查 Celery 中任务是否真的在运行
+                    result = AsyncResult(task_id, app=celery_app)
+
+                    # PENDING 表示任务不存在或未开始，FAILURE/SUCCESS/REVOKED 表示任务已结束
+                    if result.state in ['PENDING', 'FAILURE', 'SUCCESS', 'REVOKED']:
+                        redis_client.delete(key)
+                        zombie_count += 1
+                        logger.warning(f"Cleaned zombie task {task_id} with Celery state {result.state}")
+                    else:
+                        logger.info(f"Task {task_id} is still running with state {result.state}")
+                elif progress.get('status') in ['completed', 'failed']:
+                    # 已完成的任务，清理掉
+                    redis_client.delete(key)
+                    cleaned_count += 1
+
+            except Exception as e:
+                logger.error(f"Error cleaning task progress {key}: {e}", exc_info=True)
+
+        if zombie_count > 0 or cleaned_count > 0:
+            logger.info(
+                f"Startup cleanup completed: {zombie_count} zombie tasks, {cleaned_count} completed tasks removed"
+            )
+    except Exception as e:
+        logger.error(f"Failed to cleanup stale tasks on startup: {e}", exc_info=True)

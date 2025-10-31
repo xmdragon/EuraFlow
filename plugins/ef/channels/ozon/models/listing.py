@@ -32,12 +32,14 @@ class OzonCategory(Base):
     name = Column(String(500), nullable=False)
     is_leaf = Column(Boolean, default=False, comment="是否叶子类目(只有叶子类目可建品)")
     is_disabled = Column(Boolean, default=False)
+    is_deprecated = Column(Boolean, default=False, comment="是否已废弃(不再出现在OZON API中)")
     level = Column(Integer, default=0, comment="层级深度")
     full_path = Column(String(2000), comment="完整路径(用/分隔)")
 
     # 缓存信息
     cached_at = Column(DateTime(timezone=True), default=utcnow)
     last_updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    attributes_synced_at = Column(DateTime(timezone=True), nullable=True, comment="特征最后同步时间")
 
     # 关系
     parent = relationship("OzonCategory", remote_side=[category_id], backref="children")
@@ -46,6 +48,7 @@ class OzonCategory(Base):
     __table_args__ = (
         Index("idx_ozon_categories_parent", "parent_id"),
         Index("idx_ozon_categories_leaf", "is_leaf", postgresql_where=(Column("is_leaf") == True)),
+        Index("idx_ozon_categories_attrs_synced_at", "attributes_synced_at"),
         # 全文搜索索引(使用Russian分词)
         Index("idx_ozon_categories_name", "name", postgresql_using="gin",
               postgresql_ops={"name": "gin_trgm_ops"}),

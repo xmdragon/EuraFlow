@@ -68,6 +68,7 @@ const ProductCreate: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [categoryTree, setCategoryTree] = useState<CategoryOption[]>([]);
   const [hasCategoryData, setHasCategoryData] = useState(false);
+  const [syncingCategoryAttributes, setSyncingCategoryAttributes] = useState(false);
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([{ id: '1', sku: '', price: 0 }]);
@@ -109,60 +110,6 @@ const ProductCreate: React.FC = () => {
     }
   }, [selectedShop]);
 
-  // 同步类目
-  const syncCategoryMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedShop) throw new Error('请先选择店铺');
-      return await ozonApi.syncCategoryTree(selectedShop, true);
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        notifySuccess('同步成功', `已同步 ${data.synced_count || 0} 个类目。页面即将刷新...`);
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      } else {
-        notifyError('同步失败', `同步失败: ${data.error || '未知错误'}`);
-      }
-    },
-    onError: (error: Error) => {
-      notifyError('同步失败', `同步失败: ${error.message}`);
-    },
-  });
-
-  // 确认同步类目
-  const handleSyncCategory = () => {
-    if (!selectedShop) {
-      notifyWarning('操作失败', '请先选择店铺');
-      return;
-    }
-
-    modal.confirm({
-      title: '确认同步类目',
-      icon: <ExclamationCircleOutlined />,
-      content: (
-        <div>
-          <p>此操作将：</p>
-          <ul className={styles.helpText}>
-            <li>清空数据库中的所有类目数据</li>
-            <li>从OZON重新获取完整类目树</li>
-            <li>预计耗时 10-30 秒</li>
-          </ul>
-          <p className={styles.errorText}>
-            <strong>提示：</strong>
-            同步期间请勿重复操作，同步完成后会自动刷新类目列表
-          </p>
-        </div>
-      ),
-      okText: '确认同步',
-      okType: 'primary',
-      cancelText: '取消',
-      onOk() {
-        syncCategoryMutation.mutate();
-      },
-    });
-  };
-
   // 处理图片上传
   const handleImageUpload = async (file: File): Promise<string> => {
     if (!selectedShop) {
@@ -193,6 +140,39 @@ const ProductCreate: React.FC = () => {
       reader.onerror = () => reject(new Error('文件读取失败'));
       reader.readAsDataURL(file);
     });
+  };
+
+  // 同步当前类目特征
+  const handleSyncCategoryAttributes = async () => {
+    if (!selectedCategory || !selectedShop) {
+      notifyError('操作失败', '请先选择店铺和类目');
+      return;
+    }
+
+    setSyncingCategoryAttributes(true);
+    try {
+      const result = await ozonApi.syncSingleCategoryAttributes(selectedCategory, selectedShop, {
+        language: 'ZH_HANS',
+        forceRefresh: false,
+        syncDictionaryValues: true,
+      });
+
+      if (result.success) {
+        notifySuccess(
+          '同步成功',
+          `类目 "${result.category_name}" 特征同步完成\n` +
+            `同步特征: ${result.synced_attributes || 0} 个\n` +
+            `缓存特征: ${result.cached_attributes || 0} 个\n` +
+            `同步特征值: ${result.synced_values || 0} 个`,
+        );
+      } else {
+        notifyError('同步失败', result.error || '未知错误');
+      }
+    } catch (error: any) {
+      notifyError('同步失败', error.message || '网络错误');
+    } finally {
+      setSyncingCategoryAttributes(false);
+    }
   };
 
   // 提交商品表单
@@ -370,18 +350,22 @@ const ProductCreate: React.FC = () => {
                   disabled={!selectedShop || false}
                   loading={false}
                 />
-                <Button
-                  className={styles.syncBtn}
-                  icon={<SyncOutlined />}
-                  onClick={handleSyncCategory}
-                  loading={syncCategoryMutation.isPending || false}
-                  disabled={!selectedShop || syncCategoryMutation.isPending}
-                >
-                  同步类目
-                </Button>
+                {selectedCategory && (
+                  <Button
+                    type="default"
+                    icon={<SyncOutlined spin={syncingCategoryAttributes} />}
+                    onClick={handleSyncCategoryAttributes}
+                    loading={syncingCategoryAttributes}
+                    disabled={!selectedShop || !selectedCategory}
+                    style={{ marginLeft: 8 }}
+                    title="同步当前类目的特征数据"
+                  >
+                    同步特征
+                  </Button>
+                )}
               </div>
               {!hasCategoryData && selectedShop && (
-                <span className={styles.errorText}>数据库无类目数据，请点击"同步类目"按钮</span>
+                <span className={styles.errorText}>数据库无类目数据，请前往"系统配置 - 全局设置"同步类目</span>
               )}
             </Form.Item>
 

@@ -4,13 +4,13 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 export const useProductOperations = (selectedShop: number | null) => {
-  const { modal } = App.useApp();
+  const { modal, notification } = App.useApp();
   const queryClient = useQueryClient();
 
   const [priceModalVisible, setPriceModalVisible] = useState(false);
@@ -18,33 +18,271 @@ export const useProductOperations = (selectedShop: number | null) => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ozonApi.Product | null>(null);
 
-  // 批量更新价格
+  // 用于存储轮询定时器
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollPriceIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 批量更新价格（异步任务）
   const updatePricesMutation = useMutation({
     mutationFn: (updates: ozonApi.PriceUpdate[]) =>
       ozonApi.updatePrices(updates, selectedShop || undefined),
-    onSuccess: () => {
-      notifySuccess('更新成功', '价格更新成功');
-      setPriceModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+    onSuccess: (data) => {
+      console.log('价格更新响应:', data);
+      // 检查是否返回了 task_id（异步任务）
+      if (data.task_id) {
+        console.log('收到 task_id，开始轮询:', data.task_id);
+        setPriceModalVisible(false);
+        // 开始轮询任务状态
+        pollPriceUpdateTask(data.task_id);
+      } else {
+        console.log('未收到 task_id，使用旧的同步方式');
+        // 旧的同步响应（兼容）
+        notifySuccess('更新成功', '价格更新成功');
+        setPriceModalVisible(false);
+        queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+      }
     },
-    onError: (error: Error) => {
-      notifyError('更新失败', `价格更新失败: ${error.message}`);
+    onError: (error: any) => {
+      // 提取后端返回的详细错误信息
+      const errorMessage = error?.response?.data?.detail || error?.message || '未知错误';
+      notifyError('更新失败', `价格更新失败: ${errorMessage}`);
     },
   });
 
-  // 批量更新库存
+  // 批量更新库存（异步任务）
   const updateStocksMutation = useMutation({
     mutationFn: (updates: ozonApi.StockUpdate[]) =>
       ozonApi.updateStocks(updates, selectedShop || undefined),
-    onSuccess: () => {
-      notifySuccess('更新成功', '库存更新成功');
-      setStockModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+    onSuccess: (data) => {
+      console.log('库存更新响应:', data);
+      // 检查是否返回了 task_id（异步任务）
+      if (data.task_id) {
+        console.log('收到 task_id，开始轮询:', data.task_id);
+        setStockModalVisible(false);
+        // 开始轮询任务状态
+        pollStockUpdateTask(data.task_id);
+      } else {
+        console.log('未收到 task_id，使用旧的同步方式');
+        // 旧的同步响应（兼容）
+        notifySuccess('更新成功', '库存更新成功');
+        setStockModalVisible(false);
+        queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+      }
     },
-    onError: (error: Error) => {
-      notifyError('更新失败', `库存更新失败: ${error.message}`);
+    onError: (error: any) => {
+      // 提取后端返回的详细错误信息
+      const errorMessage = error?.response?.data?.detail || error?.message || '未知错误';
+      notifyError('更新失败', `库存更新失败: ${errorMessage}`);
     },
   });
+
+  // 轮询库存更新任务状态
+  const pollStockUpdateTask = (taskId: string) => {
+    console.log('开始轮询任务:', taskId);
+    const key = `stock-update-${taskId}`;
+
+    // 清除之前的定时器
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+
+    // 显示初始通知
+    console.log('显示初始通知');
+    notification.info({
+      key,
+      message: '批量库存更新',
+      description: '任务已提交，正在处理...',
+      duration: 0,
+      placement: 'bottomRight',
+    });
+
+    let pollCount = 0;
+    const maxPolls = 900; // 最多轮询30分钟（每2秒一次）
+
+    pollIntervalRef.current = setInterval(async () => {
+      pollCount++;
+
+      // 超时检查
+      if (pollCount > maxPolls) {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        notification.warning({
+          key,
+          message: '任务超时',
+          description: '库存更新任务执行时间过长，请稍后手动刷新查看结果',
+          duration: 8,
+          placement: 'bottomRight',
+        });
+        return;
+      }
+
+      try {
+        const status = await ozonApi.getBatchStockUpdateTaskStatus(taskId);
+        console.log('任务状态:', status);
+
+        // 任务完成
+        if (status.state === 'SUCCESS' || status.info?.status === 'completed') {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+          const updatedCount = status.result?.updated_count || status.info?.updated || 0;
+          const errors = status.result?.errors || status.info?.errors || [];
+
+          if (errors.length > 0) {
+            notification.warning({
+              key,
+              message: '库存更新部分成功',
+              description: `成功更新 ${updatedCount} 个商品，${errors.length} 个失败。查看控制台了解详情。`,
+              duration: 8,
+              placement: 'bottomRight',
+            });
+            console.error('库存更新错误:', errors);
+          } else {
+            notification.success({
+              key,
+              message: '库存更新完成',
+              description: `成功更新 ${updatedCount} 个商品库存`,
+              duration: 4,
+              placement: 'bottomRight',
+            });
+          }
+
+          // 刷新商品列表
+          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+        }
+        // 任务失败
+        else if (status.state === 'FAILURE' || status.info?.status === 'failed') {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+          notification.error({
+            key,
+            message: '库存更新失败',
+            description: status.error || status.result?.error || '更新失败，请重试',
+            duration: 8,
+            placement: 'bottomRight',
+          });
+        }
+        // 任务执行中
+        else {
+          const progress = status.progress || status.info?.percent || 0;
+          const current = status.info?.current || '处理中...';
+
+          notification.info({
+            key,
+            message: '批量库存更新',
+            description: `${current} (${progress}%)`,
+            duration: 0,
+            placement: 'bottomRight',
+          });
+        }
+      } catch (error) {
+        // 查询状态失败，但不立即停止轮询（可能是网络问题）
+        console.error('查询任务状态失败:', error);
+      }
+    }, 2000); // 每2秒轮询一次
+  };
+
+  // 轮询价格更新任务状态
+  const pollPriceUpdateTask = (taskId: string) => {
+    console.log('开始轮询价格更新任务:', taskId);
+    const key = `price-update-${taskId}`;
+
+    // 清除之前的定时器
+    if (pollPriceIntervalRef.current) {
+      clearInterval(pollPriceIntervalRef.current);
+    }
+
+    // 显示初始通知
+    console.log('显示初始通知');
+    notification.info({
+      key,
+      message: '批量价格更新',
+      description: '任务已提交，正在处理...',
+      duration: 0,
+      placement: 'bottomRight',
+    });
+
+    let pollCount = 0;
+    const maxPolls = 900; // 最多轮询30分钟（每2秒一次）
+
+    pollPriceIntervalRef.current = setInterval(async () => {
+      pollCount++;
+
+      // 超时检查
+      if (pollCount > maxPolls) {
+        if (pollPriceIntervalRef.current) clearInterval(pollPriceIntervalRef.current);
+        notification.warning({
+          key,
+          message: '任务超时',
+          description: '价格更新任务执行时间过长，请稍后手动刷新查看结果',
+          duration: 8,
+          placement: 'bottomRight',
+        });
+        return;
+      }
+
+      try {
+        const status = await ozonApi.getBatchPriceUpdateTaskStatus(taskId);
+        console.log('价格任务状态:', status);
+
+        // 任务完成
+        if (status.state === 'SUCCESS' || status.info?.status === 'completed') {
+          if (pollPriceIntervalRef.current) clearInterval(pollPriceIntervalRef.current);
+
+          const updatedCount = status.result?.updated_count || status.info?.updated || 0;
+          const errors = status.result?.errors || status.info?.errors || [];
+
+          if (errors.length > 0) {
+            notification.warning({
+              key,
+              message: '价格更新部分成功',
+              description: `成功更新 ${updatedCount} 个商品，${errors.length} 个失败。查看控制台了解详情。`,
+              duration: 8,
+              placement: 'bottomRight',
+            });
+            console.error('价格更新错误:', errors);
+          } else {
+            notification.success({
+              key,
+              message: '价格更新完成',
+              description: `成功更新 ${updatedCount} 个商品价格`,
+              duration: 4,
+              placement: 'bottomRight',
+            });
+          }
+
+          // 刷新商品列表
+          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+        }
+        // 任务失败
+        else if (status.state === 'FAILURE' || status.info?.status === 'failed') {
+          if (pollPriceIntervalRef.current) clearInterval(pollPriceIntervalRef.current);
+
+          notification.error({
+            key,
+            message: '价格更新失败',
+            description: status.error || status.result?.error || '更新失败，请重试',
+            duration: 8,
+            placement: 'bottomRight',
+          });
+        }
+        // 任务执行中
+        else {
+          const progress = status.progress || status.info?.percent || 0;
+          const current = status.info?.current || '处理中...';
+
+          notification.info({
+            key,
+            message: '批量价格更新',
+            description: `${current} (${progress}%)`,
+            duration: 0,
+            placement: 'bottomRight',
+          });
+        }
+      } catch (error) {
+        // 查询状态失败，但不立即停止轮询（可能是网络问题）
+        console.error('查询价格任务状态失败:', error);
+      }
+    }, 2000); // 每2秒轮询一次
+  };
 
   // 编辑商品
   const handleEdit = (product: ozonApi.Product) => {

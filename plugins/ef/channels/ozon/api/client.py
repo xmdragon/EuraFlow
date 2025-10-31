@@ -43,14 +43,16 @@ class OzonAPIClient:
         )
 
         # 限流器（每秒请求数）
+        # OZON官方API限流：50 req/s
         self.rate_limiter = RateLimiter(
             rate_limit={
-                "products": 10,  # 商品接口：10 req/s
-                "orders": 5,  # 订单接口：5 req/s
-                "postings": 20,  # 发货单接口：20 req/s
-                "analytics": 5,  # 分析接口：5 req/s
-                "actions": 10,  # 促销活动接口：10 req/s
-                "default": 10,  # 默认：10 req/s
+                "products": 50,  # 商品接口：50 req/s
+                "orders": 50,  # 订单接口：50 req/s
+                "postings": 50,  # 发货单接口：50 req/s
+                "analytics": 50,  # 分析接口：50 req/s
+                "actions": 50,  # 促销活动接口：50 req/s
+                "categories": 50,  # 类目接口：50 req/s
+                "default": 50,  # 默认：50 req/s
             }
         )
 
@@ -1637,30 +1639,30 @@ class OzonAPIClient:
             "POST",
             "/v1/description-category/tree",
             data=data,
-            resource_type="products"
+            resource_type="categories"
         )
 
     async def get_category_attributes(
         self,
         category_id: int,
-        attribute_type: str = "ALL",
-        language: str = "DEFAULT"
+        type_id: int,
+        language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
         获取类目属性列表
         使用 /v1/description-category/attribute 接口
 
         Args:
-            category_id: 类目ID
-            attribute_type: 属性类型（ALL/REQUIRED/OPTIONAL）
-            language: 语言（DEFAULT/RU/EN等）
+            category_id: 类别ID（description_category_id，即父类别ID）
+            type_id: 商品类型ID（叶子节点ID）
+            language: 语言（DEFAULT/RU/EN/ZH_HANS等）
 
         Returns:
             类目属性列表
         """
         data = {
-            "category_id": category_id,
-            "attribute_type": attribute_type,
+            "description_category_id": category_id,
+            "type_id": type_id,
             "language": language
         }
 
@@ -1668,7 +1670,7 @@ class OzonAPIClient:
             "POST",
             "/v1/description-category/attribute",
             data=data,
-            resource_type="products"
+            resource_type="categories"
         )
 
     async def get_attribute_values(
@@ -1677,7 +1679,7 @@ class OzonAPIClient:
         category_id: int,
         last_value_id: int = 0,
         limit: int = 5000,
-        language: str = "DEFAULT"
+        language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
         获取属性字典值列表
@@ -1688,7 +1690,7 @@ class OzonAPIClient:
             category_id: 类目ID
             last_value_id: 上次请求的最后一个value_id（用于分页）
             limit: 每页数量（最大5000）
-            language: 语言
+            language: 语言（默认ZH_HANS中文）
 
         Returns:
             属性字典值列表
@@ -1705,7 +1707,7 @@ class OzonAPIClient:
             "POST",
             "/v2/category/attribute/values",
             data=data,
-            resource_type="products"
+            resource_type="categories"
         )
 
     async def import_pictures_by_url(

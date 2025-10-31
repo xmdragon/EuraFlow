@@ -346,6 +346,18 @@ export const updateStocks = async (updates: StockUpdate[], shopId?: number) => {
   return response.data;
 };
 
+// 查询批量库存更新任务状态
+export const getBatchStockUpdateTaskStatus = async (taskId: string) => {
+  const response = await apiClient.get(`/ozon/products/stocks/task/${taskId}`);
+  return response.data;
+};
+
+// 查询批量价格更新任务状态
+export const getBatchPriceUpdateTaskStatus = async (taskId: string) => {
+  const response = await apiClient.get(`/ozon/products/prices/task/${taskId}`);
+  return response.data;
+};
+
 // ==================== 订单相关 API ====================
 
 export interface Order {
@@ -1492,6 +1504,64 @@ export const syncCategoryTree = async (
   return response.data;
 };
 
+// 批量同步类目特征（中文）- 异步任务模式
+export const batchSyncCategoryAttributes = async (
+  shopId: number,
+  options: {
+    categoryIds?: number[];
+    syncAllLeaf?: boolean;
+    syncDictionaryValues?: boolean;
+    language?: string;
+    maxConcurrent?: number;
+  } = {},
+) => {
+  const response = await apiClient.post(
+    "/ozon/listings/categories/batch-sync-attributes",
+    {
+      shop_id: shopId,
+      category_ids: options.categoryIds,
+      sync_all_leaf: options.syncAllLeaf || false,
+      sync_dictionary_values: options.syncDictionaryValues !== false,
+      language: options.language || "ZH_HANS",
+      max_concurrent: options.maxConcurrent || 5,
+    },
+  );
+  return response.data;
+};
+
+// 查询批量同步任务状态
+export const getBatchSyncTaskStatus = async (taskId: string) => {
+  const response = await apiClient.get(
+    `/ozon/listings/categories/batch-sync-attributes/status/${taskId}`,
+  );
+  return response.data;
+};
+
+// 同步单个类目的特征
+export const syncSingleCategoryAttributes = async (
+  categoryId: number,
+  shopId: number,
+  options: {
+    language?: string;
+    forceRefresh?: boolean;
+    syncDictionaryValues?: boolean;
+  } = {},
+) => {
+  const response = await apiClient.post(
+    `/ozon/listings/categories/${categoryId}/sync-attributes`,
+    null,
+    {
+      params: {
+        shop_id: shopId,
+        language: options.language || "ZH_HANS",
+        force_refresh: options.forceRefresh || false,
+        sync_dictionary_values: options.syncDictionaryValues !== false,
+      },
+    },
+  );
+  return response.data;
+};
+
 // 导入商品（完整上架流程）
 export const importProduct = async (
   shopId: number,
@@ -1839,6 +1909,79 @@ export const getFinanceTransactionsSummary = async (
 
   const response = await apiClient.get("/ozon/finance/transactions/summary", {
     params,
+  });
+  return response.data;
+};
+
+// ==================== 全局设置 ====================
+
+/**
+ * 获取所有全局设置
+ */
+export const getGlobalSettings = async (): Promise<any> => {
+  const response = await apiClient.get("/ozon/global-settings");
+  return response.data;
+};
+
+/**
+ * 更新全局设置
+ */
+export const updateGlobalSetting = async (key: string, value: any): Promise<any> => {
+  const response = await apiClient.put(`/ozon/global-settings/${key}`, {
+    setting_value: value,
+  });
+  return response.data;
+};
+
+// ==================== 类目佣金 ====================
+
+/**
+ * 查询类目佣金列表
+ */
+export const getCategoryCommissions = async (params: {
+  page: number;
+  page_size: number;
+  module?: string;
+  search?: string;
+}): Promise<any> => {
+  const response = await apiClient.get("/ozon/category-commissions", { params });
+  return response.data;
+};
+
+/**
+ * 获取类目模块列表
+ */
+export const getCategoryModules = async (): Promise<string[]> => {
+  const response = await apiClient.get("/ozon/category-commissions/modules");
+  return response.data;
+};
+
+/**
+ * 更新类目佣金
+ */
+export const updateCategoryCommission = async (
+  id: number,
+  data: {
+    rfbs_tier1: number;
+    rfbs_tier2: number;
+    rfbs_tier3: number;
+    fbp_tier1: number;
+    fbp_tier2: number;
+    fbp_tier3: number;
+  }
+): Promise<any> => {
+  const response = await apiClient.put(`/ozon/category-commissions/${id}`, data);
+  return response.data;
+};
+
+/**
+ * 导入类目佣金CSV
+ */
+export const importCommissionsCsv = async (formData: FormData): Promise<any> => {
+  const response = await apiClient.post("/ozon/category-commissions/import-csv", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
   });
   return response.data;
 };

@@ -359,6 +359,329 @@ async def sync_category_tree(
             }
 
 
+@router.post("/listings/categories/batch-sync-attributes")
+async def batch_sync_category_attributes(
+    request: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    批量同步类目特征（异步后台任务，需要操作员权限）
+
+    支持以下模式：
+    1. 指定类目列表：category_ids: [123, 456, 789]
+    2. 同步所有叶子类目：sync_all_leaf: true
+
+    返回：
+    - task_id: 任务ID（用于查询任务状态）
+    """
+    try:
+        from ..tasks.batch_sync_task import batch_sync_category_attributes_task
+
+        shop_id = request.get("shop_id")
+        if not shop_id:
+            raise HTTPException(status_code=400, detail="shop_id is required")
+
+        category_ids = request.get("category_ids")
+        sync_all_leaf = request.get("sync_all_leaf", False)
+        sync_dictionary_values = request.get("sync_dictionary_values", True)
+        language = request.get("language", "ZH_HANS")
+        max_concurrent = request.get("max_concurrent", 5)
+
+        if not category_ids and not sync_all_leaf:
+            raise HTTPException(
+                status_code=400,
+                detail="Either category_ids or sync_all_leaf must be provided"
+            )
+
+        logger.info(
+            f"Starting batch sync task: shop_id={shop_id}, "
+            f"category_ids={category_ids}, sync_all_leaf={sync_all_leaf}, language={language}"
+        )
+
+        # 检查是否有正在执行的任务（加强版：同时检查 Celery 任务状态）
+        import redis
+        import json
+        from celery.result import AsyncResult
+        from ef_core.tasks.celery_app import celery_app
+
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+        # 查找所有正在执行的任务
+        for key in redis_client.keys("celery-task-progress:*"):
+            task_data = redis_client.get(key)
+            if task_data:
+                progress = json.loads(task_data)
+                if progress.get('status') in ['starting', 'syncing']:
+                    existing_task_id = key.replace("celery-task-progress:", "")
+
+                    # 检查 Celery 中任务是否真的在运行
+                    result = AsyncResult(existing_task_id, app=celery_app)
+
+                    # 如果任务状态是 PENDING/FAILURE/SUCCESS/REVOKED，说明是僵尸状态，清理掉
+                    if result.state in ['PENDING', 'FAILURE', 'SUCCESS', 'REVOKED']:
+                        redis_client.delete(key)
+                        logger.warning(
+                            f"Cleaned zombie task {existing_task_id} with Celery state {result.state}"
+                        )
+                        continue
+
+                    # 任务确实在运行，返回已存在的任务
+                    logger.info(f"Found existing running task: {existing_task_id} (Celery state: {result.state})")
+                    return {
+                        "success": True,
+                        "task_id": existing_task_id,
+                        "message": "检测到正在执行的同步任务，将继续监控该任务"
+                    }
+
+        # 启动后台异步任务
+        task = batch_sync_category_attributes_task.delay(
+            shop_id=shop_id,
+            category_ids=category_ids,
+            sync_all_leaf=sync_all_leaf,
+            sync_dictionary_values=sync_dictionary_values,
+            language=language,
+            max_concurrent=max_concurrent
+        )
+
+        logger.info(f"Batch sync task started: task_id={task.id}")
+
+        return {
+            "success": True,
+            "task_id": task.id,
+            "message": "批量同步任务已启动，请稍后查询任务状态"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to start batch sync task: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.get("/listings/categories/batch-sync-attributes/status/{task_id}")
+async def get_batch_sync_task_status(
+    task_id: str,
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    查询批量同步任务状态
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务状态信息
+    """
+    try:
+        from celery.result import AsyncResult
+        import redis
+        import json
+
+        task = AsyncResult(task_id)
+
+        # 尝试从 Redis 获取进度信息
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        progress_key = f"celery-task-progress:{task_id}"
+        progress_data = redis_client.get(progress_key)
+
+        response = {
+            "task_id": task_id,
+            "state": task.state,
+        }
+
+        # 如果有进度数据，使用进度数据
+        if progress_data:
+            progress_info = json.loads(progress_data)
+            response["info"] = progress_info
+            response["progress"] = progress_info.get('percent', 0)
+
+        if task.state == 'PENDING':
+            response["status"] = "等待执行"
+            if "progress" not in response:
+                response["progress"] = 0
+        elif task.state == 'PROGRESS':
+            response["status"] = "执行中"
+            if "progress" not in response:
+                response["progress"] = 50
+        elif task.state == 'SUCCESS':
+            response["status"] = "已完成"
+            response["result"] = task.result
+            if "progress" not in response:
+                response["progress"] = 100
+        elif task.state == 'FAILURE':
+            response["status"] = "失败"
+            response["error"] = str(task.info)
+            if "progress" not in response:
+                response["progress"] = 0
+        else:
+            response["status"] = task.state
+            response["info"] = str(task.info) if task.info else None
+            response["progress"] = 0
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Failed to get task status: {e}", exc_info=True)
+        return {
+            "task_id": task_id,
+            "state": "UNKNOWN",
+            "status": "查询失败",
+            "error": str(e)
+        }
+
+
+@router.post("/listings/categories/{category_id}/sync-attributes")
+async def sync_single_category_attributes(
+    category_id: int,
+    shop_id: int = Query(..., description="店铺ID"),
+    language: str = Query("ZH_HANS", description="语言（ZH_HANS/DEFAULT/RU/EN/TR）"),
+    force_refresh: bool = Query(False, description="是否强制刷新"),
+    sync_dictionary_values: bool = Query(True, description="是否同步特征值指南"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    同步单个类目的特征
+
+    Args:
+        category_id: 类目ID
+        shop_id: 店铺ID
+        language: 语言
+        force_refresh: 是否强制刷新
+        sync_dictionary_values: 是否同步特征值指南
+
+    Returns:
+        同步结果
+    """
+    try:
+        from ..api.client import OzonAPIClient
+        from ..services.catalog_service import CatalogService
+        from ..models.listing import OzonCategory
+        from sqlalchemy import select, update
+        from datetime import datetime, timezone
+
+        # 检查类目是否存在
+        cat_result = await db.execute(
+            select(OzonCategory).where(OzonCategory.category_id == category_id)
+        )
+        category = cat_result.scalar_one_or_none()
+
+        if not category:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "type": "about:blank",
+                    "title": "Not Found",
+                    "status": 404,
+                    "detail": f"类目 {category_id} 不存在",
+                    "code": "CATEGORY_NOT_FOUND"
+                }
+            )
+
+        if not category.is_leaf:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "type": "about:blank",
+                    "title": "Bad Request",
+                    "status": 400,
+                    "detail": "只能同步叶子类目的特征",
+                    "code": "NOT_LEAF_CATEGORY"
+                }
+            )
+
+        # 提前保存类目名称，避免后续 ORM 对象过期导致懒加载错误
+        category_name = category.name
+
+        # 创建 API 客户端
+        client = await get_ozon_client(shop_id, db)
+        catalog_service = CatalogService(client, db)
+
+        logger.info(
+            f"Starting single category attributes sync: category_id={category_id}, "
+            f"shop_id={shop_id}, force_refresh={force_refresh}"
+        )
+
+        # 1. 同步类目特征
+        attr_result = await catalog_service.sync_category_attributes(
+            category_id=category_id,
+            force_refresh=force_refresh,
+            language=language
+        )
+
+        if not attr_result.get("success"):
+            return {
+                "success": False,
+                "error": attr_result.get("error")
+            }
+
+        synced_attributes = attr_result.get("synced_count", 0) if not attr_result.get("cached") else 0
+        cached_attributes = attr_result.get("count", 0) if attr_result.get("cached") else 0
+
+        # 2. 如果需要，同步特征值指南
+        synced_values = 0
+        if sync_dictionary_values:
+            # 直接查询 attribute_id 和 dictionary_id，避免 ORM 对象懒加载问题
+            from ..models.listing import OzonCategoryAttribute
+            attrs_result = await db.execute(
+                select(OzonCategoryAttribute.attribute_id, OzonCategoryAttribute.dictionary_id)
+                .where(
+                    OzonCategoryAttribute.category_id == category_id,
+                    OzonCategoryAttribute.dictionary_id.isnot(None)
+                )
+            )
+            attrs_to_sync = list(attrs_result.all())
+
+            for attribute_id, dictionary_id in attrs_to_sync:
+                value_result = await catalog_service.sync_attribute_values(
+                    attribute_id=attribute_id,
+                    category_id=category_id,
+                    force_refresh=False,
+                    language=language
+                )
+
+                if value_result.get("success"):
+                    synced_values += value_result.get("synced_count", 0)
+
+        # 3. 更新类目的特征同步时间戳
+        await db.execute(
+            update(OzonCategory)
+            .where(OzonCategory.category_id == category_id)
+            .values(attributes_synced_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+
+        logger.info(
+            f"Single category sync completed: category_id={category_id}, "
+            f"synced_attributes={synced_attributes}, cached_attributes={cached_attributes}, "
+            f"synced_values={synced_values}"
+        )
+
+        return {
+            "success": True,
+            "category_id": category_id,
+            "category_name": category_name,
+            "synced_attributes": synced_attributes,
+            "cached_attributes": cached_attributes,
+            "synced_values": synced_values,
+            "message": f"类目 '{category_name}' 特征同步完成"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to sync single category attributes: {e}", exc_info=True)
+        await db.rollback()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 # ============ 商品上架接口 ============
 
 @router.post("/listings/products/import")

@@ -10,6 +10,7 @@ import styles from './SystemConfiguration.module.scss';
 
 import ApiKeysTab from './components/ApiKeysTab';
 import ConfigGuideTab from './components/ConfigGuideTab';
+import GlobalSettingsTab from './components/GlobalSettingsTab';
 import OzonShopTab from './components/OzonShopTab';
 import ThirdPartyServicesTab from './components/ThirdPartyServicesTab';
 import PageTitle from '@/components/PageTitle';
@@ -21,6 +22,12 @@ const SystemConfiguration: React.FC = () => {
 
   // 根据角色过滤标签
   const allTabs = [
+    {
+      key: 'global-settings',
+      label: '🌐 全局设置',
+      children: <GlobalSettingsTab />,
+      visible: true, // 所有角色可见（管理员可编辑，操作员只读）
+    },
     {
       key: 'ozon-shops',
       label: '📦 OZON店铺',

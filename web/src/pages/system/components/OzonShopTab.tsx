@@ -9,9 +9,6 @@ import {
   ApiOutlined,
   SaveOutlined,
   ReloadOutlined,
-  SettingOutlined,
-  SyncOutlined,
-  ClockCircleOutlined,
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
@@ -25,10 +22,8 @@ import {
   Button,
   Space,
   Tabs,
-  Switch,
   Alert,
   Divider,
-  InputNumber,
   Typography,
   Row,
   Col,
@@ -57,11 +52,6 @@ interface OzonShopFormValues {
   client_id?: string;
   api_key?: string;
   webhook_url?: string;
-  sync_interval_minutes?: number;
-  auto_sync_enabled?: boolean;
-  rate_limit_products?: number;
-  rate_limit_orders?: number;
-  rate_limit_postings?: number;
 }
 
 const { Text, Paragraph, Title } = Typography;
@@ -78,13 +68,6 @@ interface Shop {
   };
   config: {
     webhook_url?: string;
-    sync_interval_minutes?: number;
-    auto_sync_enabled?: boolean;
-    rate_limits?: {
-      products: number;
-      orders: number;
-      postings: number;
-    };
     warehouse_mapping?: Array<{
       local_id: number;
       ozon_id: number;
@@ -167,13 +150,6 @@ const OzonShopTab: React.FC = () => {
         },
         config: {
           webhook_url: values.webhook_url || '',
-          sync_interval_minutes: values.sync_interval_minutes || 30,
-          auto_sync_enabled: values.auto_sync_enabled || false,
-          rate_limits: {
-            products: values.rate_limit_products || 10,
-            orders: values.rate_limit_orders || 5,
-            postings: values.rate_limit_postings || 20,
-          },
         },
       });
     },
@@ -193,11 +169,6 @@ const OzonShopTab: React.FC = () => {
             ? currentApiKey
             : data.api_credentials?.api_key,
         webhook_url: data.config?.webhook_url,
-        sync_interval_minutes: data.config?.sync_interval_minutes,
-        auto_sync_enabled: data.config?.auto_sync_enabled,
-        rate_limit_products: data.config?.rate_limits?.products,
-        rate_limit_orders: data.config?.rate_limits?.orders,
-        rate_limit_postings: data.config?.rate_limits?.postings,
       });
 
       if (currentApiKey && currentApiKey !== '******') {
@@ -276,11 +247,6 @@ const OzonShopTab: React.FC = () => {
         client_id: selectedShop.api_credentials?.client_id,
         api_key: selectedShop.api_credentials?.api_key,
         webhook_url: selectedShop.config?.webhook_url,
-        sync_interval_minutes: selectedShop.config?.sync_interval_minutes,
-        auto_sync_enabled: selectedShop.config?.auto_sync_enabled,
-        rate_limit_products: selectedShop.config?.rate_limits?.products,
-        rate_limit_orders: selectedShop.config?.rate_limits?.orders,
-        rate_limit_postings: selectedShop.config?.rate_limits?.postings,
       });
     }
   }, [selectedShop, form]);
@@ -458,11 +424,6 @@ const OzonShopTab: React.FC = () => {
                                 client_id: record.api_credentials?.client_id,
                                 api_key: record.api_credentials?.api_key,
                                 webhook_url: record.config?.webhook_url,
-                                sync_interval_minutes: record.config?.sync_interval_minutes,
-                                auto_sync_enabled: record.config?.auto_sync_enabled,
-                                rate_limit_products: record.config?.rate_limits?.products,
-                                rate_limit_orders: record.config?.rate_limits?.orders,
-                                rate_limit_postings: record.config?.rate_limits?.postings,
                               });
                             }}
                           >
@@ -548,119 +509,6 @@ const OzonShopTab: React.FC = () => {
                           </Form.Item>
                         </Col>
                       </Row>
-                    </div>
-                  ),
-                },
-                {
-                  label: (
-                    <span>
-                      <SyncOutlined /> 同步设置
-                    </span>
-                  ),
-                  key: '2',
-                  children: (
-                    <div className={styles.contentContainer}>
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item name="auto_sync_enabled" label="自动同步" valuePropName="checked">
-                            <Switch checkedChildren="开启" unCheckedChildren="关闭" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="sync_interval_minutes" label="同步间隔（分钟）">
-                            <InputNumber min={5} max={1440} controls={false} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Divider />
-
-                      <Title level={5}>同步范围设置</Title>
-
-                      <Row gutter={16}>
-                        <Col span={8}>
-                          <Form.Item label="商品同步">
-                            <Switch defaultChecked checkedChildren="开启" unCheckedChildren="关闭" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                          <Form.Item label="订单同步">
-                            <Switch defaultChecked checkedChildren="开启" unCheckedChildren="关闭" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                          <Form.Item label="库存同步">
-                            <Switch defaultChecked checkedChildren="开启" unCheckedChildren="关闭" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </div>
-                  ),
-                },
-                {
-                  label: (
-                    <span>
-                      <SettingOutlined /> 高级设置
-                    </span>
-                  ),
-                  key: '3',
-                  children: (
-                    <div className={styles.contentContainer}>
-                      <Title level={5}>API限流设置</Title>
-                      <Paragraph type="secondary">设置每秒最大请求数，避免触发Ozon API限流</Paragraph>
-
-                      <Row gutter={16}>
-                        <Col span={8}>
-                          <Form.Item name="rate_limit_products" label="商品接口（req/s）">
-                            <InputNumber min={1} max={100} controls={false} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                          <Form.Item name="rate_limit_orders" label="订单接口（req/s）">
-                            <InputNumber min={1} max={100} controls={false} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                          <Form.Item name="rate_limit_postings" label="发货接口（req/s）">
-                            <InputNumber min={1} max={100} controls={false} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-
-                      <Divider />
-
-                      <Title level={5}>仓库映射</Title>
-                      <Paragraph type="secondary">配置本地仓库与Ozon仓库的对应关系</Paragraph>
-
-                      <Table
-                        dataSource={[]}
-                        columns={[
-                          { title: '本地仓库ID', dataIndex: 'local_id', key: 'local_id' },
-                          { title: '本地仓库名称', dataIndex: 'local_name', key: 'local_name' },
-                          { title: 'Ozon仓库ID', dataIndex: 'ozon_id', key: 'ozon_id' },
-                          { title: 'Ozon仓库名称', dataIndex: 'ozon_name', key: 'ozon_name' },
-                          {
-                            title: '操作',
-                            key: 'action',
-                            render: () => (
-                              <Space>
-                                <Button type="link" size="small" icon={<EditOutlined />}>
-                                  编辑
-                                </Button>
-                                <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-                                  删除
-                                </Button>
-                              </Space>
-                            ),
-                          },
-                        ]}
-                        pagination={false}
-                        size="small"
-                      />
-
-                      <Button type="dashed" icon={<PlusOutlined />} style={{ marginTop: 16 }}>
-                        添加仓库映射
-                      </Button>
                     </div>
                   ),
                 },

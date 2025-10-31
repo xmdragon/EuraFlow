@@ -65,6 +65,17 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
   }, [visible, shopId, form]);
 
   const handleFinish = (values: FormValues) => {
+    // 如果既没有选中单个商品，也没有选中批量商品，表示对全部商品操作
+    if (!selectedProduct && selectedRows.length === 0) {
+      onSubmit([
+        {
+          apply_to_all: true,
+          ...values,
+        },
+      ] as any);
+      return;
+    }
+
     const updates = selectedProduct
       ? [
           {

@@ -451,338 +451,204 @@ async def sync_products(
 @router.post("/products/prices")
 async def update_prices(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
-    """批量更新商品价格（需要操作员权限）"""
+    """批量更新商品价格（异步任务）"""
+    from ..tasks.batch_price_update_task import batch_update_prices_task
+
     updates = request.get("updates", [])
-    shop_id = request.get("shop_id")  # 必须明确指定店铺ID
+    shop_id = request.get("shop_id")
+
     if not shop_id:
         raise HTTPException(status_code=400, detail="shop_id is required")
 
     if not updates:
-        return {
-            "success": False,
-            "message": "未提供价格更新数据"
-        }
+        raise HTTPException(status_code=400, detail="未提供价格更新数据")
 
+    # 提交异步任务
+    task = batch_update_prices_task.delay(shop_id, updates)
+
+    return {
+        "success": True,
+        "message": "批量价格更新任务已提交",
+        "task_id": task.id
+    }
+
+
+@router.get("/products/prices/task/{task_id}")
+async def get_batch_price_update_task_status(
+    task_id: str,
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    查询批量价格更新任务状态
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务状态信息（包含进度）
+    """
     try:
-        # 获取店铺信息
-        shop_result = await db.execute(
-            select(OzonShop).where(OzonShop.id == shop_id)
-        )
-        shop = shop_result.scalar_one_or_none()
+        from celery.result import AsyncResult
+        import redis
+        import json
 
-        if not shop:
-            return {
-                "success": False,
-                "message": "店铺不存在"
-            }
+        task = AsyncResult(task_id)
 
-        updated_count = 0
-        errors = []
+        # 从 Redis 获取进度信息
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        progress_key = f"celery-task-progress:{task_id}"
+        progress_data = redis_client.get(progress_key)
 
-        # 创建Ozon API客户端
-        from ..api.client import OzonAPIClient
-        client = OzonAPIClient(
-            client_id=shop.client_id,
-            api_key=shop.api_key_enc
-        )
-
-        for update in updates:
-            offer_id = update.get("offer_id")
-            new_price = update.get("price")
-            old_price = update.get("old_price")
-
-            if not offer_id or new_price is None:
-                errors.append(f"商品货号 {offer_id}: 缺少必要字段")
-                continue
-
-            try:
-                # 查找本地商品（使用 offer_id）
-                product_result = await db.execute(
-                    select(OzonProduct).where(
-                        OzonProduct.shop_id == shop_id,
-                        OzonProduct.offer_id == offer_id
-                    )
-                )
-                product = product_result.scalar_one_or_none()
-
-                if not product:
-                    errors.append(f"商品货号 {offer_id}: 商品不存在")
-                    continue
-
-                # 检查必需字段
-                if not product.ozon_product_id:
-                    errors.append(f"商品货号 {offer_id}: 缺少 OZON product_id，请先同步商品数据")
-                    continue
-
-                # 使用商品本身的货币代码（不能更改货币）
-                currency_code = product.currency_code or "CNY"
-
-                # 将价格转换为Decimal进行计算
-                new_price_decimal = Decimal(str(new_price))
-                old_price_decimal = Decimal(str(old_price)) if old_price else None
-
-                # OZON折扣规则验证（仅当old_price>0时才需要验证）
-                if old_price_decimal and old_price_decimal > 0 and new_price_decimal:
-                    from ef_core.services.exchange_rate_service import ExchangeRateService
-
-                    try:
-                        # 获取CNY→RUB汇率
-                        exchange_service = ExchangeRateService()
-                        cny_to_rub_rate = await exchange_service.get_rate(db, "CNY", "RUB")
-
-                        # 转换为RUB等价值
-                        price_rub = new_price_decimal * cny_to_rub_rate
-                        old_price_rub = old_price_decimal * cny_to_rub_rate
-                        discount_amount_rub = old_price_rub - price_rub
-
-                        # 规则1: price < 400 RUB → 差额至少20 RUB
-                        if price_rub < 400:
-                            if discount_amount_rub < 20:
-                                discount_amount_cny = old_price_decimal - new_price_decimal
-                                min_discount_cny = Decimal("20") / cny_to_rub_rate
-                                errors.append(
-                                    f"商品货号 {offer_id}: 价格低于400₽时，折扣差额必须≥20₽（约{min_discount_cny:.2f}￥）"
-                                    f"（当前差额：{discount_amount_cny:.2f}￥）"
-                                )
-                                continue
-                        # 规则2: 400 <= price <= 10000 RUB → 折扣至少5%
-                        elif price_rub <= 10000:
-                            discount_percent = (discount_amount_rub / old_price_rub) * 100
-                            if discount_percent < 5:
-                                errors.append(
-                                    f"商品货号 {offer_id}: 价格在400-10000₽时，折扣必须≥5%"
-                                    f"（当前折扣：{discount_percent:.1f}%）"
-                                )
-                                continue
-                        # 规则3: price > 10000 RUB → 差额至少500 RUB
-                        else:
-                            if discount_amount_rub < 500:
-                                discount_amount_cny = old_price_decimal - new_price_decimal
-                                min_discount_cny = Decimal("500") / cny_to_rub_rate
-                                errors.append(
-                                    f"商品货号 {offer_id}: 价格高于10000₽时，折扣差额必须≥500₽（约{min_discount_cny:.2f}￥）"
-                                    f"（当前差额：{discount_amount_cny:.2f}￥）"
-                                )
-                                continue
-                    except Exception as e:
-                        logger.warning(f"无法获取汇率进行折扣验证: {e}")
-                        # 汇率获取失败时跳过验证，继续更新（避免阻塞）
-
-                # 调用Ozon API更新价格
-                price_item = {
-                    "offer_id": product.offer_id,
-                    "product_id": product.ozon_product_id,
-                    "price": str(new_price),
-                    "currency_code": currency_code,  # 使用商品原货币（不可变）
-                    "auto_action_enabled": "DISABLED",  # 禁用自动定价（避免被自动改价）
-                    "price_strategy_enabled": "DISABLED"  # 禁用价格策略（确保手动价格生效）
-                }
-
-                # 只有当old_price有值时才传递
-                if old_price:
-                    price_item["old_price"] = str(old_price)
-
-                # update_prices 期望的是列表，不是字典
-                api_result = await client.update_prices([price_item])
-
-                # 记录OZON API完整响应用于调试
-                logger.info(f"OZON API价格更新响应 - 商品货号: {offer_id}, product_id: {product.ozon_product_id}, 响应: {api_result}")
-
-                # 检查API返回结果
-                if api_result.get("result") and len(api_result["result"]) > 0:
-                    result_item = api_result["result"][0]
-
-                    # 检查 updated 字段确认是否成功
-                    if result_item.get("updated") is True:
-                        # 更新本地数据库
-                        product.price = Decimal(str(new_price))
-                        if old_price:
-                            product.old_price = Decimal(str(old_price))
-                        product.updated_at = datetime.now()
-                        updated_count += 1
-                    else:
-                        # 提取错误信息
-                        error_msgs = []
-                        if result_item.get("errors"):
-                            for err in result_item["errors"]:
-                                error_msgs.append(f"{err.get('code', 'UNKNOWN')}: {err.get('message', '未知错误')}")
-                        error_detail = "; ".join(error_msgs) if error_msgs else "更新失败"
-                        errors.append(f"商品货号 {offer_id}: {error_detail}")
-                else:
-                    errors.append(f"商品货号 {offer_id}: API返回结果为空")
-
-            except Exception as e:
-                errors.append(f"商品货号 {offer_id}: {str(e)}")
-
-        await db.commit()
-
-        # 判断整体成功标志：updated_count=0 且有错误时 success 应为 false
-        success = updated_count > 0 or len(errors) == 0
-
-        result = {
-            "success": success,
-            "message": f"成功更新 {updated_count} 个商品价格",
-            "updated_count": updated_count
+        response = {
+            "task_id": task_id,
+            "state": task.state,
         }
 
-        if errors:
-            result["errors"] = errors[:10]  # 最多显示10个错误
-            if len(errors) > 10:
-                result["errors"].append(f"还有 {len(errors) - 10} 个错误未显示...")
+        # 如果有进度数据，使用进度数据
+        if progress_data:
+            progress_info = json.loads(progress_data)
+            response["info"] = progress_info
+            response["progress"] = progress_info.get('percent', 0)
 
-        return result
+        if task.state == 'PENDING':
+            response["status"] = "等待执行"
+            if "progress" not in response:
+                response["progress"] = 0
+        elif task.state == 'PROGRESS':
+            response["status"] = "执行中"
+            if "progress" not in response:
+                response["progress"] = 50
+        elif task.state == 'SUCCESS':
+            response["status"] = "已完成"
+            response["result"] = task.result
+            if "progress" not in response:
+                response["progress"] = 100
+        elif task.state == 'FAILURE':
+            response["status"] = "失败"
+            response["error"] = str(task.info)
+            if "progress" not in response:
+                response["progress"] = 0
+        else:
+            response["status"] = task.state
+            response["info"] = str(task.info) if task.info else None
+            response["progress"] = 0
+
+        return response
 
     except Exception as e:
-        logger.error(f"Price update failed: {e}")
+        logger.error(f"查询任务状态失败: {e}", exc_info=True)
         return {
-            "success": False,
-            "message": f"价格更新失败: {str(e)}"
+            "task_id": task_id,
+            "state": "UNKNOWN",
+            "status": "查询失败",
+            "error": str(e)
         }
 
 
 @router.post("/products/stocks")
 async def update_stocks(
     request: Dict[str, Any],
-    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
-    """批量更新商品库存（需要操作员权限）"""
+    """批量更新商品库存（异步任务）"""
+    from ..tasks.batch_stock_update_task import batch_update_stocks_task
+
     updates = request.get("updates", [])
     shop_id = request.get("shop_id")  # 必须明确指定店铺ID
     if not shop_id:
         raise HTTPException(status_code=400, detail="shop_id is required")
 
     if not updates:
-        return {
-            "success": False,
-            "message": "未提供库存更新数据"
-        }
+        raise HTTPException(status_code=400, detail="未提供库存更新数据")
 
+    # 提交异步任务
+    task = batch_update_stocks_task.delay(shop_id, updates)
+
+    return {
+        "success": True,
+        "message": "批量库存更新任务已提交",
+        "task_id": task.id
+    }
+
+
+# 旧的同步实现已移除，改为异步任务
+
+@router.get("/products/stocks/task/{task_id}")
+async def get_batch_stock_update_task_status(
+    task_id: str,
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    查询批量库存更新任务状态
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务状态信息（包含进度）
+    """
     try:
-        # 获取店铺信息
-        shop_result = await db.execute(
-            select(OzonShop).where(OzonShop.id == shop_id)
-        )
-        shop = shop_result.scalar_one_or_none()
+        from celery.result import AsyncResult
+        import redis
+        import json
 
-        if not shop:
-            return {
-                "success": False,
-                "message": "店铺不存在"
-            }
+        task = AsyncResult(task_id)
 
-        updated_count = 0
-        errors = []
+        # 从 Redis 获取进度信息
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        progress_key = f"celery-task-progress:{task_id}"
+        progress_data = redis_client.get(progress_key)
 
-        # 创建Ozon API客户端
-        from ..api.client import OzonAPIClient
-        client = OzonAPIClient(
-            client_id=shop.client_id,
-            api_key=shop.api_key_enc
-        )
-
-        for update in updates:
-            offer_id = update.get("offer_id")
-            stock = update.get("stock")
-            warehouse_id = update.get("warehouse_id")
-
-            # 明确验证：stock可以为0，但不能为None
-            if not offer_id or stock is None or not warehouse_id:
-                errors.append(f"商品货号 {offer_id}: 缺少必要字段")
-                continue
-
-            # 记录0库存的更新请求
-            if stock == 0:
-                logger.info(f"更新库存为0 - 商品货号: {offer_id}, warehouse_id: {warehouse_id}")
-
-            try:
-                # 查找本地商品（使用 offer_id）
-                product_result = await db.execute(
-                    select(OzonProduct).where(
-                        OzonProduct.shop_id == shop_id,
-                        OzonProduct.offer_id == offer_id
-                    )
-                )
-                product = product_result.scalar_one_or_none()
-
-                if not product:
-                    errors.append(f"商品货号 {offer_id}: 商品不存在")
-                    continue
-
-                # 检查必需字段
-                if not product.ozon_product_id:
-                    errors.append(f"商品货号 {offer_id}: 缺少 OZON product_id，请先同步商品数据")
-                    continue
-
-                # 调用Ozon API更新库存
-                stock_item = {
-                    "offer_id": product.offer_id,
-                    "product_id": product.ozon_product_id,
-                    "stock": int(stock),
-                    "warehouse_id": warehouse_id
-                }
-
-                # update_stocks 期望的是列表，不是字典
-                api_result = await client.update_stocks([stock_item])
-
-                # 记录OZON API完整响应用于调试
-                logger.info(f"OZON API库存更新响应 - 商品货号: {offer_id}, product_id: {product.ozon_product_id}, 响应: {api_result}")
-
-                # 检查API返回结果
-                if api_result.get("result") and len(api_result["result"]) > 0:
-                    result_item = api_result["result"][0]
-
-                    # 检查 updated 字段确认是否成功
-                    if result_item.get("updated") is True:
-                        # 更新本地数据库
-                        product.stock = int(stock)
-                        product.available = int(stock)  # 简化：认为所有库存都可用
-                        product.updated_at = datetime.now()
-                        updated_count += 1
-                    else:
-                        # 提取错误信息
-                        error_msgs = []
-                        if result_item.get("errors"):
-                            for err in result_item["errors"]:
-                                error_msgs.append(f"{err.get('code', 'UNKNOWN')}: {err.get('message', '未知错误')}")
-                        error_detail = "; ".join(error_msgs) if error_msgs else "更新失败"
-                        errors.append(f"商品货号 {offer_id}: {error_detail}")
-                else:
-                    errors.append(f"商品货号 {offer_id}: API返回结果为空")
-
-            except Exception as e:
-                errors.append(f"商品货号 {offer_id}: {str(e)}")
-
-        await db.commit()
-
-        # 判断整体成功标志：updated_count=0 且有错误时 success 应为 false
-        success = updated_count > 0 or len(errors) == 0
-
-        result = {
-            "success": success,
-            "message": f"成功更新 {updated_count} 个商品库存",
-            "updated_count": updated_count
+        response = {
+            "task_id": task_id,
+            "state": task.state,
         }
 
-        if errors:
-            result["errors"] = errors[:10]  # 最多显示10个错误
-            if len(errors) > 10:
-                result["errors"].append(f"还有 {len(errors) - 10} 个错误未显示...")
+        # 如果有进度数据，使用进度数据
+        if progress_data:
+            progress_info = json.loads(progress_data)
+            response["info"] = progress_info
+            response["progress"] = progress_info.get('percent', 0)
 
-        return result
+        if task.state == 'PENDING':
+            response["status"] = "等待执行"
+            if "progress" not in response:
+                response["progress"] = 0
+        elif task.state == 'PROGRESS':
+            response["status"] = "执行中"
+            if "progress" not in response:
+                response["progress"] = 50
+        elif task.state == 'SUCCESS':
+            response["status"] = "已完成"
+            response["result"] = task.result
+            if "progress" not in response:
+                response["progress"] = 100
+        elif task.state == 'FAILURE':
+            response["status"] = "失败"
+            response["error"] = str(task.info)
+            if "progress" not in response:
+                response["progress"] = 0
+        else:
+            response["status"] = task.state
+            response["info"] = str(task.info) if task.info else None
+            response["progress"] = 0
+
+        return response
 
     except Exception as e:
-        logger.error(f"Stock update failed: {e}")
+        logger.error(f"查询任务状态失败: {e}", exc_info=True)
         return {
-            "success": False,
-            "message": f"库存更新失败: {str(e)}"
+            "task_id": task_id,
+            "state": "UNKNOWN",
+            "status": "查询失败",
+            "error": str(e)
         }
 
 
-# 单个商品操作端点
+# 旧的同步实现已移除，改为异步任务
+
 @router.post("/products/{product_id}/sync")
 async def sync_single_product(
     product_id: int,

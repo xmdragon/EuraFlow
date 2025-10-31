@@ -10,7 +10,9 @@
 
 - [前端问题](#前端问题)
   - [Ant Design Modal.confirm 不弹出](#ant-design-modalconfirm-不弹出)
+  - [Ant Design notification 不显示或显示位置错误](#ant-design-notification-不显示或显示位置错误)
 - [后端问题](#后端问题)
+  - [N+1 查询问题导致 API 响应缓慢](#n1-查询问题导致-api-响应缓慢)
 - [数据库问题](#数据库问题)
 - [部署问题](#部署问题)
 
@@ -157,6 +159,216 @@ const handleClick = () => {
 **参考资料**：
 - [Ant Design v5 App 组件文档](https://ant.design/components/app-cn)
 - [React Context 原理](https://react.dev/learn/passing-data-deeply-with-context)
+
+---
+
+### Ant Design notification 不显示或显示位置错误
+
+**问题描述**：
+- 调用 `notification.open()` 后通知不显示
+- 或者通知显示在错误的位置（例如右上角而不是右下角）
+- 控制台显示代码执行了，但用户看不到通知
+- 用户多次反馈"没有进度提示框"
+
+**根本原因**：
+1. **直接 import notification** - 在 Ant Design v5 中，直接 `import { notification }` 可能无法正确获取上下文
+2. **缺少 App 上下文** - 需要使用 `App.useApp()` hook 获取 notification 实例
+3. **未指定位置** - 默认位置是 `topRight`，需要显式指定 `placement: 'bottomRight'`
+
+**排查步骤**：
+
+```bash
+# 1. 检查是否直接 import notification
+grep -rn "import.*notification.*from.*antd" web/src/
+
+# 2. 检查是否使用了 App.useApp()
+grep -rn "App.useApp()" web/src/
+
+# 3. 检查 notification.open() 调用
+grep -rn "notification.open" web/src/
+```
+
+**错误方式示例**（❌ 错误）：
+
+```typescript
+// ❌ 错误：直接 import notification
+import { notification } from 'antd';
+
+const MyComponent = () => {
+  const handleSync = () => {
+    notification.open({  // 可能不显示或显示位置错误
+      message: '同步进行中',
+      description: '正在同步数据...'
+    });
+  };
+};
+```
+
+**标准解决方案**（✅ 正确）：
+
+#### 步骤1：更改 import 语句
+
+```typescript
+// ✅ 正确：import App 而不是 notification
+import { App } from 'antd';  // 改为 App
+
+// 不再需要：
+// import { notification } from 'antd';
+```
+
+#### 步骤2：在组件内使用 App.useApp() hook
+
+```typescript
+const MyComponent = () => {
+  const { notification } = App.useApp();  // 在组件函数内获取
+
+  const handleSync = () => {
+    notification.open({
+      message: '同步进行中',
+      description: '正在同步数据...',
+      placement: 'bottomRight',  // 重要：指定位置
+      duration: 0,  // 可选：0 表示不自动关闭
+    });
+  };
+
+  return <Button onClick={handleSync}>开始同步</Button>;
+};
+```
+
+#### 步骤3：确保 App.tsx 使用了 App 组件包裹
+
+```typescript
+// 文件：web/src/App.tsx
+import { App as AntApp } from 'antd';
+
+function App() {
+  return (
+    <AntApp>  {/* 必须：提供 notification 所需的上下文 */}
+      {/* 其他组件 */}
+    </AntApp>
+  );
+}
+```
+
+**完整示例（实际修复案例）**：
+
+```typescript
+// 文件：web/src/pages/system/components/GlobalSettingsTab.tsx
+
+// 修改前（❌ 不显示）
+import { notification, Progress, ... } from 'antd';
+
+const CategoryFeaturesSection = () => {
+  const handleSync = () => {
+    notification.open({  // 不显示！
+      message: '批量同步进行中',
+      // ...
+    });
+  };
+};
+
+// 修改后（✅ 正常显示）
+import { App, Progress, ... } from 'antd';  // 改为 App
+
+const CategoryFeaturesSection = () => {
+  const { notification } = App.useApp();  // 添加这一行
+
+  const handleSync = () => {
+    notification.open({
+      message: '批量同步进行中',
+      description: <Progress percent={0} />,
+      placement: 'bottomRight',  // 添加位置
+      duration: 0,
+      // ...
+    });
+  };
+};
+```
+
+**notification.open() 的常用配置**：
+
+```typescript
+notification.open({
+  key: 'unique-key',           // 唯一标识，用于更新通知
+  message: '标题',              // 必填：通知标题
+  description: '详细内容',      // 可选：通知内容
+  placement: 'bottomRight',    // 重要：位置（bottomRight/topRight/bottomLeft/topLeft）
+  duration: 0,                 // 0 = 不自动关闭；默认 4.5 秒
+  icon: <SyncOutlined spin />, // 可选：自定义图标
+  onClose: () => {},           // 可选：关闭回调
+});
+
+// 更新已存在的通知
+notification.open({
+  key: 'unique-key',  // 相同的 key 会更新通知而不是创建新的
+  description: <Progress percent={50} />,
+  // ...
+});
+
+// 关闭通知
+notification.destroy('unique-key');
+```
+
+**验证方法**：
+
+```typescript
+// 添加调试日志
+const handleSync = () => {
+  console.log('notification object:', notification);
+  console.log('notification.open:', notification.open);
+
+  notification.open({
+    message: '测试通知',
+    placement: 'bottomRight',
+  });
+
+  // 检查 DOM
+  setTimeout(() => {
+    const notificationElement = document.querySelector('.ant-notification-bottomRight');
+    console.log('通知元素:', notificationElement);
+  }, 100);
+};
+
+// 预期输出：
+// - notification object: { open: function, ... }
+// - notification.open: function
+// - 通知在右下角显示
+// - 通知元素: <div class="ant-notification-bottomRight">...</div>
+```
+
+**相关文件**：
+- `web/src/pages/system/components/GlobalSettingsTab.tsx:21,189,229-261` - 已修复
+- `web/src/App.tsx` - 确保使用 `<App>` 组件包裹
+
+**常见位置选项**：
+
+| placement      | 描述       | 适用场景                |
+|----------------|----------|---------------------|
+| `bottomRight`  | 右下角（推荐）| 进度通知、成功提示         |
+| `topRight`     | 右上角（默认）| 一般通知              |
+| `bottomLeft`   | 左下角     | 次要通知              |
+| `topLeft`      | 左上角     | 系统通知              |
+
+**防止复发**：
+- ✅ 统一使用 `App.useApp()` 获取 notification 实例
+- ✅ 明确指定 `placement: 'bottomRight'` 避免位置错误
+- ✅ 在 `CLAUDE.md` 中补充 notification 使用规范
+- ✅ 代码审查：检查所有 notification 调用是否使用了 App.useApp()
+
+**与 Modal.confirm 的对比**：
+
+| 特性           | Modal.confirm()         | notification.open()      |
+|--------------|------------------------|--------------------------|
+| 用途          | 确认对话框（阻塞式）          | 通知提示（非阻塞式）            |
+| 获取方式       | `App.useApp().modal`   | `App.useApp().notification` |
+| 位置          | 屏幕中央                  | 四个角落（可配置）             |
+| 自动关闭       | 否                      | 是（可配置）                |
+| 用户交互       | 必须点击确认/取消            | 可选（可点击关闭或自动消失）       |
+
+**参考资料**：
+- [Ant Design v5 notification 组件文档](https://ant.design/components/notification-cn)
+- [Ant Design v5 App 组件文档](https://ant.design/components/app-cn)
+- [notification API 完整参数](https://ant.design/components/notification-cn#api)
 
 ---
 
@@ -406,5 +618,5 @@ stmt = select(Parent, subquery.c.count).outerjoin(subquery)
 
 ---
 
-**最后更新**: 2025-10-29
+**最后更新**: 2025-10-30
 **维护者**: EuraFlow 开发团队

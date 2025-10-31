@@ -20,6 +20,8 @@ from .listing import (
 )
 from .finance import OzonFinanceTransaction, OzonFinanceSyncWatermark
 from .promotion import OzonPromotionAction, OzonPromotionProduct
+from .global_settings import OzonGlobalSetting
+from .category_commissions import OzonCategoryCommission
 
 __all__ = [
     "OzonShop",
@@ -54,4 +56,8 @@ __all__ = [
     # Promotion models
     "OzonPromotionAction",
     "OzonPromotionProduct",
+    # Global settings
+    "OzonGlobalSetting",
+    # Category commissions
+    "OzonCategoryCommission",
 ]

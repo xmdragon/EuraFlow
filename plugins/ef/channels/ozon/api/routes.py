@@ -137,5 +137,19 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import promotion routes: {e}")
 
+try:
+    from .global_settings_routes import router as global_settings_router
+    router.include_router(global_settings_router)
+    logger.info("✓ Loaded global_settings_routes")
+except ImportError as e:
+    logger.warning(f"Could not import global settings routes: {e}")
+
+try:
+    from .commission_routes import router as commission_router
+    router.include_router(commission_router)
+    logger.info("✓ Loaded commission_routes")
+except ImportError as e:
+    logger.warning(f"Could not import commission routes: {e}")
+
 
 logger.info("Ozon API routes initialized successfully")

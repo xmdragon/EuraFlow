@@ -38,23 +38,14 @@ fi
 
 # 等待服务重启
 echo -e "\n${YELLOW}Waiting for services to restart...${NC}"
-sleep 3
+sleep 1.5
 
 # 显示服务状态
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}         Service Status                 ${NC}"
 echo -e "${GREEN}========================================${NC}"
-# 只显示实际运行的服务
-BACKEND_STATUS=$(supervisorctl -c supervisord.conf status euraflow:backend 2>/dev/null)
-if [ ! -z "$BACKEND_STATUS" ]; then
-    echo "$BACKEND_STATUS"
-fi
-
-# 检查worker是否运行（只显示运行中的）
-WORKER_STATUS=$(supervisorctl -c supervisord.conf status euraflow:worker 2>/dev/null | grep "RUNNING" || true)
-if [ ! -z "$WORKER_STATUS" ]; then
-    echo "$WORKER_STATUS"
-fi
+# 显示所有euraflow服务的状态
+supervisorctl -c supervisord.conf status euraflow:* 2>/dev/null
 
 # 显示前端状态
 echo -e "\n${YELLOW}Frontend:${NC}"

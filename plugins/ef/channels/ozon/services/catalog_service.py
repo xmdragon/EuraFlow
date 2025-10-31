@@ -7,8 +7,8 @@ import json
 import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
-from sqlalchemy import select, and_, or_
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import select, and_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.utils.logger import get_logger
@@ -52,6 +52,7 @@ class CatalogService:
             同步结果
         """
         try:
+            from datetime import datetime, timezone
             logger.info(f"Starting category tree sync, root={root_category_id}, force={force_refresh}")
 
             # 检查缓存是否过期
@@ -61,7 +62,10 @@ class CatalogService:
                 )
                 if cached_count and cached_count > 0:
                     logger.info(f"Category cache exists ({cached_count} categories), skipping sync")
-                    return {"success": True, "cached": True, "count": cached_count}
+                    return {"success": True, "cached": True, "total_categories": cached_count}
+
+            # 记录同步开始时间
+            sync_start_time = datetime.now(timezone.utc)
 
             # 调用OZON API获取类目树
             response = await self.client.get_category_tree(
@@ -83,16 +87,31 @@ class CatalogService:
                     parent_id=root_category_id
                 )
 
+            # 标记废弃的类目（未在本次同步中更新的类目）
+            from sqlalchemy import update
+            result = await self.db.execute(
+                update(OzonCategory)
+                .where(OzonCategory.last_updated_at < sync_start_time)
+                .where(OzonCategory.is_deprecated == False)
+                .values(is_deprecated=True)
+            )
+            deprecated_count = result.rowcount
+
             await self.db.commit()
 
-            logger.info(f"Category tree sync completed: {synced_count} categories")
+            if deprecated_count > 0:
+                logger.info(f"Marked {deprecated_count} categories as deprecated")
+
+            logger.info(f"Category tree sync completed: {synced_count} categories, {deprecated_count} deprecated")
 
             # 生成前端可用的 JS 文件
             await self._generate_category_tree_js()
 
             return {
                 "success": True,
+                "total_categories": synced_count,
                 "synced_count": synced_count,
+                "deprecated_count": deprecated_count,
                 "cached": False
             }
 
@@ -173,7 +192,8 @@ class CatalogService:
     async def sync_category_attributes(
         self,
         category_id: int,
-        force_refresh: bool = False
+        force_refresh: bool = False,
+        language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
         同步类目属性
@@ -181,6 +201,7 @@ class CatalogService:
         Args:
             category_id: 类目ID
             force_refresh: 是否强制刷新
+            language: 语言（ZH_HANS/DEFAULT/RU/EN/TR）
 
         Returns:
             同步结果
@@ -188,24 +209,46 @@ class CatalogService:
         try:
             # 检查缓存
             if not force_refresh:
-                cached_attrs = await self.db.scalars(
+                cached_result = await self.db.execute(
                     select(OzonCategoryAttribute).where(
                         OzonCategoryAttribute.category_id == category_id
                     )
                 )
-                cached_count = len(list(cached_attrs))
+                cached_attrs = cached_result.scalars().all()
+                cached_count = len(cached_attrs)
                 if cached_count > 0:
                     logger.info(f"Category {category_id} attributes cached ({cached_count}), skipping")
                     return {"success": True, "cached": True, "count": cached_count}
 
-            # 调用API
+            # 查询类目信息（获取parent_id作为description_category_id）
+            cat_stmt = select(OzonCategory).where(OzonCategory.category_id == category_id)
+            cat_result = await self.db.execute(cat_stmt)
+            category = cat_result.scalar_one_or_none()
+
+            if not category or not category.parent_id:
+                error_msg = f"Category {category_id} not found or has no parent"
+                logger.error(error_msg)
+                return {"success": False, "error": error_msg}
+
+            # 调用API（parent_id作为category，category_id作为type）
             response = await self.client.get_category_attributes(
-                category_id=category_id,
-                attribute_type="ALL"
+                category_id=category.parent_id,  # 父类别ID
+                type_id=category_id,  # 商品类型ID（叶子节点）
+                language=language
             )
 
             if not response.get("result"):
                 error_msg = response.get("error", {}).get("message", "Unknown error")
+
+                # 如果是 OZON 类目不存在的错误，返回更友好的提示
+                if "is not found" in error_msg or "not found" in error_msg.lower():
+                    logger.warning(f"Category {category_id} not available in OZON: {error_msg}")
+                    return {
+                        "success": False,
+                        "error": f"该类目在OZON平台不可用（可能已废弃）",
+                        "ozon_error": error_msg
+                    }
+
                 logger.error(f"Failed to fetch category attributes: {error_msg}")
                 return {"success": False, "error": error_msg}
 
@@ -216,7 +259,8 @@ class CatalogService:
                 await self._save_category_attribute(category_id, attr_data)
                 synced_count += 1
 
-            await self.db.commit()
+            # 注意：不在这里commit，由外层调用者统一commit
+            # await self.db.flush()
 
             logger.info(f"Synced {synced_count} attributes for category {category_id}")
 
@@ -272,7 +316,8 @@ class CatalogService:
         self,
         attribute_id: int,
         category_id: int,
-        force_refresh: bool = False
+        force_refresh: bool = False,
+        language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
         同步属性字典值（支持分页）
@@ -281,6 +326,7 @@ class CatalogService:
             attribute_id: 属性ID
             category_id: 类目ID
             force_refresh: 是否强制刷新
+            language: 语言（ZH_HANS/DEFAULT/RU/EN/TR）
 
         Returns:
             同步结果
@@ -322,7 +368,8 @@ class CatalogService:
                     attribute_id=attribute_id,
                     category_id=category_id,
                     last_value_id=last_value_id,
-                    limit=5000
+                    limit=5000,
+                    language=language
                 )
 
                 if not response.get("result"):
@@ -340,7 +387,7 @@ class CatalogService:
                 # 如果返回数量小于limit,说明没有更多数据了
                 has_more = len(values) >= 5000
 
-            await self.db.commit()
+            await self.db.flush()  # 使用flush代替commit，避免事务冲突
 
             logger.info(f"Synced {synced_count} values for dictionary {dictionary_id}")
 
@@ -389,6 +436,167 @@ class CatalogService:
             dict_value = OzonAttributeDictionaryValue(**value_info)
             self.db.add(dict_value)
 
+    async def batch_sync_category_attributes(
+        self,
+        category_ids: Optional[List[int]] = None,
+        sync_all_leaf: bool = False,
+        sync_dictionary_values: bool = True,
+        language: str = "ZH_HANS",
+        max_concurrent: int = 5,
+        progress_callback: Optional[callable] = None
+    ) -> Dict[str, Any]:
+        """
+        批量同步类目特征（支持进度跟踪）
+
+        Args:
+            category_ids: 类目ID列表（如果为None且sync_all_leaf=True，则同步所有叶子类目）
+            sync_all_leaf: 是否同步所有叶子类目
+            sync_dictionary_values: 是否同步特征值指南
+            language: 语言（ZH_HANS/DEFAULT/RU/EN/TR）
+            max_concurrent: 最大并发数
+
+        Returns:
+            同步结果
+        """
+        try:
+            # 确定要同步的类目列表
+            if sync_all_leaf and not category_ids:
+                # 查询所有叶子类目，按同步时间升序（最旧的或未同步的优先）
+                stmt = select(OzonCategory).where(
+                    OzonCategory.is_leaf == True
+                ).order_by(
+                    OzonCategory.attributes_synced_at.asc().nullsfirst()
+                )
+                result = await self.db.execute(stmt)
+                categories = result.scalars().all()
+                category_ids = [cat.category_id for cat in categories]
+                # 同时获取类目名称映射（用于进度显示）
+                category_names = {cat.category_id: cat.name for cat in categories}
+                logger.info(f"Syncing {len(category_ids)} leaf categories (incremental sync mode)")
+            elif not category_ids:
+                return {"success": False, "error": "category_ids or sync_all_leaf is required"}
+            else:
+                # 如果指定了类目ID列表，也需要获取名称
+                stmt = select(OzonCategory).where(OzonCategory.category_id.in_(category_ids))
+                result = await self.db.execute(stmt)
+                categories = result.scalars().all()
+                category_names = {cat.category_id: cat.name for cat in categories}
+
+            total_categories = len(category_ids)
+            synced_categories = 0
+            synced_attributes = 0
+            synced_values = 0
+            errors = []
+
+            # 使用锁确保串行访问数据库（避免 session 并发问题）
+            # 注意：虽然限制了并发，但由于共享同一个 session，必须串行访问
+            lock = asyncio.Lock()
+
+            async def sync_one_category(category_id: int):
+                nonlocal synced_categories, synced_attributes, synced_values
+                async with lock:
+                    try:
+                        # 1. 同步类目特征
+                        attr_result = await self.sync_category_attributes(
+                            category_id=category_id,
+                            force_refresh=False,
+                            language=language
+                        )
+
+                        if not attr_result.get("success"):
+                            errors.append({
+                                "category_id": category_id,
+                                "step": "attributes",
+                                "error": attr_result.get("error")
+                            })
+                            return
+
+                        synced_attributes += attr_result.get("synced_count", 0)
+
+                        # 2. 如果需要，同步特征值指南（无论属性是否来自缓存）
+                        if sync_dictionary_values:
+                            # 获取该类目的所有属性
+                            attrs = await self.get_category_attributes(category_id, required_only=False)
+
+                            # 提前提取所有需要的属性值，避免循环中的惰性加载
+                            attrs_to_sync = [
+                                (attr.attribute_id, attr.dictionary_id)
+                                for attr in attrs
+                                if attr.dictionary_id
+                            ]
+
+                            for attribute_id, dictionary_id in attrs_to_sync:
+                                value_result = await self.sync_attribute_values(
+                                    attribute_id=attribute_id,
+                                    category_id=category_id,
+                                    force_refresh=False,
+                                    language=language
+                                )
+
+                                if value_result.get("success"):
+                                    synced_values += value_result.get("synced_count", 0)
+                                else:
+                                    errors.append({
+                                        "category_id": category_id,
+                                        "attribute_id": attribute_id,
+                                        "step": "values",
+                                        "error": value_result.get("error")
+                                    })
+
+                        # 更新类目的特征同步时间戳
+                        await self.db.execute(
+                            update(OzonCategory)
+                            .where(OzonCategory.category_id == category_id)
+                            .values(attributes_synced_at=datetime.now(timezone.utc))
+                        )
+
+                        synced_categories += 1
+                        logger.info(f"Progress: {synced_categories}/{total_categories} categories synced")
+
+                        # 立即提交事务，确保数据实时保存到数据库
+                        await self.db.commit()
+
+                        # 调用进度回调（用于实时更新前端显示）
+                        if progress_callback:
+                            progress_callback(
+                                current=synced_categories,
+                                total=total_categories,
+                                category_id=category_id,
+                                category_name=category_names.get(category_id, f"类目 {category_id}"),
+                                synced_attributes=synced_attributes,
+                                synced_values=synced_values
+                            )
+
+                    except Exception as e:
+                        logger.error(f"Failed to sync category {category_id}: {e}", exc_info=True)
+                        errors.append({
+                            "category_id": category_id,
+                            "step": "sync",
+                            "error": str(e)
+                        })
+
+            # 并发同步所有类目
+            tasks = [sync_one_category(cat_id) for cat_id in category_ids]
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            # 注意：每个类目已经单独commit了，这里不需要再commit
+            # await self.db.commit()
+
+            return {
+                "success": True,
+                "synced_categories": synced_categories,
+                "synced_attributes": synced_attributes,
+                "synced_values": synced_values,
+                "total_categories": total_categories,
+                "errors": errors,
+                "language": language
+            }
+
+        except Exception as e:
+            logger.error(f"Batch sync failed: {e}", exc_info=True)
+            await self.db.rollback()
+            return {"success": False, "error": str(e)}
+
     # ========== 查询接口 ==========
 
     async def search_categories(
@@ -417,8 +625,8 @@ class CatalogService:
 
         stmt = stmt.limit(limit)
 
-        result = await self.db.scalars(stmt)
-        return list(result)
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     async def get_category_attributes(
         self,
@@ -442,8 +650,8 @@ class CatalogService:
         if required_only:
             stmt = stmt.where(OzonCategoryAttribute.is_required == True)
 
-        result = await self.db.scalars(stmt)
-        return list(result)
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     async def search_dictionary_values(
         self,
@@ -473,8 +681,8 @@ class CatalogService:
 
         stmt = stmt.limit(limit)
 
-        result = await self.db.scalars(stmt)
-        return list(result)
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     async def _generate_category_tree_js(self):
         """
@@ -483,9 +691,11 @@ class CatalogService:
         生成文件路径: web/src/data/categoryTree.ts
         """
         try:
-            # 查询所有类目
+            # 查询所有未废弃的类目
             result = await self.db.execute(
-                select(OzonCategory).order_by(OzonCategory.level, OzonCategory.category_id)
+                select(OzonCategory)
+                .where(OzonCategory.is_deprecated == False)
+                .order_by(OzonCategory.level, OzonCategory.category_id)
             )
             all_categories = list(result.scalars().all())
 
