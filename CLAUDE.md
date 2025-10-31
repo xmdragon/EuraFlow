@@ -298,18 +298,16 @@ logger.info('订单同步开始', extra={'order_id': order_id})
 
 ## 19) 浏览器扩展打包
 - **目录**：`plugins/ef/channels/ozon/browser_extension/`
-- **版本号更新步骤**：
-  1. **先检查** `manifest.json` 中的当前版本号
-  2. 更新 `manifest.json` 中的 `version` 字段
-  3. 确保打包文件名版本号与 `manifest.json` 一致
-  4. 同步更新相关用户脚本的版本号
+- **版本号管理**：
+  - 版本号仅在 `manifest.json` 中的 `version` 字段维护
+  - 打包文件名**固定**为 `euraflow-ozon-selector.zip`（不带版本号）
+  - 用户可在扩展管理页面查看 `manifest.json` 中的版本号
 - **打包命令**：
   ```bash
   cd plugins/ef/channels/ozon/browser_extension
-  # 检查并更新 manifest.json 版本号
   npm run build
-  cd dist && zip -r ../euraflow-ozon-selector-v1.x.x.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map"
-  cp ../euraflow-ozon-selector-v1.x.x.zip /home/grom/EuraFlow/web/public/downloads/
+  cd dist && zip -r ../euraflow-ozon-selector.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map"
+  cp ../euraflow-ozon-selector.zip /home/grom/EuraFlow/web/public/downloads/
   ```
 - **包含文件**：`dist/manifest.json`、`dist/service-worker-loader.js`、`dist/assets/*`、`dist/src/popup/popup.html`
 - **排除文件**：`.vite/`、`icons/`、`README.md`、`*.map`、源代码
@@ -317,19 +315,8 @@ logger.info('订单同步开始', extra={'order_id': order_id})
   - 文件必须放在 `web/public/downloads/`（**不是** `web/dist/downloads/`）
   - Nginx 已配置 `/downloads` 路径直接指向 `public/downloads/`
   - Vite 构建时会自动排除 downloads 目录，避免冗余复制
-
-### 版本管理规则
-- **版本清理**：`web/public/downloads/` 目录只保留最近 3 个版本的 zip 包
-  - 生成新版本后，自动删除旧版本（保留最新3个）
-  - 命令：`ls -t web/public/downloads/euraflow-ozon-selector-*.zip | tail -n +4 | xargs rm -f`
-- **页面下载链接更新**：生成新版本后，**必须**更新选品助手页面中的下载链接
-  - 文件位置：`web/src/pages/ozon/ProductSelection.tsx`
-  - 搜索关键字：`euraflow-ozon-selector-v`
-  - 更新内容：
-    - `href="/downloads/euraflow-ozon-selector-v1.x.x.zip"`
-    - 下载按钮文本中的版本号
-    - 文件大小说明（如有变化）
-  - 确保链接版本号与实际打包文件版本号一致
+  - 每次打包会**覆盖**同名文件，无需手动删除旧版本
+  - 下载链接固定为 `/downloads/euraflow-ozon-selector.zip`，无需每次更新页面代码
 
 ---
 

@@ -84,9 +84,10 @@ export function ControlPanel(props: ControlPanelProps) {
         <input
           id="ef-target-count"
           type="number"
-          value="${config.targetCount}"
+          value="${config.targetCount || 100}"
           min="1"
           max="1000"
+          step="1"
           style="width: 4.5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
         />
       </div>
@@ -221,6 +222,35 @@ export function ControlPanel(props: ControlPanelProps) {
         settingsBtn.style.background = 'rgba(255,255,255,0.3)';
         settingsBtn.style.transform = 'scale(1)';
       };
+    }
+
+    // 数量输入框事件处理
+    const targetCountInput = document.getElementById('ef-target-count') as HTMLInputElement;
+    if (targetCountInput) {
+      // 输入时验证和格式化
+      targetCountInput.addEventListener('input', () => {
+        // 确保是数字类型
+        let value = parseInt(targetCountInput.value, 10);
+
+        // 如果不是有效数字，使用默认值
+        if (isNaN(value) || value < 1) {
+          value = 100;
+        }
+
+        // 限制最大值
+        if (value > 1000) {
+          value = 1000;
+        }
+
+        // 更新输入框和存储
+        targetCountInput.value = value.toString();
+      });
+
+      // 失焦时保存到存储
+      targetCountInput.addEventListener('blur', async () => {
+        const value = parseInt(targetCountInput.value, 10) || 100;
+        await chrome.storage.sync.set({ targetCount: value });
+      });
     }
 
     // 开始/停止按钮
@@ -374,7 +404,7 @@ export function ControlPanel(props: ControlPanelProps) {
     }
 
     const targetCountInput = document.getElementById('ef-target-count') as HTMLInputElement;
-    const targetCount = parseInt(targetCountInput?.value || '100');
+    const targetCount = parseInt(targetCountInput?.value || '100', 10) || 100;
 
     // 获取累计统计
     const stats = collector.getCumulativeStats();
@@ -448,11 +478,29 @@ export function ControlPanel(props: ControlPanelProps) {
 
       // 获取目标数量（来自输入框）
       const targetCountInput = document.querySelector('#ef-target-count') as HTMLInputElement;
-      const targetCount = targetCountInput ? parseInt(targetCountInput.value) : allProducts.length;
+      const targetCount = targetCountInput ? (parseInt(targetCountInput.value, 10) || 100) : allProducts.length;
 
       // 精确切片：只上传目标数量的商品
-      const toUpload = allProducts.slice(0, targetCount);
+      let toUpload = allProducts.slice(0, targetCount);
       const notUploaded = allProducts.slice(targetCount);
+
+      // 数据验证：过滤掉没有product_id的商品
+      const invalidProducts = toUpload.filter(p => !p.product_id);
+      if (invalidProducts.length > 0) {
+        console.warn(`[ControlPanel] 发现 ${invalidProducts.length} 个商品缺少product_id，已过滤`);
+        toUpload = toUpload.filter(p => p.product_id);
+      }
+
+      if (toUpload.length === 0) {
+        updateStatus('⚠️ 没有有效的商品数据');
+        return;
+      }
+
+      // 检查数据量限制
+      if (toUpload.length > 1000) {
+        updateStatus('⚠️ 单次最多上传1000个商品，请分批上传');
+        return;
+      }
 
       updateStatus(`📤 正在上传 ${toUpload.length} 个...`);
 
