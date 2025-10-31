@@ -25,8 +25,6 @@ import {
   Typography,
   Divider,
   Tabs,
-  Avatar,
-  Popover,
   Space,
   Modal,
   Descriptions,
@@ -51,10 +49,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import { optimizeOzonImageUrl } from "../../utils/ozonImageOptimizer";
-
 import styles from "./OrderReport.module.scss";
 
+import ProductImage from "@/components/ozon/ProductImage";
 import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
 import PageTitle from "@/components/PageTitle";
 import { useCopy } from "@/hooks/useCopy";
@@ -348,19 +345,14 @@ const OrderReport: React.FC = () => {
     {
       title: "图片",
       width: 80,
-      render: (_, row) => {
-        const imageUrl80 = optimizeOzonImageUrl(row.product.image_url, 80);
-        const imageUrl160 = optimizeOzonImageUrl(row.product.image_url, 160);
-
-        return (
-          <Popover
-            content={<img src={imageUrl160} width={160} alt="商品预览" />}
-            trigger="hover"
-          >
-            <Avatar src={imageUrl80} size={80} shape="square" />
-          </Popover>
-        );
-      },
+      render: (_, row) => (
+        <ProductImage
+          imageUrl={row.product.image_url}
+          size="small"
+          hoverBehavior="medium"
+          name={row.product.name}
+        />
+      ),
     },
     // 2. 商品信息列（3行垂直布局）
     {
@@ -1097,28 +1089,12 @@ const OrderReport: React.FC = () => {
                             title: "图片",
                             width: 80,
                             render: (_, record) => (
-                              <Popover
-                                content={
-                                  <img
-                                    src={optimizeOzonImageUrl(
-                                      record.image_url,
-                                      160,
-                                    )}
-                                    width={160}
-                                    alt="商品预览"
-                                  />
-                                }
-                                trigger="hover"
-                              >
-                                <Avatar
-                                  src={optimizeOzonImageUrl(
-                                    record.image_url,
-                                    60,
-                                  )}
-                                  size={60}
-                                  shape="square"
-                                />
-                              </Popover>
+                              <ProductImage
+                                imageUrl={record.image_url}
+                                size="small"
+                                hoverBehavior="medium"
+                                name={record.name}
+                              />
                             ),
                           },
                           {
@@ -1199,28 +1175,12 @@ const OrderReport: React.FC = () => {
                             title: "图片",
                             width: 80,
                             render: (_, record) => (
-                              <Popover
-                                content={
-                                  <img
-                                    src={optimizeOzonImageUrl(
-                                      record.image_url,
-                                      160,
-                                    )}
-                                    width={160}
-                                    alt="商品预览"
-                                  />
-                                }
-                                trigger="hover"
-                              >
-                                <Avatar
-                                  src={optimizeOzonImageUrl(
-                                    record.image_url,
-                                    60,
-                                  )}
-                                  size={60}
-                                  shape="square"
-                                />
-                              </Popover>
+                              <ProductImage
+                                imageUrl={record.image_url}
+                                size="small"
+                                hoverBehavior="medium"
+                                name={record.name}
+                              />
                             ),
                           },
                           {
