@@ -82,41 +82,70 @@ async function handleUploadProducts(data: { apiUrl: string; apiKey: string; prod
 
     if (!response.ok) {
       let errorMessage = '上传失败';
+      let errorDetails = '';
 
       try {
         const errorData = await response.json();
 
-        // 解析错误详情
-        if (errorData.detail) {
-          if (typeof errorData.detail === 'string') {
-            errorMessage = errorData.detail;
-          } else if (errorData.detail.message) {
-            errorMessage = errorData.detail.message;
-          } else if (errorData.detail.code) {
-            // 根据错误代码提供友好提示
-            switch (errorData.detail.code) {
-              case 'UNAUTHORIZED':
-                errorMessage = 'API Key无效或权限不足';
-                break;
-              case 'PAYLOAD_TOO_LARGE':
-                errorMessage = '数据量过大（最多1000条）';
-                break;
-              case 'EMPTY_PAYLOAD':
-                errorMessage = '没有可上传的商品';
-                break;
-              default:
-                errorMessage = errorData.detail.code;
-            }
+        // 调试日志：输出完整错误响应
+        console.error('[Upload] Error response:', JSON.stringify(errorData, null, 2));
+
+        // 多层级解析错误信息
+        // 1. 尝试 errorData.detail.message (FastAPI HTTPException)
+        if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.message) {
+          errorMessage = errorData.detail.message;
+          if (errorData.detail.code) {
+            errorDetails = ` [${errorData.detail.code}]`;
           }
-        } else if (errorData.message) {
+        }
+        // 2. 尝试 errorData.detail 作为字符串
+        else if (errorData.detail && typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        }
+        // 3. 尝试 errorData.message
+        else if (errorData.message) {
           errorMessage = errorData.message;
         }
+        // 4. 尝试 errorData.error.message (统一错误格式)
+        else if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        }
+        // 5. 根据 code 提供友好提示
+        else if (errorData.code || (errorData.detail && errorData.detail.code)) {
+          const code = errorData.code || errorData.detail.code;
+          switch (code) {
+            case 'UNAUTHORIZED':
+              errorMessage = 'API Key无效或权限不足';
+              break;
+            case 'PAYLOAD_TOO_LARGE':
+              errorMessage = '数据量过大（最多1000条）';
+              break;
+            case 'EMPTY_PAYLOAD':
+              errorMessage = '没有可上传的商品';
+              break;
+            default:
+              errorMessage = `上传失败 [${code}]`;
+          }
+        }
+        // 6. 如果都没有，使用 HTTP 状态码
+        else {
+          errorMessage = `服务器错误 (HTTP ${response.status})`;
+          errorDetails = JSON.stringify(errorData).substring(0, 100);
+        }
       } catch (parseError) {
-        // JSON解析失败，使用HTTP状态码
-        errorMessage = `服务器错误 (HTTP ${response.status})`;
+        // JSON解析失败，尝试读取文本
+        try {
+          const errorText = await response.text();
+          errorMessage = `服务器错误 (HTTP ${response.status})`;
+          if (errorText) {
+            errorDetails = `: ${errorText.substring(0, 100)}`;
+          }
+        } catch {
+          errorMessage = `服务器错误 (HTTP ${response.status})`;
+        }
       }
 
-      throw new Error(errorMessage);
+      throw new Error(errorMessage + errorDetails);
     }
 
     return await response.json();
