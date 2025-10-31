@@ -11,7 +11,7 @@ import {
   RollbackOutlined,
 } from '@ant-design/icons';
 import { Modal, Button, Space, Spin } from 'antd';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 import styles from './ImagePreview.module.scss';
 
@@ -44,16 +44,36 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const [scale, setScale] = useState(1);
   const [rotate, setRotate] = useState(0);
   const [loading, setLoading] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
 
-  // 重置状态当打开预览时或图片变化时
+  // 打开预览时设置初始索引
   useEffect(() => {
     if (visible) {
       setCurrentIndex(initialIndex);
-      setScale(1);
-      setRotate(0);
       setLoading(true);
     }
-  }, [visible, initialIndex, images]);
+  }, [visible, initialIndex]);
+
+  // 关闭预览时重置所有状态
+  useEffect(() => {
+    if (!visible) {
+      setCurrentIndex(0);
+      setScale(1);
+      setRotate(0);
+      setLoading(false);
+    }
+  }, [visible]);
+
+  // 当图片切换时，设置加载状态
+  useEffect(() => {
+    if (visible && hasImages) {
+      setLoading(true);
+      // 检查图片是否已缓存加载
+      if (imageRef.current && imageRef.current.complete) {
+        setLoading(false);
+      }
+    }
+  }, [currentIndex, images, visible, hasImages]);
 
   // 导航函数 - 必须在使用它们的 useEffect 之前定义
   const handlePrevious = useCallback(() => {
@@ -161,6 +181,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
         {hasImages && (
           <div className={styles.imageDisplay}>
             <img
+              ref={imageRef}
               src={images[currentIndex]}
               alt={`预览图片 ${currentIndex + 1}`}
               className={styles.previewImage}
