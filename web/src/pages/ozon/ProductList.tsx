@@ -4,12 +4,23 @@
  */
 import { ShoppingOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Table, Button, Space, Card, Row, Col, Input, Modal, App, InputNumber, Form, Tabs } from 'antd';
+import {
+  Table,
+  Button,
+  Space,
+  Card,
+  Row,
+  Col,
+  Input,
+  Modal,
+  App,
+  InputNumber,
+  Form,
+  Tabs,
+} from 'antd';
+import dayjs from 'dayjs';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import dayjs from 'dayjs';
-
-import { getCurrencySymbol } from '../../utils/currency';
 
 import ProductSyncErrorModal from './components/ProductSyncErrorModal';
 import styles from './ProductList.module.scss';
@@ -30,6 +41,7 @@ import { useProductSync } from '@/hooks/ozon/useProductSync';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { useWatermark } from '@/hooks/ozon/useWatermark';
 import { useCopy } from '@/hooks/useCopy';
+import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
@@ -45,6 +57,7 @@ const ProductList: React.FC = () => {
   const queryClient = useQueryClient();
   const { canOperate, canSync, canImport, canExport, canDelete } = usePermission();
   const { copyToClipboard } = useCopy();
+  const { symbol: currencySymbol } = useCurrency();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,9 +68,10 @@ const ProductList: React.FC = () => {
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('new_products');
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>(() => {
-    // 默认为新增商品标签页：14天内创建的商品，按创建时间倒序
+    // 默认为新增商品标签页：销售中且14天内创建的商品，按创建时间倒序
     const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
     return {
+      status: 'on_sale',
       created_from: fourteenDaysAgo,
       sort_by: 'created_at',
       sort_order: 'desc',
@@ -284,7 +298,9 @@ const ProductList: React.FC = () => {
     // 根据当前标签页设置默认筛选
     if (activeTab === 'new_products') {
       const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+      filterForm.setFieldsValue({ status: 'on_sale' });
       setFilterValues({
+        status: 'on_sale',
         created_from: fourteenDaysAgo,
         sort_by: 'created_at',
         sort_order: 'desc',
@@ -306,15 +322,17 @@ const ProductList: React.FC = () => {
 
     // 根据标签页设置不同的筛选条件
     if (key === 'new_products') {
-      // 新增商品：14天内创建的商品，按创建时间倒序
+      // 新增商品：销售中且14天内创建的商品，按创建时间倒序
       const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
+      filterForm.setFieldsValue({ status: 'on_sale' });
       setFilterValues({
+        status: 'on_sale',
         created_from: fourteenDaysAgo,
         sort_by: 'created_at',
         sort_order: 'desc',
       });
     } else if (key === 'on_sale') {
-      // 销售中：status = on_sale
+      // 销售中：status = on_sale（不限创建时间）
       filterForm.setFieldsValue({ status: 'on_sale' });
       setFilterValues({ status: 'on_sale' });
     }
@@ -576,7 +594,7 @@ const ProductList: React.FC = () => {
                     min={0}
                     formatter={getNumberFormatter(2)}
                     parser={getNumberParser()}
-                    prefix={getCurrencySymbol(selectedProduct?.currency_code)}
+                    prefix={currencySymbol}
                     placeholder="请输入售价"
                   />
                 </Form.Item>
@@ -588,7 +606,7 @@ const ProductList: React.FC = () => {
                     min={0}
                     formatter={getNumberFormatter(2)}
                     parser={getNumberParser()}
-                    prefix={getCurrencySymbol(selectedProduct?.currency_code)}
+                    prefix={currencySymbol}
                     placeholder="请输入原价"
                   />
                 </Form.Item>
@@ -603,7 +621,7 @@ const ProductList: React.FC = () => {
                     min={0}
                     formatter={getNumberFormatter(2)}
                     parser={getNumberParser()}
-                    prefix={getCurrencySymbol(selectedProduct?.currency_code)}
+                    prefix={currencySymbol}
                     placeholder="成本价"
                   />
                 </Form.Item>
