@@ -61,6 +61,13 @@ export class ProductCollector {
     // 保存进度回调
     this.onProgressCallback = onProgress;
 
+    // 【同步 DEBUG 状态】从 localStorage 读取（解决 content script 隔离环境问题）
+    const debugFlag = localStorage.getItem('EURAFLOW_DEBUG');
+    if (debugFlag === 'true' || debugFlag === '1') {
+      window.EURAFLOW_DEBUG = true;
+      console.log('[EuraFlow] 🐞 调试模式已启用');
+    }
+
     // 【检测数据工具】必须安装上品帮或毛子ERP
     const availableParsers = this.fusionEngine.getAvailableParsers();
 
