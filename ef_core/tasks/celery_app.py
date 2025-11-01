@@ -83,19 +83,8 @@ celery_app.conf.beat_schedule = {
         "options": {"queue": "ef_core"}
     },
 
-    # OZON: 每天凌晨4点同步类目树
-    "ozon-scheduled-category-sync": {
-        "task": "ef.ozon.scheduled_category_sync",
-        "schedule": crontab(hour=4, minute=0),  # 每天凌晨4点
-        "options": {"queue": "ef_core"}
-    },
-
-    # OZON: 每周二凌晨4:10同步类目特征和字典值
-    "ozon-scheduled-attributes-sync": {
-        "task": "ef.ozon.scheduled_attributes_sync",
-        "schedule": crontab(day_of_week=2, hour=4, minute=10),  # 周二凌晨4:10
-        "options": {"queue": "ef_core"}
-    },
+    # 注意：OZON 类目同步和特征同步任务已移除（未实现对应的任务函数）
+    # 如需启用，需在 OZON 插件中注册对应的 Celery 任务
 
     # 插件任务将通过 TaskRegistry 动态注册
 }

@@ -186,9 +186,8 @@ async def trigger_sync_service(
         "kuajing84_material_cost": "ef.ozon.kuajing84.material_cost",
         "ozon_finance_sync": "ef.ozon.finance.sync",
         "ozon_sync_incremental": "ef.ozon.orders.pull",  # 统一使用订单拉取任务
-        "ozon_scheduled_category_sync": "ef.ozon.scheduled_category_sync",
-        "ozon_scheduled_attributes_sync": "ef.ozon.scheduled_attributes_sync",
         "ozon_finance_transactions_daily": "ef.ozon.finance.transactions",
+        # 注意：ozon_scheduled_category_sync 和 ozon_scheduled_attributes_sync 已移除（未实现）
     }
 
     task_name = task_name_mapping.get(service_key)

@@ -308,3 +308,18 @@ export const deleteBatch = async (
   const response = await axios.delete(`/api/ef/v1/ozon/product-selection/batch/${batchId}`);
   return response.data;
 };
+
+// 批量删除批次数据
+export const deleteBatches = async (
+  batchIds: number[]
+): Promise<{
+  success: boolean;
+  deleted_batches: number;
+  deleted_products: number;
+  message: string;
+}> => {
+  const response = await axios.post('/api/ef/v1/ozon/product-selection/batches/delete', {
+    batch_ids: batchIds,
+  });
+  return response.data;
+};

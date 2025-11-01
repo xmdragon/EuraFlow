@@ -1025,6 +1025,96 @@ class ProductSelectionService:
                 'error': str(e)
             }
 
+    async def delete_batches(self, db: AsyncSession, batch_ids: List[int], user_id: int) -> Dict[str, Any]:
+        """批量删除多个批次的数据
+
+        Args:
+            db: 数据库会话
+            batch_ids: 批次ID列表
+            user_id: 用户ID（用于权限验证）
+
+        Returns:
+            删除结果，包含删除的批次数和商品数
+        """
+        try:
+            if not batch_ids:
+                return {
+                    'success': False,
+                    'error': '批次ID列表不能为空'
+                }
+
+            # 验证所有批次是否属于当前用户
+            batch_result = await db.execute(
+                select(ImportHistory).where(
+                    and_(
+                        ImportHistory.id.in_(batch_ids),
+                        ImportHistory.imported_by == user_id
+                    )
+                )
+            )
+            valid_batches = batch_result.scalars().all()
+            valid_batch_ids = [batch.id for batch in valid_batches]
+
+            # 检查是否有无权限的批次
+            invalid_batch_ids = set(batch_ids) - set(valid_batch_ids)
+            if invalid_batch_ids:
+                logger.warning(f"用户 {user_id} 尝试删除无权限的批次: {invalid_batch_ids}")
+                return {
+                    'success': False,
+                    'error': f'部分批次不存在或无权限删除: {list(invalid_batch_ids)}'
+                }
+
+            # 统计要删除的商品数量
+            count_result = await db.execute(
+                select(func.count()).select_from(ProductSelectionItem).where(
+                    and_(
+                        ProductSelectionItem.batch_id.in_(valid_batch_ids),
+                        ProductSelectionItem.user_id == user_id
+                    )
+                )
+            )
+            product_count = count_result.scalar()
+
+            # 删除所有批次的商品
+            await db.execute(
+                ProductSelectionItem.__table__.delete().where(
+                    and_(
+                        ProductSelectionItem.batch_id.in_(valid_batch_ids),
+                        ProductSelectionItem.user_id == user_id
+                    )
+                )
+            )
+
+            # 删除导入历史记录
+            await db.execute(
+                ImportHistory.__table__.delete().where(
+                    ImportHistory.id.in_(valid_batch_ids)
+                )
+            )
+
+            await db.commit()
+
+            logger.info(
+                f"用户 {user_id} 批量删除 {len(valid_batch_ids)} 个批次"
+                f"（批次ID: {valid_batch_ids}），共删除 {product_count} 个商品"
+            )
+
+            return {
+                'success': True,
+                'deleted_batches': len(valid_batch_ids),
+                'deleted_products': product_count,
+                'batch_ids': valid_batch_ids,
+                'message': f'成功删除 {len(valid_batch_ids)} 个批次，共 {product_count} 个商品'
+            }
+
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"批量删除批次失败: batch_ids={batch_ids}, error={e}", exc_info=True)
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
     async def clear_user_data(self, db: AsyncSession, user_id: int) -> Dict[str, Any]:
         """清空指定用户的所有选品数据"""
         try:

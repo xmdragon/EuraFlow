@@ -162,6 +162,19 @@ class MarkAsReadResponse(BaseModel):
     message: Optional[str] = None
 
 
+class BatchDeleteRequest(BaseModel):
+    """批量删除批次请求"""
+    batch_ids: List[int] = Field(..., description="批次ID列表", min_items=1)
+
+
+class BatchDeleteResponse(BaseModel):
+    """批量删除批次响应"""
+    success: bool
+    deleted_batches: int = Field(..., description="删除的批次数量")
+    deleted_products: int = Field(..., description="删除的商品数量")
+    message: str
+
+
 # API 端点
 @router.post("/import", response_model=ImportResponse)
 async def import_products(
@@ -507,6 +520,47 @@ async def delete_batch(
         logger.error(f"Error deleting batch {batch_id}: {e}")
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/batches/delete", response_model=BatchDeleteResponse)
+async def delete_batches(
+    request: BatchDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    批量删除多个批次的数据
+
+    Args:
+        request: 包含批次ID列表的请求
+
+    Returns:
+        批量删除结果
+    """
+    try:
+        service = ProductSelectionService()
+        result = await service.delete_batches(
+            db=db,
+            batch_ids=request.batch_ids,
+            user_id=current_user.id
+        )
+
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result.get('error', '批量删除失败'))
+
+        return BatchDeleteResponse(
+            success=True,
+            deleted_batches=result['deleted_batches'],
+            deleted_products=result['deleted_products'],
+            message=result['message']
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting batches {request.batch_ids}: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"批量删除失败: {str(e)}")
 
 
 @router.post("/clear-all-data")

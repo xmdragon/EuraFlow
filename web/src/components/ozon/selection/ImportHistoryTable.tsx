@@ -4,8 +4,8 @@
  * 显示商品导入历史记录
  */
 
-import React from 'react';
-import { Table, Button, Tag } from 'antd';
+import React, { useState } from 'react';
+import { Table, Button, Tag, Space } from 'antd';
 import { LinkOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -29,6 +29,8 @@ export interface ImportHistoryTableProps {
   onViewBatch: (batchId: number) => void;
   /** 删除批次 */
   onDeleteBatch: (batchId: number) => void;
+  /** 批量删除批次 */
+  onBatchDelete: (batchIds: number[]) => void;
 }
 
 /**
@@ -42,7 +44,18 @@ export const ImportHistoryTable: React.FC<ImportHistoryTableProps> = ({
   onPageChange,
   onViewBatch,
   onDeleteBatch,
+  onBatchDelete,
 }) => {
+  // 选中的批次ID列表
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  // 处理批量删除
+  const handleBatchDelete = () => {
+    if (selectedRowKeys.length === 0) return;
+    onBatchDelete(selectedRowKeys.map((key) => Number(key)));
+    // 清空选中状态
+    setSelectedRowKeys([]);
+  };
   const columns: ColumnsType<ImportHistory> = [
     {
       title: '文件名',
@@ -136,18 +149,43 @@ export const ImportHistoryTable: React.FC<ImportHistoryTableProps> = ({
     },
   ];
 
+  // 行选择配置
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys: React.Key[]) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+    },
+  };
+
   return (
-    <Table
-      dataSource={dataSource}
-      rowKey="id"
-      loading={loading}
-      pagination={{
-        current: current,
-        pageSize: 10,
-        total: total,
-        onChange: onPageChange,
-      }}
-      columns={columns}
-    />
+    <>
+      {/* 批量操作工具栏 */}
+      {selectedRowKeys.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <Space>
+            <span>已选择 {selectedRowKeys.length} 个批次</span>
+            <Button type="primary" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
+              批量删除
+            </Button>
+            <Button onClick={() => setSelectedRowKeys([])}>取消选择</Button>
+          </Space>
+        </div>
+      )}
+
+      {/* 表格 */}
+      <Table
+        dataSource={dataSource}
+        rowKey="id"
+        loading={loading}
+        rowSelection={rowSelection}
+        pagination={{
+          current: current,
+          pageSize: 10,
+          total: total,
+          onChange: onPageChange,
+        }}
+        columns={columns}
+      />
+    </>
   );
 };
