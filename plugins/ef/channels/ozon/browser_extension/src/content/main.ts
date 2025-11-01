@@ -32,7 +32,7 @@ if (document.readyState === 'loading') {
 
 async function init() {
   // 输出调试提示
-  console.log('[EuraFlow] 选品助手已加载。调试模式：在控制台输入 window.EURAFLOW_DEBUG = true 启用调试日志');
+  console.log('[EuraFlow] 选品助手已加载。调试模式：在控制台输入 localStorage.setItem(\'EURAFLOW_DEBUG\', \'true\'); 启用调试日志');
 
   // 分支处理：商品详情页 vs 商品列表页
   if (isProductDetailPage()) {

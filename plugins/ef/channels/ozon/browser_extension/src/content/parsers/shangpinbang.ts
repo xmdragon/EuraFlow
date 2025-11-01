@@ -404,18 +404,32 @@ export class ShangpinbangParser implements PageDataParser {
 
       // rFBS佣金（三个档位）
       case 'rFBS佣金':
+        if ((window as any).EURAFLOW_DEBUG) {
+          console.log('[DEBUG] 开始解析 rFBS佣金');
+          console.log('  valueElement HTML:', valueElement.innerHTML.substring(0, 200));
+        }
         const [rfbsHigh, rfbsMid, rfbsLow] = this.parseCommissionValues(valueElement);
         data.rfbs_commission_high = rfbsHigh;
         data.rfbs_commission_mid = rfbsMid;
         data.rfbs_commission_low = rfbsLow;
+        if ((window as any).EURAFLOW_DEBUG) {
+          console.log('  解析结果:', { rfbsHigh, rfbsMid, rfbsLow });
+        }
         break;
 
       // FBP佣金（三个档位）
       case 'FBP佣金':
+        if ((window as any).EURAFLOW_DEBUG) {
+          console.log('[DEBUG] 开始解析 FBP佣金');
+          console.log('  valueElement HTML:', valueElement.innerHTML.substring(0, 200));
+        }
         const [fbpHigh, fbpMid, fbpLow] = this.parseCommissionValues(valueElement);
         data.fbp_commission_high = fbpHigh;
         data.fbp_commission_mid = fbpMid;
         data.fbp_commission_low = fbpLow;
+        if ((window as any).EURAFLOW_DEBUG) {
+          console.log('  解析结果:', { fbpHigh, fbpMid, fbpLow });
+        }
         break;
 
       // 销售数据

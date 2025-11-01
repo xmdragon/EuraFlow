@@ -408,15 +408,15 @@ export class ProductCollector {
         // 任何一种跟卖数据格式都算有效
         const hasCompetitorData = hasMinPrice || hasNoCompetitorPrice || hasNoCompetitorSeller || hasSellerCount;
 
-        // 检查佣金数据（新格式：支持多个佣金段）
-        const hasRFBSCommission = /rFBS佣金[：:]/.test(bangText) && /%/.test(bangText);
-        const hasFBPCommission = /FBP佣金[：:]/.test(bangText) && /%/.test(bangText);
+        // 检查包装重量字段是否已加载（不管有无数据，只要字段出现就算加载完成）
+        const hasPackageWeightField = /包装重量[：:]/.test(bangText);
 
-        // 检查包装重量（上品帮最后加载的字段，必须等待加载完成）
-        const hasPackageWeight = /包装重量[：:]\s*(?!-)(?!无数据)[\d\s,．]+/.test(bangText);
-
-        // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个) + 包装重量已加载
-        if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission) && hasPackageWeight) {
+        // 【修复】数据就绪条件：仅验证核心字段（内容充足 + 跟卖数据 + 包装重量字段已加载）
+        // 佣金和重量的具体值可以是"无数据"，解析层会处理
+        if (hasContent && hasCompetitorData && hasPackageWeightField) {
+          if (window.EURAFLOW_DEBUG) {
+            console.log('[DEBUG waitForRowData] 数据就绪，尝试次数:', attempt + 1);
+          }
           return true;
         }
 
