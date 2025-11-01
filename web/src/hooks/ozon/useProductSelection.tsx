@@ -103,6 +103,7 @@ export interface UseProductSelectionReturn {
 
   // 批次操作
   handleDeleteBatch: (batchId: number) => void;
+  handleBatchDelete: (batchIds: number[]) => void;
   handleViewBatch: (batchId: number) => void;
 
   // 动态布局
@@ -429,6 +430,26 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     },
   });
 
+  // ==================== useMutation - 批量删除批次 ====================
+
+  const deleteBatchesMutation = useMutation({
+    mutationFn: api.deleteBatches,
+    onSuccess: (data) => {
+      if (data.success) {
+        notifySuccess(
+          '批量删除成功',
+          `已删除 ${data.deleted_batches} 个批次，共 ${data.deleted_products} 个商品`
+        );
+        refetchProducts();
+        refetchHistory();
+        queryClient.invalidateQueries({ queryKey: ['productSelectionBrands'] });
+      }
+    },
+    onError: (error: Error) => {
+      notifyError('批量删除失败', error.message);
+    },
+  });
+
   // ==================== useMutation - 清空数据 ====================
 
   const clearDataMutation = useMutation({
@@ -620,6 +641,31 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     });
   };
 
+  const handleBatchDelete = (batchIds: number[]) => {
+    if (batchIds.length === 0) {
+      notifyWarning('请选择批次', '请至少选择一个批次进行删除');
+      return;
+    }
+
+    modal.confirm({
+      title: `确认删除 ${batchIds.length} 个批次？`,
+      content: (
+        <div>
+          <p style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+            ⚠️ 此操作将删除所选批次的所有商品数据，无法恢复！
+          </p>
+          <p>批次ID: {batchIds.join(', ')}</p>
+        </div>
+      ),
+      okText: '确认删除',
+      cancelText: '取消',
+      okType: 'danger',
+      onOk: () => {
+        deleteBatchesMutation.mutate(batchIds);
+      },
+    });
+  };
+
   const handleViewBatch = (batchId: number) => {
     setActiveTab('search');
     setSearchParams({ batch_id: batchId });
@@ -683,6 +729,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     showCompetitorsList,
     showProductImages,
     handleDeleteBatch,
+    handleBatchDelete,
     handleViewBatch,
     itemsPerRow,
     initialPageSize,

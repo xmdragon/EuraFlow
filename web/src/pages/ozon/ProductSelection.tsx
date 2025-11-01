@@ -78,6 +78,7 @@ const ProductSelection: React.FC = () => {
     handleSearch,
     handleReset,
     handleDeleteBatch,
+    handleBatchDelete,
     handleViewBatch,
     showCompetitorsList,
     showProductImages,
@@ -166,6 +167,7 @@ const ProductSelection: React.FC = () => {
                   onPageChange={setHistoryPage}
                   onViewBatch={handleViewBatch}
                   onDeleteBatch={handleDeleteBatch}
+                  onBatchDelete={handleBatchDelete}
                 />
               ),
             },
