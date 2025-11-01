@@ -107,7 +107,7 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
       {/* 商品状态标签 */}
       <ProductStatusTabs
         stats={stats}
-        activeStatus={filterValues.status || 'on_sale'}
+        activeStatus={filterValues.status || 'new_products'}
         onStatusChange={onStatusChange}
       />
     </Card>

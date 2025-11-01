@@ -1753,15 +1753,13 @@ export const getProductImportLogs = async (
 // 创建商品记录到数据库
 export interface CreateProductRequest {
   shop_id: number;
-  sku: string;
   offer_id: string;
   title: string;
   description?: string;
+  barcode?: string;
   price?: string;
   old_price?: string;
   currency_code?: string;
-  stock?: number;
-  barcode?: string;
   category_id?: number;
   images?: string[];
   attributes?: unknown[];

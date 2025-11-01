@@ -15,6 +15,7 @@ import {
   Typography,
   Spin,
   Empty,
+  Input,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useState, useEffect } from 'react';
@@ -116,6 +117,7 @@ const WebhookLogsTable: React.FC = () => {
       if (values.shop_id) params.shop_id = values.shop_id;
       if (values.event_type) params.event_type = values.event_type;
       if (values.status) params.status = values.status;
+      if (values.posting_number) params.posting_number = values.posting_number.trim();
       if (values.date_range && values.date_range.length === 2) {
         params.start_date = values.date_range[0].toISOString();
         params.end_date = values.date_range[1].toISOString();
@@ -349,6 +351,14 @@ const WebhookLogsTable: React.FC = () => {
               </Select.Option>
             ))}
           </Select>
+        </Form.Item>
+
+        <Form.Item name="posting_number" label="货件编号">
+          <Input
+            className={styles.postingNumberInput}
+            placeholder="支持精确匹配或左匹配"
+            allowClear
+          />
         </Form.Item>
 
         <Form.Item name="status" label="状态">

@@ -1,14 +1,12 @@
 /**
  * 商品工具栏组件
- * 包含同步、批量操作、导入导出等功能按钮
+ * 包含同步、批量操作等功能按钮
  */
 import {
   SyncOutlined,
   ReloadOutlined,
   DollarOutlined,
   ShoppingOutlined,
-  UploadOutlined,
-  DownloadOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { Space, Button, Tooltip } from 'antd';
@@ -21,10 +19,6 @@ export interface ProductToolbarProps {
   canSync: boolean;
   /** 是否可以操作 */
   canOperate: boolean;
-  /** 是否可以导入 */
-  canImport: boolean;
-  /** 是否可以导出 */
-  canExport: boolean;
   /** 选中的行数量 */
   selectedRowsCount: number;
   /** 同步是否正在进行 */
@@ -39,10 +33,6 @@ export interface ProductToolbarProps {
   onBatchPriceUpdate: () => void;
   /** 批量改库存回调 */
   onBatchStockUpdate: () => void;
-  /** 导入回调 */
-  onImport: () => void;
-  /** 导出回调 */
-  onExport: () => void;
   /** 列配置回调 */
   onColumnSettings: () => void;
 }
@@ -53,8 +43,6 @@ export interface ProductToolbarProps {
 export const ProductToolbar: React.FC<ProductToolbarProps> = ({
   canSync,
   canOperate,
-  canImport,
-  canExport,
   selectedRowsCount,
   syncLoading,
   hasSelectedShop = true,
@@ -62,8 +50,6 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
   onFullSync,
   onBatchPriceUpdate,
   onBatchStockUpdate,
-  onImport,
-  onExport,
   onColumnSettings,
 }) => {
   return (
@@ -127,16 +113,6 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
               批量改库存
             </Button>
           </Tooltip>
-        )}
-        {canImport && (
-          <Button icon={<UploadOutlined />} onClick={onImport}>
-            导入商品
-          </Button>
-        )}
-        {canExport && (
-          <Button icon={<DownloadOutlined />} onClick={onExport}>
-            导出数据
-          </Button>
         )}
       </Space>
       <Button icon={<SettingOutlined />} onClick={onColumnSettings}>

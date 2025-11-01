@@ -28,7 +28,6 @@ import ImagePreview from '@/components/ImagePreview';
 import { ColumnConfigModal } from '@/components/ozon/product/ColumnConfigModal';
 import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
-import { ProductImportModal } from '@/components/ozon/product/ProductImportModal';
 import ProductToolbar from '@/components/ozon/product/ProductToolbar';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
 import { WatermarkApplyModal } from '@/components/ozon/watermark/WatermarkApplyModal';
@@ -46,7 +45,6 @@ import * as ozonApi from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
-import { exportProductsToCSV } from '@/utils/ozon/productExport';
 
 import './ProductList.css';
 
@@ -54,7 +52,7 @@ const ProductList: React.FC = () => {
   const { modal } = App.useApp();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canOperate, canSync, canImport, canExport, canDelete } = usePermission();
+  const { canOperate, canSync, canDelete } = usePermission();
   const { copyToClipboard } = useCopy();
   const { symbol: currencySymbol } = useCurrency();
 
@@ -64,7 +62,6 @@ const ProductList: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<ozonApi.Product[]>([]);
   const { selectedShop, handleShopChange } = useShopSelection();
   const [filterForm] = Form.useForm();
-  const [importModalVisible, setImportModalVisible] = useState(false);
   const [filterValues, setFilterValues] = useState<ozonApi.ProductFilter>(() => {
     // 默认为"新增商品"：销售中且14天内创建的商品，按创建时间倒序
     const fourteenDaysAgo = dayjs().subtract(14, 'days').format('YYYY-MM-DD');
@@ -179,6 +176,10 @@ const ProductList: React.FC = () => {
         params.sort_by = sortBy;
         params.sort_order = sortOrder;
       }
+
+      // 调试：打印请求参数
+      loggers.product.info('商品列表查询参数：', params);
+
       const result = await ozonApi.getProducts(currentPage, pageSize, params);
 
       // 调试：检查SKU 3001670275的数据
@@ -358,14 +359,6 @@ const ProductList: React.FC = () => {
 
   // 计算大预览图上的水印样式
 
-  const handleImport = () => {
-    setImportModalVisible(true);
-  };
-
-  const handleExport = () => {
-    exportProductsToCSV(productsData?.data);
-  };
-
   return (
     <div>
       {/* 同步进度已改为右下角通知显示 */}
@@ -402,9 +395,16 @@ const ProductList: React.FC = () => {
               sort_order: 'desc',
             });
           } else {
-            // 其他状态：只设置状态筛选（不限创建时间）
+            // 其他状态：清除所有过滤条件，只设置状态
             filterForm.setFieldsValue({ status: key });
-            setFilterValues({ status: key });
+            setFilterValues({
+              status: key,
+              // 清除其他所有过滤条件
+              created_from: undefined,
+              created_to: undefined,
+              sort_by: undefined,
+              sort_order: undefined,
+            });
           }
         }}
         onCreateProduct={() => navigate('/dashboard/ozon/products/create')}
@@ -417,8 +417,6 @@ const ProductList: React.FC = () => {
         <ProductToolbar
           canSync={canSync}
           canOperate={canOperate}
-          canImport={canImport}
-          canExport={canExport}
           selectedRowsCount={selectedRows.length}
           syncLoading={syncProductsMutation.isPending}
           hasSelectedShop={selectedShop !== null}
@@ -426,8 +424,6 @@ const ProductList: React.FC = () => {
           onFullSync={() => handleSync(true)}
           onBatchPriceUpdate={handleBatchPriceUpdate}
           onBatchStockUpdate={handleBatchStockUpdate}
-          onImport={handleImport}
-          onExport={handleExport}
           onColumnSettings={openColumnConfig}
         />
 
@@ -634,18 +630,6 @@ const ProductList: React.FC = () => {
           </Form>
         )}
       </Modal>
-
-      {/* 商品导入弹窗 */}
-      {/* 导入商品Modal */}
-      <ProductImportModal
-        visible={importModalVisible}
-        onCancel={() => setImportModalVisible(false)}
-        selectedShop={selectedShop}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
-        }}
-        onDownloadTemplate={handleExport}
-      />
 
       {/* 水印应用模态框 */}
       <WatermarkApplyModal

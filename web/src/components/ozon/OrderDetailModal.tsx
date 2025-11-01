@@ -27,6 +27,7 @@ import moment from 'moment';
 import React, { useState } from 'react';
 
 import ProductImage from '@/components/ozon/ProductImage';
+import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import styles from '@/pages/ozon/OrderList.module.scss';
@@ -92,6 +93,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [editSourcePlatform, setEditSourcePlatform] = useState<string[]>([]);
   const [editOrderNotes, setEditOrderNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
+
+  // 国内单号编辑弹窗状态
+  const [domesticTrackingModalVisible, setDomesticTrackingModalVisible] = useState(false);
 
   // 同步状态管理
   const [syncingMaterialCost, setSyncingMaterialCost] = useState(false);
@@ -239,6 +243,21 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
   };
 
+  // 打开国内单号编辑弹窗
+  const handleOpenDomesticTracking = () => {
+    setDomesticTrackingModalVisible(true);
+  };
+
+  // 关闭国内单号编辑弹窗
+  const handleCloseDomesticTracking = () => {
+    setDomesticTrackingModalVisible(false);
+  };
+
+  // 国内单号更新成功回调
+  const handleDomesticTrackingSuccess = () => {
+    onUpdate?.(); // 触发父组件刷新
+  };
+
   // 订单备注区域渲染函数
   const renderOrderNotesSection = () => (
     <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
@@ -368,9 +387,33 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                               </Space>
                             </div>
                           ))}
+                          {canEdit && canOperate && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EditOutlined />}
+                              style={{ padding: 0, height: 'auto', marginTop: 4 }}
+                              onClick={handleOpenDomesticTracking}
+                            >
+                              编辑
+                            </Button>
+                          )}
                         </div>
                       ) : (
-                        '-'
+                        <Space>
+                          <span>-</span>
+                          {canEdit && canOperate && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<EditOutlined />}
+                              style={{ padding: 0, height: 'auto' }}
+                              onClick={handleOpenDomesticTracking}
+                            >
+                              编辑
+                            </Button>
+                          )}
+                        </Space>
                       )}
                     </Descriptions.Item>
                     <Descriptions.Item label="国际单号">
@@ -538,9 +581,33 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                   </Space>
                                 </div>
                               ))}
+                              {canEdit && canOperate && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<EditOutlined />}
+                                  style={{ padding: 0, height: 'auto', marginTop: 4 }}
+                                  onClick={handleOpenDomesticTracking}
+                                >
+                                  编辑
+                                </Button>
+                              )}
                             </div>
                           ) : (
-                            '-'
+                            <Space>
+                              <span>-</span>
+                              {canEdit && canOperate && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<EditOutlined />}
+                                  style={{ padding: 0, height: 'auto' }}
+                                  onClick={handleOpenDomesticTracking}
+                                >
+                                  编辑
+                                </Button>
+                              )}
+                            </Space>
                           )}
                         </Descriptions.Item>
                         <Descriptions.Item label="国际单号">
@@ -896,6 +963,16 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           ]}
         />
       )}
+
+      {/* 国内单号编辑弹窗 */}
+      <DomesticTrackingModal
+        visible={domesticTrackingModalVisible}
+        onCancel={handleCloseDomesticTracking}
+        postingNumber={localPosting?.posting_number || ''}
+        onSuccess={handleDomesticTrackingSuccess}
+        initialTrackingNumbers={localPosting?.domestic_tracking_numbers}
+        initialOrderNotes={localOrder?.order_notes}
+      />
     </Modal>
   );
 };

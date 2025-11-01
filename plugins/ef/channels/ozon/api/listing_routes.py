@@ -1236,12 +1236,11 @@ async def create_product(
             raise HTTPException(status_code=400, detail="shop_id is required")
 
         # 必填字段
-        sku = request.get("sku")
         offer_id = request.get("offer_id")
         title = request.get("title")
 
-        if not sku or not offer_id or not title:
-            raise HTTPException(status_code=400, detail="sku, offer_id, and title are required")
+        if not offer_id or not title:
+            raise HTTPException(status_code=400, detail="offer_id and title are required")
 
         # 检查offer_id是否已存在
         existing = await db.scalar(
@@ -1260,14 +1259,12 @@ async def create_product(
         # 创建商品记录
         product = OzonProduct(
             shop_id=shop_id,
-            sku=sku,
             offer_id=offer_id,
             title=title,
             description=request.get("description"),
             price=Decimal(str(request["price"])) if request.get("price") else None,
             old_price=Decimal(str(request["old_price"])) if request.get("old_price") else None,
             currency_code=request.get("currency_code", "RUB"),
-            stock=request.get("stock", 0),
             barcode=request.get("barcode"),
             category_id=request.get("category_id"),
             images=request.get("images", []),  # JSONB field

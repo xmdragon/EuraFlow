@@ -120,6 +120,7 @@ async def get_webhook_logs(
     shop_id: Optional[int] = Query(None, description="店铺ID"),
     event_type: Optional[str] = Query(None, description="事件类型"),
     status: Optional[str] = Query(None, description="状态（processed/failed/ignored）"),
+    posting_number: Optional[str] = Query(None, description="货件编号（支持精确匹配和左匹配）"),
     start_date: Optional[datetime] = Query(None, description="开始时间"),
     end_date: Optional[datetime] = Query(None, description="结束时间"),
     cursor: Optional[int] = Query(None, description="游标（上一页最后一条的ID）"),
@@ -153,6 +154,20 @@ async def get_webhook_logs(
             conditions.append(OzonWebhookEvent.event_type == event_type)
         if status:
             conditions.append(OzonWebhookEvent.status == status)
+
+        # 货件编号搜索（支持精确匹配和左匹配）
+        if posting_number:
+            posting_number = posting_number.strip()
+            dash_count = posting_number.count('-')
+            if dash_count == 2:
+                # 三段格式（48877976-5064-1）：精确匹配
+                conditions.append(OzonWebhookEvent.entity_id == posting_number)
+            elif dash_count == 1:
+                # 两段格式（48877976-5064）：左匹配
+                conditions.append(OzonWebhookEvent.entity_id.like(f"{posting_number}-%"))
+            else:
+                # 其他格式：精确匹配
+                conditions.append(OzonWebhookEvent.entity_id == posting_number)
 
         # 游标分页
         if cursor:

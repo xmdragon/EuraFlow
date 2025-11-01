@@ -151,18 +151,18 @@ async def get_products(
     if brand:
         query = query.where(OzonProduct.brand.ilike(f"%{brand}%"))
 
-    # 创建日期范围筛选
+    # 创建日期范围筛选（使用 Ozon 平台创建时间）
     if created_from:
         try:
             created_from_dt = datetime.fromisoformat(created_from + "T00:00:00")
-            query = query.where(OzonProduct.created_at >= created_from_dt)
+            query = query.where(OzonProduct.ozon_created_at >= created_from_dt)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid created_from format, expected YYYY-MM-DD")
 
     if created_to:
         try:
             created_to_dt = datetime.fromisoformat(created_to + "T23:59:59")
-            query = query.where(OzonProduct.created_at <= created_to_dt)
+            query = query.where(OzonProduct.ozon_created_at <= created_to_dt)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid created_to format, expected YYYY-MM-DD")
 
@@ -179,7 +179,8 @@ async def get_products(
     elif sort_by == "stock":
         order_column = OzonProduct.stock.desc() if sort_order_desc else OzonProduct.stock.asc()
     elif sort_by == "created_at":
-        order_column = OzonProduct.created_at.desc() if sort_order_desc else OzonProduct.created_at.asc()
+        # 使用 Ozon 平台创建时间排序
+        order_column = OzonProduct.ozon_created_at.desc() if sort_order_desc else OzonProduct.ozon_created_at.asc()
     elif sort_by == "title":
         order_column = OzonProduct.title.desc() if sort_order_desc else OzonProduct.title.asc()
     else:  # 默认按updated_at
