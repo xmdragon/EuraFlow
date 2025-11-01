@@ -373,8 +373,11 @@ export class ProductCollector {
         const hasRFBSCommission = /rFBS佣金[：:]/.test(bangText) && /%/.test(bangText);
         const hasFBPCommission = /FBP佣金[：:]/.test(bangText) && /%/.test(bangText);
 
-        // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个)
-        if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission)) {
+        // 检查包装重量（上品帮最后加载的字段，必须等待加载完成）
+        const hasPackageWeight = /包装重量[：:]\s*(?!-)(?!无数据)[\d\s,．]+/.test(bangText);
+
+        // 数据就绪条件：内容充足 + 跟卖数据 + (rFBS或FBP至少一个) + 包装重量已加载
+        if (hasContent && hasCompetitorData && (hasRFBSCommission || hasFBPCommission) && hasPackageWeight) {
           return true;
         }
 
