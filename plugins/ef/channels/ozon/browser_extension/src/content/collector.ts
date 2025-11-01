@@ -1,5 +1,5 @@
 import { DataFusionEngine } from './fusion/engine';
-import type { ProductData, CollectionProgress, CollectorConfig } from '../shared/types';
+import type { ProductData, CollectionProgress } from '../shared/types';
 
 // 全局DEBUG变量，可在控制台修改: window.EURAFLOW_DEBUG = true
 declare global {
@@ -42,8 +42,7 @@ export class ProductCollector {
   private onProgressCallback?: (progress: CollectionProgress) => void;
 
   constructor(
-    private fusionEngine: DataFusionEngine,
-    private config: CollectorConfig
+    private fusionEngine: DataFusionEngine
   ) {
     // 上传逻辑已移至 ControlPanel，collector 仅负责采集
   }
@@ -131,8 +130,8 @@ export class ProductCollector {
           behavior: 'smooth'
         });
 
-        // 【关键修复】先等待页面加载
-        await this.sleep(this.config.scrollWaitTime);
+        // 【优化等待1】轮询检测上品帮数据（100ms × 最多15次 = 1500ms）
+        await this.waitForShangpinbangData(15);
 
         // 采集新商品（并行轮询）
         const beforeCount = this.collected.size;
@@ -204,10 +203,9 @@ export class ProductCollector {
           }
         }
 
-        // 【滚动延迟】防反爬虫
-        if (this.config.scrollDelay > 0) {
-          await this.sleep(this.config.scrollDelay);
-        }
+        // 【优化等待3】随机延迟（100-500ms），模拟真人浏览
+        const randomDelay = Math.floor(Math.random() * 400) + 100; // 100-500ms
+        await this.sleep(randomDelay);
       }
 
       const products = Array.from(this.collected.values());
@@ -307,6 +305,16 @@ export class ProductCollector {
 
             if (window.EURAFLOW_DEBUG) {
               console.log('[DEBUG] 采集到新商品:', product.product_id, '当前总数:', this.collected.size);
+              console.log('  [SKU]', product.product_id);
+              console.log('  [rFBS佣金]',
+                product.rfbs_commission_high ? `高=${product.rfbs_commission_high}% 中=${product.rfbs_commission_mid}% 低=${product.rfbs_commission_low}%` : '无数据'
+              );
+              console.log('  [包装重量]', product.package_weight || '无数据');
+              console.log('  [跟卖者]',
+                product.competitor_count !== undefined ? `${product.competitor_count}个` : '无数据',
+                '跟卖最低价:',
+                product.competitor_min_price || '无数据'
+              );
             }
 
             return product;
@@ -330,18 +338,42 @@ export class ProductCollector {
   }
 
   /**
-   * 等待整行数据就绪（参考用户脚本逻辑）
+   * 等待上品帮数据注入（优化：100ms × maxAttempts）
    */
-  private async waitForRowData(row: HTMLElement[], maxWait = 2000): Promise<boolean> {
+  private async waitForShangpinbangData(maxAttempts: number): Promise<void> {
+    const interval = 100;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // 检查是否有上品帮标记的商品
+      const markedCards = document.querySelectorAll('[data-ozon-bang="true"]');
+
+      if (markedCards.length > 0) {
+        if (window.EURAFLOW_DEBUG) {
+          console.log(`[DEBUG] 检测到上品帮数据（尝试 ${attempt + 1}/${maxAttempts}），找到 ${markedCards.length} 个已标记商品`);
+        }
+        return; // 有数据就立即进入下一流程
+      }
+
+      await this.sleep(interval);
+    }
+
+    if (window.EURAFLOW_DEBUG) {
+      console.log(`[DEBUG] 上品帮数据等待超时（${maxAttempts * interval}ms）`);
+    }
+  }
+
+  /**
+   * 等待整行数据就绪（优化：100ms × 20次 = 2000ms）
+   */
+  private async waitForRowData(row: HTMLElement[], maxAttempts = 20): Promise<boolean> {
     if (row.length === 0) return false;
 
-    const startTime = Date.now();
-    const interval = 200;
+    const interval = 100;
 
     // 检查最后一个商品的数据是否完整（上品帮按行注入数据）
     const lastCard = row[row.length - 1];
 
-    while (Date.now() - startTime < maxWait) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       // 先尝试多种上品帮选择器
       let bangElement = lastCard.querySelector('.ozon-bang-item[data-ozon-bang="true"]') as HTMLElement;
       if (!bangElement) {

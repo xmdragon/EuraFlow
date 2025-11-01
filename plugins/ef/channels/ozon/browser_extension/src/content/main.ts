@@ -56,8 +56,8 @@ async function init() {
     // 3. 加载采集配置
     const collectorConfig = await getCollectorConfig();
 
-    // 4. 创建采集器（API配置和上传由 ControlPanel 负责）
-    const collector = new ProductCollector(fusionEngine, collectorConfig);
+    // 4. 创建采集器（API配置和上传由 ControlPanel 负责，等待时间已硬编码优化）
+    const collector = new ProductCollector(fusionEngine);
 
     // 6. 创建并挂载控制面板
     ControlPanel({
