@@ -88,7 +88,7 @@ export function ControlPanel(props: ControlPanelProps) {
           min="1"
           max="1000"
           step="1"
-          style="width: 4.5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box; color: #333 !important; background: white !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;"
+          style="width: 4.5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box; color: #333 !important; -webkit-text-fill-color: #333 !important; background: white !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;"
         />
       </div>
       <button id="ef-toggle-btn" style="width: 120px; padding: 10px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s;">

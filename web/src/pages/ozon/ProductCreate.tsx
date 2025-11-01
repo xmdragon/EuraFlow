@@ -237,13 +237,7 @@ const ProductCreate: React.FC = () => {
       });
 
       if (result.success) {
-        notifySuccess(
-          '同步成功',
-          `类目 "${result.category_name}" 特征同步完成\n` +
-            `同步特征: ${result.synced_attributes || 0} 个\n` +
-            `缓存特征: ${result.cached_attributes || 0} 个\n` +
-            `同步特征值: ${result.synced_values || 0} 个`,
-        );
+        // 类目特征同步成功（不显示通知，避免干扰用户）
       } else {
         notifyError('同步失败', result.error || '未知错误');
       }
@@ -315,7 +309,7 @@ const ProductCreate: React.FC = () => {
 
     setVariantDimensions([...variantDimensions, dimension]);
     setHiddenFields(new Set([...hiddenFields, fieldKey]));
-    notifySuccess('添加成功', `已将"${attr.name}"添加到变体维度`);
+    // 添加到变体维度（不显示通知，避免干扰用户）
 
     // 自动展开变体部分
     if (!variantSectionExpanded) {
@@ -477,21 +471,20 @@ const ProductCreate: React.FC = () => {
     // Offer ID 列（固定第一列，表头带批量生成）
     columns.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
           <span>Offer ID</span>
           <Button
             size="small"
             icon={<ThunderboltOutlined />}
             onClick={handleBatchGenerateOfferId}
             title="批量生成所有变体的 Offer ID"
-            style={{ fontSize: 12 }}
           >
             生成
           </Button>
         </div>
       ),
       key: 'offer_id',
-      width: 180,
+      width: 200,
       fixed: 'left',
       render: (_: any, record: ProductVariant) => (
         <Input
@@ -571,21 +564,21 @@ const ProductCreate: React.FC = () => {
     // 售价列（表头带批量设置输入框）
     columns.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ whiteSpace: 'nowrap' }}>售价</span>
           <InputNumber
             size="small"
             placeholder="批量"
             min={0}
             controls={false}
-            style={{ width: '100%' }}
+            style={{ width: '60px' }}
             onChange={handleBatchSetPrice}
             onPressEnter={(e: any) => handleBatchSetPrice(e.target.value)}
           />
         </div>
       ),
       key: 'price',
-      width: 90,
+      width: 110,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
           size="small"
@@ -602,21 +595,21 @@ const ProductCreate: React.FC = () => {
     // 原价列（表头带批量设置输入框）
     columns.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ whiteSpace: 'nowrap' }}>原价</span>
           <InputNumber
             size="small"
             placeholder="批量"
             min={0}
             controls={false}
-            style={{ width: '100%' }}
+            style={{ width: '60px' }}
             onChange={handleBatchSetOldPrice}
             onPressEnter={(e: any) => handleBatchSetOldPrice(e.target.value)}
           />
         </div>
       ),
       key: 'old_price',
-      width: 90,
+      width: 110,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
           size="small"
@@ -658,7 +651,7 @@ const ProductCreate: React.FC = () => {
     const hash = md5(timestamp.toString()); // 生成MD5哈希
     const offerId = `ef_${hash}`; // 添加ef_前缀
     form.setFieldValue('offer_id', offerId);
-    notifySuccess('生成成功', `已生成Offer ID: ${offerId.substring(0, 20)}...`);
+    // 生成Offer ID（不显示通知，避免干扰用户）
   };
 
   // 从label中提取括号内容
@@ -979,31 +972,24 @@ const ProductCreate: React.FC = () => {
               </Form.Item>
             )}
 
-            {!hiddenFields.has('offer_id') && (
+            {!variantSectionExpanded && (
               <Form.Item label="Offer ID" required style={{ marginBottom: 12 }}>
-                <Space style={{ width: 'auto' }}>
-                  <Space.Compact>
-                    <Form.Item
-                      name="offer_id"
-                      rules={[{ required: true, message: '请输入Offer ID' }]}
-                      noStyle
-                    >
-                      <Input placeholder="OZON商品标识符（卖家SKU）" style={{ width: '300px' }} />
-                    </Form.Item>
-                    <Button
-                      type="default"
-                      icon={<ThunderboltOutlined />}
-                      onClick={handleGenerateOfferId}
-                    >
-                      生成
-                    </Button>
-                  </Space.Compact>
+                <Space.Compact>
+                  <Form.Item
+                    name="offer_id"
+                    rules={[{ required: true, message: '请输入Offer ID' }]}
+                    noStyle
+                  >
+                    <Input placeholder="OZON商品标识符（卖家SKU）" style={{ width: '300px' }} />
+                  </Form.Item>
                   <Button
-                    icon={<PlusOutlined />}
-                    onClick={() => handleAddFieldAsVariant('offer_id', 'Offer ID', 'String')}
-                    title="将当前属性添加变体属性"
-                  />
-                </Space>
+                    type="default"
+                    icon={<ThunderboltOutlined />}
+                    onClick={handleGenerateOfferId}
+                  >
+                    生成
+                  </Button>
+                </Space.Compact>
               </Form.Item>
             )}
 
