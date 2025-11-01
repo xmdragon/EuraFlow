@@ -12,6 +12,7 @@
   - [Ant Design Modal.confirm 不弹出](#ant-design-modalconfirm-不弹出)
   - [Ant Design notification 不显示或显示位置错误](#ant-design-notification-不显示或显示位置错误)
 - [后端问题](#后端问题)
+  - [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
   - [N+1 查询问题导致 API 响应缓慢](#n1-查询问题导致-api-响应缓慢)
 - [数据库问题](#数据库问题)
 - [部署问题](#部署问题)
@@ -374,6 +375,286 @@ const handleSync = () => {
 
 ## 后端问题
 
+### 如何添加新的后台定时任务服务
+
+**问题描述**：
+- 需要添加一个新的定时任务（如数据备份、定期同步等）
+- 不清楚完整的添加流程
+- 容易遗漏关键步骤导致任务不执行
+
+**系统架构说明**：
+
+EuraFlow 使用 **Celery Beat** 作为唯一的定时任务调度器：
+
+```
+插件 setup()
+  ↓ 调用 hooks.register_cron()
+  ↓ 注册到 TaskRegistry
+  ↓ 添加到 Celery Beat schedule
+  ↓ Celery Beat 定时触发
+  ↓ Celery Worker 执行任务
+```
+
+**关键点**：
+- ✅ 使用 Celery Beat（不要使用已废弃的 APScheduler）
+- ✅ 通过插件的 `setup()` 函数注册任务
+- ✅ 同时注册 Handler（用于 Web UI 手动触发）和 Celery Beat 任务（用于定时自动执行）
+- ✅ 在数据库中创建服务记录（用于在 Web UI 展示）
+
+**完整添加流程**：
+
+#### 步骤1：在插件中注册 Handler 和 Celery Beat 任务
+
+```python
+# 文件：plugins/ef/{domain}/{plugin_name}/__init__.py
+
+async def setup(hooks) -> None:
+    """插件初始化函数"""
+    from plugins.ef.system.sync_service.services.handler_registry import get_registry
+    registry = get_registry()
+
+    # 导入服务类
+    from .my_service import MyService
+    my_service = MyService()
+
+    # 1. 注册 Handler（用于 Web UI 手动触发）
+    registry.register(
+        service_key="my_service_key",  # 唯一标识，必须与数据库记录一致
+        handler=my_service.execute,    # 实际执行的函数
+        name="我的服务",
+        description="服务描述（会显示在 Web UI 中）",
+        plugin="ef.domain.plugin_name",
+        config_schema={  # 可选：配置参数的 JSON Schema
+            "type": "object",
+            "properties": {
+                "max_count": {
+                    "type": "integer",
+                    "description": "最大数量",
+                    "default": 100
+                }
+            }
+        }
+    )
+
+    logger.info("✓ Registered handler: my_service_key")
+
+    # 2. 注册 Celery Beat 定时任务（用于自动定时执行）
+    async def my_service_task():
+        """Celery Beat 定时任务包装函数"""
+        return await my_service.execute({})
+
+    await hooks.register_cron(
+        name="ef.domain.my_service",  # Celery 任务名（格式：ef.{domain}.{service}）
+        cron="0 2 * * *",              # Cron 表达式（UTC 时区）
+        task=my_service_task
+    )
+
+    logger.info("✓ Registered Celery Beat task: ef.domain.my_service")
+    logger.info(f"  - Schedule: 0 2 * * * (UTC)")
+```
+
+**Cron 表达式格式**：
+```
+┌───────────── 分钟 (0 - 59)
+│ ┌─────────── 小时 (0 - 23)
+│ │ ┌───────── 日期 (1 - 31)
+│ │ │ ┌─────── 月份 (1 - 12)
+│ │ │ │ ┌───── 星期 (0 - 6，0 = 周日)
+│ │ │ │ │
+* * * * *
+```
+
+**常用 Cron 表达式示例**：
+- `*/5 * * * *` - 每 5 分钟
+- `0 * * * *` - 每小时整点
+- `0 2 * * *` - 每天 UTC 02:00（北京时间 10:00）
+- `0 17,5 * * *` - 每天 UTC 17:00 和 05:00（北京时间 01:00 和 13:00）
+- `0 0 * * 0` - 每周日午夜
+
+#### 步骤2：在数据库中创建服务记录
+
+```sql
+-- 使用 psql 或通过 FastAPI 接口创建
+INSERT INTO sync_services (
+    service_key,          -- 必须与步骤1中的 service_key 一致
+    service_name,
+    service_description,
+    service_type,         -- 固定为 'cron'
+    schedule_config,      -- Cron 表达式（同步骤1）
+    is_enabled,           -- true = 启用，false = 禁用
+    run_count,            -- 初始为 0
+    success_count,        -- 初始为 0
+    error_count,          -- 初始为 0
+    config_json,          -- JSON 配置（可选）
+    created_at,
+    updated_at
+) VALUES (
+    'my_service_key',
+    '我的服务',
+    '服务描述',
+    'cron',
+    '0 2 * * *',
+    true,
+    0,
+    0,
+    0,
+    '{"max_count": 100}'::jsonb,
+    NOW(),
+    NOW()
+);
+```
+
+#### 步骤3：在 routes.py 中添加任务名映射（用于手动触发）
+
+```python
+# 文件：plugins/ef/system/sync_service/api/routes.py
+
+# 在 trigger_sync_service() 函数中的 task_name_mapping 字典中添加：
+task_name_mapping = {
+    # ... 其他映射 ...
+    "my_service_key": "ef.domain.my_service",  # service_key -> Celery 任务名
+}
+```
+
+**验证方法**：
+
+```bash
+# 1. 重启服务
+./restart.sh
+
+# 2. 检查 Celery Beat 日志，确认任务已注册
+tail -100 logs/celery-beat.log | grep "my_service"
+
+# 预期输出：
+# 2025-11-01 14:51:05 [info] Plugin ef.domain.plugin_name registering cron task cron=0 2 * * * task_name=ef.domain.my_service
+# 2025-11-01 14:51:05 [info] Added task to beat schedule: ef.domain.my_service
+# 2025-11-01 14:51:05 [info]   📋 Registered task: ef.domain.my_service
+
+# 3. 在 Web UI 中检查
+# 访问：系统管理 → 后台服务管理
+# 应该能看到新添加的服务，可以手动触发
+
+# 4. 检查数据库
+PGPASSWORD=euraflow_dev psql -h localhost -U euraflow -d euraflow \
+  -c "SELECT service_key, service_name, is_enabled FROM sync_services WHERE service_key='my_service_key';"
+```
+
+**常见陷阱与错误**：
+
+| 错误 | 症状 | 原因 | 解决方法 |
+|------|------|------|----------|
+| ❌ 只注册了 Handler，没注册 Celery Beat 任务 | Web UI 能看到服务，手动触发正常，但不会自动执行 | 忘记调用 `hooks.register_cron()` | 在 `setup()` 中添加 `hooks.register_cron()` |
+| ❌ 只注册了 Celery Beat，没注册 Handler | 任务自动执行，但在 Web UI 中看不到，也无法手动触发 | 忘记调用 `registry.register()` | 在 `setup()` 中添加 `registry.register()` |
+| ❌ 数据库记录的 service_key 与代码中不一致 | Web UI 显示错误，手动触发失败 | service_key 拼写错误或不匹配 | 确保 3 处 service_key 完全一致：代码 Handler、代码 Celery Beat、数据库 |
+| ❌ task_name_mapping 中缺少映射 | 手动触发时报错 "Task not registered" | routes.py 中未添加映射 | 在 task_name_mapping 中添加映射 |
+| ❌ Cron 表达式错误 | 任务不在预期时间执行 | Cron 格式错误或时区混淆 | 使用 [Crontab Guru](https://crontab.guru/) 验证表达式；注意 Celery 使用 UTC 时区 |
+| ❌ 数据库记录缺少必填字段 | INSERT 失败，报 NOT NULL 约束错误 | 缺少 run_count、success_count、error_count | 初始化时设置为 0 |
+
+**实际案例：database_backup 服务**
+
+```python
+# 文件：plugins/ef/system/database_backup/__init__.py
+
+async def setup(hooks) -> None:
+    from plugins.ef.system.sync_service.services.handler_registry import get_registry
+    registry = get_registry()
+    from .backup_service import DatabaseBackupService
+    backup_service = DatabaseBackupService()
+
+    # 1. 注册 Handler
+    registry.register(
+        service_key="database_backup",
+        handler=backup_service.backup_database,
+        name="数据库备份",
+        description="备份PostgreSQL数据库到backups目录（每天北京时间01:00和13:00执行）",
+        plugin="ef.system.database_backup"
+    )
+
+    # 2. 注册 Celery Beat 任务
+    async def database_backup_task():
+        return await backup_service.backup_database({})
+
+    await hooks.register_cron(
+        name="ef.system.database_backup",
+        cron="0 17,5 * * *",  # UTC 17:00 和 05:00 = 北京时间 01:00 和 13:00
+        task=database_backup_task
+    )
+```
+
+```sql
+-- 数据库记录
+INSERT INTO sync_services (
+    service_key, service_name, service_description,
+    service_type, schedule_config, is_enabled,
+    run_count, success_count, error_count, config_json,
+    created_at, updated_at
+) VALUES (
+    'database_backup',
+    '数据库备份',
+    '备份PostgreSQL数据库到backups目录（每天北京时间01:00和13:00执行）',
+    'cron',
+    '0 17,5 * * *',
+    true,
+    0, 0, 0,
+    '{"max_backups": 14}'::jsonb,
+    NOW(), NOW()
+);
+```
+
+```python
+# routes.py 中的映射
+task_name_mapping = {
+    "database_backup": "ef.system.database_backup",
+    # ...
+}
+```
+
+**相关文件**：
+- 插件入口：`plugins/ef/{domain}/{plugin}/__init__.py` - setup() 函数
+- Handler 注册器：`plugins/ef/system/sync_service/services/handler_registry.py`
+- 任务触发接口：`plugins/ef/system/sync_service/api/routes.py:157-226` - trigger_sync_service()
+- Celery 配置：`ef_core/tasks/celery_app.py` - 自动加载插件注册的任务
+- 数据库表：`sync_services` - 服务记录
+- 日志位置：`logs/celery-beat.log` - Celery Beat 调度日志
+
+**检查清单**：
+
+在添加新服务后，确认以下事项：
+
+- [ ] 在插件 `setup()` 中调用了 `registry.register()`（Handler 注册）
+- [ ] 在插件 `setup()` 中调用了 `hooks.register_cron()`（Celery Beat 注册）
+- [ ] service_key 在 3 处保持一致（Handler、Celery Beat、数据库）
+- [ ] 在 routes.py 的 task_name_mapping 中添加了映射
+- [ ] 在数据库中创建了服务记录（包含所有必填字段）
+- [ ] Cron 表达式格式正确且符合预期（使用 UTC 时区）
+- [ ] 重启服务后在 celery-beat.log 中看到 "Registered task: ef.xxx"
+- [ ] 在 Web UI 的"后台服务管理"页面能看到新服务
+- [ ] 手动触发测试成功（点击"触发"按钮后任务正常执行）
+- [ ] 等待定时时间到达，确认任务自动执行
+
+**防止复发**：
+- ✅ 使用本检查清单验证每个新增服务
+- ✅ 代码审查时确认 Handler 和 Celery Beat 任务都已注册
+- ✅ 使用统一的服务模板（复制现有服务如 database_backup 作为起点）
+
+**时区说明**：
+
+Celery Beat 使用 **UTC 时区**，需要手动转换：
+
+| 北京时间 | UTC 时间 | Cron 表达式 | 说明 |
+|---------|---------|------------|------|
+| 01:00   | 17:00（前一天） | `0 17 * * *` | 北京时间 - 8 小时 |
+| 10:00   | 02:00   | `0 2 * * *` | 北京时间 - 8 小时 |
+| 13:00   | 05:00   | `0 5 * * *` | 北京时间 - 8 小时 |
+| 22:00   | 14:00   | `0 14 * * *` | 北京时间 - 8 小时 |
+
+**参考资料**：
+- [Celery Beat 文档](https://docs.celeryproject.org/en/stable/userguide/periodic-tasks.html)
+- [Crontab Guru - Cron 表达式生成器](https://crontab.guru/)
+- [SQLAlchemy AsyncSession](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)
+
+---
+
 ### N+1 查询问题导致 API 响应缓慢
 
 **问题描述**：
@@ -618,5 +899,5 @@ stmt = select(Parent, subquery.c.count).outerjoin(subquery)
 
 ---
 
-**最后更新**: 2025-10-30
+**最后更新**: 2025-11-01
 **维护者**: EuraFlow 开发团队
