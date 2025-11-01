@@ -408,12 +408,13 @@ export class ProductCollector {
         // 任何一种跟卖数据格式都算有效
         const hasCompetitorData = hasMinPrice || hasNoCompetitorPrice || hasNoCompetitorSeller || hasSellerCount;
 
-        // 检查包装重量字段是否已加载（不管有无数据，只要字段出现就算加载完成）
-        const hasPackageWeightField = /包装重量[：:]/.test(bangText);
+        // 检查包装重量是否已加载完成（值不是"-"就算加载完成，可以是"无数据"或实际值）
+        // 三种状态：1) "-" 加载中  2) "无数据" 已加载  3) "100 g" 已加载
+        const packageWeightMatch = bangText.match(/包装重量[：:]\s*([^\n<]+)/);
+        const hasPackageWeightLoaded = packageWeightMatch && packageWeightMatch[1].trim() !== '-';
 
-        // 【修复】数据就绪条件：仅验证核心字段（内容充足 + 跟卖数据 + 包装重量字段已加载）
-        // 佣金和重量的具体值可以是"无数据"，解析层会处理
-        if (hasContent && hasCompetitorData && hasPackageWeightField) {
+        // 【修复】数据就绪条件：内容充足 + 跟卖数据 + 包装重量已加载（值可以是"无数据"）
+        if (hasContent && hasCompetitorData && hasPackageWeightLoaded) {
           if (window.EURAFLOW_DEBUG) {
             console.log('[DEBUG waitForRowData] 数据就绪，尝试次数:', attempt + 1);
           }
