@@ -611,10 +611,26 @@ export class ShangpinbangParser implements PageDataParser {
    * @returns [high, mid, low] 三个佣金百分比值
    */
   private parseCommissionValues(valueElement: HTMLElement): [number | undefined, number | undefined, number | undefined] {
-    // 查找所有 ant-tag 标签
-    const tags = valueElement.querySelectorAll<HTMLElement>('.ant-tag');
+    // 查找所有 ant-tag 标签（支持多种选择器）
+    let tags = valueElement.querySelectorAll<HTMLElement>('.ant-tag');
+
+    // 如果没找到，尝试其他选择器
+    if (tags.length === 0) {
+      tags = valueElement.querySelectorAll<HTMLElement>('[class*="ant-tag"]');
+    }
+
+    // 调试日志
+    if ((window as any).EURAFLOW_DEBUG) {
+      console.log('[DEBUG parseCommissionValues] Found tags:', tags.length);
+      tags.forEach((tag, i) => {
+        console.log(`  Tag ${i}:`, tag.textContent?.trim(), tag.className);
+      });
+    }
 
     if (tags.length < 3) {
+      if ((window as any).EURAFLOW_DEBUG) {
+        console.warn('[DEBUG parseCommissionValues] Not enough tags, expected 3, got:', tags.length);
+      }
       return [undefined, undefined, undefined];
     }
 
@@ -622,6 +638,10 @@ export class ShangpinbangParser implements PageDataParser {
     const high = this.parsePercent(tags[0].textContent || '');
     const mid = this.parsePercent(tags[1].textContent || '');
     const low = this.parsePercent(tags[2].textContent || '');
+
+    if ((window as any).EURAFLOW_DEBUG) {
+      console.log('[DEBUG parseCommissionValues] Parsed values:', { high, mid, low });
+    }
 
     return [high, mid, low];
   }
