@@ -110,6 +110,7 @@ const ProductCreate: React.FC = () => {
   const [variantDimensions, setVariantDimensions] = useState<VariantDimension[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantSectionExpanded, setVariantSectionExpanded] = useState(false);
+  const [variantTableCollapsed, setVariantTableCollapsed] = useState(false); // 表格折叠状态
   // 隐藏的字段（已添加为变体维度的字段）
   const [hiddenFields, setHiddenFields] = useState<Set<string>>(new Set());
 
@@ -330,7 +331,6 @@ const ProductCreate: React.FC = () => {
   ) => {
     // 检查是否已添加
     if (hiddenFields.has(fieldKey)) {
-      notifyWarning('已添加', '该字段已作为变体维度');
       return;
     }
 
@@ -348,11 +348,31 @@ const ProductCreate: React.FC = () => {
 
     setVariantDimensions([...variantDimensions, dimension]);
     setHiddenFields(new Set([...hiddenFields, fieldKey]));
-    notifySuccess('添加成功', `已将"${fieldName}"添加到变体维度`);
 
-    // 自动展开变体部分
+    // 自动展开变体部分并创建2行（首次）
     if (!variantSectionExpanded) {
       setVariantSectionExpanded(true);
+
+      // 如果还没有变体行，自动创建2行
+      if (variants.length === 0) {
+        const variant1: ProductVariant = {
+          id: Date.now().toString(),
+          dimension_values: {},
+          offer_id: '',
+          title: '',
+          price: undefined,
+          old_price: undefined,
+        };
+        const variant2: ProductVariant = {
+          id: (Date.now() + 1).toString(),
+          dimension_values: {},
+          offer_id: '',
+          title: '',
+          price: undefined,
+          old_price: undefined,
+        };
+        setVariants([variant1, variant2]);
+      }
     }
   };
 
@@ -378,8 +398,6 @@ const ProductCreate: React.FC = () => {
         return { ...v, dimension_values: newDimensionValues };
       }),
     );
-
-    notifySuccess('移除成功', '已移除该变体维度，原字段已恢复');
   };
 
   // 添加变体行
@@ -428,7 +446,6 @@ const ProductCreate: React.FC = () => {
   // 批量生成 Offer ID
   const handleBatchGenerateOfferId = () => {
     if (variants.length === 0) {
-      notifyWarning('无变体', '请先添加变体行');
       return;
     }
 
@@ -439,23 +456,18 @@ const ProductCreate: React.FC = () => {
     });
 
     setVariants(updatedVariants);
-    notifySuccess('生成成功', `已为 ${variants.length} 个变体生成 Offer ID`);
   };
 
   // 批量设置售价
   const handleBatchSetPrice = (price: number | null) => {
     if (price === null || price === undefined) return;
-
     setVariants(variants.map((v) => ({ ...v, price })));
-    notifySuccess('设置成功', `已为所有变体设置售价：${price}`);
   };
 
   // 批量设置原价
   const handleBatchSetOldPrice = (oldPrice: number | null) => {
     if (oldPrice === null || oldPrice === undefined) return;
-
     setVariants(variants.map((v) => ({ ...v, old_price: oldPrice })));
-    notifySuccess('设置成功', `已为所有变体设置原价：${oldPrice}`);
   };
 
   // 动态生成变体表格列（默认包含 Offer ID、标题、图片、视频、售价、原价）
@@ -465,26 +477,28 @@ const ProductCreate: React.FC = () => {
     // Offer ID 列（固定第一列，表头带批量生成）
     columns.push({
       title: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span>Offer ID</span>
           <Button
             size="small"
             icon={<ThunderboltOutlined />}
             onClick={handleBatchGenerateOfferId}
             title="批量生成所有变体的 Offer ID"
+            style={{ fontSize: 12 }}
           >
             生成
           </Button>
         </div>
       ),
       key: 'offer_id',
-      width: 250,
+      width: 180,
       fixed: 'left',
       render: (_: any, record: ProductVariant) => (
         <Input
+          size="small"
           value={record.offer_id}
           onChange={(e) => handleUpdateVariantRow(record.id, 'offer_id', e.target.value)}
-          placeholder="OZON商品标识符"
+          placeholder="标识符"
         />
       ),
     });
@@ -493,9 +507,10 @@ const ProductCreate: React.FC = () => {
     columns.push({
       title: '标题',
       key: 'title',
-      width: 300,
+      width: 200,
       render: (_: any, record: ProductVariant) => (
         <Input
+          size="small"
           value={record.title}
           onChange={(e) => handleUpdateVariantRow(record.id, 'title', e.target.value)}
           placeholder="商品标题"
@@ -507,7 +522,7 @@ const ProductCreate: React.FC = () => {
     columns.push({
       title: '图片',
       key: 'image',
-      width: 100,
+      width: 70,
       render: (_: any, record: ProductVariant) =>
         record.image ? (
           <img src={record.image} alt="variant" className={styles.variantImage} />
@@ -520,7 +535,7 @@ const ProductCreate: React.FC = () => {
     columns.push({
       title: '视频',
       key: 'video',
-      width: 80,
+      width: 60,
       render: (_: any, record: ProductVariant) =>
         record.video ? '有' : <div className={styles.variantPlaceholder}>-</div>,
     });
@@ -529,19 +544,20 @@ const ProductCreate: React.FC = () => {
     variantDimensions.forEach((dim) => {
       columns.push({
         title: (
-          <Space>
+          <Space size={4}>
             {dim.name}
             <MinusCircleOutlined
-              style={{ color: '#ff4d4f', cursor: 'pointer', fontSize: 16 }}
+              style={{ color: '#ff4d4f', cursor: 'pointer', fontSize: 14 }}
               onClick={() => handleRemoveVariantDimension(dim.attribute_id)}
               title="移除此维度"
             />
           </Space>
         ),
         key: `dim_${dim.attribute_id}`,
-        width: 150,
+        width: 120,
         render: (_: any, record: ProductVariant) => (
           <Input
+            size="small"
             value={record.dimension_values[dim.attribute_id] || ''}
             onChange={(e) =>
               handleUpdateVariantRow(record.id, `dim_${dim.attribute_id}`, e.target.value)
@@ -555,11 +571,11 @@ const ProductCreate: React.FC = () => {
     // 售价列（表头带批量设置输入框）
     columns.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span>售价</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ whiteSpace: 'nowrap' }}>售价</span>
           <InputNumber
             size="small"
-            placeholder="批量设置"
+            placeholder="批量"
             min={0}
             controls={false}
             style={{ width: '100%' }}
@@ -569,9 +585,10 @@ const ProductCreate: React.FC = () => {
         </div>
       ),
       key: 'price',
-      width: 130,
+      width: 90,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
+          size="small"
           value={record.price}
           onChange={(value) => handleUpdateVariantRow(record.id, 'price', value)}
           placeholder="0"
@@ -585,11 +602,11 @@ const ProductCreate: React.FC = () => {
     // 原价列（表头带批量设置输入框）
     columns.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span>原价</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ whiteSpace: 'nowrap' }}>原价</span>
           <InputNumber
             size="small"
-            placeholder="批量设置"
+            placeholder="批量"
             min={0}
             controls={false}
             style={{ width: '100%' }}
@@ -599,9 +616,10 @@ const ProductCreate: React.FC = () => {
         </div>
       ),
       key: 'old_price',
-      width: 130,
+      width: 90,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
+          size="small"
           value={record.old_price}
           onChange={(value) => handleUpdateVariantRow(record.id, 'old_price', value)}
           placeholder="0"
@@ -616,7 +634,7 @@ const ProductCreate: React.FC = () => {
     columns.push({
       title: '操作',
       key: 'action',
-      width: 80,
+      width: 60,
       fixed: 'right',
       render: (_: any, record: ProductVariant) => (
         <Button
@@ -1281,33 +1299,47 @@ const ProductCreate: React.FC = () => {
                       添加变体行
                     </Button>
                     <Button
+                      icon={variantTableCollapsed ? <DownOutlined /> : <UpOutlined />}
+                      onClick={() => setVariantTableCollapsed(!variantTableCollapsed)}
+                    >
+                      {variantTableCollapsed ? '展开' : '折叠'}
+                    </Button>
+                    <Button
+                      danger
                       onClick={() => {
                         setVariantSectionExpanded(false);
                         setVariants([]);
+                        setVariantDimensions([]);
+                        setHiddenFields(new Set());
+                        setVariantTableCollapsed(false);
                       }}
                     >
-                      收起
+                      重置
                     </Button>
                   </div>
                 </div>
 
-                {variants.length > 0 ? (
-                  <Table
-                    columns={getVariantColumns()}
-                    dataSource={variants}
-                    rowKey="id"
-                    pagination={false}
-                    size="small"
-                    scroll={{ x: 'max-content' }}
-                  />
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-                    暂无变体数据，点击"添加变体行"开始创建
-                    <br />
-                    <span style={{ fontSize: 12 }}>
-                      （默认包含 Offer ID、标题、售价、原价字段，可在类目属性中添加其他维度）
-                    </span>
-                  </div>
+                {!variantTableCollapsed && (
+                  <>
+                    {variants.length > 0 ? (
+                      <Table
+                        columns={getVariantColumns()}
+                        dataSource={variants}
+                        rowKey="id"
+                        pagination={false}
+                        size="small"
+                        scroll={{ x: 'max-content' }}
+                      />
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                        暂无变体数据，点击"添加变体行"开始创建
+                        <br />
+                        <span style={{ fontSize: 12 }}>
+                          （默认包含 Offer ID、标题、售价、原价字段，可在类目属性中添加其他维度）
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

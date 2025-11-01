@@ -370,3 +370,37 @@ async def get_sync_service_stats(
         avg_execution_time_ms=round(avg_execution_time_ms, 2) if avg_execution_time_ms else None,
         recent_errors=recent_errors
     )
+
+
+@router.post("/{service_id}/reset-stats")
+async def reset_sync_service_stats(
+    service_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """重置同步服务统计数据（需要操作员权限）"""
+    # 查找服务
+    result = await db.execute(
+        select(SyncService).where(SyncService.id == service_id)
+    )
+    service = result.scalar_one_or_none()
+
+    if not service:
+        raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
+
+    # 重置统计数据
+    service.run_count = 0
+    service.success_count = 0
+    service.error_count = 0
+    service.last_run_at = None
+    service.last_run_status = None
+    service.last_run_message = None
+
+    await db.commit()
+
+    logger.info(f"Reset statistics for service {service.service_key}")
+
+    return {
+        "ok": True,
+        "message": "统计数据已重置"
+    }
