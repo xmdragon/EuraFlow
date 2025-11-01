@@ -425,15 +425,60 @@ const ProductCreate: React.FC = () => {
     );
   };
 
+  // 批量生成 Offer ID
+  const handleBatchGenerateOfferId = () => {
+    if (variants.length === 0) {
+      notifyWarning('无变体', '请先添加变体行');
+      return;
+    }
+
+    const updatedVariants = variants.map((v) => {
+      const timestamp = Date.now() + Math.random() * 1000; // 添加随机数确保唯一性
+      const hash = md5(timestamp.toString());
+      return { ...v, offer_id: `ef_${hash}` };
+    });
+
+    setVariants(updatedVariants);
+    notifySuccess('生成成功', `已为 ${variants.length} 个变体生成 Offer ID`);
+  };
+
+  // 批量设置售价
+  const handleBatchSetPrice = (price: number | null) => {
+    if (price === null || price === undefined) return;
+
+    setVariants(variants.map((v) => ({ ...v, price })));
+    notifySuccess('设置成功', `已为所有变体设置售价：${price}`);
+  };
+
+  // 批量设置原价
+  const handleBatchSetOldPrice = (oldPrice: number | null) => {
+    if (oldPrice === null || oldPrice === undefined) return;
+
+    setVariants(variants.map((v) => ({ ...v, old_price: oldPrice })));
+    notifySuccess('设置成功', `已为所有变体设置原价：${oldPrice}`);
+  };
+
   // 动态生成变体表格列（默认包含 Offer ID、标题、图片、视频、售价、原价）
   const getVariantColumns = () => {
     const columns: any[] = [];
 
-    // Offer ID 列（固定第一列）
+    // Offer ID 列（固定第一列，表头带批量生成）
     columns.push({
-      title: 'Offer ID',
+      title: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>Offer ID</span>
+          <Button
+            size="small"
+            icon={<ThunderboltOutlined />}
+            onClick={handleBatchGenerateOfferId}
+            title="批量生成所有变体的 Offer ID"
+          >
+            生成
+          </Button>
+        </div>
+      ),
       key: 'offer_id',
-      width: 200,
+      width: 250,
       fixed: 'left',
       render: (_: any, record: ProductVariant) => (
         <Input
@@ -507,11 +552,24 @@ const ProductCreate: React.FC = () => {
       });
     });
 
-    // 售价列
+    // 售价列（表头带批量设置输入框）
     columns.push({
-      title: '售价',
+      title: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span>售价</span>
+          <InputNumber
+            size="small"
+            placeholder="批量设置"
+            min={0}
+            controls={false}
+            style={{ width: '100%' }}
+            onChange={handleBatchSetPrice}
+            onPressEnter={(e: any) => handleBatchSetPrice(e.target.value)}
+          />
+        </div>
+      ),
       key: 'price',
-      width: 120,
+      width: 130,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
           value={record.price}
@@ -524,11 +582,24 @@ const ProductCreate: React.FC = () => {
       ),
     });
 
-    // 原价列
+    // 原价列（表头带批量设置输入框）
     columns.push({
-      title: '原价',
+      title: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span>原价</span>
+          <InputNumber
+            size="small"
+            placeholder="批量设置"
+            min={0}
+            controls={false}
+            style={{ width: '100%' }}
+            onChange={handleBatchSetOldPrice}
+            onPressEnter={(e: any) => handleBatchSetOldPrice(e.target.value)}
+          />
+        </div>
+      ),
       key: 'old_price',
-      width: 120,
+      width: 130,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
           value={record.old_price}
@@ -698,6 +769,11 @@ const ProductCreate: React.FC = () => {
     // 根据类型渲染不同的控件
     // 使用完整label用于提示信息，使用displayLabel用于显示
     const fullLabel = originalLabel || displayLabel;
+
+    // 检查是否已添加到变体维度（已隐藏的不显示）
+    if (hiddenFields.has(fieldName)) {
+      return null;
+    }
 
     // 检查是否已添加到变体维度
     const isInVariant = variantDimensions.some((d) => d.attribute_id === attr.attribute_id);
