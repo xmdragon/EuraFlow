@@ -18,7 +18,6 @@ from ef_core.database import get_db_manager
 from ef_core.event_bus import get_event_bus
 from ef_core.plugin_host import get_plugin_host
 from ef_core.tasks.registry import get_task_registry
-from ef_core.tasks.scheduler import get_scheduler
 from ef_core.middleware.auth import AuthMiddleware
 from ef_core.middleware.logging import LoggingMiddleware
 from ef_core.middleware.metrics import MetricsMiddleware
@@ -59,16 +58,6 @@ async def lifespan(app: FastAPI):
         # 初始化插件系统
         await plugin_host.initialize()
 
-        # 初始化任务调度器
-        scheduler = get_scheduler()
-
-        # 注册同步服务处理函数（必须在调度器启动前，以便加载服务时能找到处理函数）
-        await _register_sync_service_handlers(scheduler)
-
-        # 启动调度器（会从数据库加载已启用的服务）
-        await scheduler.start()
-        logger.info("Task scheduler initialized")
-
         logger.info("EuraFlow application started successfully")
 
         yield  # 应用运行期间
@@ -81,11 +70,6 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down EuraFlow application")
 
     try:
-        # 关闭任务调度器
-        scheduler = get_scheduler()
-        await scheduler.shutdown()
-        logger.info("Task scheduler shutdown")
-
         # 关闭插件系统
         await plugin_host.shutdown()
 
@@ -115,24 +99,6 @@ async def _register_core_services(plugin_host):
     plugin_host.register_service("listings", ListingsService())
     
     logger.info("Registered core services to plugin host")
-
-
-async def _register_sync_service_handlers(scheduler):
-    """注册同步服务处理函数到调度器
-
-    通过导入插件的register_handlers模块触发Handler注册（模块级别代码会自动执行）
-    """
-    try:
-        # 导入OZON插件的Handler注册模块（模块级别代码会自动执行注册）
-        import plugins.ef.channels.ozon.register_handlers
-
-        # 导入系统服务插件
-        import plugins.ef.system.sync_service
-
-        logger.info("Sync service handlers registered via plugin imports")
-
-    except Exception as e:
-        logger.warning(f"Failed to register sync service handlers: {e}", exc_info=True)
 
 
 def create_app() -> FastAPI:

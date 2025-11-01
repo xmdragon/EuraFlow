@@ -47,7 +47,11 @@
 ---
 
 ## 1) 项目技术栈
-- **后端**：Python 3.12、FastAPI、SQLAlchemy 2.x（prefer async）、Alembic、任务运行时（Celery/自研）
+- **后端**：Python 3.12、FastAPI、SQLAlchemy 2.x（prefer async）、Alembic
+- **任务调度**：**Celery Beat**（统一使用，禁止引入其他调度器）
+  - 所有定时任务通过插件的 `setup()` 函数调用 `hooks.register_cron()` 注册
+  - Celery Beat 在启动时自动加载并调度所有已注册任务
+  - 任务执行由 Celery Worker 处理，支持分布式、重试、监控
 - **前端**：TypeScript/React、Vite、TanStack Query、Tailwind
 - **数据**：PostgreSQL、Redis
 - **观测**：JSON 日志、Prometheus 指标（`ef_*`）、OpenTelemetry Trace
@@ -296,7 +300,85 @@ logger.info('订单同步开始', extra={'order_id': order_id})
 
 ---
 
-## 19) 浏览器扩展打包
+## 19) 定时任务管理
+
+### 任务调度器：统一使用 Celery Beat
+- **架构决策**：仅使用 Celery Beat 进行定时任务调度
+- **禁止引入**：APScheduler、其他调度器（避免架构复杂化）
+- **优势**：生产级稳定性、分布式支持、任务队列、自动重试
+
+### 注册定时任务
+在插件的 `setup()` 函数中注册：
+
+```python
+async def setup(hooks) -> None:
+    """插件初始化函数"""
+
+    # 注册定时任务
+    await hooks.register_cron(
+        name="ef.ozon.orders.pull",        # 任务名称（必须以 ef. 开头）
+        cron="*/5 * * * *",                # Cron 表达式（每5分钟）
+        task=pull_orders_task              # 异步任务函数
+    )
+```
+
+### Cron 表达式示例
+```
+*/5 * * * *   → 每5分钟执行
+*/30 * * * *  → 每30分钟执行
+15 * * * *    → 每小时第15分钟执行
+0 3 * * *     → 每天凌晨3点执行（UTC）
+0 22 * * *    → 每天UTC 22:00执行（北京时间06:00）
+0 * * * *     → 每小时执行
+```
+
+### 当前定时任务列表
+系统中所有定时任务统一由 Celery Beat 调度：
+
+**系统级任务：**
+1. `ef.core.health_check` - 系统健康检查（每5分钟）
+2. `ef.core.cleanup_results` - 清理过期任务结果（每天凌晨2点）
+3. `ef.core.metrics_collection` - 系统指标采集（每5分钟）
+
+**OZON 类目同步任务：**
+4. `ef.ozon.category.sync` - OZON 类目树同步（每天凌晨4点）
+5. `ef.ozon.attributes.sync` - OZON 类目特征同步（每周二凌晨4:10）
+
+**OZON 业务同步任务：**
+6. `ef.ozon.orders.pull` - 订单拉取（每5分钟）
+7. `ef.ozon.inventory.sync` - 库存同步（每30分钟）
+8. `ef.ozon.promotions.sync` - 促销活动同步（每30分钟）
+9. `ef.ozon.promotions.health_check` - 促销系统健康检查（每小时）
+10. `ef.ozon.kuajing84.material_cost` - 跨境巴士物料成本同步（每小时第15分钟）
+11. `ef.ozon.finance.sync` - OZON财务费用同步（每天凌晨3点）
+12. `ef.ozon.finance.transactions` - OZON财务交易同步（每天UTC 22:00）
+
+**其他任务：**
+13. `ef.finance.rates.refresh` - 汇率刷新（每6小时）
+
+### 查看任务调度状态
+```bash
+# 查看 Celery Beat 日志
+supervisorctl tail -100 euraflow:celery_beat stdout
+
+# 查看已注册的任务
+./venv/bin/python -c "from ef_core.tasks.celery_app import celery_app; print(list(celery_app.conf.beat_schedule.keys()))"
+```
+
+### 新增定时任务流程
+1. 在插件 `setup()` 函数中调用 `hooks.register_cron()`
+2. 任务函数必须是异步函数（`async def`）
+3. 任务名称必须以 `ef.` 开头
+4. 重启 Celery Beat 服务生效：`./restart.sh`
+
+### 禁止行为
+- ❌ 使用 APScheduler 或其他调度器
+- ❌ 在代码中硬编码调度逻辑
+- ❌ 创建数据库驱动的调度器（增加复杂度）
+
+---
+
+## 20) 浏览器扩展打包
 - **目录**：`plugins/ef/channels/ozon/browser_extension/`
 - **版本号管理**：
   - 版本号仅在 `manifest.json` 中的 `version` 字段维护
@@ -320,7 +402,7 @@ logger.info('订单同步开始', extra={'order_id': order_id})
 
 ---
 
-## 20) 术语表
+## 21) 术语表
 - **TTD**：新单平台到达系统的延迟
 - **金丝雀/灰度**：按店铺/渠道/地区逐步放量
 - **悬挂账**：对账差异暂存池，需人工闭环

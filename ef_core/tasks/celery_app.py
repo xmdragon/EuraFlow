@@ -180,20 +180,27 @@ def _initialize_plugins_for_celery():
 
         logger.info("🔧 Initializing plugins for Celery...")
 
-        # 创建任务注册表和事件总线
-        task_registry = TaskRegistry()
-        event_bus = EventBus()
+        # 在同一个事件循环中完成所有异步初始化
+        async def async_init():
+            # 创建任务注册表和事件总线
+            task_registry = TaskRegistry()
+            event_bus = EventBus()
 
-        # 初始化事件总线
-        asyncio.run(event_bus.initialize())
+            # 初始化事件总线
+            await event_bus.initialize()
 
-        # 获取插件宿主并注入依赖
-        plugin_host = get_plugin_host()
-        plugin_host.task_registry = task_registry
-        plugin_host.event_bus = event_bus
+            # 获取插件宿主并注入依赖
+            plugin_host = get_plugin_host()
+            plugin_host.task_registry = task_registry
+            plugin_host.event_bus = event_bus
 
-        # 初始化所有插件（会调用每个插件的 setup() 并注册定时任务）
-        asyncio.run(plugin_host.initialize())
+            # 初始化所有插件（会调用每个插件的 setup() 并注册定时任务）
+            await plugin_host.initialize()
+
+            return task_registry
+
+        # 在单个事件循环中执行所有异步操作
+        task_registry = asyncio.run(async_init())
 
         logger.info(f"✅ Celery plugin initialization completed, registered {len(task_registry.registered_tasks)} tasks")
 

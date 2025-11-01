@@ -1,27 +1,34 @@
 """
-同步服务管理API路由（增强版）
+同步服务管理API路由（只读+手动触发）
 
-新增功能：
+功能：
 1. GET /handlers - 列出所有可用Handler
-2. DELETE /{id}/logs - 清空服务日志（按日期）
-3. 增强创建和更新接口的验证
+2. GET /sync-services - 查看所有同步服务
+3. GET /{id}/logs - 查看服务日志
+4. GET /{id}/stats - 查看服务统计
+5. POST /{id}/trigger - 手动触发服务（调用 Celery）
+6. DELETE /{id}/logs - 清空服务日志
+
+注意：
+- 定时任务统一由 Celery Beat 调度（在插件 setup() 中注册）
+- 本模块不再提供添加/编辑/删除/启用/禁用功能
+- 修改任务配置需要修改插件代码并重启服务
 """
 import logging
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_async_session
-from ef_core.tasks.scheduler import get_scheduler
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
+from ef_core.tasks.registry import get_task_registry
 from ..models.sync_service import SyncService
 from ..models.sync_service_log import SyncServiceLog
 from ..services.handler_registry import get_registry
-from ..services.sync_manager import SyncServiceManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,27 +44,6 @@ class HandlerInfoResponse(BaseModel):
     description: str
     plugin: str
     config_schema: dict
-
-
-class SyncServiceCreate(BaseModel):
-    """创建同步服务DTO"""
-    service_key: str = Field(..., description="服务唯一标识")
-    service_name: str = Field(..., description="服务显示名称")
-    service_description: Optional[str] = Field(None, description="服务功能说明")
-    service_type: str = Field(..., description="调度类型: cron | interval")
-    schedule_config: str = Field(..., description="调度配置：cron表达式或间隔秒数")
-    is_enabled: bool = Field(True, description="启用开关")
-    config_json: Optional[dict] = Field(None, description="服务特定配置")
-
-
-class SyncServiceUpdate(BaseModel):
-    """更新同步服务DTO"""
-    service_name: Optional[str] = Field(None, description="服务显示名称")
-    service_description: Optional[str] = Field(None, description="服务功能说明")
-    service_type: Optional[str] = Field(None, description="调度类型: cron | interval")
-    schedule_config: Optional[str] = Field(None, description="调度配置")
-    is_enabled: Optional[bool] = Field(None, description="启用开关")
-    config_json: Optional[dict] = Field(None, description="服务特定配置")
 
 
 class SyncServiceResponse(BaseModel):
@@ -133,7 +119,7 @@ async def list_sync_services(
     is_enabled: Optional[bool] = Query(None, description="筛选启用状态"),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """获取同步服务列表"""
+    """获取同步服务列表（只读）"""
     query = select(SyncService)
 
     if is_enabled is not None:
@@ -168,143 +154,17 @@ async def list_sync_services(
     ]
 
 
-@router.post("", response_model=SyncServiceResponse)
-async def create_sync_service(
-    data: SyncServiceCreate,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
-):
-    """创建同步服务（需要操作员权限）"""
-    manager = SyncServiceManager(db)
-
-    # 使用Manager创建服务（包含Handler验证和Cron验证）
-    success, error = await manager.create_service(
-        service_key=data.service_key,
-        service_name=data.service_name,
-        service_description=data.service_description or "",
-        service_type=data.service_type,
-        schedule_config=data.schedule_config,
-        is_enabled=data.is_enabled,
-        config_json=data.config_json
-    )
-
-    if not success:
-        raise HTTPException(status_code=400, detail=error)
-
-    # 查询创建的服务并返回
-    result = await db.execute(
-        select(SyncService).where(SyncService.service_key == data.service_key)
-    )
-    service = result.scalar_one()
-
-    return SyncServiceResponse(
-        id=service.id,
-        service_key=service.service_key,
-        service_name=service.service_name,
-        service_description=service.service_description,
-        service_type=service.service_type,
-        schedule_config=service.schedule_config,
-        is_enabled=service.is_enabled,
-        last_run_at=None,
-        last_run_status=None,
-        last_run_message=None,
-        run_count=0,
-        success_count=0,
-        error_count=0,
-        config_json=service.config_json,
-        created_at=service.created_at.isoformat(),
-        updated_at=service.updated_at.isoformat()
-    )
-
-
-@router.put("/{service_id}", response_model=SyncServiceResponse)
-async def update_sync_service(
-    service_id: int,
-    data: SyncServiceUpdate,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
-):
-    """更新同步服务配置（需要操作员权限）"""
-    manager = SyncServiceManager(db)
-
-    # 使用Manager更新服务（包含验证和调度器更新）
-    success, error = await manager.update_service(
-        service_id=service_id,
-        service_name=data.service_name,
-        service_description=data.service_description,
-        service_type=data.service_type,
-        schedule_config=data.schedule_config,
-        is_enabled=data.is_enabled,
-        config_json=data.config_json
-    )
-
-    if not success:
-        raise HTTPException(status_code=400 if "not found" not in error.lower() else 404, detail=error)
-
-    # 查询更新后的服务并返回
-    result = await db.execute(
-        select(SyncService).where(SyncService.id == service_id)
-    )
-    service = result.scalar_one()
-
-    return SyncServiceResponse(
-        id=service.id,
-        service_key=service.service_key,
-        service_name=service.service_name,
-        service_description=service.service_description,
-        service_type=service.service_type,
-        schedule_config=service.schedule_config,
-        is_enabled=service.is_enabled,
-        last_run_at=service.last_run_at.isoformat() if service.last_run_at else None,
-        last_run_status=service.last_run_status,
-        last_run_message=service.last_run_message,
-        run_count=service.run_count,
-        success_count=service.success_count,
-        error_count=service.error_count,
-        config_json=service.config_json,
-        created_at=service.created_at.isoformat(),
-        updated_at=service.updated_at.isoformat()
-    )
-
-
-@router.delete("/{service_id}")
-async def delete_sync_service(
-    service_id: int,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
-):
-    """删除同步服务（需要操作员权限）"""
-    # 查找服务
-    result = await db.execute(
-        select(SyncService).where(SyncService.id == service_id)
-    )
-    service = result.scalar_one_or_none()
-
-    if not service:
-        raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
-
-    # 从调度器移除
-    scheduler = get_scheduler()
-    try:
-        await scheduler.remove_service(service.service_key)
-        logger.info(f"Service removed from scheduler: {service.service_key}")
-    except Exception as e:
-        logger.warning(f"Failed to remove service from scheduler: {e}")
-
-    # 删除服务
-    await db.delete(service)
-    await db.commit()
-
-    return {"ok": True, "message": f"Service {service_id} deleted successfully"}
-
-
 @router.post("/{service_id}/trigger")
 async def trigger_sync_service(
     service_id: int,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
-    """手动触发同步服务（需要操作员权限）"""
+    """
+    手动触发同步服务（需要操作员权限）
+
+    通过 Celery 任务队列执行，不依赖 APScheduler
+    """
     # 查找服务
     result = await db.execute(
         select(SyncService).where(SyncService.id == service_id)
@@ -314,65 +174,56 @@ async def trigger_sync_service(
     if not service:
         raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
 
-    # 触发执行
-    scheduler = get_scheduler()
-    try:
-        await scheduler.trigger_service_now(
-            service_key=service.service_key,
-            config_json=service.config_json or {}
-        )
-        logger.info(f"Service triggered manually: {service.service_key}")
-    except Exception as e:
-        logger.error(f"Failed to trigger service: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to trigger service: {str(e)}")
+    # 从 handler_registry 获取对应的 Celery Beat 任务名
+    # 任务名格式：ef.{plugin}.{service_key}
+    # 例如：ozon_sync_incremental -> ef.ozon.sync_incremental
+    service_key = service.service_key
 
-    return {"ok": True, "message": f"Service {service.service_key} triggered successfully"}
-
-
-@router.post("/{service_id}/toggle")
-async def toggle_sync_service(
-    service_id: int,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
-):
-    """切换同步服务开关（需要操作员权限）"""
-    # 查找服务
-    result = await db.execute(
-        select(SyncService).where(SyncService.id == service_id)
-    )
-    service = result.scalar_one_or_none()
-
-    if not service:
-        raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
-
-    # 切换状态
-    service.is_enabled = not service.is_enabled
-    await db.commit()
-
-    # 更新调度器
-    scheduler = get_scheduler()
-    try:
-        if service.is_enabled:
-            # 启用：添加到调度器
-            await scheduler.add_service(
-                service_key=service.service_key,
-                service_type=service.service_type,
-                schedule_config=service.schedule_config,
-                config_json=service.config_json or {}
-            )
-            logger.info(f"Service enabled: {service.service_key}")
-        else:
-            # 禁用：从调度器移除
-            await scheduler.remove_service(service.service_key)
-            logger.info(f"Service disabled: {service.service_key}")
-    except Exception as e:
-        logger.error(f"Failed to toggle service in scheduler: {e}")
-
-    return {
-        "ok": True,
-        "message": f"Service {service.service_key} {'enabled' if service.is_enabled else 'disabled'}",
-        "is_enabled": service.is_enabled
+    # 尝试映射到 Celery Beat 任务名
+    task_name_mapping = {
+        "database_backup": "ef.system.database_backup",
+        "exchange_rate_refresh": "ef.core.exchange_rate_refresh",
+        "kuajing84_material_cost": "ef.ozon.kuajing84.material_cost",
+        "ozon_finance_sync": "ef.ozon.finance.sync",
+        "ozon_sync_incremental": "ef.ozon.orders.pull",  # 统一使用订单拉取任务
+        "ozon_scheduled_category_sync": "ef.ozon.scheduled_category_sync",
+        "ozon_scheduled_attributes_sync": "ef.ozon.scheduled_attributes_sync",
+        "ozon_finance_transactions_daily": "ef.ozon.finance.transactions",
     }
+
+    task_name = task_name_mapping.get(service_key)
+
+    if not task_name:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No Celery task found for service: {service_key}. Please check task_name_mapping in routes.py"
+        )
+
+    # 触发 Celery 任务
+    try:
+        task_registry = get_task_registry()
+        task_id = await task_registry.trigger_task_now(
+            name=task_name,
+            **(service.config_json or {})
+        )
+
+        logger.info(f"Service triggered manually via Celery: {service_key} -> {task_name}, task_id={task_id}")
+
+        return {
+            "ok": True,
+            "message": f"Service {service.service_key} triggered successfully",
+            "task_id": task_id,
+            "task_name": task_name
+        }
+
+    except ValueError as e:
+        # 任务未注册或被禁用
+        logger.error(f"Failed to trigger service: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+        logger.error(f"Failed to trigger service: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to trigger service: {str(e)}")
 
 
 @router.get("/{service_id}/logs", response_model=List[SyncServiceLogResponse])
@@ -443,12 +294,21 @@ async def clear_sync_service_logs(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format, use ISO 8601")
 
-    # 清空日志
-    manager = SyncServiceManager(db)
-    deleted_count = await manager.clear_logs(
-        service_key=service.service_key,
-        before_date=before_date
+    # 构建删除查询
+    delete_query = delete(SyncServiceLog).where(
+        SyncServiceLog.service_key == service.service_key
     )
+
+    if before_date:
+        delete_query = delete_query.where(SyncServiceLog.started_at < before_date)
+
+    # 执行删除
+    delete_result = await db.execute(delete_query)
+    deleted_count = delete_result.rowcount
+
+    await db.commit()
+
+    logger.info(f"Cleared {deleted_count} logs for service {service.service_key}")
 
     return {
         "ok": True,
@@ -510,34 +370,3 @@ async def get_sync_service_stats(
         avg_execution_time_ms=round(avg_execution_time_ms, 2) if avg_execution_time_ms else None,
         recent_errors=recent_errors
     )
-
-
-@router.post("/{service_id}/reset-stats")
-async def reset_sync_service_stats(
-    service_id: int,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_role("operator"))
-):
-    """重置同步服务统计数据（需要操作员权限）"""
-    # 查找服务
-    result = await db.execute(
-        select(SyncService).where(SyncService.id == service_id)
-    )
-    service = result.scalar_one_or_none()
-
-    if not service:
-        raise HTTPException(status_code=404, detail=f"Service {service_id} not found")
-
-    # 重置统计数据
-    service.run_count = 0
-    service.success_count = 0
-    service.error_count = 0
-    service.last_run_at = None
-    service.last_run_status = None
-    service.last_run_message = None
-
-    await db.commit()
-
-    logger.info(f"Service stats reset: {service.service_key}")
-
-    return {"ok": True, "message": f"Service {service.service_key} stats reset successfully"}

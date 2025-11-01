@@ -53,12 +53,6 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import translation routes: {e}")
 
-try:
-    from .sync_service_routes import router as sync_service_router
-    router.include_router(sync_service_router)
-except ImportError as e:
-    logger.warning(f"Could not import sync service routes: {e}")
-
 # 新拆分的业务子路由
 try:
     from .sync_task_routes import router as sync_task_router

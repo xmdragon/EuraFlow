@@ -487,6 +487,68 @@ async def setup(hooks) -> None:
         import traceback
         traceback.print_exc()
 
+    # 注册其他同步服务的定时任务（统一使用 Celery Beat）
+    try:
+        # 1. 跨境巴士物料成本同步 - 每小时第15分钟执行
+        async def kuajing84_material_cost_task():
+            """跨境巴士物料成本同步定时任务"""
+            from plugins.ef.system.sync_service.services.handler_registry import get_registry
+            registry = get_registry()
+            handler = registry.get_handler("kuajing84_material_cost")
+            if handler:
+                return await handler({})
+            else:
+                logger.warning("kuajing84_material_cost handler not found")
+                return {}
+
+        await hooks.register_cron(
+            name="ef.ozon.kuajing84.material_cost",
+            cron="15 * * * *",  # 每小时第15分钟
+            task=kuajing84_material_cost_task
+        )
+
+        # 2. OZON财务费用同步 - 每天凌晨3点执行
+        async def ozon_finance_sync_task():
+            """OZON财务费用同步定时任务"""
+            from plugins.ef.system.sync_service.services.handler_registry import get_registry
+            registry = get_registry()
+            handler = registry.get_handler("ozon_finance_sync")
+            if handler:
+                return await handler({})
+            else:
+                logger.warning("ozon_finance_sync handler not found")
+                return {}
+
+        await hooks.register_cron(
+            name="ef.ozon.finance.sync",
+            cron="0 3 * * *",  # 每天凌晨3点 UTC
+            task=ozon_finance_sync_task
+        )
+
+        # 3. OZON财务交易同步 - 每天UTC 22:00执行 (北京时间06:00)
+        async def ozon_finance_transactions_task():
+            """OZON财务交易同步定时任务"""
+            from plugins.ef.system.sync_service.services.handler_registry import get_registry
+            registry = get_registry()
+            handler = registry.get_handler("ozon_finance_transactions_daily")
+            if handler:
+                return await handler({})
+            else:
+                logger.warning("ozon_finance_transactions_daily handler not found")
+                return {}
+
+        await hooks.register_cron(
+            name="ef.ozon.finance.transactions",
+            cron="0 22 * * *",  # 每天UTC 22:00
+            task=ozon_finance_transactions_task
+        )
+
+        logger.info("✓ Registered sync service tasks successfully")
+    except Exception as e:
+        logger.warning(f"Warning: Failed to register sync service tasks: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 配置信息已在上面打印
 
 
