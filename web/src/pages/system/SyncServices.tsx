@@ -1,11 +1,15 @@
 /**
- * 后台服务管理页面（增强版）
+ * 后台服务管理页面
  *
- * 新增功能：
- * 1. 编辑服务配置（EditServiceModal）
- * 2. 添加新服务（AddServiceModal）
- * 3. 可视化Cron编辑器（react-js-cron）
- * 4. 清空日志（按日期）
+ * 功能：
+ * 1. 查看服务列表（只读）
+ * 2. 手动触发服务（通过 Celery Beat）
+ * 3. 查看日志
+ * 4. 查看统计
+ * 5. 清空日志
+ * 6. 重置统计
+ *
+ * 注意：定时任务统一由 Celery Beat 调度，配置需修改插件代码并重启服务
  */
 import {
   SyncOutlined,
@@ -13,44 +17,16 @@ import {
   FileTextOutlined,
   BarChartOutlined,
   ReloadOutlined,
-  EditOutlined,
-  PlusOutlined,
   DeleteOutlined,
 } from '@ant-design/icons';
-import {
-  Card,
-  Table,
-  Button,
-  Space,
-  Tag,
-  Modal,
-  Descriptions,
-  Switch,
-  Tooltip,
-  Spin,
-  Form,
-  Input,
-  Radio,
-  InputNumber,
-  DatePicker,
-  Select,
-  App,
-} from 'antd';
+import { Card, Table, Button, Space, Tag, Modal, Descriptions, Tooltip, Spin, App } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState, useEffect } from 'react';
-import { Cron } from 'react-js-cron';
-
-import 'react-js-cron/dist/styles.css';
 
 import PageTitle from '@/components/PageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import axios from '@/services/axios';
-import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
-
-import type { FormValues } from '@/types/common';
-
-const { TextArea } = Input;
 
 interface SyncService {
   id: number;
@@ -96,19 +72,10 @@ interface SyncServiceStats {
   }>;
 }
 
-interface HandlerInfo {
-  service_key: string;
-  name: string;
-  description: string;
-  plugin: string;
-  config_schema: Record<string, any>;
-}
-
 const SyncServices = () => {
-  const { modal } = App.useApp(); // 使用 App.useApp() hook 获取 modal 实例
+  const { modal } = App.useApp();
   const { canOperate } = usePermission();
   const [services, setServices] = useState<SyncService[]>([]);
-  const [handlers, setHandlers] = useState<HandlerInfo[]>([]);
   const [loading, setLoading] = useState(false);
 
   // 日志模态框
@@ -120,14 +87,6 @@ const SyncServices = () => {
   const [statsModalVisible, setStatsModalVisible] = useState(false);
   const [stats, setStats] = useState<SyncServiceStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
-
-  // 编辑模态框
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editForm] = Form.useForm();
-
-  // 添加模态框
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [addForm] = Form.useForm();
 
   const [selectedService, setSelectedService] = useState<SyncService | null>(null);
 
@@ -141,27 +100,6 @@ const SyncServices = () => {
       notifyError('加载失败', error.response?.data?.error?.detail || '加载服务列表失败');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // 加载可用Handler列表
-  const loadHandlers = async () => {
-    try {
-      const response = await axios.get('/api/ef/v1/sync-services/handlers');
-      setHandlers(response.data || []);
-    } catch (error) {
-      logger.error('加载Handler列表失败:', error);
-    }
-  };
-
-  // 切换服务状态
-  const toggleService = async (service: SyncService) => {
-    try {
-      await axios.post(`/api/ef/v1/sync-services/${service.id}/toggle`);
-      notifySuccess('操作成功', `服务已${service.is_enabled ? '禁用' : '启用'}`);
-      loadServices();
-    } catch (error) {
-      notifyError('操作失败', error.response?.data?.error?.detail || '操作失败');
     }
   };
 
@@ -206,75 +144,6 @@ const SyncServices = () => {
     }
   };
 
-  // 打开编辑对话框
-  const openEditModal = (service: SyncService) => {
-    setSelectedService(service);
-    editForm.setFieldsValue({
-      service_name: service.service_name,
-      service_description: service.service_description,
-      service_type: service.service_type,
-      // 如果是 interval 类型，将字符串转换为数字
-      schedule_config:
-        service.service_type === 'interval'
-          ? parseInt(service.schedule_config)
-          : service.schedule_config,
-      is_enabled: service.is_enabled,
-    });
-    setEditModalVisible(true);
-  };
-
-  // 提交编辑
-  const handleEditSubmit = async (values: FormValues) => {
-    if (!selectedService) return;
-
-    try {
-      // 如果是 interval 类型，确保 schedule_config 是字符串
-      const payload = {
-        ...values,
-        schedule_config:
-          values.service_type === 'interval'
-            ? String(values.schedule_config)
-            : values.schedule_config,
-      };
-
-      await axios.put(`/api/ef/v1/sync-services/${selectedService.id}`, payload);
-      notifySuccess('更新成功', '服务配置已更新');
-      setEditModalVisible(false);
-      editForm.resetFields();
-      loadServices();
-    } catch (error) {
-      notifyError('更新失败', error.response?.data?.detail || '更新失败');
-    }
-  };
-
-  // 打开添加对话框
-  const openAddModal = () => {
-    addForm.resetFields();
-    setAddModalVisible(true);
-  };
-
-  // 提交添加
-  const handleAddSubmit = async (values: FormValues) => {
-    try {
-      // 如果是 interval 类型，确保 schedule_config 是字符串
-      const payload = {
-        ...values,
-        schedule_config:
-          values.service_type === 'interval'
-            ? String(values.schedule_config)
-            : values.schedule_config,
-      };
-
-      await axios.post('/api/ef/v1/sync-services', payload);
-      notifySuccess('添加成功', '服务已添加');
-      setAddModalVisible(false);
-      addForm.resetFields();
-      loadServices();
-    } catch (error) {
-      notifyError('添加失败', error.response?.data?.detail || '添加失败');
-    }
-  };
-
   // 清空日志
   const clearLogs = async (service: SyncService, beforeDate?: string) => {
     try {
@@ -306,7 +175,6 @@ const SyncServices = () => {
 
   useEffect(() => {
     loadServices();
-    loadHandlers();
     const interval = setInterval(loadServices, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -380,36 +248,19 @@ const SyncServices = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 320,
+      width: 260,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
           {canOperate && (
-            <>
-              <Tooltip title={record.is_enabled ? '禁用服务' : '启用服务'}>
-                <Switch
-                  size="small"
-                  checked={record.is_enabled}
-                  onChange={() => toggleService(record)}
-                />
-              </Tooltip>
-              <Button
-                type="link"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => openEditModal(record)}
-              >
-                编辑
-              </Button>
-              <Button
-                type="primary"
-                size="small"
-                icon={<PlayCircleOutlined />}
-                onClick={() => triggerService(record)}
-              >
-                触发
-              </Button>
-            </>
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={() => triggerService(record)}
+            >
+              触发
+            </Button>
           )}
           <Button size="small" icon={<FileTextOutlined />} onClick={() => viewLogs(record)} />
           <Button size="small" icon={<BarChartOutlined />} onClick={() => viewStats(record)} />
@@ -484,16 +335,9 @@ const SyncServices = () => {
 
       <Card
         extra={
-          <Space>
-            {canOperate && (
-              <Button icon={<PlusOutlined />} type="primary" onClick={openAddModal}>
-                添加服务
-              </Button>
-            )}
-            <Button icon={<ReloadOutlined />} onClick={loadServices}>
-              刷新
-            </Button>
-          </Space>
+          <Button icon={<ReloadOutlined />} onClick={loadServices}>
+            刷新
+          </Button>
         }
       >
         <Table
@@ -502,187 +346,8 @@ const SyncServices = () => {
           rowKey="id"
           loading={loading}
           pagination={false}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1200 }}
         />
-
-        {/* 编辑服务对话框 */}
-        <Modal
-          title="编辑服务配置"
-          open={editModalVisible}
-          onCancel={() => {
-            setEditModalVisible(false);
-            editForm.resetFields();
-          }}
-          onOk={() => editForm.submit()}
-          width={700}
-        >
-          <Form form={editForm} layout="vertical" onFinish={handleEditSubmit}>
-            <Form.Item
-              label="服务名称"
-              name="service_name"
-              rules={[{ required: true, message: '请输入服务名称' }]}
-            >
-              <Input placeholder="服务显示名称" />
-            </Form.Item>
-
-            <Form.Item label="服务描述" name="service_description">
-              <TextArea rows={3} placeholder="服务功能说明" />
-            </Form.Item>
-
-            <Form.Item label="调度类型" name="service_type" rules={[{ required: true }]}>
-              <Radio.Group>
-                <Radio value="cron">Cron定时</Radio>
-                <Radio value="interval">间隔周期</Radio>
-              </Radio.Group>
-            </Form.Item>
-
-            <Form.Item
-              noStyle
-              shouldUpdate={(prev, curr) => prev.service_type !== curr.service_type}
-            >
-              {({ getFieldValue }) => {
-                const serviceType = getFieldValue('service_type');
-
-                if (serviceType === 'cron') {
-                  return (
-                    <Form.Item
-                      label="Cron表达式"
-                      name="schedule_config"
-                      rules={[{ required: true, message: '请配置Cron表达式' }]}
-                    >
-                      <Cron
-                        value={editForm.getFieldValue('schedule_config') || '0 * * * *'}
-                        setValue={(value) => editForm.setFieldValue('schedule_config', value)}
-                        clearButton={false}
-                      />
-                    </Form.Item>
-                  );
-                } else {
-                  return (
-                    <Form.Item
-                      label="间隔秒数"
-                      name="schedule_config"
-                      rules={[{ required: true, message: '请输入间隔秒数' }]}
-                    >
-                      <InputNumber
-                        min={1}
-                        addonAfter="秒"
-                        placeholder="执行间隔（秒）"
-                        style={{ width: '100%' }}
-                      />
-                    </Form.Item>
-                  );
-                }
-              }}
-            </Form.Item>
-
-            <Form.Item label="启用状态" name="is_enabled" valuePropName="checked">
-              <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-            </Form.Item>
-          </Form>
-        </Modal>
-
-        {/* 添加服务对话框 */}
-        <Modal
-          title="添加服务"
-          open={addModalVisible}
-          onCancel={() => {
-            setAddModalVisible(false);
-            addForm.resetFields();
-          }}
-          onOk={() => addForm.submit()}
-          width={700}
-        >
-          <Form form={addForm} layout="vertical" onFinish={handleAddSubmit}>
-            <Form.Item
-              label="选择Handler"
-              name="service_key"
-              rules={[{ required: true, message: '请选择Handler' }]}
-            >
-              <Select placeholder="从已注册的Handler中选择">
-                {handlers.map((h) => (
-                  <Select.Option key={h.service_key} value={h.service_key}>
-                    {h.name} ({h.plugin})
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-
-            <Form.Item
-              label="服务名称"
-              name="service_name"
-              rules={[{ required: true, message: '请输入服务名称' }]}
-            >
-              <Input placeholder="服务显示名称" />
-            </Form.Item>
-
-            <Form.Item label="服务描述" name="service_description">
-              <TextArea rows={3} placeholder="服务功能说明" />
-            </Form.Item>
-
-            <Form.Item
-              label="调度类型"
-              name="service_type"
-              rules={[{ required: true }]}
-              initialValue="cron"
-            >
-              <Radio.Group>
-                <Radio value="cron">Cron定时</Radio>
-                <Radio value="interval">间隔周期</Radio>
-              </Radio.Group>
-            </Form.Item>
-
-            <Form.Item
-              noStyle
-              shouldUpdate={(prev, curr) => prev.service_type !== curr.service_type}
-            >
-              {({ getFieldValue }) => {
-                const serviceType = getFieldValue('service_type');
-
-                if (serviceType === 'cron') {
-                  return (
-                    <Form.Item
-                      label="Cron表达式"
-                      name="schedule_config"
-                      rules={[{ required: true, message: '请配置Cron表达式' }]}
-                      initialValue="0 * * * *"
-                    >
-                      <Cron
-                        value={addForm.getFieldValue('schedule_config') || '0 * * * *'}
-                        setValue={(value) => addForm.setFieldValue('schedule_config', value)}
-                        clearButton={false}
-                      />
-                    </Form.Item>
-                  );
-                } else {
-                  return (
-                    <Form.Item
-                      label="间隔秒数"
-                      name="schedule_config"
-                      rules={[{ required: true, message: '请输入间隔秒数' }]}
-                    >
-                      <InputNumber
-                        min={1}
-                        addonAfter="秒"
-                        placeholder="执行间隔（秒）"
-                        style={{ width: '100%' }}
-                      />
-                    </Form.Item>
-                  );
-                }
-              }}
-            </Form.Item>
-
-            <Form.Item
-              label="启用状态"
-              name="is_enabled"
-              valuePropName="checked"
-              initialValue={true}
-            >
-              <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-            </Form.Item>
-          </Form>
-        </Modal>
 
         {/* 日志模态框 */}
         <Modal
@@ -706,7 +371,7 @@ const SyncServices = () => {
                         if (selectedService) {
                           clearLogs(selectedService);
                         }
-                      }
+                      },
                     });
                   }}
                 >
@@ -748,14 +413,15 @@ const SyncServices = () => {
                   onClick={() => {
                     modal.confirm({
                       title: '重置统计数据',
-                      content: '确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。',
+                      content:
+                        '确定要重置此服务的统计数据吗？这将清空总运行次数、成功次数、失败次数等统计信息。',
                       okText: '确定',
                       cancelText: '取消',
                       onOk: () => {
                         if (selectedService) {
                           resetStats(selectedService);
                         }
-                      }
+                      },
                     });
                   }}
                 >
