@@ -186,18 +186,22 @@ def _initialize_plugins_for_celery():
             task_registry = TaskRegistry()
             event_bus = EventBus()
 
-            # 初始化事件总线
-            await event_bus.initialize()
+            try:
+                # 初始化事件总线
+                await event_bus.initialize()
 
-            # 获取插件宿主并注入依赖
-            plugin_host = get_plugin_host()
-            plugin_host.task_registry = task_registry
-            plugin_host.event_bus = event_bus
+                # 获取插件宿主并注入依赖
+                plugin_host = get_plugin_host()
+                plugin_host.task_registry = task_registry
+                plugin_host.event_bus = event_bus
 
-            # 初始化所有插件（会调用每个插件的 setup() 并注册定时任务）
-            await plugin_host.initialize()
+                # 初始化所有插件（会调用每个插件的 setup() 并注册定时任务）
+                await plugin_host.initialize()
 
-            return task_registry
+                return task_registry
+            finally:
+                # 关键修复：在事件循环结束前正确关闭 EventBus，避免 "Event loop is closed" 错误
+                await event_bus.shutdown()
 
         # 在单个事件循环中执行所有异步操作
         task_registry = asyncio.run(async_init())
