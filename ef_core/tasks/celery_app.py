@@ -160,6 +160,56 @@ def task_retry_handler(sender=None, task_id=None, reason=None, einfo=None, **kwd
     logger.warning(f"Task retrying: {sender.name}", task_id=task_id, reason=str(reason))
 
 
+# ====================================================================================
+# 关键：在模块加载时初始化插件（确保 Celery Beat 和 Worker 都能加载插件任务）
+# ====================================================================================
+def _initialize_plugins_for_celery():
+    """
+    Celery 模块加载时初始化插件并注册定时任务
+
+    这是关键！Celery Beat 作为独立进程启动，不会触发 FastAPI 的 startup 事件，
+    所以必须在模块加载时显式初始化插件，否则插件注册的定时任务不会被调度。
+
+    放在模块级别执行，确保无论是 Beat 还是 Worker，只要导入了 celery_app 就会初始化。
+    """
+    try:
+        import asyncio
+        from ef_core.plugin_host import get_plugin_host
+        from ef_core.tasks.registry import TaskRegistry
+        from ef_core.event_bus import EventBus
+
+        logger.info("🔧 Initializing plugins for Celery...")
+
+        # 创建任务注册表和事件总线
+        task_registry = TaskRegistry()
+        event_bus = EventBus()
+
+        # 初始化事件总线
+        asyncio.run(event_bus.initialize())
+
+        # 获取插件宿主并注入依赖
+        plugin_host = get_plugin_host()
+        plugin_host.task_registry = task_registry
+        plugin_host.event_bus = event_bus
+
+        # 初始化所有插件（会调用每个插件的 setup() 并注册定时任务）
+        asyncio.run(plugin_host.initialize())
+
+        logger.info(f"✅ Celery plugin initialization completed, registered {len(task_registry.registered_tasks)} tasks")
+
+        # 输出注册的任务列表（便于调试）
+        for task_name in task_registry.registered_tasks.keys():
+            logger.info(f"  📋 Registered task: {task_name}")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize plugins for Celery: {e}", exc_info=True)
+        import traceback
+        traceback.print_exc()
+
+# 立即执行插件初始化
+_initialize_plugins_for_celery()
+
+
 @signals.worker_ready.connect
 def cleanup_stale_tasks_on_startup(**kwargs):
     """

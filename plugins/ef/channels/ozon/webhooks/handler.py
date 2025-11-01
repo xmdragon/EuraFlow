@@ -569,11 +569,17 @@ class OzonWebhookHandler:
         logger.warning(f"Failed to update posting {posting_number} with API data after {len(retry_delays)} attempts")
 
     async def _trigger_order_sync(self, posting_number: str) -> None:
-        """触发特定订单的同步（只从当前店铺获取）"""
+        """
+        触发特定订单的同步（只从当前店铺获取）
+
+        增强功能：同步该订单的所有包裹（不仅是webhook通知的单个包裹）
+        原因：OZON webhook只为第一个包裹发送通知，后续包裹不会触发webhook
+        """
         try:
             from ..models import OzonShop
             from ..api.client import OzonAPIClient
             from sqlalchemy import select
+            from datetime import timedelta
 
             db_manager = get_db_manager()
             async with db_manager.get_session() as db:
@@ -594,31 +600,83 @@ class OzonWebhookHandler:
                         api_key=shop.api_key_enc
                     )
 
-                    # 获取订单详情
-                    order_info = await client.get_posting_details(posting_number)
+                    # 步骤1: 获取当前包裹详情（获取order_id和创建时间）
+                    order_info = await client.get_posting_details(
+                        posting_number,
+                        with_analytics_data=True,
+                        with_financial_data=True
+                    )
 
                     # 记录API原始返回
                     logger.info(f"API response for {posting_number}: {json.dumps(order_info, ensure_ascii=False)[:500]}")
 
                     # 检查响应和result是否有效
-                    if not order_info:
-                        logger.warning(f"API returned None for posting {posting_number}")
-                    elif not order_info.get("result"):
-                        logger.warning(f"No result in API response for posting {posting_number}: {order_info}")
-                    elif order_info["result"] is None:
-                        logger.warning(f"API result is None for posting {posting_number}")
-                    else:
-                        # 保存订单到数据库
+                    if not order_info or not order_info.get("result"):
+                        logger.warning(f"No result in API response for posting {posting_number}")
+                        return
+
+                    posting_data = order_info["result"]
+                    order_id = posting_data.get("order_id")
+                    created_at = posting_data.get("created_at") or posting_data.get("in_process_at")
+
+                    if not order_id:
+                        logger.warning(f"No order_id in posting {posting_number}, cannot sync related postings")
+                        # 仍然保存当前包裹
                         from ..services.order_sync import OrderSyncService
-
-                        # 创建服务实例（需要传入必需参数）
                         service = OrderSyncService(shop_id=shop.id, api_client=client)
-
-                        # 使用 _process_single_posting 方法处理单个 posting
-                        await service._process_single_posting(db, order_info["result"])
+                        await service._process_single_posting(db, posting_data)
                         await db.commit()
+                        return
 
-                        logger.info(f"Successfully synced order {posting_number} from webhook for shop {shop.id}")
+                    # 步骤2: 查询该订单的所有包裹（时间范围：创建时间前后1天）
+                    from datetime import datetime, timezone
+                    if created_at:
+                        from ..services.order_sync import OrderSyncService
+                        base_time = OrderSyncService(shop_id=shop.id, api_client=client)._parse_datetime(created_at)
+                        if not base_time:
+                            base_time = datetime.now(timezone.utc)
+                    else:
+                        base_time = datetime.now(timezone.utc)
+
+                    date_from = base_time - timedelta(days=1)
+                    date_to = base_time + timedelta(days=1)
+
+                    logger.info(f"Fetching all postings for order {order_id} in range {date_from} - {date_to}")
+
+                    all_postings_response = await client.get_orders(
+                        date_from=date_from,
+                        date_to=date_to,
+                        limit=50  # 一个订单通常不会超过50个包裹
+                    )
+
+                    if not all_postings_response or not all_postings_response.get("result"):
+                        logger.warning(f"Failed to fetch postings for order {order_id}")
+                        # 仍然保存当前包裹
+                        from ..services.order_sync import OrderSyncService
+                        service = OrderSyncService(shop_id=shop.id, api_client=client)
+                        await service._process_single_posting(db, posting_data)
+                        await db.commit()
+                        return
+
+                    # 步骤3: 过滤出属于同一order_id的所有包裹
+                    all_postings = all_postings_response["result"].get("postings", [])
+                    related_postings = [p for p in all_postings if p.get("order_id") == order_id]
+
+                    logger.info(f"Found {len(related_postings)} postings for order {order_id}")
+
+                    # 步骤4: 批量处理所有包裹
+                    from ..services.order_sync import OrderSyncService
+                    service = OrderSyncService(shop_id=shop.id, api_client=client)
+
+                    for posting in related_postings:
+                        try:
+                            await service._process_single_posting(db, posting)
+                        except Exception as e:
+                            logger.error(f"Failed to process posting {posting.get('posting_number')}: {e}", exc_info=True)
+
+                    await db.commit()
+
+                    logger.info(f"Successfully synced order {order_id} with {len(related_postings)} postings from webhook for shop {shop.id}")
 
                     await client.close()
 

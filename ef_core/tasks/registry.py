@@ -68,24 +68,24 @@ class TaskRegistry:
         plugin_name: Optional[str]
     ) -> Callable:
         """将异步函数包装为 Celery 任务"""
-        
-        class PluginTask(BaseTask):
-            def __call__(self, *args, **kwargs):
-                # 设置插件上下文
-                if plugin_name:
-                    kwargs["_plugin"] = plugin_name
-                
-                # 运行异步函数
-                result = asyncio.run(async_func(*args, **kwargs))
-                return result
-        
+
+        # 创建任务执行函数
+        def task_func(*args, **kwargs):
+            # 设置插件上下文
+            if plugin_name:
+                kwargs["_plugin"] = plugin_name
+
+            # 运行异步函数
+            result = asyncio.run(async_func(*args, **kwargs))
+            return result
+
         # 注册到 Celery
         task = celery_app.task(
-            bind=True,
-            base=PluginTask,
+            bind=False,  # 不需要 self 参数
+            base=BaseTask,
             name=name
-        )(lambda self, *args, **kwargs: PluginTask.__call__(self, *args, **kwargs))
-        
+        )(task_func)
+
         return task
     
     def _add_to_beat_schedule(self, name: str, cron: str) -> None:
