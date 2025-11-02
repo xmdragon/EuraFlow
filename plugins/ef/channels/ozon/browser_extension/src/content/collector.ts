@@ -413,8 +413,24 @@ export class ProductCollector {
         const packageWeightMatch = bangText.match(/包装重量[：:]\s*([^\n<]+)/);
         const hasPackageWeightLoaded = packageWeightMatch && packageWeightMatch[1].trim() !== '-';
 
-        // 【修复】数据就绪条件：内容充足 + 跟卖数据 + 包装重量已加载（值可以是"无数据"）
-        if (hasContent && hasCompetitorData && hasPackageWeightLoaded) {
+        // 【修复】检查佣金数据是否已加载（上品帮分步加载：先包装重量，后佣金）
+        let hasRFBSLoaded = true; // 默认认为已加载
+        if (bangText.includes('rFBS佣金')) {
+          // 如果页面有 rFBS 佣金字段，检查其加载状态
+          // 匹配 "rFBS佣金：" 后面的内容，直到遇到换行或下一个字段
+          const rfbsMatch = bangText.match(/rFBS佣金[：:]\s*([^\n]+?)(?=\s*(?:FBP|包装|类目|品牌|月销|日销|跟卖|$))/);
+          if (rfbsMatch) {
+            const rfbsValue = rfbsMatch[1].trim();
+            hasRFBSLoaded = rfbsValue !== '-'; // 值不是"-"就算加载完成
+
+            if (window.EURAFLOW_DEBUG) {
+              console.log(`[DEBUG waitForRowData] rFBS佣金值="${rfbsValue}" 已加载=${hasRFBSLoaded}`);
+            }
+          }
+        }
+
+        // 【修复】数据就绪条件：内容充足 + 跟卖数据 + 包装重量已加载 + 佣金已加载
+        if (hasContent && hasCompetitorData && hasPackageWeightLoaded && hasRFBSLoaded) {
           if (window.EURAFLOW_DEBUG) {
             console.log('[DEBUG waitForRowData] 数据就绪，尝试次数:', attempt + 1);
           }
