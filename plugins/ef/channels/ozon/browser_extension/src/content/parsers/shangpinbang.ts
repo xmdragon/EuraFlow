@@ -332,8 +332,16 @@ export class ShangpinbangParser implements PageDataParser {
         return;
       }
 
-      // 跳过"无数据"和"-"值（但允许空字符串）
-      if (value === '无数据' || value === '-') {
+      // 【调试】输出所有字段的标签和值
+      if ((window as any).EURAFLOW_DEBUG && (label.includes('佣金') || label.includes('包装重量'))) {
+        console.log(`[DEBUG extractStructuredBangData] 标签="${label}" 值="${value}"`);
+      }
+
+      // 【修复】佣金字段即使是"无数据"也要处理（设置为 undefined）
+      const isCommissionField = label.includes('rFBS佣金') || label.includes('FBP佣金');
+
+      // 跳过"无数据"和"-"值，但佣金字段例外
+      if (!isCommissionField && (value === '无数据' || value === '-')) {
         return;
       }
 
