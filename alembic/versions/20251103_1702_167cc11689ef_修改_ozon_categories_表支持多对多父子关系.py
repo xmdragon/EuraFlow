@@ -31,6 +31,7 @@ def upgrade() -> None:
 
     # 1. 删除依赖 category_id 主键的外键约束
     op.drop_constraint('ozon_categories_parent_id_fkey', 'ozon_categories', type_='foreignkey')
+    op.drop_constraint('ozon_category_attributes_category_id_fkey', 'ozon_category_attributes', type_='foreignkey')
 
     # 2. 删除原主键约束
     op.drop_constraint('ozon_categories_pkey', 'ozon_categories', type_='primary')
@@ -65,13 +66,20 @@ def upgrade() -> None:
     # 7. 创建 category_id 索引（用于查询）
     op.create_index('idx_ozon_categories_category_id', 'ozon_categories', ['category_id'])
 
+    # 8. 重新创建外键约束
+    op.create_foreign_key('ozon_category_attributes_category_id_fkey', 'ozon_category_attributes', 'ozon_categories',
+                         ['category_id'], ['category_id'], ondelete='CASCADE')
+
 
 def downgrade() -> None:
     """回滚到原来的结构（不建议使用，会导致数据丢失）"""
 
     # 注意：回滚会导致数据丢失（多对多关系会被简化为一对多）
 
-    # 1. 删除新索引
+    # 1. 删除外键约束
+    op.drop_constraint('ozon_category_attributes_category_id_fkey', 'ozon_category_attributes', type_='foreignkey')
+
+    # 2. 删除新索引
     op.drop_index('idx_ozon_categories_category_id', 'ozon_categories')
     op.drop_index('idx_ozon_categories_category_parent', 'ozon_categories')
 
@@ -87,3 +95,5 @@ def downgrade() -> None:
     # 5. 恢复外键约束
     op.create_foreign_key('ozon_categories_parent_id_fkey', 'ozon_categories', 'ozon_categories',
                          ['parent_id'], ['category_id'], ondelete='SET NULL')
+    op.create_foreign_key('ozon_category_attributes_category_id_fkey', 'ozon_category_attributes', 'ozon_categories',
+                         ['category_id'], ['category_id'], ondelete='CASCADE')
