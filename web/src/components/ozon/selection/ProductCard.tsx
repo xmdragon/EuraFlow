@@ -451,7 +451,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {fieldConfig.listingDate && (
               <div className={styles.listingDate}>
                 <Text type="secondary" style={{ fontSize: '11px' }}>
-                  {product.product_created_date ? formatDate(product.product_created_date) : '-'}
+                  {product.listing_date ? formatDate(product.listing_date) : '-'}
                 </Text>
               </div>
             )}
