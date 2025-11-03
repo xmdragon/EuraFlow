@@ -166,6 +166,7 @@
 
     .resourceInfo {
       opacity: 1;
+      visibility: visible;
     }
   }
 
@@ -223,20 +224,38 @@
 
 .resourceInfo {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.85);
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  min-width: 200px;
+  max-width: 300px;
+  background-color: rgba(0, 0, 0, 0.9);
   color: #fff;
   padding: $spacing-sm;
   font-size: 12px;
   opacity: 0;
-  transition: opacity 0.3s;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 6px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  margin-bottom: 8px;
+  z-index: 100;
+  pointer-events: none;
+
+  // 添加小箭头
+  &::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.9);
+  }
 }
 
 .resourceInfoItem {
