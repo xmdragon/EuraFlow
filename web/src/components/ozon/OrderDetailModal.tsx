@@ -23,12 +23,12 @@ import {
   Select,
   Input,
 } from 'antd';
-import moment from 'moment';
 import React, { useState } from 'react';
 
 import ProductImage from '@/components/ozon/ProductImage';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import { useCopy } from '@/hooks/useCopy';
+import { useDateTime } from '@/hooks/useDateTime';
 import { usePermission } from '@/hooks/usePermission';
 import styles from '@/pages/ozon/OrderList.module.scss';
 import * as ozonApi from '@/services/ozonApi';
@@ -65,6 +65,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   // 权限检查
   const { canOperate, canSync } = usePermission();
   const { copyToClipboard } = useCopy();
+  const { formatDateTime } = useDateTime();
 
   // 本地状态存储订单和posting数据，用于立即更新显示
   const [localOrder, setLocalOrder] = useState(selectedOrder);
@@ -421,14 +422,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     </Descriptions.Item>
                     <Descriptions.Item label="下单时间">
                       {localOrder.ordered_at
-                        ? moment(localOrder.ordered_at).format('YYYY-MM-DD HH:mm:ss')
+                        ? formatDateTime(localOrder.ordered_at, 'YYYY-MM-DD HH:mm:ss')
                         : localOrder.created_at
-                          ? moment(localOrder.created_at).format('YYYY-MM-DD HH:mm:ss')
+                          ? formatDateTime(localOrder.created_at, 'YYYY-MM-DD HH:mm:ss')
                           : '-'}
                     </Descriptions.Item>
                     <Descriptions.Item label="发货截止">
                       {localPosting?.shipment_date
-                        ? moment(localPosting.shipment_date).format('YYYY-MM-DD HH:mm:ss')
+                        ? formatDateTime(localPosting.shipment_date, 'YYYY-MM-DD HH:mm:ss')
                         : '-'}
                     </Descriptions.Item>
                   </Descriptions>
@@ -628,12 +629,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         </Descriptions.Item>
                         <Descriptions.Item label="发货时间">
                           {posting.shipped_at
-                            ? moment(posting.shipped_at).format('YYYY-MM-DD HH:mm')
+                            ? formatDateTime(posting.shipped_at, 'YYYY-MM-DD HH:mm')
                             : '-'}
                         </Descriptions.Item>
                         <Descriptions.Item label="送达时间">
                           {posting.delivered_at
-                            ? moment(posting.delivered_at).format('YYYY-MM-DD HH:mm')
+                            ? formatDateTime(posting.delivered_at, 'YYYY-MM-DD HH:mm')
                             : '-'}
                         </Descriptions.Item>
                       </Descriptions>

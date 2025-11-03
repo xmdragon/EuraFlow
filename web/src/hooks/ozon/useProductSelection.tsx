@@ -159,7 +159,16 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   // 字段配置状态
   const [fieldConfig, setFieldConfig] = useState<FieldConfig>(() => {
     const saved = localStorage.getItem('productFieldConfig');
-    return saved ? JSON.parse(saved) : defaultFieldConfig;
+    if (saved) {
+      try {
+        const savedConfig = JSON.parse(saved);
+        // 合并默认配置，确保新增字段有默认值
+        return { ...defaultFieldConfig, ...savedConfig };
+      } catch (e) {
+        return defaultFieldConfig;
+      }
+    }
+    return defaultFieldConfig;
   });
   const [fieldConfigVisible, setFieldConfigVisible] = useState(false);
 

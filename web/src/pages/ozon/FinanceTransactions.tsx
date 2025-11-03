@@ -27,6 +27,7 @@ import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozonApi';
 import { notifyInfo, notifyError } from '@/utils/notification';
 
@@ -46,6 +47,7 @@ const TRANSACTION_TYPE_MAP: Record<string, string> = {
 };
 
 const FinanceTransactions: React.FC = () => {
+  const { formatDate, toUTC } = useDateTime();
   // 状态管理
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([
@@ -88,8 +90,8 @@ const FinanceTransactions: React.FC = () => {
       };
 
       if (dateRange && dateRange[0] && dateRange[1]) {
-        filter.date_from = dateRange[0].format('YYYY-MM-DD');
-        filter.date_to = dateRange[1].format('YYYY-MM-DD');
+        filter.date_from = toUTC(dateRange[0]);
+        filter.date_to = toUTC(dateRange[1]);
       }
 
       if (transactionType && transactionType !== 'all') {
@@ -113,8 +115,8 @@ const FinanceTransactions: React.FC = () => {
   const { data: summaryData } = useQuery({
     queryKey: ['financeTransactionsSummary', selectedShop, dateRange, transactionType],
     queryFn: async () => {
-      const dateFrom = dateRange?.[0]?.format('YYYY-MM-DD');
-      const dateTo = dateRange?.[1]?.format('YYYY-MM-DD');
+      const dateFrom = dateRange?.[0] ? toUTC(dateRange[0]) : undefined;
+      const dateTo = dateRange?.[1] ? toUTC(dateRange[1]) : undefined;
       const txType = transactionType !== 'all' ? transactionType : undefined;
 
       return await ozonApi.getFinanceTransactionsSummary(selectedShop, dateFrom, dateTo, txType);
@@ -225,7 +227,7 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'operation_date',
       width: 110,
       ellipsis: true,
-      render: (date: string) => dayjs(date).format('YYYY-MM-DD'),
+      render: (date: string) => formatDate(date),
     },
     {
       title: '货件编号',

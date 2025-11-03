@@ -37,6 +37,7 @@ import moment from 'moment';
 import React, { useState } from 'react';
 
 import { useCurrency } from '../../hooks/useCurrency';
+import { useDateTime } from '../../hooks/useDateTime';
 import { formatPriceWithFallback, getCurrencySymbol } from '../../utils/currency';
 
 import styles from './OrderList.module.scss';
@@ -74,6 +75,7 @@ interface OrderItemRow {
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
+  const { formatDateTime, toUTC } = useDateTime();
   const { canOperate, canSync, canExport } = usePermission();
   const { copyToClipboard } = useCopy();
 
@@ -198,8 +200,8 @@ const OrderList: React.FC = () => {
       const queryParams = {
         ...searchParams,
         shop_id: selectedShop,
-        date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
-        date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
+        date_from: dateRange?.[0] ? toUTC(dateRange[0]) : undefined,
+        date_to: dateRange?.[1] ? toUTC(dateRange[1]) : undefined,
         dateRange: undefined,
       };
 
@@ -757,14 +759,12 @@ const OrderList: React.FC = () => {
               </div>
               <div>
                 <Text type="secondary">下单: </Text>
-                {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
+                {formatDateTime(order.ordered_at)}
               </div>
               <div>
                 <Text type="secondary">截止: </Text>
                 <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
-                  {posting.shipment_date
-                    ? moment(posting.shipment_date).format('MM-DD HH:mm')
-                    : '-'}
+                  {formatDateTime(posting.shipment_date)}
                 </span>
               </div>
             </div>

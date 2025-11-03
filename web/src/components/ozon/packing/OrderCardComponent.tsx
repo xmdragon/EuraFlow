@@ -4,11 +4,11 @@
  */
 import { ShoppingCartOutlined, LinkOutlined, CopyOutlined } from '@ant-design/icons';
 import { Card, Checkbox, Avatar, Tooltip, Tag, Button, Space, Typography } from 'antd';
-import moment from 'moment';
 import React from 'react';
 
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
+import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozonApi';
 import { getCurrencySymbol } from '@/utils/currency';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
@@ -70,6 +70,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
     onCheckboxChange,
     canOperate,
   }) => {
+    const { formatDateTime } = useDateTime();
     const { posting, product, order } = card;
     const currency = order.currency_code || userCurrency || 'CNY';
     const symbol = getCurrencySymbol(currency);
@@ -401,7 +402,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               </Text>
               {isFirstProduct ? (
                 <Text className={styles.value}>
-                  {order.ordered_at ? moment(order.ordered_at).format('MM-DD HH:mm') : '-'}
+                  {order.ordered_at ? formatDateTime(order.ordered_at, 'MM-DD HH:mm') : '-'}
                 </Text>
               ) : (
                 <Text type="secondary" className={styles.value}>
@@ -418,7 +419,7 @@ export const OrderCardComponent = React.memo<OrderCardComponentProps>(
               {isFirstProduct ? (
                 <span className={styles.deadline}>
                   {posting.shipment_date
-                    ? moment(posting.shipment_date).format('MM-DD HH:mm')
+                    ? formatDateTime(posting.shipment_date, 'MM-DD HH:mm')
                     : '-'}
                 </span>
               ) : (

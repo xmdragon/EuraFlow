@@ -10,9 +10,9 @@ import {
   PrinterOutlined,
 } from "@ant-design/icons";
 import { Typography } from "antd";
-import moment from "moment";
 
 import ProductImage from "@/components/ozon/ProductImage";
+import { useDateTime } from "@/hooks/useDateTime";
 import { statusConfig, operationStatusConfig } from "@/utils/packingHelpers";
 import * as ozonApi from "@/services/ozonApi";
 import styles from "../../../pages/ozon/PackingShipment.module.scss";
@@ -54,6 +54,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
   isPrinting,
   onCopy,
 }) => {
+  const { formatDateTime } = useDateTime();
   // 将 scanResults 转换为表格行数据
   const scanItemRows = useMemo<ScanResultItemRow[]>(() => {
     const rows: ScanResultItemRow[] = [];
@@ -415,14 +416,14 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                   <div>
                     <Text type="secondary">下单: </Text>
                     {posting.ordered_at
-                      ? moment(posting.ordered_at).format("MM-DD HH:mm")
+                      ? formatDateTime(posting.ordered_at, "MM-DD HH:mm")
                       : "-"}
                   </div>
                   <div>
                     <Text type="secondary">截止: </Text>
                     <span style={{ color: "#ff4d4f", fontWeight: "bold" }}>
                       {posting.shipment_date
-                        ? moment(posting.shipment_date).format("MM-DD HH:mm")
+                        ? formatDateTime(posting.shipment_date, "MM-DD HH:mm")
                         : "-"}
                     </span>
                   </div>
