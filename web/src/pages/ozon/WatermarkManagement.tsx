@@ -69,6 +69,8 @@ const WatermarkManagement: React.FC = () => {
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [resourcesPage] = useState(0);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
 
   // ============ 水印配置查询 ============
   const {
@@ -582,17 +584,17 @@ const WatermarkManagement: React.FC = () => {
                             <div
                               key={resource.public_id}
                               className={`${styles.resourceCard} ${isSelected ? styles.selected : ''}`}
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedResources(
-                                    selectedResources.filter((id) => id !== resource.public_id)
-                                  );
-                                } else {
-                                  setSelectedResources([...selectedResources, resource.public_id]);
-                                }
-                              }}
                             >
-                              <div className={styles.resourceThumbnail}>
+                              <div
+                                className={styles.resourceThumbnail}
+                                onClick={() => {
+                                  if (isImage) {
+                                    setPreviewImageUrl(resource.url);
+                                    setImagePreviewVisible(true);
+                                  }
+                                }}
+                                style={{ cursor: isImage ? 'pointer' : 'default' }}
+                              >
                                 {isImage && (
                                   <img
                                     src={resource.url.replace(
@@ -618,8 +620,15 @@ const WatermarkManagement: React.FC = () => {
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
-                                  onChange={() => {}}
-                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={() => {
+                                    if (isSelected) {
+                                      setSelectedResources(
+                                        selectedResources.filter((id) => id !== resource.public_id)
+                                      );
+                                    } else {
+                                      setSelectedResources([...selectedResources, resource.public_id]);
+                                    }
+                                  }}
                                 />
                               </div>
                               <div className={styles.resourceInfo}>
@@ -820,6 +829,23 @@ const WatermarkManagement: React.FC = () => {
               </div>
             </div>
           )}
+        </Modal>
+
+        {/* 图片预览 Modal */}
+        <Modal
+          open={imagePreviewVisible}
+          footer={null}
+          onCancel={() => setImagePreviewVisible(false)}
+          width="80%"
+          style={{ maxWidth: '1200px' }}
+          centered
+        >
+          <Image
+            src={previewImageUrl}
+            alt="预览图片"
+            style={{ width: '100%' }}
+            preview={false}
+          />
         </Modal>
       </div>
     </div>

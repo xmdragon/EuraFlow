@@ -290,6 +290,8 @@ async def create_watermark_config(
         unique_id = uuid4().hex[:12]
         folder = cloudinary_config.watermark_images_folder or "watermarks"
 
+        logger.info(f"Uploading watermark to folder: {folder}, public_id: {unique_id}")
+
         upload_result = await service.upload_image(
             watermark_data,
             public_id=unique_id,

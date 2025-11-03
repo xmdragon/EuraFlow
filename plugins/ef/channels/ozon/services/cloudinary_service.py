@@ -129,8 +129,10 @@ class CloudinaryService:
         """
         try:
             # 准备上传参数
+            # 使用 folder 参数指定文件夹，public_id 只包含文件名
             upload_params = {
-                "public_id": f"{folder}/{public_id}",
+                "public_id": public_id,
+                "folder": folder,
                 "resource_type": "image",
                 "format": "jpg",
                 "quality": "auto:good",
@@ -144,13 +146,15 @@ class CloudinaryService:
             if metadata:
                 upload_params["context"] = metadata
 
+            logger.info(f"Uploading image with public_id: {public_id}, folder: {folder}")
+
             # 上传图片
             result = cloudinary.uploader.upload(
                 BytesIO(image_data),
                 **upload_params
             )
 
-            logger.info(f"Image uploaded successfully: {result['public_id']}")
+            logger.info(f"Image uploaded successfully: {result['public_id']}, url: {result.get('secure_url')}")
 
             return {
                 "success": True,
@@ -224,8 +228,10 @@ class CloudinaryService:
         """
         try:
             # 准备上传参数
+            # 使用 folder 参数指定文件夹，public_id 只包含文件名
             upload_params = {
-                "public_id": f"{folder}/{public_id}",
+                "public_id": public_id,
+                "folder": folder,
                 "resource_type": "image",
                 "format": "jpg",
                 "quality": "auto:good",
