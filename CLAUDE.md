@@ -401,6 +401,11 @@ supervisorctl tail -100 euraflow:celery_beat stdout
   - Vite 构建时会自动排除 downloads 目录，避免冗余复制
   - 每次打包会**覆盖**同名文件，无需手动删除旧版本
   - 下载链接固定为 `/downloads/euraflow-ozon-selector.zip`，无需每次更新页面代码
+- **🚫 禁止行为**：
+  - **绝对禁止将 .zip 文件提交到 git**
+  - .zip 是编译产物，仅用于本地和服务器部署
+  - 如果不小心提交了，必须立即使用 `git rm` 删除
+  - 修改源代码后，只提交源代码变更，不提交打包文件
 
 ---
 

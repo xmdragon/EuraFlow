@@ -85,6 +85,8 @@ docs/OzonSellerAPI.html
 
 # Browser extension builds
 plugins/ef/channels/ozon/browser_extension/dist/
+*.zip
+web/public/downloads/*.zip
 
 # CSV imports
 imports/
