@@ -267,18 +267,22 @@ async def get_statistics(
         )
         order_total = order_total_result.scalar() or 0
 
-        # Pending: 等待备货
+        # Pending: 等待备货（包含 awaiting_packaging 和 awaiting_deliver）
+        # 与打包发货页面的"等待备货"标签保持一致
         order_pending_result = await db.execute(
             select(func.count(OzonPosting.id))
-            .where(OzonPosting.status == 'awaiting_packaging', *posting_filter)
+            .where(
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver']),
+                *posting_filter
+            )
         )
         order_pending = order_pending_result.scalar() or 0
 
-        # Processing: 等待交付 + 等待登记
+        # Processing: 等待登记（awaiting_deliver 已包含在 pending 中）
         order_processing_result = await db.execute(
             select(func.count(OzonPosting.id))
             .where(
-                OzonPosting.status.in_(['awaiting_deliver', 'awaiting_registration']),
+                OzonPosting.status == 'awaiting_registration',
                 *posting_filter
             )
         )
