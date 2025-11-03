@@ -45,6 +45,7 @@ class ProductSearchRequest(BaseModel):
     competitor_count_max: Optional[int] = Field(None, description="最大跟卖者数量")
     competitor_min_price_min: Optional[float] = Field(None, description="最低跟卖价下限")
     competitor_min_price_max: Optional[float] = Field(None, description="最低跟卖价上限")
+    listing_date_start: Optional[str] = Field(None, description="上架时间晚于（YYYY-MM-DD）")
     batch_id: Optional[int] = Field(None, description="批次ID")
     is_read: Optional[bool] = Field(None, description="是否已读（None=全部,True=已读,False=未读）")
     sort_by: Optional[str] = Field('created_asc', description="排序方式")
@@ -112,7 +113,6 @@ class ProductUploadItem(BaseModel):
     delivery_days: Optional[int] = None
     availability_percent: Optional[float] = None
     ad_cost_share: Optional[float] = None
-    product_created_date: Optional[str] = None
     competitor_count: Optional[int] = None
     competitor_min_price: Optional[float] = None
 
@@ -345,6 +345,7 @@ async def get_products(
     competitor_count_max: Optional[int] = Query(None, description="最大跟卖者数量"),
     competitor_min_price_min: Optional[float] = Query(None, description="最低跟卖价下限"),
     competitor_min_price_max: Optional[float] = Query(None, description="最低跟卖价上限"),
+    listing_date_start: Optional[str] = Query(None, description="上架时间晚于（YYYY-MM-DD）"),
     sort_by: str = Query('created_asc', description="排序方式"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
@@ -384,6 +385,8 @@ async def get_products(
         filters['competitor_min_price_min'] = competitor_min_price_min
     if competitor_min_price_max is not None:
         filters['competitor_min_price_max'] = competitor_min_price_max
+    if listing_date_start:
+        filters['listing_date_start'] = listing_date_start
 
     result = await service.search_products(
         db=db,
@@ -1181,10 +1184,15 @@ async def upload_products(
                 # 基础字段（上品帮新增）
                 if product.category_path:
                     cleaned_data['category_path'] = product.category_path
-                if product.category_level_1:
-                    cleaned_data['category_level_1'] = product.category_level_1
-                if product.category_level_2:
-                    cleaned_data['category_level_2'] = product.category_level_2
+                    # 自动拆分一级和二级类目（格式：一级 > 二级）
+                    if ('非热销' not in product.category_path and
+                        '无数据' not in product.category_path and
+                        '>' in product.category_path):
+                        parts = [p.strip() for p in product.category_path.split('>')]
+                        if len(parts) >= 1:
+                            cleaned_data['category_level_1'] = parts[0]
+                        if len(parts) >= 2:
+                            cleaned_data['category_level_2'] = parts[1]
                 if product.avg_price is not None:
                     cleaned_data['avg_price'] = Decimal(str(product.avg_price))
                 if product.seller_mode:

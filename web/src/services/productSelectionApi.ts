@@ -62,8 +62,6 @@ export interface ProductSelectionItem {
   batch_id?: number;
   is_read?: boolean;
   read_at?: string;
-  // 商品上架时间
-  product_created_date?: string;
   created_at: string;
   updated_at: string;
 }
@@ -82,8 +80,7 @@ export interface ProductSearchParams {
   competitor_count_max?: number;
   competitor_min_price_min?: number;
   competitor_min_price_max?: number;
-  created_at_start?: string; // 上架时间开始
-  created_at_end?: string; // 上架时间结束
+  listing_date_start?: string; // 上架时间晚于
   batch_id?: number; // 批次ID过滤
   is_read?: boolean; // 已读状态过滤
   sort_by?:

@@ -513,7 +513,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     if (values.competitor_min_price_max)
       params.competitor_min_price_max = values.competitor_min_price_max;
     if (values.listing_date) {
-      params.created_at_start = values.listing_date.format('YYYY-MM-DD');
+      params.listing_date_start = values.listing_date.format('YYYY-MM-DD');
     }
     if (values.sort_by) params.sort_by = values.sort_by;
 

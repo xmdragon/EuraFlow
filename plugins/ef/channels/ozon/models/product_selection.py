@@ -94,9 +94,6 @@ class ProductSelectionItem(Base):
     listing_days = Column(Integer, nullable=True, comment="上架天数")
     seller_mode = Column(String(20), nullable=True, comment="发货模式(FBS/FBO)")
 
-    # 商品创建日期（在平台上）
-    product_created_date = Column(DateTime(timezone=True), comment="商品创建日期")
-
     # 商品图片信息
     images_data = Column(JSON, comment="商品图片信息列表")
     images_updated_at = Column(DateTime(timezone=True), comment="图片信息更新时间")
@@ -188,8 +185,6 @@ class ProductSelectionItem(Base):
             'batch_id': self.batch_id,
             'is_read': self.is_read,
             'read_at': self.read_at.isoformat() if self.read_at else None,
-            # 商品上架时间
-            'product_created_date': self.product_created_date.isoformat() if self.product_created_date else None,
             # 系统字段
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

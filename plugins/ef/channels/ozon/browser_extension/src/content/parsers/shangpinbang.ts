@@ -476,12 +476,7 @@ export class ShangpinbangParser implements PageDataParser {
       // 基础信息
       case '类目':
         data.category_path = value;
-        // 拆分一级和二级类目（格式：一级 > 二级）
-        if (value && !value.includes('非热销') && !value.includes('无数据')) {
-          const parts = value.split('>').map(s => s.trim());
-          if (parts.length >= 1) data.category_level_1 = parts[0];
-          if (parts.length >= 2) data.category_level_2 = parts[1];
-        }
+        // 后端会自动拆分一级和二级类目，无需在前端处理
         break;
       case '品牌':
         data.brand = value;

@@ -820,6 +820,14 @@ class ProductSelectionService:
                 ProductSelectionItem.competitor_min_price <= Decimal(str(filters['competitor_min_price_max']))
             )
 
+        # 上架时间筛选
+        if filters.get('listing_date_start'):
+            from datetime import datetime
+            listing_date_start = datetime.strptime(filters['listing_date_start'], '%Y-%m-%d')
+            conditions.append(
+                ProductSelectionItem.listing_date >= listing_date_start
+            )
+
         # 批次过滤
         if filters.get('batch_id') is not None:
             conditions.append(
