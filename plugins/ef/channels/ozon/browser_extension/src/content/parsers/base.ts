@@ -35,6 +35,22 @@ export interface PageDataParser {
   parseProductCard(cardElement: HTMLElement): Promise<Partial<ProductData>>;
 
   /**
+   * 立即提取商品卡片数据（不等待数据加载）
+   *
+   * 提取当前已有的数据：
+   * - OZON原生数据（总是可用）
+   * - 第三方工具已加载的数据（有就提取，没有就返回undefined）
+   *
+   * 此方法用于两阶段采集：
+   * 1. 快速采集所有已有数据
+   * 2. 轮询增强未加载的关键数据
+   *
+   * @param cardElement 商品卡片DOM元素
+   * @returns 提取的部分商品数据（字段可能为undefined）
+   */
+  parseProductCardImmediate(cardElement: HTMLElement): Promise<Partial<ProductData>>;
+
+  /**
    * 等待工具完成数据注入（可选）
    *
    * 某些工具需要时间来注入数据到页面，此方法用于等待注入完成

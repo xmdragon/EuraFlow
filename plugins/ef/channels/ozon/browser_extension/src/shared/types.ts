@@ -70,7 +70,9 @@ export interface ProductData {
   return_cancel_rate?: number;          // 退货取消率 %
 
   // 基础字段（上品帮新增）
-  category_path?: string;               // 类目路径
+  category_path?: string;               // 类目路径（完整，如：儿童用品 > 小雕塑）
+  category_level_1?: string;            // 一级类目（如：儿童用品）
+  category_level_2?: string;            // 二级类目（如：小雕塑）
   avg_price?: number;                   // 平均价格 ₽
   listing_date?: Date;                  // 上架时间
   listing_days?: number;                // 上架天数

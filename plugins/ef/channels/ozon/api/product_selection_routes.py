@@ -130,6 +130,8 @@ class ProductUploadItem(BaseModel):
 
     # 基础字段（上品帮）
     category_path: Optional[str] = None
+    category_level_1: Optional[str] = None
+    category_level_2: Optional[str] = None
     avg_price: Optional[float] = None
     listing_date: Optional[str] = None
     listing_days: Optional[int] = None

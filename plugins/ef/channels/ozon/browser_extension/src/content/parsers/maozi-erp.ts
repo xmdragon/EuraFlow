@@ -50,6 +50,16 @@ export class MaoziErpParser implements PageDataParser {
   }
 
   /**
+   * 立即提取商品卡片数据（不等待数据加载）
+   *
+   * 毛子ERP数据是同步注入的，没有异步加载延迟，
+   * 因此直接复用 parseProductCard 的逻辑
+   */
+  async parseProductCardImmediate(cardElement: HTMLElement): Promise<Partial<ProductData>> {
+    return this.parseProductCard(cardElement);
+  }
+
+  /**
    * 从OZON页面提取原生数据
    */
   private extractOzonData(element: HTMLElement): Partial<ProductData> {

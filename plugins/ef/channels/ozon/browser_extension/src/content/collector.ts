@@ -14,6 +14,15 @@ if (typeof window.EURAFLOW_DEBUG === 'undefined') {
 }
 
 /**
+ * 正在采集的商品数据（两阶段采集）
+ */
+interface CollectingProduct {
+  data: ProductData;          // 商品数据（不断更新）
+  isComplete: boolean;         // 关键数据是否完整
+  checkCount: number;          // 检测轮数
+}
+
+/**
  * 商品采集器（完全对齐原 Tampermonkey 版本）
  *
  * 核心特性：
@@ -96,8 +105,8 @@ export class ProductCollector {
     }
 
     try {
-      // 初始扫描当前可见商品
-      await this.collectVisibleProducts(targetCount);
+      // 【新】初始扫描：边检测边采集
+      await this.waitAndCollect(targetCount);
       onProgress?.(this.progress);
 
       let lastCollectedCount = this.collected.size;
@@ -137,14 +146,9 @@ export class ProductCollector {
           behavior: 'smooth'
         });
 
-        // 【优化等待1】轮询检测上品帮数据（100ms × 最多15次 = 1500ms）
-        await this.waitForShangpinbangData(15);
-
-        // 采集新商品（并行轮询）
-        const beforeCount = this.collected.size;
-        await this.collectVisibleProducts(targetCount);
+        // 【新】边检测边采集（50ms轮询，最多3秒）
+        const actualNewCount = await this.waitAndCollect(targetCount);
         const afterCount = this.collected.size;
-        const actualNewCount = afterCount - beforeCount;
 
         this.progress.collected = this.collected.size;
         onProgress?.(this.progress);
@@ -264,101 +268,344 @@ export class ProductCollector {
   }
 
   /**
-   * 采集当前可见的商品（优化：按行分组并行处理）
+   * 采集当前可见的商品（两阶段采集 + SKU属性标记 + 轮询增强）
+   *
+   * @deprecated 已被 waitAndCollect 替代，保留此方法用于备用/调试
+   *
+   * 阶段1：快速采集所有已有数据（几百毫秒）
+   * 阶段2：轮询增强关键数据（最多2秒）
+   * 阶段3：存储到已采集集合
    */
+  // @ts-ignore - 保留用于备用/调试
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async collectVisibleProducts(targetCount?: number): Promise<void> {
     const cards = this.getVisibleProductCards();
 
-    // 参考用户脚本：按行分组处理（通常一行4个商品）
-    const rowSize = 4;
-    const rows: HTMLElement[][] = [];
-    for (let i = 0; i < cards.length; i += rowSize) {
-      rows.push(cards.slice(i, i + rowSize));
+    if (window.EURAFLOW_DEBUG) {
+      console.log(`[DEBUG] 开始两阶段采集，可见商品: ${cards.length}个`);
     }
 
-    // 逐行采集（每行内并行处理）
-    for (const row of rows) {
-      if (!this.isRunning) {
-        break;
-      }
+    // ====== 阶段1：快速采集所有已有数据 ======
+    const tempMap = new Map<string, CollectingProduct>();
 
-      // 如果已经达到目标数量，停止采集
-      if (targetCount && this.collected.size >= targetCount) {
-        break;
-      }
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
 
-      // 等待整行数据就绪（关键优化：参考用户脚本）
-      // 更新进度状态，让用户知道正在等待
-      this.progress.status = `数据加载...`;
-      const isRowReady = await this.waitForRowData(row);
-      if (!isRowReady) {
-        continue;
-      }
-      this.progress.status = '正在采集...';
+      if (!this.isRunning) break;
 
-      // 并行采集同一行的商品
-      const rowPromises = row.map(async (card) => {
+      try {
+        // 【优化】先快速提取 SKU，避免对重复商品做完整数据提取
+        const sku = this.quickExtractSKU(card);
+        if (!sku) {
+          if (window.EURAFLOW_DEBUG) {
+            console.log(`[DEBUG 阶段1] 第 ${i + 1} 个卡片无法提取SKU，跳过`);
+          }
+          continue;
+        }
+
+        // 跳过已采集或已上传的商品（基于 SKU 指纹）
+        if (this.collected.has(sku) || this.uploadedFingerprints.has(sku)) {
+          if (window.EURAFLOW_DEBUG) {
+            console.log(`[DEBUG 阶段1] 跳过已采集商品: ${sku}`);
+          }
+          continue;
+        }
+
+        // 【修复】在跳过重复商品之后再检查目标数量
+        if (targetCount && (tempMap.size + this.collected.size) >= targetCount) {
+          if (window.EURAFLOW_DEBUG) {
+            console.log(`[DEBUG 阶段1] 已达目标数量，停止采集 (tempMap=${tempMap.size}, collected=${this.collected.size}, target=${targetCount})`);
+          }
+          break;
+        }
+
+        // 【关键】给卡片添加 data-sku 属性，方便后续定位
+        card.setAttribute('data-sku', sku);
+
+        // 立即采集完整数据（不等待）
+        const product = await this.fusionEngine.fuseProductDataImmediate(card);
+
+        if (product.product_id) {
+
+          tempMap.set(product.product_id, {
+            data: product,
+            isComplete: this.isProductComplete(product),
+            checkCount: 0
+          });
+
+          if (window.EURAFLOW_DEBUG) {
+            // 【增强】更清晰地显示重量值（区分undefined、0和数字）
+            const weightDisplay = product.package_weight === undefined
+              ? 'undefined(未加载)'
+              : (product.package_weight === 0 ? '0(无数据)' : `${product.package_weight}g`);
+
+            console.log(`[DEBUG 阶段1] 采集 ${tempMap.size}/${targetCount || '∞'}: ${product.product_id}`, {
+              完整: this.isProductComplete(product),
+              'rFBS(高/中/低)': `${product.rfbs_commission_high}/${product.rfbs_commission_mid}/${product.rfbs_commission_low}`,
+              重量: weightDisplay,
+              跟卖: product.competitor_count
+            });
+          }
+        }
+      } catch (error: any) {
+        this.progress.errors.push(error.message);
+        if (window.EURAFLOW_DEBUG) {
+          console.log(`[DEBUG 阶段1] 第 ${i + 1} 个卡片采集失败:`, error.message);
+        }
+      }
+    }
+
+    // 更新进度
+    this.progress.collected = tempMap.size;
+    const completeCount = Array.from(tempMap.values()).filter(p => p.isComplete).length;
+    this.progress.status = `快速采集完成: ${completeCount}/${tempMap.size} 完整`;
+    this.onProgressCallback?.(this.progress);
+
+    if (window.EURAFLOW_DEBUG) {
+      console.log(`[DEBUG 阶段1] 完成，已采集 ${tempMap.size} 个商品，其中 ${completeCount} 个数据完整`);
+    }
+
+    // ====== 阶段2：轮询增强关键数据 ======
+    const maxRounds = 40;  // 最多40轮 × 50ms = 2秒
+    let round = 0;
+
+    while (this.hasIncompleteProducts(tempMap) && round < maxRounds && this.isRunning) {
+      await this.sleep(50);
+      round++;
+
+      let enhancedCount = 0;
+
+      for (const [sku, item] of tempMap) {
+        if (item.isComplete) continue;
+
+        // 【关键】通过 data-sku 属性快速定位卡片
+        const card = document.querySelector(`[data-sku="${sku}"]`) as HTMLElement;
+        if (!card) {
+          if (window.EURAFLOW_DEBUG) {
+            console.warn(`[DEBUG] 找不到卡片 [data-sku="${sku}"]，可能已被移除`);
+          }
+          continue;
+        }
+
         try {
-          const product = await this.fusionEngine.fuseProductData(card);
+          // 重新提取数据（不等待）
+          const updated = await this.fusionEngine.fuseProductDataImmediate(card);
 
-          // 去重：使用 SKU 作为唯一标识
-          if (product.product_id &&
-              !this.collected.has(product.product_id) &&
-              !this.uploadedFingerprints.has(product.product_id)) {
-            // 只有不在已采集集合且不在已上传指纹集中的商品才采集
-            this.collected.set(product.product_id, product);
-            // 实时更新进度（每个商品采集成功就更新）
-            this.progress.collected = this.collected.size;
+          // 【优化】智能合并：只更新从undefined变为有值的字段
+          const beforeData = { ...item.data };
+          this.smartMerge(item.data, updated);
+          const wasComplete = item.isComplete;
+          item.isComplete = this.isProductComplete(item.data);
+          item.checkCount++;
 
-            if (window.EURAFLOW_DEBUG) {
-              console.log('[DEBUG] 采集到新商品:', product.product_id, '当前总数:', this.collected.size);
-              console.log('  [SKU]', product.product_id);
-              console.log('  [rFBS佣金]',
-                product.rfbs_commission_high ? `高=${product.rfbs_commission_high}% 中=${product.rfbs_commission_mid}% 低=${product.rfbs_commission_low}%` : '无数据'
-              );
-              console.log('  [包装重量]', product.package_weight || '无数据');
-              console.log('  [跟卖者]',
-                product.competitor_count !== undefined ? `${product.competitor_count}个` : '无数据',
-                '跟卖最低价:',
-                product.competitor_min_price || '无数据'
-              );
+          // DEBUG：仅在有新字段被填充时打印
+          if (window.EURAFLOW_DEBUG) {
+            const newlyFilledFields = this.getNewlyFilledFields(beforeData, item.data);
+            if (newlyFilledFields.length > 0) {
+              console.log(`[DEBUG 阶段2] SKU=${sku} 新填充字段:`, newlyFilledFields);
             }
+          }
 
-            return product;
+          // 数据从不完整变为完整
+          if (!wasComplete && item.isComplete) {
+            enhancedCount++;
+            if (window.EURAFLOW_DEBUG) {
+              console.log(`[DEBUG 阶段2] 数据完整 (第${round}轮): ${sku}`, {
+                'rFBS(高/中/低)': `${item.data.rfbs_commission_high}/${item.data.rfbs_commission_mid}/${item.data.rfbs_commission_low}`,
+                重量: item.data.package_weight,
+                跟卖: item.data.competitor_count
+              });
+            }
           }
         } catch (error: any) {
-          this.progress.errors.push(error.message);
+          // 轮询增强失败不影响已有数据
+          if (window.EURAFLOW_DEBUG) {
+            console.warn(`[DEBUG 阶段2] SKU ${sku} 增强失败:`, error.message);
+          }
         }
-        return null;
-      });
+      }
 
-      // 等待整行采集完成
-      const rowResults = await Promise.all(rowPromises);
+      // 更新进度
+      const newCompleteCount = Array.from(tempMap.values()).filter(p => p.isComplete).length;
+      this.progress.status = `增强中 (第${round}轮)... ${newCompleteCount}/${tempMap.size} 完整`;
+      this.onProgressCallback?.(this.progress);
 
-      // 统计本行成功采集的商品数
-      const successCount = rowResults.filter(p => p !== null).length;
-      if (successCount > 0) {
-        // 每行采集完成后立即更新UI进度
-        this.onProgressCallback?.(this.progress);
+      if (window.EURAFLOW_DEBUG && enhancedCount > 0) {
+        console.log(`[DEBUG 阶段2] 第${round}轮：${enhancedCount} 个商品数据完整`);
+      }
+    }
+
+    // 轮询结束统计
+    const finalCompleteCount = Array.from(tempMap.values()).filter(p => p.isComplete).length;
+    const incompleteCount = tempMap.size - finalCompleteCount;
+
+    if (window.EURAFLOW_DEBUG) {
+      console.log(`[DEBUG 阶段2] 完成，共${round}轮，完整 ${finalCompleteCount}/${tempMap.size}`);
+      if (incompleteCount > 0) {
+        console.warn(`[DEBUG] 仍有 ${incompleteCount} 个商品数据不完整`);
+        // 输出不完整的商品SKU
+        const incompleteSKUs = Array.from(tempMap.entries())
+          .filter(([, item]) => !item.isComplete)
+          .map(([sku]) => sku);
+        console.warn('[DEBUG] 不完整商品SKU:', incompleteSKUs);
+      }
+    }
+
+    // ====== 阶段3：移动到已采集集合 ======
+    for (const [sku, item] of tempMap) {
+      if (!this.collected.has(sku) && !this.uploadedFingerprints.has(sku)) {
+        this.collected.set(sku, item.data);
+
+        if (window.EURAFLOW_DEBUG) {
+          const weightDisplay = item.data.package_weight !== undefined
+            ? (item.data.package_weight === 0 ? '无数据' : item.data.package_weight)
+            : '✗';
+
+          console.log(`[DEBUG 阶段3] 存储: ${sku}`, {
+            完整: item.isComplete,
+            检测轮数: item.checkCount,
+            'rFBS(高/中/低)': `${item.data.rfbs_commission_high || '✗'}/${item.data.rfbs_commission_mid || '✗'}/${item.data.rfbs_commission_low || '✗'}`,
+            重量: weightDisplay,
+            跟卖: item.data.competitor_count !== undefined ? '✓' : '✗'
+          });
+        }
+      }
+    }
+
+    // 最终进度
+    this.progress.collected = this.collected.size;
+    this.progress.status = incompleteCount > 0
+      ? `完成 (${incompleteCount}个不完整)`
+      : '完成';
+    this.onProgressCallback?.(this.progress);
+  }
+
+  /**
+   * 判断商品数据是否完整（关键数据都已加载）
+   *
+   * 关键数据：rFBS佣金、包装重量、跟卖数据
+   *
+   * 【修正】数据状态：
+   * - undefined = 未加载（上品帮还在渲染，页面显示"-"）
+   * - "无数据" = 已加载完成（上品帮确认无数据）
+   * - 实际值 = 已加载完成（有数据）
+   */
+  private isProductComplete(product: Partial<ProductData>): boolean {
+    if (!product.product_id) return false;
+
+    // 【修正】数据状态说明：
+    // - undefined = 未加载（上品帮还在渲染，显示"-"）
+    // - "无数据" = 已加载完成（上品帮确认无数据）
+    // - 数字/字符串 = 已加载完成（有实际数据）
+
+    // 关键数据1：rFBS佣金（三个档位至少有一个不是 undefined）
+    const hasRFBS = product.rfbs_commission_high !== undefined ||
+                    product.rfbs_commission_mid !== undefined ||
+                    product.rfbs_commission_low !== undefined;
+
+    // 关键数据2：包装重量
+    const hasWeight = product.package_weight !== undefined;
+
+    // 关键数据3：跟卖数据（数量或价格至少有一个不是 undefined）
+    const hasCompetitor = product.competitor_count !== undefined ||
+                          product.competitor_min_price !== undefined;
+
+    return hasRFBS && hasWeight && hasCompetitor;
+  }
+
+  /**
+   * 检查是否还有不完整的商品
+   */
+  private hasIncompleteProducts(map: Map<string, CollectingProduct>): boolean {
+    return Array.from(map.values()).some(p => !p.isComplete);
+  }
+
+  /**
+   * 智能合并：只更新目标对象中值为 undefined 的字段
+   *
+   * @param target 目标对象（会被修改）
+   * @param source 源对象（提供新值）
+   */
+  private smartMerge(target: Partial<ProductData>, source: Partial<ProductData>): void {
+    for (const key in source) {
+      if (source.hasOwnProperty(key)) {
+        const targetValue = target[key as keyof ProductData];
+        const sourceValue = source[key as keyof ProductData];
+
+        // 只有当目标字段是 undefined 且源字段有值时，才更新
+        if (targetValue === undefined && sourceValue !== undefined) {
+          (target as any)[key] = sourceValue;
+        }
       }
     }
   }
 
   /**
-   * 等待上品帮数据注入（优化：100ms × maxAttempts）
+   * 获取从 undefined 变为有值的字段列表
+   *
+   * @param before 更新前的数据
+   * @param after 更新后的数据
+   * @returns 新填充的字段名列表
    */
+  private getNewlyFilledFields(before: Partial<ProductData>, after: Partial<ProductData>): string[] {
+    const filled: string[] = [];
+
+    for (const key in after) {
+      if (after.hasOwnProperty(key)) {
+        const beforeValue = before[key as keyof ProductData];
+        const afterValue = after[key as keyof ProductData];
+
+        // 字段从 undefined 变为有值（包括 "无数据"、0、空字符串等）
+        if (beforeValue === undefined && afterValue !== undefined) {
+          filled.push(key);
+        }
+      }
+    }
+
+    return filled;
+  }
+
+  /**
+   * 等待上品帮数据注入（优化：等待新商品注入完成）
+   *
+   * @deprecated 已被 waitAndCollect 内部逻辑替代，保留此方法用于备用/调试
+   */
+  // @ts-ignore - 保留用于备用/调试
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async waitForShangpinbangData(maxAttempts: number): Promise<void> {
     const interval = 100;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // 检查是否有上品帮标记的商品
-      const markedCards = document.querySelectorAll('[data-ozon-bang="true"]');
+    // 获取所有商品卡片（不管有没有标记）
+    const allCardsSelector = '[data-widget="searchResultsV2"] > div, [data-widget="megaPaginator"] > div, .tile-root, div[class*="tile"]';
 
-      if (markedCards.length > 0) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const allCards = Array.from(document.querySelectorAll<HTMLElement>(allCardsSelector))
+        .filter(card => !!card.querySelector('a[href*="/product/"]')); // 有商品链接的卡片
+
+      if (allCards.length === 0) {
+        await this.sleep(interval);
+        continue;
+      }
+
+      // 检查所有商品卡片中有多少已被注入数据
+      const markedCount = allCards.filter(card => {
+        const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
+        const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
+        return hasShangpinbang || hasMaoziErp;
+      }).length;
+
+      const ratio = markedCount / allCards.length;
+
+      if (window.EURAFLOW_DEBUG && attempt % 5 === 0) {
+        console.log(`[DEBUG] 等待数据注入（尝试 ${attempt + 1}/${maxAttempts}）: ${markedCount}/${allCards.length} (${(ratio * 100).toFixed(0)}%)`);
+      }
+
+      // 如果80%以上的商品都已注入数据，认为可以开始采集
+      if (ratio >= 0.8) {
         if (window.EURAFLOW_DEBUG) {
-          console.log(`[DEBUG] 检测到上品帮数据（尝试 ${attempt + 1}/${maxAttempts}），找到 ${markedCards.length} 个已标记商品`);
+          console.log(`[DEBUG] 数据注入就绪: ${markedCount}/${allCards.length} 个商品已标记`);
         }
-        return; // 有数据就立即进入下一流程
+        return;
       }
 
       await this.sleep(interval);
@@ -370,108 +617,259 @@ export class ProductCollector {
   }
 
   /**
-   * 等待整行数据就绪（优化：100ms × 20次 = 2000ms）
+   * 获取所有商品卡片（不管有没有数据标记）
+   * @returns 所有商品卡片数组
    */
-  private async waitForRowData(row: HTMLElement[], maxAttempts = 20): Promise<boolean> {
-    if (row.length === 0) return false;
+  private getAllProductCards(): HTMLElement[] {
+    const selectors = [
+      '[data-widget="searchResultsV2"] > div',
+      '[data-widget="megaPaginator"] > div',
+      '.tile-root',
+      'div[class*="tile"]'
+    ];
 
-    const interval = 100;
-
-    // 检查最后一个商品的数据是否完整（上品帮按行注入数据）
-    const lastCard = row[row.length - 1];
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      // 先尝试多种上品帮选择器
-      let bangElement = lastCard.querySelector('.ozon-bang-item[data-ozon-bang="true"]') as HTMLElement;
-      if (!bangElement) {
-        // 备用选择器：可能没有 data-ozon-bang 属性
-        bangElement = lastCard.querySelector('.ozon-bang-item') as HTMLElement;
+    let allCards: HTMLElement[] = [];
+    for (const selector of selectors) {
+      const elements = document.querySelectorAll<HTMLElement>(selector);
+      if (elements.length > 0) {
+        allCards = Array.from(elements);
+        break;
       }
-
-      if (bangElement) {
-        const bangText = bangElement.textContent || '';
-        const bangHtml = bangElement.innerHTML || '';
-
-        // 数据完整性检查（与用户脚本保持一致）
-        const hasContent = bangText.trim().length > 50;
-
-        // 检查跟卖数据（支持多种格式）
-        // 1. 跟卖最低价：xxx ¥
-        const hasMinPrice = /跟卖最低价[：:]\s*[\d\s,．]+\s*[¥₽]/.test(bangText);
-        // 2. 跟卖最低价：无跟卖
-        const hasNoCompetitorPrice = /跟卖最低价[：:]\s*无跟卖/.test(bangText);
-        // 3. 跟卖者：无跟卖
-        const hasNoCompetitorSeller = /跟卖者[：:]\s*.*无跟卖/.test(bangText);
-        // 4. 等X个卖家（HTML格式）
-        const hasSellerCount = />(\d+)<\/span>\s*个卖家/.test(bangHtml) || /等\d+个卖家/.test(bangText);
-
-        // 任何一种跟卖数据格式都算有效
-        const hasCompetitorData = hasMinPrice || hasNoCompetitorPrice || hasNoCompetitorSeller || hasSellerCount;
-
-        // 检查包装重量是否已加载完成（值不是"-"就算加载完成，可以是"无数据"或实际值）
-        // 三种状态：1) "-" 加载中  2) "无数据" 已加载  3) "100 g" 已加载
-        const packageWeightMatch = bangText.match(/包装重量[：:]\s*([^\n<]+)/);
-        const hasPackageWeightLoaded = packageWeightMatch && packageWeightMatch[1].trim() !== '-';
-
-        // 【修复】检查佣金数据是否已加载（上品帮分步加载：先包装重量，后佣金）
-        let hasRFBSLoaded = true; // 默认认为已加载
-        if (bangText.includes('rFBS佣金')) {
-          // 如果页面有 rFBS 佣金字段，检查其加载状态
-          // 匹配 "rFBS佣金：" 后面的内容，直到遇到换行或下一个字段
-          const rfbsMatch = bangText.match(/rFBS佣金[：:]\s*([^\n]+?)(?=\s*(?:FBP|包装|类目|品牌|月销|日销|跟卖|$))/);
-          if (rfbsMatch) {
-            const rfbsValue = rfbsMatch[1].trim();
-            hasRFBSLoaded = rfbsValue !== '-'; // 值不是"-"就算加载完成
-
-            if (window.EURAFLOW_DEBUG) {
-              console.log(`[DEBUG waitForRowData] rFBS佣金值="${rfbsValue}" 已加载=${hasRFBSLoaded}`);
-            }
-          }
-        }
-
-        // 【修复】数据就绪条件：内容充足 + 跟卖数据 + 包装重量已加载 + 佣金已加载
-        if (hasContent && hasCompetitorData && hasPackageWeightLoaded && hasRFBSLoaded) {
-          if (window.EURAFLOW_DEBUG) {
-            console.log('[DEBUG waitForRowData] 数据就绪，尝试次数:', attempt + 1);
-          }
-          return true;
-        }
-
-      }
-
-      // 同时检查毛子ERP（data-mz-widget）
-      const mzElement = lastCard.querySelector('[data-mz-widget]') as HTMLElement;
-      if (mzElement) {
-        const mzText = mzElement.textContent || '';
-        const mzHtml = mzElement.innerHTML || '';
-
-        // 毛子ERP的数据完整性检查
-        const hasContent = mzText.trim().length > 50;
-
-        // 检查跟卖数据（毛子ERP格式）
-        // 1. 跟卖列表：无 或 等X个卖家
-        const hasSellerList = /跟卖列表[：:]\s*无/.test(mzText) ||
-                            /等\s*\d+\s*个\s*卖家/.test(mzText) ||
-                            />(\d+)<\/span>\s*个?\s*卖家/.test(mzHtml);
-        // 2. 跟卖最低价：无 或 数字
-        const hasMinPrice = /跟卖最低价[：:]\s*无/.test(mzText) ||
-                          /跟卖最低价[：:]\s*[\d\s,．]+/.test(mzText);
-
-        const hasCompetitorData = hasSellerList || hasMinPrice;
-
-        // 检查佣金数据
-        const hasCommission = /rFBS佣金[：:]/.test(mzText) || /FBP佣金[：:]/.test(mzText);
-
-        // 数据就绪条件：内容充足 + 跟卖数据 + 佣金数据
-        if (hasContent && hasCompetitorData && hasCommission) {
-          return true;
-        }
-      }
-
-      await this.sleep(interval);
     }
 
-    return false;
+    // 只返回有商品链接的卡片
+    return allCards.filter(card => !!card.querySelector('a[href*="/product/"]'));
+  }
+
+  /**
+   * 边检测边采集（核心方法）
+   * 每50ms检测一次，发现新注入数据的商品就立即采集
+   * @param targetCount 目标采集数量
+   * @returns 本轮新采集的商品数量
+   */
+  private async waitAndCollect(targetCount: number): Promise<number> {
+    const maxRounds = 60;  // 60轮 × 50ms = 3秒
+    const alreadyProcessed = new Set<string>(); // 已处理的SKU（包括跳过的）
+    let newCollectedCount = 0;
+
+    if (window.EURAFLOW_DEBUG) {
+      console.log(`[DEBUG waitAndCollect] 开始边检测边采集，目标=${targetCount}, 当前已采集=${this.collected.size}`);
+    }
+
+    for (let round = 0; round < maxRounds; round++) {
+      if (!this.isRunning) break;
+
+      // 检查是否达到目标
+      if (this.collected.size >= targetCount) {
+        if (window.EURAFLOW_DEBUG) {
+          console.log(`[DEBUG waitAndCollect] 已达目标数量，结束`);
+        }
+        break;
+      }
+
+      // 1. 获取所有商品卡片
+      const allCards = this.getAllProductCards();
+
+      if (allCards.length === 0) {
+        await this.sleep(50);
+        continue;
+      }
+
+      // 2. 筛选出：有数据注入 + 未处理过 + 未达目标数的商品
+      const newReadyCards: Array<{ card: HTMLElement; sku: string }> = [];
+
+      for (const card of allCards) {
+        const sku = this.quickExtractSKU(card);
+        if (!sku) continue;
+
+        // 已经处理过（成功或失败）
+        if (alreadyProcessed.has(sku)) continue;
+
+        // 已采集或已上传
+        if (this.collected.has(sku) || this.uploadedFingerprints.has(sku)) {
+          alreadyProcessed.add(sku);
+          continue;
+        }
+
+        // 检查是否有数据工具标记（已注入数据）
+        const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
+        const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
+
+        if (hasShangpinbang || hasMaoziErp) {
+          newReadyCards.push({ card, sku });
+        }
+      }
+
+      // 3. 立即采集这些新就绪的商品
+      for (const { card, sku } of newReadyCards) {
+        if (!this.isRunning) break;
+        if (this.collected.size >= targetCount) break;
+
+        alreadyProcessed.add(sku);
+
+        if (window.EURAFLOW_DEBUG) {
+          console.log(`[DEBUG waitAndCollect] 第${round}轮 发现新商品 ${sku}，开始采集...`);
+        }
+
+        // 采集单个商品（包括轮询增强）
+        const product = await this.collectSingleProduct(card, sku);
+
+        if (product) {
+          this.collected.set(sku, product);
+          newCollectedCount++;
+
+          // 更新进度
+          this.progress.collected = this.collected.size;
+          this.onProgressCallback?.(this.progress);
+
+          if (window.EURAFLOW_DEBUG) {
+            console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);
+          }
+        } else {
+          if (window.EURAFLOW_DEBUG) {
+            console.warn(`[DEBUG waitAndCollect] ✗ 采集失败 ${sku}`);
+          }
+        }
+      }
+
+      // 4. 检查是否所有商品都已处理
+      if (alreadyProcessed.size >= allCards.length) {
+        if (window.EURAFLOW_DEBUG) {
+          console.log(`[DEBUG waitAndCollect] 所有商品已处理完毕 (${alreadyProcessed.size}/${allCards.length})`);
+        }
+        break;
+      }
+
+      // 5. 等待 50ms 进行下一轮检测
+      await this.sleep(50);
+
+      // DEBUG：每5轮输出一次进度
+      if (window.EURAFLOW_DEBUG && round % 5 === 0 && round > 0) {
+        const ratio = alreadyProcessed.size / allCards.length;
+        console.log(`[DEBUG waitAndCollect] 第${round}轮 已处理=${alreadyProcessed.size}/${allCards.length} (${(ratio * 100).toFixed(0)}%), 新采集=${newCollectedCount}`);
+      }
+    }
+
+    if (window.EURAFLOW_DEBUG) {
+      console.log(`[DEBUG waitAndCollect] 完成，本轮新采集 ${newCollectedCount} 个商品`);
+    }
+
+    return newCollectedCount;
+  }
+
+  /**
+   * 采集单个商品（包括轮询增强）
+   * @param card 商品卡片元素
+   * @param sku 商品SKU
+   * @returns 商品数据或null
+   */
+  private async collectSingleProduct(card: HTMLElement, sku: string): Promise<ProductData | null> {
+    try {
+      // 1. 给卡片添加 data-sku 属性，方便后续定位
+      card.setAttribute('data-sku', sku);
+
+      // 2. 快速提取数据
+      const product = await this.fusionEngine.fuseProductDataImmediate(card);
+
+      if (!product.product_id) {
+        return null;
+      }
+
+      if (window.EURAFLOW_DEBUG) {
+        const weightDisplay = product.package_weight === undefined
+          ? 'undefined(未加载)'
+          : (product.package_weight === 0 ? '0(无数据)' : `${product.package_weight}g`);
+
+        console.log(`[DEBUG 即时采集] ${sku}`, {
+          完整: this.isProductComplete(product),
+          'rFBS(高/中/低)': `${product.rfbs_commission_high}/${product.rfbs_commission_mid}/${product.rfbs_commission_low}`,
+          重量: weightDisplay,
+          跟卖: product.competitor_count
+        });
+      }
+
+      // 3. 如果数据不完整，轮询增强（最多2秒）
+      const maxRounds = 40;  // 40轮 × 50ms = 2秒
+      let round = 0;
+
+      while (!this.isProductComplete(product) && round < maxRounds && this.isRunning) {
+        await this.sleep(50);
+        round++;
+
+        // 通过 data-sku 属性定位卡片
+        const cardNow = document.querySelector(`[data-sku="${sku}"]`) as HTMLElement;
+        if (!cardNow) {
+          if (window.EURAFLOW_DEBUG) {
+            console.warn(`[DEBUG 轮询增强] SKU=${sku} 卡片已移除`);
+          }
+          break;
+        }
+
+        // 重新提取数据
+        const updated = await this.fusionEngine.fuseProductDataImmediate(cardNow);
+        const beforeData = { ...product };
+        this.smartMerge(product, updated);
+
+        // DEBUG：仅在有新字段被填充时打印
+        if (window.EURAFLOW_DEBUG) {
+          const newlyFilledFields = this.getNewlyFilledFields(beforeData, product);
+          if (newlyFilledFields.length > 0) {
+            console.log(`[DEBUG 轮询增强] SKU=${sku} 第${round}轮 新填充:`, newlyFilledFields);
+          }
+        }
+
+        // 数据完整，结束轮询
+        if (this.isProductComplete(product)) {
+          if (window.EURAFLOW_DEBUG) {
+            console.log(`[DEBUG 轮询增强] SKU=${sku} 数据完整 (第${round}轮)`);
+          }
+          break;
+        }
+      }
+
+      return product;
+    } catch (error: any) {
+      if (window.EURAFLOW_DEBUG) {
+        console.error(`[DEBUG 采集失败] SKU=${sku}:`, error.message);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * 快速提取商品卡片的 SKU（用于去重判断）
+   * @param card 商品卡片元素
+   * @returns SKU 或 undefined
+   */
+  private quickExtractSKU(card: HTMLElement): string | undefined {
+    const link = card.querySelector<HTMLAnchorElement>('a[href*="/product/"]');
+    if (!link || !link.href) {
+      return undefined;
+    }
+
+    // 从URL末尾提取SKU（格式：/product/name-SKU/或/product/name-SKU?params）
+    const urlParts = link.href.split('/product/');
+    if (urlParts.length <= 1) {
+      return undefined;
+    }
+
+    // 提取路径部分，去除查询参数
+    const pathPart = urlParts[1].split('?')[0].replace(/\/$/, '');
+
+    // 提取最后的数字SKU（通常在最后一个连字符后）
+    const lastDashIndex = pathPart.lastIndexOf('-');
+    if (lastDashIndex === -1) {
+      return undefined;
+    }
+
+    const potentialSKU = pathPart.substring(lastDashIndex + 1);
+
+    // 验证是否为纯数字且长度合理（通常6位以上）
+    if (/^\d{6,}$/.test(potentialSKU)) {
+      return potentialSKU;
+    }
+
+    return undefined;
   }
 
   /**

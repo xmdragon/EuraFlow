@@ -86,7 +86,9 @@ class ProductSelectionItem(Base):
     return_cancel_rate = Column(Numeric(5, 2), nullable=True, comment="退货取消率(%)")
 
     # 基础字段（上品帮新增）
-    category_path = Column(String(500), nullable=True, index=True, comment="类目路径")
+    category_path = Column(String(500), nullable=True, index=True, comment="类目路径（完整路径，如：儿童用品 > 小雕塑）")
+    category_level_1 = Column(String(200), nullable=True, index=True, comment="一级类目")
+    category_level_2 = Column(String(200), nullable=True, index=True, comment="二级类目")
     avg_price = Column(Numeric(18, 2), nullable=True, comment="平均价格(RUB)")
     listing_date = Column(DateTime(timezone=True), nullable=True, comment="上架时间")
     listing_days = Column(Integer, nullable=True, comment="上架天数")

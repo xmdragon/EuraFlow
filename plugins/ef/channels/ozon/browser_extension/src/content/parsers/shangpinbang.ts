@@ -105,6 +105,29 @@ export class ShangpinbangParser implements PageDataParser {
   }
 
   /**
+   * 立即提取商品卡片数据（不等待上品帮数据加载）
+   *
+   * 用于两阶段采集：
+   * 1. 快速采集阶段：立即提取已有数据
+   * 2. 轮询增强阶段：补充未加载的关键数据
+   */
+  async parseProductCardImmediate(cardElement: HTMLElement): Promise<Partial<ProductData>> {
+    // 提取OZON原生数据（总是可用，从链接/标题/价格中提取）
+    const ozonData = this.extractOzonData(cardElement);
+
+    // 提取上品帮当前已有数据（不等待，有就提取，没有就undefined）
+    const bangData = this.extractBangData(cardElement);
+
+    // 合并数据
+    return {
+      ...ozonData,
+      ...bangData,
+      // 标准化品牌名
+      brand_normalized: normalizeBrand(bangData.brand || ozonData.brand)
+    };
+  }
+
+  /**
    * 从OZON页面提取原生数据
    */
   private extractOzonData(element: HTMLElement): Partial<ProductData> {
@@ -293,20 +316,39 @@ export class ShangpinbangParser implements PageDataParser {
       return {};
     }
 
+    // 【优化】先获取SKU（用于DEBUG日志）
+    // 优先从 data-sku 属性获取（阶段1采集时已添加），否则从URL提取
+    const sku = element.getAttribute('data-sku') || this.extractSKU(element);
+
     // 方式1：结构化提取（现有方式）
-    const structuredData = this.extractStructuredBangData(bangElement);
+    const structuredData = this.extractStructuredBangData(bangElement, sku);
 
     // 方式2：文本匹配提取（新增，作为补充）
     const textData = this.extractTextBangData(bangElement);
 
+    // 【DEBUG】检查 structuredData 中的 package_weight
+    if ((window as any).EURAFLOW_DEBUG && sku) {
+      console.log(`[DEBUG extractBangData] SKU=${sku} structuredData.package_weight =`, structuredData.package_weight);
+      console.log(`[DEBUG extractBangData] SKU=${sku} textData =`, textData);
+    }
+
     // 合并两种方式的结果，textData 优先（因为它能处理HTML标签格式）
-    return { ...structuredData, ...textData };
+    const merged = { ...structuredData, ...textData };
+
+    // 【DEBUG】检查合并后的 package_weight
+    if ((window as any).EURAFLOW_DEBUG && sku) {
+      console.log(`[DEBUG extractBangData] SKU=${sku} merged.package_weight =`, merged.package_weight);
+    }
+
+    return merged;
   }
 
   /**
    * 结构化提取（原有方式）
+   * @param bangElement 上品帮数据元素
+   * @param sku 商品SKU（用于DEBUG日志）
    */
-  private extractStructuredBangData(bangElement: HTMLElement): Partial<ProductData> {
+  private extractStructuredBangData(bangElement: HTMLElement, sku?: string): Partial<ProductData> {
     // 提取所有 li 元素中的数据
     const listItems = bangElement.querySelectorAll<HTMLElement>('li .text-class');
     if (!listItems || listItems.length === 0) {
@@ -315,12 +357,23 @@ export class ShangpinbangParser implements PageDataParser {
 
     const bangData: Partial<ProductData> = {};
 
-    listItems.forEach(item => {
-      // 优先选择内层的 span（带 cursor: pointer 的）或第一个直接子 span
-      const labelElement = item.querySelector('span span') || item.querySelector('span');
+    // 【DEBUG】打印找到的总字段数
+    if ((window as any).EURAFLOW_DEBUG) {
+      console.log(`[DEBUG extractStructuredBangData] SKU=${sku || '未知'} 找到 ${listItems.length} 个字段`);
+    }
+
+    listItems.forEach((item, index) => {
+      // 【修复】必须选择标签span（直接子元素），避免误选 <b> 里的嵌套span
+      // 结构: <div class="text-class"><span>标签：</span><b>值</b></div>
+      // 或: <div class="text-class"><span><span>标签：</span></span><b>值</b></div>
+      const labelSpan = item.querySelector('span');
+      const labelElement = labelSpan?.querySelector('span') || labelSpan;
       const valueElement = item.querySelector('b');
 
       if (!labelElement || !valueElement) {
+        if ((window as any).EURAFLOW_DEBUG) {
+          console.log(`[DEBUG] SKU=${sku || '未知'} 第${index}项：labelElement=${!!labelElement}, valueElement=${!!valueElement}`);
+        }
         return;
       }
 
@@ -332,21 +385,37 @@ export class ShangpinbangParser implements PageDataParser {
         return;
       }
 
-      // 【调试】输出所有字段的标签和值
-      if ((window as any).EURAFLOW_DEBUG && (label.includes('佣金') || label.includes('包装重量'))) {
-        console.log(`[DEBUG extractStructuredBangData] 标签="${label}" 值="${value}"`);
+      // 【DEBUG增强】仅在第1次遍历时打印所有字段标签（避免重复）
+      if ((window as any).EURAFLOW_DEBUG && index === 0) {
+        const allLabels = Array.from(listItems).map((li, i) => {
+          // 【修复】使用与实际解析相同的选择器逻辑
+          const labelSpan = li.querySelector('span');
+          const lbl = labelSpan?.querySelector('span') || labelSpan;
+          return `${i}: ${lbl?.textContent?.trim() || '(空)'}`;
+        }).join(', ');
+        console.log(`[DEBUG] SKU=${sku || '未知'} 所有字段: ${allLabels}`);
       }
 
-      // 【修复】佣金字段即使是"无数据"也要处理（设置为 undefined）
-      const isCommissionField = label.includes('rFBS佣金') || label.includes('FBP佣金');
+      // 【增强DEBUG】输出关键字段的详细信息（但避免重复打印）
+      if ((window as any).EURAFLOW_DEBUG && (label.includes('佣金') || label.includes('包装重量'))) {
+        console.log(`[DEBUG extractStructuredBangData] SKU=${sku || '未知'} 第${index}项 标签="${label}" 值="${value}"`);
+        console.log(`  valueElement: tagName=${valueElement.tagName}, class="${valueElement.className}"`);
+        console.log(`  valueElement.innerHTML 前200字符:`, valueElement.innerHTML.substring(0, 200));
+      }
 
-      // 跳过"无数据"和"-"值，但佣金字段例外
-      if (!isCommissionField && (value === '无数据' || value === '-')) {
+      // 【修复】需要处理"无数据"的字段：佣金、包装重量
+      const needsNoDataHandling = label.includes('rFBS佣金') ||
+                                   label.includes('FBP佣金') ||
+                                   label.includes('包装重量');
+
+      // 跳过"-"值（加载中），但需要处理的字段例外
+      // "无数据"不跳过，需要传递给 parseFieldByLabel 处理
+      if (!needsNoDataHandling && value === '-') {
         return;
       }
 
-      // 传递 valueElement 以便解析嵌套结构
-      this.parseFieldByLabel(label, value, valueElement, bangData);
+      // 传递 valueElement 以便解析嵌套结构，传递 SKU 用于DEBUG
+      this.parseFieldByLabel(label, value, valueElement, bangData, sku);
     });
 
     return bangData;
@@ -393,8 +462,13 @@ export class ShangpinbangParser implements PageDataParser {
 
   /**
    * 根据标签名解析字段值
+   * @param label 字段标签
+   * @param value 字段值
+   * @param valueElement 值元素（用于解析嵌套结构）
+   * @param data 数据对象
+   * @param sku 商品SKU（用于DEBUG日志）
    */
-  private parseFieldByLabel(label: string, value: string, valueElement: HTMLElement, data: Partial<ProductData>): void {
+  private parseFieldByLabel(label: string, value: string, valueElement: HTMLElement, data: Partial<ProductData>, sku?: string): void {
     // 移除标签中的冒号和空格
     const cleanLabel = label.replace(/[：:]/g, '').trim();
 
@@ -402,6 +476,12 @@ export class ShangpinbangParser implements PageDataParser {
       // 基础信息
       case '类目':
         data.category_path = value;
+        // 拆分一级和二级类目（格式：一级 > 二级）
+        if (value && !value.includes('非热销') && !value.includes('无数据')) {
+          const parts = value.split('>').map(s => s.trim());
+          if (parts.length >= 1) data.category_level_1 = parts[0];
+          if (parts.length >= 2) data.category_level_2 = parts[1];
+        }
         break;
       case '品牌':
         data.brand = value;
@@ -412,31 +492,68 @@ export class ShangpinbangParser implements PageDataParser {
 
       // rFBS佣金（三个档位）
       case 'rFBS佣金':
-        if ((window as any).EURAFLOW_DEBUG) {
-          console.log('[DEBUG] 开始解析 rFBS佣金');
-          console.log('  valueElement HTML:', valueElement.innerHTML.substring(0, 200));
-        }
-        const [rfbsHigh, rfbsMid, rfbsLow] = this.parseCommissionValues(valueElement);
-        data.rfbs_commission_high = rfbsHigh;
-        data.rfbs_commission_mid = rfbsMid;
-        data.rfbs_commission_low = rfbsLow;
-        if ((window as any).EURAFLOW_DEBUG) {
-          console.log('  解析结果:', { rfbsHigh, rfbsMid, rfbsLow });
+        // 【修正】正确区分数据状态：
+        // 1. "-" = 加载中（上品帮还在渲染），保持 undefined 让轮询继续
+        // 2. "无数据" = 已加载完成，上品帮确认无数据，设为 "-" 表示完整状态
+        // 3. 有实际值 = 已加载完成，有佣金数据
+        if (value === '-') {
+          // 加载中，不设置任何值（保持 undefined），让阶段2轮询继续
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} rFBS佣金: 加载中（保持undefined）`);
+          }
+        } else if (value === '无数据' || value.trim() === '') {
+          // 【修正】已加载完成，确认无数据，设为 0（后端只接受 int 或 None）
+          data.rfbs_commission_high = 0;
+          data.rfbs_commission_mid = 0;
+          data.rfbs_commission_low = 0;
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} rFBS佣金: 确认无数据（设为0）`);
+          }
+        } else {
+          // 有数据，解析三个档位（high, mid, low）
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} 开始解析 rFBS佣金`);
+            console.log('  valueElement.innerHTML 前200字符:', valueElement.innerHTML.substring(0, 200));
+          }
+          const [rfbsHigh, rfbsMid, rfbsLow] = this.parseCommissionValues(valueElement);
+          data.rfbs_commission_high = rfbsHigh;
+          data.rfbs_commission_mid = rfbsMid;
+          data.rfbs_commission_low = rfbsLow;
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`  解析结果: high=${rfbsHigh}%, mid=${rfbsMid}%, low=${rfbsLow}%`);
+          }
         }
         break;
 
       // FBP佣金（三个档位）
       case 'FBP佣金':
-        if ((window as any).EURAFLOW_DEBUG) {
-          console.log('[DEBUG] 开始解析 FBP佣金');
-          console.log('  valueElement HTML:', valueElement.innerHTML.substring(0, 200));
-        }
-        const [fbpHigh, fbpMid, fbpLow] = this.parseCommissionValues(valueElement);
-        data.fbp_commission_high = fbpHigh;
-        data.fbp_commission_mid = fbpMid;
-        data.fbp_commission_low = fbpLow;
-        if ((window as any).EURAFLOW_DEBUG) {
-          console.log('  解析结果:', { fbpHigh, fbpMid, fbpLow });
+        // 【修正】正确区分数据状态（与rFBS佣金相同）
+        if (value === '-') {
+          // 加载中，不设置任何值（保持 undefined），让阶段2轮询继续
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} FBP佣金: 加载中（保持undefined）`);
+          }
+        } else if (value === '无数据' || value.trim() === '') {
+          // 【修正】已加载完成，确认无数据，设为 0（后端只接受 int 或 None）
+          data.fbp_commission_high = 0;
+          data.fbp_commission_mid = 0;
+          data.fbp_commission_low = 0;
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} FBP佣金: 确认无数据（设为0）`);
+          }
+        } else {
+          // 有数据，解析三个档位（high, mid, low）
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} 开始解析 FBP佣金`);
+            console.log('  valueElement.innerHTML 前200字符:', valueElement.innerHTML.substring(0, 200));
+          }
+          const [fbpHigh, fbpMid, fbpLow] = this.parseCommissionValues(valueElement);
+          data.fbp_commission_high = fbpHigh;
+          data.fbp_commission_mid = fbpMid;
+          data.fbp_commission_low = fbpLow;
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log('  解析结果:', { fbpHigh, fbpMid, fbpLow });
+          }
         }
         break;
 
@@ -506,7 +623,28 @@ export class ShangpinbangParser implements PageDataParser {
 
       // 物流信息
       case '包装重量':
-        data.package_weight = this.parseNumber(value);
+        // 【修正】区分加载中和无数据：
+        // - 页面显示"-" → 保持undefined（继续轮询）
+        // - 页面显示"无数据" → 设为0（后端只接受 int 或 None）
+        // - 有实际值 → 解析数字
+        if (value === '-') {
+          // 加载中，不设置（保持undefined）
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} 包装重量: 加载中（保持undefined）`);
+          }
+        } else if (value === '无数据' || value.trim() === '') {
+          // 已加载完成，确认无数据，设为0
+          data.package_weight = 0;
+          if ((window as any).EURAFLOW_DEBUG) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} 包装重量: 确认无数据（设为0）`);
+          }
+        } else {
+          // 有实际值，解析数字
+          data.package_weight = this.parseNumber(value);
+          if ((window as any).EURAFLOW_DEBUG && data.package_weight !== undefined) {
+            console.log(`[DEBUG] SKU=${sku || '未知'} 包装重量: ${data.package_weight}g`);
+          }
+        }
         break;
       case '长宽高(mm)':
         this.parseDimensions(value, data);
@@ -531,7 +669,13 @@ export class ShangpinbangParser implements PageDataParser {
 
       // 日期
       case '上架时间':
+        if ((window as any).EURAFLOW_DEBUG) {
+          console.log(`[DEBUG] SKU=${sku || '未知'} 上架时间 原始值: "${value}"`);
+        }
         this.parseListingDate(value, data);
+        if ((window as any).EURAFLOW_DEBUG && data.listing_date) {
+          console.log(`[DEBUG] SKU=${sku || '未知'} 上架时间 解析结果: ${data.listing_date}, ${data.listing_days}天`);
+        }
         break;
     }
   }
@@ -607,10 +751,18 @@ export class ShangpinbangParser implements PageDataParser {
   }
 
   /**
-   * 解析上架时间（从"2022-08-17 (1163天)"中提取日期和天数）
+   * 解析上架时间（从"2025-05-20 (162天)"或"非热销,无数据"中提取日期和天数）
    */
   private parseListingDate(value: string, data: Partial<ProductData>): void {
-    // 提取日期
+    // 处理"非热销,无数据"的情况
+    if (value.includes('非热销') || value.includes('无数据')) {
+      // 明确标记为null，表示无上架时间数据
+      data.listing_date = null as any;
+      data.listing_days = null as any;
+      return;
+    }
+
+    // 提取日期（格式：2025-05-20）
     const dateMatch = value.match(/(\d{4}-\d{2}-\d{2})/);
     if (dateMatch) {
       try {
@@ -618,12 +770,6 @@ export class ShangpinbangParser implements PageDataParser {
       } catch {
         // 忽略解析失败
       }
-    }
-
-    // 提取天数
-    const daysMatch = value.match(/\((\d+)天\)/);
-    if (daysMatch) {
-      data.listing_days = parseInt(daysMatch[1]);
     }
   }
 
@@ -651,15 +797,15 @@ export class ShangpinbangParser implements PageDataParser {
 
     if (tags.length < 3) {
       if ((window as any).EURAFLOW_DEBUG) {
-        console.warn('[DEBUG parseCommissionValues] Not enough tags, expected 3, got:', tags.length);
+        console.log('[DEBUG parseCommissionValues] Not enough tags, expected 3, got:', tags.length);
       }
       return [undefined, undefined, undefined];
     }
 
-    // 按顺序提取: lime(>5000₽), orange(1501~5000₽), magenta(≤1500₽)
-    const high = this.parsePercent(tags[0].textContent || '');
-    const mid = this.parsePercent(tags[1].textContent || '');
-    const low = this.parsePercent(tags[2].textContent || '');
+    // 按顺序提取: lime(≤1500₽)=low, orange(1501~5000₽)=mid, magenta(>5000₽)=high
+    const low = this.parsePercent(tags[0].textContent || '');   // lime 绿色
+    const mid = this.parsePercent(tags[1].textContent || '');   // orange 橙色
+    const high = this.parsePercent(tags[2].textContent || '');  // magenta 红色
 
     if ((window as any).EURAFLOW_DEBUG) {
       console.log('[DEBUG parseCommissionValues] Parsed values:', { high, mid, low });

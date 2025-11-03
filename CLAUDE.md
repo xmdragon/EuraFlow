@@ -388,6 +388,8 @@ supervisorctl tail -100 euraflow:celery_beat stdout
   ```bash
   cd plugins/ef/channels/ozon/browser_extension
   npm run build
+  # ⚠️ 重要：先删除旧zip，防止文件累积导致体积膨胀
+  rm -f euraflow-ozon-selector.zip
   cd dist && zip -r ../euraflow-ozon-selector.zip manifest.json service-worker-loader.js assets/ src/ -x "*.map"
   cp ../euraflow-ozon-selector.zip /home/grom/EuraFlow/web/public/downloads/
   ```

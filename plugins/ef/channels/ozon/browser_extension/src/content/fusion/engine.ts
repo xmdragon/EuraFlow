@@ -58,6 +58,58 @@ export class DataFusionEngine {
   }
 
   /**
+   * 立即融合数据（不等待数据加载）
+   *
+   * 用于两阶段采集：
+   * 1. 快速采集阶段：立即提取所有已有数据
+   * 2. 轮询增强阶段：补充未加载的关键数据
+   *
+   * 与 fuseProductData 的区别：
+   * - 不等待数据注入（waitForInjection）
+   * - 调用 parseProductCardImmediate 而非 parseProductCard
+   * - 提取当前已有数据，未加载的字段为 undefined
+   */
+  async fuseProductDataImmediate(cardElement: HTMLElement): Promise<ProductData> {
+    const available = this.getAvailableParsers();
+
+    if (available.length === 0) {
+      throw new Error('未检测到任何数据工具（上品帮/毛子ERP），请先安装至少一个');
+    }
+
+    // 从所有解析器并行提取数据（不等待）
+    const dataList = await Promise.all(
+      available.map(async parser => ({
+        parser,
+        data: await parser.parseProductCardImmediate(cardElement)
+      }))
+    );
+
+    // 【DEBUG】检查各个parser提取的package_weight
+    if ((window as any).EURAFLOW_DEBUG) {
+      dataList.forEach(({ parser, data }) => {
+        if (data.product_id) {
+          console.log(`[DEBUG fuseProductDataImmediate] ${parser.toolName} SKU=${data.product_id} package_weight =`, data.package_weight);
+        }
+      });
+    }
+
+    // 融合数据（对每个字段选择最佳值）
+    const fused = this.mergeData(dataList);
+
+    // 【DEBUG】检查融合后的package_weight
+    if ((window as any).EURAFLOW_DEBUG && fused.product_id) {
+      console.log(`[DEBUG fuseProductDataImmediate] 融合后 SKU=${fused.product_id} package_weight =`, fused.package_weight);
+    }
+
+    // 验证必需字段
+    if (!fused.product_id) {
+      throw new Error('无法提取商品ID（所有数据源都没有）');
+    }
+
+    return fused as ProductData;
+  }
+
+  /**
    * 合并多个数据源的数据
    */
   private mergeData(
