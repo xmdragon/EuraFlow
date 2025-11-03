@@ -1181,6 +1181,10 @@ async def upload_products(
                 # 基础字段（上品帮新增）
                 if product.category_path:
                     cleaned_data['category_path'] = product.category_path
+                if product.category_level_1:
+                    cleaned_data['category_level_1'] = product.category_level_1
+                if product.category_level_2:
+                    cleaned_data['category_level_2'] = product.category_level_2
                 if product.avg_price is not None:
                     cleaned_data['avg_price'] = Decimal(str(product.avg_price))
                 if product.seller_mode:

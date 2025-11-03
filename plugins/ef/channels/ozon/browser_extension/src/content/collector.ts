@@ -675,59 +675,114 @@ export class ProductCollector {
         continue;
       }
 
-      // 2. 筛选出：有数据注入 + 未处理过 + 未达目标数的商品
-      const newReadyCards: Array<{ card: HTMLElement; sku: string }> = [];
-
-      for (const card of allCards) {
-        const sku = this.quickExtractSKU(card);
-        if (!sku) continue;
-
-        // 已经处理过（成功或失败）
-        if (alreadyProcessed.has(sku)) continue;
-
-        // 已采集或已上传
-        if (this.collected.has(sku) || this.uploadedFingerprints.has(sku)) {
-          alreadyProcessed.add(sku);
-          continue;
-        }
-
-        // 检查是否有数据工具标记（已注入数据）
-        const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
-        const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
-
-        if (hasShangpinbang || hasMaoziErp) {
-          newReadyCards.push({ card, sku });
-        }
-      }
-
-      // 3. 立即采集这些新就绪的商品
-      for (const { card, sku } of newReadyCards) {
-        if (!this.isRunning) break;
-        if (this.collected.size >= targetCount) break;
-
-        alreadyProcessed.add(sku);
-
+      // 2. 第一轮：严格按DOM顺序采集；后续轮：按数据就绪速度采集
+      if (round === 0) {
+        // 【第一轮】按DOM顺序逐个检查和采集
         if (window.EURAFLOW_DEBUG) {
-          console.log(`[DEBUG waitAndCollect] 第${round}轮 发现新商品 ${sku}，开始采集...`);
+          console.log(`[DEBUG waitAndCollect] 第一轮：按DOM顺序采集 (共${allCards.length}个商品)`);
         }
 
-        // 采集单个商品（包括轮询增强）
-        const product = await this.collectSingleProduct(card, sku);
+        for (const card of allCards) {
+          if (!this.isRunning) break;
+          if (this.collected.size >= targetCount) break;
 
-        if (product) {
-          this.collected.set(sku, product);
-          newCollectedCount++;
+          const sku = this.quickExtractSKU(card);
+          if (!sku) continue;
 
-          // 更新进度
-          this.progress.collected = this.collected.size;
-          this.onProgressCallback?.(this.progress);
-
-          if (window.EURAFLOW_DEBUG) {
-            console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);
+          // 已处理过的跳过
+          if (alreadyProcessed.has(sku)) continue;
+          if (this.collected.has(sku) || this.uploadedFingerprints.has(sku)) {
+            alreadyProcessed.add(sku);
+            continue;
           }
-        } else {
+
+          // 检查是否有数据工具标记（已注入数据）
+          const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
+          const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
+
+          if (hasShangpinbang || hasMaoziErp) {
+            alreadyProcessed.add(sku);
+
+            if (window.EURAFLOW_DEBUG) {
+              console.log(`[DEBUG waitAndCollect] 第一轮 按DOM顺序采集 ${sku}`);
+            }
+
+            // 采集单个商品（包括轮询增强）
+            const product = await this.collectSingleProduct(card, sku);
+
+            if (product) {
+              this.collected.set(sku, product);
+              newCollectedCount++;
+
+              // 更新进度
+              this.progress.collected = this.collected.size;
+              this.onProgressCallback?.(this.progress);
+
+              if (window.EURAFLOW_DEBUG) {
+                console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);
+              }
+            } else {
+              if (window.EURAFLOW_DEBUG) {
+                console.warn(`[DEBUG waitAndCollect] ✗ 采集失败 ${sku}`);
+              }
+            }
+          }
+        }
+      } else {
+        // 【后续轮】按数据就绪速度采集（不按DOM顺序）
+        const newReadyCards: Array<{ card: HTMLElement; sku: string }> = [];
+
+        for (const card of allCards) {
+          const sku = this.quickExtractSKU(card);
+          if (!sku) continue;
+
+          // 已经处理过（成功或失败）
+          if (alreadyProcessed.has(sku)) continue;
+
+          // 已采集或已上传
+          if (this.collected.has(sku) || this.uploadedFingerprints.has(sku)) {
+            alreadyProcessed.add(sku);
+            continue;
+          }
+
+          // 检查是否有数据工具标记（已注入数据）
+          const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
+          const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
+
+          if (hasShangpinbang || hasMaoziErp) {
+            newReadyCards.push({ card, sku });
+          }
+        }
+
+        // 立即采集这些新就绪的商品
+        for (const { card, sku } of newReadyCards) {
+          if (!this.isRunning) break;
+          if (this.collected.size >= targetCount) break;
+
+          alreadyProcessed.add(sku);
+
           if (window.EURAFLOW_DEBUG) {
-            console.warn(`[DEBUG waitAndCollect] ✗ 采集失败 ${sku}`);
+            console.log(`[DEBUG waitAndCollect] 第${round}轮 发现新商品 ${sku}，开始采集...`);
+          }
+
+          // 采集单个商品（包括轮询增强）
+          const product = await this.collectSingleProduct(card, sku);
+
+          if (product) {
+            this.collected.set(sku, product);
+            newCollectedCount++;
+
+            // 更新进度
+            this.progress.collected = this.collected.size;
+            this.onProgressCallback?.(this.progress);
+
+            if (window.EURAFLOW_DEBUG) {
+              console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);
+            }
+          } else {
+            if (window.EURAFLOW_DEBUG) {
+              console.warn(`[DEBUG waitAndCollect] ✗ 采集失败 ${sku}`);
+            }
           }
         }
       }
