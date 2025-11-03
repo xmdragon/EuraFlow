@@ -12,11 +12,32 @@ import logging
 import calendar
 
 from ef_core.database import get_async_session
-from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop
+from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop, OzonGlobalSetting
 from ..utils.datetime_utils import utcnow
 
 router = APIRouter(tags=["ozon-reports"])
 logger = logging.getLogger(__name__)
+
+
+async def get_global_timezone(db: AsyncSession) -> str:
+    """
+    获取全局时区设置
+
+    Returns:
+        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
+    """
+    try:
+        result = await db.execute(
+            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
+        )
+        setting = result.scalar_one_or_none()
+        if setting and setting.setting_value:
+            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
+            return setting.setting_value.get("value", "UTC")
+        return "UTC"
+    except Exception as e:
+        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
+        return "UTC"
 
 
 @router.get("/reports/orders")
@@ -527,8 +548,11 @@ async def get_report_summary(
     from sqlalchemy import and_, or_, case
     from sqlalchemy.orm import selectinload
     import calendar
+    from zoneinfo import ZoneInfo
 
     try:
+        # 获取全局时区设置（用于每日趋势统计）
+        global_timezone = await get_global_timezone(db)
         # 解析月份
         year, month_num = month.split("-")
         year = int(year)
@@ -644,8 +668,10 @@ async def get_report_summary(
             shop_stats[shop_name]['sales'] += order_amount
             shop_stats[shop_name]['profit'] += profit
 
-            # 每日趋势统计（使用下单时间）
-            date_str = order.ordered_at.strftime("%Y-%m-%d")
+            # 每日趋势统计（使用下单时间，转换为全局时区）
+            # 将 UTC 时间转换为全局时区后再格式化日期
+            ordered_at_tz = order.ordered_at.astimezone(ZoneInfo(global_timezone))
+            date_str = ordered_at_tz.strftime("%Y-%m-%d")
             if date_str not in daily_stats:
                 daily_stats[date_str] = {'sales': Decimal('0'), 'profit': Decimal('0')}
             daily_stats[date_str]['sales'] += order_amount

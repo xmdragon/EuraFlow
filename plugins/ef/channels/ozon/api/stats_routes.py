@@ -319,12 +319,27 @@ async def get_statistics(
         # 转换为字典
         ozon_status_counts = {row.status: row.count for row in posting_stats_rows}
 
-        # 收入统计（昨日、本周、本月）
-        now = utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        yesterday_start = today_start - timedelta(days=1)
-        week_start = today_start - timedelta(days=now.weekday())
-        month_start = today_start.replace(day=1)
+        # 收入统计（昨日、本周、本月）- 按全局时区计算时间范围
+        # 1. 获取全局时区
+        global_timezone = await get_global_timezone(db)
+
+        # 2. 获取全局时区的当前时间
+        from datetime import datetime, timezone as dt_timezone
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(global_timezone)
+        now_in_tz = datetime.now(tz)
+
+        # 3. 计算全局时区的时间范围起点（00:00:00）
+        today_start_tz = now_in_tz.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start_tz = today_start_tz - timedelta(days=1)
+        week_start_tz = today_start_tz - timedelta(days=now_in_tz.weekday())
+        month_start_tz = today_start_tz.replace(day=1)
+
+        # 4. 转换为 UTC（用于数据库查询）
+        today_start = today_start_tz.astimezone(dt_timezone.utc)
+        yesterday_start = yesterday_start_tz.astimezone(dt_timezone.utc)
+        week_start = week_start_tz.astimezone(dt_timezone.utc)
+        month_start = month_start_tz.astimezone(dt_timezone.utc)
 
         # 昨日收入（按订单创建时间 ordered_at）
         yesterday_revenue_result = await db.execute(
