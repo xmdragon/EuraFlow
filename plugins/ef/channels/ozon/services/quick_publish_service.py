@@ -215,6 +215,9 @@ class QuickPublishService:
         uploaded_urls = []
         tasks = []
 
+        # 使用配置的商品图片文件夹
+        base_folder = cloudinary_service.product_images_folder or "products"
+
         for idx, ozon_url in enumerate(ozon_image_urls):
             # 生成唯一的public_id
             public_id = f"{shop_id}_{offer_id}_{idx}_{int(datetime.now().timestamp())}"
@@ -223,7 +226,7 @@ class QuickPublishService:
             task = cloudinary_service.upload_image_from_url(
                 image_url=ozon_url,
                 public_id=public_id,
-                folder=f"ozon_{shop_id}/quick_publish"
+                folder=f"{base_folder}/{shop_id}/quick_publish"
             )
             tasks.append((idx, task))
 

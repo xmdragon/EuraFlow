@@ -1343,7 +1343,9 @@ async def upload_media(
 
         # 获取上传参数
         upload_type = request.get("type", "base64")  # base64 or url
-        folder = request.get("folder", "products")
+        # 使用配置的商品图片文件夹，如果请求中指定了 folder 则使用请求的
+        default_folder = config.product_images_folder or "products"
+        folder = request.get("folder", default_folder)
 
         if upload_type == "base64":
             # Base64上传
