@@ -3,7 +3,7 @@
  * 字段配置Modal组件
  */
 import { Modal, Space, Button, Divider, Typography, Row, Col } from 'antd';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 import styles from '../../../pages/ozon/ProductSelection.module.scss';
 
@@ -91,15 +91,25 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
   onReset,
   onCancel,
 }) => {
+  // 内部状态管理 - 用于实时预览配置变更
+  const [localConfig, setLocalConfig] = useState<FieldConfig>(fieldConfig);
+
+  // 同步外部配置（当 Modal 打开时）
+  useEffect(() => {
+    if (visible) {
+      setLocalConfig(fieldConfig);
+    }
+  }, [visible, fieldConfig]);
+
   const handleCheckboxChange = (field: keyof FieldConfig, checked: boolean) => {
-    onFieldConfigChange({ ...fieldConfig, [field]: checked });
+    setLocalConfig({ ...localConfig, [field]: checked });
   };
 
   return (
     <Modal
       title="配置显示字段"
       open={visible}
-      onOk={() => onSave(fieldConfig)}
+      onOk={() => onSave(localConfig)}
       onCancel={onCancel}
       okText="保存"
       cancelText="取消"
@@ -113,7 +123,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.brand}
+                checked={localConfig.brand}
                 onChange={(e) => handleCheckboxChange('brand', e.target.checked)}
                 id="field-brand"
               />
@@ -122,7 +132,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.category}
+                checked={localConfig.category}
                 onChange={(e) => handleCheckboxChange('category', e.target.checked)}
                 id="field-category"
               />
@@ -131,7 +141,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.originalPrice}
+                checked={localConfig.originalPrice}
                 onChange={(e) => handleCheckboxChange('originalPrice', e.target.checked)}
                 id="field-originalPrice"
               />
@@ -148,7 +158,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.rfbsCommission}
+                checked={localConfig.rfbsCommission}
                 onChange={(e) => handleCheckboxChange('rfbsCommission', e.target.checked)}
                 id="field-rfbsCommission"
               />
@@ -159,7 +169,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.fbpCommission}
+                checked={localConfig.fbpCommission}
                 onChange={(e) => handleCheckboxChange('fbpCommission', e.target.checked)}
                 id="field-fbpCommission"
               />
@@ -171,7 +181,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.monthlySales}
+                checked={localConfig.monthlySales}
                 onChange={(e) => handleCheckboxChange('monthlySales', e.target.checked)}
                 id="field-monthlySales"
               />
@@ -182,7 +192,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.dailySales}
+                checked={localConfig.dailySales}
                 onChange={(e) => handleCheckboxChange('dailySales', e.target.checked)}
                 id="field-dailySales"
               />
@@ -194,7 +204,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.salesDynamic}
+                checked={localConfig.salesDynamic}
                 onChange={(e) => handleCheckboxChange('salesDynamic', e.target.checked)}
                 id="field-salesDynamic"
               />
@@ -205,7 +215,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.cardMetrics}
+                checked={localConfig.cardMetrics}
                 onChange={(e) => handleCheckboxChange('cardMetrics', e.target.checked)}
                 id="field-cardMetrics"
               />
@@ -217,7 +227,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.searchMetrics}
+                checked={localConfig.searchMetrics}
                 onChange={(e) => handleCheckboxChange('searchMetrics', e.target.checked)}
                 id="field-searchMetrics"
               />
@@ -228,7 +238,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.promoMetrics}
+                checked={localConfig.promoMetrics}
                 onChange={(e) => handleCheckboxChange('promoMetrics', e.target.checked)}
                 id="field-promoMetrics"
               />
@@ -240,7 +250,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.paidPromo}
+                checked={localConfig.paidPromo}
                 onChange={(e) => handleCheckboxChange('paidPromo', e.target.checked)}
                 id="field-paidPromo"
               />
@@ -251,7 +261,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.conversionMetrics}
+                checked={localConfig.conversionMetrics}
                 onChange={(e) => handleCheckboxChange('conversionMetrics', e.target.checked)}
                 id="field-conversionMetrics"
               />
@@ -263,7 +273,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.avgPrice}
+                checked={localConfig.avgPrice}
                 onChange={(e) => handleCheckboxChange('avgPrice', e.target.checked)}
                 id="field-avgPrice"
               />
@@ -274,7 +284,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.weight}
+                checked={localConfig.weight}
                 onChange={(e) => handleCheckboxChange('weight', e.target.checked)}
                 id="field-weight"
               />
@@ -286,7 +296,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.dimensions}
+                checked={localConfig.dimensions}
                 onChange={(e) => handleCheckboxChange('dimensions', e.target.checked)}
                 id="field-dimensions"
               />
@@ -297,7 +307,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.sellerMode}
+                checked={localConfig.sellerMode}
                 onChange={(e) => handleCheckboxChange('sellerMode', e.target.checked)}
                 id="field-sellerMode"
               />
@@ -309,7 +319,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.competitors}
+                checked={localConfig.competitors}
                 onChange={(e) => handleCheckboxChange('competitors', e.target.checked)}
                 id="field-competitors"
               />
@@ -320,7 +330,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.rating}
+                checked={localConfig.rating}
                 onChange={(e) => handleCheckboxChange('rating', e.target.checked)}
                 id="field-rating"
               />
@@ -332,7 +342,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
             <Space>
               <input
                 type="checkbox"
-                checked={fieldConfig.listingDate}
+                checked={localConfig.listingDate}
                 onChange={(e) => handleCheckboxChange('listingDate', e.target.checked)}
                 id="field-listingDate"
               />
