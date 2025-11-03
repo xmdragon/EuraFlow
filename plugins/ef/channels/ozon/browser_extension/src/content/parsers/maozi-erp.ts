@@ -108,9 +108,25 @@ export class MaoziErpParser implements PageDataParser {
 
   /**
    * 提取商品标题
+   * 实际结构（新版）: <a href="/product/..."> <div class="it1_24"> <span class="tsBody500Medium">标题</span> </div> </a>
+   * 实际结构（旧版）: <div class="si2_24"> <a> <span> </span> </a> </div>
    */
   private extractProductTitle(element: HTMLElement, lang: 'ru' | 'cn'): string {
-    const titleElement = element.querySelector('div.si2_24 a[href*="/product/"] span.tsBody500Medium');
+    let titleElement = null;
+
+    // 策略1: 新版结构 - a > div > span（2024年11月之后）
+    titleElement = element.querySelector('a[href*="/product/"] div span.tsBody500Medium');
+
+    // 策略2: 旧版结构 - div > a > span（2024年11月之前）
+    if (!titleElement) {
+      titleElement = element.querySelector('div[class*="si"] a[href*="/product/"] span.tsBody500Medium');
+    }
+
+    // 策略3: 只匹配关键类名（最宽松）
+    if (!titleElement) {
+      titleElement = element.querySelector('a[href*="/product/"] span.tsBody500Medium');
+    }
+
     const title = titleElement?.textContent?.trim();
 
     if (!title) {
