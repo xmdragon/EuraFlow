@@ -131,9 +131,9 @@ class AuditService:
                 f"审计日志记录失败: {str(e)}",
                 extra={
                     "user_id": user_id,
-                    "module": module,
-                    "action": action,
-                    "error": str(e),
+                    "audit_module": module,  # 重命名避免与 logging.LogRecord.module 冲突
+                    "audit_action": action,
+                    "error_message": str(e),
                 },
                 exc_info=True,
             )

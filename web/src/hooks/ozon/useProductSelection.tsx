@@ -553,7 +553,8 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     if (values.competitor_min_price_max)
       params.competitor_min_price_max = values.competitor_min_price_max;
     if (values.listing_date) {
-      params.listing_date_start = toUTC(values.listing_date, 'YYYY-MM-DD');
+      // 直接使用日期字符串，不进行时区转换
+      params.listing_date_start = values.listing_date.format('YYYY-MM-DD');
     }
     if (values.sort_by) params.sort_by = values.sort_by;
 
@@ -564,7 +565,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     if (rememberFilters) {
       const filtersToSave = {
         ...values,
-        listing_date: values.listing_date ? toUTC(values.listing_date, 'YYYY-MM-DD') : undefined,
+        listing_date: values.listing_date ? values.listing_date.format('YYYY-MM-DD') : undefined,
       };
       localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
     }

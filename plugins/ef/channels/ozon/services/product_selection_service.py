@@ -912,7 +912,7 @@ class ProductSelectionService:
         }
 
     async def get_brands(self, db: AsyncSession, user_id: int) -> List[str]:
-        """获取指定用户的品牌列表"""
+        """获取指定用户的品牌列表（返回所有品牌，包括 '-' 和 'без бренда'）"""
         query = select(ProductSelectionItem.brand).distinct().where(
             and_(
                 ProductSelectionItem.user_id == user_id,
@@ -921,7 +921,7 @@ class ProductSelectionService:
         ).order_by(ProductSelectionItem.brand)
 
         result = await db.execute(query)
-        brands = [row[0] for row in result if row[0] and row[0] != 'без бренда']
+        brands = [row[0] for row in result if row[0]]  # 返回所有非空品牌
 
         return brands
 

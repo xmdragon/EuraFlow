@@ -1,7 +1,7 @@
 """
 订单管理 API路由
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -329,6 +329,7 @@ async def get_orders(
 @router.put("/orders/{posting_number}/extra-info")
 async def update_order_extra_info(
     posting_number: str,
+    request: Request,
     extra_info: Dict[str, Any] = Body(...),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
@@ -338,15 +339,26 @@ async def update_order_extra_info(
     注意：这些字段是 posting 维度的数据，存储在 ozon_postings 表
     """
     from decimal import Decimal
+    from ef_core.services.audit_service import AuditService
+    from sqlalchemy.orm import selectinload
 
-    # 通过 posting_number 查找 posting
+    # 通过 posting_number 查找 posting（预加载 domestic_trackings 关系）
     posting_result = await db.execute(
-        select(OzonPosting).where(OzonPosting.posting_number == posting_number)
+        select(OzonPosting)
+        .options(selectinload(OzonPosting.domestic_trackings))
+        .where(OzonPosting.posting_number == posting_number)
     )
     posting = posting_result.scalar_one_or_none()
 
     if not posting:
         raise HTTPException(status_code=404, detail="Posting not found")
+
+    # 保存旧值（用于日志）
+    old_purchase_price = posting.purchase_price
+    old_material_cost = posting.material_cost
+    old_tracking_numbers = posting.get_domestic_tracking_numbers()
+    old_source_platform = posting.source_platform
+    old_order_notes = posting.order_notes
 
     # 更新字段（智能检测值变化，只在真正变化时更新时间戳）
     try:
@@ -430,6 +442,126 @@ async def update_order_extra_info(
 
     # 获取国内物流单号列表
     tracking_numbers = posting.get_domestic_tracking_numbers()
+
+    # 记录审计日志（字段级）
+    request_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    request_id = request.headers.get("x-request-id")
+
+    try:
+        # 记录进货价格变更
+        if posting.purchase_price != old_purchase_price:
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="更新进货价格",
+                table_name="ozon_postings",
+                record_id=posting_number,
+                changes={
+                    "purchase_price": {
+                        "old": str(old_purchase_price) if old_purchase_price else None,
+                        "new": str(posting.purchase_price) if posting.purchase_price else None
+                    }
+                },
+                ip_address=request_ip,
+                user_agent=user_agent,
+                request_id=request_id
+            )
+
+        # 记录物料成本变更
+        if posting.material_cost != old_material_cost:
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="更新物料成本",
+                table_name="ozon_postings",
+                record_id=posting_number,
+                changes={
+                    "material_cost": {
+                        "old": str(old_material_cost) if old_material_cost else None,
+                        "new": str(posting.material_cost) if posting.material_cost else None
+                    }
+                },
+                ip_address=request_ip,
+                user_agent=user_agent,
+                request_id=request_id
+            )
+
+        # 记录国内单号变更
+        if tracking_numbers != old_tracking_numbers:
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="更新国内单号",
+                table_name="ozon_postings",
+                record_id=posting_number,
+                changes={
+                    "domestic_tracking_numbers": {
+                        "old": old_tracking_numbers,
+                        "new": tracking_numbers
+                    }
+                },
+                ip_address=request_ip,
+                user_agent=user_agent,
+                request_id=request_id
+            )
+
+        # 记录采购平台变更
+        if posting.source_platform != old_source_platform:
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="更新采购平台",
+                table_name="ozon_postings",
+                record_id=posting_number,
+                changes={
+                    "source_platform": {
+                        "old": old_source_platform,
+                        "new": posting.source_platform
+                    }
+                },
+                ip_address=request_ip,
+                user_agent=user_agent,
+                request_id=request_id
+            )
+
+        # 记录其他信息变更（订单备注）
+        if posting.order_notes != old_order_notes:
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="update",
+                action_display="更新订单其他信息",
+                table_name="ozon_postings",
+                record_id=posting_number,
+                changes={
+                    "order_notes": {
+                        "old": old_order_notes,
+                        "new": posting.order_notes
+                    }
+                },
+                ip_address=request_ip,
+                user_agent=user_agent,
+                request_id=request_id
+            )
+
+    except Exception as e:
+        # 审计日志失败不影响主流程
+        logger.error(f"更新订单额外信息审计日志记录失败 {posting_number}: {str(e)}")
 
     return {
         "success": True,

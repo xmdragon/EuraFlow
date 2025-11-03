@@ -24,11 +24,17 @@ def utcnow():
 # ============================
 
 class OzonCategory(Base):
-    """OZON类目缓存表"""
+    """
+    OZON类目缓存表
+
+    注意：OZON的类目树设计允许同一个子类目（type_id）出现在多个父类目下，
+    因此使用 (category_id, parent_id) 的组合作为唯一标识
+    """
     __tablename__ = "ozon_categories"
 
-    category_id = Column(Integer, primary_key=True)
-    parent_id = Column(Integer, ForeignKey("ozon_categories.category_id", ondelete="SET NULL"))
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="自增主键")
+    category_id = Column(Integer, nullable=False, comment="OZON类目ID")
+    parent_id = Column(Integer, nullable=True, comment="父类目ID")
     name = Column(String(500), nullable=False)
     is_leaf = Column(Boolean, default=False, comment="是否叶子类目(只有叶子类目可建品)")
     is_disabled = Column(Boolean, default=False)
@@ -41,11 +47,17 @@ class OzonCategory(Base):
     last_updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     attributes_synced_at = Column(DateTime(timezone=True), nullable=True, comment="特征最后同步时间")
 
-    # 关系
-    parent = relationship("OzonCategory", remote_side=[category_id], backref="children")
-    attributes = relationship("OzonCategoryAttribute", back_populates="category", cascade="all, delete-orphan")
+    # 注意：relationships 需要特殊处理，因为不再是简单的自引用
+    # parent = relationship("OzonCategory", remote_side=[category_id], backref="children")
+    attributes = relationship("OzonCategoryAttribute", back_populates="category",
+                            primaryjoin="OzonCategory.category_id == OzonCategoryAttribute.category_id",
+                            foreign_keys="[OzonCategoryAttribute.category_id]",
+                            cascade="all, delete-orphan")
 
     __table_args__ = (
+        # (category_id, parent_id) 的唯一索引，支持多对多关系
+        Index("idx_ozon_categories_category_parent", "category_id", "parent_id", unique=True),
+        Index("idx_ozon_categories_category_id", "category_id"),
         Index("idx_ozon_categories_parent", "parent_id"),
         Index("idx_ozon_categories_leaf", "is_leaf", postgresql_where=(Column("is_leaf") == True)),
         Index("idx_ozon_categories_attrs_synced_at", "attributes_synced_at"),

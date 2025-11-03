@@ -15,6 +15,7 @@ import {
   Typography,
   Spin,
   Empty,
+  Input,
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useState, useEffect } from 'react';
@@ -99,6 +100,7 @@ const AuditLogsTable: React.FC = () => {
       if (values.user_id) params.user_id = values.user_id;
       if (values.module) params.module = values.module;
       if (values.action) params.action = values.action;
+      if (values.record_id) params.record_id = values.record_id;
       if (values.date_range && values.date_range.length === 2) {
         params.start_date = toUTCRange(values.date_range[0], false);
         params.end_date = toUTCRange(values.date_range[1], true);
@@ -209,7 +211,7 @@ const AuditLogsTable: React.FC = () => {
       render: (text: string) => <Text code>{text}</Text>,
     },
     {
-      title: '记录ID',
+      title: '货件编号',
       dataIndex: 'record_id',
       key: 'record_id',
       minWidth: 150,
@@ -308,6 +310,14 @@ const AuditLogsTable: React.FC = () => {
           </Select>
         </Form.Item>
 
+        <Form.Item name="record_id" label="货件编号">
+          <Input
+            placeholder="请输入货件编号"
+            allowClear
+            style={{ width: 200 }}
+          />
+        </Form.Item>
+
         <Form.Item name="date_range" label="时间范围">
           <RangePicker showTime />
         </Form.Item>
@@ -383,7 +393,7 @@ const AuditLogsTable: React.FC = () => {
                 <Text code>{selectedLog.table_name}</Text>
               </div>
               <div>
-                <Text strong>记录ID：</Text>
+                <Text strong>货件编号：</Text>
                 <Text>{selectedLog.record_id}</Text>
               </div>
               {selectedLog.changes && (

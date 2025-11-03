@@ -39,11 +39,11 @@ import styles from './ProductCreate.module.scss';
 
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
-import { categoryTree as categoryTreeData } from '@/data/categoryTree';
 import * as ozonApi from '@/services/ozonApi';
 import type { CategoryAttribute } from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { VariantImageManagerModal } from '@/components/ozon/VariantImageManagerModal';
 
 // 类目选项接口
 interface CategoryOption {
@@ -71,7 +71,7 @@ interface ProductVariant {
   dimension_values: Record<number, any>;
   offer_id: string;
   title?: string;  // 标题（变体可以有不同的标题）
-  image?: string;  // 图片
+  images?: string[];  // 图片数组（支持多图）
   video?: string;  // 视频
   price?: number;
   old_price?: number;
@@ -113,11 +113,19 @@ const ProductCreate: React.FC = () => {
   const [variantTableCollapsed, setVariantTableCollapsed] = useState(false); // 表格折叠状态
   // 隐藏的字段（已添加为变体维度的字段）
   const [hiddenFields, setHiddenFields] = useState<Set<string>>(new Set());
+  // 图片管理弹窗状态
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+  // 变体行选中状态
+  const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
 
   // 类目属性相关状态
   const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
   const [loadingAttributes, setLoadingAttributes] = useState(false);
   const [optionalFieldsExpanded, setOptionalFieldsExpanded] = useState(false);
+
+  // 字典值缓存（key: dictionary_id, value: 字典值列表）
+  const [dictionaryValuesCache, setDictionaryValuesCache] = useState<Record<number, any[]>>({});
 
   // 创建商品
   const createProductMutation = useMutation({
@@ -145,15 +153,32 @@ const ProductCreate: React.FC = () => {
     },
   });
 
-  // 店铺变化时加载类目（从静态文件）
+  // 店铺变化时动态加载类目（从 public 目录）
   useEffect(() => {
-    if (selectedShop) {
-      setCategoryTree(categoryTreeData);
-      setHasCategoryData(categoryTreeData.length > 0);
-    } else {
-      setCategoryTree([]);
-      setHasCategoryData(false);
-    }
+    const loadCategoryTree = async () => {
+      if (selectedShop) {
+        try {
+          const timestamp = Date.now();
+          const response = await fetch(`/data/categoryTree.json?t=${timestamp}`);
+          if (!response.ok) {
+            throw new Error('加载类目树失败');
+          }
+          const json = await response.json();
+          setCategoryTree(json.data || []);
+          setHasCategoryData(json.data?.length > 0);
+        } catch (error) {
+          console.error('加载类目树失败:', error);
+          notifyError('加载失败', '无法加载类目树数据，请刷新页面重试');
+          setCategoryTree([]);
+          setHasCategoryData(false);
+        }
+      } else {
+        setCategoryTree([]);
+        setHasCategoryData(false);
+      }
+    };
+
+    loadCategoryTree();
   }, [selectedShop]);
 
   // 加载类目属性
@@ -177,6 +202,40 @@ const ProductCreate: React.FC = () => {
       notifyError('加载失败', '加载类目属性失败');
     } finally {
       setLoadingAttributes(false);
+    }
+  };
+
+  // 加载字典值
+  const loadDictionaryValues = async (dictionaryId: number, query?: string) => {
+    if (!selectedShop) {
+      return [];
+    }
+
+    // 如果是搜索，不使用缓存
+    if (query) {
+      try {
+        const result = await ozonApi.searchDictionaryValues(selectedShop, dictionaryId, query, 100);
+        return result.data || [];
+      } catch (error) {
+        console.error('Failed to search dictionary values:', error);
+        return [];
+      }
+    }
+
+    // 非搜索情况，检查缓存
+    if (dictionaryValuesCache[dictionaryId]) {
+      return dictionaryValuesCache[dictionaryId];
+    }
+
+    // 加载字典值并缓存
+    try {
+      const result = await ozonApi.searchDictionaryValues(selectedShop, dictionaryId, undefined, 100);
+      const values = result.data || [];
+      setDictionaryValuesCache((prev) => ({ ...prev, [dictionaryId]: values }));
+      return values;
+    } catch (error) {
+      console.error('Failed to load dictionary values:', error);
+      return [];
     }
   };
 
@@ -437,6 +496,27 @@ const ProductCreate: React.FC = () => {
     );
   };
 
+  // 打开图片管理弹窗
+  const handleOpenImageModal = (variant: ProductVariant) => {
+    setEditingVariant(variant);
+    setImageModalVisible(true);
+  };
+
+  // 保存图片
+  const handleSaveImages = (images: string[]) => {
+    if (editingVariant) {
+      handleUpdateVariantRow(editingVariant.id, 'images', images);
+    }
+    setImageModalVisible(false);
+    setEditingVariant(null);
+  };
+
+  // 取消编辑图片
+  const handleCancelImageModal = () => {
+    setImageModalVisible(false);
+    setEditingVariant(null);
+  };
+
   // 批量生成 Offer ID
   const handleBatchGenerateOfferId = () => {
     if (variants.length === 0) {
@@ -464,15 +544,66 @@ const ProductCreate: React.FC = () => {
     setVariants(variants.map((v) => ({ ...v, old_price: oldPrice })));
   };
 
-  // 动态生成变体表格列（默认包含 Offer ID、标题、图片、视频、售价、原价）
+  // 动态生成变体表格列（图片、视频在最前面，参照 OZON 官方界面）
   const getVariantColumns = () => {
     const columns: any[] = [];
 
-    // Offer ID 列（固定第一列，表头带批量生成）
+    // 图片列（第一列，左固定）
+    columns.push({
+      title: '图片',
+      key: 'image',
+      width: 64,
+      fixed: 'left',
+      render: (_: any, record: ProductVariant) => {
+        const imageCount = record.images?.length || 0;
+        return (
+          <div
+            className={styles.variantImageCell}
+            onClick={() => handleOpenImageModal(record)}
+          >
+            {imageCount > 0 ? (
+              <div className={styles.variantImagePreview}>
+                <img src={record.images![0]} alt="variant" className={styles.variantImage} />
+                <span className={styles.imageCount}>{imageCount}</span>
+              </div>
+            ) : (
+              <div className={styles.variantImagePlaceholder}>
+                <PlusOutlined />
+                <span className={styles.imageCountZero}>0</span>
+              </div>
+            )}
+          </div>
+        );
+      },
+    });
+
+    // 视频列（第二列）
+    columns.push({
+      title: '视频',
+      key: 'video',
+      width: 64,
+      render: (_: any, record: ProductVariant) => (
+        <div className={styles.variantVideoCell}>
+          {record.video ? (
+            <div className={styles.variantVideoPreview}>
+              有
+              <span className={styles.videoCount}>1</span>
+            </div>
+          ) : (
+            <div className={styles.variantVideoPlaceholder}>
+              <PlusOutlined />
+              <span className={styles.videoCountZero}>0</span>
+            </div>
+          )}
+        </div>
+      ),
+    });
+
+    // Offer ID 列（第三列，表头带批量生成）
     columns.push({
       title: (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-          <span>Offer ID</span>
+          <span>货号</span>
           <Button
             size="small"
             icon={<ThunderboltOutlined />}
@@ -484,53 +615,30 @@ const ProductCreate: React.FC = () => {
         </div>
       ),
       key: 'offer_id',
-      width: 200,
-      fixed: 'left',
+      width: 160,
       render: (_: any, record: ProductVariant) => (
         <Input
           size="small"
           value={record.offer_id}
           onChange={(e) => handleUpdateVariantRow(record.id, 'offer_id', e.target.value)}
-          placeholder="标识符"
+          placeholder="货号"
         />
       ),
     });
 
-    // 标题列
+    // 标题列（第四列）
     columns.push({
       title: '标题',
       key: 'title',
-      width: 200,
+      width: 150,
       render: (_: any, record: ProductVariant) => (
         <Input
           size="small"
           value={record.title}
           onChange={(e) => handleUpdateVariantRow(record.id, 'title', e.target.value)}
-          placeholder="商品标题"
+          placeholder="标题"
         />
       ),
-    });
-
-    // 图片列
-    columns.push({
-      title: '图片',
-      key: 'image',
-      width: 70,
-      render: (_: any, record: ProductVariant) =>
-        record.image ? (
-          <img src={record.image} alt="variant" className={styles.variantImage} />
-        ) : (
-          <div className={styles.variantPlaceholder}>-</div>
-        ),
-    });
-
-    // 视频列
-    columns.push({
-      title: '视频',
-      key: 'video',
-      width: 60,
-      render: (_: any, record: ProductVariant) =>
-        record.video ? '有' : <div className={styles.variantPlaceholder}>-</div>,
     });
 
     // 添加用户选择的维度列
@@ -547,7 +655,7 @@ const ProductCreate: React.FC = () => {
           </Space>
         ),
         key: `dim_${dim.attribute_id}`,
-        width: 120,
+        width: 110,
         render: (_: any, record: ProductVariant) => (
           <Input
             size="small"
@@ -555,7 +663,7 @@ const ProductCreate: React.FC = () => {
             onChange={(e) =>
               handleUpdateVariantRow(record.id, `dim_${dim.attribute_id}`, e.target.value)
             }
-            placeholder={`输入${dim.name}`}
+            placeholder={`${dim.name}`}
           />
         ),
       });
@@ -578,7 +686,7 @@ const ProductCreate: React.FC = () => {
         </div>
       ),
       key: 'price',
-      width: 110,
+      width: 100,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
           size="small"
@@ -587,7 +695,6 @@ const ProductCreate: React.FC = () => {
           placeholder="0"
           min={0}
           controls={false}
-          style={{ width: '100%' }}
         />
       ),
     });
@@ -609,7 +716,7 @@ const ProductCreate: React.FC = () => {
         </div>
       ),
       key: 'old_price',
-      width: 110,
+      width: 100,
       render: (_: any, record: ProductVariant) => (
         <InputNumber
           size="small"
@@ -618,7 +725,6 @@ const ProductCreate: React.FC = () => {
           placeholder="0"
           min={0}
           controls={false}
-          style={{ width: '100%' }}
         />
       ),
     });
@@ -791,29 +897,66 @@ const ProductCreate: React.FC = () => {
 
     // 渲染输入控件
     let inputControl: React.ReactNode;
-    switch (attr.attribute_type) {
-      case 'Boolean':
-        inputControl = <Switch />;
-        break;
 
-      case 'Integer':
-      case 'Decimal':
-        inputControl = (
-          <InputNumber
-            min={attr.min_value ?? undefined}
-            max={attr.max_value ?? undefined}
-            placeholder={`请输入${fullLabel}`}
-            controls={false}
-            style={{ width: '100%' }}
-          />
-        );
-        break;
+    // 优先检查是否有字典值（所有类型都可能有字典值）
+    if (attr.dictionary_id) {
+      inputControl = (
+        <Select
+          showSearch
+          placeholder={`请选择${fullLabel}`}
+          style={{ width: '100%' }}
+          filterOption={false}
+          onSearch={async (value) => {
+            // 搜索时动态加载并更新缓存
+            if (value) {
+              const values = await loadDictionaryValues(attr.dictionary_id!, value);
+              // 更新缓存以触发重新渲染
+              setDictionaryValuesCache((prev) => ({
+                ...prev,
+                [attr.dictionary_id!]: values,
+              }));
+            }
+          }}
+          onFocus={async () => {
+            // 获取焦点时加载初始值（如果缓存为空）
+            if (!dictionaryValuesCache[attr.dictionary_id!]) {
+              await loadDictionaryValues(attr.dictionary_id!);
+            }
+          }}
+          options={
+            dictionaryValuesCache[attr.dictionary_id]?.map((v: any) => ({
+              label: v.value,
+              value: v.value_id,
+            })) || []
+          }
+        />
+      );
+    } else {
+      // 没有字典值，根据类型渲染对应控件
+      switch (attr.attribute_type) {
+        case 'Boolean':
+          inputControl = <Switch />;
+          break;
 
-      case 'String':
-      case 'URL':
-      default:
-        inputControl = <Input placeholder={`请输入${fullLabel}`} />;
-        break;
+        case 'Integer':
+        case 'Decimal':
+          inputControl = (
+            <InputNumber
+              min={attr.min_value ?? undefined}
+              max={attr.max_value ?? undefined}
+              placeholder={`请输入${fullLabel}`}
+              controls={false}
+              style={{ width: '100%' }}
+            />
+          );
+          break;
+
+        case 'String':
+        case 'URL':
+        default:
+          inputControl = <Input placeholder={`请输入${fullLabel}`} />;
+          break;
+      }
     }
 
     return (
@@ -993,21 +1136,6 @@ const ProductCreate: React.FC = () => {
               </Form.Item>
             )}
 
-            {!hiddenFields.has('barcode') && (
-              <Form.Item label="条形码 (Barcode)" style={{ marginBottom: 12 }}>
-                <Space.Compact style={{ width: 'auto' }}>
-                  <Form.Item name="barcode" noStyle>
-                    <Input placeholder="商品条形码（FBP模式必填）" style={{ width: '250px' }} />
-                  </Form.Item>
-                  <Button
-                    icon={<PlusOutlined />}
-                    onClick={() => handleAddFieldAsVariant('barcode', '条形码', 'String')}
-                    title="将当前属性添加变体属性"
-                  />
-                </Space.Compact>
-              </Form.Item>
-            )}
-
             <div className={styles.dimensionGroup}>
               {!hiddenFields.has('depth') && (
                 <div className={styles.dimensionItem}>
@@ -1120,8 +1248,8 @@ const ProductCreate: React.FC = () => {
                     .filter((attr) => attr.is_required)
                     .map((attr) => renderAttributeField(attr))}
 
-                  {/* 选填属性（折叠） */}
-                  {categoryAttributes.filter((attr) => !attr.is_required).length > 0 && (
+                  {/* 选填属性（折叠）+ 条形码 */}
+                  {(categoryAttributes.filter((attr) => !attr.is_required).length > 0 || !hiddenFields.has('barcode')) && (
                     <div style={{ marginTop: '16px' }}>
                       <Button
                         type="link"
@@ -1130,11 +1258,28 @@ const ProductCreate: React.FC = () => {
                         style={{ padding: 0 }}
                       >
                         {optionalFieldsExpanded ? '收起' : '展开'}选填属性 (
-                        {categoryAttributes.filter((attr) => !attr.is_required).length} 个)
+                        {categoryAttributes.filter((attr) => !attr.is_required).length + (!hiddenFields.has('barcode') ? 1 : 0)} 个)
                       </Button>
 
                       {optionalFieldsExpanded && (
                         <div style={{ marginTop: '12px' }}>
+                          {/* 条形码（选填） */}
+                          {!hiddenFields.has('barcode') && (
+                            <Form.Item label="条形码 (Barcode)" style={{ marginBottom: 12 }}>
+                              <Space.Compact style={{ width: 'auto' }}>
+                                <Form.Item name="barcode" noStyle>
+                                  <Input placeholder="商品条形码（FBP模式必填）" style={{ width: '250px' }} />
+                                </Form.Item>
+                                <Button
+                                  icon={<PlusOutlined />}
+                                  onClick={() => handleAddFieldAsVariant('barcode', '条形码', 'String')}
+                                  title="将当前属性添加变体属性"
+                                />
+                              </Space.Compact>
+                            </Form.Item>
+                          )}
+
+                          {/* 其他选填属性 */}
                           {categoryAttributes
                             .filter((attr) => !attr.is_required)
                             .map((attr) => renderAttributeField(attr))}
@@ -1315,6 +1460,15 @@ const ProductCreate: React.FC = () => {
                         pagination={false}
                         size="small"
                         scroll={{ x: 'max-content' }}
+                        rowSelection={{
+                          selectedRowKeys: selectedVariantIds,
+                          onChange: (selectedKeys: React.Key[]) => {
+                            setSelectedVariantIds(selectedKeys as string[]);
+                          },
+                          columnWidth: 40,
+                          fixed: true,
+                        }}
+                        className={styles.variantTable}
                       />
                     ) : (
                       <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
@@ -1352,6 +1506,19 @@ const ProductCreate: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* 图片管理弹窗 */}
+      {editingVariant && selectedShop && (
+        <VariantImageManagerModal
+          visible={imageModalVisible}
+          variantId={editingVariant.id}
+          offerId={editingVariant.offer_id}
+          images={editingVariant.images || []}
+          shopId={selectedShop}
+          onOk={handleSaveImages}
+          onCancel={handleCancelImageModal}
+        />
+      )}
     </div>
   );
 };

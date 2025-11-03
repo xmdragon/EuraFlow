@@ -106,7 +106,8 @@ const ThirdPartyServicesTab: React.FC = () => {
       cloudinaryForm.setFieldsValue({
         cloud_name: cloudinaryConfig.cloud_name || "",
         api_key: cloudinaryConfig.api_key || "",
-        folder_prefix: cloudinaryConfig.folder_prefix || "euraflow",
+        product_images_folder: cloudinaryConfig.product_images_folder || "products",
+        watermark_images_folder: cloudinaryConfig.watermark_images_folder || "watermarks",
         auto_cleanup_days: cloudinaryConfig.auto_cleanup_days || 30,
       });
     }
@@ -326,11 +327,19 @@ const ThirdPartyServicesTab: React.FC = () => {
                     </Form.Item>
 
                     <Form.Item
-                      name="folder_prefix"
-                      label="文件夹前缀"
-                      initialValue="euraflow"
+                      name="product_images_folder"
+                      label="商品图片文件夹"
+                      initialValue="products"
                     >
-                      <Input style={{ width: 200 }} />
+                      <Input placeholder="products" style={{ width: 200 }} />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="watermark_images_folder"
+                      label="水印图片文件夹"
+                      initialValue="watermarks"
+                    >
+                      <Input placeholder="watermarks" style={{ width: 200 }} />
                     </Form.Item>
 
                     <Form.Item

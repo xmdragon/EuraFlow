@@ -1110,6 +1110,7 @@ const PackingShipment: React.FC = () => {
                       setCurrentPosting(posting);
                       setDomesticTrackingModalVisible(true);
                     }}
+                    onShowDetail={showOrderDetail}
                     shopNameMap={shopNameMap}
                     canOperate={canOperate}
                     isPrinting={isPrinting}

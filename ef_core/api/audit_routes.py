@@ -308,6 +308,7 @@ async def get_audit_logs(
     module: Optional[str] = Query(None, description="模块（ozon/finance/user/system）"),
     action: Optional[str] = Query(None, description="操作类型（create/update/delete/print）"),
     table_name: Optional[str] = Query(None, description="表名"),
+    record_id: Optional[str] = Query(None, description="货件编号（记录ID）"),
     start_date: Optional[datetime] = Query(None, description="开始时间"),
     end_date: Optional[datetime] = Query(None, description="结束时间"),
     cursor: Optional[int] = Query(None, description="游标（上一页最后一条的ID）"),
@@ -343,6 +344,9 @@ async def get_audit_logs(
             conditions.append(AuditLog.action == action)
         if table_name:
             conditions.append(AuditLog.table_name == table_name)
+        if record_id:
+            # 货件编号精确匹配
+            conditions.append(AuditLog.record_id == record_id)
 
         # 游标分页
         if cursor:

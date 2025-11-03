@@ -28,7 +28,8 @@ interface CloudinaryConfigData {
   bandwidth_used_bytes?: number;
   cloud_name?: string;
   api_key?: string;
-  folder_prefix?: string;
+  product_images_folder?: string;
+  watermark_images_folder?: string;
   auto_cleanup_days?: number;
 }
 
@@ -98,14 +99,21 @@ export const CloudinaryConfigCard: React.FC<CloudinaryConfigCardProps> = ({
                 <Input.Password placeholder="保存后不显示" />
               </Form.Item>
             </Col>
-            <Col span={6}>
-              <Form.Item name="folder_prefix" label="文件夹前缀" initialValue="euraflow">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
+            <Col span={12}>
               <Form.Item name="auto_cleanup_days" label="自动清理天数" initialValue={30}>
                 <InputNumber min={1} max={365} className={styles.fullWidthInput} controls={false} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="product_images_folder" label="商品图片文件夹" initialValue="products">
+                <Input placeholder="products" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="watermark_images_folder" label="水印图片文件夹" initialValue="watermarks">
+                <Input placeholder="watermarks" />
               </Form.Item>
             </Col>
           </Row>

@@ -569,8 +569,9 @@ class CloudinaryConfigManager:
             api_secret=api_secret
         )
 
-        # 设置folder_prefix属性
-        service.folder_prefix = config.folder_prefix if config.folder_prefix else "euraflow"
+        # 设置文件夹属性
+        service.product_images_folder = config.product_images_folder or "products"
+        service.watermark_images_folder = config.watermark_images_folder or "watermarks"
 
         return service
 

@@ -220,7 +220,7 @@ class WatermarkProcessor:
 
                     # 生成唯一ID
                     unique_id = f"{product.offer_id}_{uuid4().hex[:8]}_{idx}"
-                    folder = f"{self.cloudinary_service.folder_prefix}/products/{shop_id}"
+                    folder = f"{self.cloudinary_service.product_images_folder}/{shop_id}"
 
                     # 使用分析得出的最佳位置，或使用默认
                     # 使用当前图片的水印配置（可能是自定义的）

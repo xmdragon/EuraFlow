@@ -1677,19 +1677,21 @@ class OzonAPIClient:
         self,
         attribute_id: int,
         category_id: int,
+        parent_category_id: Optional[int] = None,
         last_value_id: int = 0,
-        limit: int = 5000,
+        limit: int = 2000,
         language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
         获取属性字典值列表
-        使用 /v2/category/attribute/values 接口
+        使用 /v1/description-category/attribute/values 接口
 
         Args:
             attribute_id: 属性ID
-            category_id: 类目ID
+            category_id: 叶子类目ID（type_id）
+            parent_category_id: 父类目ID（description_category_id），如果不提供则使用category_id
             last_value_id: 上次请求的最后一个value_id（用于分页）
-            limit: 每页数量（最大5000）
+            limit: 每页数量（最大2000）
             language: 语言（默认ZH_HANS中文）
 
         Returns:
@@ -1697,15 +1699,16 @@ class OzonAPIClient:
         """
         data = {
             "attribute_id": attribute_id,
-            "category_id": category_id,
+            "description_category_id": parent_category_id if parent_category_id else category_id,
+            "type_id": category_id,  # 叶子类目的 type_id
             "last_value_id": last_value_id,
-            "limit": min(limit, 5000),
+            "limit": min(limit, 2000),  # API 最大支持 2000
             "language": language
         }
 
         return await self._request(
             "POST",
-            "/v2/category/attribute/values",
+            "/v1/description-category/attribute/values",
             data=data,
             resource_type="categories"
         )

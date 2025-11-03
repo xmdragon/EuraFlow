@@ -93,8 +93,11 @@ class CloudinaryConfig(Base):
     api_secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False, comment="加密的API Secret")
 
     # 配置参数
-    folder_prefix: Mapped[str] = mapped_column(
-        String(50), default="euraflow", nullable=False, comment="文件夹前缀"
+    product_images_folder: Mapped[str] = mapped_column(
+        String(100), default="products", nullable=False, comment="商品图片文件夹路径"
+    )
+    watermark_images_folder: Mapped[str] = mapped_column(
+        String(100), default="watermarks", nullable=False, comment="水印图片文件夹路径"
     )
     auto_cleanup_days: Mapped[int] = mapped_column(
         Integer, default=30, nullable=False, comment="自动清理天数"

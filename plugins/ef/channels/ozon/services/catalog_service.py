@@ -177,10 +177,19 @@ class CatalogService:
         # 3级（叶子）使用 type_id 和 type_name
         category_id = category_data.get("description_category_id") or category_data.get("type_id")
         if not category_id:
+            logger.warning(f"Category data missing ID, skipping: {category_data}")
             return {'count': 0, 'new': 0, 'updated': 0}
 
-        # 检查类目是否已存在
-        existing = await self.db.get(OzonCategory, category_id)
+        # 检查类目是否已存在（使用 category_id + parent_id 组合查询）
+        stmt = select(OzonCategory).where(
+            and_(
+                OzonCategory.category_id == category_id,
+                OzonCategory.parent_id == parent_id if parent_id is not None
+                else OzonCategory.parent_id.is_(None)
+            )
+        )
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
 
         # 兼容两种字段名
         category_name = category_data.get("category_name") or category_data.get("type_name", "")
@@ -232,17 +241,22 @@ class CatalogService:
         # 递归处理子类目（OZON API已在第一次调用时返回完整树结构）
         if children:
             for child_data in children:
-                child_result = await self._save_category_recursive(
-                    child_data,
-                    parent_id=category_id,
-                    level=level + 1,
-                    progress_state=progress_state,
-                    total_count=total_count,
-                    progress_callback=progress_callback
-                )
-                result['count'] += child_result['count']
-                result['new'] += child_result['new']
-                result['updated'] += child_result['updated']
+                try:
+                    child_result = await self._save_category_recursive(
+                        child_data,
+                        parent_id=category_id,
+                        level=level + 1,
+                        progress_state=progress_state,
+                        total_count=total_count,
+                        progress_callback=progress_callback
+                    )
+                    result['count'] += child_result['count']
+                    result['new'] += child_result['new']
+                    result['updated'] += child_result['updated']
+                except Exception as e:
+                    child_id = child_data.get("description_category_id") or child_data.get("type_id")
+                    child_name = child_data.get("category_name") or child_data.get("type_name")
+                    logger.error(f"Failed to save child {child_id} ({child_name}): {e}", exc_info=True)
 
         return result
 
@@ -389,7 +403,21 @@ class CatalogService:
             同步结果
         """
         try:
-            # 先获取属性信息确认dictionary_id
+            # 先获取类目信息，获取父类目ID（description_category_id）
+            cat_stmt = select(OzonCategory).where(OzonCategory.category_id == category_id).limit(1)
+            cat_result = await self.db.execute(cat_stmt)
+            category = cat_result.scalar_one_or_none()
+
+            if not category:
+                logger.warning(f"Category {category_id} not found")
+                return {"success": False, "error": f"Category {category_id} not found"}
+
+            parent_id = category.parent_id
+            if not parent_id:
+                logger.warning(f"Category {category_id} has no parent_id")
+                return {"success": False, "error": f"Category {category_id} has no parent_id"}
+
+            # 获取属性信息确认dictionary_id
             stmt = select(OzonCategoryAttribute).where(
                 and_(
                     OzonCategoryAttribute.category_id == category_id,
@@ -424,8 +452,9 @@ class CatalogService:
                 response = await self.client.get_attribute_values(
                     attribute_id=attribute_id,
                     category_id=category_id,
+                    parent_category_id=parent_id,  # 传递父类目ID
                     last_value_id=last_value_id,
-                    limit=5000,
+                    limit=2000,
                     language=language
                 )
 
@@ -441,8 +470,8 @@ class CatalogService:
                     synced_count += 1
                     last_value_id = value_data.get("id", 0)
 
-                # 如果返回数量小于limit,说明没有更多数据了
-                has_more = len(values) >= 5000
+                # 根据 has_next 字段判断是否还有更多数据
+                has_more = response.get("has_next", False)
 
             await self.db.flush()  # 使用flush代替commit，避免事务冲突
 
@@ -518,18 +547,29 @@ class CatalogService:
         try:
             # 确定要同步的类目列表
             if sync_all_leaf and not category_ids:
-                # 查询所有叶子类目，按同步时间升序（最旧的或未同步的优先）
-                stmt = select(OzonCategory).where(
+                # 查询所有叶子类目（去重），按同步时间升序（最旧的或未同步的优先）
+                # 注意：由于支持多对多关系，同一个 category_id 可能有多条记录，需要去重
+                from sqlalchemy import func
+
+                # 使用 group_by 去重，并获取每个 category_id 的最小同步时间
+                stmt = select(
+                    OzonCategory.category_id,
+                    func.max(OzonCategory.name).label('name'),  # 使用 max 只是为了聚合，实际上同一个 category_id 的 name 都一样
+                    func.min(OzonCategory.attributes_synced_at).label('min_synced_at')
+                ).where(
                     OzonCategory.is_leaf == True
+                ).group_by(
+                    OzonCategory.category_id
                 ).order_by(
-                    OzonCategory.attributes_synced_at.asc().nullsfirst()
+                    func.min(OzonCategory.attributes_synced_at).asc().nullsfirst()
                 )
+
                 result = await self.db.execute(stmt)
-                categories = result.scalars().all()
-                category_ids = [cat.category_id for cat in categories]
+                rows = result.all()
+                category_ids = [row[0] for row in rows]
                 # 同时获取类目名称映射（用于进度显示）
-                category_names = {cat.category_id: cat.name for cat in categories}
-                logger.info(f"Syncing {len(category_ids)} leaf categories (incremental sync mode)")
+                category_names = {row[0]: row[1] for row in rows}
+                logger.info(f"Syncing {len(category_ids)} unique leaf categories (incremental sync mode)")
             elif not category_ids:
                 return {"success": False, "error": "category_ids or sync_all_leaf is required"}
             else:
@@ -745,14 +785,17 @@ class CatalogService:
         """
         生成前端可直接使用的类目树 JS 文件
 
+        注意：由于支持多对多关系（同一个category_id可有多个parent_id），
+        在树中，每个子类目会在其每个父类目下都显示一次。
+
         生成文件路径: web/src/data/categoryTree.ts
         """
         try:
-            # 查询所有未废弃的类目
+            # 查询所有未废弃的类目（按内部ID和层级排序）
             result = await self.db.execute(
                 select(OzonCategory)
                 .where(OzonCategory.is_deprecated == False)
-                .order_by(OzonCategory.level, OzonCategory.category_id)
+                .order_by(OzonCategory.level, OzonCategory.id)
             )
             all_categories = list(result.scalars().all())
 
@@ -760,7 +803,8 @@ class CatalogService:
                 logger.warning("No categories found, skipping JS generation")
                 return
 
-            # 构建 parent_id 到 children 的映射
+            # 构建 parent_id 到 children 的映射（基于数据库记录，不是category_id）
+            # 使用内部ID作为key，避免多对多关系导致的混乱
             children_map: Dict[Optional[int], List[OzonCategory]] = {}
             for cat in all_categories:
                 if cat.parent_id not in children_map:
@@ -770,13 +814,13 @@ class CatalogService:
             # 递归构建树形结构
             def build_tree_node(category: OzonCategory) -> Dict[str, Any]:
                 node = {
-                    "value": category.category_id,
+                    "value": category.category_id,  # 前端使用 category_id
                     "label": category.name,
                     "isLeaf": category.is_leaf,
-                    "disabled": category.is_disabled,  # 使用OZON原始的禁用状态
+                    "disabled": category.is_disabled,
                 }
 
-                # 使用映射查找子类目，O(1) 复杂度
+                # 使用当前记录的 category_id 查找子记录（parent_id == category.category_id）
                 children_cats = children_map.get(category.category_id, [])
                 if children_cats:
                     node["children"] = [build_tree_node(child) for child in children_cats]
@@ -789,35 +833,29 @@ class CatalogService:
             # 构建树
             tree_data = [build_tree_node(root) for root in root_categories]
 
-            # 确定文件路径（项目根目录/web/src/data/categoryTree.ts）
-            # 假设当前工作目录是项目根目录
+            # 统计唯一的 category_id 数量（用于显示）
+            unique_category_ids = len(set(cat.category_id for cat in all_categories))
+
+            # 确定文件路径（放在 public 目录，避免编译到 bundle）
             project_root = Path.cwd()
-            data_dir = project_root / "web" / "src" / "data"
+            data_dir = project_root / "web" / "public" / "data"
             data_dir.mkdir(parents=True, exist_ok=True)
 
-            file_path = data_dir / "categoryTree.ts"
+            file_path = data_dir / "categoryTree.json"
 
-            # 生成 TypeScript 文件内容
-            ts_content = f"""// Auto-generated by OZON category sync
-// Generated at: {datetime.now(timezone.utc).isoformat()}Z
-// Total categories: {len(all_categories)}
-
-export interface CategoryOption {{
-  value: number;
-  label: string;
-  isLeaf: boolean;
-  disabled: boolean;
-  children?: CategoryOption[];
-}}
-
-export const categoryTree: CategoryOption[] = {json.dumps(tree_data, ensure_ascii=False, indent=2)};
-"""
+            # 生成 JSON 数据（包含元信息）
+            json_data = {
+                "generatedAt": datetime.now(timezone.utc).isoformat() + "Z",
+                "totalRecords": len(all_categories),
+                "uniqueCategories": unique_category_ids,
+                "data": tree_data
+            }
 
             # 写入文件
             with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(ts_content)
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
 
-            logger.info(f"Category tree JS file generated successfully: {file_path} ({len(all_categories)} categories)")
+            logger.info(f"Category tree JSON file generated: {file_path} ({len(all_categories)} records, {unique_category_ids} unique categories)")
 
         except Exception as e:
             logger.error(f"Failed to generate category tree JS: {e}", exc_info=True)

@@ -36,6 +36,7 @@ interface ScanResultTableProps {
   onPrintSingle: (postingNumber: string) => void;
   onOpenEditNotes: (posting: any) => void;
   onOpenDomesticTracking: (posting: any) => void;
+  onShowDetail?: (order: any, posting: any) => void;
   shopNameMap: Record<number, string>;
   canOperate: boolean;
   isPrinting: boolean;
@@ -49,6 +50,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
   onPrintSingle,
   onOpenEditNotes,
   onOpenDomesticTracking,
+  onShowDetail,
   shopNameMap,
   canOperate,
   isPrinting,
@@ -258,7 +260,19 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                   </div>
                   <div>
                     <Text type="secondary">货件: </Text>
-                    <span>{posting.posting_number}</span>
+                    {onShowDetail ? (
+                      <a
+                        onClick={() => onShowDetail(posting.order || posting, posting)}
+                        style={{
+                          color: "#1890ff",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {posting.posting_number}
+                      </a>
+                    ) : (
+                      <span>{posting.posting_number}</span>
+                    )}
                     <CopyOutlined
                       style={{
                         marginLeft: 8,

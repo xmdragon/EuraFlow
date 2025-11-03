@@ -41,10 +41,18 @@ import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from '@/utils/notification';
-import { categoryTree } from '@/data/categoryTree';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
+
+// 定义类目树数据类型
+interface CategoryOption {
+  value: number;
+  label: string;
+  isLeaf: boolean;
+  disabled: boolean;
+  children?: CategoryOption[];
+}
 
 const GlobalSettingsTab: React.FC = () => {
   const { isAdmin } = usePermission();
@@ -342,6 +350,21 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
 
   const firstShopId = shopsData?.shops?.[0]?.id || 1; // 取第一个店铺，兜底值为1
 
+  // 动态加载类目树（加时间戳避免缓存）
+  const { data: categoryTreeData, isLoading: categoryTreeLoading } = useQuery({
+    queryKey: ['category-tree'],
+    queryFn: async () => {
+      const timestamp = Date.now();
+      const response = await fetch(`/data/categoryTree.json?t=${timestamp}`);
+      if (!response.ok) {
+        throw new Error('加载类目树失败');
+      }
+      const json = await response.json();
+      return json.data as CategoryOption[];
+    },
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+  });
+
   // 类目树同步轮询 Hook
   const { startPolling: startCategorySyncPolling } = useAsyncTaskPolling({
     getStatus: async (taskId) => {
@@ -381,6 +404,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     }),
     onSuccess: () => {
       setSyncing(false);
+      // 刷新类目树数据
       queryClient.invalidateQueries({ queryKey: ['category-tree'] });
     },
     onFailure: () => {
@@ -581,15 +605,15 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
 
   // 搜索时自动展开匹配的节点
   React.useEffect(() => {
-    if (searchValue && searchValue.trim()) {
-      const matchedKeys = getMatchedKeys(categoryTree, searchValue);
+    if (searchValue && searchValue.trim() && categoryTreeData) {
+      const matchedKeys = getMatchedKeys(categoryTreeData, searchValue);
       setExpandedKeys(matchedKeys);
       setAutoExpandParent(true);
     } else {
       setExpandedKeys([]);
       setAutoExpandParent(false);
     }
-  }, [searchValue]);
+  }, [searchValue, categoryTreeData]);
 
   const convertToTreeData = (data: any[]): any[] => {
     return data.map((item) => {
@@ -630,7 +654,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     });
   };
 
-  const treeData = convertToTreeData(categoryTree);
+  const treeData = categoryTreeData ? convertToTreeData(categoryTreeData) : [];
 
   // 处理类目选择
   const handleSelect = (selectedKeys: React.Key[]) => {
@@ -707,7 +731,9 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
       <div style={{ display: 'flex', gap: 24 }}>
         {/* 左侧：类目树 */}
         <div style={{ flex: '0 0 350px', maxHeight: 600, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 4, padding: 12 }}>
-          <Title level={5} style={{ marginTop: 0 }}>类目树（共 {categoryTree.length} 个一级类目）</Title>
+          <Title level={5} style={{ marginTop: 0 }}>
+            类目树（共 {categoryTreeData?.length || 0} 个一级类目）
+          </Title>
           <Input.Search
             placeholder="搜索类目名称..."
             value={searchValue}
@@ -716,18 +742,31 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
             allowClear
             style={{ marginBottom: 12 }}
           />
-          <Tree
-            treeData={treeData}
-            onSelect={handleSelect}
-            expandedKeys={expandedKeys}
-            onExpand={(keys) => {
-              setExpandedKeys(keys);
-              setAutoExpandParent(false);
-            }}
-            autoExpandParent={autoExpandParent}
-            showLine
-            defaultExpandAll={false}
-          />
+          {categoryTreeLoading ? (
+            <div style={{ textAlign: 'center', padding: 48 }}>
+              <Spin tip="加载类目树..." />
+            </div>
+          ) : categoryTreeData ? (
+            <Tree
+              treeData={treeData}
+              onSelect={handleSelect}
+              expandedKeys={expandedKeys}
+              onExpand={(keys) => {
+                setExpandedKeys(keys);
+                setAutoExpandParent(false);
+              }}
+              autoExpandParent={autoExpandParent}
+              showLine
+              defaultExpandAll={false}
+            />
+          ) : (
+            <Alert
+              message="加载失败"
+              description="无法加载类目树数据，请刷新页面重试"
+              type="error"
+              showIcon
+            />
+          )}
         </div>
 
         {/* 右侧：属性列表 */}

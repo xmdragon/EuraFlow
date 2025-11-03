@@ -9,7 +9,8 @@ export interface CloudinaryConfig {
   cloud_name: string;
   api_key: string;
   api_secret?: string;
-  folder_prefix?: string;
+  product_images_folder?: string;
+  watermark_images_folder?: string;
   auto_cleanup_days?: number;
 }
 
@@ -18,7 +19,8 @@ export interface CloudinaryConfigResponse {
   shop_id: number;
   cloud_name: string;
   api_key: string;
-  folder_prefix: string;
+  product_images_folder: string;
+  watermark_images_folder: string;
   auto_cleanup_days: number;
   is_active: boolean;
   last_test_at?: string;
@@ -86,7 +88,8 @@ export async function createCloudinaryConfig(config: CloudinaryConfig) {
   formData.append('cloud_name', config.cloud_name);
   formData.append('api_key', config.api_key);
   formData.append('api_secret', config.api_secret || '');
-  formData.append('folder_prefix', config.folder_prefix || 'euraflow');
+  formData.append('product_images_folder', config.product_images_folder || 'products');
+  formData.append('watermark_images_folder', config.watermark_images_folder || 'watermarks');
   formData.append('auto_cleanup_days', (config.auto_cleanup_days || 30).toString());
 
   const response = await axios.post<CloudinaryConfigResponse>(

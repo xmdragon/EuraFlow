@@ -31,7 +31,8 @@ class CloudinaryConfigDTO(BaseModel):
     cloud_name: str
     api_key: str
     api_secret: str
-    folder_prefix: str = "euraflow"
+    product_images_folder: str = "products"
+    watermark_images_folder: str = "watermarks"
     auto_cleanup_days: int = 30
 
 
@@ -41,7 +42,8 @@ class CloudinaryConfigResponse(BaseModel):
     shop_id: int
     cloud_name: str
     api_key: str
-    folder_prefix: str
+    product_images_folder: str
+    watermark_images_folder: str
     auto_cleanup_days: int
     is_active: bool
     last_test_at: Optional[datetime]
@@ -132,7 +134,8 @@ async def create_cloudinary_config(
     cloud_name: str = Form(...),
     api_key: str = Form(...),
     api_secret: str = Form(...),
-    folder_prefix: str = Form("euraflow"),
+    product_images_folder: str = Form("products"),
+    watermark_images_folder: str = Form("watermarks"),
     auto_cleanup_days: int = Form(30),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
@@ -150,7 +153,8 @@ async def create_cloudinary_config(
             existing_config.cloud_name = cloud_name
             existing_config.api_key = api_key
             existing_config.api_secret_encrypted = api_secret  # TODO: 加密
-            existing_config.folder_prefix = folder_prefix
+            existing_config.product_images_folder = product_images_folder
+            existing_config.watermark_images_folder = watermark_images_folder
             existing_config.auto_cleanup_days = auto_cleanup_days
             existing_config.updated_at = utcnow()
         else:
@@ -159,7 +163,8 @@ async def create_cloudinary_config(
                 cloud_name=cloud_name,
                 api_key=api_key,
                 api_secret_encrypted=api_secret,  # TODO: 加密
-                folder_prefix=folder_prefix,
+                product_images_folder=product_images_folder,
+                watermark_images_folder=watermark_images_folder,
                 auto_cleanup_days=auto_cleanup_days
             )
             db.add(existing_config)
@@ -172,7 +177,8 @@ async def create_cloudinary_config(
             shop_id=0,  # 全局配置，返回0作为标识
             cloud_name=existing_config.cloud_name,
             api_key=existing_config.api_key,
-            folder_prefix=existing_config.folder_prefix,
+            product_images_folder=existing_config.product_images_folder,
+            watermark_images_folder=existing_config.watermark_images_folder,
             auto_cleanup_days=existing_config.auto_cleanup_days,
             is_active=existing_config.is_active,
             last_test_at=existing_config.last_test_at,
@@ -205,7 +211,8 @@ async def get_cloudinary_config(
         shop_id=0,  # 全局配置，返回0
         cloud_name=config.cloud_name,
         api_key=config.api_key,
-        folder_prefix=config.folder_prefix,
+        product_images_folder=config.product_images_folder,
+        watermark_images_folder=config.watermark_images_folder,
         auto_cleanup_days=config.auto_cleanup_days,
         is_active=config.is_active,
         last_test_at=config.last_test_at,
@@ -281,8 +288,7 @@ async def create_watermark_config(
         # 上传水印图片到Cloudinary
         watermark_data = await watermark_file.read()
         unique_id = uuid4().hex[:12]
-        folder_prefix = cloudinary_config.folder_prefix or "euraflow"
-        folder = f"{folder_prefix}/watermarks".strip('/')
+        folder = cloudinary_config.watermark_images_folder or "watermarks"
 
         upload_result = await service.upload_image(
             watermark_data,
@@ -931,8 +937,8 @@ async def cleanup_old_resources(
         # 创建服务
         service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
 
-        # 执行清理
-        base_folder = f"{cloudinary_config.folder_prefix}/watermarked"
+        # 执行清理（清理加水印后的商品图片）
+        base_folder = f"{cloudinary_config.product_images_folder}/watermarked"
         folder = f"{base_folder}/{shop_id}" if shop_id is not None else base_folder
         result = await service.cleanup_old_resources(folder, days, dry_run)
 
