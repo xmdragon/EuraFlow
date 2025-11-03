@@ -1149,13 +1149,13 @@ async def upload_products(
                 if product.competitor_min_price is not None:
                     cleaned_data['competitor_min_price'] = Decimal(str(product.competitor_min_price))
 
-                # 日期字段
-                if product.product_created_date:
+                # 日期字段 - 使用 listing_date (已替换废弃的 product_created_date)
+                if product.listing_date:
                     try:
                         import pandas as pd
-                        parsed = pd.to_datetime(product.product_created_date, errors='coerce')
+                        parsed = pd.to_datetime(product.listing_date, errors='coerce')
                         if not pd.isna(parsed):
-                            cleaned_data['product_created_date'] = parsed.to_pydatetime()
+                            cleaned_data['listing_date'] = parsed.to_pydatetime()
                     except:
                         pass
 

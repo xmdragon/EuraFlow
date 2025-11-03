@@ -101,8 +101,9 @@ class ProductSelectionService:
         '广告费用份额(%)': 'ad_cost_share',  # 新增：英文括号
 
         # 时间和竞争字段
-        '商品创建日期': 'product_created_date',
-        '创建日期': 'product_created_date',  # 新增：简化格式
+        '商品创建日期': 'listing_date',
+        '创建日期': 'listing_date',  # 新增：简化格式
+        '上架日期': 'listing_date',  # 新增：标准格式
         '跟卖者数量': 'competitor_count',
         '竞争者数量': 'competitor_count',  # 新增：同义词
         '最低跟卖价': 'competitor_min_price',
@@ -641,7 +642,7 @@ class ProductSelectionService:
             elif db_col == 'rating':
                 cleaned[db_col] = self.clean_percentage(value)
 
-            elif db_col == 'product_created_date':
+            elif db_col == 'listing_date':
                 cleaned[db_col] = self.parse_date(value)
 
             else:
