@@ -14,6 +14,7 @@
 - [后端问题](#后端问题)
   - [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
   - [N+1 查询问题导致 API 响应缓慢](#n1-查询问题导致-api-响应缓慢)
+  - [Celery 定时任务报错 "got an unexpected keyword argument '_plugin'"](#celery-定时任务报错-got-an-unexpected-keyword-argument-_plugin)
 - [数据库问题](#数据库问题)
 - [部署问题](#部署问题)
 
@@ -847,6 +848,155 @@ stmt = select(Parent, subquery.c.count).outerjoin(subquery)
 - [SQLAlchemy Loading Techniques](https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html)
 - [The N+1 Query Problem](https://stackoverflow.com/questions/97197/what-is-the-n1-selects-problem)
 - [FastAPI Performance Best Practices](https://fastapi.tiangolo.com/async/)
+
+---
+
+### Celery 定时任务报错 "got an unexpected keyword argument '_plugin'"
+
+**问题描述**：
+- 所有定时任务执行失败，Celery Worker 日志中出现 `TypeError`
+- 错误信息：`xxx_task() got an unexpected keyword argument '_plugin'`
+- 新添加的定时任务从未执行过（显示为"未运行"）
+
+**根本原因**：
+- 任务注册表 `ef_core/tasks/registry.py` 会自动向所有任务函数注入 `_plugin` 参数（用于插件上下文传递）
+- 但插件中定义的任务函数没有接收此参数，导致 Python 抛出 `TypeError`
+
+**技术细节**：
+
+```python
+# ef_core/tasks/registry.py:76
+def _create_celery_task(async_func, plugin_name=None):
+    def task_func(*args, **kwargs):
+        if plugin_name:
+            kwargs["_plugin"] = plugin_name  # ⚠️ 自动注入 _plugin 参数
+        result = asyncio.run(async_func(*args, **kwargs))
+        return result
+    return task_func
+
+# 插件中的任务函数（错误）
+async def my_task() -> None:  # ❌ 缺少 **kwargs
+    """我的任务"""
+    # ...
+```
+
+**排查步骤**：
+
+```bash
+# 1. 检查 Celery Worker 错误日志
+supervisorctl tail -200 euraflow:celery_worker stderr
+
+# 预期输出（错误示例）：
+# [ERROR/ForkPoolWorker-1] Task ef.ozon.orders.pull[xxx] raised unexpected: TypeError('pull_orders_task() got an unexpected keyword argument '_plugin'')
+
+# 2. 检查 Celery Beat 日志，确认任务是否正常调度
+supervisorctl tail -100 euraflow:celery_beat stdout | grep "Scheduler: Sending"
+
+# 预期输出：
+# [2025-11-04 14:00:00,123: INFO] Scheduler: Sending due task ef.ozon.orders.pull
+
+# 3. 检查任务函数签名
+grep -A 5 "async def.*task(" plugins/ef/channels/ozon/__init__.py
+
+# 4. 查看已注册的任务列表
+./venv/bin/python -c "from ef_core.tasks.celery_app import celery_app; print(list(celery_app.conf.beat_schedule.keys()))"
+```
+
+**标准解决方案**：
+
+#### 方案 A：修改任务函数签名（推荐 ✅）
+
+所有通过 `hooks.register_cron()` 注册的任务函数必须接受 `**kwargs` 参数：
+
+```python
+# ✅ 正确：接受 **kwargs 参数
+async def my_task(**kwargs) -> None:
+    """我的任务"""
+    # 可选：获取插件名称
+    plugin_name = kwargs.get('_plugin')
+    logger.info(f"Task running from plugin: {plugin_name}")
+
+    # 任务逻辑
+    # ...
+
+# 注册任务
+await hooks.register_cron(
+    name="ef.my.task",
+    cron="0 * * * *",
+    task=my_task
+)
+```
+
+**修复清单（受影响的任务）**：
+
+```python
+# 需要修改的任务函数：
+
+# 1. plugins/ef/channels/ozon/__init__.py
+async def pull_orders_task(**kwargs) -> None:  # 添加 **kwargs
+async def sync_inventory_task(**kwargs) -> None:
+async def kuajing84_material_cost_task(**kwargs):
+async def ozon_finance_sync_task(**kwargs):
+async def ozon_finance_transactions_task(**kwargs):
+
+# 2. plugins/ef/channels/ozon/tasks/promotion_sync_task.py
+async def sync_all_promotions(**kwargs) -> Dict[str, Any]:  # 替换原有的 config 参数
+async def promotion_health_check(**kwargs) -> Dict[str, Any]:
+```
+
+**验证方法**：
+
+```bash
+# 1. 本地测试
+./restart.sh
+
+# 2. 检查 Celery Beat 日志，确认任务已加载
+supervisorctl tail -100 euraflow:celery_beat stdout | grep "Registered task"
+
+# 预期输出：
+#   📋 Registered task: ef.ozon.orders.pull
+#   📋 Registered task: ef.ozon.inventory.sync
+#   📋 Registered task: ef.ozon.category.sync
+#   📋 Registered task: ef.ozon.attributes.sync
+
+# 3. 手动触发任务（测试执行）
+./venv/bin/python -c "from ef_core.tasks.celery_app import celery_app; celery_app.send_task('ef.ozon.orders.pull')"
+
+# 4. 检查 Celery Worker 日志，确认任务执行成功
+supervisorctl tail -50 euraflow:celery_worker stdout
+
+# 预期输出：
+# [INFO] Task ef.ozon.orders.pull[xxx] succeeded in 2.5s
+
+# 5. 检查数据库，验证任务有执行记录
+PGPASSWORD=euraflow_dev psql -h localhost -U euraflow -d euraflow \
+  -c "SELECT task_id, status, started_at FROM task_results ORDER BY started_at DESC LIMIT 10;"
+```
+
+**常见错误与解决**：
+
+| 错误症状 | 原因 | 解决方法 |
+|---------|------|----------|
+| `TypeError: xxx() got an unexpected keyword argument '_plugin'` | 任务函数缺少 `**kwargs` 参数 | 在函数签名中添加 `**kwargs` |
+| 任务从未执行过（"未运行"） | 函数签名不匹配导致任务启动就失败 | 修复签名后重启服务 |
+| 部分任务正常，部分任务失败 | 只修复了部分任务函数 | 检查所有任务函数，确保都有 `**kwargs` |
+
+**相关文件**：
+- 任务注册表：`ef_core/tasks/registry.py:76` - `_create_celery_task()` 自动注入 `_plugin`
+- 插件入口：`plugins/ef/channels/ozon/__init__.py:555-590` - 任务函数定义
+- 促销任务：`plugins/ef/channels/ozon/tasks/promotion_sync_task.py:28,245` - `sync_all_promotions()`, `promotion_health_check()`
+- Celery 日志：`logs/celery-worker-stderr.log` - 错误日志
+- Celery Beat 日志：`logs/celery-beat.log` - 调度日志
+
+**防止复发**：
+- ✅ 所有新增的任务函数必须包含 `**kwargs` 参数（即使不使用）
+- ✅ 代码审查：检查任务函数签名是否正确
+- ✅ 在 `CLAUDE.md` 中补充任务函数签名规范
+- ✅ 添加单元测试：验证所有注册的任务可以接受 `_plugin` 参数
+
+**参考资料**：
+- [Celery Task Signatures](https://docs.celeryproject.org/en/stable/userguide/calling.html#signatures)
+- [Python **kwargs](https://realpython.com/python-kwargs-and-args/)
 
 ---
 

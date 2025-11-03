@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
     countdown=600,  # 失败后10分钟重试
     name="ef.ozon.sync_all_promotions"
 )
-async def sync_all_promotions(config: Dict[str, Any] = None) -> Dict[str, Any]:
+async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
     """
     同步所有店铺的促销活动和商品
 
@@ -242,7 +242,7 @@ async def _sync_action_products(
 
 
 @task_with_context(name="ef.ozon.promotion_health_check")
-async def promotion_health_check() -> Dict[str, Any]:
+async def promotion_health_check(**kwargs) -> Dict[str, Any]:
     """
     促销系统健康检查
 

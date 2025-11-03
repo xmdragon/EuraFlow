@@ -490,7 +490,7 @@ async def setup(hooks) -> None:
     # 注册其他同步服务的定时任务（统一使用 Celery Beat）
     try:
         # 1. 跨境巴士物料成本同步 - 每小时第15分钟执行
-        async def kuajing84_material_cost_task():
+        async def kuajing84_material_cost_task(**kwargs):
             """跨境巴士物料成本同步定时任务"""
             from plugins.ef.system.sync_service.services.handler_registry import get_registry
             registry = get_registry()
@@ -508,7 +508,7 @@ async def setup(hooks) -> None:
         )
 
         # 2. OZON财务费用同步 - 每天凌晨3点执行
-        async def ozon_finance_sync_task():
+        async def ozon_finance_sync_task(**kwargs):
             """OZON财务费用同步定时任务"""
             from plugins.ef.system.sync_service.services.handler_registry import get_registry
             registry = get_registry()
@@ -526,7 +526,7 @@ async def setup(hooks) -> None:
         )
 
         # 3. OZON财务交易同步 - 每天UTC 22:00执行 (北京时间06:00)
-        async def ozon_finance_transactions_task():
+        async def ozon_finance_transactions_task(**kwargs):
             """OZON财务交易同步定时任务"""
             from plugins.ef.system.sync_service.services.handler_registry import get_registry
             registry = get_registry()
@@ -549,10 +549,56 @@ async def setup(hooks) -> None:
         import traceback
         traceback.print_exc()
 
+    # 注册类目同步定时任务
+    try:
+        # 1. 类目树同步 - 每天凌晨4点执行
+        async def category_sync_task(**kwargs):
+            """类目树同步定时任务"""
+            from .tasks.scheduled_sync_task import _sync_all_shop_categories
+            try:
+                logger.info("Starting category tree sync task")
+                result = await _sync_all_shop_categories()
+                logger.info(f"Category tree sync completed: {result}")
+                return result
+            except Exception as e:
+                logger.error(f"Category tree sync failed: {e}", exc_info=True)
+                return {"success": False, "error": str(e)}
+
+        await hooks.register_cron(
+            name="ef.ozon.category.sync",
+            cron="0 4 * * *",  # 每天凌晨4点 UTC
+            task=category_sync_task
+        )
+
+        # 2. 类目特征同步 - 每周二凌晨4:10执行（在类目树同步之后）
+        async def attributes_sync_task(**kwargs):
+            """类目特征同步定时任务"""
+            from .tasks.scheduled_sync_task import _sync_all_shop_attributes
+            try:
+                logger.info("Starting category attributes sync task")
+                result = await _sync_all_shop_attributes()
+                logger.info(f"Category attributes sync completed: {result}")
+                return result
+            except Exception as e:
+                logger.error(f"Category attributes sync failed: {e}", exc_info=True)
+                return {"success": False, "error": str(e)}
+
+        await hooks.register_cron(
+            name="ef.ozon.attributes.sync",
+            cron="10 4 * * 2",  # 每周二凌晨4:10 UTC
+            task=attributes_sync_task
+        )
+
+        logger.info("✓ Registered category sync tasks successfully")
+    except Exception as e:
+        logger.warning(f"Warning: Failed to register category sync tasks: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 配置信息已在上面打印
 
 
-async def pull_orders_task() -> None:
+async def pull_orders_task(**kwargs) -> None:
     """
     拉取 Ozon 订单的定时任务
     使用 OrderSyncService 进行批量处理（避免 N+1 查询问题）
@@ -629,7 +675,7 @@ async def pull_orders_task() -> None:
         logger.error(f"Error pulling orders: {e}")
 
 
-async def sync_inventory_task() -> None:
+async def sync_inventory_task(**kwargs) -> None:
     """
     同步库存的定时任务
     """
