@@ -12,7 +12,7 @@ from ef_core.database import get_async_session
 from ef_core.api.auth import get_current_user_flexible
 from ..utils.datetime_utils import utcnow
 from ..models.global_settings import OzonGlobalSetting
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 router = APIRouter(tags=["ozon-stats"])
 logger = logging.getLogger(__name__)
@@ -189,7 +189,7 @@ async def get_statistics(
     - operator/viewer: 只能访问已授权店铺的统计
     """
     from ..models import OzonShop, OzonProduct, OzonOrder, OzonPosting
-    from sqlalchemy import select, func
+    from sqlalchemy import select, func, or_
     from .permissions import filter_by_shop_permission
 
     # 权限验证
@@ -267,22 +267,31 @@ async def get_statistics(
         )
         order_total = order_total_result.scalar() or 0
 
-        # Pending: 等待备货（包含 awaiting_packaging 和 awaiting_deliver）
-        # 与打包发货页面的"等待备货"标签保持一致
+        # Pending: 等待备货（与打包发货页面的"等待备货"标签逻辑完全一致）
+        # OZON状态：awaiting_packaging 或 awaiting_registration
+        # 操作状态：NULL 或 awaiting_stock
+        # 排除：OZON已取消 + 操作状态为cancelled
         order_pending_result = await db.execute(
             select(func.count(OzonPosting.id))
             .where(
-                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_deliver']),
+                OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration']),
+                OzonPosting.status != 'cancelled',
+                or_(
+                    OzonPosting.operation_status.is_(None),
+                    OzonPosting.operation_status == 'awaiting_stock'
+                ),
+                OzonPosting.operation_status != 'cancelled',
                 *posting_filter
             )
         )
         order_pending = order_pending_result.scalar() or 0
 
-        # Processing: 等待登记（awaiting_deliver 已包含在 pending 中）
+        # Processing: 等待交付（已进入分配/打印等后续流程的）
+        # 包括已分配、打印完成等状态的 awaiting_deliver
         order_processing_result = await db.execute(
             select(func.count(OzonPosting.id))
             .where(
-                OzonPosting.status == 'awaiting_registration',
+                OzonPosting.status == 'awaiting_deliver',
                 *posting_filter
             )
         )
