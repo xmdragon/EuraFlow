@@ -229,6 +229,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         )}
 
+        {/* 类目 */}
+        {fieldConfig.category && product.category_path && (
+          <div className={styles.brandInfo}>
+            <Text type="secondary">类目: </Text>
+            <Text>{product.category_path === '非热销,无数据' ? '-' : product.category_path}</Text>
+          </div>
+        )}
+
         {/* rFBS佣金 - 横向三标签 */}
         {fieldConfig.rfbsCommission && (
           <div className={styles.commissionRow}>

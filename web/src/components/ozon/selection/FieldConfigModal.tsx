@@ -13,6 +13,7 @@ const { Text } = Typography;
 export interface FieldConfig {
   // 现有字段
   brand: boolean;
+  category: boolean;                 // 类目
   originalPrice: boolean;
   rfbsCommission: boolean;
   rfbsCommissionHigh: boolean;
@@ -42,6 +43,7 @@ export interface FieldConfig {
 export const defaultFieldConfig: FieldConfig = {
   // 现有字段默认值
   brand: true,
+  category: true,
   originalPrice: true,
   rfbsCommission: true,
   rfbsCommissionHigh: true,
@@ -100,7 +102,7 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
       styles={{ body: { overflowX: 'hidden', maxHeight: '60vh', overflowY: 'auto' } }}
     >
       <div className={styles.fieldConfigList}>
-        {/* 第一行：品牌和原价（单列，保持不变） */}
+        {/* 第一行：品牌、类目和原价 */}
         <div style={{ marginBottom: '12px' }}>
           <Space size={16}>
             <Space>
@@ -111,6 +113,15 @@ export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
                 id="field-brand"
               />
               <label htmlFor="field-brand">品牌</label>
+            </Space>
+            <Space>
+              <input
+                type="checkbox"
+                checked={fieldConfig.category}
+                onChange={(e) => handleCheckboxChange('category', e.target.checked)}
+                id="field-category"
+              />
+              <label htmlFor="field-category">类目</label>
             </Space>
             <Space>
               <input
