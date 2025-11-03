@@ -475,12 +475,27 @@ async def get_daily_posting_stats(
             end_date_obj = now_in_tz.date()
             start_date_obj = end_date_obj - timedelta(days=29)
 
-        # 构建查询条件
+        # 计算UTC时间范围（用于数据库查询）
+        # 将全局时区的日期范围转换为UTC时间戳
+        start_datetime_tz = start_date_obj  # 已经是全局时区的日期
+        end_datetime_tz = end_date_obj
+
+        # 转换为全局时区的datetime（00:00:00）
+        start_datetime = datetime.combine(start_datetime_tz, datetime.min.time()).replace(tzinfo=tz)
+        # 转换为全局时区的datetime（23:59:59）
+        end_datetime = datetime.combine(end_datetime_tz, datetime.max.time()).replace(tzinfo=tz)
+
+        # 转换为UTC
+        from datetime import timezone as dt_timezone
+        start_datetime_utc = start_datetime.astimezone(dt_timezone.utc)
+        end_datetime_utc = end_datetime.astimezone(dt_timezone.utc)
+
+        # 构建查询条件（使用UTC时间戳范围）
         posting_filter = [
             OzonPosting.status != 'cancelled',  # 根据 ozon status 排除取消的订单
             OzonPosting.in_process_at.isnot(None),  # 必须有下单时间
-            cast(OzonPosting.in_process_at, Date) >= start_date_obj,
-            cast(OzonPosting.in_process_at, Date) <= end_date_obj
+            OzonPosting.in_process_at >= start_datetime_utc,
+            OzonPosting.in_process_at <= end_datetime_utc
         ]
 
         # 如果指定了店铺，添加店铺过滤
@@ -490,19 +505,14 @@ async def get_daily_posting_stats(
             # 如果没有指定店铺但有权限限制，使用权限列表
             posting_filter.append(OzonPosting.shop_id.in_(allowed_shop_ids))
 
-        # 查询每日每店铺的posting数量
+        # 查询posting数据（不在数据库层面按日期分组，而是查询完整时间戳）
         stats_result = await db.execute(
             select(
-                cast(OzonPosting.in_process_at, Date).label('date'),
-                OzonPosting.shop_id,
-                func.count(OzonPosting.id).label('count')
-            )
-            .where(and_(*posting_filter))
-            .group_by(
-                cast(OzonPosting.in_process_at, Date),
+                OzonPosting.in_process_at,
                 OzonPosting.shop_id
             )
-            .order_by(cast(OzonPosting.in_process_at, Date))
+            .where(and_(*posting_filter))
+            .order_by(OzonPosting.in_process_at)
         )
         stats_rows = stats_result.all()
 
@@ -518,14 +528,22 @@ async def get_daily_posting_stats(
             shops_data = {}
 
         # 组织数据结构
-        # 1. 按日期分组
+        # 1. 按日期分组（在Python中转换时区后分组）
         daily_stats = {}
         for row in stats_rows:
-            date_str = row.date.isoformat()
+            # 将UTC时间转换为全局时区
+            in_process_at_tz = row.in_process_at.astimezone(tz)
+            # 提取日期
+            date_str = in_process_at_tz.date().isoformat()
+
             if date_str not in daily_stats:
                 daily_stats[date_str] = {}
             shop_name = shops_data.get(row.shop_id, f"店铺{row.shop_id}")
-            daily_stats[date_str][shop_name] = row.count
+
+            # 统计数量
+            if shop_name not in daily_stats[date_str]:
+                daily_stats[date_str][shop_name] = 0
+            daily_stats[date_str][shop_name] += 1
 
         # 2. 生成完整的日期序列（填充缺失日期）
         all_dates = []
