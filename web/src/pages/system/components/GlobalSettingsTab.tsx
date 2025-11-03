@@ -31,6 +31,8 @@ import {
   UploadOutlined,
   SearchOutlined,
   ReloadOutlined,
+  ClockCircleOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -51,8 +53,17 @@ const GlobalSettingsTab: React.FC = () => {
   return (
     <Card>
       <Tabs
-        defaultActiveKey="api-rate-limit"
+        defaultActiveKey="time-currency"
         items={[
+          {
+            label: (
+              <span>
+                <GlobalOutlined /> 时间与货币
+              </span>
+            ),
+            key: 'time-currency',
+            children: <TimeCurrencySection isAdmin={isAdmin} />,
+          },
           {
             label: (
               <span>
@@ -83,6 +94,135 @@ const GlobalSettingsTab: React.FC = () => {
         ]}
       />
     </Card>
+  );
+};
+
+// ========== 子组件：时间与货币设置 ==========
+interface TimeCurrencySectionProps {
+  isAdmin: boolean;
+}
+
+const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) => {
+  const [form] = Form.useForm();
+  const queryClient = useQueryClient();
+
+  // 获取全局设置
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['ozon', 'global-settings'],
+    queryFn: async () => {
+      const response = await ozonApi.getGlobalSettings();
+      return response;
+    },
+  });
+
+  // 更新时区设置
+  const updateTimezoneMutation = useMutation({
+    mutationFn: async (timezone: string) => {
+      await ozonApi.updateGlobalSetting('default_timezone', {
+        value: timezone,
+      });
+    },
+    onSuccess: () => {
+      notifySuccess('保存成功', '默认时区已更新');
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
+    },
+    onError: (error: any) => {
+      notifyError('保存失败', error.message || '更新时区设置失败');
+    },
+  });
+
+  // 更新货币设置
+  const updateCurrencyMutation = useMutation({
+    mutationFn: async (currency: string) => {
+      await ozonApi.updateGlobalSetting('default_currency', {
+        value: currency,
+      });
+    },
+    onSuccess: () => {
+      notifySuccess('保存成功', '默认货币已更新');
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
+    },
+    onError: (error: any) => {
+      notifyError('保存失败', error.message || '更新货币设置失败');
+    },
+  });
+
+  // 初始化表单值
+  React.useEffect(() => {
+    if (settings?.settings) {
+      form.setFieldsValue({
+        default_timezone: settings.settings.default_timezone?.setting_value?.value || 'Asia/Shanghai',
+        default_currency: settings.settings.default_currency?.setting_value?.value || 'CNY',
+      });
+    }
+  }, [settings, form]);
+
+  const handleSave = (values: { default_timezone: string; default_currency: string }) => {
+    updateTimezoneMutation.mutate(values.default_timezone);
+    updateCurrencyMutation.mutate(values.default_currency);
+  };
+
+  if (isLoading) {
+    return <div>加载中...</div>;
+  }
+
+  return (
+    <div>
+      <Alert
+        message="时间与货币配置"
+        description="配置系统全局的时区和默认货币单位。时区影响所有时间的显示和日期区间，货币单位影响所有未指定货币的金额显示。"
+        type="info"
+        showIcon
+        style={{ marginBottom: 24 }}
+      />
+
+      <Form form={form} layout="vertical" onFinish={handleSave}>
+        <Form.Item
+          label="默认时区"
+          name="default_timezone"
+          rules={[{ required: true, message: '请选择默认时区' }]}
+          extra="系统内所有时间显示和日期区间将使用此时区"
+        >
+          <Select style={{ width: 300 }} disabled={!isAdmin}>
+            <Option value="Asia/Shanghai">
+              <ClockCircleOutlined /> 北京时间 (UTC+8)
+            </Option>
+            <Option value="Europe/Moscow">
+              <ClockCircleOutlined /> 莫斯科时间 (UTC+3)
+            </Option>
+          </Select>
+        </Form.Item>
+
+        <Form.Item
+          label="默认货币"
+          name="default_currency"
+          rules={[{ required: true, message: '请选择默认货币' }]}
+          extra="未指定货币单位的金额将使用此货币显示"
+        >
+          <Select style={{ width: 300 }} disabled={!isAdmin}>
+            <Option value="CNY">
+              <DollarOutlined /> 人民币 (CNY)
+            </Option>
+            <Option value="RUB">
+              <DollarOutlined /> 卢布 (RUB)
+            </Option>
+          </Select>
+        </Form.Item>
+
+        {isAdmin && (
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              icon={<SaveOutlined />}
+              loading={updateTimezoneMutation.isPending || updateCurrencyMutation.isPending}
+            >
+              保存设置
+            </Button>
+          </Form.Item>
+        )}
+      </Form>
+    </div>
   );
 };
 
