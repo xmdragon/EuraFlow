@@ -259,41 +259,49 @@ async def get_statistics(
         )
         product_synced = product_synced_result.scalar() or 0
 
-        # 订单统计
+        # 订单统计（全部基于 Posting，使用 OZON 原生状态）
+        # Total: 所有 posting（不包括 cancelled）
         order_total_result = await db.execute(
-            select(func.count(OzonOrder.id))
-            .where(*order_filter)
+            select(func.count(OzonPosting.id))
+            .where(OzonPosting.status != 'cancelled', *posting_filter)
         )
         order_total = order_total_result.scalar() or 0
 
-        # 待处理订单改为统计"等待备货"状态的Posting数量
+        # Pending: 等待备货
         order_pending_result = await db.execute(
             select(func.count(OzonPosting.id))
             .where(OzonPosting.status == 'awaiting_packaging', *posting_filter)
         )
         order_pending = order_pending_result.scalar() or 0
 
+        # Processing: 等待交付 + 等待登记
         order_processing_result = await db.execute(
-            select(func.count(OzonOrder.id))
-            .where(OzonOrder.status == 'processing', *order_filter)
+            select(func.count(OzonPosting.id))
+            .where(
+                OzonPosting.status.in_(['awaiting_deliver', 'awaiting_registration']),
+                *posting_filter
+            )
         )
         order_processing = order_processing_result.scalar() or 0
 
+        # Shipped: 配送中
         order_shipped_result = await db.execute(
-            select(func.count(OzonOrder.id))
-            .where(OzonOrder.status == 'shipped', *order_filter)
+            select(func.count(OzonPosting.id))
+            .where(OzonPosting.status == 'delivering', *posting_filter)
         )
         order_shipped = order_shipped_result.scalar() or 0
 
+        # Delivered: 已送达
         order_delivered_result = await db.execute(
-            select(func.count(OzonOrder.id))
-            .where(OzonOrder.status == 'delivered', *order_filter)
+            select(func.count(OzonPosting.id))
+            .where(OzonPosting.status == 'delivered', *posting_filter)
         )
         order_delivered = order_delivered_result.scalar() or 0
 
+        # Cancelled: 已取消
         order_cancelled_result = await db.execute(
-            select(func.count(OzonOrder.id))
-            .where(OzonOrder.status == 'cancelled', *order_filter)
+            select(func.count(OzonPosting.id))
+            .where(OzonPosting.status == 'cancelled', *posting_filter)
         )
         order_cancelled = order_cancelled_result.scalar() or 0
 
