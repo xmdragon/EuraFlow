@@ -290,7 +290,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     isLoading: productsLoading,
     refetch: refetchProducts,
   } = useQuery({
-    queryKey: ['productSelectionProducts', searchParams, currentPage, lastId],
+    queryKey: ['productSelectionProducts', searchParams, currentPage],
     queryFn: () =>
       api.searchProducts({
         ...searchParams,
