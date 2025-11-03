@@ -19,6 +19,24 @@ import { useDateTime } from '@/hooks/useDateTime';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { logger } from '@/utils/logger';
 
+// 【立即执行】检查并清除不兼容的字段配置（在任何组件加载前执行）
+(() => {
+  const saved = localStorage.getItem('productFieldConfig');
+  if (saved) {
+    try {
+      const config = JSON.parse(saved);
+      // 如果没有 _version 字段或版本不匹配，立即清除
+      if (!config._version || config._version !== FIELD_CONFIG_VERSION) {
+        console.warn('[ProductSelection] 检测到不兼容的字段配置(v' + (config._version || '旧版') + ')，已自动清除。当前版本: v' + FIELD_CONFIG_VERSION);
+        localStorage.removeItem('productFieldConfig');
+      }
+    } catch (e) {
+      console.error('[ProductSelection] 解析配置失败，已清除', e);
+      localStorage.removeItem('productFieldConfig');
+    }
+  }
+})();
+
 /**
  * useProductSelection Hook 返回值接口
  */
