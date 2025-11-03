@@ -232,10 +232,10 @@ class OrderSyncService:
                     # 处理单个Posting
                     await self._process_single_posting(session, posting_data)
                     stats["success"] += 1
-                    
-                    # 发布Outbox事件
-                    await self._publish_order_event(session, posting_data)
-                    
+
+                    # TODO: 发布Outbox事件（暂时禁用，需要 ozon_outbox_events 表）
+                    # await self._publish_order_event(session, posting_data)
+
                 except Exception as e:
                     logger.error(f"Failed to process posting {posting_data.get('posting_number')}: {e}")
                     stats["failed"] += 1

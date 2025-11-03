@@ -547,17 +547,66 @@ async def sync_orders(
     task_id = f"order_sync_{uuid.uuid4().hex[:12]}"
 
     # 异步执行同步任务
-    from ..services import OzonSyncService
+    from ..services.order_sync import OrderSyncService
+    from ..api.client import OzonAPIClient
+    from ..models import OzonShop
+    from datetime import timedelta
 
     async def run_sync():
-        """在后台执行同步任务"""
+        """在后台执行同步任务（使用 OrderSyncService 批量处理）"""
         try:
             # 创建新的数据库会话用于异步任务
             from ef_core.database import get_db_manager
             db_manager = get_db_manager()
             async with db_manager.get_session() as task_db:
-                result = await OzonSyncService.sync_orders(shop_id, task_db, task_id, mode)
-                logger.info(f"Order sync completed: {result}")
+                # 获取店铺信息
+                shop_result = await task_db.execute(
+                    select(OzonShop).where(OzonShop.id == shop_id)
+                )
+                shop = shop_result.scalar_one_or_none()
+
+                if not shop:
+                    logger.error(f"Shop {shop_id} not found")
+                    return
+
+                # 创建API客户端
+                api_client = OzonAPIClient(
+                    client_id=shop.client_id,
+                    api_key=shop.api_key_enc
+                )
+
+                # 使用 OrderSyncService 执行批量同步
+                sync_service = OrderSyncService(shop_id=shop_id, api_client=api_client)
+
+                # 根据模式确定时间范围
+                from datetime import datetime, timezone
+                date_to = datetime.now(timezone.utc)
+                if mode == "full":
+                    date_from = date_to - timedelta(days=360)  # 全量：360天
+                    full_sync = True
+                else:
+                    date_from = date_to - timedelta(days=7)  # 增量：7天
+                    full_sync = False
+
+                # 执行同步（批量处理，每批50条，无 N+1 问题）
+                stats = await sync_service.sync_orders(
+                    date_from=date_from,
+                    date_to=date_to,
+                    full_sync=full_sync
+                )
+
+                await api_client.close()
+
+                logger.info(
+                    f"Order sync completed for shop {shop_id}",
+                    extra={
+                        "task_id": task_id,
+                        "mode": mode,
+                        "total_processed": stats["total_processed"],
+                        "success": stats["success"],
+                        "failed": stats["failed"]
+                    }
+                )
         except Exception as e:
             logger.error(f"Order sync failed: {e}")
             import traceback

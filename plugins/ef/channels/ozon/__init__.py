@@ -555,13 +555,14 @@ async def setup(hooks) -> None:
 async def pull_orders_task() -> None:
     """
     拉取 Ozon 订单的定时任务
+    使用 OrderSyncService 进行批量处理（避免 N+1 查询问题）
     """
     try:
         from ef_core.database import get_db_manager
-        from .models import OzonShop, OzonOrder
+        from .models import OzonShop
         from .api.client import OzonAPIClient
+        from .services.order_sync import OrderSyncService
         from sqlalchemy import select
-        from decimal import Decimal
 
         current_time = datetime.now(UTC)
         logger.info(f"[{current_time.isoformat()}] Pulling orders from Ozon...")
@@ -584,91 +585,48 @@ async def pull_orders_task() -> None:
                     'api_key_enc': shop.api_key_enc
                 })
 
-            for shop_data in shops:
-                shop_id = shop_data['id']
-                shop_name = shop_data['shop_name']
-                try:
-                    # 创建API客户端
-                    client = OzonAPIClient(
-                        client_id=shop_data['client_id'],
-                        api_key=shop_data['api_key_enc']
-                    )
+        # 对每个店铺执行订单同步
+        for shop_data in shops:
+            shop_id = shop_data['id']
+            shop_name = shop_data['shop_name']
+            try:
+                # 创建API客户端
+                client = OzonAPIClient(
+                    client_id=shop_data['client_id'],
+                    api_key=shop_data['api_key_enc']
+                )
 
-                    # 计算时间范围（最近24小时的订单）
-                    date_to = current_time
-                    date_from = current_time - timedelta(days=1)
+                # 使用 OrderSyncService 执行批量同步
+                sync_service = OrderSyncService(shop_id=shop_id, api_client=client)
 
-                    # 获取订单数据
-                    orders_data = await client.get_orders(
-                        date_from=date_from.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                        date_to=date_to.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-                    )
+                # 计算时间范围（最近24小时的订单）
+                date_from = current_time - timedelta(days=1)
+                date_to = current_time
 
-                    if orders_data.get("result"):
-                        postings = orders_data["result"].get("postings", [])
-                        new_orders = 0
+                # 执行同步（批量处理，每批50条，无 N+1 问题）
+                stats = await sync_service.sync_orders(
+                    date_from=date_from,
+                    date_to=date_to,
+                    full_sync=False
+                )
 
-                        for posting in postings:
-                            # 检查订单是否已存在（使用 ozon_order_id）
-                            existing = await db.execute(
-                                select(OzonOrder).where(
-                                    OzonOrder.shop_id == shop_id,
-                                    OzonOrder.ozon_order_id == str(posting.get("order_id", ""))
-                                )
-                            )
+                logger.info(
+                    f"[{shop_name}] Order sync completed",
+                    extra={
+                        "shop_id": shop_id,
+                        "total_processed": stats["total_processed"],
+                        "success": stats["success"],
+                        "failed": stats["failed"]
+                    }
+                )
 
-                            if not existing.scalar_one_or_none():
-                                # 计算总价
-                                total_price = Decimal("0")
-                                items_data = []
+                await client.close()
 
-                                for product in posting.get("products", []):
-                                    price = Decimal(str(product.get("price", "0")))
-                                    quantity = product.get("quantity", 0)
-                                    total_price += price * quantity
-                                    items_data.append({
-                                        "sku": product.get("sku"),
-                                        "name": product.get("name"),
-                                        "quantity": quantity,
-                                        "price": str(price)
-                                    })
-
-                                # 创建新订单
-                                order = OzonOrder(
-                                    shop_id=shop_id,
-                                    order_id=posting.get("order_id", ""),
-                                    order_number=posting.get("order_number", ""),
-                                    posting_number=posting.get("posting_number", ""),
-                                    status=posting.get("status", "pending"),
-                                    substatus=posting.get("substatus"),
-                                    delivery_type=posting.get("delivery_method", {}).get("tpl_provider", "FBS"),
-                                    is_express=posting.get("is_express", False),
-                                    is_premium=posting.get("is_premium", False),
-                                    total_price=total_price,
-                                    delivery_method=posting.get("delivery_method", {}).get("name"),
-                                    tracking_number=posting.get("tracking_number"),
-                                    items=items_data,
-                                    in_process_at=datetime.fromisoformat(posting["in_process_at"].replace("Z", "+00:00")) if posting.get("in_process_at") else None,
-                                    shipment_date=datetime.fromisoformat(posting["shipment_date"].replace("Z", "+00:00")) if posting.get("shipment_date") else None,
-                                    analytics_data=posting.get("analytics_data"),
-                                    financial_data=posting.get("financial_data"),
-                                    sync_status="success",
-                                    last_sync_at=current_time
-                                )
-                                db.add(order)
-                                new_orders += 1
-
-                        if new_orders > 0:
-                            await db.commit()
-                            logger.info(f"[{shop_name}] Pulled {new_orders} new orders")
-
-                    await client.close()
-
-                except Exception as e:
-                    logger.info(f"Error pulling orders for shop {shop_name}: {e}")
+            except Exception as e:
+                logger.error(f"Error pulling orders for shop {shop_name}: {e}")
 
     except Exception as e:
-        logger.info(f"Error pulling orders: {e}")
+        logger.error(f"Error pulling orders: {e}")
 
 
 async def sync_inventory_task() -> None:
