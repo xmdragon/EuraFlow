@@ -29,7 +29,6 @@ import {
   Empty,
   Progress,
 } from "antd";
-import moment from "moment";
 import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -38,6 +37,7 @@ import styles from "./ChatList.module.scss";
 
 import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
 import PageTitle from "@/components/PageTitle";
+import { useDateTime } from "@/hooks/useDateTime";
 import { usePermission } from "@/hooks/usePermission";
 import * as ozonApi from "@/services/ozonApi";
 import { notifySuccess, notifyError } from "@/utils/notification";
@@ -50,6 +50,7 @@ const ChatList: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canSync } = usePermission();
+  const { formatDateTime } = useDateTime();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 从URL参数中读取店铺ID
@@ -727,9 +728,7 @@ const ChatList: React.FC = () => {
                             <Text type="secondary" className={styles.chatMeta}>
                               <ClockCircleOutlined />
                               {chat.last_message_at
-                                ? moment(chat.last_message_at).format(
-                                    "YYYY-MM-DD HH:mm",
-                                  )
+                                ? formatDateTime(chat.last_message_at, "YYYY-MM-DD HH:mm")
                                 : ""}
                             </Text>
                             <Text type="secondary" className={styles.chatMeta}>

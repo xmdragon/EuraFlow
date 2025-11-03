@@ -134,7 +134,9 @@ export class ProductCollector {
         let scrollDistance;
         if (isNearBottom) {
           // 接近底部：滚到最底部
-          scrollDistance = pageHeight - currentScroll;
+          // 【修复】执行前重新获取页面高度，防止动态内容注入导致高度变化
+          const latestPageHeight = document.body.scrollHeight;
+          scrollDistance = latestPageHeight - currentScroll;
         } else {
           // 渐进式滚动：半屏或更少
           scrollDistance = viewportHeight * this.scrollStepSize;

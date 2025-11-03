@@ -30,7 +30,6 @@ import {
   Modal,
   Table,
 } from 'antd';
-import moment from 'moment';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -38,6 +37,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styles from './ChatDetail.module.scss';
 
 import PageTitle from '@/components/PageTitle';
+import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozonApi';
 import * as translationApi from '@/services/translationApi';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
