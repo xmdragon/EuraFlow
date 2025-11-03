@@ -42,7 +42,7 @@ export const formatNumber = (value: number | null | undefined): string => {
  * @returns 格式化后的重量字符串（克或千克）
  */
 export const formatWeight = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return '-';
+  if (value === null || value === undefined || value === 0) return '-';
   if (value >= 1000) {
     return `${formatNumberUtil(value / 1000)}kg`;
   }
