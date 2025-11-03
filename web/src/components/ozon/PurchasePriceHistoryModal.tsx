@@ -4,10 +4,10 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { Modal, Table, Typography, Empty, Spin, Tag } from 'antd';
-import moment from 'moment';
 import React from 'react';
 
 import { useCurrency } from '@/hooks/useCurrency';
+import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozonApi';
 import { getCurrencySymbol } from '@/utils/currency';
 
@@ -27,6 +27,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
   productName,
 }) => {
   const { currency: userCurrency } = useCurrency();
+  const { formatDate } = useDateTime();
 
   // 查询进货价格历史
   const { data, isLoading } = useQuery({
@@ -82,7 +83,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       width: 120,
       render: (time: string | null) => {
         if (!time) return '-';
-        return moment(time).format('YYYY-MM-DD');
+        return formatDate(time);
       },
     },
   ];

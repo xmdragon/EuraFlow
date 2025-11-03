@@ -11,6 +11,7 @@ const { Text } = Typography;
 
 // 字段配置接口
 export interface FieldConfig {
+  _version?: number;                 // 配置版本号，用于检测兼容性
   // 现有字段
   brand: boolean;
   category: boolean;                 // 类目
@@ -39,8 +40,12 @@ export interface FieldConfig {
   sellerMode: boolean;               // 发货模式
 }
 
+// 配置版本号（每次添加新字段时需要递增）
+export const FIELD_CONFIG_VERSION = 2;
+
 // 默认字段配置（全部显示）
 export const defaultFieldConfig: FieldConfig = {
+  _version: FIELD_CONFIG_VERSION,
   // 现有字段默认值
   brand: true,
   category: true,

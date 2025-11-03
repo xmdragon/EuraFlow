@@ -88,6 +88,64 @@ const { currency, symbol, formatPrice } = useCurrency();
 
 ---
 
+### 时间与时区处理
+
+#### `useDateTime`
+**路径**：`web/src/hooks/useDateTime.tsx`
+**用途**：统一全局时区配置和时间格式化
+**特性**：
+- ✅ 自动读取全局时区设置（莫斯科时间/北京时间）
+- ✅ 显示时间自动转为用户时区
+- ✅ 查询时间自动转为 UTC（发送给后端）
+- ✅ 支持自定义格式
+- ✅ 5分钟缓存，避免频繁请求
+
+**API**：
+- `timezone`: 当前全局时区（Asia/Shanghai 或 Europe/Moscow）
+- `formatDateTime(utcTime, format)`: 格式化 UTC 为用户时区（默认：'MM-DD HH:mm'）
+- `formatDate(utcTime, format)`: 格式化日期（默认：'YYYY-MM-DD'）
+- `formatTime(utcTime, format)`: 格式化时间（默认：'HH:mm:ss'）
+- `toUTC(localTime, format)`: 将用户时区时间转为 UTC（发送给后端）
+- `toUTCRange(localDate, isEndDate)`: 日期范围转 UTC（带时分秒）
+
+**使用示例**：
+```typescript
+const { formatDateTime, formatDate, toUTC } = useDateTime();
+
+// 显示订单时间（UTC → 用户时区）
+<div>{formatDateTime(order.ordered_at)}</div>  // "11-03 15:30"
+<div>{formatDate(order.ordered_at)}</div>      // "2025-11-03"
+
+// 自定义格式
+<div>{formatDateTime(order.ordered_at, 'YYYY-MM-DD HH:mm:ss')}</div>
+
+// 发送查询参数（用户时区 → UTC）
+const queryParams = {
+  date_from: toUTC(dateRange[0]),  // "2025-11-02"
+  date_to: toUTC(dateRange[1]),
+};
+```
+
+**重要规则**：
+- ❌ 禁止直接使用 `moment().format()` 或 `dayjs().format()`
+- ❌ 禁止在查询参数中使用本地时区日期
+- ✅ 显示时间必须使用 `formatDateTime()` / `formatDate()`
+- ✅ 发送查询必须使用 `toUTC()`
+
+**已应用场景**：
+- 订单管理（OrderList.tsx）
+- 财务交易（FinanceTransactions.tsx）
+- 数据概览（OzonOverview.tsx）
+- 订单详情（OrderDetailModal.tsx）
+- 打包发货（ScanResultTable.tsx, OrderCardComponent.tsx）
+- 聊天消息（ChatList.tsx, ChatDetail.tsx）
+- 系统日志（AuditLogsTable.tsx, WebhookLogsTable.tsx）
+- 订单报表（OrderReport.tsx）
+- 选品助手（useProductSelection.tsx）
+- 进货价格历史（PurchasePriceHistoryModal.tsx）
+
+---
+
 ### 复制功能
 
 #### `useCopy`

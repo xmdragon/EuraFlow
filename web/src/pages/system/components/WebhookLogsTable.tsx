@@ -22,6 +22,7 @@ import React, { useState, useEffect } from 'react';
 
 import axios from '@/services/axios';
 import { useCopy } from '@/hooks/useCopy';
+import { useDateTime } from '@/hooks/useDateTime';
 import { notifyError } from '@/utils/notification';
 
 import styles from './WebhookLogsTable.module.scss';
@@ -63,6 +64,7 @@ interface Shop {
 }
 
 const WebhookLogsTable: React.FC = () => {
+  const { formatDateTime, toUTCRange } = useDateTime();
   const [form] = Form.useForm();
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,8 +121,8 @@ const WebhookLogsTable: React.FC = () => {
       if (values.status) params.status = values.status;
       if (values.posting_number) params.posting_number = values.posting_number.trim();
       if (values.date_range && values.date_range.length === 2) {
-        params.start_date = values.date_range[0].toISOString();
-        params.end_date = values.date_range[1].toISOString();
+        params.start_date = toUTCRange(values.date_range[0], false);
+        params.end_date = toUTCRange(values.date_range[1], true);
       }
       if (!resetCursor && cursor) {
         params.cursor = cursor;
@@ -224,7 +226,7 @@ const WebhookLogsTable: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       minWidth: 180,
-      render: (text: string) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
+      render: (text: string) => formatDateTime(text, 'YYYY-MM-DD HH:mm:ss'),
     },
     {
       title: '店铺',
@@ -483,12 +485,12 @@ const WebhookLogsTable: React.FC = () => {
               </div>
               <div>
                 <Text strong>创建时间：</Text>
-                <Text>{dayjs(selectedDetail.created_at).format('YYYY-MM-DD HH:mm:ss')}</Text>
+                <Text>{formatDateTime(selectedDetail.created_at, 'YYYY-MM-DD HH:mm:ss')}</Text>
               </div>
               {selectedDetail.processed_at && (
                 <div>
                   <Text strong>处理时间：</Text>
-                  <Text>{dayjs(selectedDetail.processed_at).format('YYYY-MM-DD HH:mm:ss')}</Text>
+                  <Text>{formatDateTime(selectedDetail.processed_at, 'YYYY-MM-DD HH:mm:ss')}</Text>
                 </div>
               )}
               <div>

@@ -14,7 +14,8 @@ import { calculateMaxCost } from '@/pages/ozon/profitCalculator';
 import * as api from '@/services/productSelectionApi';
 import { getExchangeRate, type ExchangeRate } from '@/services/exchangeRateApi';
 import type { FieldConfig } from '@/components/ozon/selection/FieldConfigModal';
-import { defaultFieldConfig } from '@/components/ozon/selection/FieldConfigModal';
+import { defaultFieldConfig, FIELD_CONFIG_VERSION } from '@/components/ozon/selection/FieldConfigModal';
+import { useDateTime } from '@/hooks/useDateTime';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { logger } from '@/utils/logger';
 
@@ -118,6 +119,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
+  const { toUTC } = useDateTime();
 
   // ==================== 状态管理 ====================
 
@@ -162,9 +164,20 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     if (saved) {
       try {
         const savedConfig = JSON.parse(saved);
-        // 合并默认配置，确保新增字段有默认值
-        return { ...defaultFieldConfig, ...savedConfig };
+        // 检查版本号，如果版本不匹配，清除旧配置
+        if (savedConfig._version !== FIELD_CONFIG_VERSION) {
+          logger.info('字段配置版本不匹配，清除旧配置', {
+            savedVersion: savedConfig._version,
+            currentVersion: FIELD_CONFIG_VERSION,
+          });
+          localStorage.removeItem('productFieldConfig');
+          return defaultFieldConfig;
+        }
+        // 版本匹配，使用保存的配置
+        return savedConfig;
       } catch (e) {
+        logger.error('解析字段配置失败，使用默认配置', e);
+        localStorage.removeItem('productFieldConfig');
         return defaultFieldConfig;
       }
     }
@@ -522,7 +535,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     if (values.competitor_min_price_max)
       params.competitor_min_price_max = values.competitor_min_price_max;
     if (values.listing_date) {
-      params.listing_date_start = values.listing_date.format('YYYY-MM-DD');
+      params.listing_date_start = toUTC(values.listing_date, 'YYYY-MM-DD');
     }
     if (values.sort_by) params.sort_by = values.sort_by;
 
@@ -533,7 +546,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     if (rememberFilters) {
       const filtersToSave = {
         ...values,
-        listing_date: values.listing_date ? values.listing_date.format('YYYY-MM-DD') : undefined,
+        listing_date: values.listing_date ? toUTC(values.listing_date, 'YYYY-MM-DD') : undefined,
       };
       localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
     }

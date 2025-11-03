@@ -48,6 +48,7 @@ const { Text, Title } = Typography;
 const ChatDetail: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { formatDateTime } = useDateTime();
   const { chatId } = useParams<{ chatId: string }>();
   const [searchParams] = useSearchParams();
   const shopId = searchParams.get('shopId');
@@ -536,7 +537,7 @@ const ChatDetail: React.FC = () => {
               className={`${styles.messageTimeContainer} ${isReceived ? styles.userTimeContainer : styles.sellerTimeContainer}`}
             >
               <Text type="secondary" className={styles.messageTime}>
-                {moment(msg.created_at).format('MM-DD HH:mm')}
+                {formatDateTime(msg.created_at, 'MM-DD HH:mm')}
                 {msg.is_read && <CheckOutlined className={styles.readIcon} />}
               </Text>
             </div>
@@ -627,7 +628,7 @@ const ChatDetail: React.FC = () => {
                   <Descriptions.Item label="未读数">{chatData.unread_count}</Descriptions.Item>
                   <Descriptions.Item label="最后消息时间">
                     {chatData.last_message_at
-                      ? moment(chatData.last_message_at).format('YYYY-MM-DD HH:mm')
+                      ? formatDateTime(chatData.last_message_at, 'YYYY-MM-DD HH:mm')
                       : '-'}
                   </Descriptions.Item>
                 </Descriptions>

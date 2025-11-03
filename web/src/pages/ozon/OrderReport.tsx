@@ -56,6 +56,7 @@ import PageTitle from "@/components/PageTitle";
 import { ORDER_STATUS_CONFIG } from "@/config/ozon/orderStatusConfig";
 import { useCopy } from "@/hooks/useCopy";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useDateTime } from "@/hooks/useDateTime";
 import * as ozonApi from "@/services/ozonApi";
 import { notifySuccess, notifyError } from "@/utils/notification";
 
@@ -156,6 +157,7 @@ interface ReportSummary {
 
 const OrderReport: React.FC = () => {
   const { copyToClipboard } = useCopy();
+  const { formatDate } = useDateTime();
 
   // ===== 状态管理 =====
   const [selectedMonth, setSelectedMonth] = useState(
@@ -483,7 +485,7 @@ const OrderReport: React.FC = () => {
           children: (
             <div className={styles.postingInfo}>
               <div className={styles.date}>
-                {dayjs(row.posting.created_at).format("MM-DD")}
+                {formatDate(row.posting.created_at, "MM-DD")}
               </div>
               <div className={styles.postingNumberContainer}>
                 <span

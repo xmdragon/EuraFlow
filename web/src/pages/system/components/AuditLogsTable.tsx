@@ -19,6 +19,7 @@ import {
 import dayjs from 'dayjs';
 import React, { useState, useEffect } from 'react';
 
+import { useDateTime } from '@/hooks/useDateTime';
 import axios from '@/services/axios';
 import { notifyError } from '@/utils/notification';
 
@@ -50,6 +51,7 @@ interface User {
 }
 
 const AuditLogsTable: React.FC = () => {
+  const { formatDateTime, toUTCRange } = useDateTime();
   const [form] = Form.useForm();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -98,8 +100,8 @@ const AuditLogsTable: React.FC = () => {
       if (values.module) params.module = values.module;
       if (values.action) params.action = values.action;
       if (values.date_range && values.date_range.length === 2) {
-        params.start_date = values.date_range[0].toISOString();
-        params.end_date = values.date_range[1].toISOString();
+        params.start_date = toUTCRange(values.date_range[0], false);
+        params.end_date = toUTCRange(values.date_range[1], true);
       }
       if (!resetCursor && cursor) {
         params.cursor = cursor;
@@ -177,7 +179,7 @@ const AuditLogsTable: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       minWidth: 180,
-      render: (text: string) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
+      render: (text: string) => formatDateTime(text, 'YYYY-MM-DD HH:mm:ss'),
     },
     {
       title: '用户',
@@ -420,7 +422,7 @@ const AuditLogsTable: React.FC = () => {
               )}
               <div>
                 <Text strong>操作时间：</Text>
-                <Text>{dayjs(selectedLog.created_at).format('YYYY-MM-DD HH:mm:ss')}</Text>
+                <Text>{formatDateTime(selectedLog.created_at, 'YYYY-MM-DD HH:mm:ss')}</Text>
               </div>
             </Space>
           </div>
