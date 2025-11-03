@@ -66,9 +66,9 @@ def upgrade() -> None:
     # 7. 创建 category_id 索引（用于查询）
     op.create_index('idx_ozon_categories_category_id', 'ozon_categories', ['category_id'])
 
-    # 8. 重新创建外键约束
-    op.create_foreign_key('ozon_category_attributes_category_id_fkey', 'ozon_category_attributes', 'ozon_categories',
-                         ['category_id'], ['category_id'], ondelete='CASCADE')
+    # 注意：不重新创建 ozon_category_attributes 的外键约束
+    # 因为 category_id 不再唯一（支持多对多父子关系），无法作为外键目标
+    # 数据完整性由应用层保证（类目数据由 OZON API 同步）
 
 
 def downgrade() -> None:
