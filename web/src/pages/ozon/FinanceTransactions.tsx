@@ -47,7 +47,7 @@ const TRANSACTION_TYPE_MAP: Record<string, string> = {
 };
 
 const FinanceTransactions: React.FC = () => {
-  const { formatDate, toUTCRange } = useDateTime();
+  const { formatDate } = useDateTime();
   // 状态管理
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([
@@ -90,8 +90,8 @@ const FinanceTransactions: React.FC = () => {
       };
 
       if (dateRange && dateRange[0] && dateRange[1]) {
-        filter.date_from = toUTCRange(dateRange[0], false);
-        filter.date_to = toUTCRange(dateRange[1], true);
+        filter.date_from = dateRange[0].format('YYYY-MM-DD');
+        filter.date_to = dateRange[1].format('YYYY-MM-DD');
       }
 
       if (transactionType && transactionType !== 'all') {
@@ -115,8 +115,8 @@ const FinanceTransactions: React.FC = () => {
   const { data: summaryData } = useQuery({
     queryKey: ['financeTransactionsSummary', selectedShop, dateRange, transactionType],
     queryFn: async () => {
-      const dateFrom = dateRange?.[0] ? toUTCRange(dateRange[0], false) : undefined;
-      const dateTo = dateRange?.[1] ? toUTCRange(dateRange[1], true) : undefined;
+      const dateFrom = dateRange?.[0]?.format('YYYY-MM-DD');
+      const dateTo = dateRange?.[1]?.format('YYYY-MM-DD');
       const txType = transactionType !== 'all' ? transactionType : undefined;
 
       return await ozonApi.getFinanceTransactionsSummary(selectedShop, dateFrom, dateTo, txType);

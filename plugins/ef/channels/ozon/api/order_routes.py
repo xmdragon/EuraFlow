@@ -12,13 +12,34 @@ from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
 from ef_core.api.auth import get_current_user_flexible
-from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking
-from ..utils.datetime_utils import utcnow, parse_date
+from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking, OzonGlobalSetting
+from ..utils.datetime_utils import utcnow, parse_date, parse_date_with_timezone
 from sqlalchemy import delete
 from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-orders"])
 logger = logging.getLogger(__name__)
+
+
+async def get_global_timezone(db: AsyncSession) -> str:
+    """
+    获取全局时区设置
+
+    Returns:
+        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
+    """
+    try:
+        result = await db.execute(
+            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
+        )
+        setting = result.scalar_one_or_none()
+        if setting and setting.setting_value:
+            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
+            return setting.setting_value.get("value", "UTC")
+        return "UTC"
+    except Exception as e:
+        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
+        return "UTC"
 
 
 @router.get("/orders")
@@ -51,6 +72,9 @@ async def get_orders(
         allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+    # 获取全局时区设置（用于日期过滤）
+    global_timezone = await get_global_timezone(db)
 
     # 构建查询：以Posting为主体，JOIN Order获取订单信息
     from sqlalchemy.orm import selectinload
@@ -94,8 +118,8 @@ async def get_orders(
 
     if date_from:
         try:
-            # 使用datetime_utils统一处理日期解析（确保UTC timezone-aware）
-            start_date = parse_date(date_from)
+            # 按全局时区解析日期（用户选择的日期是在其时区的00:00:00）
+            start_date = parse_date_with_timezone(date_from, global_timezone)
             if start_date:
                 query = query.where(OzonOrder.ordered_at >= start_date)
         except Exception as e:
@@ -103,12 +127,15 @@ async def get_orders(
 
     if date_to:
         try:
-            # 使用datetime_utils统一处理日期解析（确保UTC timezone-aware）
-            end_date = parse_date(date_to)
+            # 按全局时区解析日期
+            end_date = parse_date_with_timezone(date_to, global_timezone)
             if end_date:
-                # 如果是纯日期格式，设置为当天的23:59:59
+                # 如果是纯日期格式，需要将时间设置为当天的23:59:59
+                # parse_date_with_timezone返回的是用户时区当天00:00:00转换为UTC后的时间
+                # 我们需要在此基础上加23小时59分59秒，得到当天23:59:59的UTC时间
                 if 'T' not in date_to:
-                    end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    from datetime import timedelta
+                    end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
                 query = query.where(OzonOrder.ordered_at <= end_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
@@ -137,17 +164,18 @@ async def get_orders(
         count_query = count_query.where(OzonOrder.order_type == order_type)
     if date_from:
         try:
-            start_date = parse_date(date_from)
+            start_date = parse_date_with_timezone(date_from, global_timezone)
             if start_date:
                 count_query = count_query.where(OzonOrder.ordered_at >= start_date)
         except:
             pass
     if date_to:
         try:
-            end_date = parse_date(date_to)
+            end_date = parse_date_with_timezone(date_to, global_timezone)
             if end_date:
                 if 'T' not in date_to:
-                    end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    from datetime import timedelta
+                    end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
                 count_query = count_query.where(OzonOrder.ordered_at <= end_date)
         except:
             pass
@@ -155,16 +183,34 @@ async def get_orders(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
-    # 计算全局统计（所有状态，不受当前status筛选影响）
+    # 计算全局统计（所有状态，不受当前status筛选影响，但受日期筛选影响）
     # 应用权限过滤，包含所有状态的统计
     # 使用 OzonPosting.status（OZON原生状态）而不是 OzonOrder.status（系统映射状态）
     stats_query = select(
         OzonPosting.status,
         func.count(OzonPosting.id).label('count')
-    )
+    ).join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
     # 应用权限过滤
     if shop_filter is not True:
         stats_query = stats_query.where(shop_filter)
+    # 应用日期过滤（与主查询保持一致）
+    if date_from:
+        try:
+            start_date = parse_date_with_timezone(date_from, global_timezone)
+            if start_date:
+                stats_query = stats_query.where(OzonOrder.ordered_at >= start_date)
+        except:
+            pass
+    if date_to:
+        try:
+            end_date = parse_date_with_timezone(date_to, global_timezone)
+            if end_date:
+                if 'T' not in date_to:
+                    from datetime import timedelta
+                    end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
+                stats_query = stats_query.where(OzonOrder.ordered_at <= end_date)
+        except:
+            pass
     stats_query = stats_query.group_by(OzonPosting.status)
 
     stats_result = await db.execute(stats_query)
@@ -172,11 +218,31 @@ async def get_orders(
 
     # 查询"已废弃"posting数量（operation_status='cancelled'）
     # 统计 posting 数量，与其他状态标签保持一致
-    discarded_query = select(func.count(OzonPosting.id))
+    discarded_query = select(func.count(OzonPosting.id)).join(
+        OzonOrder, OzonPosting.order_id == OzonOrder.id
+    )
     discarded_query = discarded_query.where(OzonPosting.operation_status == 'cancelled')
     # 应用权限过滤
     if shop_filter is not True:
         discarded_query = discarded_query.where(shop_filter)
+    # 应用日期过滤（与主查询保持一致）
+    if date_from:
+        try:
+            start_date = parse_date_with_timezone(date_from, global_timezone)
+            if start_date:
+                discarded_query = discarded_query.where(OzonOrder.ordered_at >= start_date)
+        except:
+            pass
+    if date_to:
+        try:
+            end_date = parse_date_with_timezone(date_to, global_timezone)
+            if end_date:
+                if 'T' not in date_to:
+                    from datetime import timedelta
+                    end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
+                discarded_query = discarded_query.where(OzonOrder.ordered_at <= end_date)
+        except:
+            pass
 
     discarded_result = await db.execute(discarded_query)
     discarded_count = discarded_result.scalar() or 0

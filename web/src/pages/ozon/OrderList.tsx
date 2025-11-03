@@ -75,7 +75,7 @@ interface OrderItemRow {
 const OrderList: React.FC = () => {
   const queryClient = useQueryClient();
   const { currency: userCurrency } = useCurrency();
-  const { formatDateTime, toUTCRange } = useDateTime();
+  const { formatDateTime } = useDateTime();
   const { canOperate, canSync, canExport } = usePermission();
   const { copyToClipboard } = useCopy();
 
@@ -200,8 +200,8 @@ const OrderList: React.FC = () => {
       const queryParams = {
         ...searchParams,
         shop_id: selectedShop,
-        date_from: dateRange?.[0] ? toUTCRange(dateRange[0], false) : undefined,
-        date_to: dateRange?.[1] ? toUTCRange(dateRange[1], true) : undefined,
+        date_from: dateRange?.[0]?.format('YYYY-MM-DD'),
+        date_to: dateRange?.[1]?.format('YYYY-MM-DD'),
         dateRange: undefined,
       };
 

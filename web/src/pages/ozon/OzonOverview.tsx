@@ -48,7 +48,6 @@ const CHART_COLORS = [
 const OzonOverview: React.FC = () => {
   // 获取系统默认货币和时区工具
   const { symbol: currencySymbol } = useCurrency();
-  const { toUTCRange } = useDateTime();
 
   // 初始化为 null 表示"全部店铺"
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -104,22 +103,22 @@ const OzonOverview: React.FC = () => {
       case 'thisMonth':
         // 从本月1日到今天
         return {
-          startDate: toUTCRange(now.startOf('month'), false),
-          endDate: toUTCRange(now, true),
+          startDate: now.startOf('month').format('YYYY-MM-DD'),
+          endDate: now.format('YYYY-MM-DD'),
         };
       case 'lastMonth':
         // 上个月1日到上个月最后一天
         const lastMonth = now.subtract(1, 'month');
         return {
-          startDate: toUTCRange(lastMonth.startOf('month'), false),
-          endDate: toUTCRange(lastMonth.endOf('month'), true),
+          startDate: lastMonth.startOf('month').format('YYYY-MM-DD'),
+          endDate: lastMonth.endOf('month').format('YYYY-MM-DD'),
         };
       case 'custom':
         // 自定义日期范围
         if (customDateRange[0] && customDateRange[1]) {
           return {
-            startDate: toUTCRange(customDateRange[0], false),
-            endDate: toUTCRange(customDateRange[1], true),
+            startDate: customDateRange[0].format('YYYY-MM-DD'),
+            endDate: customDateRange[1].format('YYYY-MM-DD'),
           };
         }
         return { days: 7 }; // 默认7天

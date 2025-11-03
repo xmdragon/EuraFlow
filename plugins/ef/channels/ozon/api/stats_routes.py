@@ -11,9 +11,32 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.api.auth import get_current_user_flexible
 from ..utils.datetime_utils import utcnow
+from ..models.global_settings import OzonGlobalSetting
+from sqlalchemy import select
 
 router = APIRouter(tags=["ozon-stats"])
 logger = logging.getLogger(__name__)
+
+
+async def get_global_timezone(db: AsyncSession) -> str:
+    """
+    获取全局时区设置
+
+    Returns:
+        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
+    """
+    try:
+        result = await db.execute(
+            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
+        )
+        setting = result.scalar_one_or_none()
+        if setting and setting.setting_value:
+            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
+            return setting.setting_value.get("value", "UTC")
+        return "UTC"
+    except Exception as e:
+        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
+        return "UTC"
 
 
 @router.get("/sync-logs")
@@ -394,20 +417,39 @@ async def get_daily_posting_stats(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
+    # 获取全局时区设置
+    global_timezone = await get_global_timezone(db)
+
     try:
-        # 计算起始日期和结束日期
+        # 计算起始日期和结束日期（按全局时区）
         if start_date and end_date:
-            # 使用自定义日期范围
+            # 使用自定义日期范围（前端传入的是用户时区的日期）
             from datetime import datetime
-            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
-            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            from zoneinfo import ZoneInfo
+
+            # 按全局时区解析日期字符串
+            tz = ZoneInfo(global_timezone)
+            start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
+            end_date_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=tz)
+
+            # 转换为UTC后取日期部分（用于统计）
+            start_date_obj = start_date_dt.astimezone(ZoneInfo('UTC')).date()
+            end_date_obj = end_date_dt.astimezone(ZoneInfo('UTC')).date()
         elif days:
-            # 使用天数计算
-            end_date_obj = utcnow().date()
+            # 使用天数计算（基于全局时区的当前日期）
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            tz = ZoneInfo(global_timezone)
+            now_in_tz = datetime.now(tz)
+            end_date_obj = now_in_tz.date()
             start_date_obj = end_date_obj - timedelta(days=days - 1)
         else:
-            # 默认30天
-            end_date_obj = utcnow().date()
+            # 默认30天（基于全局时区的当前日期）
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            tz = ZoneInfo(global_timezone)
+            now_in_tz = datetime.now(tz)
+            end_date_obj = now_in_tz.date()
             start_date_obj = end_date_obj - timedelta(days=29)
 
         # 构建查询条件

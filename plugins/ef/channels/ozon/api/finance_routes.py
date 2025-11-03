@@ -10,10 +10,33 @@ import logging
 
 from ef_core.database import get_async_session
 from ..models.finance import OzonFinanceTransaction
+from ..models.global_settings import OzonGlobalSetting
+from ..utils.datetime_utils import parse_date_with_timezone
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["ozon-finance"])
 logger = logging.getLogger(__name__)
+
+
+async def get_global_timezone(db: AsyncSession) -> str:
+    """
+    获取全局时区设置
+
+    Returns:
+        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
+    """
+    try:
+        result = await db.execute(
+            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
+        )
+        setting = result.scalar_one_or_none()
+        if setting and setting.setting_value:
+            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
+            return setting.setting_value.get("value", "UTC")
+        return "UTC"
+    except Exception as e:
+        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
+        return "UTC"
 
 
 # DTO类定义
@@ -87,6 +110,9 @@ async def get_finance_transactions(
     - 店铺ID（可选，不传时查询所有店铺）
     """
     try:
+        # 获取全局时区设置（用于日期过滤）
+        global_timezone = await get_global_timezone(db)
+
         # 构建查询条件
         conditions = []
 
@@ -94,19 +120,26 @@ async def get_finance_transactions(
         if shop_id is not None:
             conditions.append(OzonFinanceTransaction.shop_id == shop_id)
 
-        # 日期范围筛选
+        # 日期范围筛选（按全局时区解析）
         if date_from:
             try:
-                date_from_obj = datetime.fromisoformat(date_from + "T00:00:00Z")
-                conditions.append(OzonFinanceTransaction.operation_date >= date_from_obj)
-            except ValueError:
+                date_from_obj = parse_date_with_timezone(date_from, global_timezone)
+                if date_from_obj:
+                    conditions.append(OzonFinanceTransaction.operation_date >= date_from_obj)
+            except Exception as e:
+                logger.warning(f"Failed to parse date_from: {date_from}, error: {e}")
                 raise HTTPException(status_code=400, detail="Invalid date_from format")
 
         if date_to:
             try:
-                date_to_obj = datetime.fromisoformat(date_to + "T23:59:59Z")
-                conditions.append(OzonFinanceTransaction.operation_date <= date_to_obj)
-            except ValueError:
+                date_to_obj = parse_date_with_timezone(date_to, global_timezone)
+                if date_to_obj:
+                    # 设置为当天的23:59:59
+                    from datetime import timedelta
+                    date_to_obj = date_to_obj + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
+                    conditions.append(OzonFinanceTransaction.operation_date <= date_to_obj)
+            except Exception as e:
+                logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
                 raise HTTPException(status_code=400, detail="Invalid date_to format")
 
         # 交易类型筛选
@@ -203,6 +236,9 @@ async def get_finance_transactions_summary(
     支持查询所有店铺（不传 shop_id）
     """
     try:
+        # 获取全局时区设置（用于日期过滤）
+        global_timezone = await get_global_timezone(db)
+
         # 构建查询条件
         conditions = []
 
@@ -211,12 +247,16 @@ async def get_finance_transactions_summary(
             conditions.append(OzonFinanceTransaction.shop_id == shop_id)
 
         if date_from:
-            date_from_obj = datetime.fromisoformat(date_from + "T00:00:00Z")
-            conditions.append(OzonFinanceTransaction.operation_date >= date_from_obj)
+            date_from_obj = parse_date_with_timezone(date_from, global_timezone)
+            if date_from_obj:
+                conditions.append(OzonFinanceTransaction.operation_date >= date_from_obj)
 
         if date_to:
-            date_to_obj = datetime.fromisoformat(date_to + "T23:59:59Z")
-            conditions.append(OzonFinanceTransaction.operation_date <= date_to_obj)
+            date_to_obj = parse_date_with_timezone(date_to, global_timezone)
+            if date_to_obj:
+                from datetime import timedelta
+                date_to_obj = date_to_obj + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
+                conditions.append(OzonFinanceTransaction.operation_date <= date_to_obj)
 
         if transaction_type and transaction_type != "all":
             conditions.append(OzonFinanceTransaction.transaction_type == transaction_type)
