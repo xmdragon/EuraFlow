@@ -77,12 +77,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     setLocalPosting(selectedPosting);
   }, [selectedOrder, selectedPosting]);
 
-  // 可编辑状态判断：从"分配中"状态开始允许编辑
+  // 可编辑状态判断：从"分配中"状态开始允许编辑业务信息
   const canEdit =
     localPosting?.operation_status &&
     ['allocating', 'allocated', 'tracking_confirmed', 'printed'].includes(
       localPosting.operation_status
     );
+
+  // 订单备注编辑权限：只要有 operation_status 就可以编辑（包括 awaiting_stock）
+  const canEditNotes = !!localPosting?.operation_status;
 
   // 编辑状态管理
   const [isEditingPurchasePrice, setIsEditingPurchasePrice] = useState(false);
@@ -265,7 +268,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       <div style={{ marginBottom: 8 }}>
         <Text strong>订单备注</Text>
       </div>
-      {canEdit && isEditingOrderNotes && canOperate ? (
+      {canEditNotes && isEditingOrderNotes && canOperate ? (
         <Space direction="vertical" style={{ width: '100%' }}>
           <TextArea
             value={editOrderNotes}
@@ -297,7 +300,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       ) : (
         <Space>
           <Text>{localOrder?.order_notes || '-'}</Text>
-          {canEdit && canOperate && (
+          {canEditNotes && canOperate && (
             <Button
               type="link"
               size="small"
@@ -516,11 +519,18 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       },
                       {
                         title: '小计',
-                        dataIndex: 'total_amount',
                         key: 'total_amount',
                         width: 100,
-                        render: (amount) =>
-                          formatPriceWithFallback(amount, localOrder?.currency_code, userCurrency),
+                        render: (_, record) => {
+                          const price = parseFloat(record.price || '0');
+                          const quantity = parseInt(record.quantity || '0', 10);
+                          const total = price * quantity;
+                          return formatPriceWithFallback(
+                            total.toString(),
+                            localOrder?.currency_code,
+                            userCurrency
+                          );
+                        },
                       },
                     ]}
                   />
