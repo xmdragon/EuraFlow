@@ -77,15 +77,18 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     setLocalPosting(selectedPosting);
   }, [selectedOrder, selectedPosting]);
 
-  // 可编辑状态判断：从"分配中"状态开始允许编辑业务信息
+  // 可编辑状态判断：从"分配中"状态开始允许编辑业务信息，或已取消订单也可以编辑
   const canEdit =
-    localPosting?.operation_status &&
-    ['allocating', 'allocated', 'tracking_confirmed', 'printed'].includes(
-      localPosting.operation_status
-    );
+    (localPosting?.operation_status &&
+      ['allocating', 'allocated', 'tracking_confirmed', 'printed'].includes(
+        localPosting.operation_status
+      )) ||
+    (localPosting?.status && ['cancelled', 'not_accepted'].includes(localPosting.status));
 
-  // 订单备注编辑权限：只要有 operation_status 就可以编辑（包括 awaiting_stock）
-  const canEditNotes = !!localPosting?.operation_status;
+  // 订单备注编辑权限：只要有 operation_status 就可以编辑（包括 awaiting_stock），或已取消订单也可以编辑
+  const canEditNotes =
+    !!localPosting?.operation_status ||
+    (localPosting?.status && ['cancelled', 'not_accepted'].includes(localPosting.status));
 
   // 编辑状态管理
   const [isEditingPurchasePrice, setIsEditingPurchasePrice] = useState(false);
