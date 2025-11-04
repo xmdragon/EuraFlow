@@ -467,8 +467,14 @@ async def get_posting_report(
                         'image_url': image_url  # 原始URL，前端用 optimizeOzonImageUrl 优化
                     })
 
-            # 真实订单金额（用于显示）
-            real_order_amount = Decimal(str(order.total_price or '0'))
+            # 真实订单金额（根据posting中的商品数据计算）
+            # 注意：order.total_price 可能不准确，因为 posting 中的数量可能与 order 不一致
+            real_order_amount = Decimal('0')
+            if posting.raw_payload and 'products' in posting.raw_payload:
+                for product_raw in posting.raw_payload['products']:
+                    product_price = Decimal(str(product_raw.get('price', '0')))
+                    product_quantity = int(product_raw.get('quantity', 0))
+                    real_order_amount += product_price * product_quantity
 
             # 计算订单金额（取消订单不计销售额，用于统计）
             if posting.status == 'cancelled':
@@ -640,11 +646,14 @@ async def get_report_summary(
         from ..utils.serialization import format_currency
 
         for posting, order, shop_name in postings_data:
-            # 订单金额（取消订单不计销售额）
-            if posting.status == 'cancelled':
-                order_amount = Decimal('0')
-            else:
-                order_amount = Decimal(str(order.total_price or '0'))
+            # 订单金额（根据posting中的商品数据计算）
+            # 注意：order.total_price 可能不准确，因为 posting 中的数量可能与 order 不一致
+            order_amount = Decimal('0')
+            if posting.status != 'cancelled' and posting.raw_payload and 'products' in posting.raw_payload:
+                for product_raw in posting.raw_payload['products']:
+                    product_price = Decimal(str(product_raw.get('price', '0')))
+                    product_quantity = int(product_raw.get('quantity', 0))
+                    order_amount += product_price * product_quantity
 
             # 费用字段（取消订单仍然计入成本）
             purchase = posting.purchase_price or Decimal('0')
