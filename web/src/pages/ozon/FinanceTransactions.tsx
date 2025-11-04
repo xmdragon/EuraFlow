@@ -85,6 +85,7 @@ const FinanceTransactions: React.FC = () => {
     dayjs(),
   ]);
   const [transactionType, setTransactionType] = useState<string>('all');
+  const [postingStatus, setPostingStatus] = useState<string>('awaiting_deliver'); // 默认"已下订"
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
 
@@ -108,6 +109,7 @@ const FinanceTransactions: React.FC = () => {
       selectedShop,
       dateRange,
       transactionType,
+      postingStatus,
       currentPage,
       pageSize,
     ],
@@ -125,6 +127,10 @@ const FinanceTransactions: React.FC = () => {
 
       if (transactionType && transactionType !== 'all') {
         filter.transaction_type = transactionType;
+      }
+
+      if (postingStatus) {
+        filter.posting_status = postingStatus;
       }
 
       return await ozonApi.getFinanceTransactionsDailySummary(filter);
@@ -172,6 +178,10 @@ const FinanceTransactions: React.FC = () => {
 
     if (transactionType && transactionType !== 'all') {
       filter.transaction_type = transactionType;
+    }
+
+    if (postingStatus) {
+      filter.posting_status = postingStatus;
     }
 
     const response = await ozonApi.getFinanceTransactions(filter);
@@ -419,6 +429,19 @@ const FinanceTransactions: React.FC = () => {
                     {label}
                   </Option>
                 ))}
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                value={postingStatus}
+                onChange={(value) => {
+                  setPostingStatus(value);
+                  setCurrentPage(1);
+                }}
+                style={{ minWidth: 100 }}
+              >
+                <Option value="awaiting_deliver">已下订</Option>
+                <Option value="delivered">已签收</Option>
               </Select>
             </Col>
           </Row>

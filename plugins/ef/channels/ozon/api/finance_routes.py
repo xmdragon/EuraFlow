@@ -11,6 +11,7 @@ import logging
 from ef_core.database import get_async_session
 from ..models.finance import OzonFinanceTransaction
 from ..models.global_settings import OzonGlobalSetting
+from ..models.orders import OzonPosting
 from ..utils.datetime_utils import parse_date_with_timezone
 from pydantic import BaseModel, Field
 
@@ -115,6 +116,7 @@ async def get_finance_transactions(
     transaction_type: Optional[str] = Query(None, description="交易类型: orders/returns/services/compensation/transferDelivery/other/all"),
     operation_type: Optional[str] = Query(None, description="操作类型"),
     posting_number: Optional[str] = Query(None, description="发货单号"),
+    posting_status: Optional[str] = Query(None, description="订单状态: awaiting_deliver/delivered"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(100, ge=1, le=1000, description="每页数量"),
     db: AsyncSession = Depends(get_async_session)
@@ -191,8 +193,22 @@ async def get_finance_transactions(
                 # 其他情况，精确匹配
                 conditions.append(OzonFinanceTransaction.posting_number == posting_number_value)
 
+        # 订单状态筛选（通过posting_number关联OzonPosting表）
+        need_posting_join = False
+        if posting_status:
+            need_posting_join = True
+            conditions.append(OzonPosting.status == posting_status)
+
         # 查询总数
-        count_stmt = select(func.count()).select_from(OzonFinanceTransaction)
+        if need_posting_join:
+            count_stmt = (
+                select(func.count())
+                .select_from(OzonFinanceTransaction)
+                .outerjoin(OzonPosting, OzonFinanceTransaction.posting_number == OzonPosting.posting_number)
+            )
+        else:
+            count_stmt = select(func.count()).select_from(OzonFinanceTransaction)
+
         if conditions:
             count_stmt = count_stmt.where(and_(*conditions))
         total_result = await db.execute(count_stmt)
@@ -200,12 +216,22 @@ async def get_finance_transactions(
 
         # 分页查询
         offset = (page - 1) * page_size
-        stmt = (
-            select(OzonFinanceTransaction)
-            .order_by(OzonFinanceTransaction.operation_date.desc())
-            .offset(offset)
-            .limit(page_size)
-        )
+        if need_posting_join:
+            stmt = (
+                select(OzonFinanceTransaction)
+                .outerjoin(OzonPosting, OzonFinanceTransaction.posting_number == OzonPosting.posting_number)
+                .order_by(OzonFinanceTransaction.operation_date.desc())
+                .offset(offset)
+                .limit(page_size)
+            )
+        else:
+            stmt = (
+                select(OzonFinanceTransaction)
+                .order_by(OzonFinanceTransaction.operation_date.desc())
+                .offset(offset)
+                .limit(page_size)
+            )
+
         if conditions:
             stmt = stmt.where(and_(*conditions))
 
@@ -320,6 +346,7 @@ async def get_finance_transactions_daily_summary(
     date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     transaction_type: Optional[str] = Query(None, description="交易类型: orders/returns/services/compensation/transferDelivery/other/all"),
+    posting_status: Optional[str] = Query(None, description="订单状态: awaiting_deliver/delivered"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(100, ge=1, le=1000, description="每页数量"),
     db: AsyncSession = Depends(get_async_session)
@@ -366,21 +393,43 @@ async def get_finance_transactions_daily_summary(
         if transaction_type and transaction_type != "all":
             conditions.append(OzonFinanceTransaction.transaction_type == transaction_type)
 
+        # 订单状态筛选（通过posting_number关联OzonPosting表）
+        need_posting_join = False
+        if posting_status:
+            need_posting_join = True
+            conditions.append(OzonPosting.status == posting_status)
+
         # 提取日期部分（使用 func.date 或 func.cast）
         # PostgreSQL: DATE(operation_date)
         from sqlalchemy import cast, Date
         date_column = cast(OzonFinanceTransaction.operation_date, Date)
 
         # 构建聚合查询（按日期分组）
-        base_query = select(
-            date_column.label("operation_date"),
-            func.count().label("transaction_count"),
-            func.sum(OzonFinanceTransaction.amount).label("total_amount"),
-            func.sum(OzonFinanceTransaction.accruals_for_sale).label("total_accruals_for_sale"),
-            func.sum(OzonFinanceTransaction.sale_commission).label("total_sale_commission"),
-            func.sum(OzonFinanceTransaction.delivery_charge).label("total_delivery_charge"),
-            func.sum(OzonFinanceTransaction.return_delivery_charge).label("total_return_delivery_charge"),
-        ).group_by(date_column)
+        if need_posting_join:
+            base_query = (
+                select(
+                    date_column.label("operation_date"),
+                    func.count().label("transaction_count"),
+                    func.sum(OzonFinanceTransaction.amount).label("total_amount"),
+                    func.sum(OzonFinanceTransaction.accruals_for_sale).label("total_accruals_for_sale"),
+                    func.sum(OzonFinanceTransaction.sale_commission).label("total_sale_commission"),
+                    func.sum(OzonFinanceTransaction.delivery_charge).label("total_delivery_charge"),
+                    func.sum(OzonFinanceTransaction.return_delivery_charge).label("total_return_delivery_charge"),
+                )
+                .select_from(OzonFinanceTransaction)
+                .outerjoin(OzonPosting, OzonFinanceTransaction.posting_number == OzonPosting.posting_number)
+                .group_by(date_column)
+            )
+        else:
+            base_query = select(
+                date_column.label("operation_date"),
+                func.count().label("transaction_count"),
+                func.sum(OzonFinanceTransaction.amount).label("total_amount"),
+                func.sum(OzonFinanceTransaction.accruals_for_sale).label("total_accruals_for_sale"),
+                func.sum(OzonFinanceTransaction.sale_commission).label("total_sale_commission"),
+                func.sum(OzonFinanceTransaction.delivery_charge).label("total_delivery_charge"),
+                func.sum(OzonFinanceTransaction.return_delivery_charge).label("total_return_delivery_charge"),
+            ).group_by(date_column)
 
         if conditions:
             base_query = base_query.where(and_(*conditions))

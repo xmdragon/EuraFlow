@@ -1954,6 +1954,7 @@ export interface FinanceTransactionsFilter {
   transaction_type?: string;
   operation_type?: string;
   posting_number?: string;
+  posting_status?: string;
   page?: number;
   page_size?: number;
 }

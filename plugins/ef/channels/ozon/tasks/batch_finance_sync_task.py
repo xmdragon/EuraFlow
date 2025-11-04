@@ -104,7 +104,10 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
         "error_details": []
     }
 
-    db_manager = get_db_manager()
+    # 在当前 event loop 中重新创建 db_manager（避免 loop 冲突）
+    from ef_core.database import DatabaseManager
+    db_manager = DatabaseManager()
+
     async with db_manager.get_session() as session:
         # 1. 查询所有已签收但佣金为0的订单
         postings_result = await session.execute(
