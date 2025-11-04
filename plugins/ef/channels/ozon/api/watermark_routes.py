@@ -1093,11 +1093,13 @@ async def list_cloudinary_resources(
 
             for resource in resources:
                 # 优先使用 Cloudinary API 返回的 folder 字段
-                # 如果没有，则从 public_id 解析（向后兼容）
-                folder_path = resource.get("folder") or resource.get("asset_folder")
-
-                if not folder_path:
-                    # 从 public_id 解析（兜底方案）
+                # 注意：空字符串 "" 是有效值，表示根目录
+                if resource.get("folder") is not None:
+                    folder_path = resource.get("folder")
+                elif resource.get("asset_folder") is not None:
+                    folder_path = resource.get("asset_folder")
+                else:
+                    # 从 public_id 解析（兜底方案：当两个字段都不存在时）
                     public_id = resource["public_id"]
                     parts = public_id.split("/")
                     if len(parts) > 1:

@@ -402,6 +402,11 @@ class CloudinaryService:
 
             resources = []
             for resource in result.get("resources", []):
+                # 调试日志：输出资源的关键字段
+                logger.info(f"Cloudinary resource: public_id={resource['public_id']}, "
+                           f"folder={resource.get('folder')}, "
+                           f"asset_folder={resource.get('asset_folder')}")
+
                 resources.append({
                     "public_id": resource["public_id"],
                     "url": resource["secure_url"],
