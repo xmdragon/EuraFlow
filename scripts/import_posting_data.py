@@ -53,7 +53,7 @@ def import_posting_data(csv_path: str, dry_run: bool = False):
         'tracking_numbers_added': 0
     }
 
-    session: Session = next(get_sync_session())
+    session: Session = get_sync_session()
 
     try:
         with open(csv_path, 'r', encoding='utf-8') as f:
