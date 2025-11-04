@@ -39,3 +39,12 @@
   color: #cf1322;
   font-weight: 500;
 }
+
+// 紧凑表格样式（减少padding）
+.compactTable {
+  :global {
+    .ant-table-cell {
+      padding: 2px 8px !important;
+    }
+  }
+}

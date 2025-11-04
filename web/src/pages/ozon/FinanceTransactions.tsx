@@ -65,6 +65,7 @@ const ExpandedDetailTable: React.FC<ExpandedDetailTableProps> = ({
 
   return (
     <Table
+      className={styles.compactTable}
       loading={isLoading}
       columns={detailColumns}
       dataSource={details || []}
@@ -526,6 +527,7 @@ const FinanceTransactions: React.FC = () => {
         {/* 按日期汇总的交易列表 */}
         <Card className={styles.listCard}>
           <Table
+            className={styles.compactTable}
             loading={isLoading}
             columns={dailySummaryColumns}
             dataSource={dailySummaryData?.items || []}
