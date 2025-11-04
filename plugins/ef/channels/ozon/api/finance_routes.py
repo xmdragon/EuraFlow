@@ -11,7 +11,7 @@ import logging
 from ef_core.database import get_async_session
 from ..models.finance import OzonFinanceTransaction
 from ..models.global_settings import OzonGlobalSetting
-from ..models.orders import OzonPosting
+from ..models.orders import OzonPosting, OzonOrder, OzonOrderItem
 from ..utils.datetime_utils import parse_date_with_timezone
 from ..services.finance_translations import translate_operation_type_name
 from pydantic import BaseModel, Field
@@ -239,14 +239,67 @@ async def get_finance_transactions(
         result = await db.execute(stmt)
         transactions = result.scalars().all()
 
-        # 转换为DTO（应用翻译）
+        # 转换为DTO（应用翻译 + 补充商品信息）
         items = []
-        for transaction in transactions:
+
+        # 收集需要补充商品信息的posting_number
+        postings_need_items = {}  # {posting_number: [transaction_index, ...]}
+        for idx, transaction in enumerate(transactions):
             data = transaction.to_dict()
+
             # 翻译操作类型名称
             if data.get('operation_type_name'):
                 data['operation_type_name'] = translate_operation_type_name(data['operation_type_name'])
-            items.append(FinanceTransactionDTO(**data))
+
+            items.append(data)
+
+            # 如果没有商品信息但有posting_number，记录下来
+            if not data.get('item_name') and data.get('posting_number'):
+                pn = data['posting_number']
+                if pn not in postings_need_items:
+                    postings_need_items[pn] = []
+                postings_need_items[pn].append(idx)
+
+        # 批量查询商品信息
+        if postings_need_items:
+            # 查询这些posting对应的订单商品
+            posting_numbers = list(postings_need_items.keys())
+            stmt = (
+                select(OzonPosting, OzonOrderItem)
+                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
+                .join(OzonOrderItem, OzonOrder.id == OzonOrderItem.order_id)
+                .where(OzonPosting.posting_number.in_(posting_numbers))
+            )
+            result = await db.execute(stmt)
+            rows = result.all()
+
+            # 按posting_number分组商品信息
+            posting_items_map = {}  # {posting_number: {'names': [], 'skus': []}}
+            for posting, order_item in rows:
+                pn = posting.posting_number
+                if pn not in posting_items_map:
+                    posting_items_map[pn] = {'names': [], 'skus': []}
+                if order_item.name:
+                    posting_items_map[pn]['names'].append(order_item.name)
+                if order_item.ozon_sku:
+                    posting_items_map[pn]['skus'].append(str(order_item.ozon_sku))
+
+            # 填充商品信息到对应的交易记录
+            for pn, indices in postings_need_items.items():
+                if pn in posting_items_map:
+                    item_info = posting_items_map[pn]
+                    # 将多个商品名称用逗号连接
+                    item_name = ', '.join(item_info['names']) if item_info['names'] else None
+                    ozon_sku = ', '.join(item_info['skus']) if item_info['skus'] else None
+
+                    for idx in indices:
+                        if item_name:
+                            items[idx]['item_name'] = item_name
+                        if ozon_sku:
+                            items[idx]['ozon_sku'] = ozon_sku
+
+        # 转换为DTO
+        items = [FinanceTransactionDTO(**data) for data in items]
 
         total_pages = (total + page_size - 1) // page_size
 

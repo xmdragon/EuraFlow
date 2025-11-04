@@ -600,8 +600,17 @@ async def get_order_detail(
     if not posting:
         raise HTTPException(status_code=404, detail="Posting not found")
 
-    # 获取关联的订单
-    query = select(OzonOrder).where(OzonOrder.id == posting.order_id)
+    # 获取关联的订单（预加载关系字段避免懒加载）
+    from sqlalchemy.orm import selectinload
+
+    query = (
+        select(OzonOrder)
+        .where(OzonOrder.id == posting.order_id)
+        .options(
+            selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+            selectinload(OzonOrder.postings).selectinload(OzonPosting.domestic_trackings)
+        )
+    )
 
     if False:  # shop_id 已经在 posting 查询中检查过了
         query = query.where(OzonOrder.shop_id == shop_id)
@@ -622,6 +631,35 @@ async def get_order_detail(
 
     # 移除 items（与 postings[].products 重复）
     order_dict.pop('items', None)
+
+    # 收集所有商品的offer_id
+    all_offer_ids = set()
+    for posting_data in order_dict.get("postings", []):
+        products = posting_data.get("products", [])
+        for product in products:
+            if product.get('offer_id'):
+                all_offer_ids.add(product.get('offer_id'))
+
+    # 批量查询商品图片（使用offer_id匹配）
+    from ..models.products import OzonProduct
+    offer_id_images = {}
+    if all_offer_ids:
+        product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
+            OzonProduct.offer_id.in_(list(all_offer_ids))
+        )
+        if shop_id:
+            product_query = product_query.where(OzonProduct.shop_id == shop_id)
+        products_result = await db.execute(product_query)
+        for offer_id, images in products_result:
+            if offer_id and images:
+                # 优先使用primary图片，否则使用第一张
+                if isinstance(images, dict):
+                    if images.get("primary"):
+                        offer_id_images[offer_id] = images["primary"]
+                    elif images.get("main") and isinstance(images["main"], list) and images["main"]:
+                        offer_id_images[offer_id] = images["main"][0]
+                elif isinstance(images, list) and images:
+                    offer_id_images[offer_id] = images[0]
 
     # 从所有 postings[].products 计算汇总信息
     total_items = 0
@@ -648,7 +686,8 @@ async def get_order_detail(
     return {
         "success": True,
         "data": order_dict,
-        "summary": order_summary
+        "summary": order_summary,
+        "offer_id_images": offer_id_images  # 添加商品图片映射
     }
 
 

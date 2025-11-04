@@ -156,10 +156,8 @@ const FinanceTransactions: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5分钟缓存
   });
 
-  // offer_id到图片的映射（财务交易没有商品图片，返回空映射）
-  const offerIdImageMap = useMemo(() => {
-    return {};
-  }, []);
+  // offer_id到图片的映射（从订单详情API返回中获取）
+  const [offerIdImageMap, setOfferIdImageMap] = useState<Record<string, string>>({});
 
   // 获取某个日期的详细交易记录（用于展开行）
   const getDateDetails = async (date: string): Promise<ozonApi.FinanceTransaction[]> => {
@@ -191,6 +189,12 @@ const FinanceTransactions: React.FC = () => {
 
         setSelectedOrder(orderData);
         setSelectedPosting(posting || null);
+
+        // 更新商品图片映射
+        if (response.offer_id_images) {
+          setOfferIdImageMap(response.offer_id_images);
+        }
+
         setDetailModalVisible(true);
       }
     } catch (error) {
