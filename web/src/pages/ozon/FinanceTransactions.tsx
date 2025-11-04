@@ -328,7 +328,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '商品SKU',
       dataIndex: 'ozon_sku',
-      width: 90,
+      width: 110,
       render: (text) => text || '-',
     },
     {
@@ -382,7 +382,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '退货配送费',
       dataIndex: 'return_delivery_charge',
-      minWidth: 100,
+      minWidth: 90,
       align: 'right',
       render: formatAmount,
     },
