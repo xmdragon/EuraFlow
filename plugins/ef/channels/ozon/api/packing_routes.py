@@ -2112,6 +2112,10 @@ async def mark_posting_printed(
         await db.commit()
         await db.refresh(posting)
 
+        # 保存需要返回的值（避免在审计日志commit后访问过期对象）
+        saved_operation_status = posting.operation_status
+        saved_operation_time = posting.operation_time
+
         logger.info(f"货件 {posting_number} 已标记为已打印状态")
 
         # 记录审计日志
@@ -2132,7 +2136,7 @@ async def mark_posting_printed(
                 changes={
                     "operation_status": {
                         "old": old_operation_status,
-                        "new": posting.operation_status
+                        "new": saved_operation_status
                     }
                 },
                 ip_address=request_ip,
@@ -2148,9 +2152,9 @@ async def mark_posting_printed(
             "success": True,
             "message": "已标记为已打印",
             "data": {
-                "posting_number": posting.posting_number,
-                "operation_status": posting.operation_status,
-                "operation_time": posting.operation_time.isoformat() if posting.operation_time else None
+                "posting_number": posting_number,
+                "operation_status": saved_operation_status,
+                "operation_time": saved_operation_time.isoformat() if saved_operation_time else None
             }
         }
 
