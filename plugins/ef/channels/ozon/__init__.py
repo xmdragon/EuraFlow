@@ -88,8 +88,8 @@ async def setup(hooks) -> None:
         logger.info("Plugin running in standby mode")
         api_key = client_id = None
     
-    # 配置拉取间隔（可以从shop.config读取，默认5分钟）
-    pull_interval = 5
+    # 配置拉取间隔（可以从shop.config读取，默认30分钟）
+    pull_interval = 30
     
     # 注册定时任务：拉取订单
     await hooks.register_cron(
