@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # 配置
-BACKUP_ROOT="/backup/euraflow"
+BACKUP_ROOT="/opt/euraflow/backups"
 INSTALL_DIR="/opt/euraflow"
 DATE=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS=30

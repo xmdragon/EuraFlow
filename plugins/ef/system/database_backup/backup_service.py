@@ -28,7 +28,7 @@ class DatabaseBackupService:
         self.db_password = settings.db_password
 
         # 备份目录（项目根目录/backups）
-        project_root = Path(__file__).parent.parent.parent.parent.parent.parent
+        project_root = Path(__file__).parent.parent.parent.parent.parent
         self.backup_dir = project_root / "backups"
 
         # 确保备份目录存在
