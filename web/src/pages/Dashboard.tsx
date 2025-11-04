@@ -264,12 +264,6 @@ const Dashboard: React.FC = () => {
           label: createMenuLabel("ozon-chats", "聊天管理", "/dashboard/ozon/chats"),
           onClick: () => navigate("/dashboard/ozon/chats"),
         },
-        {
-          key: "ozon-watermark",
-          icon: <PictureOutlined />,
-          label: createMenuLabel("ozon-watermark", "水印管理", "/dashboard/ozon/watermark"),
-          onClick: () => navigate("/dashboard/ozon/watermark"),
-        },
       ],
     },
     // 系统管理菜单 - 根据角色显示不同子菜单
@@ -297,6 +291,13 @@ const Dashboard: React.FC = () => {
                 icon: <SettingOutlined />,
                 label: createMenuLabel("system-configuration", "系统配置", "/dashboard/system/configuration"),
                 onClick: () => navigate("/dashboard/system/configuration"),
+              },
+              // 水印管理 - 管理员和操作员都可见
+              {
+                key: "system-watermark",
+                icon: <PictureOutlined />,
+                label: createMenuLabel("system-watermark", "水印管理", "/dashboard/system/watermark"),
+                onClick: () => navigate("/dashboard/system/watermark"),
               },
               // 日志管理 - 仅管理员可见
               ...(user?.role === "admin"
@@ -341,9 +342,9 @@ const Dashboard: React.FC = () => {
     if (path.includes("/ozon/finance-transactions"))
       return "ozon-finance-transactions";
     if (path.includes("/ozon/chat")) return "ozon-chats";
-    if (path.includes("/ozon/watermark")) return "ozon-watermark";
     if (path.includes("/system/logs")) return "system-logs";
     if (path.includes("/system/configuration")) return "system-configuration";
+    if (path.includes("/system/watermark")) return "system-watermark";
     if (path.includes("/system/sync-services")) return "system-sync-services";
     if (path.includes("/finance")) return "finance";
     if (path.includes("/users")) return "users";

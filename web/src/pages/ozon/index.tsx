@@ -15,7 +15,6 @@ const FinanceTransactions = lazyWithRetry(() => import("./FinanceTransactions"))
 const ProductList = lazyWithRetry(() => import("./ProductList"));
 const ProductListing = lazyWithRetry(() => import("./ProductListing"));
 const ProductCreate = lazyWithRetry(() => import("./ProductCreate"));
-const WatermarkManagement = lazyWithRetry(() => import("./WatermarkManagement"));
 const ProductSelection = lazyWithRetry(() => import("./ProductSelection"));
 const ChatList = lazyWithRetry(() => import("./ChatList"));
 const ChatDetail = lazyWithRetry(() => import("./ChatDetail"));
@@ -49,7 +48,6 @@ const OzonManagement: React.FC = () => {
         <Route path="packing" element={<PackingShipment />} />
         <Route path="reports" element={<OrderReport />} />
         <Route path="finance-transactions" element={<FinanceTransactions />} />
-        <Route path="watermark" element={<WatermarkManagement />} />
         <Route path="chats" element={<ChatList />} />
         <Route path="chat/:chatId" element={<ChatDetail />} />
       </Routes>
