@@ -12,6 +12,7 @@
   - [Ant Design Modal.confirm 不弹出](#ant-design-modalconfirm-不弹出)
   - [Ant Design notification 不显示或显示位置错误](#ant-design-notification-不显示或显示位置错误)
 - [后端问题](#后端问题)
+  - [Celery 异步任务报错 "Future attached to a different loop"](#celery-异步任务报错-future-attached-to-a-different-loop)
   - [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
   - [N+1 查询问题导致 API 响应缓慢](#n1-查询问题导致-api-响应缓慢)
   - [Celery 定时任务报错 "got an unexpected keyword argument '_plugin'"](#celery-定时任务报错-got-an-unexpected-keyword-argument-_plugin)
@@ -375,6 +376,120 @@ const handleSync = () => {
 ---
 
 ## 后端问题
+
+### Celery 异步任务报错 "Future attached to a different loop"
+
+**问题描述**：
+- Celery 任务执行失败，错误信息：`Task <Task pending ...> got Future <Future pending> attached to a different loop`
+- 任务涉及异步操作（如使用 `asyncio`、`httpx.AsyncClient`、数据库异步会话等）
+- 在 gevent pool 环境下运行时触发错误
+
+**根本原因**：
+1. **Celery Worker 使用 gevent pool** - gevent 会 monkey patch Python 标准库（包括 asyncio）
+2. **多个 event loop 混用** - gevent 环境中创建的 asyncio event loop 与代码中的 event loop 不兼容
+3. **Future 对象绑定到错误的 loop** - gevent patch 后，asyncio 的 Future 对象可能被绑定到不同的 event loop
+
+**错误示例**：
+```
+Task <Task pending name='Task-62' coro=<_batch_sync_async()> ...>
+got Future <Future pending cb=[Protocol._on_waiter_completed()]>
+attached to a different loop
+```
+
+**排查步骤**：
+
+```bash
+# 1. 检查 Celery Worker 配置
+grep "pool=gevent" supervisord.conf
+
+# 2. 检查任务是否使用了 asyncio
+grep -rn "async def\|await\|asyncio" plugins/ef/*/tasks/
+
+# 3. 检查是否在多个地方创建了 event loop
+grep -rn "asyncio.run\|asyncio.get_event_loop" ef_core/ plugins/
+```
+
+**解决方案**：
+
+#### 方案 1（推荐 ✅）：改为 prefork pool
+
+**优点**：
+- ✅ 完全兼容 asyncio，无需额外配置
+- ✅ Celery 的默认 pool，稳定可靠
+- ✅ 支持 CPU 密集型任务
+- ✅ 进程隔离，任务之间互不影响
+
+**缺点**：
+- ⚠️ 并发能力略低于 gevent（但对大多数场景足够）
+
+**步骤**：
+
+1. 修改 `supervisord.conf`，将 `--pool=gevent` 改为 `--pool=prefork`：
+
+```ini
+# 修改前
+command=... --pool=gevent --concurrency=100
+
+# 修改后
+command=... --pool=prefork --concurrency=10
+```
+
+2. 重启 Celery Worker：
+
+```bash
+supervisorctl -c /path/to/supervisord.conf restart euraflow:celery_worker
+```
+
+3. 验证配置生效：
+
+```bash
+# 查看 worker 日志，确认使用的 pool 类型
+supervisorctl tail -50 euraflow:celery_worker stdout | grep pool
+```
+
+#### 方案 2（不推荐 ❌）：配置 gevent 兼容 asyncio
+
+**仅在必须使用 gevent 的场景下考虑**：
+
+```python
+# 在 celery_app.py 顶部添加
+import gevent.monkey
+gevent.monkey.patch_all(thread=False, socket=False)
+
+# 或使用 gevent-friendly 的 asyncio 循环
+import asyncio
+import gevent_asyncio
+asyncio.set_event_loop_policy(gevent_asyncio.EventLoopPolicy())
+```
+
+**风险**：
+- ⚠️ 配置复杂，容易出错
+- ⚠️ 可能导致其他兼容性问题
+- ⚠️ 增加调试难度
+
+**并发数建议**：
+
+| Pool 类型 | 推荐并发数 | 适用场景 |
+|----------|-----------|---------|
+| prefork  | CPU 核心数 × 2-4（通常 8-16） | 通用任务，CPU 密集型任务 |
+| gevent   | 100-500 | I/O 密集型任务（仅在不使用 asyncio 时） |
+| solo     | 1 | 调试、测试 |
+
+**防止复发**：
+- ✅ 文档规范：已在 `FAQ.md` 中记录此问题
+- ✅ 禁止混用：禁止在 gevent 环境中使用 asyncio（除非有明确配置）
+- ✅ 优先 prefork：除非有特殊需求，否则统一使用 prefork pool
+
+**相关文件**：
+- `supervisord.conf:66` - Celery Worker 配置
+- `ef_core/tasks/celery_app.py:314` - 插件初始化（使用 `asyncio.run()`）
+- `plugins/ef/channels/ozon/tasks/batch_sync_task.py` - 批量同步任务
+
+**参考资料**：
+- [Celery Pool Types](https://docs.celeryq.dev/en/stable/userguide/workers.html#pool)
+- [Gevent vs Asyncio](https://stackoverflow.com/questions/48622514/gevent-vs-asyncio)
+
+---
 
 ### 如何添加新的后台定时任务服务
 
