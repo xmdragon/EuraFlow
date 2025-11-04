@@ -1,17 +1,26 @@
 .formContainer {
   margin-bottom: 16px;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+
+  :global(.ant-form-item) {
+    margin-right: 12px;
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
 }
 
 .userSelect {
-  width: 200px;
-}
-
-.moduleSelect {
   width: 150px;
 }
 
-.actionSelect {
+.moduleSelect {
   width: 120px;
+}
+
+.actionSelect {
+  width: 100px;
 }
 
 .loadMoreContainer {

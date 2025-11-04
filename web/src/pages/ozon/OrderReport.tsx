@@ -28,6 +28,8 @@ import {
   Input,
   Divider,
   Tooltip,
+  Progress,
+  App,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
@@ -195,6 +197,9 @@ const OrderReport: React.FC = () => {
   // 货币和状态配置
   const { currency: userCurrency } = useCurrency();
   const statusConfig = ORDER_STATUS_CONFIG;
+
+  // 获取 notification 实例（用于显示进度）
+  const { notification } = App.useApp();
 
   // 格式化配送方式文本（用于白色背景显示）
   const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
@@ -407,7 +412,21 @@ const OrderReport: React.FC = () => {
       setIsBatchSyncing(true);
       const result = await ozonApi.startBatchFinanceSync();
       setBatchSyncTaskId(result.task_id);
-      notifySuccess('任务已启动', result.message);
+
+      // 显示进度通知（不自动关闭）
+      notification.open({
+        key: 'batch-finance-sync',
+        message: '批量财务同步进行中',
+        description: (
+          <div>
+            <div style={{ marginBottom: 8 }}>{result.message}</div>
+            <Progress percent={0} status="active" />
+          </div>
+        ),
+        placement: 'bottomRight',
+        duration: 0,  // 不自动关闭
+        icon: <ShoppingCartOutlined spin />,
+      });
     } catch (error: any) {
       notifyError('启动失败', error.message || '无法启动批量同步任务');
       setIsBatchSyncing(false);
@@ -425,6 +444,9 @@ const OrderReport: React.FC = () => {
 
         if (progress.status === 'completed') {
           setIsBatchSyncing(false);
+          // 关闭进度通知
+          notification.destroy('batch-finance-sync');
+          // 显示完成通知
           notifySuccess('同步完成', progress.message || '批量同步任务已完成');
           // 刷新报表数据
           if (activeTab === "details") {
@@ -434,7 +456,31 @@ const OrderReport: React.FC = () => {
           }
         } else if (progress.status === 'failed') {
           setIsBatchSyncing(false);
+          // 关闭进度通知
+          notification.destroy('batch-finance-sync');
+          // 显示失败通知
           notifyError('同步失败', progress.message || '批量同步任务失败');
+        } else if (progress.status === 'running') {
+          // 更新进度通知
+          const percent = progress.total > 0
+            ? Math.round((progress.current / progress.total) * 100)
+            : 0;
+
+          notification.open({
+            key: 'batch-finance-sync',  // 使用相同的 key 更新现有通知
+            message: '批量财务同步进行中',
+            description: (
+              <div>
+                <div style={{ marginBottom: 8 }}>
+                  {progress.message || `正在处理 ${progress.current}/${progress.total}...`}
+                </div>
+                <Progress percent={percent} status="active" />
+              </div>
+            ),
+            placement: 'bottomRight',
+            duration: 0,  // 不自动关闭
+            icon: <ShoppingCartOutlined spin />,
+          });
         }
       } catch (error) {
         console.error('Failed to poll progress:', error);
@@ -448,7 +494,7 @@ const OrderReport: React.FC = () => {
     const interval = setInterval(pollProgress, 2000);
 
     return () => clearInterval(interval);
-  }, [batchSyncTaskId, isBatchSyncing, activeTab]);
+  }, [batchSyncTaskId, isBatchSyncing, activeTab, notification]);
 
   // ===== 订单明细Tab数据处理 =====
 

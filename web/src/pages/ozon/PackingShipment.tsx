@@ -326,7 +326,9 @@ const PackingShipment: React.FC = () => {
       };
 
       if (operationStatus === 'awaiting_stock') {
+        // 同时检查 OZON 状态和操作状态，确保已经点了"备货"的订单不会重复出现
         queryParams.ozon_status = 'awaiting_packaging,awaiting_deliver';
+        queryParams.operation_status = 'awaiting_stock';
       } else {
         queryParams.operation_status = operationStatus;
       }

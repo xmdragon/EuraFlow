@@ -1,6 +1,12 @@
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import moment from 'moment-timezone';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// 扩展 dayjs 支持 UTC 和时区
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 /**
  * 时间 Hook
@@ -46,7 +52,7 @@ export const useDateTime = () => {
   const formatDateTime = useCallback(
     (utcTime: string | Date | null | undefined, format: string = 'MM-DD HH:mm'): string => {
       if (!utcTime) return '-';
-      return moment.utc(utcTime).tz(timezone).format(format);
+      return dayjs.utc(utcTime).tz(timezone).format(format);
     },
     [timezone]
   );
@@ -60,7 +66,7 @@ export const useDateTime = () => {
   const formatDate = useCallback(
     (utcTime: string | Date | null | undefined, format: string = 'YYYY-MM-DD'): string => {
       if (!utcTime) return '-';
-      return moment.utc(utcTime).tz(timezone).format(format);
+      return dayjs.utc(utcTime).tz(timezone).format(format);
     },
     [timezone]
   );
@@ -74,7 +80,7 @@ export const useDateTime = () => {
   const formatTime = useCallback(
     (utcTime: string | Date | null | undefined, format: string = 'HH:mm:ss'): string => {
       if (!utcTime) return '-';
-      return moment.utc(utcTime).tz(timezone).format(format);
+      return dayjs.utc(utcTime).tz(timezone).format(format);
     },
     [timezone]
   );
@@ -82,7 +88,7 @@ export const useDateTime = () => {
   /**
    * 将用户时区的时间转换为 UTC 时间字符串
    * 用于发送给后端的日期范围查询
-   * @param localTime - 用户时区的时间（moment 对象、字符串或 Date）
+   * @param localTime - 用户时区的时间（dayjs 对象、字符串或 Date）
    * @param format - 输出格式（默认：'YYYY-MM-DD'）
    * @returns UTC 时间字符串（如："2025-11-02"）
    */
@@ -90,14 +96,14 @@ export const useDateTime = () => {
     (localTime: any, format: string = 'YYYY-MM-DD'): string => {
       if (!localTime) return '';
       // 将用户时区的时间转换为 UTC
-      return moment.tz(localTime, timezone).utc().format(format);
+      return dayjs.tz(localTime, timezone).utc().format(format);
     },
     [timezone]
   );
 
   /**
    * 将用户时区的日期转换为 UTC 日期+时间范围（用于日期区间查询）
-   * @param localDate - 用户时区的日期（moment 对象）
+   * @param localDate - 用户时区的日期（dayjs 对象）
    * @param isEndDate - 是否是结束日期（结束日期需要设置为 23:59:59）
    * @returns UTC 时间字符串（如："2025-11-02T00:00:00Z" 或 "2025-11-02T23:59:59Z"）
    */
@@ -106,14 +112,12 @@ export const useDateTime = () => {
       if (!localDate) return '';
 
       // 在用户时区设置时间为 00:00:00 或 23:59:59
-      const timeInUserTz = moment(localDate)
+      const timeInUserTz = dayjs(localDate)
         .tz(timezone)
-        .set({
-          hour: isEndDate ? 23 : 0,
-          minute: isEndDate ? 59 : 0,
-          second: isEndDate ? 59 : 0,
-          millisecond: isEndDate ? 999 : 0,
-        });
+        .set('hour', isEndDate ? 23 : 0)
+        .set('minute', isEndDate ? 59 : 0)
+        .set('second', isEndDate ? 59 : 0)
+        .set('millisecond', isEndDate ? 999 : 0);
 
       // 转换为 UTC 并格式化为 ISO 8601 格式
       return timeInUserTz.utc().format('YYYY-MM-DDTHH:mm:ss[Z]');

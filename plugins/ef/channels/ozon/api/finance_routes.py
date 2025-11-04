@@ -193,36 +193,29 @@ async def get_finance_transactions(
                 # 其他情况，精确匹配
                 conditions.append(OzonFinanceTransaction.posting_number == posting_number_value)
 
-        # 订单状态筛选（使用 EXISTS 子查询 + 前缀匹配）
-        if posting_status:
-            if posting_status == 'delivered':
-                # 已签收：任一订单已签收（前缀匹配：posting_number-%)
-                conditions.append(
-                    exists(
-                        select(1)
-                        .select_from(OzonPosting)
-                        .where(
+        # 订单状态筛选（使用 EXISTS 子查询 + 前缀匹配 + 精确匹配）
+        if posting_status == 'delivered':
+            # 已签收：仅显示已签收订单
+            # 支持两种匹配：
+            # 1. 前缀匹配：71564466-0420 → 71564466-0420-1
+            # 2. 精确匹配：71564466-0420-1 = 71564466-0420-1
+            from sqlalchemy import or_
+            conditions.append(
+                exists(
+                    select(1)
+                    .select_from(OzonPosting)
+                    .where(
+                        or_(
                             OzonPosting.posting_number.like(
                                 func.concat(OzonFinanceTransaction.posting_number, '-%')
                             ),
-                            OzonPosting.status == 'delivered'
-                        )
+                            OzonPosting.posting_number == OzonFinanceTransaction.posting_number
+                        ),
+                        OzonPosting.status == 'delivered'
                     )
                 )
-            else:  # awaiting_deliver
-                # 已下订：无任何订单已签收（前缀匹配：posting_number-%)
-                conditions.append(
-                    ~exists(
-                        select(1)
-                        .select_from(OzonPosting)
-                        .where(
-                            OzonPosting.posting_number.like(
-                                func.concat(OzonFinanceTransaction.posting_number, '-%')
-                            ),
-                            OzonPosting.status == 'delivered'
-                        )
-                    )
-                )
+            )
+        # 注意：awaiting_deliver 显示所有订单（包括已签收和未签收），不添加筛选条件
 
         # 查询总数
         count_stmt = select(func.count()).select_from(OzonFinanceTransaction)
@@ -280,6 +273,7 @@ async def get_finance_transactions_summary(
     date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     transaction_type: Optional[str] = Query(None, description="交易类型"),
+    posting_status: Optional[str] = Query(None, description="订单状态: awaiting_deliver/delivered"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -313,6 +307,27 @@ async def get_finance_transactions_summary(
 
         if transaction_type and transaction_type != "all":
             conditions.append(OzonFinanceTransaction.transaction_type == transaction_type)
+
+        # 订单状态筛选（使用 EXISTS 子查询 + 前缀匹配 + 精确匹配）
+        if posting_status == 'delivered':
+            # 已签收：仅显示已签收订单
+            from sqlalchemy import or_
+            conditions.append(
+                exists(
+                    select(1)
+                    .select_from(OzonPosting)
+                    .where(
+                        or_(
+                            OzonPosting.posting_number.like(
+                                func.concat(OzonFinanceTransaction.posting_number, '-%')
+                            ),
+                            OzonPosting.posting_number == OzonFinanceTransaction.posting_number
+                        ),
+                        OzonPosting.status == 'delivered'
+                    )
+                )
+            )
+        # 注意：awaiting_deliver 显示所有订单（包括已签收和未签收），不添加筛选条件
 
         # 聚合查询
         stmt = select(
@@ -400,36 +415,29 @@ async def get_finance_transactions_daily_summary(
         if transaction_type and transaction_type != "all":
             conditions.append(OzonFinanceTransaction.transaction_type == transaction_type)
 
-        # 订单状态筛选（使用 EXISTS 子查询 + 前缀匹配）
-        if posting_status:
-            if posting_status == 'delivered':
-                # 已签收：任一订单已签收（前缀匹配：posting_number-%)
-                conditions.append(
-                    exists(
-                        select(1)
-                        .select_from(OzonPosting)
-                        .where(
+        # 订单状态筛选（使用 EXISTS 子查询 + 前缀匹配 + 精确匹配）
+        if posting_status == 'delivered':
+            # 已签收：仅显示已签收订单
+            # 支持两种匹配：
+            # 1. 前缀匹配：71564466-0420 → 71564466-0420-1
+            # 2. 精确匹配：71564466-0420-1 = 71564466-0420-1
+            from sqlalchemy import or_
+            conditions.append(
+                exists(
+                    select(1)
+                    .select_from(OzonPosting)
+                    .where(
+                        or_(
                             OzonPosting.posting_number.like(
                                 func.concat(OzonFinanceTransaction.posting_number, '-%')
                             ),
-                            OzonPosting.status == 'delivered'
-                        )
+                            OzonPosting.posting_number == OzonFinanceTransaction.posting_number
+                        ),
+                        OzonPosting.status == 'delivered'
                     )
                 )
-            else:  # awaiting_deliver
-                # 已下订：无任何订单已签收（前缀匹配：posting_number-%)
-                conditions.append(
-                    ~exists(
-                        select(1)
-                        .select_from(OzonPosting)
-                        .where(
-                            OzonPosting.posting_number.like(
-                                func.concat(OzonFinanceTransaction.posting_number, '-%')
-                            ),
-                            OzonPosting.status == 'delivered'
-                        )
-                    )
-                )
+            )
+        # 注意：awaiting_deliver 显示所有订单（包括已签收和未签收），不添加筛选条件
 
         # 提取日期部分（使用 func.date 或 func.cast）
         # PostgreSQL: DATE(operation_date)

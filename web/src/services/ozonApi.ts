@@ -1997,12 +1997,14 @@ export const getFinanceTransactionsSummary = async (
   dateFrom?: string,
   dateTo?: string,
   transactionType?: string,
+  postingStatus?: string,
 ): Promise<FinanceTransactionsSummary> => {
-  const params: { shop_id?: number; date_from?: string; date_to?: string; transaction_type?: string } = {};
+  const params: { shop_id?: number; date_from?: string; date_to?: string; transaction_type?: string; posting_status?: string } = {};
   if (shopId !== null) params.shop_id = shopId;
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
   if (transactionType) params.transaction_type = transactionType;
+  if (postingStatus) params.posting_status = postingStatus;
 
   const response = await apiClient.get("/ozon/finance/transactions/summary", {
     params,
