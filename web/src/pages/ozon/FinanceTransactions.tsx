@@ -316,7 +316,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '操作类型',
       dataIndex: 'operation_type_name',
-      width: 140,
+      width: 150,
       render: (text, record) => text || record.operation_type || '-',
     },
     {
