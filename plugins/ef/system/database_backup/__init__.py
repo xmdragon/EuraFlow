@@ -57,7 +57,7 @@ async def setup(hooks) -> None:
     logger.info(f"  - Recommended schedule: cron='0 17,5 * * *' (UTC) = 01:00,13:00 (Beijing)")
 
     # 注册 Celery Beat 定时任务（每天北京时间 01:00 和 13:00 执行备份）
-    async def database_backup_task():
+    async def database_backup_task(**kwargs):
         """Celery Beat 定时任务：数据库备份"""
         return await backup_service.backup_database({})
 

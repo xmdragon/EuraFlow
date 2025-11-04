@@ -26,7 +26,7 @@ async def setup(hooks: Any) -> None:
     )
 
 
-async def refresh_rates_cache() -> None:
+async def refresh_rates_cache(**kwargs) -> None:
     """刷新费率缓存"""
     # TODO: 实现费率缓存刷新逻辑
     pass

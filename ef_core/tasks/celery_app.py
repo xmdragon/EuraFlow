@@ -124,6 +124,111 @@ def cleanup_results(self):
         return {"error": str(e)}
 
 
+# Celery 任务名到 service_key 的映射
+TASK_TO_SERVICE_KEY_MAPPING = {
+    "ef.system.database_backup": "database_backup",
+    "ef.ozon.kuajing84.material_cost": "kuajing84_material_cost",
+    "ef.ozon.finance.sync": "ozon_finance_sync",
+    "ef.ozon.finance.transactions": "ozon_finance_transactions_daily",
+    "ef.ozon.orders.pull": "ozon_sync_incremental",
+    "ef.finance.rates.refresh": "exchange_rate_refresh",
+    # 注意：以下任务没有对应的 sync_service 记录，不需要统计
+    # ef.ozon.inventory.sync
+    # ef.ozon.promotions.sync
+    # ef.ozon.promotions.health_check
+    # ef.ozon.category.sync
+    # ef.ozon.attributes.sync
+}
+
+
+def _update_service_stats(task_name: str, success: bool, task_id: str, error_message: str = None):
+    """
+    更新同步服务统计信息
+
+    Args:
+        task_name: Celery 任务名
+        success: 是否成功
+        task_id: 任务ID
+        error_message: 错误信息（失败时）
+    """
+    print(f"[DEBUG] _update_service_stats called: task_name={task_name}, success={success}", flush=True)
+
+    # 检查是否是需要统计的服务任务
+    service_key = TASK_TO_SERVICE_KEY_MAPPING.get(task_name)
+    if not service_key:
+        # 不是注册的服务任务，跳过统计
+        print(f"[DEBUG] No service_key mapping for task {task_name}, skipping stats update", flush=True)
+        return
+
+    print(f"[DEBUG] Updating stats for service_key={service_key}", flush=True)
+
+    try:
+        import asyncio
+        from datetime import datetime, UTC
+        from ef_core.database import get_db_manager
+        from sqlalchemy import select, update
+
+        async def update_stats():
+            """异步更新统计"""
+            try:
+                # 动态导入避免循环依赖
+                from plugins.ef.system.sync_service.models.sync_service import SyncService
+
+                db_manager = get_db_manager()
+                async with db_manager.get_session() as db:
+                    # 查询服务记录
+                    result = await db.execute(
+                        select(SyncService).where(SyncService.service_key == service_key)
+                    )
+                    service = result.scalar_one_or_none()
+
+                    if not service:
+                        logger.warning(f"Service not found for task {task_name} (service_key: {service_key})")
+                        return
+
+                    # 更新统计字段
+                    service.run_count = (service.run_count or 0) + 1
+                    service.last_run_at = datetime.now(UTC)
+
+                    if success:
+                        service.success_count = (service.success_count or 0) + 1
+                        service.last_run_status = "success"
+                        service.last_run_message = "任务执行成功"
+                    else:
+                        service.error_count = (service.error_count or 0) + 1
+                        service.last_run_status = "error"
+                        service.last_run_message = error_message or "任务执行失败"
+
+                    await db.commit()
+
+                    logger.info(
+                        f"Updated stats for service {service_key}: "
+                        f"run_count={service.run_count}, "
+                        f"success_count={service.success_count}, "
+                        f"error_count={service.error_count}"
+                    )
+
+            except Exception as e:
+                logger.error(f"Failed to update service stats: {e}", exc_info=True)
+
+        # 在新的事件循环中运行异步更新
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(update_stats())
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+        except RuntimeError as e:
+            # 如果已经在事件循环中，尝试使用 run_until_complete
+            logger.warning(f"Runtime error updating stats, trying alternative method: {e}")
+            asyncio.run(update_stats())
+
+    except Exception as e:
+        logger.error(f"Failed to update service stats for {task_name}: {e}", exc_info=True)
+
+
 # Celery 信号处理器
 @signals.task_prerun.connect
 def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, **kwds):
@@ -134,13 +239,20 @@ def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=
 @signals.task_postrun.connect
 def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, retval=None, state=None, **kwds):
     """任务完成后的处理"""
+    print(f"[DEBUG] Task postrun: {task.name}, task_id={task_id}, state={state}", flush=True)
     logger.info(f"Task completed: {task.name}", task_id=task_id, state=state)
+
+    # 更新同步服务统计（仅针对注册的服务任务）
+    _update_service_stats(task.name, success=True, task_id=task_id)
 
 
 @signals.task_failure.connect
 def task_failure_handler(sender=None, task_id=None, exception=None, traceback=None, einfo=None, **kwds):
     """任务失败的处理"""
     logger.error(f"Task failed: {sender.name}", task_id=task_id, exception=str(exception))
+
+    # 更新同步服务统计（仅针对注册的服务任务）
+    _update_service_stats(sender.name, success=False, task_id=task_id, error_message=str(exception))
 
 
 @signals.task_retry.connect
