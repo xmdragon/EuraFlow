@@ -27,6 +27,7 @@ import {
   Space,
   Input,
   Divider,
+  Tooltip,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
@@ -799,14 +800,16 @@ const OrderReport: React.FC = () => {
               </Button>
             </Col>
             <Col>
-              <Button
-                type="default"
-                onClick={handleBatchSync}
-                loading={isBatchSyncing}
-                disabled={isBatchSyncing}
-              >
-                {isBatchSyncing ? `批量同步中... (${batchSyncProgress?.current || 0}/${batchSyncProgress?.total || 0})` : '批量同步佣金'}
-              </Button>
+              <Tooltip title="同步已签收但佣金为0的订单（仅限签收时间>=7天前，OZON财务系统需要7天处理时间）">
+                <Button
+                  type="default"
+                  onClick={handleBatchSync}
+                  loading={isBatchSyncing}
+                  disabled={isBatchSyncing}
+                >
+                  {isBatchSyncing ? `批量同步中... (${batchSyncProgress?.current || 0}/${batchSyncProgress?.total || 0})` : '批量同步佣金'}
+                </Button>
+              </Tooltip>
             </Col>
           </Row>
 
