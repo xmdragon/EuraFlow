@@ -83,6 +83,26 @@ class FinanceTransactionsSummary(BaseModel):
     transaction_count: int
 
 
+class FinanceTransactionDailySummaryItem(BaseModel):
+    """按日期汇总的财务交易记录"""
+    operation_date: str
+    transaction_count: int
+    total_amount: str
+    total_accruals_for_sale: str
+    total_sale_commission: str
+    total_delivery_charge: str
+    total_return_delivery_charge: str
+
+
+class FinanceTransactionsDailySummaryResponse(BaseModel):
+    """按日期汇总的财务交易列表响应"""
+    items: List[FinanceTransactionDailySummaryItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 @router.get(
     "/finance/transactions",
     response_model=FinanceTransactionsListResponse,
@@ -287,4 +307,123 @@ async def get_finance_transactions_summary(
 
     except Exception as e:
         logger.error(f"获取财务交易汇总失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.get(
+    "/finance/transactions/daily-summary",
+    response_model=FinanceTransactionsDailySummaryResponse,
+    summary="获取财务交易按日期汇总"
+)
+async def get_finance_transactions_daily_summary(
+    shop_id: Optional[int] = Query(None, description="店铺ID（不传时查询所有店铺）"),
+    date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
+    transaction_type: Optional[str] = Query(None, description="交易类型: orders/returns/services/compensation/transferDelivery/other/all"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(100, ge=1, le=1000, description="每页数量"),
+    db: AsyncSession = Depends(get_async_session)
+):
+    """
+    获取财务交易按日期汇总
+
+    返回每天的汇总数据，用于主表格显示
+    支持查询所有店铺（不传 shop_id）
+    """
+    try:
+        # 获取全局时区设置（用于日期过滤）
+        global_timezone = await get_global_timezone(db)
+
+        # 构建查询条件
+        conditions = []
+
+        # 店铺ID筛选（可选）
+        if shop_id is not None:
+            conditions.append(OzonFinanceTransaction.shop_id == shop_id)
+
+        # 日期范围筛选（按全局时区解析）
+        if date_from:
+            try:
+                date_from_obj = parse_date_with_timezone(date_from, global_timezone)
+                if date_from_obj:
+                    conditions.append(OzonFinanceTransaction.operation_date >= date_from_obj)
+            except Exception as e:
+                logger.warning(f"Failed to parse date_from: {date_from}, error: {e}")
+                raise HTTPException(status_code=400, detail="Invalid date_from format")
+
+        if date_to:
+            try:
+                date_to_obj = parse_date_with_timezone(date_to, global_timezone)
+                if date_to_obj:
+                    from datetime import timedelta
+                    date_to_obj = date_to_obj + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
+                    conditions.append(OzonFinanceTransaction.operation_date <= date_to_obj)
+            except Exception as e:
+                logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
+                raise HTTPException(status_code=400, detail="Invalid date_to format")
+
+        # 交易类型筛选
+        if transaction_type and transaction_type != "all":
+            conditions.append(OzonFinanceTransaction.transaction_type == transaction_type)
+
+        # 提取日期部分（使用 func.date 或 func.cast）
+        # PostgreSQL: DATE(operation_date)
+        from sqlalchemy import cast, Date
+        date_column = cast(OzonFinanceTransaction.operation_date, Date)
+
+        # 构建聚合查询（按日期分组）
+        base_query = select(
+            date_column.label("operation_date"),
+            func.count().label("transaction_count"),
+            func.sum(OzonFinanceTransaction.amount).label("total_amount"),
+            func.sum(OzonFinanceTransaction.accruals_for_sale).label("total_accruals_for_sale"),
+            func.sum(OzonFinanceTransaction.sale_commission).label("total_sale_commission"),
+            func.sum(OzonFinanceTransaction.delivery_charge).label("total_delivery_charge"),
+            func.sum(OzonFinanceTransaction.return_delivery_charge).label("total_return_delivery_charge"),
+        ).group_by(date_column)
+
+        if conditions:
+            base_query = base_query.where(and_(*conditions))
+
+        # 查询总天数（用于分页）
+        count_subquery = base_query.subquery()
+        count_stmt = select(func.count()).select_from(count_subquery)
+        total_result = await db.execute(count_stmt)
+        total = total_result.scalar()
+
+        # 分页查询（按日期倒序）
+        offset = (page - 1) * page_size
+        stmt = base_query.order_by(date_column.desc()).offset(offset).limit(page_size)
+
+        result = await db.execute(stmt)
+        rows = result.all()
+
+        # 转换为DTO
+        items = [
+            FinanceTransactionDailySummaryItem(
+                operation_date=row.operation_date.isoformat(),
+                transaction_count=row.transaction_count or 0,
+                total_amount=str(row.total_amount or 0),
+                total_accruals_for_sale=str(row.total_accruals_for_sale or 0),
+                total_sale_commission=str(row.total_sale_commission or 0),
+                total_delivery_charge=str(row.total_delivery_charge or 0),
+                total_return_delivery_charge=str(row.total_return_delivery_charge or 0),
+            )
+            for row in rows
+        ]
+
+        total_pages = (total + page_size - 1) // page_size
+
+        return FinanceTransactionsDailySummaryResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取财务交易按日期汇总失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

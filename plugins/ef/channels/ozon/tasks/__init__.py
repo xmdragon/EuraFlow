@@ -28,6 +28,10 @@ from .batch_price_update_task import (
     batch_update_prices_task
 )
 
+from .batch_finance_sync_task import (
+    batch_finance_sync_task
+)
+
 __all__ = [
     "sync_all_promotions",
     "promotion_health_check",
@@ -37,4 +41,5 @@ __all__ = [
     "scheduled_attributes_sync",
     "batch_update_stocks_task",
     "batch_update_prices_task",
+    "batch_finance_sync_task",
 ]

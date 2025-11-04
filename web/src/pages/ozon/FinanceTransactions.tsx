@@ -1,12 +1,11 @@
 /**
  * OZON 财务交易页面
  */
-import { DollarOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DollarOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
   Table,
-  Button,
   Select,
   DatePicker,
   Input,
@@ -29,7 +28,7 @@ import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozonApi';
-import { notifyInfo, notifyError } from '@/utils/notification';
+import { notifyError } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -46,6 +45,37 @@ const TRANSACTION_TYPE_MAP: Record<string, string> = {
   all: '全部',
 };
 
+// 展开详细数据的子组件
+interface ExpandedDetailTableProps {
+  date: string;
+  getDateDetails: (date: string) => Promise<ozonApi.FinanceTransaction[]>;
+  detailColumns: ColumnsType<ozonApi.FinanceTransaction>;
+}
+
+const ExpandedDetailTable: React.FC<ExpandedDetailTableProps> = ({
+  date,
+  getDateDetails,
+  detailColumns,
+}) => {
+  const { data: details, isLoading } = useQuery({
+    queryKey: ['financeTransactionDetails', date],
+    queryFn: () => getDateDetails(date),
+    staleTime: 60000,
+  });
+
+  return (
+    <Table
+      loading={isLoading}
+      columns={detailColumns}
+      dataSource={details || []}
+      rowKey="id"
+      pagination={false}
+      size="small"
+      style={{ marginLeft: 40, marginRight: 40 }}
+    />
+  );
+};
+
 const FinanceTransactions: React.FC = () => {
   const { formatDate } = useDateTime();
   // 状态管理
@@ -55,10 +85,11 @@ const FinanceTransactions: React.FC = () => {
     dayjs(),
   ]);
   const [transactionType, setTransactionType] = useState<string>('all');
-  const [operationType, setOperationType] = useState<string>('');
-  const [postingNumber, setPostingNumber] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+
+  // 展开的日期行
+  const [expandedDates, setExpandedDates] = useState<string[]>([]);
 
   // 订单详情Modal状态
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -70,15 +101,13 @@ const FinanceTransactions: React.FC = () => {
   const { currency: userCurrency } = useCurrency();
   const statusConfig = ORDER_STATUS_CONFIG;
 
-  // 查询财务交易列表
-  const { data: transactionsData, isLoading } = useQuery({
+  // 查询财务交易按日期汇总（主表格）
+  const { data: dailySummaryData, isLoading } = useQuery({
     queryKey: [
-      'financeTransactions',
+      'financeTransactionsDailySummary',
       selectedShop,
       dateRange,
       transactionType,
-      operationType,
-      postingNumber,
       currentPage,
       pageSize,
     ],
@@ -98,15 +127,7 @@ const FinanceTransactions: React.FC = () => {
         filter.transaction_type = transactionType;
       }
 
-      if (operationType) {
-        filter.operation_type = operationType;
-      }
-
-      if (postingNumber) {
-        filter.posting_number = postingNumber.trim();
-      }
-
-      return await ozonApi.getFinanceTransactions(filter);
+      return await ozonApi.getFinanceTransactionsDailySummary(filter);
     },
     staleTime: 60000, // 1分钟缓存
   });
@@ -139,47 +160,22 @@ const FinanceTransactions: React.FC = () => {
     return {};
   }, []);
 
-  // 格式化配送方式文本（用于白色背景显示）
-  const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
-    if (!text) return '-';
-
-    // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
-    if (!match) return text;
-
-    const mainPart = match[1].trim();
-    const detailPart = match[2].trim();
-
-    // 解析限制信息为三行：重量、价格、体积
-    const parseRestrictions = (restriction: string): string[] => {
-      // 移除"限制:"前缀
-      const content = restriction.replace(/^限制[:：]\s*/, '');
-
-      // 使用正则提取三个部分
-      const parts: string[] = [];
-      const weightMatch = content.match(/重量[:：\s]*([^，,]+)/);
-      const priceMatch = content.match(/价格[:：\s]*([^，,]+)/);
-      const volumeMatch = content.match(/体积[:：\s]*(.+)$/);
-
-      if (weightMatch) parts.push(weightMatch[1].trim());
-      if (priceMatch) parts.push(priceMatch[1].trim());
-      if (volumeMatch) parts.push(volumeMatch[1].trim());
-
-      return parts;
+  // 获取某个日期的详细交易记录（用于展开行）
+  const getDateDetails = async (date: string): Promise<ozonApi.FinanceTransaction[]> => {
+    const filter: ozonApi.FinanceTransactionsFilter = {
+      shop_id: selectedShop,
+      date_from: date,
+      date_to: date,
+      page: 1,
+      page_size: 1000, // 一天的交易数量通常不会太多
     };
 
-    const restrictions = parseRestrictions(detailPart);
+    if (transactionType && transactionType !== 'all') {
+      filter.transaction_type = transactionType;
+    }
 
-    return (
-      <div>
-        <div>{mainPart}</div>
-        {restrictions.map((line, idx) => (
-          <div key={idx} style={{ fontSize: '12px', color: '#666' }}>
-            {line}
-          </div>
-        ))}
-      </div>
-    );
+    const response = await ozonApi.getFinanceTransactions(filter);
+    return response.items;
   };
 
   // 显示订单详情
@@ -210,30 +206,75 @@ const FinanceTransactions: React.FC = () => {
     return `₽${num.toFixed(2)}`;
   };
 
-  // 导出CSV
-  const handleExport = () => {
-    notifyInfo('提示', 'CSV导出功能开发中');
-  };
-
   // 判断货件编号是否为有效格式（数字-数字-数字）
   const isValidPostingNumber = (postingNumber: string): boolean => {
     return /^\d+-\d+-\d+$/.test(postingNumber);
   };
 
-  // 表格列定义
-  const columns: ColumnsType<ozonApi.FinanceTransaction> = [
+  // 主表格列定义（日汇总）
+  const dailySummaryColumns: ColumnsType<ozonApi.FinanceTransactionDailySummary> = [
     {
-      title: '操作日期',
+      title: '日期',
       dataIndex: 'operation_date',
-      width: 110,
-      ellipsis: true,
+      width: 120,
       render: (date: string) => formatDate(date),
     },
+    {
+      title: '交易数量',
+      dataIndex: 'transaction_count',
+      width: 100,
+      align: 'center',
+    },
+    {
+      title: '销售收入',
+      dataIndex: 'total_accruals_for_sale',
+      width: 120,
+      align: 'right',
+      render: formatAmount,
+    },
+    {
+      title: '总金额',
+      dataIndex: 'total_amount',
+      width: 120,
+      align: 'right',
+      render: (amount: string) => {
+        const num = parseFloat(amount);
+        return (
+          <span className={num >= 0 ? styles.positive : styles.negative}>
+            {formatAmount(amount)}
+          </span>
+        );
+      },
+    },
+    {
+      title: '销售佣金',
+      dataIndex: 'total_sale_commission',
+      width: 120,
+      align: 'right',
+      render: formatAmount,
+    },
+    {
+      title: '配送费',
+      dataIndex: 'total_delivery_charge',
+      width: 120,
+      align: 'right',
+      render: formatAmount,
+    },
+    {
+      title: '退货配送费',
+      dataIndex: 'total_return_delivery_charge',
+      width: 120,
+      align: 'right',
+      render: formatAmount,
+    },
+  ];
+
+  // 详细交易列定义（展开行）
+  const detailColumns: ColumnsType<ozonApi.FinanceTransaction> = [
     {
       title: '货件编号',
       dataIndex: 'posting_number',
       width: 160,
-      ellipsis: true,
       render: (text, record) => {
         if (!text) return '-';
         // 只有数字-数字-数字格式才显示为链接
@@ -241,7 +282,6 @@ const FinanceTransactions: React.FC = () => {
           return (
             <a
               onClick={() => {
-                // 使用交易记录中的 shop_id，而不是全局选择的店铺
                 showPostingDetail(text, record.shop_id);
               }}
               style={{ cursor: 'pointer', color: '#1890ff' }}
@@ -250,47 +290,43 @@ const FinanceTransactions: React.FC = () => {
             </a>
           );
         }
-        // 其它格式显示为纯文本
         return <span>{text}</span>;
       },
     },
     {
       title: '操作类型',
       dataIndex: 'operation_type_name',
-      width: 170,
-      ellipsis: true,
+      width: 200,
       render: (text, record) => text || record.operation_type || '-',
     },
     {
       title: '交易类型',
       dataIndex: 'transaction_type',
       width: 80,
-      ellipsis: true,
       render: (type: string) => TRANSACTION_TYPE_MAP[type] || type,
     },
     {
       title: '商品SKU',
       dataIndex: 'ozon_sku',
       width: 90,
-      ellipsis: true,
       render: (text) => text || '-',
     },
     {
       title: '商品名称',
       dataIndex: 'item_name',
+      width: 300,
       ellipsis: {
         showTitle: false,
       },
       render: (text) => {
         if (!text) return '-';
-        const displayText = text.length > 50 ? text.substring(0, 50) + '...' : text;
         return (
           <Text
             ellipsis={{
-              tooltip: text.length > 50 ? text : undefined,
+              tooltip: text,
             }}
           >
-            {displayText}
+            {text}
           </Text>
         );
       },
@@ -300,7 +336,6 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'accruals_for_sale',
       width: 110,
       align: 'right',
-      ellipsis: true,
       render: formatAmount,
     },
     {
@@ -308,7 +343,6 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'amount',
       width: 110,
       align: 'right',
-      ellipsis: true,
       render: (amount: string) => {
         const num = parseFloat(amount);
         return (
@@ -323,7 +357,6 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'delivery_charge',
       width: 100,
       align: 'right',
-      ellipsis: true,
       render: formatAmount,
     },
     {
@@ -331,7 +364,6 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'return_delivery_charge',
       width: 110,
       align: 'right',
-      ellipsis: true,
       render: formatAmount,
     },
     {
@@ -339,7 +371,6 @@ const FinanceTransactions: React.FC = () => {
       dataIndex: 'sale_commission',
       width: 100,
       align: 'right',
-      ellipsis: true,
       render: formatAmount,
     },
   ];
@@ -389,36 +420,6 @@ const FinanceTransactions: React.FC = () => {
                   </Option>
                 ))}
               </Select>
-            </Col>
-            <Col>
-              <Input
-                placeholder="操作类型"
-                value={operationType}
-                onChange={(e) => setOperationType(e.target.value)}
-                onPressEnter={() => setCurrentPage(1)}
-                allowClear
-                style={{ width: 150 }}
-              />
-            </Col>
-            <Col>
-              <Input
-                placeholder="货件编号"
-                value={postingNumber}
-                onChange={(e) => setPostingNumber(e.target.value)}
-                onPressEnter={() => setCurrentPage(1)}
-                prefix={<SearchOutlined />}
-                allowClear
-                style={{ width: 180 }}
-              />
-            </Col>
-            <Col>
-              <Button
-                type="primary"
-                icon={<DownloadOutlined />}
-                onClick={handleExport}
-              >
-                导出CSV
-              </Button>
             </Col>
           </Row>
         </Card>
@@ -503,27 +504,46 @@ const FinanceTransactions: React.FC = () => {
           </Row>
         )}
 
-        {/* 交易列表 */}
+        {/* 按日期汇总的交易列表 */}
         <Card className={styles.listCard}>
           <Table
             loading={isLoading}
-            columns={columns}
-            dataSource={transactionsData?.items || []}
-            rowKey="id"
+            columns={dailySummaryColumns}
+            dataSource={dailySummaryData?.items || []}
+            rowKey="operation_date"
             pagination={false}
             scroll={{ x: '100%' }}
             size="small"
             style={{ width: '100%' }}
+            expandable={{
+              expandedRowKeys: expandedDates,
+              onExpand: (expanded, record) => {
+                if (expanded) {
+                  setExpandedDates([...expandedDates, record.operation_date]);
+                } else {
+                  setExpandedDates(expandedDates.filter(date => date !== record.operation_date));
+                }
+              },
+              expandedRowRender: (record) => {
+                return (
+                  <ExpandedDetailTable
+                    date={record.operation_date}
+                    getDateDetails={getDateDetails}
+                    detailColumns={detailColumns}
+                  />
+                );
+              },
+            }}
           />
           <div className={styles.paginationWrapper}>
             <Pagination
               current={currentPage}
               pageSize={pageSize}
-              total={transactionsData?.total || 0}
+              total={dailySummaryData?.total || 0}
               showSizeChanger
               showQuickJumper
               pageSizeOptions={[50, 100, 200, 500]}
-              showTotal={(total) => `共 ${total} 条记录`}
+              showTotal={(total) => `共 ${total} 天`}
               onChange={(page, size) => {
                 setCurrentPage(page);
                 setPageSize(size || 100);
@@ -542,7 +562,6 @@ const FinanceTransactions: React.FC = () => {
         statusConfig={statusConfig}
         userCurrency={userCurrency}
         offerIdImageMap={offerIdImageMap}
-        formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
         onUpdate={() => {
           // 财务交易页面无需刷新
         }}

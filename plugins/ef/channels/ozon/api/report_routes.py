@@ -911,3 +911,82 @@ async def get_report_summary(
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"获取报表汇总失败: {str(e)}")
+
+
+@router.post("/reports/batch-sync-finance")
+async def start_batch_finance_sync():
+    """
+    启动批量财务费用同步任务
+
+    查询所有已签收但 OZON 佣金为 0 的订单，调用财务交易 API 同步费用
+
+    Returns:
+        任务ID，用于查询进度
+    """
+    try:
+        from ..tasks.batch_finance_sync_task import batch_finance_sync_task
+
+        # 启动异步任务
+        task = batch_finance_sync_task.delay()
+
+        logger.info(f"Started batch finance sync task: {task.id}")
+
+        return {
+            "task_id": task.id,
+            "message": "批量同步任务已启动"
+        }
+    except Exception as e:
+        logger.error(f"Failed to start batch finance sync: {e}")
+        raise HTTPException(status_code=500, detail=f"启动批量同步失败: {str(e)}")
+
+
+@router.get("/reports/batch-sync-finance/{task_id}")
+async def get_batch_finance_sync_progress(task_id: str):
+    """
+    查询批量财务同步任务进度
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务进度信息
+    """
+    try:
+        import redis
+        import ast
+
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+        # 从 Redis 读取进度
+        key = f"batch_finance_sync:{task_id}"
+        progress_str = redis_client.get(key)
+
+        if not progress_str:
+            # 检查任务状态
+            from celery.result import AsyncResult
+            task_result = AsyncResult(task_id)
+
+            if task_result.state == 'PENDING':
+                return {
+                    "status": "pending",
+                    "message": "任务正在队列中等待..."
+                }
+            elif task_result.state == 'FAILURE':
+                return {
+                    "status": "failed",
+                    "message": f"任务失败: {str(task_result.info)}"
+                }
+            else:
+                return {
+                    "status": "unknown",
+                    "message": "未找到任务进度信息"
+                }
+
+        # 解析进度信息
+        progress = ast.literal_eval(progress_str)
+
+        return progress
+
+    except Exception as e:
+        logger.error(f"Failed to get batch finance sync progress: {e}")
+        raise HTTPException(status_code=500, detail=f"获取任务进度失败: {str(e)}")

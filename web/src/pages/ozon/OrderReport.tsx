@@ -186,6 +186,11 @@ const OrderReport: React.FC = () => {
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // 批量同步状态
+  const [batchSyncTaskId, setBatchSyncTaskId] = useState<string | null>(null);
+  const [batchSyncProgress, setBatchSyncProgress] = useState<any>(null);
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+
   // 货币和状态配置
   const { currency: userCurrency } = useCurrency();
   const statusConfig = ORDER_STATUS_CONFIG;
@@ -394,6 +399,55 @@ const OrderReport: React.FC = () => {
       setLoadingDetail(false);
     }
   };
+
+  // 启动批量同步
+  const handleBatchSync = async () => {
+    try {
+      setIsBatchSyncing(true);
+      const result = await ozonApi.startBatchFinanceSync();
+      setBatchSyncTaskId(result.task_id);
+      notifySuccess('任务已启动', result.message);
+    } catch (error: any) {
+      notifyError('启动失败', error.message || '无法启动批量同步任务');
+      setIsBatchSyncing(false);
+    }
+  };
+
+  // 轮询批量同步进度
+  useEffect(() => {
+    if (!batchSyncTaskId || !isBatchSyncing) return;
+
+    const pollProgress = async () => {
+      try {
+        const progress = await ozonApi.getBatchFinanceSyncProgress(batchSyncTaskId);
+        setBatchSyncProgress(progress);
+
+        if (progress.status === 'completed') {
+          setIsBatchSyncing(false);
+          notifySuccess('同步完成', progress.message || '批量同步任务已完成');
+          // 刷新报表数据
+          if (activeTab === "details") {
+            refetchPostings();
+          } else {
+            refetchSummary();
+          }
+        } else if (progress.status === 'failed') {
+          setIsBatchSyncing(false);
+          notifyError('同步失败', progress.message || '批量同步任务失败');
+        }
+      } catch (error) {
+        console.error('Failed to poll progress:', error);
+      }
+    };
+
+    // 立即执行一次
+    pollProgress();
+
+    // 每2秒轮询一次
+    const interval = setInterval(pollProgress, 2000);
+
+    return () => clearInterval(interval);
+  }, [batchSyncTaskId, isBatchSyncing, activeTab]);
 
   // ===== 订单明细Tab数据处理 =====
 
@@ -742,6 +796,16 @@ const OrderReport: React.FC = () => {
                 }}
               >
                 查询
+              </Button>
+            </Col>
+            <Col>
+              <Button
+                type="default"
+                onClick={handleBatchSync}
+                loading={isBatchSyncing}
+                disabled={isBatchSyncing}
+              >
+                {isBatchSyncing ? `批量同步中... (${batchSyncProgress?.current || 0}/${batchSyncProgress?.total || 0})` : '批量同步佣金'}
               </Button>
             </Col>
           </Row>

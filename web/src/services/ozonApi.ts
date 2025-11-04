@@ -1118,6 +1118,25 @@ export const getReportSummary = async (
   return response.data;
 };
 
+// 启动批量财务同步任务
+export const startBatchFinanceSync = async (): Promise<{
+  task_id: string;
+  message: string;
+}> => {
+  const response = await apiClient.post(`/ozon/reports/batch-sync-finance`);
+  return response.data;
+};
+
+// 查询批量财务同步进度
+export const getBatchFinanceSyncProgress = async (
+  taskId: string,
+): Promise<any> => {
+  const response = await apiClient.get(
+    `/ozon/reports/batch-sync-finance/${taskId}`,
+  );
+  return response.data;
+};
+
 // ========== 跨境巴士同步 API ==========
 
 export interface Kuajing84Config {
@@ -1939,6 +1958,24 @@ export interface FinanceTransactionsFilter {
   page_size?: number;
 }
 
+export interface FinanceTransactionDailySummary {
+  operation_date: string;
+  transaction_count: number;
+  total_amount: string;
+  total_accruals_for_sale: string;
+  total_sale_commission: string;
+  total_delivery_charge: string;
+  total_return_delivery_charge: string;
+}
+
+export interface FinanceTransactionsDailySummaryResponse {
+  items: FinanceTransactionDailySummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 /**
  * 获取财务交易列表
  */
@@ -1968,6 +2005,18 @@ export const getFinanceTransactionsSummary = async (
 
   const response = await apiClient.get("/ozon/finance/transactions/summary", {
     params,
+  });
+  return response.data;
+};
+
+/**
+ * 获取财务交易按日期汇总
+ */
+export const getFinanceTransactionsDailySummary = async (
+  filter: FinanceTransactionsFilter,
+): Promise<FinanceTransactionsDailySummaryResponse> => {
+  const response = await apiClient.get("/ozon/finance/transactions/daily-summary", {
+    params: filter,
   });
   return response.data;
 };
