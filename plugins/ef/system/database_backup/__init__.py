@@ -13,7 +13,8 @@ __version__ = "1.0.0"
 
 def get_router() -> Optional[APIRouter]:
     """获取插件的 API 路由"""
-    return None  # 此插件不提供API路由
+    from .routes import router
+    return router
 
 
 async def setup(hooks) -> None:

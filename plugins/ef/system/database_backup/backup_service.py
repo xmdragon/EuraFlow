@@ -140,22 +140,44 @@ class DatabaseBackupService:
             file_size_mb = file_size / (1024 * 1024)
 
             logger.info(
-                f"数据库备份成功: {backup_filename} "
+                f"本地数据库备份成功: {backup_filename} "
                 f"({file_size_mb:.2f} MB)"
             )
+
+            # 上传到 S3（如果启用）
+            s3_uploaded = False
+            s3_error = None
+            if self.s3_enabled:
+                try:
+                    logger.info(f"开始上传到 S3: s3://{self.s3_bucket}/{backup_filename}")
+                    self._upload_to_s3(str(backup_path), backup_filename)
+                    s3_uploaded = True
+                    logger.info(f"✓ S3 上传成功: {backup_filename}")
+                except Exception as e:
+                    s3_error = str(e)
+                    logger.error(f"S3 上传失败（本地备份已成功）: {e}")
 
             # 清理旧备份
             self._cleanup_old_backups()
 
+            # 清理 S3 旧备份（如果启用）
+            if self.s3_enabled and s3_uploaded:
+                try:
+                    self._cleanup_s3_backups()
+                except Exception as e:
+                    logger.warning(f"S3 旧备份清理失败: {e}")
+
             return {
                 "success": True,
-                "message": f"数据库备份成功",
+                "message": f"数据库备份成功{'（含S3）' if s3_uploaded else ''}",
                 "data": {
                     "backup_file": backup_filename,
                     "backup_path": str(backup_path),
                     "file_size_bytes": file_size,
                     "file_size_mb": round(file_size_mb, 2),
-                    "timestamp": timestamp
+                    "timestamp": timestamp,
+                    "s3_uploaded": s3_uploaded,
+                    "s3_error": s3_error
                 }
             }
 
@@ -193,14 +215,76 @@ class DatabaseBackupService:
             for file_path in backup_files:
                 file_mtime = file_path.stat().st_mtime
                 if file_mtime < cutoff_time:
-                    logger.info(f"删除超过{self.retention_days}天的备份: {file_path.name}")
+                    logger.info(f"删除超过{self.retention_days}天的本地备份: {file_path.name}")
                     file_path.unlink()
                     deleted_count += 1
 
             if deleted_count > 0:
-                logger.info(f"清理完成，删除了 {deleted_count} 个超过{self.retention_days}天的旧备份")
+                logger.info(f"本地备份清理完成，删除了 {deleted_count} 个超过{self.retention_days}天的旧备份")
             else:
-                logger.debug(f"无需清理，所有备份都在{self.retention_days}天内")
+                logger.debug(f"无需清理本地备份，所有备份都在{self.retention_days}天内")
 
         except Exception as e:
             logger.error(f"清理旧备份失败: {str(e)}", exc_info=True)
+
+    def _upload_to_s3(self, local_file: str, s3_key: str) -> None:
+        """上传文件到 S3"""
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            self.s3_client.upload_file(
+                local_file,
+                self.s3_bucket,
+                s3_key,
+                ExtraArgs={
+                    'ServerSideEncryption': 'AES256',  # 服务端加密
+                    'StorageClass': 'STANDARD_IA',  # 标准-不频繁访问（节省成本）
+                }
+            )
+        except (BotoCoreError, ClientError) as e:
+            raise RuntimeError(f"S3 上传失败: {e}")
+
+    def _cleanup_s3_backups(self) -> None:
+        """删除 S3 中超过保留期限的旧备份"""
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            # 计算截止日期
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=self.s3_retention_days)
+
+            # 列出所有备份文件
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.s3_bucket,
+                Prefix="euraflow_backup_"
+            )
+
+            if 'Contents' not in response:
+                logger.debug("S3 中没有找到备份文件")
+                return
+
+            # 查找需要删除的文件
+            to_delete = []
+            for obj in response['Contents']:
+                # 将 LastModified 转换为 offset-aware datetime
+                last_modified = obj['LastModified']
+                if last_modified.tzinfo is None:
+                    last_modified = last_modified.replace(tzinfo=timezone.utc)
+
+                if last_modified < cutoff_date:
+                    to_delete.append({'Key': obj['Key']})
+
+            # 批量删除
+            if to_delete:
+                logger.info(f"开始删除 S3 中 {len(to_delete)} 个超过{self.s3_retention_days}天的旧备份...")
+                self.s3_client.delete_objects(
+                    Bucket=self.s3_bucket,
+                    Delete={'Objects': to_delete}
+                )
+                logger.info(f"✓ S3 备份清理完成，删除了 {len(to_delete)} 个旧备份")
+            else:
+                logger.debug(f"S3 无需清理，所有备份都在{self.s3_retention_days}天内")
+
+        except (BotoCoreError, ClientError) as e:
+            logger.error(f"S3 备份清理失败: {e}")
+            # 清理失败不影响备份流程
+            raise
