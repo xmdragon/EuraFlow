@@ -334,7 +334,6 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '商品名称',
       dataIndex: 'item_name',
-      width: 300,
       ellipsis: {
         showTitle: false,
       },
