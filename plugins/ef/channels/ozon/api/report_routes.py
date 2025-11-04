@@ -368,10 +368,12 @@ async def get_posting_report(
         # 货件编号过滤（支持通配符）
         if posting_number:
             posting_number_value = posting_number.strip()
-            if '%' in posting_number_value:
-                conditions.append(OzonPosting.posting_number.like(posting_number_value))
-            else:
-                conditions.append(OzonPosting.posting_number == posting_number_value)
+            # strip() 后再次判断是否为空，避免空字符串导致查询失败
+            if posting_number_value:
+                if '%' in posting_number_value:
+                    conditions.append(OzonPosting.posting_number.like(posting_number_value))
+                else:
+                    conditions.append(OzonPosting.posting_number == posting_number_value)
 
         # 查询总数（用于分页）- 保持和数据查询一致的JOIN
         count_query = select(func.count(OzonPosting.id)).join(
