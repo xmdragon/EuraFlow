@@ -69,6 +69,8 @@ export interface CloudinaryResource {
   width?: number;
   height?: number;
   created_at: string;
+  folder?: string; // Cloudinary API 返回的文件夹字段
+  asset_folder?: string; // 新版 API 字段
 }
 
 export interface CloudinaryFolder {

@@ -410,6 +410,8 @@ class CloudinaryService:
                     "width": resource.get("width"),
                     "height": resource.get("height"),
                     "created_at": resource.get("created_at"),
+                    "folder": resource.get("folder"),  # Cloudinary API 返回的文件夹字段
+                    "asset_folder": resource.get("asset_folder"),  # 新版 API 字段
                 })
 
             return {

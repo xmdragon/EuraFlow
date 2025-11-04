@@ -1092,18 +1092,21 @@ async def list_cloudinary_resources(
             folder_tree = {}
 
             for resource in resources:
-                public_id = resource["public_id"]
-                # 提取文件夹路径（public_id 格式如 "watermarks/abc123" 或 "products/shop1/xyz789"）
-                parts = public_id.split("/")
+                # 优先使用 Cloudinary API 返回的 folder 字段
+                # 如果没有，则从 public_id 解析（向后兼容）
+                folder_path = resource.get("folder") or resource.get("asset_folder")
 
-                if len(parts) > 1:
-                    # 有文件夹
-                    folder_path = "/".join(parts[:-1])
-                    filename = parts[-1]
-                else:
-                    # 根目录
-                    folder_path = ""
-                    filename = public_id
+                if not folder_path:
+                    # 从 public_id 解析（兜底方案）
+                    public_id = resource["public_id"]
+                    parts = public_id.split("/")
+                    if len(parts) > 1:
+                        folder_path = "/".join(parts[:-1])
+                    else:
+                        folder_path = ""
+
+                # 标准化文件夹路径（去除前后斜杠）
+                folder_path = folder_path.strip("/") if folder_path else ""
 
                 if folder_path not in folder_tree:
                     folder_tree[folder_path] = {
