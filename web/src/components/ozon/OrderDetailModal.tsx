@@ -523,7 +523,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         width: 100,
                         render: (_, record) => {
                           const price = parseFloat(record.price || '0');
-                          const quantity = parseInt(record.quantity || '0', 10);
+                          const quantity = parseInt(String(record.quantity || '0'), 10);
                           const total = price * quantity;
                           return formatPriceWithFallback(
                             total.toString(),

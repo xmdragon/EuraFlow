@@ -206,6 +206,25 @@ const FinanceTransactions: React.FC = () => {
     return `₽${num.toFixed(2)}`;
   };
 
+  // 格式化配送方式文本（用于白色背景显示）
+  const formatDeliveryMethodTextWhite = (text: string | undefined): React.ReactNode => {
+    if (!text) return '-';
+
+    // 如果包含括号，提取括号内的内容
+    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    if (!match) return text;
+
+    const mainText = match[1];
+    const subText = match[2];
+
+    return (
+      <span>
+        {mainText}
+        <span style={{ color: '#1890ff' }}>({subText})</span>
+      </span>
+    );
+  };
+
   // 判断货件编号是否为有效格式（数字-数字-数字）
   const isValidPostingNumber = (postingNumber: string): boolean => {
     return /^\d+-\d+-\d+$/.test(postingNumber);
@@ -562,6 +581,7 @@ const FinanceTransactions: React.FC = () => {
         statusConfig={statusConfig}
         userCurrency={userCurrency}
         offerIdImageMap={offerIdImageMap}
+        formatDeliveryMethodTextWhite={formatDeliveryMethodTextWhite}
         onUpdate={() => {
           // 财务交易页面无需刷新
         }}
