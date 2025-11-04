@@ -248,14 +248,14 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '销售收入',
       dataIndex: 'total_accruals_for_sale',
-      minWidth: 110,
+      width: 110,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '总金额',
       dataIndex: 'total_amount',
-      minWidth: 110,
+      width: 110,
       align: 'right',
       render: (amount: string) => {
         const num = parseFloat(amount);
@@ -269,21 +269,21 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '销售佣金',
       dataIndex: 'total_sale_commission',
-      minWidth: 110,
+      width: 110,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '配送费',
       dataIndex: 'total_delivery_charge',
-      minWidth: 110,
+      width: 110,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '退货配送费',
       dataIndex: 'total_return_delivery_charge',
-      minWidth: 110,
+      width: 110,
       align: 'right',
       render: formatAmount,
     },
@@ -353,14 +353,14 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '销售收入',
       dataIndex: 'accruals_for_sale',
-      minWidth: 100,
+      width: 100,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '总金额',
       dataIndex: 'amount',
-      minWidth: 100,
+      width: 100,
       align: 'right',
       render: (amount: string) => {
         const num = parseFloat(amount);
@@ -374,21 +374,21 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '配送费',
       dataIndex: 'delivery_charge',
-      minWidth: 60,
+      width: 60,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '退货配送费',
       dataIndex: 'return_delivery_charge',
-      minWidth: 90,
+      width: 90,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '销售佣金',
       dataIndex: 'sale_commission',
-      minWidth: 90,
+      width: 90,
       align: 'right',
       render: formatAmount,
     },
