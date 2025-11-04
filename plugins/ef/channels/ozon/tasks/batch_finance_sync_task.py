@@ -58,7 +58,7 @@ def batch_finance_sync_task(self):
     try:
         future = _thread_pool.submit(run_async_in_thread)
         result = future.result(timeout=7200)  # 2小时超时
-        
+
         # 更新最终进度
         _update_progress(task_id, {
             "status": "completed",
@@ -67,7 +67,7 @@ def batch_finance_sync_task(self):
             "message": result.get("message", "同步完成"),
             "result": result
         })
-        
+
         return result
     except Exception as e:
         logger.error(f"Batch finance sync task execution error: {e}", exc_info=True)
@@ -75,14 +75,22 @@ def batch_finance_sync_task(self):
             "success": False,
             "error": str(e)
         }
-        
+
         _update_progress(task_id, {
             "status": "failed",
             "message": f"同步失败: {str(e)}",
             "result": error_result
         })
-        
+
         return error_result
+    finally:
+        # 释放 Redis 锁
+        try:
+            lock_key = "batch_finance_sync:lock"
+            _redis_client.delete(lock_key)
+            logger.info(f"Released lock: {lock_key}")
+        except Exception as e:
+            logger.error(f"Failed to release lock: {e}")
 
 
 async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:

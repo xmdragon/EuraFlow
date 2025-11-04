@@ -924,7 +924,17 @@ async def start_batch_finance_sync():
         任务ID，用于查询进度
     """
     try:
+        import redis
         from ..tasks.batch_finance_sync_task import batch_finance_sync_task
+
+        # 使用 Redis 锁防止并发启动
+        redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        lock_key = "batch_finance_sync:lock"
+
+        # 尝试获取锁（5分钟过期）
+        if not redis_client.set(lock_key, "1", ex=300, nx=True):
+            # 锁已存在，说明有任务正在运行
+            raise HTTPException(status_code=409, detail="批量同步任务已在运行中，请稍后再试")
 
         # 启动异步任务
         task = batch_finance_sync_task.delay()
@@ -935,8 +945,15 @@ async def start_batch_finance_sync():
             "task_id": task.id,
             "message": "批量同步任务已启动"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to start batch finance sync: {e}")
+        # 发生错误时释放锁
+        try:
+            redis_client.delete(lock_key)
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"启动批量同步失败: {str(e)}")
 
 
