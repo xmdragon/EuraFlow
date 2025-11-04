@@ -294,7 +294,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '货件编号',
       dataIndex: 'posting_number',
-      width: 140,
+      width: 145,
       render: (text, record) => {
         if (!text) return '-';
         // 只有数字-数字-数字格式才显示为链接
