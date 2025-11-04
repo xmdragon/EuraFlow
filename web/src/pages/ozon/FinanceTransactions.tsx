@@ -294,7 +294,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '货件编号',
       dataIndex: 'posting_number',
-      width: 160,
+      width: 130,
       render: (text, record) => {
         if (!text) return '-';
         // 只有数字-数字-数字格式才显示为链接
@@ -316,7 +316,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '操作类型',
       dataIndex: 'operation_type_name',
-      width: 200,
+      width: 140,
       render: (text, record) => text || record.operation_type || '-',
     },
     {
@@ -375,7 +375,7 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '配送费',
       dataIndex: 'delivery_charge',
-      minWidth: 90,
+      minWidth: 60,
       align: 'right',
       render: formatAmount,
     },
