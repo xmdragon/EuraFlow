@@ -247,14 +247,14 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '销售收入',
       dataIndex: 'total_accruals_for_sale',
-      width: 120,
+      minWidth: 110,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '总金额',
       dataIndex: 'total_amount',
-      width: 120,
+      minWidth: 110,
       align: 'right',
       render: (amount: string) => {
         const num = parseFloat(amount);
@@ -268,21 +268,21 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '销售佣金',
       dataIndex: 'total_sale_commission',
-      width: 120,
+      minWidth: 110,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '配送费',
       dataIndex: 'total_delivery_charge',
-      width: 120,
+      minWidth: 110,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '退货配送费',
       dataIndex: 'total_return_delivery_charge',
-      width: 120,
+      minWidth: 110,
       align: 'right',
       render: formatAmount,
     },
@@ -353,14 +353,14 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '销售收入',
       dataIndex: 'accruals_for_sale',
-      width: 110,
+      minWidth: 100,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '总金额',
       dataIndex: 'amount',
-      width: 110,
+      minWidth: 100,
       align: 'right',
       render: (amount: string) => {
         const num = parseFloat(amount);
@@ -374,21 +374,21 @@ const FinanceTransactions: React.FC = () => {
     {
       title: '配送费',
       dataIndex: 'delivery_charge',
-      width: 100,
+      minWidth: 90,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '退货配送费',
       dataIndex: 'return_delivery_charge',
-      width: 110,
+      minWidth: 100,
       align: 'right',
       render: formatAmount,
     },
     {
       title: '销售佣金',
       dataIndex: 'sale_commission',
-      width: 100,
+      minWidth: 90,
       align: 'right',
       render: formatAmount,
     },
