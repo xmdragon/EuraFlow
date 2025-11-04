@@ -13,6 +13,7 @@ from ..models.finance import OzonFinanceTransaction
 from ..models.global_settings import OzonGlobalSetting
 from ..models.orders import OzonPosting
 from ..utils.datetime_utils import parse_date_with_timezone
+from ..services.finance_translations import translate_operation_type_name
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["ozon-finance"])
@@ -238,13 +239,14 @@ async def get_finance_transactions(
         result = await db.execute(stmt)
         transactions = result.scalars().all()
 
-        # 转换为DTO
-        items = [
-            FinanceTransactionDTO(
-                **transaction.to_dict()
-            )
-            for transaction in transactions
-        ]
+        # 转换为DTO（应用翻译）
+        items = []
+        for transaction in transactions:
+            data = transaction.to_dict()
+            # 翻译操作类型名称
+            if data.get('operation_type_name'):
+                data['operation_type_name'] = translate_operation_type_name(data['operation_type_name'])
+            items.append(FinanceTransactionDTO(**data))
 
         total_pages = (total + page_size - 1) // page_size
 
