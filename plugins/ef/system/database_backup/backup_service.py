@@ -1,13 +1,14 @@
 """
 数据库备份服务
 每天北京时间1点和13点自动备份PostgreSQL数据库
+支持本地备份 + S3 云备份（可选）
 """
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import subprocess
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class DatabaseBackupService:
         from ef_core.config import get_settings
         settings = get_settings()
 
+        self.settings = settings
         self.db_host = settings.db_host
         self.db_port = settings.db_port
         self.db_name = settings.db_name
@@ -37,6 +39,37 @@ class DatabaseBackupService:
         # 保留最近7天的备份（默认每天2次，7天=14个备份文件）
         self.retention_days = 7
         self.max_backups = int(os.getenv("EF__BACKUP__MAX_BACKUPS", str(self.retention_days * 2)))
+
+        # 检查是否启用 S3 备份
+        self.s3_enabled = self._check_s3_config()
+        self.s3_client = None
+
+        if self.s3_enabled:
+            try:
+                import boto3
+                from botocore.exceptions import BotoCoreError, ClientError
+
+                self.s3_client = boto3.client(
+                    's3',
+                    aws_access_key_id=settings.aws_access_key_id,
+                    aws_secret_access_key=settings.aws_secret_access_key,
+                    region_name=settings.aws_region,
+                )
+                self.s3_bucket = settings.aws_s3_backup_bucket
+                self.s3_retention_days = settings.backup_retention_days
+                logger.info(f"✓ S3 备份已启用: bucket={self.s3_bucket}, retention={self.s3_retention_days}天")
+            except Exception as e:
+                logger.warning(f"S3 客户端初始化失败，将仅使用本地备份: {e}")
+                self.s3_enabled = False
+
+    def _check_s3_config(self) -> bool:
+        """检查 S3 配置是否完整"""
+        required = [
+            self.settings.aws_access_key_id,
+            self.settings.aws_secret_access_key,
+            self.settings.aws_s3_backup_bucket,
+        ]
+        return all(required)
 
     async def backup_database(self, config: Dict[str, Any] = None) -> Dict[str, Any]:
         """

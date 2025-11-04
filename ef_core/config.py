@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     # 守护阈值
     inventory_default_threshold: int = Field(default=5)
     price_min_margin: float = Field(default=0.2)
+
+    # AWS S3 Backup
+    aws_access_key_id: Optional[str] = Field(default=None)
+    aws_secret_access_key: Optional[str] = Field(default=None)
+    aws_region: str = Field(default="us-east-1")
+    aws_s3_backup_bucket: Optional[str] = Field(default=None)
+    backup_retention_days: int = Field(default=30)
     
     @validator("api_prefix")
     def validate_api_prefix(cls, v):

@@ -49,4 +49,5 @@ class SyncService(Base):
     __table_args__ = (
         Index("idx_sync_services_enabled", "is_enabled", "service_type"),
         Index("idx_sync_services_last_run", "last_run_at"),
+        {'extend_existing': True}  # 允许在同一进程中多次导入模型（Celery worker需要）
     )

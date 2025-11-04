@@ -140,10 +140,13 @@ TASK_TO_SERVICE_KEY_MAPPING = {
     # ef.ozon.attributes.sync
 }
 
+# 缓存 SyncService 模型类（避免重复导入导致 SQLAlchemy 表重定义错误）
+_sync_service_model = None
+
 
 def _update_service_stats(task_name: str, success: bool, task_id: str, error_message: str = None):
     """
-    更新同步服务统计信息
+    更新同步服务统计信息（使用同步数据库操作）
 
     Args:
         task_name: Celery 任务名
@@ -163,76 +166,73 @@ def _update_service_stats(task_name: str, success: bool, task_id: str, error_mes
     print(f"[DEBUG] Updating stats for service_key={service_key}", flush=True)
 
     try:
-        import asyncio
         from datetime import datetime, UTC
-        from ef_core.database import get_db_manager
-        from sqlalchemy import select, update
+        from sqlalchemy import create_engine, select
+        from sqlalchemy.orm import sessionmaker
+        from ef_core.config import get_settings
 
-        async def update_stats():
-            """异步更新统计"""
-            try:
-                # 动态导入避免循环依赖
-                from plugins.ef.system.sync_service.models.sync_service import SyncService
+        # 使用缓存的模型类
+        global _sync_service_model
+        if _sync_service_model is None:
+            from plugins.ef.system.sync_service.models.sync_service import SyncService
+            _sync_service_model = SyncService
 
-                db_manager = get_db_manager()
-                async with db_manager.get_session() as db:
-                    # 查询服务记录
-                    result = await db.execute(
-                        select(SyncService).where(SyncService.service_key == service_key)
-                    )
-                    service = result.scalar_one_or_none()
+        SyncService = _sync_service_model
 
-                    if not service:
-                        logger.warning(f"Service not found for task {task_name} (service_key: {service_key})")
-                        return
+        # 创建同步数据库引擎（适用于 gevent 环境）
+        settings = get_settings()
+        sync_db_url = settings.database_url.replace('+asyncpg', '')  # 移除 asyncpg，使用 psycopg2
+        engine = create_engine(sync_db_url, pool_pre_ping=True, pool_recycle=3600)
+        SessionLocal = sessionmaker(bind=engine)
 
-                    # 更新统计字段
-                    service.run_count = (service.run_count or 0) + 1
-                    service.last_run_at = datetime.now(UTC)
+        with SessionLocal() as db:
+            # 查询服务记录
+            stmt = select(SyncService).where(SyncService.service_key == service_key)
+            service = db.execute(stmt).scalar_one_or_none()
 
-                    if success:
-                        service.success_count = (service.success_count or 0) + 1
-                        service.last_run_status = "success"
-                        service.last_run_message = "任务执行成功"
-                    else:
-                        service.error_count = (service.error_count or 0) + 1
-                        service.last_run_status = "error"
-                        service.last_run_message = error_message or "任务执行失败"
+            if not service:
+                logger.warning(f"Service not found for task {task_name} (service_key: {service_key})")
+                print(f"[DEBUG] ⚠️  Service not found: {service_key}", flush=True)
+                return
 
-                    await db.commit()
+            # 更新统计字段
+            service.run_count = (service.run_count or 0) + 1
+            service.last_run_at = datetime.now(UTC)
 
-                    logger.info(
-                        f"Updated stats for service {service_key}: "
-                        f"run_count={service.run_count}, "
-                        f"success_count={service.success_count}, "
-                        f"error_count={service.error_count}"
-                    )
+            if success:
+                service.success_count = (service.success_count or 0) + 1
+                service.last_run_status = "success"
+                service.last_run_message = "任务执行成功"
+            else:
+                service.error_count = (service.error_count or 0) + 1
+                service.last_run_status = "error"
+                service.last_run_message = error_message or "任务执行失败"
 
-            except Exception as e:
-                logger.error(f"Failed to update service stats: {e}", exc_info=True)
+            db.commit()
 
-        # 在新的事件循环中运行异步更新
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(update_stats())
-            finally:
-                loop.close()
-                asyncio.set_event_loop(None)
-        except RuntimeError as e:
-            # 如果已经在事件循环中，尝试使用 run_until_complete
-            logger.warning(f"Runtime error updating stats, trying alternative method: {e}")
-            asyncio.run(update_stats())
+            logger.info(
+                f"Updated stats for service {service_key}: "
+                f"run_count={service.run_count}, "
+                f"success_count={service.success_count}, "
+                f"error_count={service.error_count}"
+            )
+            print(
+                f"[DEBUG] ✅ Stats updated successfully: service_key={service_key}, "
+                f"run_count={service.run_count}, success_count={service.success_count}, "
+                f"error_count={service.error_count}",
+                flush=True
+            )
 
     except Exception as e:
         logger.error(f"Failed to update service stats for {task_name}: {e}", exc_info=True)
+        print(f"[DEBUG] ❌ Failed to update stats: {e}", flush=True)
 
 
-# Celery 信号处理器
+# Celery 信号处理器（注意：必须在模块级别定义，Worker 启动时会自动注册）
 @signals.task_prerun.connect
 def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=None, **kwds):
     """任务开始前的处理"""
+    print(f"[DEBUG] Task prerun: {task.name}, task_id={task_id}", flush=True)
     logger.info(f"Task starting: {task.name}", task_id=task_id)
 
 
@@ -243,7 +243,13 @@ def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs
     logger.info(f"Task completed: {task.name}", task_id=task_id, state=state)
 
     # 更新同步服务统计（仅针对注册的服务任务）
-    _update_service_stats(task.name, success=True, task_id=task_id)
+    print(f"[DEBUG] About to call _update_service_stats for {task.name}", flush=True)
+    try:
+        _update_service_stats(task.name, success=True, task_id=task_id)
+        print(f"[DEBUG] _update_service_stats call completed", flush=True)
+    except Exception as e:
+        print(f"[DEBUG] ❌ Exception in _update_service_stats: {e}", flush=True)
+        logger.error(f"Exception in _update_service_stats: {e}", exc_info=True)
 
 
 @signals.task_failure.connect
@@ -320,6 +326,10 @@ def _initialize_plugins_for_celery():
 
 # 立即执行插件初始化
 _initialize_plugins_for_celery()
+
+# 确认信号处理器已注册
+print(f"[DEBUG] Celery signal handlers registered: task_postrun={len(signals.task_postrun.receivers)}, task_failure={len(signals.task_failure.receivers)}", flush=True)
+logger.info(f"Celery signal handlers registered: task_postrun={len(signals.task_postrun.receivers)}, task_failure={len(signals.task_failure.receivers)}")
 
 
 @signals.worker_ready.connect

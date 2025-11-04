@@ -38,4 +38,5 @@ class SyncServiceLog(Base):
         Index("idx_sync_logs_service", "service_key", "started_at"),
         Index("idx_sync_logs_status", "status", "started_at"),
         Index("idx_sync_logs_run_id", "run_id"),
+        {'extend_existing': True}  # 允许在同一进程中多次导入模型（Celery worker需要）
     )
