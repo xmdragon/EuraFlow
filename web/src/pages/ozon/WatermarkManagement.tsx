@@ -34,6 +34,7 @@ import {
   Spin,
   Image,
   App,
+  Collapse,
 } from 'antd';
 import React, { useState } from 'react';
 
@@ -570,88 +571,106 @@ const WatermarkManagement: React.FC = () => {
                     </div>
 
                     <Spin spinning={resourcesLoading}>
-                      <div className={styles.resourceGrid}>
-                        {resourcesData?.resources?.map((resource) => {
-                          const isSelected = selectedResources.includes(resource.public_id);
-                          const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(
-                            resource.format?.toLowerCase() || ''
-                          );
-                          const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(
-                            resource.format?.toLowerCase() || ''
-                          );
-
-                          return (
-                            <div
-                              key={resource.public_id}
-                              className={`${styles.resourceCard} ${isSelected ? styles.selected : ''}`}
+                      {/* 按文件夹分组显示 */}
+                      {resourcesData?.folders && resourcesData.folders.length > 0 ? (
+                        <Collapse
+                          defaultActiveKey={resourcesData.folders.map((folder) => folder.folder_path)}
+                          style={{ marginBottom: '16px' }}
+                        >
+                          {resourcesData.folders.map((folder) => (
+                            <Collapse.Panel
+                              key={folder.folder_path}
+                              header={
+                                <Space>
+                                  <strong>{folder.folder}</strong>
+                                  <Tag color="blue">{folder.resource_count} 个资源</Tag>
+                                </Space>
+                              }
                             >
-                              <div
-                                className={styles.resourceThumbnail}
-                                onClick={() => {
-                                  if (isImage) {
-                                    setPreviewImageUrl(resource.url);
-                                    setImagePreviewVisible(true);
-                                  }
-                                }}
-                                style={{ cursor: isImage ? 'pointer' : 'default' }}
-                              >
-                                {isImage && (
-                                  <img
-                                    src={resource.url.replace(
-                                      '/upload/',
-                                      '/upload/w_160,h_160,c_fill,q_auto/'
-                                    )}
-                                    alt={resource.public_id}
-                                    className={styles.thumbnailImage}
-                                  />
-                                )}
-                                {isVideo && (
-                                  <div className={styles.videoPlaceholder}>
-                                    <VideoCameraOutlined className={styles.videoIcon} />
-                                  </div>
-                                )}
-                                {!isImage && !isVideo && (
-                                  <div className={styles.filePlaceholder}>
-                                    <FileImageOutlined className={styles.fileIcon} />
-                                  </div>
-                                )}
-                              </div>
-                              <div className={styles.resourceCheckbox}>
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => {
-                                    if (isSelected) {
-                                      setSelectedResources(
-                                        selectedResources.filter((id) => id !== resource.public_id)
-                                      );
-                                    } else {
-                                      setSelectedResources([...selectedResources, resource.public_id]);
-                                    }
-                                  }}
-                                />
-                              </div>
-                              <div className={styles.resourceInfo}>
-                                <div className={styles.resourceInfoItem}>
-                                  <strong>尺寸:</strong> {resource.width}x{resource.height}
-                                </div>
-                                <div className={styles.resourceInfoItem}>
-                                  <strong>大小:</strong> {(resource.bytes / 1024).toFixed(2)} KB
-                                </div>
-                                <div className={styles.resourceInfoItem}>
-                                  <strong>上传:</strong>{' '}
-                                  {new Date(resource.created_at).toLocaleDateString()}
-                                </div>
-                                <div className={styles.resourceInfoItem}>
-                                  <strong>格式:</strong> {resource.format?.toUpperCase()}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              <div className={styles.resourceGrid}>
+                                {folder.resources.map((resource) => {
+                                  const isSelected = selectedResources.includes(resource.public_id);
+                                  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(
+                                    resource.format?.toLowerCase() || ''
+                                  );
+                                  const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(
+                                    resource.format?.toLowerCase() || ''
+                                  );
 
-                      {(!resourcesData || resourcesData.resources?.length === 0) && (
+                                  return (
+                                    <div
+                                      key={resource.public_id}
+                                      className={`${styles.resourceCard} ${isSelected ? styles.selected : ''}`}
+                                    >
+                                      <div
+                                        className={styles.resourceThumbnail}
+                                        onClick={() => {
+                                          if (isImage) {
+                                            setPreviewImageUrl(resource.url);
+                                            setImagePreviewVisible(true);
+                                          }
+                                        }}
+                                        style={{ cursor: isImage ? 'pointer' : 'default' }}
+                                      >
+                                        {isImage && (
+                                          <img
+                                            src={resource.url.replace(
+                                              '/upload/',
+                                              '/upload/w_160,h_160,c_fill,q_auto/'
+                                            )}
+                                            alt={resource.public_id}
+                                            className={styles.thumbnailImage}
+                                          />
+                                        )}
+                                        {isVideo && (
+                                          <div className={styles.videoPlaceholder}>
+                                            <VideoCameraOutlined className={styles.videoIcon} />
+                                          </div>
+                                        )}
+                                        {!isImage && !isVideo && (
+                                          <div className={styles.filePlaceholder}>
+                                            <FileImageOutlined className={styles.fileIcon} />
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className={styles.resourceCheckbox}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => {
+                                            if (isSelected) {
+                                              setSelectedResources(
+                                                selectedResources.filter((id) => id !== resource.public_id)
+                                              );
+                                            } else {
+                                              setSelectedResources([...selectedResources, resource.public_id]);
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <div className={styles.resourceInfo}>
+                                        <div className={styles.resourceInfoItem}>
+                                          <strong>尺寸:</strong> {resource.width}x{resource.height}
+                                        </div>
+                                        <div className={styles.resourceInfoItem}>
+                                          <strong>大小:</strong> {(resource.bytes / 1024).toFixed(2)} KB
+                                        </div>
+                                        <div className={styles.resourceInfoItem}>
+                                          <strong>上传:</strong>{' '}
+                                          {new Date(resource.created_at).toLocaleDateString()}
+                                        </div>
+                                        <div className={styles.resourceInfoItem}>
+                                          <strong>格式:</strong> {resource.format?.toUpperCase()}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </Collapse.Panel>
+                          ))}
+                        </Collapse>
+                      ) : (
                         <div className={styles.emptyState}>
                           <CloudOutlined className={styles.emptyIcon} />
                           <p>暂无资源</p>

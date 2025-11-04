@@ -2,7 +2,7 @@
 水印管理API路由
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Body, Request
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from uuid import uuid4
@@ -15,6 +15,7 @@ import logging
 from ef_core.database import get_async_session
 from ef_core.middleware.auth import require_role
 from ef_core.models.users import User
+from ef_core.services.audit_service import AuditService
 from ..models.watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
 from ..models import OzonProduct, OzonShop
 from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
@@ -261,6 +262,7 @@ async def test_cloudinary_connection(
 # 水印配置管理
 @router.post("/configs")
 async def create_watermark_config(
+    request: Request,
     name: str = Form(...),
     color_type: str = Form("white"),
     scale_ratio: float = Form(0.1),
@@ -318,6 +320,33 @@ async def create_watermark_config(
         await db.commit()
         await db.refresh(watermark_config)
 
+        # 记录审计日志
+        try:
+            await AuditService.log_action(
+                db=db,
+                user_id=current_user.id,
+                username=current_user.username,
+                module="ozon",
+                action="create",
+                action_display="创建水印配置",
+                table_name="watermark_configs",
+                record_id=str(watermark_config.id),
+                changes={
+                    "name": name,
+                    "cloudinary_public_id": upload_result["public_id"],
+                    "color_type": color_type,
+                    "scale_ratio": str(scale_ratio),
+                    "opacity": str(opacity),
+                    "margin_pixels": margin_pixels,
+                    "positions": positions_list
+                },
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                request_id=getattr(request.state, "request_id", None)
+            )
+        except Exception as audit_error:
+            logger.error(f"Failed to log audit: {audit_error}")
+
         return WatermarkConfigResponse(
             id=watermark_config.id,
             name=watermark_config.name,
@@ -370,6 +399,7 @@ async def list_watermark_configs(
 
 @router.put("/configs/{config_id}")
 async def update_watermark_config(
+    request: Request,
     config_id: int,
     scale_ratio: float = Form(0.1),
     opacity: float = Form(0.8),
@@ -391,6 +421,16 @@ async def update_watermark_config(
         if not config:
             raise HTTPException(status_code=404, detail="Watermark config not found")
 
+        # 记录旧值
+        old_values = {
+            "scale_ratio": str(config.scale_ratio),
+            "opacity": str(config.opacity),
+            "margin_pixels": config.margin_pixels,
+            "positions": config.positions,
+            "color_type": config.color_type,
+            "is_active": config.is_active
+        }
+
         # 更新配置
         config.scale_ratio = Decimal(str(scale_ratio))
         config.opacity = Decimal(str(opacity))
@@ -402,6 +442,40 @@ async def update_watermark_config(
 
         await db.commit()
         await db.refresh(config)
+
+        # 记录审计日志
+        try:
+            changes = {}
+            if str(scale_ratio) != old_values["scale_ratio"]:
+                changes["scale_ratio"] = {"old": old_values["scale_ratio"], "new": str(scale_ratio)}
+            if str(opacity) != old_values["opacity"]:
+                changes["opacity"] = {"old": old_values["opacity"], "new": str(opacity)}
+            if margin_pixels != old_values["margin_pixels"]:
+                changes["margin_pixels"] = {"old": old_values["margin_pixels"], "new": margin_pixels}
+            if positions_list != old_values["positions"]:
+                changes["positions"] = {"old": old_values["positions"], "new": positions_list}
+            if color_type != old_values["color_type"]:
+                changes["color_type"] = {"old": old_values["color_type"], "new": color_type}
+            if is_active != old_values["is_active"]:
+                changes["is_active"] = {"old": old_values["is_active"], "new": is_active}
+
+            if changes:
+                await AuditService.log_action(
+                    db=db,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    module="ozon",
+                    action="update",
+                    action_display="更新水印配置",
+                    table_name="watermark_configs",
+                    record_id=str(config.id),
+                    changes=changes,
+                    ip_address=request.client.host if request.client else None,
+                    user_agent=request.headers.get("user-agent"),
+                    request_id=getattr(request.state, "request_id", None)
+                )
+        except Exception as audit_error:
+            logger.error(f"Failed to log audit: {audit_error}")
 
         return WatermarkConfigResponse(
             id=config.id,
@@ -425,6 +499,7 @@ async def update_watermark_config(
 
 @router.delete("/configs/{config_id}")
 async def delete_watermark_config(
+    request: Request,
     config_id: int,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
@@ -435,6 +510,18 @@ async def delete_watermark_config(
     if not config:
         raise HTTPException(status_code=404, detail="Watermark config not found")
 
+    # 记录删除的数据
+    deleted_data = {
+        "name": config.name,
+        "cloudinary_public_id": config.cloudinary_public_id,
+        "image_url": config.image_url,
+        "color_type": config.color_type,
+        "scale_ratio": str(config.scale_ratio),
+        "opacity": str(config.opacity),
+        "margin_pixels": config.margin_pixels,
+        "positions": config.positions
+    }
+
     # 获取Cloudinary服务并删除图片（全局配置）
     cloudinary_config = await CloudinaryConfigManager.get_config(db)
     if cloudinary_config:
@@ -443,6 +530,25 @@ async def delete_watermark_config(
 
     await db.delete(config)
     await db.commit()
+
+    # 记录审计日志
+    try:
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="ozon",
+            action="delete",
+            action_display="删除水印配置",
+            table_name="watermark_configs",
+            record_id=str(config_id),
+            changes={"deleted_data": deleted_data},
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=getattr(request.state, "request_id", None)
+        )
+    except Exception as audit_error:
+        logger.error(f"Failed to log audit: {audit_error}")
 
     return {"success": True, "message": "Watermark config deleted"}
 
@@ -955,8 +1061,9 @@ async def cleanup_old_resources(
 @router.get("/resources")
 async def list_cloudinary_resources(
     folder: Optional[str] = Query(None, description="文件夹路径筛选"),
-    max_results: int = Query(50, le=100, description="每页最大结果数"),
+    max_results: int = Query(500, le=500, description="每页最大结果数"),
     next_cursor: Optional[str] = Query(None, description="分页游标"),
+    group_by_folder: bool = Query(True, description="是否按文件夹分组"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """列出Cloudinary资源"""
@@ -978,12 +1085,62 @@ async def list_cloudinary_resources(
         if not result["success"]:
             raise HTTPException(status_code=500, detail=result.get("error", "Failed to list resources"))
 
-        return {
-            "success": True,
-            "resources": result["resources"],
-            "total": result["total"],
-            "next_cursor": result.get("next_cursor")
-        }
+        resources = result["resources"]
+
+        # 按文件夹分组
+        if group_by_folder:
+            folder_tree = {}
+
+            for resource in resources:
+                public_id = resource["public_id"]
+                # 提取文件夹路径（public_id 格式如 "watermarks/abc123" 或 "products/shop1/xyz789"）
+                parts = public_id.split("/")
+
+                if len(parts) > 1:
+                    # 有文件夹
+                    folder_path = "/".join(parts[:-1])
+                    filename = parts[-1]
+                else:
+                    # 根目录
+                    folder_path = ""
+                    filename = public_id
+
+                if folder_path not in folder_tree:
+                    folder_tree[folder_path] = {
+                        "folder": folder_path,
+                        "resources": []
+                    }
+
+                folder_tree[folder_path]["resources"].append(resource)
+
+            # 转换为列表并排序
+            folders = [
+                {
+                    "folder": folder_path if folder_path else "(根目录)",
+                    "folder_path": folder_path,
+                    "resource_count": len(data["resources"]),
+                    "resources": data["resources"]
+                }
+                for folder_path, data in folder_tree.items()
+            ]
+
+            # 按文件夹路径排序
+            folders.sort(key=lambda x: x["folder_path"])
+
+            return {
+                "success": True,
+                "folders": folders,
+                "total": result["total"],
+                "next_cursor": result.get("next_cursor")
+            }
+        else:
+            # 不分组，直接返回列表
+            return {
+                "success": True,
+                "resources": resources,
+                "total": result["total"],
+                "next_cursor": result.get("next_cursor")
+            }
 
     except HTTPException:
         raise
@@ -994,6 +1151,7 @@ async def list_cloudinary_resources(
 
 @router.delete("/resources")
 async def delete_cloudinary_resources(
+    http_request: Request,
     request: Dict[str, List[str]] = Body(..., description='{"public_ids": ["id1", "id2"]}'),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
@@ -1021,6 +1179,31 @@ async def delete_cloudinary_resources(
 
         if not result["success"]:
             raise HTTPException(status_code=500, detail=result.get("error", "Failed to delete resources"))
+
+        # 记录审计日志
+        try:
+            deleted_ids = result.get("deleted", [])
+            if deleted_ids:
+                await AuditService.log_action(
+                    db=db,
+                    user_id=current_user.id,
+                    username=current_user.username,
+                    module="ozon",
+                    action="delete",
+                    action_display="删除Cloudinary资源",
+                    table_name="cloudinary_resources",
+                    record_id=",".join(deleted_ids[:5]) + ("..." if len(deleted_ids) > 5 else ""),
+                    changes={
+                        "deleted_count": len(deleted_ids),
+                        "deleted_public_ids": deleted_ids,
+                        "not_found": result.get("not_found", [])
+                    },
+                    ip_address=http_request.client.host if http_request.client else None,
+                    user_agent=http_request.headers.get("user-agent"),
+                    request_id=getattr(http_request.state, "request_id", None)
+                )
+        except Exception as audit_error:
+            logger.error(f"Failed to log audit: {audit_error}")
 
         return {
             "success": True,

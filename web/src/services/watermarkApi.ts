@@ -71,9 +71,17 @@ export interface CloudinaryResource {
   created_at: string;
 }
 
+export interface CloudinaryFolder {
+  folder: string;
+  folder_path: string;
+  resource_count: number;
+  resources: CloudinaryResource[];
+}
+
 export interface CloudinaryResourcesResponse {
   success: boolean;
-  resources: CloudinaryResource[];
+  resources?: CloudinaryResource[];
+  folders?: CloudinaryFolder[];
   total: number;
   next_cursor?: string;
 }
@@ -371,14 +379,16 @@ export async function listCloudinaryResources(options?: {
   folder?: string;
   max_results?: number;
   next_cursor?: string;
+  group_by_folder?: boolean;
 }) {
   const response = await axios.get<CloudinaryResourcesResponse>(
     '/api/ef/v1/ozon/watermark/resources',
     {
       params: {
         folder: options?.folder,
-        max_results: options?.max_results || 50,
+        max_results: options?.max_results || 500,
         next_cursor: options?.next_cursor,
+        group_by_folder: options?.group_by_folder ?? true,
       },
     }
   );
