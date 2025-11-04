@@ -800,7 +800,7 @@ const OrderReport: React.FC = () => {
               </Button>
             </Col>
             <Col>
-              <Tooltip title="同步已签收但佣金为0的订单（仅限签收时间>=7天前，OZON财务系统需要7天处理时间）">
+              <Tooltip title="同步已签收但佣金为0的订单">
                 <Button
                   type="default"
                   onClick={handleBatchSync}

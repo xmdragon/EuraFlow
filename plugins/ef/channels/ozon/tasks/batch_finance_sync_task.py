@@ -114,15 +114,10 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
 
     # 在当前 event loop 中重新创建 db_manager（避免 loop 冲突）
     from ef_core.database import DatabaseManager
-    from datetime import timedelta
     db_manager = DatabaseManager()
 
     async with db_manager.get_session() as session:
         # 1. 查询所有已签收但佣金为0的订单
-        # 注意：只查询7天前签收的订单（OZON 财务需要时间处理）
-        now = datetime.now(timezone.utc)
-        seven_days_ago = now - timedelta(days=7)
-
         postings_result = await session.execute(
             select(OzonPosting)
             .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
@@ -135,18 +130,17 @@ async def _batch_finance_sync_async(task_id: str) -> Dict[str, Any]:
             )
             .where(OzonPosting.posting_number != None)
             .where(OzonPosting.posting_number != '')
-            .where(OzonPosting.delivered_at <= seven_days_ago)  # 至少7天前签收
             .order_by(OzonPosting.delivered_at.desc())
         )
         postings = postings_result.scalars().all()
         stats["total_found"] = len(postings)
 
         if not postings:
-            logger.info("No postings need finance sync (delivered but commission=0, delivered >=7 days ago)")
+            logger.info("No postings need finance sync (delivered but commission=0)")
             return {
                 **stats,
                 "success": True,
-                "message": "没有需要同步的订单（需满足：已签收、佣金为0、签收时间>=7天前。OZON财务系统需要7天处理时间）"
+                "message": "没有需要同步的订单（已签收且佣金为0）"
             }
 
         logger.info(f"Found {len(postings)} postings to sync")

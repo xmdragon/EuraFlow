@@ -54,14 +54,13 @@ class OzonFinanceSyncService:
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as session:
-            # 1. 计算时间范围（7天前 - 3个月前）
+            # 1. 计算时间范围（3个月内）
             now = datetime.now(timezone.utc)
             three_months_ago = now - timedelta(days=90)
-            seven_days_ago = now - timedelta(days=7)
 
-            logger.info(f"Time range filter: {three_months_ago.isoformat()} ~ {seven_days_ago.isoformat()}")
+            logger.info(f"Time range filter: {three_months_ago.isoformat()} ~ {now.isoformat()}")
 
-            # 2. 查询需要同步的货件（已签收且未同步财务，时间范围：7天前-3个月内）
+            # 2. 查询需要同步的货件（已签收且未同步财务，时间范围：3个月内）
             postings_result = await session.execute(
                 select(OzonPosting)
                 .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
@@ -70,17 +69,16 @@ class OzonFinanceSyncService:
                 .where(OzonPosting.posting_number != None)
                 .where(OzonPosting.posting_number != '')
                 .where(OzonOrder.ordered_at > three_months_ago)  # 3个月内
-                .where(OzonOrder.ordered_at <= seven_days_ago)   # 7天前
                 .order_by(OzonPosting.delivered_at.desc())
                 # 移除 limit(batch_size) - 一次性获取所有符合条件的订单
             )
             postings = postings_result.scalars().all()
 
             if not postings:
-                logger.info("No postings need finance sync in time range (7 days ago ~ 3 months ago)")
+                logger.info("No postings need finance sync in time range (3 months)")
                 return {
                     **stats,
-                    "message": "没有需要同步财务费用的货件（时间范围：7天前-3个月内）"
+                    "message": "没有需要同步财务费用的货件（时间范围：3个月内）"
                 }
 
             logger.info(f"Found {len(postings)} postings to process (status=delivered, finance_synced_at IS NULL, time range OK)")
