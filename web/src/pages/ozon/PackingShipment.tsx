@@ -509,6 +509,7 @@ const PackingShipment: React.FC = () => {
     allocating: statsData?.data?.allocating || 0,
     allocated: statsData?.data?.allocated || 0,
     tracking_confirmed: statsData?.data?.tracking_confirmed || 0,
+    shipping: statsData?.data?.shipping || 0,
     printed: statsData?.data?.printed || 0,
   };
 
@@ -1012,6 +1013,10 @@ const PackingShipment: React.FC = () => {
                 {
                   key: 'tracking_confirmed',
                   label: createTabLabel('tracking_confirmed', <CheckCircleOutlined />, '单号确认', statusCounts.tracking_confirmed),
+                },
+                {
+                  key: 'shipping',
+                  label: createTabLabel('shipping', <RocketOutlined />, '运输中', statusCounts.shipping),
                 },
                 {
                   key: 'printed',
