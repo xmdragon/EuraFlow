@@ -83,6 +83,17 @@ export interface TranslationResult {
 }
 
 /**
+ * 智能抠图结果
+ */
+export interface MattingSingleResult {
+  url: string;
+  request_id?: string;
+  original_url: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
  * 单张图片翻译
  */
 export const translateSingleImage = async (
@@ -161,4 +172,98 @@ export const getTranslationResult = async (
     }
   );
   return response.data.data;
+};
+
+/**
+ * 单张图片智能抠图
+ */
+export const mattingSingleImage = async (
+  imageUrl: string,
+  bgColor: string = '255,255,255'
+): Promise<MattingSingleResult> => {
+  try {
+    const authHeaders = authService.getAuthHeader();
+    const response = await axios.post(
+      `${API_BASE}/ozon/xiangjifanyi/matting-single`,
+      {
+        image_url: imageUrl,
+        bg_color: bgColor,
+        sync: 1, // 同步返回
+      },
+      {
+        headers: authHeaders,
+      }
+    );
+
+    // 映射后端返回的数据到前端格式
+    const data = response.data.data;
+    const result = {
+      url: data.url,
+      request_id: data.request_id,
+      original_url: data.original_url || imageUrl,
+      success: true,
+    };
+
+    return result;
+  } catch (error: any) {
+    // 返回错误信息
+    return {
+      url: '',
+      original_url: imageUrl,
+      success: false,
+      error: error.response?.data?.detail?.detail || error.message || '抠图失败',
+    };
+  }
+};
+
+/**
+ * 抠图token响应
+ */
+export interface MattingTokenResponse {
+  token: string;
+  user_key: string;
+  aigc_key: string;
+  img_matting_key: string;
+}
+
+/**
+ * 抠图结果
+ */
+export interface MattingResult {
+  /** 抠图后的图片URL（象寄服务器） */
+  url: string;
+  /** 请求ID */
+  requestId?: string;
+  /** 所有图片的requestId -> URL映射 */
+  all?: Record<string, string>;
+}
+
+/**
+ * 获取象寄智能抠图token和配置
+ */
+export const getMattingToken = async (): Promise<MattingTokenResponse> => {
+  const authHeaders = authService.getAuthHeader();
+  const response = await axios.post(
+    `${API_BASE}/ozon/xiangjifanyi/matting-token`,
+    {},
+    {
+      headers: authHeaders,
+    }
+  );
+  return response.data.data;
+};
+
+/**
+ * 生成智能抠图签名
+ */
+export const generateMattingSign = async (timestamp: number): Promise<string> => {
+  const authHeaders = authService.getAuthHeader();
+  const response = await axios.post(
+    `${API_BASE}/ozon/xiangjifanyi/matting-sign`,
+    { timestamp },
+    {
+      headers: authHeaders,
+    }
+  );
+  return response.data.data.sign;
 };

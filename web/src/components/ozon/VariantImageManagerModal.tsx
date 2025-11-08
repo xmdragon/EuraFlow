@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Modal, Button, Dropdown, MenuProps, Progress, notification } from 'antd';
+import { Modal, Button, Dropdown, MenuProps, Progress } from 'antd';
 import {
   UploadOutlined,
   ToolOutlined,
@@ -8,13 +8,16 @@ import { ImageSortableList, ImageItem } from './ImageSortableList';
 import { CloudinaryImageGrid } from './CloudinaryImageGrid';
 import { uploadMedia } from '@/services/ozonApi';
 import { getCloudinaryConfig, uploadRefinedImages } from '@/services/watermarkApi';
-import { notifyError, notifySuccess } from '@/utils/notification';
+import { notifyError, notifySuccess, notifyWarning, notifyInfo } from '@/utils/notification';
 import { loggers } from '@/utils/logger';
 import TranslationEngineModal from './TranslationEngineModal';
 import type { TranslationResult as EngineTranslationResult } from './TranslationEngineModal';
 import ImageRefineModal from './ImageRefineModal';
 import type { RefineResult } from './ImageRefineModal';
+import ImageMattingModal from './ImageMattingModal';
+import ImageMattingColorModal from './ImageMattingColorModal';
 import ImageWatermarkModal from './watermark/ImageWatermarkModal';
+import ImageResizeModal from './ImageResizeModal';
 import {
   translateBatchImages,
   getTranslationResult,
@@ -65,6 +68,22 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
   // 水印相关状态
   const [watermarkModalVisible, setWatermarkModalVisible] = useState(false);
+
+  // 改分辨率相关状态
+  const [resizeModalVisible, setResizeModalVisible] = useState(false);
+  const [resizeImageUrl, setResizeImageUrl] = useState<string>('');
+  const [resizeImageId, setResizeImageId] = useState<string>('');
+
+  // 抠图相关状态（颜色选择对话框）
+  const [mattingColorModalVisible, setMattingColorModalVisible] = useState(false);
+  const [mattingColorImageUrl, setMattingColorImageUrl] = useState<string>('');
+  const [mattingColorImageId, setMattingColorImageId] = useState<string>('');
+
+  // 抠图精修相关状态（iframe精修）
+  const [mattingRefineModalVisible, setMattingRefineModalVisible] = useState(false);
+  const [mattingRefineImageUrl, setMattingRefineImageUrl] = useState<string>('');
+  const [mattingRefineImageId, setMattingRefineImageId] = useState<string>('');
+  const [mattingRefineRequestId, setMattingRefineRequestId] = useState<string | undefined>();
 
   // 加载 Cloudinary 配置
   useEffect(() => {
@@ -264,6 +283,223 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
       description: `成功应用水印到 ${results.length} 张图片`,
       placement: 'bottomRight',
     });
+  };
+
+  /**
+   * 打开单张改分辨率对话框
+   */
+  const handleResize = (imageId: string, imageUrl: string) => {
+    logger.info('打开单张改分辨率对话框', { imageId, imageUrl });
+    setResizeImageId(imageId);
+    setResizeImageUrl(imageUrl);
+    setResizeModalVisible(true);
+  };
+
+  /**
+   * 打开批量改分辨率对话框
+   */
+  const handleBatchResize = () => {
+    if (imageItems.length === 0) {
+      notification.warning({
+        message: '无可用图片',
+        description: '请先添加图片后再改分辨率',
+        placement: 'bottomRight',
+      });
+      return;
+    }
+
+    logger.info('打开批量改分辨率对话框', { count: imageItems.length });
+    // 批量模式不需要设置单个图片ID
+    setResizeImageId('');
+    setResizeImageUrl('');
+    setResizeModalVisible(true);
+  };
+
+  /**
+   * 处理改分辨率保存结果（支持单张和批量）
+   */
+  const handleResizeSave = (results: Array<{ id: string; url: string }>) => {
+    logger.info('改分辨率保存成功', { count: results.length });
+
+    // 替换原图：将原图的URL替换为新的URL
+    const newItems = imageItems.map((item) => {
+      const result = results.find((r) => r.id === item.id);
+      if (result) {
+        return {
+          ...item,
+          url: result.url,
+        };
+      }
+      return item;
+    });
+
+    setImageItems(newItems);
+
+    // 通知已由ImageResizeModal处理，这里不再重复通知
+  };
+
+  /**
+   * 打开颜色选择对话框（图片白底）
+   */
+  const handleMatting = (imageId: string, imageUrl: string) => {
+    logger.info('打开颜色选择对话框', { imageId, imageUrl });
+    setMattingColorImageId(imageId);
+    setMattingColorImageUrl(imageUrl);
+    setMattingColorModalVisible(true);
+  };
+
+  /**
+   * 处理抠图完成（从颜色选择对话框返回）
+   */
+  const handleMattingColorComplete = async (imageId: string, mattedUrl: string, requestId: string) => {
+    logger.info('抠图完成', { imageId, mattedUrl, requestId });
+
+    try {
+      // 上传抠图后的图片到图床
+      const uploadResult = await uploadRefinedImages(shopId, [
+        {
+          xiangji_url: mattedUrl,
+          request_id: requestId,
+        },
+      ]);
+
+      if (uploadResult.success && uploadResult.results.length > 0) {
+        const storageUrl = uploadResult.results[0].storage_url;
+
+        // 更新图片列表，保存mattingRequestId
+        const newItems = imageItems.map((item) => {
+          if (item.id === imageId) {
+            return {
+              ...item,
+              url: storageUrl,
+              mattingRequestId: requestId, // 保存requestId用于精修
+            };
+          }
+          return item;
+        });
+
+        setImageItems(newItems);
+
+        notifySuccess('抠图成功', '图片已成功抠图并上传到图床');
+      } else {
+        // 上传失败，保留象寄URL
+        const newItems = imageItems.map((item) => {
+          if (item.id === imageId) {
+            return {
+              ...item,
+              url: mattedUrl, // 使用象寄服务器的URL
+              mattingRequestId: requestId,
+            };
+          }
+          return item;
+        });
+
+        setImageItems(newItems);
+
+        notifyWarning('抠图成功，上传图床失败', '图片将使用象寄服务器的链接');
+      }
+    } catch (error: any) {
+      logger.error('上传抠图图片失败', { error });
+      // 上传失败也要更新URL（使用象寄服务器的URL）
+      const newItems = imageItems.map((item) => {
+        if (item.id === imageId) {
+          return {
+            ...item,
+            url: mattedUrl,
+            mattingRequestId: requestId,
+          };
+        }
+        return item;
+      });
+
+      setImageItems(newItems);
+
+      notifyError('上传图床失败', error.message || '图片将使用象寄服务器的链接');
+    }
+  };
+
+  /**
+   * 打开抠图精修对话框（iframe）
+   */
+  const handleMattingRefine = (imageId: string, imageUrl: string, mattingRequestId?: string) => {
+    logger.info('打开抠图精修对话框', { imageId, imageUrl, mattingRequestId });
+    setMattingRefineImageId(imageId);
+    setMattingRefineImageUrl(imageUrl);
+    setMattingRefineRequestId(mattingRequestId);
+    setMattingRefineModalVisible(true);
+  };
+
+  /**
+   * 处理抠图精修完成（从iframe返回）
+   */
+  const handleMattingRefineComplete = async (result: { url: string; requestId?: string }) => {
+    logger.info('抠图精修完成', { url: result.url, requestId: result.requestId });
+
+    try {
+      // 上传精修后的图片到图床
+      const uploadResult = await uploadRefinedImages(shopId, [
+        {
+          xiangji_url: result.url,
+          request_id: result.requestId || mattingRefineImageId,
+        },
+      ]);
+
+      if (uploadResult.success && uploadResult.results.length > 0) {
+        const storageUrl = uploadResult.results[0].storage_url;
+
+        // 更新图片列表
+        const newItems = imageItems.map((item) => {
+          if (item.id === mattingRefineImageId) {
+            return {
+              ...item,
+              url: storageUrl,
+              mattingRequestId: result.requestId || item.mattingRequestId, // 更新或保留requestId
+            };
+          }
+          return item;
+        });
+
+        setImageItems(newItems);
+
+        notifySuccess('抠图精修成功', '图片已成功精修并上传到图床');
+      } else {
+        // 上传失败，保留象寄URL
+        const newItems = imageItems.map((item) => {
+          if (item.id === mattingRefineImageId) {
+            return {
+              ...item,
+              url: result.url,
+              mattingRequestId: result.requestId || item.mattingRequestId,
+            };
+          }
+          return item;
+        });
+
+        setImageItems(newItems);
+
+        notifyWarning('抠图精修成功，上传图床失败', '图片将使用象寄服务器的链接');
+      }
+    } catch (error: any) {
+      logger.error('上传精修图片失败', { error });
+      // 上传失败也要更新URL（使用象寄服务器的URL）
+      const newItems = imageItems.map((item) => {
+        if (item.id === mattingRefineImageId) {
+          return {
+            ...item,
+            url: result.url,
+            mattingRequestId: result.requestId || item.mattingRequestId,
+          };
+        }
+        return item;
+      });
+
+      setImageItems(newItems);
+
+      notifyError('上传图床失败', error.message || '图片将使用象寄服务器的链接');
+    }
+
+    // 关闭精修对话框
+    setMattingRefineModalVisible(false);
   };
 
   /**
@@ -584,12 +820,20 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
     {
       key: 'resize',
       label: '改分辨率',
-      disabled: true,
+      onClick: handleBatchResize,
+      disabled: imageItems.length === 0,
     },
     {
       key: 'whitebg',
       label: '图片白底',
-      disabled: true,
+      onClick: () => {
+        // 象寄智能抠图为单张处理，不支持批量
+        notifyInfo(
+          '智能抠图提示',
+          '象寄智能抠图为单张处理，批量操作会较耗时。建议单张处理（点击图片下方的抠图按钮）'
+        );
+      },
+      disabled: imageItems.length === 0,
     },
     {
       key: 'watermark',
@@ -661,7 +905,14 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
             </div>
           )}
 
-          <ImageSortableList images={imageItems} onChange={handleImageChange} shopId={shopId} />
+          <ImageSortableList
+            images={imageItems}
+            onChange={handleImageChange}
+            shopId={shopId}
+            onResize={handleResize}
+            onMatting={handleMatting}
+            onMattingRefine={handleMattingRefine}
+          />
         </div>
 
         <div className={styles.rightPanel}>
@@ -701,6 +952,48 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
           label: `图片 ${imageItems.indexOf(item) + 1}`,
         }))}
         shopId={shopId}
+      />
+
+      {/* 改分辨率对话框 */}
+      <ImageResizeModal
+        visible={resizeModalVisible}
+        onCancel={() => setResizeModalVisible(false)}
+        onSave={handleResizeSave}
+        images={
+          resizeImageId
+            ? // 单张模式：只传递当前图片
+              imageItems
+                .filter((item) => item.id === resizeImageId)
+                .map((item, index) => ({
+                  id: item.id,
+                  url: item.url,
+                  label: `图片 ${imageItems.indexOf(item) + 1}`,
+                }))
+            : // 批量模式：传递所有图片
+              imageItems.map((item, index) => ({
+                id: item.id,
+                url: item.url,
+                label: `图片 ${index + 1}`,
+              }))
+        }
+        shopId={shopId}
+      />
+
+      {/* 智能抠图颜色选择对话框（图片白底） */}
+      <ImageMattingColorModal
+        visible={mattingColorModalVisible}
+        onCancel={() => setMattingColorModalVisible(false)}
+        imageUrl={mattingColorImageUrl}
+        imageId={mattingColorImageId}
+        onMattingComplete={handleMattingColorComplete}
+      />
+
+      {/* 智能抠图精修对话框（iframe） */}
+      <ImageMattingModal
+        visible={mattingRefineModalVisible}
+        onCancel={() => setMattingRefineModalVisible(false)}
+        imageUrl={mattingRefineImageUrl}
+        onMattingComplete={handleMattingRefineComplete}
       />
     </Modal>
   );

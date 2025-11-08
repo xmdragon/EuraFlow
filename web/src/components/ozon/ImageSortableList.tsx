@@ -24,6 +24,8 @@ import {
   EyeOutlined,
   EditOutlined,
   HighlightOutlined,
+  BgColorsOutlined,
+  FormatPainterOutlined,
 } from '@ant-design/icons';
 import ImagePreview from '@/components/ImagePreview';
 import TranslationEngineModal from './TranslationEngineModal';
@@ -41,6 +43,8 @@ export interface ImageItem {
   height?: number;
   /** 翻译API返回的requestId（用于精修） */
   translationRequestId?: string;
+  /** 抠图API返回的requestId（用于精修） */
+  mattingRequestId?: string;
 }
 
 interface ImageSortableListProps {
@@ -48,6 +52,9 @@ interface ImageSortableListProps {
   onChange: (images: ImageItem[]) => void;
   onEdit?: (image: ImageItem, index: number) => void;
   shopId?: number;
+  onResize?: (imageId: string, imageUrl: string) => void;
+  onMatting?: (imageId: string, imageUrl: string) => void;
+  onMattingRefine?: (imageId: string, imageUrl: string, mattingRequestId?: string) => void;
 }
 
 interface SortableImageItemProps {
@@ -61,6 +68,9 @@ interface SortableImageItemProps {
   onTranslate: (imageId: string, imageUrl: string) => void;
   onRefine: (imageId: string, requestId: string) => void;
   onWatermark: (imageId: string, imageUrl: string) => void;
+  onResize?: (imageId: string, imageUrl: string) => void;
+  onMatting?: (imageId: string, imageUrl: string) => void;
+  onMattingRefine?: (imageId: string, imageUrl: string, mattingRequestId?: string) => void;
 }
 
 const SortableImageItem: React.FC<SortableImageItemProps> = ({
@@ -74,6 +84,9 @@ const SortableImageItem: React.FC<SortableImageItemProps> = ({
   onTranslate,
   onRefine,
   onWatermark,
+  onResize,
+  onMatting,
+  onMattingRefine,
 }) => {
   const [imageDimensions, setImageDimensions] = React.useState<{
     width: number;
@@ -104,12 +117,22 @@ const SortableImageItem: React.FC<SortableImageItemProps> = ({
     {
       key: 'resize',
       label: '改分辨率',
-      disabled: true,
+      onClick: () => {
+        if (onResize) {
+          onResize(image.id, image.url);
+        }
+      },
+      disabled: !onResize,
     },
     {
       key: 'whitebg',
       label: '图片白底',
-      disabled: true,
+      onClick: () => {
+        if (onMatting) {
+          onMatting(image.id, image.url);
+        }
+      },
+      disabled: !onMatting,
     },
     {
       key: 'watermark',
@@ -215,6 +238,21 @@ const SortableImageItem: React.FC<SortableImageItemProps> = ({
           />
         )}
 
+        {/* 抠图精修按钮（所有图片都显示） */}
+        {onMattingRefine && (
+          <Button
+            type="text"
+            size="small"
+            icon={<FormatPainterOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMattingRefine(image.id, image.url, image.mattingRequestId);
+            }}
+            title="抠图精修"
+            style={{ color: '#9254de' }}
+          />
+        )}
+
         {!isFirst && (
           <Button
             type="text"
@@ -249,6 +287,9 @@ export const ImageSortableList: React.FC<ImageSortableListProps> = ({
   onChange,
   onEdit,
   shopId = 1,
+  onResize,
+  onMatting,
+  onMattingRefine,
 }) => {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -327,7 +368,7 @@ export const ImageSortableList: React.FC<ImageSortableListProps> = ({
     try {
       const result = await translateSingleImage(currentTranslatingImage.url, engineType);
 
-      if (result.success) {
+      if (result && result.success) {
         // 更新图片列表，替换URL并保存requestId
         const newImages = images.map((img) => {
           if (img.id === currentTranslatingImage.id) {
@@ -351,10 +392,10 @@ export const ImageSortableList: React.FC<ImageSortableListProps> = ({
       } else {
         notification.error({
           message: '翻译失败',
-          description: result.error || '未知错误',
+          description: result?.error || '未知错误',
           placement: 'bottomRight',
         });
-        return { success: false, error: result.error };
+        return { success: false, error: result?.error || '未知错误' };
       }
     } catch (error: any) {
       notification.error({
@@ -466,6 +507,9 @@ export const ImageSortableList: React.FC<ImageSortableListProps> = ({
                 onTranslate={handleTranslate}
                 onRefine={handleRefine}
                 onWatermark={handleWatermark}
+                onResize={onResize}
+                onMatting={onMatting}
+                onMattingRefine={onMattingRefine}
               />
             ))}
           </div>

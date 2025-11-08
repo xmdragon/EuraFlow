@@ -432,3 +432,371 @@ async def get_translation_result(
                 "code": "INTERNAL_ERROR"
             }
         )
+
+
+@router.post("/matting-token")
+async def get_matting_token(
+    user: User = Depends(get_current_user)
+) -> dict:
+    """获取象寄智能抠图token和配置"""
+    try:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            stmt = select(XiangjifanyiConfig).where(XiangjifanyiConfig.id == 1)
+            config = await session.scalar(stmt)
+
+            if not config:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Configuration Not Found",
+                        "status": 400,
+                        "detail": "请先配置象寄图片服务",
+                        "code": "CONFIG_NOT_FOUND"
+                    }
+                )
+
+            if not config.phone or not config.password:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Invalid Configuration",
+                        "status": 400,
+                        "detail": "请先配置手机号和密码",
+                        "code": "INVALID_CONFIG"
+                    }
+                )
+
+            if not config.img_matting_key or not config.aigc_key or not config.user_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Invalid Configuration",
+                        "status": 400,
+                        "detail": "请先配置智能抠图密钥(img_matting_key)、AIGC密钥(aigc_key)和用户密钥(user_key)",
+                        "code": "INVALID_CONFIG"
+                    }
+                )
+
+            # 调用象寄登录API获取token
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.post(
+                        "https://www.xiangjifanyi.com/open/user/login",
+                        json={
+                            "phone": config.phone,
+                            "passwd": config.password
+                        }
+                    )
+
+                    result = response.json()
+
+                    # 检查返回的code是否为0（成功）
+                    code = result.get("code")
+                    if code != 0 and code != "0":
+                        error_msg = result.get("msg", "登录失败")
+                        raise HTTPException(
+                            status_code=400,
+                            detail={
+                                "type": "about:blank",
+                                "title": "Login Failed",
+                                "status": 400,
+                                "detail": f"象寄登录失败: {error_msg}",
+                                "code": "LOGIN_FAILED"
+                            }
+                        )
+
+                    token = result.get("data", {}).get("token")
+                    if not token:
+                        raise HTTPException(
+                            status_code=500,
+                            detail={
+                                "type": "about:blank",
+                                "title": "Token Not Found",
+                                "status": 500,
+                                "detail": "登录成功但未返回token",
+                                "code": "TOKEN_NOT_FOUND"
+                            }
+                        )
+
+                    return {
+                        "ok": True,
+                        "data": {
+                            "token": token,
+                            "user_key": config.user_key,
+                            "aigc_key": config.aigc_key,
+                            "img_matting_key": config.img_matting_key
+                        }
+                    }
+
+            except httpx.TimeoutException:
+                raise HTTPException(
+                    status_code=504,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Timeout",
+                        "status": 504,
+                        "detail": "连接象寄服务超时",
+                        "code": "TIMEOUT"
+                    }
+                )
+            except httpx.RequestError as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Request Error",
+                        "status": 500,
+                        "detail": f"请求失败: {str(e)}",
+                        "code": "REQUEST_ERROR"
+                    }
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取抠图token失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "about:blank",
+                "title": "Internal Server Error",
+                "status": 500,
+                "detail": str(e),
+                "code": "INTERNAL_ERROR"
+            }
+        )
+
+
+class MattingSingleImageRequest(BaseModel):
+    """单张图片智能抠图请求"""
+    image_url: str = Field(..., description="图片URL")
+    bg_color: str = Field(default="255,255,255", description="背景颜色（RGB，逗号分隔）")
+    sync: int = Field(default=1, description="1=同步返回，2=异步返回")
+
+
+@router.post("/matting-single")
+async def matting_single_image(
+    request: MattingSingleImageRequest,
+    user: User = Depends(get_current_user)
+) -> dict:
+    """
+    单张图片智能抠图（直接调用象寄API）
+
+    直接调用象寄智能抠图API，返回抠图后的图片URL和requestId
+    """
+    try:
+        import hashlib
+        from urllib.parse import urlencode, quote
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            stmt = select(XiangjifanyiConfig).where(XiangjifanyiConfig.id == 1)
+            config = await session.scalar(stmt)
+
+            if not config:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Configuration Not Found",
+                        "status": 400,
+                        "detail": "请先配置象寄图片服务",
+                        "code": "CONFIG_NOT_FOUND"
+                    }
+                )
+
+            if not config.user_key or not config.img_matting_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Invalid Configuration",
+                        "status": 400,
+                        "detail": "请先配置用户密钥(user_key)和智能抠图密钥(img_matting_key)",
+                        "code": "INVALID_CONFIG"
+                    }
+                )
+
+            # 生成时间戳和签名
+            timestamp = str(int(datetime.now(timezone.utc).timestamp()))
+            sign_str = f"{timestamp}_{config.user_key}_{config.img_matting_key}"
+            sign = hashlib.md5(sign_str.encode()).hexdigest()
+
+            # 构建请求URL（Query参数）
+            # 注意：Url参数需要进行urlencode
+            params = {
+                "Action": "GetImageMatting",
+                "ImgMattingKey": config.img_matting_key,
+                "CommitTime": timestamp,
+                "Url": request.image_url,  # urlencode会自动处理
+                "Sign": sign,
+                "Sync": str(request.sync),
+                "BgColor": request.bg_color
+            }
+
+            api_url = f"https://api.tosoiot.com/?{urlencode(params)}"
+
+            logger.info(f"调用象寄智能抠图API: {api_url}")
+
+            # 调用象寄抠图API
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:  # 抠图可能较慢，超时30秒
+                    response = await client.post(api_url)
+                    response.raise_for_status()
+                    result = response.json()
+
+                    logger.info(f"象寄抠图API响应: {result}")
+
+                    # 检查返回的code是否为0（成功）
+                    code = result.get("code")
+                    if code != 0 and code != "0":
+                        error_msg = result.get("msg", "抠图失败")
+                        raise HTTPException(
+                            status_code=400,
+                            detail={
+                                "type": "about:blank",
+                                "title": "Matting Failed",
+                                "status": 400,
+                                "detail": f"象寄抠图失败: {error_msg}",
+                                "code": "MATTING_FAILED"
+                            }
+                        )
+
+                    # 提取抠图后的URL和requestId
+                    data = result.get("data", {})
+                    matted_url = data.get("url")
+                    request_id = data.get("requestId")
+
+                    if not matted_url:
+                        raise HTTPException(
+                            status_code=500,
+                            detail={
+                                "type": "about:blank",
+                                "title": "No Result URL",
+                                "status": 500,
+                                "detail": "抠图成功但未返回图片URL",
+                                "code": "NO_RESULT_URL"
+                            }
+                        )
+
+                    return {
+                        "ok": True,
+                        "data": {
+                            "url": matted_url,
+                            "request_id": request_id,
+                            "original_url": request.image_url
+                        }
+                    }
+
+            except httpx.TimeoutException:
+                raise HTTPException(
+                    status_code=504,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Timeout",
+                        "status": 504,
+                        "detail": "连接象寄服务超时（抠图处理时间较长）",
+                        "code": "TIMEOUT"
+                    }
+                )
+            except httpx.RequestError as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Request Error",
+                        "status": 500,
+                        "detail": f"请求失败: {str(e)}",
+                        "code": "REQUEST_ERROR"
+                    }
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"智能抠图失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "about:blank",
+                "title": "Internal Server Error",
+                "status": 500,
+                "detail": str(e),
+                "code": "INTERNAL_ERROR"
+            }
+        )
+
+
+class MattingSignRequest(BaseModel):
+    """抠图签名请求"""
+    timestamp: int = Field(..., description="秒级时间戳")
+
+
+@router.post("/matting-sign")
+async def generate_matting_sign(
+    request: MattingSignRequest,
+    user: User = Depends(get_current_user)
+) -> dict:
+    """生成智能抠图签名"""
+    try:
+        import hashlib
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as session:
+            stmt = select(XiangjifanyiConfig).where(XiangjifanyiConfig.id == 1)
+            config = await session.scalar(stmt)
+
+            if not config:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Configuration Not Found",
+                        "status": 400,
+                        "detail": "请先配置象寄图片服务",
+                        "code": "CONFIG_NOT_FOUND"
+                    }
+                )
+
+            if not config.user_key or not config.img_matting_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "type": "about:blank",
+                        "title": "Invalid Configuration",
+                        "status": 400,
+                        "detail": "请先配置用户密钥(user_key)和智能抠图密钥(img_matting_key)",
+                        "code": "INVALID_CONFIG"
+                    }
+                )
+
+            # 生成签名: md5(CommitTime_userKey_imgMattingKey)
+            sign_str = f"{request.timestamp}_{config.user_key}_{config.img_matting_key}"
+            sign = hashlib.md5(sign_str.encode()).hexdigest()
+
+            return {
+                "ok": True,
+                "data": {
+                    "sign": sign,
+                    "timestamp": request.timestamp
+                }
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"生成抠图签名失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "type": "about:blank",
+                "title": "Internal Server Error",
+                "status": 500,
+                "detail": str(e),
+                "code": "INTERNAL_ERROR"
+            }
+        )
