@@ -14,7 +14,7 @@ import {
   MinusCircleOutlined,
 } from '@ant-design/icons';
 import md5 from 'md5';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import {
   Form,
   Input,
@@ -30,9 +30,11 @@ import {
   Switch,
   Select,
   Spin,
+  List,
+  Tag,
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import styles from './ProductCreate.module.scss';
@@ -44,6 +46,9 @@ import type { CategoryAttribute } from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import { VariantImageManagerModal } from '@/components/ozon/VariantImageManagerModal';
+import * as draftTemplateApi from '@/services/draftTemplateApi';
+import { useFormAutosave } from '@/hooks/useFormAutosave';
+import { loggers } from '@/utils/logger';
 
 // 类目选项接口
 interface CategoryOption {
@@ -126,6 +131,18 @@ const ProductCreate: React.FC = () => {
 
   // 字典值缓存（key: dictionary_id, value: 字典值列表）
   const [dictionaryValuesCache, setDictionaryValuesCache] = useState<Record<number, any[]>>({});
+
+  // 草稿/模板相关状态
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const [templateModalVisible, setTemplateModalVisible] = useState(false);
+  const [saveTemplateModalVisible, setSaveTemplateModalVisible] = useState(false);
+  const [templateNameInput, setTemplateNameInput] = useState('');
+  const [templateTagsInput, setTemplateTagsInput] = useState<string[]>([]);
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | undefined>(undefined);
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+  const [editingTemplateName, setEditingTemplateName] = useState('');
 
   // 创建商品
   const createProductMutation = useMutation({
@@ -239,6 +256,330 @@ const ProductCreate: React.FC = () => {
     }
   };
 
+  // ========== 草稿/模板相关函数 ==========
+
+  /**
+   * 序列化当前表单状态为 FormData
+   */
+  const serializeFormData = useCallback((): draftTemplateApi.FormData => {
+    const values = form.getFieldsValue();
+
+    return {
+      shop_id: selectedShop ?? undefined,
+      category_id: selectedCategory ?? undefined,
+      title: values.title,
+      description: values.description,
+      offer_id: values.offer_id,
+      price: values.price,
+      old_price: values.old_price,
+      width: values.width,
+      height: values.height,
+      depth: values.depth,
+      weight: values.weight,
+      dimension_unit: 'mm',
+      weight_unit: 'g',
+      barcode: values.barcode,
+      attributes: Object.keys(values)
+        .filter((k) => k.startsWith('attr_'))
+        .reduce((acc, k) => ({ ...acc, [k]: values[k] }), {}),
+      images: mainProductImages,
+      variantDimensions,
+      variants,
+      hiddenFields: Array.from(hiddenFields),
+      variantSectionExpanded,
+      variantTableCollapsed,
+      optionalFieldsExpanded,
+    };
+  }, [
+    form,
+    selectedShop,
+    selectedCategory,
+    mainProductImages,
+    variantDimensions,
+    variants,
+    hiddenFields,
+    variantSectionExpanded,
+    variantTableCollapsed,
+    optionalFieldsExpanded,
+  ]);
+
+  /**
+   * 反序列化 FormData 到表单状态
+   */
+  const deserializeFormData = useCallback((data: draftTemplateApi.FormData) => {
+    // 恢复店铺和类目
+    if (data.shop_id) setSelectedShop(data.shop_id);
+    if (data.category_id) setSelectedCategory(data.category_id);
+
+    // 恢复表单字段
+    form.setFieldsValue({
+      title: data.title,
+      description: data.description,
+      offer_id: data.offer_id,
+      price: data.price,
+      old_price: data.old_price,
+      width: data.width,
+      height: data.height,
+      depth: data.depth,
+      weight: data.weight,
+      barcode: data.barcode,
+      ...data.attributes,
+    });
+
+    // 恢复图片
+    if (data.images) setMainProductImages(data.images);
+
+    // 恢复变体
+    if (data.variantDimensions) setVariantDimensions(data.variantDimensions);
+    if (data.variants) setVariants(data.variants);
+    if (data.hiddenFields) setHiddenFields(new Set(data.hiddenFields));
+
+    // 恢复 UI 状态
+    if (data.variantSectionExpanded !== undefined)
+      setVariantSectionExpanded(data.variantSectionExpanded);
+    if (data.variantTableCollapsed !== undefined)
+      setVariantTableCollapsed(data.variantTableCollapsed);
+    if (data.optionalFieldsExpanded !== undefined)
+      setOptionalFieldsExpanded(data.optionalFieldsExpanded);
+  }, [form]);
+
+  /**
+   * 加载最新草稿（页面初始化时）
+   */
+  useQuery({
+    queryKey: ['latest-draft'],
+    queryFn: draftTemplateApi.getLatestDraft,
+    enabled: !draftLoaded,
+    onSuccess: (draft) => {
+      if (draft) {
+        Modal.confirm({
+          title: '发现未保存的草稿',
+          content: `上次编辑时间：${new Date(draft.updated_at).toLocaleString()}。是否恢复？`,
+          onOk: () => {
+            deserializeFormData(draft.form_data);
+            notifySuccess('已恢复草稿', '草稿已成功恢复');
+            loggers.product.info('已恢复草稿', { draft_id: draft.id });
+          },
+          onCancel: () => {
+            loggers.product.info('用户拒绝恢复草稿');
+          },
+        });
+      }
+      setDraftLoaded(true);
+    },
+    onError: (error: Error) => {
+      loggers.product.error('加载草稿失败', error);
+      setDraftLoaded(true);
+    },
+  });
+
+  /**
+   * 自动保存草稿
+   */
+  const { saveNow, hasUnsavedChanges, saveStatus, lastSavedAt } = useFormAutosave({
+    formData: serializeFormData(),
+    onSave: async (data) => {
+      await draftTemplateApi.saveDraft({
+        shop_id: data.shop_id,
+        category_id: data.category_id,
+        form_data: data,
+      });
+    },
+    debounceDelay: 1000,
+    autoSaveInterval: 60000,
+    enabled: autosaveEnabled && draftLoaded,
+  });
+
+  /**
+   * 手动保存草稿
+   */
+  const handleManualSaveDraft = async () => {
+    try {
+      await saveNow();
+      notifySuccess('已保存草稿', '草稿已成功保存');
+    } catch (error) {
+      notifyError('保存失败', '保存草稿失败，请重试');
+    }
+  };
+
+  /**
+   * 打开"保存为模板"弹窗
+   */
+  const handleOpenSaveTemplateModal = () => {
+    setTemplateNameInput('');
+    setTemplateTagsInput([]);
+    setSaveTemplateModalVisible(true);
+  };
+
+  /**
+   * 保存为模板
+   */
+  const saveTemplateMutation = useMutation({
+    mutationFn: async (params: { name: string; tags: string[] }) => {
+      const formData = serializeFormData();
+      return await draftTemplateApi.createTemplate({
+        template_name: params.name,
+        shop_id: formData.shop_id,
+        category_id: formData.category_id,
+        form_data: formData,
+        tags: params.tags.length > 0 ? params.tags : undefined,
+      });
+    },
+    onSuccess: () => {
+      notifySuccess('已保存模板', '模板已成功保存');
+      setSaveTemplateModalVisible(false);
+      setTemplateNameInput('');
+      setTemplateTagsInput([]);
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: (error: Error) => {
+      notifyError('保存失败', `保存模板失败: ${error.message}`);
+    },
+  });
+
+  const handleSaveTemplate = () => {
+    if (!templateNameInput.trim()) {
+      notifyWarning('请输入模板名称', '模板名称不能为空');
+      return;
+    }
+    saveTemplateMutation.mutate({ name: templateNameInput.trim(), tags: templateTagsInput });
+  };
+
+  /**
+   * 获取模板列表
+   */
+  const { data: templates = [] } = useQuery({
+    queryKey: ['templates', selectedShop, selectedCategory, selectedTagFilter],
+    queryFn: () =>
+      draftTemplateApi.getTemplates({
+        shop_id: selectedShop ?? undefined,
+        category_id: selectedCategory ?? undefined,
+        tag: selectedTagFilter,
+      }),
+    enabled: templateModalVisible,
+  });
+
+  /**
+   * 从模板列表中提取所有唯一标签
+   */
+  const availableTags = useMemo(() => {
+    const tagsSet = new Set<string>();
+    templates.forEach((t) => {
+      if (t.tags) {
+        t.tags.forEach((tag) => tagsSet.add(tag));
+      }
+    });
+    return Array.from(tagsSet).sort();
+  }, [templates]);
+
+  /**
+   * 应用模板
+   */
+  const applyTemplateMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      return await draftTemplateApi.getTemplate(templateId);
+    },
+    onSuccess: (template) => {
+      Modal.confirm({
+        title: '确认引用模板',
+        content: `即将使用模板"${template.template_name}"覆盖当前表单，是否继续？`,
+        onOk: () => {
+          deserializeFormData(template.form_data);
+          notifySuccess('已应用模板', `模板"${template.template_name}"已成功应用`);
+          setTemplateModalVisible(false);
+        },
+      });
+    },
+    onError: (error: Error) => {
+      notifyError('加载失败', `加载模板失败: ${error.message}`);
+    },
+  });
+
+  /**
+   * 删除模板
+   */
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      return await draftTemplateApi.deleteTemplate(templateId);
+    },
+    onSuccess: () => {
+      notifySuccess('已删除模板', '模板已成功删除');
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: (error: Error) => {
+      notifyError('删除失败', `删除模板失败: ${error.message}`);
+    },
+  });
+
+  /**
+   * 重命名模板
+   */
+  const renameTemplateMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      return await draftTemplateApi.updateTemplate(id, { template_name: name });
+    },
+    onSuccess: () => {
+      notifySuccess('已重命名', '模板已成功重命名');
+      setEditingTemplateId(null);
+      setEditingTemplateName('');
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: (error: Error) => {
+      notifyError('重命名失败', `重命名模板失败: ${error.message}`);
+    },
+  });
+
+  /**
+   * 处理模板删除
+   */
+  const handleDeleteTemplate = (templateId: number, templateName: string) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除模板"${templateName}"吗？此操作不可恢复。`,
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => {
+        deleteTemplateMutation.mutate(templateId);
+      },
+    });
+  };
+
+  /**
+   * 开始编辑模板名称
+   */
+  const handleStartEditTemplate = (templateId: number, currentName: string) => {
+    setEditingTemplateId(templateId);
+    setEditingTemplateName(currentName);
+  };
+
+  /**
+   * 保存模板重命名
+   */
+  const handleSaveRename = () => {
+    if (!editingTemplateId || !editingTemplateName.trim()) {
+      notifyWarning('请输入模板名称', '模板名称不能为空');
+      return;
+    }
+    renameTemplateMutation.mutate({
+      id: editingTemplateId,
+      name: editingTemplateName.trim(),
+    });
+  };
+
+  /**
+   * 过滤后的模板列表
+   */
+  const filteredTemplates = useMemo(() => {
+    if (!templateSearchQuery.trim()) {
+      return templates;
+    }
+    const query = templateSearchQuery.toLowerCase();
+    return templates.filter((t) =>
+      t.template_name.toLowerCase().includes(query)
+    );
+  }, [templates, templateSearchQuery]);
+
   // 类目选择变化时加载属性
   useEffect(() => {
     if (selectedCategory && selectedShop) {
@@ -266,10 +607,10 @@ const ProductCreate: React.FC = () => {
             folder: 'products',
           });
 
-          if (result.success) {
+          if (result && result.success) {
             resolve(result.url);
           } else {
-            reject(new Error(result.error || '上传失败'));
+            reject(new Error(result?.error || '上传失败'));
           }
         } catch (error) {
           reject(error);
@@ -998,7 +1339,37 @@ const ProductCreate: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <PageTitle icon={<PlusOutlined />} title="新建商品" />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <PageTitle icon={<PlusOutlined />} title="新建商品" />
+
+        {/* 保存状态指示器 */}
+        {autosaveEnabled && draftLoaded && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+            {saveStatus === 'saving' && (
+              <>
+                <Spin size="small" />
+                <span style={{ color: '#1890ff' }}>保存中...</span>
+              </>
+            )}
+            {saveStatus === 'saved' && (
+              <>
+                <span style={{ color: '#52c41a' }}>✓ 已保存</span>
+                {lastSavedAt && (
+                  <span style={{ color: '#999', fontSize: 12 }}>
+                    {lastSavedAt.toLocaleTimeString()}
+                  </span>
+                )}
+              </>
+            )}
+            {saveStatus === 'error' && (
+              <span style={{ color: '#ff4d4f' }}>✗ 保存失败</span>
+            )}
+            {saveStatus === 'idle' && hasUnsavedChanges && (
+              <span style={{ color: '#faad14' }}>● 有未保存的更改</span>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className={styles.formCard}>
         <Form
@@ -1499,9 +1870,18 @@ const ProductCreate: React.FC = () => {
       <div className={styles.actionBar}>
         <div className={styles.leftActions}>
           <Button onClick={() => form.resetFields()}>重置</Button>
+          <Button onClick={() => setTemplateModalVisible(true)}>引用模板</Button>
         </div>
         <div className={styles.rightActions}>
-          <Button size="large">保存草稿</Button>
+          {hasUnsavedChanges && (
+            <span style={{ color: '#faad14', marginRight: 8 }}>有未保存的更改</span>
+          )}
+          <Button size="large" onClick={handleManualSaveDraft}>
+            保存草稿
+          </Button>
+          <Button size="large" onClick={handleOpenSaveTemplateModal}>
+            保存为模板
+          </Button>
           <Button
             type="primary"
             size="large"
@@ -1527,6 +1907,179 @@ const ProductCreate: React.FC = () => {
           onCancel={handleCancelImageModal}
         />
       )}
+
+      {/* 保存模板弹窗 */}
+      <Modal
+        title="保存为模板"
+        open={saveTemplateModalVisible}
+        onOk={handleSaveTemplate}
+        onCancel={() => setSaveTemplateModalVisible(false)}
+        confirmLoading={saveTemplateMutation.isPending}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Input
+            placeholder="请输入模板名称"
+            value={templateNameInput}
+            onChange={(e) => setTemplateNameInput(e.target.value)}
+            maxLength={200}
+            showCount
+            onPressEnter={handleSaveTemplate}
+          />
+          <Select
+            mode="tags"
+            style={{ width: '100%' }}
+            placeholder="添加标签（可选，最多10个）"
+            value={templateTagsInput}
+            onChange={(tags) => setTemplateTagsInput(tags.slice(0, 10))}
+            maxCount={10}
+            tokenSeparators={[',']}
+          />
+        </Space>
+      </Modal>
+
+      {/* 引用模板弹窗 */}
+      <Modal
+        title="选择模板"
+        open={templateModalVisible}
+        onCancel={() => {
+          setTemplateModalVisible(false);
+          setTemplateSearchQuery('');
+          setSelectedTagFilter(undefined);
+          setEditingTemplateId(null);
+          setEditingTemplateName('');
+        }}
+        footer={null}
+        width={700}
+      >
+        {/* 筛选区域 */}
+        <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+          <Input
+            placeholder="搜索模板名称..."
+            value={templateSearchQuery}
+            onChange={(e) => setTemplateSearchQuery(e.target.value)}
+            allowClear
+          />
+          <Select
+            style={{ width: '100%' }}
+            placeholder="按标签筛选（可选）"
+            value={selectedTagFilter}
+            onChange={setSelectedTagFilter}
+            allowClear
+            options={availableTags.map((tag) => ({ label: tag, value: tag }))}
+          />
+        </Space>
+
+        {filteredTemplates.length > 0 ? (
+          <List
+            dataSource={filteredTemplates}
+            renderItem={(template) => (
+              <List.Item
+                actions={[
+                  editingTemplateId === template.id ? (
+                    <Space key="edit">
+                      <Input
+                        value={editingTemplateName}
+                        onChange={(e) => setEditingTemplateName(e.target.value)}
+                        onPressEnter={handleSaveRename}
+                        style={{ width: 150 }}
+                        autoFocus
+                      />
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={handleSaveRename}
+                        loading={renameTemplateMutation.isPending}
+                      >
+                        保存
+                      </Button>
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => {
+                          setEditingTemplateId(null);
+                          setEditingTemplateName('');
+                        }}
+                      >
+                        取消
+                      </Button>
+                    </Space>
+                  ) : (
+                    <Space key="actions">
+                      <Button
+                        type="link"
+                        onClick={() => applyTemplateMutation.mutate(template.id)}
+                        loading={applyTemplateMutation.isPending}
+                      >
+                        应用
+                      </Button>
+                      <Button
+                        type="link"
+                        icon={<EditOutlined />}
+                        onClick={() =>
+                          handleStartEditTemplate(template.id, template.template_name)
+                        }
+                      >
+                        重命名
+                      </Button>
+                      <Button
+                        type="link"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() =>
+                          handleDeleteTemplate(template.id, template.template_name)
+                        }
+                        loading={deleteTemplateMutation.isPending}
+                      >
+                        删除
+                      </Button>
+                    </Space>
+                  ),
+                ]}
+              >
+                {editingTemplateId === template.id ? (
+                  <List.Item.Meta description="编辑中..." />
+                ) : (
+                  <List.Item.Meta
+                    title={template.template_name}
+                    description={
+                      <Space direction="vertical" size={4}>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                          {`更新: ${new Date(template.updated_at).toLocaleString()}`}
+                          {template.used_count > 0 && (
+                            <>
+                              {' | '}
+                              使用次数: {template.used_count}
+                            </>
+                          )}
+                          {template.last_used_at && (
+                            <>
+                              {' | '}
+                              最后使用: {new Date(template.last_used_at).toLocaleString()}
+                            </>
+                          )}
+                        </div>
+                        {template.tags && template.tags.length > 0 && (
+                          <div>
+                            {template.tags.map((tag) => (
+                              <Tag key={tag} color="blue" style={{ marginRight: 4 }}>
+                                {tag}
+                              </Tag>
+                            ))}
+                          </div>
+                        )}
+                      </Space>
+                    }
+                  />
+                )}
+              </List.Item>
+            )}
+          />
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+            {templateSearchQuery ? '未找到匹配的模板' : '暂无模板'}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

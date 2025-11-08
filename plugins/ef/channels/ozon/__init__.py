@@ -674,6 +674,37 @@ async def setup(hooks) -> None:
         import traceback
         traceback.print_exc()
 
+    # 注册草稿清理定时任务
+    try:
+        async def cleanup_drafts_task(**kwargs):
+            """清理过期草稿定时任务（30天未更新）"""
+            from ef_core.database import get_db_manager
+            from .services.draft_template_service import DraftTemplateService
+
+            logger.info("Starting draft cleanup task")
+            try:
+                db_manager = get_db_manager()
+                async with db_manager.get_session() as db:
+                    deleted_count = await DraftTemplateService.cleanup_old_drafts(db, days=30)
+                    logger.info(f"Draft cleanup completed: deleted {deleted_count} old drafts")
+                    return {"success": True, "deleted_count": deleted_count}
+            except Exception as e:
+                logger.error(f"Draft cleanup failed: {e}", exc_info=True)
+                return {"success": False, "error": str(e)}
+
+        # 注册草稿清理任务（每天凌晨2点执行）
+        await hooks.register_cron(
+            name="ef.ozon.drafts.cleanup",
+            cron="0 2 * * *",
+            task=cleanup_drafts_task
+        )
+
+        logger.info("✓ Registered draft cleanup task successfully")
+    except Exception as e:
+        logger.warning(f"Warning: Failed to register draft cleanup task: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 配置信息已在上面打印
 
 

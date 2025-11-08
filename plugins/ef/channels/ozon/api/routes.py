@@ -166,5 +166,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import commission routes: {e}")
 
+try:
+    from .draft_template_routes import router as draft_template_router
+    router.include_router(draft_template_router)
+    logger.info("✓ Loaded draft_template_routes")
+except ImportError as e:
+    logger.warning(f"Could not import draft template routes: {e}")
+
 
 logger.info("Ozon API routes initialized successfully")
