@@ -1339,12 +1339,35 @@ const ProductCreate: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <PageTitle icon={<PlusOutlined />} title="新建商品" />
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '16px'
+      }}>
+        <h2 style={{
+          margin: 0,
+          padding: '0 2px',
+          fontSize: 24,
+          fontWeight: 600,
+          color: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8
+        }}>
+          <PlusOutlined />
+          新建商品
+        </h2>
 
         {/* 保存状态指示器 */}
         {autosaveEnabled && draftLoaded && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 14,
+            lineHeight: '24px'
+          }}>
             {saveStatus === 'saving' && (
               <>
                 <Spin size="small" />
