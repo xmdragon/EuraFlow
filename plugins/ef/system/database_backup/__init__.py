@@ -55,18 +55,45 @@ async def setup(hooks) -> None:
 
     logger.info("✓ Registered database backup sync service handler")
     logger.info(f"  - Service: database_backup")
-    logger.info(f"  - Recommended schedule: cron='0 17,5 * * *' (UTC) = 01:00,13:00 (Beijing)")
+    logger.info(f"  - Recommended schedule: cron='0 5,17 * * *' (UTC) = 13:00,01:00 (Beijing)")
 
-    # 注册 Celery Beat 定时任务（每天北京时间 01:00 和 13:00 执行备份）
+    # 注册 Celery Beat 定时任务（使用数据库配置）
     async def database_backup_task(**kwargs):
         """Celery Beat 定时任务：数据库备份"""
         return await backup_service.backup_database({})
 
-    await hooks.register_cron(
-        name="ef.system.database_backup",
-        cron="0 17,5 * * *",  # UTC 17:00 和 05:00 = 北京时间 01:00 和 13:00
-        task=database_backup_task
-    )
+    try:
+        from ef_core.database import get_db_manager
+        from plugins.ef.system.sync_service.models.sync_service import SyncService
+        from sqlalchemy import select
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
+            # 从数据库读取配置
+            result = await db.execute(
+                select(SyncService).where(SyncService.service_key == "database_backup")
+            )
+            service = result.scalar_one_or_none()
+
+            if service and service.is_enabled:
+                cron = service.schedule_config
+                logger.info(f"Using database backup schedule from database: '{cron}'")
+            else:
+                cron = "0 5,17 * * *"  # 默认值
+                logger.info(f"Using default database backup schedule: '{cron}'")
+
+            await hooks.register_cron(
+                name="ef.system.database_backup",
+                cron=cron,
+                task=database_backup_task
+            )
+    except Exception as e:
+        logger.warning(f"Failed to load database backup schedule: {e}, using default")
+        await hooks.register_cron(
+            name="ef.system.database_backup",
+            cron="0 5,17 * * *",
+            task=database_backup_task
+        )
 
     logger.info("✓ Registered Celery Beat task: ef.system.database_backup")
     logger.info(f"  - Schedule: 0 17,5 * * * (UTC) = 01:00,13:00 (Beijing)")

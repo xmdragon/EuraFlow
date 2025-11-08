@@ -10,6 +10,45 @@ logger = logging.getLogger(__name__)
 __version__ = "1.0.0"
 
 
+async def _get_task_schedule(db_session, service_key: str, default_cron: str) -> tuple[str | None, bool]:
+    """从数据库获取任务调度配置"""
+    try:
+        from plugins.ef.system.sync_service.models.sync_service import SyncService
+        from sqlalchemy import select
+
+        result = await db_session.execute(
+            select(SyncService).where(SyncService.service_key == service_key)
+        )
+        service = result.scalar_one_or_none()
+
+        if not service:
+            logger.info(f"Task {service_key} not found in sync_services, using default: {default_cron}")
+            return default_cron, True
+
+        if not service.is_enabled:
+            logger.info(f"Task {service_key} is disabled in database, skipping registration")
+            return None, False
+
+        # 转换interval类型为cron表达式
+        if service.service_type == "interval":
+            interval_seconds = int(service.schedule_config)
+            interval_minutes = interval_seconds // 60
+            if interval_minutes < 60:
+                cron = f"*/{interval_minutes} * * * *"
+            else:
+                interval_hours = interval_minutes // 60
+                cron = f"0 */{interval_hours} * * *"
+            logger.info(f"Task {service_key}: converted interval {interval_seconds}s to cron '{cron}'")
+            return cron, True
+        else:
+            logger.info(f"Task {service_key}: using cron from database '{service.schedule_config}'")
+            return service.schedule_config, True
+
+    except Exception as e:
+        logger.warning(f"Failed to load schedule for {service_key} from database: {e}, using default")
+        return default_cron, True
+
+
 async def setup(hooks: Any) -> None:
     """
     插件初始化函数
@@ -17,13 +56,28 @@ async def setup(hooks: Any) -> None:
     Args:
         hooks: 插件Hook API接口
     """
-    # 插件启动时的初始化逻辑
     logger.info(f"Finance Calc Plugin v{__version__} initialized")
 
-    # 注册定时任务：定期更新费率缓存
-    await hooks.register_cron(
-        name="ef.finance.rates.refresh", cron="0 */6 * * *", task=refresh_rates_cache  # 每6小时刷新
-    )
+    # 注册定时任务：定期更新费率缓存（使用数据库配置）
+    try:
+        from ef_core.database import get_db_manager
+
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
+            cron, enabled = await _get_task_schedule(db, "exchange_rate_refresh", "0 */6 * * *")
+            if enabled and cron:
+                await hooks.register_cron(
+                    name="ef.finance.rates.refresh",
+                    cron=cron,
+                    task=refresh_rates_cache
+                )
+    except Exception as e:
+        logger.warning(f"Failed to register rates refresh task: {e}, using default")
+        await hooks.register_cron(
+            name="ef.finance.rates.refresh",
+            cron="0 */6 * * *",
+            task=refresh_rates_cache
+        )
 
 
 async def refresh_rates_cache(**kwargs) -> None:
