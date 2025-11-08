@@ -1777,3 +1777,71 @@ async def upload_refined_images(
     except Exception as e:
         logger.error(f"Failed to upload refined images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/upload-base64-image", summary="上传Base64编码的图片到图床")
+async def upload_base64_image(
+    request_body: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
+    """
+    上传Base64编码的图片到当前激活的图床
+
+    Args:
+        request_body: {
+            "shop_id": int,
+            "image_base64": str  # data:image/jpeg;base64,/9j/4AAQ... 或纯Base64
+        }
+
+    Returns:
+        {
+            "success": true,
+            "url": str  # 图床URL
+        }
+    """
+    try:
+        shop_id = request_body.get("shop_id")
+        image_base64 = request_body.get("image_base64")
+
+        if not shop_id:
+            raise HTTPException(status_code=400, detail="shop_id is required")
+
+        if not image_base64:
+            raise HTTPException(status_code=400, detail="image_base64 is required")
+
+        logger.info(f"开始上传Base64图片到图床，shop_id={shop_id}")
+
+        # 获取当前激活的图床服务
+        try:
+            service = await ImageStorageFactory.create_from_db(db)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # 生成唯一的public_id
+        import time
+        import random
+        public_id = f"resized_{int(time.time())}_{random.randint(1000, 9999)}"
+
+        # 上传Base64图片到图床
+        result = await service.upload_base64_image(
+            base64_data=image_base64,
+            public_id=public_id,
+            folder="products"
+        )
+
+        if result.get("success"):
+            logger.info(f"成功上传Base64图片: {public_id} -> {result.get('url')}")
+            return {
+                "success": True,
+                "url": result.get("url")
+            }
+        else:
+            logger.error(f"上传Base64图片失败: {result.get('error')}")
+            raise HTTPException(status_code=500, detail=result.get("error", "Upload failed"))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to upload base64 image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

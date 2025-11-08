@@ -586,3 +586,64 @@ export async function uploadRefinedImages(
   );
   return response.data;
 }
+
+/**
+ * 上传Base64编码的图片到图床
+ */
+export async function uploadBase64Image(
+  shopId: number,
+  imageBase64: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  // 添加最外层的异常捕获，确保永远返回有效对象
+  try {
+    // 验证输入参数
+    if (!shopId || !imageBase64) {
+      return {
+        success: false,
+        error: '参数错误：shopId 或 imageBase64 为空',
+      };
+    }
+
+    try {
+      const response = await axios.post<{ success: boolean; url: string; error?: string }>(
+        '/api/ef/v1/ozon/watermark/upload-base64-image',
+        {
+          shop_id: shopId,
+          image_base64: imageBase64,
+        }
+      );
+
+      // 确保返回值存在且格式正确
+      if (!response || !response.data) {
+        return {
+          success: false,
+          error: '服务器响应异常',
+        };
+      }
+
+      // 确保返回的data包含必要字段
+      const data = response.data;
+      if (typeof data.success === 'undefined') {
+        return {
+          success: false,
+          error: '服务器返回格式异常',
+        };
+      }
+
+      return data;
+    } catch (axiosError: any) {
+      // 捕获axios异常
+      const errorMessage = axiosError?.response?.data?.detail || axiosError?.message || '网络错误';
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  } catch (outerError: any) {
+    // 最外层异常捕获 - 确保永远返回有效对象
+    return {
+      success: false,
+      error: outerError?.message || '未知错误',
+    };
+  }
+}

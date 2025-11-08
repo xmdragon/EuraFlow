@@ -204,7 +204,7 @@ const WatermarkManagement: React.FC = () => {
       key: 'preview',
       width: 80,
       render: (url: string) => (
-        <Image src={url} alt="水印" width={50} height={50} className={styles.previewImage} />
+        <Image src={url} alt="水印" width={50} height={50} className={styles.previewImage} preview={false} />
       ),
     },
     {
@@ -541,6 +541,7 @@ const WatermarkManagement: React.FC = () => {
                   src={selectedWatermark.image_url}
                   alt="水印预览"
                   className={styles.previewImageLarge}
+                  preview={false}
                 />
               </div>
               <Divider />

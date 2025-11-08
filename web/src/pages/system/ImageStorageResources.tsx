@@ -3,7 +3,7 @@
  * 独立于水印管理，提供图床资源的浏览、删除等功能
  */
 import { CloudOutlined, DeleteOutlined, ReloadOutlined, DatabaseOutlined, FileOutlined } from '@ant-design/icons';
-import { App, Button, Space, Spin, Collapse, Tag, Card, Row, Col, Statistic } from 'antd';
+import { App, Button, Space, Spin, Collapse, Tag, Card, Row, Col, Statistic, Image } from 'antd';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -300,10 +300,14 @@ const ImageStorageResources: React.FC = () => {
                         >
                           <div className={styles.resourceThumbnail}>
                             {isImage && (
-                              <img
+                              <Image
                                 src={generateThumbnailUrl(resource.url)}
                                 alt={resource.public_id}
                                 className={styles.thumbnailImage}
+                                preview={{
+                                  src: resource.url  // 预览时显示原始大图
+                                }}
+                                style={{ cursor: 'pointer' }}
                               />
                             )}
                           </div>

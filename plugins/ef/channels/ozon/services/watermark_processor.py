@@ -344,8 +344,8 @@ class WatermarkProcessor:
         transformation = [{
             "overlay": config.cloudinary_public_id.replace("/", ":"),  # 使用已上传的水印图片
             "opacity": int(float(config.opacity) * 100),  # 转换为0-100的整数
-            "width": float(config.scale_ratio),  # 相对于主图的比例
-            "flags": "relative",  # 使用相对尺寸
+            "width": int(float(config.scale_ratio) * 100),  # 相对于主图的百分比（1-100）
+            "flags": "relative,layer_apply",  # 使用相对尺寸并应用到overlay层
             "gravity": self._map_position_to_gravity(position),
             "x": config.margin_pixels,
             "y": config.margin_pixels
@@ -433,11 +433,16 @@ class WatermarkProcessor:
             parsed = urlparse(watermark_url)
             watermark_object_key = parsed.path.lstrip('/')  # 移除开头的 /
 
-            # 将object key编码为Base64（阿里云OSS要求）
-            watermark_base64 = base64.b64encode(watermark_object_key.encode('utf-8')).decode('utf-8')
+            # 关键：先给水印图片添加resize参数，再整体Base64编码
+            # 例如：watermarks/logo.png?x-oss-process=image/resize,P_10
+            # P_10 表示水印宽度为主图宽度的10%，高度等比缩放
+            scale_percent = int(float(config.scale_ratio) * 100)  # 0.1 -> 10, 0.2 -> 20
+            watermark_with_resize = f"{watermark_object_key}?x-oss-process=image/resize,P_{scale_percent}"
 
-            # 构建水印参数
-            # 格式: image/watermark,image_{base64},t_{透明度},g_{位置},x_{x边距},y_{y边距},P_{缩放比例}/format,png
+            # URL-safe Base64编码（+ → -, / → _, 去掉尾部=）
+            watermark_base64 = base64.urlsafe_b64encode(watermark_with_resize.encode('utf-8')).decode('utf-8').rstrip('=')
+
+            # 构建水印参数（不再需要w或P参数，因为已经在水印图URL里了）
             params = [
                 "image/watermark",
                 f"image_{watermark_base64}",
@@ -445,17 +450,17 @@ class WatermarkProcessor:
                 f"g_{self._map_position_to_aliyun_gravity(position)}",  # 位置
                 f"x_{config.margin_pixels}",  # X边距
                 f"y_{config.margin_pixels}",  # Y边距
-                f"P_{int(float(config.scale_ratio) * 100)}"  # 缩放比例（相对于原图的百分比）
             ]
 
-            # 拼接参数，并添加format,png以保持PNG透明度
-            process_param = ",".join(params) + "/format,png"
+            # 拼接参数（不指定format，让阿里云自动处理）
+            process_param = ",".join(params)
 
             # 构建完整URL
             separator = "&" if "?" in base_url else "?"
             watermark_url_final = f"{base_url}{separator}x-oss-process={quote(process_param)}"
 
-            logger.info(f"Generated Aliyun OSS watermark URL with position {position}")
+            logger.info(f"Generated Aliyun OSS watermark URL with position {position}, scale P_{scale_percent}")
+            logger.info(f"Watermark resize param: {watermark_with_resize}")
             return watermark_url_final
 
         except Exception as e:
