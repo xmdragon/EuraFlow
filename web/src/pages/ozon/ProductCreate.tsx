@@ -1339,56 +1339,36 @@ const ProductCreate: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '16px'
-      }}>
-        <h2 style={{
-          margin: 0,
-          padding: '0 2px',
-          fontSize: 24,
-          fontWeight: 600,
-          color: 'rgba(0, 0, 0, 0.85)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8
-        }}>
+      <div className={styles.titleBar}>
+        <h2 className={styles.pageTitle}>
           <PlusOutlined />
           新建商品
         </h2>
 
         {/* 保存状态指示器 */}
         {autosaveEnabled && draftLoaded && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 14,
-            lineHeight: '24px'
-          }}>
+          <div className={styles.saveStatusIndicator}>
             {saveStatus === 'saving' && (
               <>
                 <Spin size="small" />
-                <span style={{ color: '#1890ff' }}>保存中...</span>
+                <span className={styles.statusSaving}>保存中...</span>
               </>
             )}
             {saveStatus === 'saved' && (
               <>
-                <span style={{ color: '#52c41a' }}>✓ 已保存</span>
+                <span className={styles.statusSaved}>✓ 已保存</span>
                 {lastSavedAt && (
-                  <span style={{ color: '#999', fontSize: 12 }}>
+                  <span className={styles.statusTime}>
                     {lastSavedAt.toLocaleTimeString()}
                   </span>
                 )}
               </>
             )}
             {saveStatus === 'error' && (
-              <span style={{ color: '#ff4d4f' }}>✗ 保存失败</span>
+              <span className={styles.statusError}>✗ 保存失败</span>
             )}
             {saveStatus === 'idle' && hasUnsavedChanges && (
-              <span style={{ color: '#faad14' }}>● 有未保存的更改</span>
+              <span className={styles.statusUnsaved}>● 有未保存的更改</span>
             )}
           </div>
         )}
@@ -1897,7 +1877,9 @@ const ProductCreate: React.FC = () => {
         </div>
         <div className={styles.rightActions}>
           {hasUnsavedChanges && (
-            <span style={{ color: '#faad14', marginRight: 8 }}>有未保存的更改</span>
+            <span className={styles.unsavedIndicator}>
+              有未保存的更改
+            </span>
           )}
           <Button size="large" onClick={handleManualSaveDraft}>
             保存草稿

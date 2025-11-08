@@ -6,6 +6,53 @@
   min-height: calc(100vh - 64px);
 }
 
+.titleBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.pageTitle {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 24px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saveStatusIndicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 24px;
+
+  .statusSaving {
+    color: #1890ff;
+  }
+
+  .statusSaved {
+    color: #52c41a;
+  }
+
+  .statusError {
+    color: #ff4d4f;
+  }
+
+  .statusUnsaved {
+    color: #faad14;
+  }
+
+  .statusTime {
+    color: #999;
+    font-size: 12px;
+  }
+}
+
 .header {
   margin-bottom: 24px;
 
@@ -325,6 +372,15 @@
   .rightActions {
     display: flex;
     gap: 12px;
+    align-items: center;
+  }
+
+  .unsavedIndicator {
+    color: #faad14;
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    line-height: 40px;
   }
 
   .primaryBtn {
