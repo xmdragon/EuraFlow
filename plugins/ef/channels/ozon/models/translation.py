@@ -31,6 +31,9 @@ class AliyunTranslationConfig(Base):
     enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false", comment="是否启用"
     )
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true", comment="是否为默认翻译引擎"
+    )
     last_test_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最后测试连接时间"
     )

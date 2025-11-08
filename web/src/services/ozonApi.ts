@@ -1296,6 +1296,7 @@ export const getPackingStats = async (params?: {
     allocated: number;
     tracking_confirmed: number;
     printed: number;
+    shipping: number;
   };
 }> => {
   const requestParams = { ...params };

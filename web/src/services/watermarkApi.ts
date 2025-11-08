@@ -23,10 +23,35 @@ export interface CloudinaryConfigResponse {
   watermark_images_folder: string;
   auto_cleanup_days: number;
   is_active: boolean;
+  is_default: boolean;
   last_test_at?: string;
   last_test_success?: boolean;
   storage_used_bytes?: number;
   bandwidth_used_bytes?: number;
+}
+
+export interface AliyunOssConfig {
+  access_key_id: string;
+  access_key_secret: string;
+  bucket_name: string;
+  endpoint: string;
+  region_id?: string;
+  product_images_folder?: string;
+  watermark_images_folder?: string;
+}
+
+export interface AliyunOssConfigResponse {
+  id: number;
+  access_key_id: string;
+  bucket_name: string;
+  endpoint: string;
+  region_id: string;
+  product_images_folder: string;
+  watermark_images_folder: string;
+  is_default: boolean;
+  enabled: boolean;
+  last_test_at?: string;
+  last_test_success?: boolean;
 }
 
 export interface WatermarkConfig {
@@ -34,7 +59,6 @@ export interface WatermarkConfig {
   name: string;
   image_url: string;
   cloudinary_public_id: string;
-  color_type: string;
   scale_ratio: number;
   opacity: number;
   margin_pixels: number;
@@ -126,12 +150,101 @@ export async function testCloudinaryConnection() {
   const response = await axios.post<{
     success: boolean;
     cloud_name?: string;
-    usage?: unknown;
+    usage?: {
+      storage_used_bytes?: number;
+      object_count?: number;
+      bandwidth_used_bytes?: number | null;
+      transformations_used?: number | null;
+      storage_limit_bytes?: number | null;
+      bandwidth_limit_bytes?: number | null;
+      transformations_limit?: number | null;
+    };
     limits?: unknown;
     quota_usage_percent?: number;
     error?: string;
     tested_at: string;
   }>(`/api/ef/v1/ozon/watermark/cloudinary/test`);
+  return response.data;
+}
+
+/**
+ * 设置 Cloudinary 为默认图床
+ */
+export async function setCloudinaryDefault() {
+  const response = await axios.put<{ success: boolean; message: string }>(
+    '/api/ef/v1/ozon/watermark/cloudinary/set-default'
+  );
+  return response.data;
+}
+
+// ============ 阿里云 OSS 配置管理 ============
+
+/**
+ * 创建或更新阿里云 OSS 配置
+ */
+export async function createAliyunOssConfig(config: AliyunOssConfig) {
+  const formData = new FormData();
+  formData.append('access_key_id', config.access_key_id);
+  formData.append('access_key_secret', config.access_key_secret);
+  formData.append('bucket_name', config.bucket_name);
+  formData.append('endpoint', config.endpoint);
+  formData.append('region_id', config.region_id || 'cn-shanghai');
+  formData.append('product_images_folder', config.product_images_folder || 'products');
+  formData.append('watermark_images_folder', config.watermark_images_folder || 'watermarks');
+
+  const response = await axios.post<AliyunOssConfigResponse>(
+    '/api/ef/v1/ozon/watermark/aliyun-oss/config',
+    formData
+  );
+  return response.data;
+}
+
+/**
+ * 获取阿里云 OSS 配置
+ */
+export async function getAliyunOssConfig() {
+  const response = await axios.get<AliyunOssConfigResponse>(
+    '/api/ef/v1/ozon/watermark/aliyun-oss/config'
+  );
+  return response.data;
+}
+
+/**
+ * 测试阿里云 OSS 连接
+ */
+export async function testAliyunOssConnection() {
+  const response = await axios.post<{
+    success: boolean;
+    bucket?: string;
+    region?: string;
+    storage_used_bytes?: number;
+    object_count?: number;
+    usage?: {
+      storage_used_bytes?: number;
+      object_count?: number;
+      bandwidth_used_bytes?: number | null;
+      transformations_used?: number | null;
+      storage_limit_bytes?: number | null;
+      bandwidth_limit_bytes?: number | null;
+      transformations_limit?: number | null;
+    };
+    error?: string;
+    tested_at: string;
+  }>('/api/ef/v1/ozon/watermark/aliyun-oss/test');
+  return response.data;
+}
+
+/**
+ * 设置阿里云 OSS 为默认图床
+ */
+export async function setAliyunOssDefault(enabled = true) {
+  const formData = new FormData();
+  formData.append('enabled', String(enabled));
+
+  const response = await axios.put<{ success: boolean; message: string }>(
+    '/api/ef/v1/ozon/watermark/aliyun-oss/set-default',
+    formData
+  );
   return response.data;
 }
 
@@ -144,7 +257,6 @@ export async function createWatermarkConfig(
   name: string,
   watermarkFile: File,
   options?: {
-    color_type?: string;
     scale_ratio?: number;
     opacity?: number;
     margin_pixels?: number;
@@ -164,7 +276,6 @@ export async function createWatermarkConfig(
   const formData = new FormData();
   formData.append('name', name);
   formData.append('watermark_file', watermarkFile);
-  formData.append('color_type', options?.color_type || 'white');
   formData.append('scale_ratio', (options?.scale_ratio || 0.1).toString());
   formData.append('opacity', (options?.opacity || 0.8).toString());
   formData.append('margin_pixels', (options?.margin_pixels || 20).toString());
@@ -192,7 +303,6 @@ export async function updateWatermarkConfig(
     opacity?: number;
     margin_pixels?: number;
     positions?: string[];
-    color_type?: string;
     is_active?: boolean;
   }
 ) {
@@ -201,7 +311,6 @@ export async function updateWatermarkConfig(
   formData.append('opacity', (options.opacity || 0.8).toString());
   formData.append('margin_pixels', (options.margin_pixels || 20).toString());
   formData.append('positions', JSON.stringify(options.positions || ['bottom_right']));
-  formData.append('color_type', options.color_type || 'white');
   formData.append('is_active', (options.is_active ?? true).toString());
 
   const response = await axios.put<WatermarkConfig>(
@@ -237,6 +346,28 @@ export async function previewWatermark(
     image_url: imageUrl,
     watermark_config_id: watermarkConfigId,
     position,
+  });
+  return response.data;
+}
+
+/**
+ * URL方式应用水印（使用transformation参数，不使用base64）
+ */
+export async function applyWatermarkToUrl(
+  imageUrl: string,
+  watermarkConfigId: number,
+  position: string,
+  shopId: number
+) {
+  const response = await axios.post<{
+    success: boolean;
+    url: string;
+    public_id: string;
+  }>('/api/ef/v1/ozon/watermark/apply', {
+    image_url: imageUrl,
+    watermark_config_id: watermarkConfigId,
+    position,
+    shop_id: shopId,
   });
   return response.data;
 }
@@ -412,5 +543,46 @@ export async function deleteCloudinaryResources(publicIds: string[]) {
       public_ids: publicIds,
     },
   });
+  return response.data;
+}
+
+// ============ 图片精修后上传 ============
+
+export interface RefinedImageUploadRequest {
+  xiangji_url: string;
+  request_id: string;
+}
+
+export interface RefinedImageUploadResult {
+  request_id: string;
+  xiangji_url: string;
+  storage_url: string | null;
+  success: boolean;
+  error?: string;
+}
+
+export interface RefinedImageUploadResponse {
+  success: boolean;
+  total: number;
+  success_count: number;
+  fail_count: number;
+  results: RefinedImageUploadResult[];
+}
+
+/**
+ * 上传精修后的图片到当前激活的图床
+ * 从象寄精修工具返回的URL异步上传到OSS/Cloudinary
+ */
+export async function uploadRefinedImages(
+  shopId: number,
+  images: RefinedImageUploadRequest[]
+): Promise<RefinedImageUploadResponse> {
+  const response = await axios.post<RefinedImageUploadResponse>(
+    '/api/ef/v1/ozon/watermark/upload-refined-images',
+    {
+      shop_id: shopId,
+      images,
+    }
+  );
   return response.data;
 }

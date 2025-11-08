@@ -42,20 +42,24 @@ class WatermarkConfig(Base):
 
     # 水印信息
     name: Mapped[str] = mapped_column(String(100), nullable=False, comment="水印名称")
-    cloudinary_public_id: Mapped[str] = mapped_column(Text, nullable=False, comment="Cloudinary中的public_id")
-    image_url: Mapped[str] = mapped_column(Text, nullable=False, comment="水印图片URL")
-    color_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="white", comment="水印颜色类型: white, blue, transparent"
+
+    # 图床关联
+    storage_provider: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="cloudinary", comment="图床类型：cloudinary/aliyun_oss"
     )
+    cloudinary_public_id: Mapped[str] = mapped_column(Text, nullable=False, comment="Cloudinary中的public_id")
+
+    image_url: Mapped[str] = mapped_column(Text, nullable=False, comment="水印图片URL")
+    # 移除color_type字段：水印默认使用透明PNG，不再需要颜色类型
 
     # 水印参数
     scale_ratio: Mapped[Decimal] = mapped_column(
-        Numeric(5, 3), default=Decimal("0.1"), nullable=False, comment="水印缩放比例"
+        Numeric(5, 3), default=Decimal("0.2"), nullable=False, comment="水印缩放比例"
     )
     opacity: Mapped[Decimal] = mapped_column(
         Numeric(3, 2), default=Decimal("0.8"), nullable=False, comment="水印透明度"
     )
-    margin_pixels: Mapped[int] = mapped_column(Integer, default=20, nullable=False, comment="水印边距(像素)")
+    margin_pixels: Mapped[int] = mapped_column(Integer, default=10, nullable=False, comment="水印边距(像素)")
 
     # 允许的位置
     positions: Mapped[Optional[List[str]]] = mapped_column(
@@ -116,6 +120,7 @@ class CloudinaryConfig(Base):
 
     # 状态
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, comment="是否激活")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="是否作为默认图床")
     last_test_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="最后测试连接时间"
     )
@@ -222,4 +227,64 @@ class WatermarkTask(Base):
     # 关系
     watermark_config: Mapped[Optional["WatermarkConfig"]] = relationship(
         "WatermarkConfig", back_populates="tasks"
+    )
+
+
+class AliyunOssConfig(Base):
+    """阿里云OSS配置模型（加密存储凭证）"""
+
+    __tablename__ = "aliyun_oss_configs"
+
+    # 主键（单例模式，只有一条记录）
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="配置ID（固定为1）")
+
+    # 阿里云凭证
+    access_key_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, comment="阿里云AccessKey ID"
+    )
+    access_key_secret_encrypted: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="加密的AccessKey Secret (TODO: 实现加密)"
+    )
+
+    # OSS配置
+    bucket_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, comment="OSS Bucket名称"
+    )
+    endpoint: Mapped[str] = mapped_column(
+        String(255), nullable=False, comment="OSS Endpoint地址"
+    )
+    region_id: Mapped[str] = mapped_column(
+        String(50), nullable=False, server_default="cn-shanghai", comment="阿里云区域ID"
+    )
+
+    # 配置参数
+    product_images_folder: Mapped[str] = mapped_column(
+        String(100), default="products", nullable=False, comment="商品图片文件夹路径"
+    )
+    watermark_images_folder: Mapped[str] = mapped_column(
+        String(100), default="watermarks", nullable=False, comment="水印图片文件夹路径"
+    )
+
+    # 是否作为默认图床
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, comment="是否作为默认图床"
+    )
+
+    # 状态
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false", comment="是否启用"
+    )
+    last_test_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="最后测试连接时间"
+    )
+    last_test_success: Mapped[Optional[bool]] = mapped_column(
+        Boolean, nullable=True, comment="最后测试是否成功"
+    )
+
+    # 时间戳
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), comment="创建时间"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now(), comment="更新时间"
     )

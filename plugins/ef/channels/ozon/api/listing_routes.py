@@ -1287,6 +1287,14 @@ async def create_product(
 
         logger.info(f"Product created successfully: offer_id={offer_id}, id={product.id}")
 
+        # 触发异步上传象寄图片到图床
+        from ..utils.image_utils import has_xiangji_urls
+        from ..tasks.image_upload_task import upload_xiangji_images_to_storage
+
+        if product.images and has_xiangji_urls(product.images):
+            logger.info(f"Triggering async upload for product {product.id} with xiangji URLs")
+            upload_xiangji_images_to_storage.delay(product_id=product.id)
+
         return {
             "success": True,
             "data": {
@@ -1313,38 +1321,31 @@ async def upload_media(
     current_user: User = Depends(require_role("operator"))
 ):
     """
-    上传图片到Cloudinary（需要操作员权限）
+    上传图片到图床（自动选择当前激活的图床，需要操作员权限）
 
     支持Base64和URL两种方式上传
     """
     try:
-        from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
+        from ..services.image_storage_factory import ImageStorageFactory
         import uuid
 
         shop_id = request.get("shop_id")
         if not shop_id:
             raise HTTPException(status_code=400, detail="shop_id is required")
 
-        # 获取Cloudinary配置
-        config = await CloudinaryConfigManager.get_config(db)
-        if not config:
+        # 使用图片存储工厂获取当前激活的图床服务
+        try:
+            service = await ImageStorageFactory.create_from_db(db)
+        except ValueError as e:
             return {
                 "success": False,
-                "error": "Cloudinary not configured"
-            }
-
-        # 创建Cloudinary服务实例
-        cloudinary_service = await CloudinaryConfigManager.create_service_from_config(config)
-        if not cloudinary_service:
-            return {
-                "success": False,
-                "error": "Failed to initialize Cloudinary service"
+                "error": str(e)
             }
 
         # 获取上传参数
         upload_type = request.get("type", "base64")  # base64 or url
         # 使用配置的商品图片文件夹，如果请求中指定了 folder 则使用请求的
-        default_folder = config.product_images_folder or "products"
+        default_folder = service.product_images_folder or "products"
         folder = request.get("folder", default_folder)
 
         if upload_type == "base64":
@@ -1354,7 +1355,7 @@ async def upload_media(
                 raise HTTPException(status_code=400, detail="data is required for base64 upload")
 
             public_id = request.get("public_id", str(uuid.uuid4()))
-            result = await cloudinary_service.upload_base64_image(
+            result = await service.upload_base64_image(
                 base64_data=base64_data,
                 public_id=public_id,
                 folder=folder
@@ -1367,7 +1368,7 @@ async def upload_media(
                 raise HTTPException(status_code=400, detail="url is required for url upload")
 
             public_id = request.get("public_id", str(uuid.uuid4()))
-            result = await cloudinary_service.upload_image_from_url(
+            result = await service.upload_image_from_url(
                 image_url=image_url,
                 public_id=public_id,
                 folder=folder
@@ -1380,7 +1381,7 @@ async def upload_media(
             }
 
         if result["success"]:
-            logger.info(f"Image uploaded to Cloudinary: {result['url']}")
+            logger.info(f"Image uploaded to image storage: {result['url']}")
 
         return result
 

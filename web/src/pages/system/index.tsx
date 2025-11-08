@@ -11,6 +11,7 @@ const SyncServices = lazyWithRetry(() => import('./SyncServices'));
 const SystemConfiguration = lazyWithRetry(() => import('./SystemConfiguration'));
 const LogManagement = lazyWithRetry(() => import('./LogManagement'));
 const WatermarkManagement = lazyWithRetry(() => import('../ozon/WatermarkManagement'));
+const ImageStorageResources = lazyWithRetry(() => import('./ImageStorageResources'));
 
 // 加载中组件
 const PageLoading = () => (
@@ -34,6 +35,7 @@ const SystemManagement: React.FC = () => {
         <Route path="configuration" element={<SystemConfiguration />} />
         <Route path="logs" element={<LogManagement />} />
         <Route path="watermark" element={<WatermarkManagement />} />
+        <Route path="image-storage" element={<ImageStorageResources />} />
       </Routes>
     </Suspense>
   );

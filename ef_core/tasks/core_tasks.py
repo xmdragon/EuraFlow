@@ -13,7 +13,7 @@ from .base import task_with_context, retry_task
 logger = get_logger(__name__)
 
 
-@task_with_context(name="ef.core.system_health_check")
+@task_with_context(bind=False, name="ef.core.system_health_check")
 async def system_health_check() -> Dict[str, Any]:
     """系统健康检查"""
     logger.info("Starting system health check")
@@ -122,7 +122,7 @@ async def cleanup_expired_data(older_than_days: int = 7) -> Dict[str, Any]:
         raise
 
 
-@task_with_context(name="ef.core.metrics_collection")
+@task_with_context(bind=False, name="ef.core.metrics_collection")
 async def collect_system_metrics() -> Dict[str, Any]:
     """收集系统指标"""
     logger.info("Collecting system metrics")
@@ -171,7 +171,7 @@ async def collect_system_metrics() -> Dict[str, Any]:
         raise
 
 
-@task_with_context(name="ef.core.event_bus_maintenance")
+@task_with_context(bind=False, name="ef.core.event_bus_maintenance")
 async def event_bus_maintenance() -> Dict[str, Any]:
     """事件总线维护任务"""
     logger.info("Starting event bus maintenance")

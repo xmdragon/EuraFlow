@@ -299,6 +299,17 @@ const Dashboard: React.FC = () => {
                 label: createMenuLabel("system-watermark", "水印管理", "/dashboard/system/watermark"),
                 onClick: () => navigate("/dashboard/system/watermark"),
               },
+              // 图床资源 - 仅管理员可见
+              ...(user?.role === "admin"
+                ? [
+                    {
+                      key: "system-image-storage",
+                      icon: <CloudUploadOutlined />,
+                      label: createMenuLabel("system-image-storage", "图床资源", "/dashboard/system/image-storage"),
+                      onClick: () => navigate("/dashboard/system/image-storage"),
+                    },
+                  ]
+                : []),
               // 日志管理 - 仅管理员可见
               ...(user?.role === "admin"
                 ? [
@@ -345,6 +356,7 @@ const Dashboard: React.FC = () => {
     if (path.includes("/system/logs")) return "system-logs";
     if (path.includes("/system/configuration")) return "system-configuration";
     if (path.includes("/system/watermark")) return "system-watermark";
+    if (path.includes("/system/image-storage")) return "system-image-storage";
     if (path.includes("/system/sync-services")) return "system-sync-services";
     if (path.includes("/finance")) return "finance";
     if (path.includes("/users")) return "users";

@@ -117,6 +117,84 @@
   }
 }
 
+// 主商品图片区域
+.mainImageArea {
+  .uploadHint {
+    font-size: 12px;
+    color: #8c8c8c;
+    margin-top: 8px;
+  }
+}
+
+.mainImagePreviewWrapper {
+  cursor: pointer;
+  display: inline-block;
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.mainImagePreview {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  overflow: hidden;
+
+  .mainImage {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .mainImageCount {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: rgba(24, 144, 255, 0.9);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+.mainImagePlaceholder {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  border: 2px dashed #d9d9d9;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #8c8c8c;
+  transition: all 0.3s;
+
+  &:hover {
+    border-color: #1890ff;
+    background: #e6f7ff;
+    color: #1890ff;
+  }
+
+  .mainImageCountZero {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: rgba(255, 77, 79, 0.9);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
 .variantSection {
   .variantHeader {
     display: flex;
@@ -359,24 +437,26 @@
   height: 52px;
   border: 1px solid #e8e8e8;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
 
   .variantImage {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    border-radius: 4px;
   }
 
   .imageCount {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: -6px;
+    right: -6px;
     background: rgba(24, 144, 255, 0.9);
     color: #fff;
     padding: 0 4px;
     border-radius: 8px;
     font-size: 10px;
     font-weight: 500;
+    z-index: 1;
   }
 }
 
@@ -399,14 +479,15 @@
 
   .imageCountZero {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: -6px;
+    right: -6px;
     background: rgba(255, 77, 79, 0.9);
     color: #fff;
     padding: 0 4px;
     border-radius: 8px;
     font-size: 10px;
     font-weight: 500;
+    z-index: 1;
   }
 }
 
@@ -423,7 +504,7 @@
   height: 52px;
   border: 1px solid #e8e8e8;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -433,14 +514,15 @@
 
   .videoCount {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: -6px;
+    right: -6px;
     background: rgba(24, 144, 255, 0.9);
     color: #fff;
     padding: 0 4px;
     border-radius: 8px;
     font-size: 10px;
     font-weight: 500;
+    z-index: 1;
   }
 }
 
@@ -463,13 +545,14 @@
 
   .videoCountZero {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: -6px;
+    right: -6px;
     background: rgba(255, 77, 79, 0.9);
     color: #fff;
     padding: 0 4px;
     border-radius: 8px;
     font-size: 10px;
     font-weight: 500;
+    z-index: 1;
   }
 }

@@ -32,6 +32,10 @@ from .batch_finance_sync_task import (
     batch_finance_sync_task
 )
 
+from .image_upload_task import (
+    upload_xiangji_images_to_storage
+)
+
 __all__ = [
     "sync_all_promotions",
     "promotion_health_check",
@@ -42,4 +46,5 @@ __all__ = [
     "batch_update_stocks_task",
     "batch_update_prices_task",
     "batch_finance_sync_task",
+    "upload_xiangji_images_to_storage",
 ]

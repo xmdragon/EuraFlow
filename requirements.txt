@@ -25,6 +25,7 @@ python-jose[cryptography]==3.3.0
 croniter==1.4.1
 aiolimiter==1.1.0
 boto3==1.40.65
+openai==2.7.1
 
 # Data Processing
 pandas==2.3.2
@@ -37,6 +38,8 @@ cryptography==41.0.7
 # Image Processing
 Pillow==10.1.0
 cloudinary==1.37.0
+alibabacloud-oss-v2>=1.2.0
+alibabacloud_cms20190101>=3.0.0  # 阿里云云监控SDK，用于获取OSS存储和流量统计
 numpy>=1.26.0
 
 # Development

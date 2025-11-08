@@ -1,0 +1,123 @@
+.pageWrapper {
+  padding: 20px;
+  background: #f5f5f5;
+  min-height: calc(100vh - 64px);
+}
+
+.container {
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.header {
+  margin-bottom: 20px;
+
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .description {
+    color: #666;
+    margin-bottom: 0;
+  }
+}
+
+.toolbar {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.resourceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  padding: 16px 0;
+  grid-auto-rows: auto; // 让每行自动适应内容高度
+}
+
+.resourceCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #d9d9d9;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s;
+  background: #fff;
+
+  &:hover {
+    border-color: #1890ff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  &.selected {
+    border-color: #1890ff;
+    background: #e6f7ff;
+  }
+}
+
+.resourceThumbnail {
+  width: 100%;
+  height: 200px;
+  flex-shrink: 0; // 防止缩略图被压缩
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  overflow: hidden;
+
+  .thumbnailImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.resourceCheckbox {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+
+  input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+  }
+}
+
+.resourceInfo {
+  padding: 12px;
+  font-size: 12px;
+
+  .resourceInfoItem {
+    margin-bottom: 4px;
+    display: flex;
+    gap: 4px;
+
+    strong {
+      font-weight: 600;
+      min-width: 40px;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.emptyState {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+
+  p {
+    margin-top: 16px;
+    font-size: 14px;
+  }
+}

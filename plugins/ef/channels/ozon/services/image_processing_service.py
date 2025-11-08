@@ -34,14 +34,6 @@ class WatermarkPosition(Enum):
     BOTTOM_RIGHT = "bottom_right"
 
 
-class WatermarkColor(Enum):
-    """水印颜色类型枚举"""
-    WHITE = "white"
-    BLUE = "blue"
-    BLACK = "black"
-    TRANSPARENT = "transparent"
-
-
 class ImageProcessingService:
     """
     图片处理服务（性能优化版）
@@ -62,14 +54,6 @@ class ImageProcessingService:
         WatermarkPosition.BOTTOM_LEFT: (0.1, 0.9),
         WatermarkPosition.BOTTOM_CENTER: (0.5, 0.9),
         WatermarkPosition.BOTTOM_RIGHT: (0.9, 0.9)
-    }
-
-    # 颜色亮度期望值（用于对比度计算）
-    COLOR_BRIGHTNESS = {
-        WatermarkColor.WHITE: 255,
-        WatermarkColor.BLUE: 128,
-        WatermarkColor.BLACK: 0,
-        WatermarkColor.TRANSPARENT: None  # 透明水印不考虑对比度
     }
 
     def __init__(self):
@@ -141,15 +125,13 @@ class ImageProcessingService:
 
     async def load_watermark(
         self,
-        watermark_path_or_url: str,
-        color_type: str = "transparent"
+        watermark_path_or_url: str
     ) -> Image.Image:
         """
         加载水印图片
 
         Args:
             watermark_path_or_url: 水印文件路径或URL
-            color_type: 水印颜色类型
 
         Returns:
             水印Image对象
@@ -164,7 +146,7 @@ class ImageProcessingService:
             if watermark.mode != 'RGBA':
                 watermark = watermark.convert('RGBA')
 
-            logger.info(f"Loaded watermark, size: {watermark.size}, color_type: {color_type}")
+            logger.info(f"Loaded watermark, size: {watermark.size}")
             return watermark
 
         except Exception as e:
@@ -408,7 +390,7 @@ class ImageProcessingService:
         watermark: Image.Image,
         watermark_configs: List[Dict[str, Any]],
         allowed_positions: Optional[List[str]] = None
-    ) -> Tuple[WatermarkPosition, WatermarkColor]:
+    ) -> WatermarkPosition:
         """
         智能选择最佳水印位置和颜色
         综合考虑：对比度、内容复杂度、边缘密度
@@ -420,7 +402,7 @@ class ImageProcessingService:
             allowed_positions: 允许的位置列表
 
         Returns:
-            (最佳位置, 最佳颜色)
+            最佳位置
         """
         try:
             # 默认使用所有位置
@@ -437,7 +419,6 @@ class ImageProcessingService:
                 test_positions = [WatermarkPosition.BOTTOM_RIGHT]
 
             best_position = WatermarkPosition.BOTTOM_RIGHT
-            best_color = WatermarkColor.WHITE
             best_score = -float('inf')
 
             # 计算水印区域大小（使用实际水印大小+边距）
@@ -483,26 +464,9 @@ class ImageProcessingService:
                 # 文字惩罚分数（0-1，越低越好）
                 no_text_score = 1.0 - text_probability
 
-                # 选择最佳颜色和对比度
-                best_color_for_position = WatermarkColor.WHITE
-                best_contrast_for_position = 0
-
-                for config in watermark_configs:
-                    color_type = WatermarkColor(config.get('color_type', 'white'))
-
-                    # 跳过透明水印
-                    if color_type == WatermarkColor.TRANSPARENT:
-                        continue
-
-                    expected_brightness = self.COLOR_BRIGHTNESS.get(color_type, 128)
-                    contrast = abs(brightness - expected_brightness)
-
-                    if contrast > best_contrast_for_position:
-                        best_contrast_for_position = contrast
-                        best_color_for_position = color_type
-
-                # 标准化对比度分数（0-1）
-                contrast_score = min(best_contrast_for_position / 128.0, 1.0)
+                # 使用固定的对比度分数（透明PNG水印不需要考虑颜色对比）
+                # 主要依靠透明度和位置来确保水印可见性
+                contrast_score = 0.5  # 中等对比度权重
 
                 # 综合评分（加入文字惩罚）
                 total_score = (
@@ -518,7 +482,6 @@ class ImageProcessingService:
 
                 position_scores.append({
                     'position': position,
-                    'color': best_color_for_position,
                     'score': total_score,
                     'brightness': brightness,
                     'complexity': complexity,
@@ -530,7 +493,6 @@ class ImageProcessingService:
                 if total_score > best_score:
                     best_score = total_score
                     best_position = position
-                    best_color = best_color_for_position
 
             # 记录所有位置的评分（用于调试）
             logger.info("Watermark position scores:")
@@ -543,15 +505,15 @@ class ImageProcessingService:
 
             logger.info(
                 f"Selected best position: {best_position.value}, "
-                f"color: {best_color.value}, score: {best_score:.3f}"
+                f"score: {best_score:.3f}"
             )
 
-            return best_position, best_color
+            return best_position
 
         except Exception as e:
             logger.error(f"Failed to find best watermark position: {e}")
             # 返回默认值
-            return WatermarkPosition.BOTTOM_RIGHT, WatermarkColor.WHITE
+            return WatermarkPosition.BOTTOM_RIGHT
 
     def apply_watermark(
         self,
@@ -621,12 +583,8 @@ class ImageProcessingService:
             # 合成图片
             result.paste(watermark, (x, y), watermark)
 
-            # 转回RGB模式（JPEG不支持RGBA）
-            if result.mode == 'RGBA':
-                # 创建白色背景
-                background = Image.new('RGB', result.size, (255, 255, 255))
-                background.paste(result, mask=result.split()[3])
-                result = background
+            # 保持RGBA模式以支持透明度
+            # 转换为RGB由image_to_bytes根据输出格式决定
 
             logger.info(
                 f"Applied watermark at position {position.value}, "
@@ -662,14 +620,11 @@ class ImageProcessingService:
         try:
             # 下载原图和水印
             base_image = await self.download_image(image_url)
-            watermark = await self.load_watermark(
-                watermark_url,
-                watermark_config.get('color_type', 'transparent')
-            )
+            watermark = await self.load_watermark(watermark_url)
 
             # 处理位置参数（如果是字符串，转换为枚举）
             if position is None:
-                position, color = await self.find_best_watermark_position(
+                position = await self.find_best_watermark_position(
                     base_image,
                     watermark,
                     [watermark_config],
@@ -683,7 +638,6 @@ class ImageProcessingService:
                     except ValueError:
                         logger.warning(f"Invalid position '{position}', using default")
                         position = WatermarkPosition.BOTTOM_RIGHT
-                color = WatermarkColor(watermark_config.get('color_type', 'white'))
 
             # 应用水印
             result_image = self.apply_watermark(
@@ -700,7 +654,6 @@ class ImageProcessingService:
                 "original_size": base_image.size,
                 "watermark_size": watermark.size,
                 "position": position.value,
-                "color_type": color.value,
                 "opacity": watermark_config.get('opacity', 0.8),
                 "scale_ratio": watermark_config.get('scale_ratio', 0.1),
                 "margin_pixels": watermark_config.get('margin_pixels', 20)
@@ -734,9 +687,19 @@ class ImageProcessingService:
 
             # 保存图片到缓冲区
             save_kwargs = {"format": format}
-            if format == "JPEG":
+
+            # 处理JPEG格式和RGBA模式的兼容性
+            if format.upper() == "JPEG":
                 save_kwargs["quality"] = quality
                 save_kwargs["optimize"] = True
+                # JPEG不支持透明度，需要转换为RGB
+                if image.mode in ("RGBA", "LA", "P"):
+                    # 创建白色背景
+                    background = Image.new('RGB', image.size, (255, 255, 255))
+                    if image.mode == 'P':
+                        image = image.convert('RGBA')
+                    background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+                    image = background
 
             image.save(buffer, **save_kwargs)
 

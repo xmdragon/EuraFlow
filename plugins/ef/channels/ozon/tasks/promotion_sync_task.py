@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ef_core.database import get_db_manager
-from ef_core.tasks.base import task_with_context, retry_task
 
 from ..models import OzonShop, OzonPromotionAction
 from ..services.promotion_service import PromotionService
@@ -20,11 +19,6 @@ from ..services.promotion_service import PromotionService
 logger = logging.getLogger(__name__)
 
 
-@retry_task(
-    max_retries=3,
-    countdown=600,  # 失败后10分钟重试
-    name="ef.ozon.sync_all_promotions"
-)
 async def sync_all_promotions(**kwargs) -> Dict[str, Any]:
     """
     同步所有店铺的促销活动和商品
@@ -241,7 +235,6 @@ async def _sync_action_products(
         raise
 
 
-@task_with_context(name="ef.ozon.promotion_health_check")
 async def promotion_health_check(**kwargs) -> Dict[str, Any]:
     """
     促销系统健康检查

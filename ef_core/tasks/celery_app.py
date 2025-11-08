@@ -109,19 +109,139 @@ def health_check(self):
 
 
 @celery_app.task(bind=True, name="ef.core.cleanup_results")
-def cleanup_results(self):
-    """清理过期的任务结果"""
+def cleanup_results(self, older_than_days=1):
+    """
+    清理过期的任务结果
+
+    Args:
+        older_than_days: 清理多少天前的结果（默认1天）
+
+    Returns:
+        清理统计信息
+    """
+    import time
+    from datetime import datetime, UTC
+
     try:
-        logger.info("Cleaning up expired task results")
-        
-        # TODO: 清理 Redis 中过期的任务结果
-        
-        logger.info("Task results cleanup completed")
-        return {"cleaned": 0, "timestamp": "2025-01-01T00:00:00Z"}
-    
+        logger.info(f"Starting cleanup of task results older than {older_than_days} days")
+
+        # 获取 Redis 连接
+        redis_client = celery_app.backend.client
+
+        # 统计信息
+        stats = {
+            "started_at": datetime.now(UTC).isoformat(),
+            "scanned": 0,
+            "cleaned": 0,
+            "errors": 0,
+            "older_than_days": older_than_days
+        }
+
+        # 计算过期时间戳（秒）
+        cutoff_timestamp = time.time() - (older_than_days * 24 * 3600)
+
+        # 扫描所有 Celery 任务结果键
+        # Celery 默认使用 "celery-task-meta-{task_id}" 作为键名
+        cursor = 0
+        batch_size = 1000
+
+        while True:
+            # 使用 SCAN 命令批量扫描键（避免阻塞 Redis）
+            cursor, keys = redis_client.scan(
+                cursor=cursor,
+                match="celery-task-meta-*",
+                count=batch_size
+            )
+
+            stats["scanned"] += len(keys)
+
+            # 检查每个键
+            for key in keys:
+                try:
+                    # 获取键的 TTL（剩余生存时间）
+                    ttl = redis_client.ttl(key)
+
+                    # TTL = -1 表示永不过期，TTL = -2 表示键不存在
+                    if ttl == -1:
+                        # 对于永不过期的键，检查创建时间
+                        # 尝试获取任务结果的时间戳
+                        result = redis_client.get(key)
+                        if result:
+                            # Celery 结果包含 date_done 字段
+                            import json
+                            try:
+                                result_data = json.loads(result)
+                                date_done = result_data.get('date_done')
+
+                                if date_done:
+                                    # 解析时间戳
+                                    from dateutil import parser
+                                    done_time = parser.parse(date_done)
+                                    done_timestamp = done_time.timestamp()
+
+                                    # 如果超过阈值，删除
+                                    if done_timestamp < cutoff_timestamp:
+                                        redis_client.delete(key)
+                                        stats["cleaned"] += 1
+                            except (json.JSONDecodeError, ValueError):
+                                # 无法解析的结果，跳过
+                                pass
+
+                    elif ttl == -2:
+                        # 键已经不存在，跳过
+                        pass
+
+                except Exception as e:
+                    logger.warning(f"Error processing key {key}: {e}")
+                    stats["errors"] += 1
+
+            # 如果游标回到0，表示扫描完成
+            if cursor == 0:
+                break
+
+        # 额外清理：删除已过期但未被自动清理的键
+        # Celery 有时会留下一些过期键
+        cursor = 0
+        while True:
+            cursor, keys = redis_client.scan(
+                cursor=cursor,
+                match="celery-task-meta-*",
+                count=batch_size
+            )
+
+            for key in keys:
+                try:
+                    ttl = redis_client.ttl(key)
+                    # 如果 TTL <= 0（已过期），直接删除
+                    if ttl == -2 or (ttl > 0 and ttl < 0):
+                        redis_client.delete(key)
+                        stats["cleaned"] += 1
+                except Exception as e:
+                    stats["errors"] += 1
+
+            if cursor == 0:
+                break
+
+        # 记录完成时间
+        stats["completed_at"] = datetime.now(UTC).isoformat()
+
+        logger.info(
+            f"Task results cleanup completed",
+            scanned=stats["scanned"],
+            cleaned=stats["cleaned"],
+            errors=stats["errors"]
+        )
+
+        return stats
+
     except Exception as e:
         logger.error("Task results cleanup failed", exc_info=True)
-        return {"error": str(e)}
+        return {
+            "error": str(e),
+            "scanned": 0,
+            "cleaned": 0,
+            "errors": 1
+        }
 
 
 # Celery 任务名到 service_key 的映射
@@ -384,3 +504,15 @@ def cleanup_stale_tasks_on_startup(**kwargs):
             )
     except Exception as e:
         logger.error(f"Failed to cleanup stale tasks on startup: {e}", exc_info=True)
+
+
+# ============================================================================
+# 导入核心任务模块以注册核心系统任务
+# ============================================================================
+# 导入 core_tasks 模块会自动执行其中的 register_core_tasks() 函数
+# 这会将以下核心系统任务添加到 Celery Beat 调度中：
+# - ef.core.system_health_check (每5分钟)
+# - ef.core.cleanup_expired_data (每天凌晨3点)
+# - ef.core.metrics_collection (每10分钟)
+# - ef.core.event_bus_maintenance (每天凌晨1:30)
+from . import core_tasks  # noqa: F401

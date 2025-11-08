@@ -262,16 +262,22 @@ class OzonChatService:
             logger.info(f"检测到非俄语消息（中文/英文），准备翻译: {content[:50]}...")
 
             try:
-                from .aliyun_translation_service import AliyunTranslationService
-                translation_service = AliyunTranslationService()
-                # 使用 auto 自动检测源语言（支持中文、英文等）
-                translated = await translation_service.translate_text(content, 'auto', 'ru')
+                # 使用翻译工厂获取当前激活的翻译引擎
+                from .translation_factory import TranslationFactory
+                db_manager = self.db_manager
+                async with db_manager.get_session() as session:
+                    translation_service = await TranslationFactory.create_from_db(session)
+                    # 使用 auto 自动检测源语言（支持中文、英文等）
+                    translated = await translation_service.translate_text(content, 'auto', 'ru')
 
-                if translated:
-                    russian_content = translated
-                    logger.info(f"翻译成功: {russian_content[:50]}...")
-                else:
-                    logger.warning("翻译失败，使用原文发送")
+                    if translated:
+                        russian_content = translated
+                        logger.info(f"翻译成功（引擎: {translation_service.__class__.__name__}）: {russian_content[:50]}...")
+                    else:
+                        logger.warning("翻译失败，使用原文发送")
+            except ValueError as e:
+                # 没有可用的翻译配置
+                logger.warning(f"翻译服务不可用: {e}，使用原文发送")
             except Exception as e:
                 logger.error(f"翻译服务调用失败: {e}", exc_info=True)
                 # 翻译失败，使用原文发送

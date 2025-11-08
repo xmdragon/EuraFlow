@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import logging
 from io import BytesIO
 import base64
+from PIL import Image
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,17 +129,26 @@ class CloudinaryService:
             包含上传结果的字典
         """
         try:
+            # 检测图片格式（PNG需要保持透明度）
+            img = Image.open(BytesIO(image_data))
+            is_png_with_alpha = img.format == 'PNG' and (img.mode in ('RGBA', 'LA', 'P') or 'transparency' in img.info)
+
             # 准备上传参数
             # 使用 folder 参数指定文件夹，public_id 只包含文件名
             upload_params = {
                 "public_id": public_id,
                 "folder": folder,
                 "resource_type": "image",
-                "format": "jpg",
                 "quality": "auto:good",
                 "fetch_format": "auto",
-                "flags": "lossy",
             }
+
+            # 如果是带透明通道的PNG，保持PNG格式；否则转为JPG压缩
+            if is_png_with_alpha:
+                upload_params["format"] = "png"
+            else:
+                upload_params["format"] = "jpg"
+                upload_params["flags"] = "lossy"
 
             if tags:
                 upload_params["tags"] = tags
@@ -229,11 +239,11 @@ class CloudinaryService:
         try:
             # 准备上传参数
             # 使用 folder 参数指定文件夹，public_id 只包含文件名
+            # 注意：不强制格式转换，保持原始格式（特别是PNG透明度）
             upload_params = {
                 "public_id": public_id,
                 "folder": folder,
                 "resource_type": "image",
-                "format": "jpg",
                 "quality": "auto:good",
                 "fetch_format": "auto",
             }

@@ -114,6 +114,8 @@ export const loggers = {
   websocket: createLogger('websocket'),
   sync: createLogger('sync'),
   promotion: createLogger('promotion'),
+  ozon: createLogger('ozon'),
+  storage: createLogger('storage'),
 } as const;
 
 /**

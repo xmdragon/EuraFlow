@@ -40,78 +40,24 @@ import {
 
 import styles from "./ThirdPartyServicesTab.module.scss";
 
+import ImageStorageConfigTab from "./ImageStorageConfigTab";
+import TranslationConfigTab from "./TranslationConfigTab";
 import { usePermission } from "@/hooks/usePermission";
 import * as exchangeRateApi from "@/services/exchangeRateApi";
 import * as ozonApi from "@/services/ozonApi";
-import * as watermarkApi from "@/services/watermarkApi";
-import * as translationApi from "@/services/translationApi";
+import * as xiangjifanyiApi from "@/services/xiangjifanyiApi";
 import type { FormValues } from "@/types/common";
 import { notifySuccess, notifyError, notifyInfo } from "@/utils/notification";
 
 const ThirdPartyServicesTab: React.FC = () => {
   const queryClient = useQueryClient();
   const { canOperate } = usePermission();
-  const [cloudinaryForm] = Form.useForm();
   const [kuajing84Form] = Form.useForm();
   const [exchangeRateForm] = Form.useForm();
-  const [translationForm] = Form.useForm();
+  const [xiangjifanyiForm] = Form.useForm();
   const [timeRange, setTimeRange] = useState<"today" | "week" | "month">(
     "today",
   );
-  const [cloudinaryEnabled, setCloudinaryEnabled] = useState(false);
-
-  // ========== Cloudinary 配置（异步加载）==========
-  const { data: cloudinaryConfig, isLoading: cloudinaryLoading } = useQuery({
-    queryKey: ["ozon", "cloudinary-config"],
-    queryFn: () => watermarkApi.getCloudinaryConfig(),
-    enabled: cloudinaryEnabled, // 仅在需要时加载
-  });
-
-  const saveCloudinaryMutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      watermarkApi.createCloudinaryConfig(
-        values as unknown as watermarkApi.CloudinaryConfig,
-      ),
-    onSuccess: () => {
-      notifySuccess("保存成功", "Cloudinary配置已保存");
-      queryClient.invalidateQueries({
-        queryKey: ["ozon", "cloudinary-config"],
-      });
-    },
-    onError: (error: Error) => {
-      notifyError("保存失败", `保存失败: ${error.message}`);
-    },
-  });
-
-  const testCloudinaryMutation = useMutation({
-    mutationFn: () => watermarkApi.testCloudinaryConnection(),
-    onSuccess: () => {
-      notifySuccess("测试成功", "Cloudinary连接测试成功");
-    },
-    onError: (error: Error) => {
-      notifyError("测试失败", `测试失败: ${error.message}`);
-    },
-  });
-
-  // 组件挂载后异步加载Cloudinary配置（避免阻塞页面初始渲染）
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setCloudinaryEnabled(true);
-    }, 100); // 延迟100ms，让页面先完成初始渲染
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (cloudinaryConfig) {
-      cloudinaryForm.setFieldsValue({
-        cloud_name: cloudinaryConfig.cloud_name || "",
-        api_key: cloudinaryConfig.api_key || "",
-        product_images_folder: cloudinaryConfig.product_images_folder || "products",
-        watermark_images_folder: cloudinaryConfig.watermark_images_folder || "watermarks",
-        auto_cleanup_days: cloudinaryConfig.auto_cleanup_days || 30,
-      });
-    }
-  }, [cloudinaryConfig, cloudinaryForm]);
 
   // ========== 跨境巴士配置 ==========
   const { data: kuajing84Config, isLoading: kuajing84Loading } = useQuery({
@@ -228,31 +174,46 @@ const ThirdPartyServicesTab: React.FC = () => {
     },
   });
 
-  // ========== 阿里云翻译配置 ==========
-  const { data: translationConfig } = useQuery({
-    queryKey: ["translation", "config"],
-    queryFn: translationApi.getTranslationConfig,
+
+  // ========== 象寄图片配置 ==========
+  const { data: xiangjifanyiConfig } = useQuery({
+    queryKey: ["xiangjifanyi", "config"],
+    queryFn: xiangjifanyiApi.getXiangjifanyiConfig,
   });
 
-  const saveTranslationMutation = useMutation({
+  const saveXiangjifanyiMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      translationApi.saveTranslationConfig(
-        values as unknown as translationApi.TranslationConfigRequest
+      xiangjifanyiApi.saveXiangjifanyiConfig(
+        values as unknown as xiangjifanyiApi.XiangjifanyiConfigRequest
       ),
     onSuccess: () => {
-      notifySuccess("保存成功", "阿里云翻译配置已保存");
-      queryClient.invalidateQueries({ queryKey: ["translation"] });
-      translationForm.setFieldsValue({ access_key_secret: "" });
+      notifySuccess("保存成功", "象寄图片配置已保存");
+      queryClient.invalidateQueries({ queryKey: ["xiangjifanyi"] });
+      xiangjifanyiForm.setFieldsValue({
+        password: "",
+        user_key: "",
+        video_trans_key: "",
+        fetch_key: "",
+        img_trans_key_ali: "",
+        img_trans_key_google: "",
+        img_trans_key_papago: "",
+        img_trans_key_deepl: "",
+        img_trans_key_chatgpt: "",
+        img_trans_key_baidu: "",
+        img_matting_key: "",
+        text_trans_key: "",
+        aigc_key: "",
+      });
     },
     onError: (error: Error) => {
       notifyError("保存失败", `保存失败: ${error.message}`);
     },
   });
 
-  const testTranslationMutation = useMutation({
-    mutationFn: () => translationApi.testTranslationConnection(),
+  const testXiangjifanyiMutation = useMutation({
+    mutationFn: () => xiangjifanyiApi.testXiangjifanyiConnection(),
     onSuccess: () => {
-      notifySuccess("测试成功", "阿里云翻译连接测试成功");
+      notifySuccess("测试成功", "象寄图片连接测试成功");
     },
     onError: (error: Error) => {
       notifyError("测试失败", `测试失败: ${error.message}`);
@@ -260,147 +221,30 @@ const ThirdPartyServicesTab: React.FC = () => {
   });
 
   useEffect(() => {
-    if (translationConfig) {
-      translationForm.setFieldsValue({
-        access_key_id: translationConfig.access_key_id || "",
-        region_id: translationConfig.region_id || "cn-hangzhou",
-        enabled: translationConfig.enabled || false,
+    if (xiangjifanyiConfig) {
+      xiangjifanyiForm.setFieldsValue({
+        phone: xiangjifanyiConfig.phone || "",
+        api_url: xiangjifanyiConfig.api_url || "",
+        enabled: xiangjifanyiConfig.enabled || false,
       });
     }
-  }, [translationConfig, translationForm]);
+  }, [xiangjifanyiConfig, xiangjifanyiForm]);
 
   return (
     <div className={styles.container}>
       <Tabs
-        defaultActiveKey="cloudinary"
+        defaultActiveKey="image-storage"
         items={[
           {
-            key: "cloudinary",
+            key: "image-storage",
             label: (
               <>
-                <PictureOutlined /> Cloudinary图床
+                <PictureOutlined /> 图床配置
               </>
             ),
             children: (
               <Card className={styles.card}>
-                <Alert
-                  message="Cloudinary用于存储和处理水印图片"
-                  description="免费额度：25 GB存储，25 GB带宽"
-                  type="info"
-                  showIcon
-                  style={{ marginBottom: 16 }}
-                />
-
-                <Spin spinning={cloudinaryLoading}>
-                  <Form
-                    form={cloudinaryForm}
-                    layout="vertical"
-                    onFinish={(values) => saveCloudinaryMutation.mutate(values)}
-                  >
-                    <Form.Item
-                      name="cloud_name"
-                      label="Cloud Name"
-                      rules={[{ required: true, message: "请输入Cloud Name" }]}
-                    >
-                      <Input placeholder="your-cloud-name" style={{ width: 200 }} />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="api_key"
-                      label="API Key"
-                      rules={[{ required: true, message: "请输入API Key" }]}
-                    >
-                      <Input id="cloudinary_api_key" placeholder="123456789012345" style={{ width: 200 }} />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="api_secret"
-                      label="API Secret"
-                      rules={[
-                        {
-                          required: !cloudinaryConfig,
-                          message: "请输入API Secret",
-                        },
-                      ]}
-                    >
-                      <Input.Password placeholder="保存后不显示" style={{ width: 200 }} />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="product_images_folder"
-                      label="商品图片文件夹"
-                      initialValue="products"
-                    >
-                      <Input placeholder="products" style={{ width: 200 }} />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="watermark_images_folder"
-                      label="水印图片文件夹"
-                      initialValue="watermarks"
-                    >
-                      <Input placeholder="watermarks" style={{ width: 200 }} />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="auto_cleanup_days"
-                      label="自动清理天数"
-                      initialValue={30}
-                    >
-                      <InputNumber
-                        min={1}
-                        max={365}
-                        controls={false}
-                        style={{ width: 200 }}
-                      />
-                    </Form.Item>
-
-                    {cloudinaryConfig && (
-                      <Row gutter={16} style={{ marginTop: 16 }}>
-                        <Col span={8}>
-                          <Statistic
-                            title="存储使用"
-                            value={
-                              (cloudinaryConfig.storage_used_bytes || 0) / 1024 / 1024
-                            }
-                            precision={2}
-                            suffix="MB"
-                          />
-                        </Col>
-                        <Col span={8}>
-                          <Statistic
-                            title="带宽使用"
-                            value={
-                              (cloudinaryConfig.bandwidth_used_bytes || 0) / 1024 / 1024
-                            }
-                            precision={2}
-                            suffix="MB"
-                          />
-                        </Col>
-                      </Row>
-                    )}
-
-                    {canOperate && (
-                      <Form.Item style={{ marginTop: 16 }}>
-                        <Space>
-                          <Button
-                            type="primary"
-                            htmlType="submit"
-                            loading={saveCloudinaryMutation.isPending}
-                          >
-                            保存配置
-                          </Button>
-                          <Button
-                            onClick={() => testCloudinaryMutation.mutate()}
-                            loading={testCloudinaryMutation.isPending}
-                          >
-                            测试连接
-                          </Button>
-                        </Space>
-                      </Form.Item>
-                    )}
-                  </Form>
-                </Spin>
+                <ImageStorageConfigTab />
               </Card>
             ),
           },
@@ -657,68 +501,165 @@ const ThirdPartyServicesTab: React.FC = () => {
             key: "translation",
             label: (
               <>
-                <TranslationOutlined /> 阿里云翻译
+                <TranslationOutlined /> 翻译配置
+              </>
+            ),
+            children: <TranslationConfigTab />,
+          },
+          {
+            key: "xiangjifanyi",
+            label: (
+              <>
+                <PictureOutlined /> 象寄图片
               </>
             ),
             children: (
               <Card className={styles.card}>
                 <Alert
-                  message="阿里云机器翻译用于聊天消息自动翻译"
-                  description="中文消息自动翻译成俄语发送，俄语消息懒加载翻译成中文显示"
+                  message="象寄图片用于商品图片处理和翻译"
+                  description="提供图片翻译、智能抠图、视频翻译、商品解析等功能"
                   type="info"
                   showIcon
                   style={{ marginBottom: 16 }}
                 />
 
-                {translationConfig && (
+                {xiangjifanyiConfig && (
                   <Alert
-                    message={`翻译服务${translationConfig.enabled ? "已启用" : "已禁用"} | 区域: ${translationConfig.region_id}`}
-                    type={translationConfig.enabled ? "success" : "warning"}
+                    message={`服务${xiangjifanyiConfig.enabled ? "已启用" : "已禁用"}`}
+                    type={xiangjifanyiConfig.enabled ? "success" : "warning"}
                     showIcon
                     style={{ marginBottom: 16 }}
                   />
                 )}
 
                 <Form
-                  form={translationForm}
+                  form={xiangjifanyiForm}
                   layout="vertical"
-                  onFinish={(values) => saveTranslationMutation.mutate(values)}
+                  onFinish={(values) => saveXiangjifanyiMutation.mutate(values)}
                 >
                   <Form.Item
                     name="enabled"
-                    label="启用翻译服务"
+                    label="启用服务"
                     valuePropName="checked"
                   >
                     <Switch checkedChildren="启用" unCheckedChildren="禁用" />
                   </Form.Item>
 
                   <Form.Item
-                    name="access_key_id"
-                    label="AccessKey ID"
-                    rules={[{ required: true, message: "请输入AccessKey ID" }]}
+                    name="phone"
+                    label="手机号"
+                    rules={[{ required: true, message: "请输入手机号" }]}
                   >
-                    <Input placeholder="请输入阿里云AccessKey ID" style={{ width: 200 }} />
+                    <Input placeholder="请输入手机号" style={{ width: 300 }} />
                   </Form.Item>
 
                   <Form.Item
-                    name="access_key_secret"
-                    label="AccessKey Secret"
-                    rules={[
-                      {
-                        required: !translationConfig,
-                        message: "请输入AccessKey Secret",
-                      },
-                    ]}
+                    name="password"
+                    label="密码"
+                    rules={[{ required: !xiangjifanyiConfig, message: "请输入密码" }]}
                   >
-                    <Input.Password placeholder="保存后不显示" style={{ width: 200 }} />
+                    <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
                   </Form.Item>
 
                   <Form.Item
-                    name="region_id"
-                    label="区域ID"
-                    initialValue="cn-hangzhou"
+                    name="api_url"
+                    label="API地址"
                   >
-                    <Input placeholder="cn-hangzhou" style={{ width: 200 }} />
+                    <Input placeholder="https://www.xiangjifanyi.com" style={{ width: 300 }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="user_key"
+                    label="私人密钥 (UserKey)"
+                  >
+                    <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="video_trans_key"
+                    label="视频翻译 (VideoTransKey)"
+                  >
+                    <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="fetch_key"
+                    label="商品解析 (FetchKey)"
+                  >
+                    <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                  </Form.Item>
+
+                  <Form.Item label="图片翻译 (ImgTransKey)" style={{ marginBottom: 8 }}>
+                    <div style={{ paddingLeft: 16, borderLeft: '2px solid #e8e8e8' }}>
+                      <Form.Item
+                        name="img_trans_key_ali"
+                        label="阿里标识码"
+                        style={{ marginBottom: 8 }}
+                      >
+                        <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                      </Form.Item>
+
+                      <Form.Item
+                        name="img_trans_key_google"
+                        label="谷歌标识码"
+                        style={{ marginBottom: 8 }}
+                      >
+                        <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                      </Form.Item>
+
+                      <Form.Item
+                        name="img_trans_key_papago"
+                        label="Papago标识码"
+                        style={{ marginBottom: 8 }}
+                      >
+                        <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                      </Form.Item>
+
+                      <Form.Item
+                        name="img_trans_key_deepl"
+                        label="DeepL标识码"
+                        style={{ marginBottom: 8 }}
+                      >
+                        <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                      </Form.Item>
+
+                      <Form.Item
+                        name="img_trans_key_chatgpt"
+                        label="ChatGPT标识码"
+                        style={{ marginBottom: 8 }}
+                      >
+                        <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                      </Form.Item>
+
+                      <Form.Item
+                        name="img_trans_key_baidu"
+                        label="百度标识码"
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                      </Form.Item>
+                    </div>
+                  </Form.Item>
+
+                  <Form.Item
+                    name="img_matting_key"
+                    label="智能抠图 (ImgMattingKey)"
+                  >
+                    <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="text_trans_key"
+                    label="文本翻译 (TextTransKey)"
+                  >
+                    <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="aigc_key"
+                    label="智能生成 (AigcKey)"
+                  >
+                    <Input.Password placeholder="保存后不显示" style={{ width: 300 }} />
                   </Form.Item>
 
                   {canOperate && (
@@ -727,13 +668,13 @@ const ThirdPartyServicesTab: React.FC = () => {
                         <Button
                           type="primary"
                           htmlType="submit"
-                          loading={saveTranslationMutation.isPending}
+                          loading={saveXiangjifanyiMutation.isPending}
                         >
                           保存配置
                         </Button>
                         <Button
-                          onClick={() => testTranslationMutation.mutate()}
-                          loading={testTranslationMutation.isPending}
+                          onClick={() => testXiangjifanyiMutation.mutate()}
+                          loading={testXiangjifanyiMutation.isPending}
                         >
                           测试连接
                         </Button>
@@ -749,15 +690,15 @@ const ThirdPartyServicesTab: React.FC = () => {
                       <p>
                         1. 前往{" "}
                         <a
-                          href="https://www.aliyun.com/product/ai/base_alimt"
+                          href="https://www.xiangjifanyi.com"
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          阿里云机器翻译控制台
+                          象寄图片官网
                         </a>{" "}
-                        获取AccessKey
+                        获取API密钥
                       </p>
-                      <p>2. 配置后聊天消息将自动翻译</p>
+                      <p>2. 配置后可在商品管理中使用图片处理功能</p>
                     </div>
                   }
                   type="info"

@@ -4,20 +4,12 @@
   height: 100%;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  border-bottom: 1px solid #e8e8e8;
-  background: #fafafa;
-}
-
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 12px;
-  padding: 12px;
+  padding: 6px;
+  max-height: 500px;
   overflow-y: auto;
   flex: 1;
 }
@@ -25,32 +17,24 @@
 .gridItem {
   position: relative;
   aspect-ratio: 1;
-  border: 2px solid transparent;
+  border: 2px solid #d9d9d9;
   border-radius: 4px;
-  overflow: hidden;
-  cursor: pointer;
+  background: #fff;
   transition: all 0.2s;
-  background: #f5f5f5;
+  cursor: pointer;
 
   &:hover {
     border-color: #1890ff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   }
-
-  &.selected {
-    border-color: #1890ff;
-    background: #e6f7ff;
-  }
 }
 
-.checkbox {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 10;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 2px;
-  padding: 2px;
+.imagePreview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fafafa;
 }
 
 .image {
@@ -59,22 +43,51 @@
   object-fit: contain;
 }
 
-.imageInfo {
+.imageActions {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  top: 4px;
+  right: 4px;
   display: flex;
-  justify-content: space-between;
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 11px;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 2;
+
+  :global {
+    .ant-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+
+      &:hover {
+        background: rgba(255, 255, 255, 1);
+      }
+    }
+  }
 }
 
-.imageDimensions,
-.imageSize {
-  white-space: nowrap;
+.imageDimensions {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  padding: 1px 8px;
+  background: rgba(245, 245, 245, 0.4);
+  color: #333;
+  font-size: 12px;
+  text-align: center;
+  border-radius: 2px;
+  z-index: 2;
+  font-weight: 600;
+  // 文字描边效果，确保在深色背景下也能看清
+  text-shadow:
+    -1px -1px 0 #fff,
+    1px -1px 0 #fff,
+    -1px 1px 0 #fff,
+    1px 1px 0 #fff,
+    0 0 3px rgba(255, 255, 255, 0.8);
 }
 
 .loading {

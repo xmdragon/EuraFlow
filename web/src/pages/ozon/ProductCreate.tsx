@@ -104,7 +104,7 @@ const ProductCreate: React.FC = () => {
   const [hasCategoryData, setHasCategoryData] = useState(false);
   const [syncingCategoryAttributes, setSyncingCategoryAttributes] = useState(false);
   const [form] = Form.useForm();
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [mainProductImages, setMainProductImages] = useState<string[]>([]);
 
   // 变体相关状态（重新设计）
   const [variantDimensions, setVariantDimensions] = useState<VariantDimension[]>([]);
@@ -315,16 +315,7 @@ const ProductCreate: React.FC = () => {
     }
 
     try {
-      // 上传图片
-      const imageUrls: string[] = [];
-      for (const file of fileList) {
-        if (file.originFileObj) {
-          const url = await handleImageUpload(file.originFileObj);
-          imageUrls.push(url);
-        }
-      }
-
-      // 创建商品
+      // 创建商品（使用已上传的图片URL）
       await createProductMutation.mutateAsync({
         shop_id: selectedShop,
         offer_id: values.offer_id,
@@ -334,7 +325,7 @@ const ProductCreate: React.FC = () => {
         price: values.price?.toString(),
         old_price: values.old_price?.toString(),
         category_id: selectedCategory || undefined,
-        images: imageUrls,
+        images: mainProductImages,
         height: values.height,
         width: values.width,
         depth: values.depth,
@@ -496,16 +487,26 @@ const ProductCreate: React.FC = () => {
     );
   };
 
-  // 打开图片管理弹窗
+  // 打开图片管理弹窗（变体）
   const handleOpenImageModal = (variant: ProductVariant) => {
     setEditingVariant(variant);
+    setImageModalVisible(true);
+  };
+
+  // 打开主商品图片管理弹窗
+  const handleOpenMainImageModal = () => {
+    setEditingVariant(null); // 标识为主商品图片
     setImageModalVisible(true);
   };
 
   // 保存图片
   const handleSaveImages = (images: string[]) => {
     if (editingVariant) {
+      // 保存变体图片
       handleUpdateVariantRow(editingVariant.id, 'images', images);
+    } else {
+      // 保存主商品图片
+      setMainProductImages(images);
     }
     setImageModalVisible(false);
     setEditingVariant(null);
@@ -1017,6 +1018,7 @@ const ProductCreate: React.FC = () => {
               rules={[{ required: true, message: '请选择店铺' }]}
             >
               <ShopSelector
+                id="shop_id"
                 value={selectedShop}
                 onChange={(shopId) => setSelectedShop(shopId as number)}
                 showAllOption={false}
@@ -1031,6 +1033,7 @@ const ProductCreate: React.FC = () => {
             >
               <div className={styles.categorySelector}>
                 <Cascader
+                  id="category_id"
                   className={styles.cascader}
                   options={categoryTree}
                   onChange={(value) => {
@@ -1349,28 +1352,33 @@ const ProductCreate: React.FC = () => {
             )}
           </div>
 
-          {/* 商品图片 */}
-          <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>商品图片</h3>
+          {/* 商品图片（无变体时显示） */}
+          {!variantSectionExpanded && (
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}>商品图片</h3>
 
-            <div className={styles.uploadArea}>
-              <Upload
-                listType="picture-card"
-                fileList={fileList}
-                beforeUpload={() => false}
-                onChange={({ fileList }) => setFileList(fileList)}
-                maxCount={15}
-              >
-                {fileList.length < 15 && (
-                  <div>
-                    <PlusOutlined />
-                    <div>上传</div>
-                  </div>
-                )}
-              </Upload>
-              <div className={styles.uploadHint}>支持JPG/PNG格式，建议3:4比例，最多15张</div>
+              <div className={styles.mainImageArea}>
+                <div
+                  className={styles.mainImagePreviewWrapper}
+                  onClick={handleOpenMainImageModal}
+                >
+                  {mainProductImages && mainProductImages.length > 0 ? (
+                    <div className={styles.mainImagePreview}>
+                      <img src={mainProductImages[0]} alt="product" className={styles.mainImage} />
+                      <span className={styles.mainImageCount}>{mainProductImages.length}</span>
+                    </div>
+                  ) : (
+                    <div className={styles.mainImagePlaceholder}>
+                      <PlusOutlined style={{ fontSize: 24 }} />
+                      <div style={{ marginTop: 8 }}>点击添加图片</div>
+                      <span className={styles.mainImageCountZero}>0</span>
+                    </div>
+                  )}
+                </div>
+                <div className={styles.uploadHint}>支持JPG/PNG格式，建议3:4比例，最多15张</div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 变体设置（重新设计） */}
           <div className={styles.section}>
@@ -1508,12 +1516,12 @@ const ProductCreate: React.FC = () => {
       </div>
 
       {/* 图片管理弹窗 */}
-      {editingVariant && selectedShop && (
+      {selectedShop && imageModalVisible && (
         <VariantImageManagerModal
           visible={imageModalVisible}
-          variantId={editingVariant.id}
-          offerId={editingVariant.offer_id}
-          images={editingVariant.images || []}
+          variantId={editingVariant?.id || 'main-product'}
+          offerId={editingVariant?.offer_id || '主商品图片'}
+          images={editingVariant ? (editingVariant.images || []) : (mainProductImages || [])}
           shopId={selectedShop}
           onOk={handleSaveImages}
           onCancel={handleCancelImageModal}

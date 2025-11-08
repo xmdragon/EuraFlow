@@ -16,9 +16,11 @@ from ef_core.database import get_async_session
 from ef_core.middleware.auth import require_role
 from ef_core.models.users import User
 from ef_core.services.audit_service import AuditService
-from ..models.watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
+from ..models.watermark import WatermarkConfig, CloudinaryConfig, AliyunOssConfig, WatermarkTask
 from ..models import OzonProduct, OzonShop
 from ..services.cloudinary_service import CloudinaryService, CloudinaryConfigManager
+from ..services.aliyun_oss_service import AliyunOssService, AliyunOssConfigManager
+from ..services.image_storage_factory import ImageStorageFactory
 from ..services.image_processing_service import ImageProcessingService, WatermarkPosition
 from ..utils.datetime_utils import utcnow
 
@@ -47,19 +49,45 @@ class CloudinaryConfigResponse(BaseModel):
     watermark_images_folder: str
     auto_cleanup_days: int
     is_active: bool
+    is_default: bool
     last_test_at: Optional[datetime]
     last_test_success: Optional[bool]
     storage_used_bytes: Optional[int]
     bandwidth_used_bytes: Optional[int]
 
 
+class AliyunOssConfigDTO(BaseModel):
+    """阿里云OSS配置DTO"""
+    access_key_id: str
+    access_key_secret: str
+    bucket_name: str
+    endpoint: str
+    region_id: str = "cn-shanghai"
+    product_images_folder: str = "products"
+    watermark_images_folder: str = "watermarks"
+
+
+class AliyunOssConfigResponse(BaseModel):
+    """阿里云OSS配置响应"""
+    id: int
+    access_key_id: str
+    bucket_name: str
+    endpoint: str
+    region_id: str
+    product_images_folder: str
+    watermark_images_folder: str
+    is_default: bool
+    enabled: bool
+    last_test_at: Optional[datetime]
+    last_test_success: Optional[bool]
+
+
 class WatermarkConfigCreateDTO(BaseModel):
     """创建水印配置DTO"""
     name: str
-    color_type: str = "white"
-    scale_ratio: float = Field(default=0.1, ge=0.01, le=1.0)
+    scale_ratio: float = Field(default=0.2, ge=0.01, le=1.0)
     opacity: float = Field(default=0.8, ge=0.1, le=1.0)
-    margin_pixels: int = Field(default=20, ge=0)
+    margin_pixels: int = Field(default=10, ge=0)
     positions: List[str] = Field(default=["bottom_right"])
 
 
@@ -69,7 +97,6 @@ class WatermarkConfigResponse(BaseModel):
     name: str
     image_url: str
     cloudinary_public_id: str
-    color_type: str
     scale_ratio: float
     opacity: float
     margin_pixels: int
@@ -84,6 +111,14 @@ class WatermarkPreviewRequest(BaseModel):
     image_url: str
     watermark_config_id: int
     position: Optional[str] = None
+
+
+class ApplyWatermarkToUrlRequest(BaseModel):
+    """URL方式应用水印请求（使用transformation参数，不使用base64）"""
+    image_url: str
+    watermark_config_id: int
+    position: str
+    shop_id: int
 
 
 class BatchWatermarkRequest(BaseModel):
@@ -182,6 +217,7 @@ async def create_cloudinary_config(
             watermark_images_folder=existing_config.watermark_images_folder,
             auto_cleanup_days=existing_config.auto_cleanup_days,
             is_active=existing_config.is_active,
+            is_default=existing_config.is_default,
             last_test_at=existing_config.last_test_at,
             last_test_success=existing_config.last_test_success,
             storage_used_bytes=existing_config.storage_used_bytes,
@@ -198,14 +234,15 @@ async def get_cloudinary_config(
     db: AsyncSession = Depends(get_async_session)
 ):
     """获取Cloudinary全局配置"""
-    # 获取全局配置
+    # 获取全局配置（包括未激活的，用于显示配置表单）
     result = await db.execute(
-        select(CloudinaryConfig).where(CloudinaryConfig.is_active == True).limit(1)
+        select(CloudinaryConfig).limit(1)
     )
     config = result.scalar_one_or_none()
 
     if not config:
-        raise HTTPException(status_code=404, detail="Cloudinary configuration not found")
+        # 返回 null，前端显示空表单
+        return None
 
     return CloudinaryConfigResponse(
         id=config.id,
@@ -216,6 +253,7 @@ async def get_cloudinary_config(
         watermark_images_folder=config.watermark_images_folder,
         auto_cleanup_days=config.auto_cleanup_days,
         is_active=config.is_active,
+        is_default=config.is_default,
         last_test_at=config.last_test_at,
         last_test_success=config.last_test_success,
         storage_used_bytes=config.storage_used_bytes,
@@ -259,15 +297,201 @@ async def test_cloudinary_connection(
     return result
 
 
+# 阿里云 OSS 配置管理
+@router.post("/aliyun-oss/config")
+async def create_aliyun_oss_config(
+    access_key_id: str = Form(...),
+    access_key_secret: str = Form(...),
+    bucket_name: str = Form(...),
+    endpoint: str = Form(...),
+    region_id: str = Form("cn-shanghai"),
+    product_images_folder: str = Form("products"),
+    watermark_images_folder: str = Form("watermarks"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """创建或更新阿里云 OSS 配置（单例模式，ID 固定为 1）"""
+    try:
+        # 检查是否已存在配置（ID固定为1）
+        existing = await db.get(AliyunOssConfig, 1)
+
+        if existing:
+            # 更新现有配置
+            existing.access_key_id = access_key_id
+            existing.access_key_secret_encrypted = access_key_secret  # TODO: 加密
+            existing.bucket_name = bucket_name
+            existing.endpoint = endpoint
+            existing.region_id = region_id
+            existing.product_images_folder = product_images_folder
+            existing.watermark_images_folder = watermark_images_folder
+            existing.updated_at = utcnow()
+        else:
+            # 创建新配置
+            existing = AliyunOssConfig(
+                id=1,  # 单例模式，ID 固定为 1
+                access_key_id=access_key_id,
+                access_key_secret_encrypted=access_key_secret,  # TODO: 加密
+                bucket_name=bucket_name,
+                endpoint=endpoint,
+                region_id=region_id,
+                product_images_folder=product_images_folder,
+                watermark_images_folder=watermark_images_folder
+            )
+            db.add(existing)
+
+        await db.commit()
+        await db.refresh(existing)
+
+        return AliyunOssConfigResponse(
+            id=existing.id,
+            access_key_id=existing.access_key_id,
+            bucket_name=existing.bucket_name,
+            endpoint=existing.endpoint,
+            region_id=existing.region_id,
+            product_images_folder=existing.product_images_folder,
+            watermark_images_folder=existing.watermark_images_folder,
+            is_default=existing.is_default,
+            enabled=existing.enabled,
+            last_test_at=existing.last_test_at,
+            last_test_success=existing.last_test_success
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to create/update Aliyun OSS config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/aliyun-oss/config")
+async def get_aliyun_oss_config(
+    db: AsyncSession = Depends(get_async_session)
+):
+    """获取阿里云 OSS 配置"""
+    config = await db.get(AliyunOssConfig, 1)
+
+    if not config:
+        # 返回 null，前端显示空表单
+        return None
+
+    return AliyunOssConfigResponse(
+        id=config.id,
+        access_key_id=config.access_key_id,
+        bucket_name=config.bucket_name,
+        endpoint=config.endpoint,
+        region_id=config.region_id,
+        product_images_folder=config.product_images_folder,
+        watermark_images_folder=config.watermark_images_folder,
+        is_default=config.is_default,
+        enabled=config.enabled,
+        last_test_at=config.last_test_at,
+        last_test_success=config.last_test_success
+    )
+
+
+@router.post("/aliyun-oss/test")
+async def test_aliyun_oss_connection(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """测试阿里云 OSS 连接"""
+    config = await db.get(AliyunOssConfig, 1)
+
+    if not config:
+        raise HTTPException(status_code=404, detail="Aliyun OSS configuration not found")
+
+    service = await AliyunOssConfigManager.create_service_from_config(config)
+
+    result = await service.test_connection()
+
+    # 更新测试结果
+    config.last_test_at = utcnow()
+    config.last_test_success = result["success"]
+
+    await db.commit()
+
+    return result
+
+
+@router.put("/aliyun-oss/set-default")
+async def set_aliyun_oss_default(
+    enabled: bool = Form(True, description="是否启用阿里云 OSS"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """设置阿里云 OSS 为默认图床"""
+    try:
+        config = await db.get(AliyunOssConfig, 1)
+
+        if not config:
+            raise HTTPException(status_code=404, detail="Aliyun OSS configuration not found")
+
+        # 取消 Cloudinary 的默认状态
+        cloudinary_result = await db.execute(
+            select(CloudinaryConfig).where(CloudinaryConfig.is_default == True)
+        )
+        cloudinary_config = cloudinary_result.scalar_one_or_none()
+        if cloudinary_config:
+            cloudinary_config.is_default = False
+
+        # 设置阿里云 OSS 为默认并启用
+        config.is_default = True
+        config.enabled = enabled
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "message": "Aliyun OSS set as default storage provider"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to set Aliyun OSS as default: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/cloudinary/set-default")
+async def set_cloudinary_default(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """设置 Cloudinary 为默认图床"""
+    try:
+        cloudinary_result = await db.execute(
+            select(CloudinaryConfig).where(CloudinaryConfig.is_active == True).limit(1)
+        )
+        cloudinary_config = cloudinary_result.scalar_one_or_none()
+
+        if not cloudinary_config:
+            raise HTTPException(status_code=404, detail="Cloudinary configuration not found")
+
+        # 取消阿里云 OSS 的默认状态
+        oss_config = await db.get(AliyunOssConfig, 1)
+        if oss_config:
+            oss_config.is_default = False
+            oss_config.enabled = False
+
+        # 设置 Cloudinary 为默认
+        cloudinary_config.is_default = True
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "message": "Cloudinary set as default storage provider"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to set Cloudinary as default: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # 水印配置管理
 @router.post("/configs")
 async def create_watermark_config(
     request: Request,
     name: str = Form(...),
-    color_type: str = Form("white"),
-    scale_ratio: float = Form(0.1),
+    scale_ratio: float = Form(0.2),
     opacity: float = Form(0.8),
-    margin_pixels: int = Form(20),
+    margin_pixels: int = Form(10),
     positions: str = Form('["bottom_right"]'),  # JSON字符串
     watermark_file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_session),
@@ -277,22 +501,30 @@ async def create_watermark_config(
     try:
         # 解析positions JSON
         import json
+        logger.info(f"Creating watermark config: name={name}, positions={positions}")
         positions_list = json.loads(positions)
 
-        # 获取Cloudinary配置（全局配置）
-        cloudinary_config = await CloudinaryConfigManager.get_config(db)
-        if not cloudinary_config:
-            raise HTTPException(status_code=400, detail="Cloudinary not configured")
+        # 使用图片存储工厂获取当前激活的图床服务（自动选择 OSS 或 Cloudinary）
+        logger.info("Getting image storage service from factory")
+        try:
+            service = await ImageStorageFactory.create_from_db(db)
+            logger.info(f"Image storage service created: {type(service).__name__}")
 
-        # 创建Cloudinary服务
-        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+            # 获取当前激活的图床类型，用于记录到 storage_provider 字段
+            active_provider = await ImageStorageFactory.get_active_provider_type(db)
+            if not active_provider:
+                raise ValueError("无法确定当前激活的图床类型")
+            logger.info(f"Active storage provider: {active_provider}")
+        except ValueError as e:
+            logger.error(f"Failed to get image storage service: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
 
-        # 上传水印图片到Cloudinary
+        # 上传水印图片到图床
         watermark_data = await watermark_file.read()
         unique_id = uuid4().hex[:12]
-        folder = cloudinary_config.watermark_images_folder or "watermarks"
+        folder = service.watermark_images_folder or "watermarks"
 
-        logger.info(f"Uploading watermark to folder: {folder}, public_id: {unique_id}")
+        logger.info(f"Uploading watermark to folder: {folder}, public_id: {unique_id}, data_size: {len(watermark_data)} bytes")
 
         upload_result = await service.upload_image(
             watermark_data,
@@ -301,15 +533,19 @@ async def create_watermark_config(
             tags=["watermark"]
         )
 
-        if not upload_result["success"]:
-            raise HTTPException(status_code=500, detail="Failed to upload watermark image")
+        logger.info(f"Upload result: {upload_result}")
 
-        # 创建水印配置
+        if not upload_result["success"]:
+            error_msg = upload_result.get("error", "Unknown error")
+            logger.error(f"Failed to upload watermark image: {error_msg}")
+            raise HTTPException(status_code=500, detail=f"Failed to upload watermark image: {error_msg}")
+
+        # 创建水印配置（默认透明PNG水印）
         watermark_config = WatermarkConfig(
             name=name,
+            storage_provider=active_provider,  # 自动关联当前激活的图床
             cloudinary_public_id=upload_result["public_id"],
             image_url=upload_result["url"],
-            color_type=color_type,
             scale_ratio=Decimal(str(scale_ratio)),
             opacity=Decimal(str(opacity)),
             margin_pixels=margin_pixels,
@@ -319,6 +555,19 @@ async def create_watermark_config(
         db.add(watermark_config)
         await db.commit()
         await db.refresh(watermark_config)
+
+        # 立即读取所有属性以确保它们已加载（避免后续同步访问）
+        config_id = watermark_config.id
+        config_name = watermark_config.name
+        config_image_url = watermark_config.image_url
+        config_cloudinary_public_id = watermark_config.cloudinary_public_id
+        config_scale_ratio = watermark_config.scale_ratio
+        config_opacity = watermark_config.opacity
+        config_margin_pixels = watermark_config.margin_pixels
+        config_positions = watermark_config.positions
+        config_is_active = watermark_config.is_active
+        config_created_at = watermark_config.created_at
+        config_updated_at = watermark_config.updated_at
 
         # 记录审计日志
         try:
@@ -330,11 +579,10 @@ async def create_watermark_config(
                 action="create",
                 action_display="创建水印配置",
                 table_name="watermark_configs",
-                record_id=str(watermark_config.id),
+                record_id=str(config_id),
                 changes={
                     "name": name,
                     "cloudinary_public_id": upload_result["public_id"],
-                    "color_type": color_type,
                     "scale_ratio": str(scale_ratio),
                     "opacity": str(opacity),
                     "margin_pixels": margin_pixels,
@@ -347,23 +595,27 @@ async def create_watermark_config(
         except Exception as audit_error:
             logger.error(f"Failed to log audit: {audit_error}")
 
-        return WatermarkConfigResponse(
-            id=watermark_config.id,
-            name=watermark_config.name,
-            image_url=watermark_config.image_url,
-            cloudinary_public_id=watermark_config.cloudinary_public_id,
-            color_type=watermark_config.color_type,
-            scale_ratio=float(watermark_config.scale_ratio),
-            opacity=float(watermark_config.opacity),
-            margin_pixels=watermark_config.margin_pixels,
-            positions=watermark_config.positions or [],
-            is_active=watermark_config.is_active,
-            created_at=watermark_config.created_at,
-            updated_at=watermark_config.updated_at
+        response = WatermarkConfigResponse(
+            id=config_id,
+            name=config_name,
+            image_url=config_image_url,
+            cloudinary_public_id=config_cloudinary_public_id,
+            scale_ratio=float(config_scale_ratio),
+            opacity=float(config_opacity),
+            margin_pixels=config_margin_pixels,
+            positions=config_positions or [],
+            is_active=config_is_active,
+            created_at=config_created_at,
+            updated_at=config_updated_at
         )
+        return response
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to create watermark config: {e}")
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Failed to create watermark config: {e}\n{tb}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -371,12 +623,31 @@ async def create_watermark_config(
 async def list_watermark_configs(
     db: AsyncSession = Depends(get_async_session)
 ):
-    """获取水印配置列表（全局）"""
+    """
+    获取水印配置列表（全局）
+
+    仅返回与当前激活图床匹配的水印配置。
+    例如：当阿里云 OSS 激活时，只返回 storage_provider='aliyun_oss' 的水印配置。
+    """
+    # 获取当前激活的图床类型
+    active_provider = await ImageStorageFactory.get_active_provider_type(db)
+
+    if not active_provider:
+        # 没有激活的图床配置，返回空列表
+        logger.warning("没有找到激活的图床配置，返回空水印列表")
+        return []
+
+    logger.info(f"获取水印配置列表，筛选条件: storage_provider={active_provider}")
+
+    # 根据图床类型筛选水印配置
     result = await db.execute(
         select(WatermarkConfig)
+        .where(WatermarkConfig.storage_provider == active_provider)
         .order_by(WatermarkConfig.created_at.desc())
     )
     configs = result.scalars().all()
+
+    logger.info(f"找到 {len(configs)} 个匹配的水印配置")
 
     return [
         WatermarkConfigResponse(
@@ -384,7 +655,6 @@ async def list_watermark_configs(
             name=config.name,
             image_url=config.image_url,
             cloudinary_public_id=config.cloudinary_public_id,
-            color_type=config.color_type,
             scale_ratio=float(config.scale_ratio),
             opacity=float(config.opacity),
             margin_pixels=config.margin_pixels,
@@ -401,11 +671,10 @@ async def list_watermark_configs(
 async def update_watermark_config(
     request: Request,
     config_id: int,
-    scale_ratio: float = Form(0.1),
+    scale_ratio: float = Form(0.2),
     opacity: float = Form(0.8),
-    margin_pixels: int = Form(20),
+    margin_pixels: int = Form(10),
     positions: str = Form('["bottom_right"]'),  # JSON字符串
-    color_type: str = Form("white"),
     is_active: bool = Form(True),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
@@ -427,7 +696,6 @@ async def update_watermark_config(
             "opacity": str(config.opacity),
             "margin_pixels": config.margin_pixels,
             "positions": config.positions,
-            "color_type": config.color_type,
             "is_active": config.is_active
         }
 
@@ -436,12 +704,24 @@ async def update_watermark_config(
         config.opacity = Decimal(str(opacity))
         config.margin_pixels = margin_pixels
         config.positions = positions_list
-        config.color_type = color_type
         config.is_active = is_active
         config.updated_at = utcnow()
 
         await db.commit()
         await db.refresh(config)
+
+        # 立即读取所有属性以确保它们已加载（避免后续同步访问导致 greenlet_spawn 错误）
+        config_id = config.id
+        config_name = config.name
+        config_image_url = config.image_url
+        config_cloudinary_public_id = config.cloudinary_public_id
+        config_scale_ratio = config.scale_ratio
+        config_opacity = config.opacity
+        config_margin_pixels = config.margin_pixels
+        config_positions = config.positions
+        config_is_active = config.is_active
+        config_created_at = config.created_at
+        config_updated_at = config.updated_at
 
         # 记录审计日志
         try:
@@ -454,8 +734,6 @@ async def update_watermark_config(
                 changes["margin_pixels"] = {"old": old_values["margin_pixels"], "new": margin_pixels}
             if positions_list != old_values["positions"]:
                 changes["positions"] = {"old": old_values["positions"], "new": positions_list}
-            if color_type != old_values["color_type"]:
-                changes["color_type"] = {"old": old_values["color_type"], "new": color_type}
             if is_active != old_values["is_active"]:
                 changes["is_active"] = {"old": old_values["is_active"], "new": is_active}
 
@@ -468,7 +746,7 @@ async def update_watermark_config(
                     action="update",
                     action_display="更新水印配置",
                     table_name="watermark_configs",
-                    record_id=str(config.id),
+                    record_id=str(config_id),
                     changes=changes,
                     ip_address=request.client.host if request.client else None,
                     user_agent=request.headers.get("user-agent"),
@@ -478,18 +756,17 @@ async def update_watermark_config(
             logger.error(f"Failed to log audit: {audit_error}")
 
         return WatermarkConfigResponse(
-            id=config.id,
-            name=config.name,
-            image_url=config.image_url,
-            cloudinary_public_id=config.cloudinary_public_id,
-            color_type=config.color_type,
-            scale_ratio=float(config.scale_ratio),
-            opacity=float(config.opacity),
-            margin_pixels=config.margin_pixels,
-            positions=config.positions or [],
-            is_active=config.is_active,
-            created_at=config.created_at,
-            updated_at=config.updated_at
+            id=config_id,
+            name=config_name,
+            image_url=config_image_url,
+            cloudinary_public_id=config_cloudinary_public_id,
+            scale_ratio=float(config_scale_ratio),
+            opacity=float(config_opacity),
+            margin_pixels=config_margin_pixels,
+            positions=config_positions or [],
+            is_active=config_is_active,
+            created_at=config_created_at,
+            updated_at=config_updated_at
         )
 
     except Exception as e:
@@ -515,18 +792,38 @@ async def delete_watermark_config(
         "name": config.name,
         "cloudinary_public_id": config.cloudinary_public_id,
         "image_url": config.image_url,
-        "color_type": config.color_type,
         "scale_ratio": str(config.scale_ratio),
         "opacity": str(config.opacity),
         "margin_pixels": config.margin_pixels,
         "positions": config.positions
     }
 
-    # 获取Cloudinary服务并删除图片（全局配置）
-    cloudinary_config = await CloudinaryConfigManager.get_config(db)
-    if cloudinary_config:
-        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
-        await service.delete_resource(config.cloudinary_public_id)
+    # 根据水印配置的图床类型删除图片资源
+    try:
+        # 根据 storage_provider 选择对应的图床服务
+        if config.storage_provider == "aliyun_oss":
+            # 查询阿里云 OSS 配置
+            stmt = select(AliyunOssConfig).where(AliyunOssConfig.enabled == True)
+            oss_config = await db.scalar(stmt)
+            if oss_config:
+                from ..services.image_storage_factory import ImageStorageFactory
+                service = await ImageStorageFactory._create_aliyun_oss_service(oss_config)
+                await service.delete_resource(config.cloudinary_public_id)
+                logger.info(f"已从阿里云 OSS 删除水印图片: {config.cloudinary_public_id}")
+            else:
+                logger.warning(f"阿里云 OSS 配置未找到，无法删除水印图片: {config.cloudinary_public_id}")
+        else:  # cloudinary
+            # 查询 Cloudinary 配置
+            cloudinary_config = await CloudinaryConfigManager.get_config(db)
+            if cloudinary_config:
+                service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+                await service.delete_resource(config.cloudinary_public_id)
+                logger.info(f"已从 Cloudinary 删除水印图片: {config.cloudinary_public_id}")
+            else:
+                logger.warning(f"Cloudinary 配置未找到，无法删除水印图片: {config.cloudinary_public_id}")
+    except Exception as e:
+        # 删除图床资源失败不应阻断数据库删除操作，仅记录日志
+        logger.error(f"删除图床资源失败（将继续删除数据库记录）: {e}", exc_info=True)
 
     await db.delete(config)
     await db.commit()
@@ -570,9 +867,8 @@ async def preview_watermark(
         # 创建图片处理服务
         processor = ImageProcessingService()
 
-        # 处理图片
+        # 处理图片（默认透明PNG水印）
         watermark_config_dict = {
-            "color_type": config.color_type,
             "opacity": float(config.opacity),
             "scale_ratio": float(config.scale_ratio),
             "margin_pixels": config.margin_pixels,
@@ -588,8 +884,8 @@ async def preview_watermark(
             position
         )
 
-        # 转换为base64
-        base64_image = processor.image_to_base64(result_image)
+        # 转换为base64（使用PNG格式保持质量，避免JPEG压缩）
+        base64_image = processor.image_to_base64(result_image, format="PNG")
 
         return {
             "success": True,
@@ -600,6 +896,148 @@ async def preview_watermark(
     except Exception as e:
         logger.error(f"Failed to preview watermark: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/apply")
+async def apply_watermark_to_url(
+    request: ApplyWatermarkToUrlRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    URL方式应用水印（使用Cloudinary/阿里云transformation，不上传新文件）
+
+    直接在原图URL上添加transformation参数，返回带水印的URL
+    原图和水印图都已经在图床上，无需重新上传
+    """
+    try:
+        # 获取水印配置
+        config = await db.get(WatermarkConfig, request.watermark_config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Watermark config not found")
+
+        # 获取存储服务
+        storage_service = await ImageStorageFactory.create_from_db(db)
+
+        # 根据存储类型选择处理方式
+        if isinstance(storage_service, CloudinaryService):
+            # Cloudinary: 直接在URL上添加transformation参数（不上传新文件）
+            from urllib.parse import urlparse
+
+            # 从原图URL提取public_id
+            parsed = urlparse(request.image_url)
+            path_parts = parsed.path.split('/')
+
+            # Cloudinary URL格式: /{cloud}/image/upload/v{version}/{folder}/{public_id}.{ext}
+            # 找到 'upload' 后的部分
+            try:
+                upload_idx = path_parts.index('upload')
+                # 跳过版本号(v开头)或直接到文件夹
+                start_idx = upload_idx + 1
+                if start_idx < len(path_parts) and path_parts[start_idx].startswith('v'):
+                    start_idx += 1
+
+                # 获取剩余路径（包括文件夹和文件名）
+                public_id_with_ext = '/'.join(path_parts[start_idx:])
+                # 移除文件扩展名
+                public_id = public_id_with_ext.rsplit('.', 1)[0] if '.' in public_id_with_ext else public_id_with_ext
+            except (ValueError, IndexError):
+                raise HTTPException(status_code=400, detail="Invalid Cloudinary URL format")
+
+            # 手动构建transformation URL
+            # 标准格式: l_{overlay}/c_scale,fl_relative,w_{scale},o_{opacity}/fl_layer_apply,g_{gravity},x_{x},y_{y}
+            watermark_public_id = config.cloudinary_public_id.replace("/", ":")
+            opacity = int(float(config.opacity) * 100)
+            scale = float(config.scale_ratio)
+            gravity = _map_position_to_gravity(request.position)
+            x = config.margin_pixels
+            y = config.margin_pixels
+
+            # 构建transformation字符串（分为3个步骤）
+            transformation_str = f"l_{watermark_public_id}/c_scale,fl_relative,w_{scale},o_{opacity}/fl_layer_apply,g_{gravity},x_{x},y_{y}"
+
+            # 重新组装URL：保留原始的cloud_name和版本号
+            # 提取cloud_name
+            cloud_name = None
+            for part in path_parts:
+                if part and not part.startswith('/'):
+                    cloud_name = part
+                    break
+
+            if not cloud_name:
+                raise HTTPException(status_code=400, detail="Cannot extract cloud name from URL")
+
+            # 构建完整URL
+            # 从netloc提取cloud_name：res.cloudinary.com -> 从原URL host中提取
+            # 或者从URL路径中提取
+            cloud_name_from_netloc = parsed.netloc.split('.')[0]  # 可能是 'res'
+
+            # 更可靠的方式：从原始URL中提取
+            # Cloudinary URL格式: https://res.cloudinary.com/{cloud_name}/...
+            # 我们需要确保使用正确的cloudinary配置
+            import cloudinary
+            actual_cloud_name = cloudinary.config().cloud_name if cloudinary.config().cloud_name else cloud_name_from_netloc
+
+            watermarked_url = f"https://res.cloudinary.com/{actual_cloud_name}/image/upload/{transformation_str}/{public_id_with_ext}"
+
+            # 输出调试信息
+            logger.info(f"Cloudinary watermark URL generation:")
+            logger.info(f"  Original URL: {request.image_url}")
+            logger.info(f"  Watermark public_id: {watermark_public_id}")
+            logger.info(f"  Transformation: {transformation_str}")
+            logger.info(f"  Final URL: {watermarked_url}")
+
+            return {
+                "success": True,
+                "url": watermarked_url,
+                "public_id": public_id
+            }
+
+        elif isinstance(storage_service, AliyunOssService):
+            # 阿里云OSS: 在原URL上添加x-oss-process参数
+            from ..services.watermark_processor import WatermarkProcessor
+            processor = WatermarkProcessor(db)
+
+            watermarked_url = await processor._build_aliyun_oss_watermark_url(
+                request.image_url,
+                config,
+                position=request.position
+            )
+
+            # 从URL提取public_id
+            from urllib.parse import urlparse
+            parsed = urlparse(request.image_url)
+            public_id = parsed.path.lstrip('/')
+
+            return {
+                "success": True,
+                "url": watermarked_url,
+                "public_id": public_id
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Unknown storage service type")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to apply watermark: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _map_position_to_gravity(position: str) -> str:
+    """映射位置到Cloudinary gravity参数"""
+    mapping = {
+        "top_left": "north_west",
+        "top_center": "north",
+        "top_right": "north_east",
+        "center_left": "west",
+        "center": "center",
+        "center_right": "east",
+        "bottom_left": "south_west",
+        "bottom_center": "south",
+        "bottom_right": "south_east"
+    }
+    return mapping.get(position, "south_east")
 
 
 @router.post("/batch/preview")
@@ -692,7 +1130,6 @@ async def preview_watermark_batch(
                             "original_size": None,  # 前端根据需要获取
                             "watermark_size": None,
                             "position": "bottom_right",
-                            "color_type": config.color_type,
                             "opacity": float(config.opacity),
                             "scale_ratio": float(config.scale_ratio),
                             "margin_pixels": config.margin_pixels
@@ -1059,22 +1496,20 @@ async def cleanup_old_resources(
 
 # 资源管理
 @router.get("/resources")
-async def list_cloudinary_resources(
+async def list_image_storage_resources(
     folder: Optional[str] = Query(None, description="文件夹路径筛选"),
     max_results: int = Query(500, le=500, description="每页最大结果数"),
     next_cursor: Optional[str] = Query(None, description="分页游标"),
     group_by_folder: bool = Query(True, description="是否按文件夹分组"),
     db: AsyncSession = Depends(get_async_session)
 ):
-    """列出Cloudinary资源"""
+    """列出图床资源（自动选择当前激活的图床）"""
     try:
-        # 获取Cloudinary配置（全局配置）
-        cloudinary_config = await CloudinaryConfigManager.get_config(db)
-        if not cloudinary_config:
-            raise HTTPException(status_code=400, detail="Cloudinary not configured")
-
-        # 创建服务
-        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+        # 使用图片存储工厂获取当前激活的图床服务
+        try:
+            service = await ImageStorageFactory.create_from_db(db)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         # 列出资源
         result = await service.list_resources(
@@ -1155,13 +1590,13 @@ async def list_cloudinary_resources(
 
 
 @router.delete("/resources")
-async def delete_cloudinary_resources(
+async def delete_image_storage_resources(
     http_request: Request,
     request: Dict[str, List[str]] = Body(..., description='{"public_ids": ["id1", "id2"]}'),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
-    """批量删除Cloudinary资源"""
+    """批量删除图床资源（自动选择当前激活的图床）"""
     try:
         public_ids = request.get("public_ids", [])
 
@@ -1171,13 +1606,11 @@ async def delete_cloudinary_resources(
         if len(public_ids) > 100:
             raise HTTPException(status_code=400, detail="Cannot delete more than 100 resources at once")
 
-        # 获取Cloudinary配置（全局配置）
-        cloudinary_config = await CloudinaryConfigManager.get_config(db)
-        if not cloudinary_config:
-            raise HTTPException(status_code=400, detail="Cloudinary not configured")
-
-        # 创建服务
-        service = await CloudinaryConfigManager.create_service_from_config(cloudinary_config)
+        # 使用图片存储工厂获取当前激活的图床服务
+        try:
+            service = await ImageStorageFactory.create_from_db(db)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         # 批量删除
         result = await service.delete_resources(public_ids)
@@ -1222,4 +1655,125 @@ async def delete_cloudinary_resources(
         raise
     except Exception as e:
         logger.error(f"Failed to delete resources: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/upload-refined-images", summary="上传精修后的图片到当前图床")
+async def upload_refined_images(
+    request_body: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+) -> Dict[str, Any]:
+    """
+    从象寄精修工具返回的URL异步上传图片到当前激活的图床
+
+    Args:
+        request_body: {
+            "shop_id": int,
+            "images": [
+                {"xiangji_url": str, "request_id": str},
+                ...
+            ]
+        }
+
+    Returns:
+        {
+            "success": true,
+            "results": [
+                {"request_id": str, "xiangji_url": str, "storage_url": str, "success": true},
+                ...
+            ]
+        }
+    """
+    try:
+        shop_id = request_body.get("shop_id")
+        images = request_body.get("images", [])
+
+        if not shop_id:
+            raise HTTPException(status_code=400, detail="shop_id is required")
+
+        if not images:
+            raise HTTPException(status_code=400, detail="images is required")
+
+        logger.info(f"开始上传精修图片到当前图床，shop_id={shop_id}, count={len(images)}")
+
+        # 获取当前激活的图床服务
+        try:
+            service = await ImageStorageFactory.create_from_db(db)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        # 异步上传所有图片
+        results = []
+        for img_data in images:
+            xiangji_url = img_data.get("xiangji_url")
+            request_id = img_data.get("request_id")
+
+            if not xiangji_url or not request_id:
+                results.append({
+                    "request_id": request_id,
+                    "xiangji_url": xiangji_url,
+                    "storage_url": None,
+                    "success": False,
+                    "error": "Missing xiangji_url or request_id"
+                })
+                continue
+
+            try:
+                # 使用request_id作为public_id
+                public_id = f"refined_{request_id}"
+
+                # 上传到当前图床（from URL）
+                result = await service.upload_image_from_url(
+                    image_url=xiangji_url,
+                    public_id=public_id,
+                    folder="products"
+                )
+
+                if result.get("success"):
+                    results.append({
+                        "request_id": request_id,
+                        "xiangji_url": xiangji_url,
+                        "storage_url": result.get("url"),
+                        "success": True
+                    })
+                    logger.info(f"成功上传精修图片: {request_id} -> {result.get('url')}")
+                else:
+                    results.append({
+                        "request_id": request_id,
+                        "xiangji_url": xiangji_url,
+                        "storage_url": None,
+                        "success": False,
+                        "error": result.get("error", "Upload failed")
+                    })
+                    logger.error(f"上传精修图片失败: {request_id}, error: {result.get('error')}")
+
+            except Exception as e:
+                results.append({
+                    "request_id": request_id,
+                    "xiangji_url": xiangji_url,
+                    "storage_url": None,
+                    "success": False,
+                    "error": str(e)
+                })
+                logger.error(f"上传精修图片异常: {request_id}, error: {str(e)}")
+
+        # 统计成功和失败数量
+        success_count = sum(1 for r in results if r["success"])
+        fail_count = len(results) - success_count
+
+        logger.info(f"精修图片上传完成，总数={len(results)}, 成功={success_count}, 失败={fail_count}")
+
+        return {
+            "success": True,
+            "total": len(results),
+            "success_count": success_count,
+            "fail_count": fail_count,
+            "results": results
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to upload refined images: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -4,17 +4,21 @@
 """
 import asyncio
 import logging
+import base64
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from uuid import uuid4
+from urllib.parse import quote
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import OzonProduct, WatermarkConfig, WatermarkTask, OzonShop
-from .cloudinary_service import CloudinaryService, CloudinaryConfigManager
+from .image_storage_factory import ImageStorageFactory
 from .ozon_api_service import OzonApiService
-from .image_processing_service import ImageProcessingService, WatermarkPosition, WatermarkColor
+from .image_processing_service import ImageProcessingService, WatermarkPosition
+from .cloudinary_service import CloudinaryService
+from .aliyun_oss_service import AliyunOssService
 from ..utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -25,18 +29,15 @@ class WatermarkProcessor:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.cloudinary_service: Optional[CloudinaryService] = None
+        self.storage_service = None  # 统一的存储服务接口（Cloudinary 或 阿里云 OSS）
         self.ozon_api: Optional[OzonApiService] = None
         self.image_service = ImageProcessingService()  # 初始化图片处理服务
 
     async def _init_services(self, shop_id: int):
         """初始化服务"""
-        # 初始化Cloudinary服务
-        if not self.cloudinary_service:
-            config = await CloudinaryConfigManager.get_config(self.db)
-            if not config:
-                raise ValueError("Cloudinary configuration not found")
-            self.cloudinary_service = await CloudinaryConfigManager.create_service_from_config(config)
+        # 初始化图片存储服务（自动选择 Cloudinary 或阿里云 OSS）
+        if not self.storage_service:
+            self.storage_service = await ImageStorageFactory.create_from_db(self.db)
 
         # 初始化OZON API服务
         if not self.ozon_api:
@@ -220,30 +221,57 @@ class WatermarkProcessor:
 
                     # 生成唯一ID
                     unique_id = f"{product.offer_id}_{uuid4().hex[:8]}_{idx}"
-                    folder = f"{self.cloudinary_service.product_images_folder}/{shop_id}"
+                    folder = f"{self.storage_service.product_images_folder}/{shop_id}"
 
-                    # 使用分析得出的最佳位置，或使用默认
-                    # 使用当前图片的水印配置（可能是自定义的）
-                    transformation = self._build_watermark_transformation(
-                        image_watermark_config,  # 使用特定图片的水印配置
-                        position=best_position
-                    )
+                    # 根据存储类型选择不同的处理方式
+                    if isinstance(self.storage_service, CloudinaryService):
+                        # Cloudinary: 使用transformation上传
+                        transformation = self._build_watermark_transformation(
+                            image_watermark_config,
+                            position=best_position
+                        )
 
-                    # 使用Cloudinary的overlay功能添加水印
-                    result = await self.cloudinary_service.upload_image_from_url(
-                        image_url,
-                        public_id=unique_id,
-                        folder=folder,
-                        transformations=transformation
-                    )
+                        result = await self.storage_service.upload_image_from_url(
+                            image_url,
+                            public_id=unique_id,
+                            folder=folder,
+                            transformations=transformation
+                        )
 
-                    if result["success"]:
-                        processed_images.append(result["url"])
-                        cloudinary_public_ids.append(result["public_id"])
-                        logger.info(f"Processed image {idx+1}/{len(original_images)} for product {product_id}")
+                        if result["success"]:
+                            processed_images.append(result["url"])
+                            cloudinary_public_ids.append(result["public_id"])
+                            logger.info(f"Processed image {idx+1}/{len(original_images)} with Cloudinary transformation")
+                        else:
+                            logger.error(f"Failed to process image {idx+1}: {result.get('error')}")
+                            processed_images.append(image_url)
+
+                    elif isinstance(self.storage_service, AliyunOssService):
+                        # 阿里云OSS: 先上传原图，然后生成带水印的URL
+                        result = await self.storage_service.upload_image_from_url(
+                            image_url,
+                            public_id=unique_id,
+                            folder=folder
+                        )
+
+                        if result["success"]:
+                            # 生成带水印的URL（使用x-oss-process参数）
+                            base_url = result["url"]
+                            watermarked_url = await self._build_aliyun_oss_watermark_url(
+                                base_url,
+                                image_watermark_config,
+                                position=best_position
+                            )
+                            processed_images.append(watermarked_url)
+                            cloudinary_public_ids.append(result["public_id"])
+                            logger.info(f"Processed image {idx+1}/{len(original_images)} with Aliyun OSS watermark URL")
+                        else:
+                            logger.error(f"Failed to process image {idx+1}: {result.get('error')}")
+                            processed_images.append(image_url)
+
                     else:
-                        logger.error(f"Failed to process image {idx+1}: {result.get('error')}")
-                        # 如果某张图片处理失败，使用原图
+                        # 未知存储类型，使用原图
+                        logger.warning(f"Unknown storage service type: {type(self.storage_service)}")
                         processed_images.append(image_url)
 
                 except Exception as e:
@@ -339,6 +367,101 @@ class WatermarkProcessor:
             "bottom_right": "south_east"
         }
         return mapping.get(position, "south_east")
+
+    def _map_position_to_aliyun_gravity(self, position: str) -> str:
+        """
+        映射位置到阿里云OSS gravity参数
+
+        Args:
+            position: 水印位置字符串
+
+        Returns:
+            阿里云OSS的g参数值
+        """
+        mapping = {
+            "top_left": "nw",
+            "top_center": "north",
+            "top_right": "ne",
+            "center_left": "west",
+            "center": "center",
+            "center_right": "east",
+            "bottom_left": "sw",
+            "bottom_center": "south",
+            "bottom_right": "se"
+        }
+        return mapping.get(position, "se")
+
+    async def _build_aliyun_oss_watermark_url(
+        self,
+        base_url: str,
+        config: WatermarkConfig,
+        position: Optional[str] = None
+    ) -> str:
+        """
+        构建阿里云OSS水印URL（使用x-oss-process参数）
+
+        阿里云OSS支持通过URL参数实现云端水印处理，无需本地处理
+
+        Args:
+            base_url: 原图URL
+            config: 水印配置
+            position: 指定的水印位置
+
+        Returns:
+            带水印参数的完整URL
+
+        Reference:
+            https://help.aliyun.com/zh/oss/user-guide/add-watermarks
+        """
+        # 使用智能分析的位置，或者使用配置的第一个位置作为默认
+        if position is None:
+            position = config.positions[0] if config.positions else "bottom_right"
+            logger.info(f"Using default position: {position}")
+        else:
+            logger.info(f"Using intelligent position: {position}")
+
+        # 获取水印图片URL并编码为Base64
+        watermark_url = config.image_url
+
+        # 阿里云OSS水印图片必须在同一个Bucket中，提取object key
+        # 格式: https://{bucket}.{endpoint}/{object_key}
+        # 我们需要从URL中提取object_key部分
+        try:
+            # 假设水印图片URL格式: https://bucket.endpoint/path/to/watermark.png
+            # 提取 /path/to/watermark.png 部分
+            from urllib.parse import urlparse
+            parsed = urlparse(watermark_url)
+            watermark_object_key = parsed.path.lstrip('/')  # 移除开头的 /
+
+            # 将object key编码为Base64（阿里云OSS要求）
+            watermark_base64 = base64.b64encode(watermark_object_key.encode('utf-8')).decode('utf-8')
+
+            # 构建水印参数
+            # 格式: image/watermark,image_{base64},t_{透明度},g_{位置},x_{x边距},y_{y边距},P_{缩放比例}/format,png
+            params = [
+                "image/watermark",
+                f"image_{watermark_base64}",
+                f"t_{int(float(config.opacity) * 100)}",  # 透明度 0-100
+                f"g_{self._map_position_to_aliyun_gravity(position)}",  # 位置
+                f"x_{config.margin_pixels}",  # X边距
+                f"y_{config.margin_pixels}",  # Y边距
+                f"P_{int(float(config.scale_ratio) * 100)}"  # 缩放比例（相对于原图的百分比）
+            ]
+
+            # 拼接参数，并添加format,png以保持PNG透明度
+            process_param = ",".join(params) + "/format,png"
+
+            # 构建完整URL
+            separator = "&" if "?" in base_url else "?"
+            watermark_url_final = f"{base_url}{separator}x-oss-process={quote(process_param)}"
+
+            logger.info(f"Generated Aliyun OSS watermark URL with position {position}")
+            return watermark_url_final
+
+        except Exception as e:
+            logger.error(f"Failed to build Aliyun OSS watermark URL: {e}")
+            # 失败时返回原图URL
+            return base_url
 
     async def _update_ozon_product_images(
         self,

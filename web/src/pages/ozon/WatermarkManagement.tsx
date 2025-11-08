@@ -59,7 +59,6 @@ const WatermarkManagement: React.FC = () => {
   const { modal } = App.useApp(); // 使用 App.useApp() hook 获取 modal 实例
   const _queryClient = useQueryClient();
   const { canOperate } = usePermission();
-  const [activeTab, setActiveTab] = useState('watermarks');
   const [watermarkForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
@@ -68,10 +67,6 @@ const WatermarkManagement: React.FC = () => {
     null
   );
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
-  const [selectedResources, setSelectedResources] = useState<string[]>([]);
-  const [resourcesPage] = useState(0);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
-  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
 
   // ============ 水印配置查询 ============
   const {
@@ -81,29 +76,6 @@ const WatermarkManagement: React.FC = () => {
   } = useQuery({
     queryKey: ['watermarkConfigs'],
     queryFn: () => watermarkApi.getWatermarkConfigs(),
-  });
-
-  // ============ 任务列表查询 ============
-  const {
-    data: tasks,
-    isLoading: tasksLoading,
-    refetch: refetchTasks,
-  } = useQuery({
-    queryKey: ['watermarkTasks'],
-    queryFn: () => watermarkApi.getTasks({ limit: 20 }),
-    enabled: activeTab === 'tasks',
-    refetchInterval: activeTab === 'tasks' ? 5000 : false,
-  });
-
-  // ============ Cloudinary资源列表查询 ============
-  const {
-    data: resourcesData,
-    isLoading: resourcesLoading,
-    refetch: refetchResources,
-  } = useQuery({
-    queryKey: ['cloudinaryResources', resourcesPage],
-    queryFn: () => watermarkApi.listCloudinaryResources({ max_results: 50 }),
-    enabled: activeTab === 'resources',
   });
 
   // ============ 水印配置创建 ============
@@ -177,19 +149,6 @@ const WatermarkManagement: React.FC = () => {
     },
   });
 
-  // ============ 删除Cloudinary资源 ============
-  const deleteResourcesMutation = useMutation({
-    mutationFn: (publicIds: string[]) => watermarkApi.deleteCloudinaryResources(publicIds),
-    onSuccess: (data) => {
-      notifySuccess('删除成功', `成功删除 ${data.deleted_count} 个资源`);
-      setSelectedResources([]);
-      refetchResources();
-    },
-    onError: (error: Error) => {
-      notifyError('删除失败', `删除失败: ${error.message}`);
-    },
-  });
-
   // 水印位置选项
   const positionOptions = [
     { label: '左上', value: 'top_left' },
@@ -254,20 +213,6 @@ const WatermarkManagement: React.FC = () => {
       key: 'name',
     },
     {
-      title: '颜色类型',
-      dataIndex: 'color_type',
-      key: 'color_type',
-      render: (type: string) => {
-        const colorMap: Record<string, string> = {
-          white: '白色',
-          blue: '蓝色',
-          black: '黑色',
-          transparent: '透明',
-        };
-        return colorMap[type] || type;
-      },
-    },
-    {
       title: '缩放比例',
       dataIndex: 'scale_ratio',
       key: 'scale_ratio',
@@ -314,7 +259,6 @@ const WatermarkManagement: React.FC = () => {
                       scale_ratio: record.scale_ratio,
                       opacity: record.opacity,
                       margin_pixels: record.margin_pixels,
-                      color_type: record.color_type,
                       is_active: record.is_active,
                     });
                     setEditModalVisible(true);
@@ -406,19 +350,6 @@ const WatermarkManagement: React.FC = () => {
       <div className={styles.contentContainer}>
         {/* 水印管理 */}
         <Card title="水印管理">
-          <Tabs
-            activeKey={activeTab}
-            onChange={(key) => setActiveTab(key)}
-            items={[
-              {
-                key: 'watermarks',
-                label: (
-                  <span>
-                    <PictureOutlined /> 水印配置
-                  </span>
-                ),
-                children: (
-                  <>
                     {canOperate && (
                       <Form
                         form={watermarkForm}
@@ -446,14 +377,6 @@ const WatermarkManagement: React.FC = () => {
                           <Upload maxCount={1} beforeUpload={() => false} accept="image/*">
                             <Button icon={<UploadOutlined />}>选择图片</Button>
                           </Upload>
-                        </Form.Item>
-                        <Form.Item name="color_type" initialValue="white">
-                          <Select className={styles.smallInput}>
-                            <Option value="white">白色</Option>
-                            <Option value="blue">蓝色</Option>
-                            <Option value="black">黑色</Option>
-                            <Option value="transparent">透明</Option>
-                          </Select>
                         </Form.Item>
                         <Form.Item name="scale_ratio" label="缩放比例" initialValue={0.1}>
                           <InputNumber
@@ -498,190 +421,6 @@ const WatermarkManagement: React.FC = () => {
                       loading={watermarksLoading}
                       pagination={false}
                     />
-                  </>
-                ),
-              },
-              {
-                key: 'tasks',
-                label: (
-                  <span>
-                    <SyncOutlined /> 任务监控
-                  </span>
-                ),
-                children: (
-                  <>
-                    <Space className={styles.taskToolbar}>
-                      <Button icon={<ReloadOutlined />} onClick={() => refetchTasks()}>
-                        刷新
-                      </Button>
-                    </Space>
-
-                    <Table
-                      columns={taskColumns}
-                      dataSource={tasks || []}
-                      rowKey="id"
-                      loading={tasksLoading}
-                      pagination={{
-                        pageSize: 20,
-                        showSizeChanger: true,
-                        showTotal: (total) => `共 ${total} 条`,
-                      }}
-                    />
-                  </>
-                ),
-              },
-              {
-                key: 'resources',
-                label: (
-                  <span>
-                    <CloudOutlined /> 资源管理
-                  </span>
-                ),
-                children: (
-                  <>
-                    <div className={styles.resourceToolbar}>
-                      <Space>
-                        <span>已选中: {selectedResources.length} 个</span>
-                        {canOperate && (
-                          <Button
-                            danger
-                            icon={<DeleteOutlined />}
-                            disabled={selectedResources.length === 0}
-                            loading={deleteResourcesMutation.isPending}
-                            onClick={() => {
-                              if (selectedResources.length > 0) {
-                                modal.confirm({
-                                  title: '确认删除',
-                                  content: `确定要删除选中的 ${selectedResources.length} 个资源吗？此操作不可恢复。`,
-                                  okText: '确认',
-                                  cancelText: '取消',
-                                  okButtonProps: { danger: true },
-                                  onOk: () => deleteResourcesMutation.mutate(selectedResources)
-                                });
-                              }
-                            }}
-                          >
-                            删除选中
-                          </Button>
-                        )}
-                        <Button icon={<ReloadOutlined />} onClick={() => refetchResources()}>
-                          刷新
-                        </Button>
-                      </Space>
-                    </div>
-
-                    <Spin spinning={resourcesLoading}>
-                      {/* 按文件夹分组显示 */}
-                      {resourcesData?.folders && resourcesData.folders.length > 0 ? (
-                        <Collapse
-                          defaultActiveKey={resourcesData.folders.map((folder) => folder.folder_path)}
-                          style={{ marginBottom: '16px' }}
-                        >
-                          {resourcesData.folders.map((folder) => (
-                            <Collapse.Panel
-                              key={folder.folder_path}
-                              header={
-                                <Space>
-                                  <strong>{folder.folder}</strong>
-                                  <Tag color="blue">{folder.resource_count} 个资源</Tag>
-                                </Space>
-                              }
-                            >
-                              <div className={styles.resourceGrid}>
-                                {folder.resources.map((resource) => {
-                                  const isSelected = selectedResources.includes(resource.public_id);
-                                  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(
-                                    resource.format?.toLowerCase() || ''
-                                  );
-                                  const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(
-                                    resource.format?.toLowerCase() || ''
-                                  );
-
-                                  return (
-                                    <div
-                                      key={resource.public_id}
-                                      className={`${styles.resourceCard} ${isSelected ? styles.selected : ''}`}
-                                    >
-                                      <div
-                                        className={styles.resourceThumbnail}
-                                        onClick={() => {
-                                          if (isImage) {
-                                            setPreviewImageUrl(resource.url);
-                                            setImagePreviewVisible(true);
-                                          }
-                                        }}
-                                        style={{ cursor: isImage ? 'pointer' : 'default' }}
-                                      >
-                                        {isImage && (
-                                          <img
-                                            src={resource.url.replace(
-                                              '/upload/',
-                                              '/upload/w_160,h_160,c_fill,q_auto/'
-                                            )}
-                                            alt={resource.public_id}
-                                            className={styles.thumbnailImage}
-                                          />
-                                        )}
-                                        {isVideo && (
-                                          <div className={styles.videoPlaceholder}>
-                                            <VideoCameraOutlined className={styles.videoIcon} />
-                                          </div>
-                                        )}
-                                        {!isImage && !isVideo && (
-                                          <div className={styles.filePlaceholder}>
-                                            <FileImageOutlined className={styles.fileIcon} />
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className={styles.resourceCheckbox}>
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={() => {
-                                            if (isSelected) {
-                                              setSelectedResources(
-                                                selectedResources.filter((id) => id !== resource.public_id)
-                                              );
-                                            } else {
-                                              setSelectedResources([...selectedResources, resource.public_id]);
-                                            }
-                                          }}
-                                        />
-                                      </div>
-                                      <div className={styles.resourceInfo}>
-                                        <div className={styles.resourceInfoItem}>
-                                          <strong>尺寸:</strong> {resource.width}x{resource.height}
-                                        </div>
-                                        <div className={styles.resourceInfoItem}>
-                                          <strong>大小:</strong> {(resource.bytes / 1024).toFixed(2)} KB
-                                        </div>
-                                        <div className={styles.resourceInfoItem}>
-                                          <strong>上传:</strong>{' '}
-                                          {new Date(resource.created_at).toLocaleDateString()}
-                                        </div>
-                                        <div className={styles.resourceInfoItem}>
-                                          <strong>格式:</strong> {resource.format?.toUpperCase()}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </Collapse.Panel>
-                          ))}
-                        </Collapse>
-                      ) : (
-                        <div className={styles.emptyState}>
-                          <CloudOutlined className={styles.emptyIcon} />
-                          <p>暂无资源</p>
-                        </div>
-                      )}
-                    </Spin>
-                  </>
-                ),
-              },
-            ]}
-          />
         </Card>
 
         {/* 编辑模态框 */}
@@ -749,17 +488,7 @@ const WatermarkManagement: React.FC = () => {
                 </Col>
               </Row>
               <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="color_type" label="颜色类型" rules={[{ required: true }]}>
-                    <Select>
-                      <Option value="white">白色</Option>
-                      <Option value="blue">蓝色</Option>
-                      <Option value="black">黑色</Option>
-                      <Option value="transparent">透明</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
+                <Col span={24}>
                   <Form.Item name="is_active" label="状态" rules={[{ required: true }]}>
                     <Select>
                       <Option value={true}>激活</Option>
@@ -819,9 +548,6 @@ const WatermarkManagement: React.FC = () => {
                 <strong>名称:</strong> {selectedWatermark.name}
               </p>
               <p>
-                <strong>颜色类型:</strong> {selectedWatermark.color_type}
-              </p>
-              <p>
                 <strong>缩放比例:</strong> {(selectedWatermark.scale_ratio * 100).toFixed(0)}%
               </p>
               <p>
@@ -850,22 +576,6 @@ const WatermarkManagement: React.FC = () => {
           )}
         </Modal>
 
-        {/* 图片预览 Modal */}
-        <Modal
-          open={imagePreviewVisible}
-          footer={null}
-          onCancel={() => setImagePreviewVisible(false)}
-          width="80%"
-          style={{ maxWidth: '1200px' }}
-          centered
-        >
-          <Image
-            src={previewImageUrl}
-            alt="预览图片"
-            style={{ width: '100%' }}
-            preview={false}
-          />
-        </Modal>
       </div>
     </div>
   );

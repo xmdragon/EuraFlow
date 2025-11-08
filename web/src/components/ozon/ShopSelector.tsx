@@ -18,6 +18,7 @@ interface ShopSelectorProps {
   className?: string;
   placeholder?: string;
   mode?: 'multiple';
+  id?: string;
 }
 
 const ShopSelector: React.FC<ShopSelectorProps> = ({
@@ -28,6 +29,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   className,
   placeholder = '选择店铺',
   mode,
+  id,
 }) => {
   const isMultiple = mode === 'multiple';
   const [selectedShop, setSelectedShop] = useState<number | number[] | null>(
@@ -145,6 +147,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
 
   return (
     <Select
+      id={id}
       value={(() => {
         if (isMultiple) {
           return (selectedShop as number[] | null) ?? [];

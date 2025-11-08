@@ -53,6 +53,27 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import translation routes: {e}")
 
+try:
+    from .aliyun_translation_routes import router as aliyun_translation_router
+    router.include_router(aliyun_translation_router)
+    logger.info("✓ Loaded aliyun_translation_routes")
+except ImportError as e:
+    logger.warning(f"Could not import aliyun translation routes: {e}")
+
+try:
+    from .chatgpt_translation_routes import router as chatgpt_translation_router
+    router.include_router(chatgpt_translation_router)
+    logger.info("✓ Loaded chatgpt_translation_routes")
+except ImportError as e:
+    logger.warning(f"Could not import chatgpt translation routes: {e}")
+
+try:
+    from .xiangjifanyi_routes import router as xiangjifanyi_router
+    router.include_router(xiangjifanyi_router)
+    logger.info("✓ Loaded xiangjifanyi_routes")
+except ImportError as e:
+    logger.warning(f"Could not import xiangjifanyi routes: {e}")
+
 # 新拆分的业务子路由
 try:
     from .sync_task_routes import router as sync_task_router

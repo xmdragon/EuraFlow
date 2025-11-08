@@ -4,7 +4,7 @@ from .ozon_shops import OzonShop
 from .products import OzonProduct
 from .orders import OzonOrder, OzonPosting, OzonOrderItem, OzonShipmentPackage, OzonRefund, OzonDomesticTracking
 from .warehouses import OzonWarehouse
-from .watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask
+from .watermark import WatermarkConfig, CloudinaryConfig, WatermarkTask, AliyunOssConfig
 from .product_selection import ProductSelectionItem, ImportHistory
 from .chat import OzonChat, OzonChatMessage
 from .kuajing84 import Kuajing84SyncLog
@@ -22,6 +22,8 @@ from .finance import OzonFinanceTransaction, OzonFinanceSyncWatermark
 from .promotion import OzonPromotionAction, OzonPromotionProduct
 from .global_settings import OzonGlobalSetting
 from .category_commissions import OzonCategoryCommission
+from .translation import AliyunTranslationConfig
+from .chatgpt_translation import ChatGPTTranslationConfig
 
 __all__ = [
     "OzonShop",
@@ -35,6 +37,7 @@ __all__ = [
     "OzonWarehouse",
     "WatermarkConfig",
     "CloudinaryConfig",
+    "AliyunOssConfig",
     "WatermarkTask",
     "ProductSelectionItem",
     "ImportHistory",
@@ -60,4 +63,7 @@ __all__ = [
     "OzonGlobalSetting",
     # Category commissions
     "OzonCategoryCommission",
+    # Translation configs
+    "AliyunTranslationConfig",
+    "ChatGPTTranslationConfig",
 ]

@@ -1,4 +1,4 @@
-"""阿里云翻译API路由"""
+"""通用翻译API路由（使用翻译工厂）"""
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -9,151 +9,27 @@ import logging
 from ef_core.api.auth import get_current_user
 from ef_core.models.users import User
 from ef_core.database import get_db_manager
-from ..models.translation import AliyunTranslationConfig
 from ..models.chat import OzonChatMessage
-from ..services.aliyun_translation_service import AliyunTranslationService
+from ..services.translation_factory import TranslationFactory
 
 router = APIRouter(prefix="/translation", tags=["translation"])
 logger = logging.getLogger(__name__)
 
 
-class TranslationConfigRequest(BaseModel):
-    """翻译配置请求"""
-    access_key_id: str = Field(..., description="阿里云AccessKey ID")
-    access_key_secret: str = Field(..., description="阿里云AccessKey Secret")
-    region_id: str = Field(default="cn-hangzhou", description="阿里云区域ID")
-    enabled: bool = Field(default=True, description="是否启用")
-
-
-class TranslationConfigResponse(BaseModel):
-    """翻译配置响应"""
-    id: int
-    access_key_id: Optional[str]
-    region_id: str
-    enabled: bool
-    last_test_at: Optional[datetime]
-    last_test_success: Optional[bool]
-    created_at: datetime
-    updated_at: datetime
-
-
-@router.get("/config")
-async def get_translation_config(
+@router.get("/active-provider")
+async def get_active_provider(
     user: User = Depends(get_current_user)
 ) -> dict:
-    """获取翻译配置"""
+    """获取当前激活的翻译引擎类型"""
     db_manager = get_db_manager()
     async with db_manager.get_session() as session:
-        stmt = select(AliyunTranslationConfig).where(AliyunTranslationConfig.id == 1)
-        config = await session.scalar(stmt)
-
-        if not config:
-            return {"ok": True, "data": None}
-
+        provider_type = await TranslationFactory.get_active_provider_type(session)
         return {
             "ok": True,
             "data": {
-                "id": config.id,
-                "access_key_id": config.access_key_id,
-                "region_id": config.region_id,
-                "enabled": config.enabled,
-                "last_test_at": config.last_test_at,
-                "last_test_success": config.last_test_success,
-                "created_at": config.created_at,
-                "updated_at": config.updated_at
+                "provider": provider_type  # "chatgpt", "aliyun" 或 "none"
             }
         }
-
-
-@router.post("/config")
-async def save_translation_config(
-    request: TranslationConfigRequest,
-    user: User = Depends(get_current_user)
-) -> dict:
-    """保存或更新翻译配置"""
-    db_manager = get_db_manager()
-    async with db_manager.get_session() as session:
-        stmt = select(AliyunTranslationConfig).where(AliyunTranslationConfig.id == 1)
-        config = await session.scalar(stmt)
-
-        if config:
-            # 更新现有配置
-            config.access_key_id = request.access_key_id
-            if request.access_key_secret:  # 只在提供了新密钥时才更新
-                config.access_key_secret_encrypted = request.access_key_secret  # TODO: 加密
-            config.region_id = request.region_id
-            config.enabled = request.enabled
-        else:
-            # 创建新配置
-            config = AliyunTranslationConfig(
-                id=1,
-                access_key_id=request.access_key_id,
-                access_key_secret_encrypted=request.access_key_secret,  # TODO: 加密
-                region_id=request.region_id,
-                enabled=request.enabled
-            )
-            session.add(config)
-
-        await session.commit()
-        await session.refresh(config)
-
-        return {
-            "ok": True,
-            "data": {
-                "id": config.id,
-                "access_key_id": config.access_key_id,
-                "region_id": config.region_id,
-                "enabled": config.enabled
-            }
-        }
-
-
-@router.post("/config/test")
-async def test_translation_connection(
-    user: User = Depends(get_current_user)
-) -> dict:
-    """测试翻译服务连接"""
-    try:
-        service = AliyunTranslationService()
-        success = await service.test_connection()
-
-        # 更新测试结果
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as session:
-            stmt = select(AliyunTranslationConfig).where(AliyunTranslationConfig.id == 1)
-            config = await session.scalar(stmt)
-
-            if config:
-                from ..utils.datetime_utils import utcnow
-                config.last_test_at = utcnow()
-                config.last_test_success = success
-                await session.commit()
-
-        if success:
-            return {"ok": True, "data": {"message": "连接测试成功"}}
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "type": "about:blank",
-                    "title": "Connection Test Failed",
-                    "status": 500,
-                    "detail": "翻译服务连接测试失败，请检查配置",
-                    "code": "CONNECTION_TEST_FAILED"
-                }
-            )
-    except Exception as e:
-        logger.error(f"测试翻译服务连接失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "type": "about:blank",
-                "title": "Internal Server Error",
-                "status": 500,
-                "detail": str(e),
-                "code": "INTERNAL_ERROR"
-            }
-        )
 
 
 @router.post("/chats/{shop_id}/{chat_id}/messages/{message_id}/translate")
@@ -190,12 +66,29 @@ async def translate_message(
         if message.data_cn:
             return {"ok": True, "data": {"translation": message.data_cn}}
 
-        # 调用翻译服务
-        service = AliyunTranslationService()
+        # 使用翻译工厂创建翻译服务（自动选择当前激活的引擎）
+        try:
+            service = await TranslationFactory.create_from_db(session)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "type": "about:blank",
+                    "title": "Translation Service Unavailable",
+                    "status": 500,
+                    "detail": str(e),
+                    "code": "NO_TRANSLATION_SERVICE"
+                }
+            )
+
+        logger.info(f"开始翻译消息: message_id={message_id}, sender_type={message.sender_type}, content_length={len(message.content or '')}")
+
         translation = await service.translate_message(
             content=message.content or "",
             sender_type=message.sender_type
         )
+
+        logger.info(f"翻译结果: translation={'成功' if translation else '失败'}, result_length={len(translation) if translation else 0}")
 
         if translation:
             # 保存翻译结果
