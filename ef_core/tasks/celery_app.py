@@ -252,10 +252,10 @@ TASK_TO_SERVICE_KEY_MAPPING = {
     "ef.ozon.finance.transactions": "ozon_finance_transactions_daily",
     "ef.ozon.orders.pull": "ozon_sync_incremental",
     "ef.finance.rates.refresh": "exchange_rate_refresh",
+    "ef.ozon.promotions.sync": "ozon_promotion_sync",
     # 注意：以下任务没有对应的 sync_service 记录，不需要统计
     # ef.ozon.inventory.sync
-    # ef.ozon.promotions.sync
-    # ef.ozon.promotions.health_check
+    # ef.ozon.promotions.health_check  （健康检查不需要统计）
     # ef.ozon.category.sync
     # ef.ozon.attributes.sync
 }
