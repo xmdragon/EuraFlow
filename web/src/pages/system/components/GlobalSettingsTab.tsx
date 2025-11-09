@@ -38,6 +38,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
 
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
+import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from '@/utils/notification';
@@ -113,6 +114,10 @@ interface TimeCurrencySectionProps {
 const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+  const { copyToClipboard } = useCopy();
+
+  // 动态获取当前域名的 webhook 地址
+  const webhookUrl = `https://${window.location.hostname}/api/ef/v1/ozon/webhook`;
 
   // 获取全局设置
   const { data: settings, isLoading } = useQuery({
@@ -215,6 +220,25 @@ const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) =>
               <DollarOutlined /> 卢布 (RUB)
             </Option>
           </Select>
+        </Form.Item>
+
+        <Form.Item
+          label="系统 Webhook 地址"
+          extra="OZON 后台配置 Webhook 时使用此地址（订单状态变更通知）"
+        >
+          <Space.Compact style={{ width: '100%', maxWidth: 600 }}>
+            <Input
+              value={webhookUrl}
+              readOnly
+              style={{ flex: 1 }}
+            />
+            <Button
+              icon={<GlobalOutlined />}
+              onClick={() => copyToClipboard(webhookUrl, 'Webhook 地址')}
+            >
+              复制
+            </Button>
+          </Space.Compact>
         </Form.Item>
 
         {isAdmin && (

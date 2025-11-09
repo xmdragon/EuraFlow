@@ -352,7 +352,7 @@ const ProductCreate: React.FC = () => {
     enabled: !draftLoaded,
     onSuccess: (draft) => {
       if (draft) {
-        Modal.confirm({
+        modal.confirm({
           title: '发现未保存的草稿',
           content: `上次编辑时间：${new Date(draft.updated_at).toLocaleString()}。是否恢复？`,
           onOk: () => {
@@ -480,7 +480,7 @@ const ProductCreate: React.FC = () => {
       return await draftTemplateApi.getTemplate(templateId);
     },
     onSuccess: (template) => {
-      Modal.confirm({
+      modal.confirm({
         title: '确认引用模板',
         content: `即将使用模板"${template.template_name}"覆盖当前表单，是否继续？`,
         onOk: () => {
@@ -533,7 +533,7 @@ const ProductCreate: React.FC = () => {
    * 处理模板删除
    */
   const handleDeleteTemplate = (templateId: number, templateName: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: '确认删除',
       content: `确定要删除模板"${templateName}"吗？此操作不可恢复。`,
       okText: '删除',
