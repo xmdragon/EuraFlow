@@ -242,13 +242,16 @@ const OzonShopTab: React.FC = () => {
   // 当选择店铺后，设置表单值
   useEffect(() => {
     if (selectedShop) {
-      form.setFieldsValue({
+      const formValues = {
         shop_name: selectedShop.shop_name,
         shop_name_cn: selectedShop.shop_name_cn,
-        client_id: selectedShop.api_credentials?.client_id,
-        api_key: selectedShop.api_credentials?.api_key,
-        webhook_url: selectedShop.config?.webhook_url,
-      });
+        client_id: selectedShop.api_credentials?.client_id || '',
+        api_key: selectedShop.api_credentials?.api_key || '',
+        webhook_url: selectedShop.config?.webhook_url || '',
+      };
+
+      console.log('Setting form values:', formValues);  // 调试日志
+      form.setFieldsValue(formValues);
     }
   }, [selectedShop, form]);
 
@@ -419,13 +422,7 @@ const OzonShopTab: React.FC = () => {
                             size="small"
                             onClick={() => {
                               setSelectedShop(record);
-                              form.setFieldsValue({
-                                shop_name: record.shop_name,
-                                shop_name_cn: record.shop_name_cn,
-                                client_id: record.api_credentials?.client_id,
-                                api_key: record.api_credentials?.api_key,
-                                webhook_url: record.config?.webhook_url,
-                              });
+                              // 表单值由 useEffect 统一设置（带防御性编码）
                             }}
                           >
                             编辑
@@ -503,10 +500,24 @@ const OzonShopTab: React.FC = () => {
                           <Form.Item
                             name="api_key"
                             label="API Key"
-                            rules={[{ required: true, message: '请输入API Key' }]}
-                            extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可。"
+                            rules={[
+                              {
+                                validator: (_, value) => {
+                                  // 如果是编辑模式且当前值是掩码，则不要求必填
+                                  if (selectedShop && (!value || value === '******')) {
+                                    return Promise.resolve();
+                                  }
+                                  // 创建模式或者用户输入了新值，则验证
+                                  if (!value) {
+                                    return Promise.reject(new Error('请输入API Key'));
+                                  }
+                                  return Promise.resolve();
+                                },
+                              },
+                            ]}
+                            extra="出于安全考虑，保存后将显示为掩码。如需更新，直接输入新值即可；不修改则留空。"
                           >
-                            <Input.Password placeholder="Ozon API Key" />
+                            <Input.Password placeholder="不修改则留空" />
                           </Form.Item>
                         </Col>
                       </Row>
