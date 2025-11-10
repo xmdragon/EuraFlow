@@ -686,7 +686,7 @@ const PackingShipment: React.FC = () => {
     setDetailModalVisible(true);
   };
 
-  // 检查是否需要打印确认（国内单号≥2 或 商品数量>1）
+  // 检查是否需要打印确认（国内单号≥2 或 商品数量>1 或 多个商品）
   const checkNeedsConfirmation = (postings: (ozonApi.Posting | ozonApi.PostingWithOrder | any)[]): boolean => {
     logger.info('检查打印确认条件', { postings });
 
@@ -706,11 +706,20 @@ const PackingShipment: React.FC = () => {
 
       // 检查商品数量 - 兼容 products 和 items 两种字段
       const items = posting.products || posting.items || [];
+
+      // 检查是否有多个商品
+      if (items.length > 1) {
+        logger.info('触发确认：多个商品', { posting_number: posting.posting_number, itemsCount: items.length });
+        return true;
+      }
+
+      // 检查单个商品的数量是否>1
       const hasHighQuantity = items.some((product: any) => product.quantity > 1);
       logger.info('检查商品数量', {
         posting_number: posting.posting_number,
         products: posting.products,
         items: posting.items,
+        itemsCount: items.length,
         hasHighQuantity
       });
 
