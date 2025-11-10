@@ -467,6 +467,47 @@ asyncio.set_event_loop_policy(gevent_asyncio.EventLoopPolicy())
 - ⚠️ 可能导致其他兼容性问题
 - ⚠️ 增加调试难度
 
+#### 方案 3（特殊场景 ⚠️）：在线程池中创建新 event loop 时重置数据库引擎
+
+**适用场景**：
+- 已使用 prefork pool 但仍报 event loop 错误
+- 任务代码使用 `ThreadPoolExecutor` 创建新线程运行异步代码
+- 使用全局 `DatabaseManager` 单例
+
+**问题根源**：
+- `DatabaseManager` 是全局单例，其 `_async_engine` 绑定到创建时的 event loop
+- 在新线程中创建新 event loop 后，旧的 engine 仍绑定到原 loop
+- 导致 "Future attached to a different loop" 错误
+
+**解决方法**：
+
+在异步任务函数开始时，强制重置数据库引擎：
+
+```python
+async def _batch_sync_async(...):
+    """异步批量同步（内部实现）"""
+    from ef_core.database import get_db_manager
+
+    try:
+        db_manager = get_db_manager()
+
+        # 强制重新创建异步引擎（确保绑定到当前 event loop）
+        if db_manager._async_engine is not None:
+            await db_manager._async_engine.dispose()
+            db_manager._async_engine = None
+            db_manager._async_session_factory = None
+            logger.info("Disposed old async engine, creating new one for current event loop")
+
+        async with db_manager.get_session() as db:
+            # 正常的任务逻辑
+            ...
+```
+
+**注意事项**：
+- ⚠️ 这会关闭旧的数据库连接，可能影响其他正在使用的会话
+- ⚠️ 仅在确实需要在新线程中运行异步代码时使用
+- ✅ 更好的做法是避免在线程池中创建新 event loop，直接使用 Celery 的 prefork pool
+
 **并发数建议**：
 
 | Pool 类型 | 推荐并发数 | 适用场景 |
