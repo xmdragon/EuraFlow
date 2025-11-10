@@ -688,19 +688,11 @@ const PackingShipment: React.FC = () => {
 
   // 检查是否需要打印确认（国内单号≥2 或 商品数量>1 或 多个商品）
   const checkNeedsConfirmation = (postings: (ozonApi.Posting | ozonApi.PostingWithOrder | any)[]): boolean => {
-    logger.info('检查打印确认条件', { postings });
-
     return postings.some((posting) => {
       // 检查国内单号数量
       const trackingCount = posting.domestic_tracking_numbers?.length || 0;
-      logger.info('检查国内单号数量', {
-        posting_number: posting.posting_number,
-        trackingCount,
-        domestic_tracking_numbers: posting.domestic_tracking_numbers
-      });
-
       if (trackingCount >= 2) {
-        logger.info('触发确认：国内单号≥2', { posting_number: posting.posting_number });
+        logger.info('触发打印确认：国内单号≥2', { posting_number: posting.posting_number, trackingCount });
         return true;
       }
 
@@ -709,22 +701,14 @@ const PackingShipment: React.FC = () => {
 
       // 检查是否有多个商品
       if (items.length > 1) {
-        logger.info('触发确认：多个商品', { posting_number: posting.posting_number, itemsCount: items.length });
+        logger.info('触发打印确认：多个商品', { posting_number: posting.posting_number, itemsCount: items.length });
         return true;
       }
 
       // 检查单个商品的数量是否>1
       const hasHighQuantity = items.some((product: any) => product.quantity > 1);
-      logger.info('检查商品数量', {
-        posting_number: posting.posting_number,
-        products: posting.products,
-        items: posting.items,
-        itemsCount: items.length,
-        hasHighQuantity
-      });
-
       if (hasHighQuantity) {
-        logger.info('触发确认：商品数量>1', { posting_number: posting.posting_number });
+        logger.info('触发打印确认：商品数量>1', { posting_number: posting.posting_number });
         return true;
       }
 
@@ -736,22 +720,11 @@ const PackingShipment: React.FC = () => {
     // 获取要打印的 posting 对象
     const postingsToPrint = allPostings.filter((p) => selectedPostingNumbers.includes(p.posting_number));
 
-    logger.info('批量打印：开始检查', {
-      selectedPostingNumbers,
-      postingsToPrint: postingsToPrint.map((p) => ({
-        posting_number: p.posting_number,
-        domestic_tracking_numbers: p.domestic_tracking_numbers,
-        products: p.products
-      }))
-    });
-
     // 检查是否需要确认
     const needsConfirm = checkNeedsConfirmation(postingsToPrint);
-    logger.info('批量打印：检查结果', { needsConfirm });
 
     if (needsConfirm) {
-      logger.info('批量打印：显示确认对话框');
-      notifyInfo('打印确认', '检测到多个单号或数量>1，需要确认');
+      // 需要确认，弹出确认对话框
       modal.confirm({
         title: '确认打印',
         content: '确认订单商品数量是否正确？',
@@ -774,12 +747,9 @@ const PackingShipment: React.FC = () => {
       // 不需要确认，直接打印
       const result = await batchPrint(selectedPostingNumbers);
       if (result?.success && result.pdf_url) {
-        // 全部成功 - 在新标签页打开PDF
         window.open(result.pdf_url, '_blank');
-        // 清空选择
         setSelectedPostingNumbers([]);
       } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-        // 部分成功 - 打开PDF
         window.open(result.pdf_url, '_blank');
       }
     }
@@ -941,7 +911,6 @@ const PackingShipment: React.FC = () => {
 
     // 检查是否需要确认
     if (posting && checkNeedsConfirmation([posting])) {
-      notifyInfo('打印确认', '检测到多个单号或数量>1，需要确认');
       modal.confirm({
         title: '确认打印',
         content: '确认订单商品数量是否正确？',
@@ -990,7 +959,6 @@ const PackingShipment: React.FC = () => {
 
     // 检查是否需要确认
     if (checkNeedsConfirmation(postingsToPrint)) {
-      notifyInfo('打印确认', '检测到多个单号或数量>1，需要确认');
       modal.confirm({
         title: '确认打印',
         content: '确认订单商品数量是否正确？',
