@@ -164,13 +164,15 @@
   }
 }
 
-// 主商品图片区域
-.mainImageArea {
-  .uploadHint {
-    font-size: 12px;
-    color: #8c8c8c;
-    margin-top: 8px;
-  }
+// 商品媒体区域（横向布局）
+.mediaContainer {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.mediaItem {
+  flex-shrink: 0;
 }
 
 .mainImagePreviewWrapper {
@@ -207,6 +209,19 @@
     font-size: 12px;
     font-weight: 600;
   }
+}
+
+.videoPreviewIcon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .mainImagePlaceholder {
@@ -548,10 +563,15 @@
 }
 
 .variantVideoCell {
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
+
+  &:hover {
+    opacity: 0.8;
+  }
 }
 
 .variantVideoPreview {
@@ -564,8 +584,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
-  color: #52c41a;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
   font-weight: 500;
 
   .videoCount {
@@ -580,6 +600,15 @@
     font-weight: 500;
     z-index: 1;
   }
+}
+
+.videoPreviewIconSmall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .variantVideoPlaceholder {

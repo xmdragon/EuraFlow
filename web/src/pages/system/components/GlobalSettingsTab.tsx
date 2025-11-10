@@ -21,7 +21,10 @@ import {
   App,
   Tree,
   Spin,
+  Dropdown,
+  List,
 } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   SettingOutlined,
   SaveOutlined,
@@ -33,6 +36,8 @@ import {
   ReloadOutlined,
   ClockCircleOutlined,
   GlobalOutlined,
+  DownOutlined,
+  BookOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -711,6 +716,40 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
       render: (is_required: boolean) => (
         is_required ? <span style={{ color: 'red' }}>是</span> : '否'
       ),
+    },
+    {
+      title: '指南',
+      dataIndex: 'guide_values',
+      key: 'guide_values',
+      width: 120,
+      render: (_: any, record: any) => {
+        if (!record.guide_values || record.guide_values.length === 0) {
+          return <span style={{ color: '#999' }}>无</span>;
+        }
+
+        const items: MenuProps['items'] = record.guide_values.map((gv: any, index: number) => ({
+          key: index,
+          label: (
+            <div style={{ maxWidth: 300 }}>
+              <div style={{ fontWeight: 500 }}>{gv.value}</div>
+              {gv.info && (
+                <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                  {gv.info}
+                </div>
+              )}
+            </div>
+          ),
+        }));
+
+        return (
+          <Dropdown menu={{ items }} placement="bottomLeft">
+            <Button size="small" icon={<BookOutlined />}>
+              查看 ({record.guide_values.length})
+              <DownOutlined />
+            </Button>
+          </Dropdown>
+        );
+      },
     },
     {
       title: '描述',

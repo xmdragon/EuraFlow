@@ -1,7 +1,7 @@
 """
 商品上架管理 API路由
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -233,22 +233,52 @@ async def get_category_attributes(
             required_only=required_only
         )
 
+        # 构建返回数据，包含字典值
+        result_data = []
+        for attr in attributes:
+            attr_dict = {
+                "attribute_id": attr.attribute_id,
+                "name": attr.name,
+                "description": attr.description,
+                "attribute_type": attr.attribute_type,
+                "is_required": attr.is_required,
+                "is_collection": attr.is_collection,
+                "is_aspect": attr.is_aspect,
+                "dictionary_id": attr.dictionary_id,
+                "category_dependent": attr.category_dependent,
+                "group_id": attr.group_id,
+                "group_name": attr.group_name,
+                "attribute_complex_id": attr.attribute_complex_id,
+                "max_value_count": attr.max_value_count,
+                "complex_is_collection": attr.complex_is_collection,
+                "min_value": float(attr.min_value) if attr.min_value else None,
+                "max_value": float(attr.max_value) if attr.max_value else None,
+                "guide_values": None
+            }
+
+            # 如果有字典ID，加载前5个字典值作为指南预览
+            if attr.dictionary_id:
+                dict_values = await catalog_service.search_dictionary_values(
+                    dictionary_id=attr.dictionary_id,
+                    query=None,
+                    limit=5
+                )
+                if dict_values:
+                    attr_dict["guide_values"] = [
+                        {
+                            "value_id": dv.value_id,
+                            "value": dv.value,
+                            "info": dv.info,
+                            "picture": dv.picture
+                        }
+                        for dv in dict_values
+                    ]
+
+            result_data.append(attr_dict)
+
         return {
             "success": True,
-            "data": [
-                {
-                    "attribute_id": attr.attribute_id,
-                    "name": attr.name,
-                    "description": attr.description,
-                    "attribute_type": attr.attribute_type,
-                    "is_required": attr.is_required,
-                    "is_collection": attr.is_collection,
-                    "dictionary_id": attr.dictionary_id,
-                    "min_value": float(attr.min_value) if attr.min_value else None,
-                    "max_value": float(attr.max_value) if attr.max_value else None
-                }
-                for attr in attributes
-            ],
+            "data": result_data,
             "total": len(attributes)
         }
 
@@ -1268,6 +1298,7 @@ async def create_product(
             barcode=request.get("barcode"),
             category_id=request.get("category_id"),
             images=request.get("images", []),  # JSONB field
+            videos=request.get("videos", []),  # JSONB field [{url, name, is_cover}]
             attributes=request.get("attributes", []),  # JSONB field
             height=request.get("height"),
             width=request.get("width"),
@@ -1321,9 +1352,10 @@ async def upload_media(
     current_user: User = Depends(require_role("operator"))
 ):
     """
-    上传图片到图床（自动选择当前激活的图床，需要操作员权限）
+    上传图片/视频到图床（自动选择当前激活的图床，需要操作员权限）
 
     支持Base64和URL两种方式上传
+    支持图片和视频两种媒体类型
     """
     try:
         from ..services.image_storage_factory import ImageStorageFactory
@@ -1344,12 +1376,25 @@ async def upload_media(
 
         # 获取上传参数
         upload_type = request.get("type", "base64")  # base64 or url
-        # 使用配置的商品图片文件夹，如果请求中指定了 folder 则使用请求的
-        default_folder = service.product_images_folder or "products"
+        media_type = request.get("media_type", "image")  # image or video
+
+        # 根据媒体类型选择文件夹
+        if media_type == "video":
+            default_folder = getattr(service, 'product_videos_folder', 'videos')
+        else:
+            default_folder = service.product_images_folder or "products"
+
         folder = request.get("folder", default_folder)
 
         if upload_type == "base64":
             # Base64上传
+            if media_type == "video":
+                # 视频暂不支持Base64上传（文件太大）
+                return {
+                    "success": False,
+                    "error": "视频暂不支持Base64上传，请使用URL方式或稍后支持文件上传"
+                }
+
             base64_data = request.get("data")
             if not base64_data:
                 raise HTTPException(status_code=400, detail="data is required for base64 upload")
@@ -1363,16 +1408,33 @@ async def upload_media(
 
         elif upload_type == "url":
             # URL上传
-            image_url = request.get("url")
-            if not image_url:
+            media_url = request.get("url")
+            if not media_url:
                 raise HTTPException(status_code=400, detail="url is required for url upload")
 
-            public_id = request.get("public_id", str(uuid.uuid4()))
-            result = await service.upload_image_from_url(
-                image_url=image_url,
-                public_id=public_id,
-                folder=folder
-            )
+            if media_type == "video":
+                # 视频URL直接返回（不上传到图床，直接使用外部链接）
+                # 验证URL格式
+                if not (media_url.startswith("http://") or media_url.startswith("https://")):
+                    return {
+                        "success": False,
+                        "error": "视频URL格式不正确，必须以http://或https://开头"
+                    }
+
+                result = {
+                    "success": True,
+                    "url": media_url,
+                    "public_id": None,
+                    "source": "external_url"
+                }
+            else:
+                # 图片上传到图床
+                public_id = request.get("public_id", str(uuid.uuid4()))
+                result = await service.upload_image_from_url(
+                    image_url=media_url,
+                    public_id=public_id,
+                    folder=folder
+                )
 
         else:
             return {
@@ -1387,6 +1449,165 @@ async def upload_media(
 
     except Exception as e:
         logger.error(f"Upload media failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.post("/listings/media/upload-file")
+async def upload_media_file(
+    file: UploadFile = File(...),
+    shop_id: int = Form(...),
+    media_type: str = Form("image"),
+    folder: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    上传文件到图床（支持图片和视频，multipart/form-data方式）
+
+    注意：视频上传较慢，需要经过服务器中转到图床，建议使用URL方式
+    """
+    try:
+        from ..services.image_storage_factory import ImageStorageFactory
+        import uuid
+
+        # 验证文件类型
+        if media_type == "video":
+            # 视频验证
+            allowed_video_types = ["video/mp4", "video/quicktime", "video/x-msvideo"]
+            if file.content_type not in allowed_video_types:
+                return {
+                    "success": False,
+                    "error": f"不支持的视频格式: {file.content_type}，仅支持 MP4, MOV"
+                }
+
+            # 文件大小限制（100MB）
+            file_content = await file.read()
+            file_size_mb = len(file_content) / 1024 / 1024
+            if file_size_mb > 100:
+                return {
+                    "success": False,
+                    "error": f"视频文件过大: {file_size_mb:.1f}MB，最大支持100MB"
+                }
+        else:
+            # 图片验证
+            allowed_image_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+            if file.content_type not in allowed_image_types:
+                return {
+                    "success": False,
+                    "error": f"不支持的图片格式: {file.content_type}"
+                }
+
+            file_content = await file.read()
+            file_size_mb = len(file_content) / 1024 / 1024
+            if file_size_mb > 10:
+                return {
+                    "success": False,
+                    "error": f"图片文件过大: {file_size_mb:.1f}MB，最大支持10MB"
+                }
+
+        # 获取当前激活的图床服务
+        try:
+            service = await ImageStorageFactory.create_from_db(db)
+        except ValueError as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+        # 确定上传文件夹
+        if not folder:
+            if media_type == "video":
+                folder = getattr(service, 'product_videos_folder', 'videos')
+            else:
+                folder = service.product_images_folder or "products"
+
+        # 生成文件名
+        file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        public_id = f"{uuid.uuid4().hex[:12]}"
+
+        # 上传到图床
+        if media_type == "video":
+            # 视频上传（暂时存储为文件）
+            # TODO: 优化为流式上传，避免内存占用过大
+            object_key = f"{folder}/{public_id}.{file_ext}"
+
+            # 直接使用OSS/Cloudinary的put_object上传
+            from ..services.aliyun_oss_service import AliyunOssService
+            from ..services.cloudinary_service import CloudinaryService
+
+            if isinstance(service, AliyunOssService):
+                # 阿里云OSS上传视频
+                import alibabacloud_oss_v2 as oss
+                from io import BytesIO
+
+                put_request = oss.PutObjectRequest(
+                    bucket=service.bucket,
+                    key=object_key,
+                    body=BytesIO(file_content)
+                )
+
+                result = await asyncio.to_thread(
+                    service.client.put_object,
+                    put_request
+                )
+
+                video_url = f"https://{service.bucket}.{service.endpoint}/{object_key}"
+
+                logger.info(f"Video uploaded to OSS: {object_key}, size: {file_size_mb:.1f}MB")
+
+                return {
+                    "success": True,
+                    "url": video_url,
+                    "public_id": object_key,
+                    "size_mb": round(file_size_mb, 2),
+                    "source": "aliyun_oss"
+                }
+
+            elif isinstance(service, CloudinaryService):
+                # Cloudinary上传视频
+                import cloudinary.uploader
+
+                result = await asyncio.to_thread(
+                    cloudinary.uploader.upload,
+                    file_content,
+                    public_id=public_id,
+                    folder=folder,
+                    resource_type="video",
+                    chunk_size=6000000  # 6MB分块上传
+                )
+
+                logger.info(f"Video uploaded to Cloudinary: {public_id}, size: {file_size_mb:.1f}MB")
+
+                return {
+                    "success": True,
+                    "url": result["secure_url"],
+                    "public_id": result["public_id"],
+                    "size_mb": round(file_size_mb, 2),
+                    "source": "cloudinary"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "当前图床服务不支持视频上传"
+                }
+        else:
+            # 图片上传（使用现有方法）
+            result = await service.upload_image(
+                image_data=file_content,
+                public_id=public_id,
+                folder=folder
+            )
+
+            if result.get("success"):
+                result["size_mb"] = round(file_size_mb, 2)
+
+            return result
+
+    except Exception as e:
+        logger.error(f"Upload file failed: {e}", exc_info=True)
         return {
             "success": False,
             "error": str(e)

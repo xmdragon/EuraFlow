@@ -2041,6 +2041,9 @@ async def search_posting_by_tracking(
 
             result_list.append(order_dict)
 
+        # 按下单时间倒序排序（最新的在前面）
+        result_list.sort(key=lambda x: x.get('ordered_at') or '', reverse=True)
+
         # 返回列表格式（支持多个结果）
         logger.info(f"国内单号 {search_value} 匹配到 {len(result_list)} 个货件")
         return {

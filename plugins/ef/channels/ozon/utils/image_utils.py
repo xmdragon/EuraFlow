@@ -48,3 +48,27 @@ def replace_urls(images: List[str], url_mapping: dict) -> List[str]:
     if not images:
         return images
     return [url_mapping.get(url, url) for url in images]
+
+
+def is_storage_url(url: str) -> bool:
+    """
+    检测URL是否是图床URL（Cloudinary或阿里云OSS）
+
+    Args:
+        url: 图片URL
+
+    Returns:
+        bool: 是否是图床URL
+    """
+    if not url:
+        return False
+
+    # Cloudinary URL特征
+    if 'cloudinary.com' in url:
+        return True
+
+    # 阿里云OSS URL特征
+    if 'aliyuncs.com' in url:
+        return True
+
+    return False

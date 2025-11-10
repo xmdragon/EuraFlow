@@ -100,6 +100,9 @@ class CloudinaryConfig(Base):
     product_images_folder: Mapped[str] = mapped_column(
         String(100), default="products", nullable=False, comment="商品图片文件夹路径"
     )
+    product_videos_folder: Mapped[str] = mapped_column(
+        String(100), default="videos", nullable=False, comment="商品视频文件夹路径"
+    )
     watermark_images_folder: Mapped[str] = mapped_column(
         String(100), default="watermarks", nullable=False, comment="水印图片文件夹路径"
     )
@@ -260,6 +263,9 @@ class AliyunOssConfig(Base):
     # 配置参数
     product_images_folder: Mapped[str] = mapped_column(
         String(100), default="products", nullable=False, comment="商品图片文件夹路径"
+    )
+    product_videos_folder: Mapped[str] = mapped_column(
+        String(100), default="videos", nullable=False, comment="商品视频文件夹路径"
     )
     watermark_images_folder: Mapped[str] = mapped_column(
         String(100), default="watermarks", nullable=False, comment="水印图片文件夹路径"

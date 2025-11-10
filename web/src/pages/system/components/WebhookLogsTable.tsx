@@ -83,10 +83,20 @@ const WebhookLogsTable: React.FC = () => {
     { value: 'posting.cancelled', label: '订单取消' },
     { value: 'posting.status_changed', label: '订单状态变更' },
     { value: 'posting.delivered', label: '订单送达' },
+    { value: 'posting.cutoff_date_changed', label: '订单截止日期变更' },
+    { value: 'posting.delivery_date_changed', label: '订单配送日期变更' },
     { value: 'product.created', label: '商品创建' },
     { value: 'product.updated', label: '商品更新' },
+    { value: 'product.create_or_update', label: '商品创建/更新' },
+    { value: 'product.price_changed', label: '商品价格变更' },
     { value: 'product.stock_changed', label: '库存变更' },
+    { value: 'product.price_index_changed', label: '价格指数变更' },
     { value: 'chat.message_created', label: '新聊天消息' },
+    { value: 'chat.message_updated', label: '聊天消息更新' },
+    { value: 'chat.message_read', label: '消息已读' },
+    { value: 'chat.closed', label: '聊天关闭' },
+    { value: 'return.created', label: '退货创建' },
+    { value: 'return.status_changed', label: '退货状态变更' },
   ];
 
   // 状态选项
@@ -198,10 +208,20 @@ const WebhookLogsTable: React.FC = () => {
     'posting.cancelled': '订单取消',
     'posting.status_changed': '订单状态变更',
     'posting.delivered': '订单送达',
+    'posting.cutoff_date_changed': '订单截止日期变更',
+    'posting.delivery_date_changed': '订单配送日期变更',
     'product.created': '商品创建',
     'product.updated': '商品更新',
+    'product.create_or_update': '商品创建/更新',
+    'product.price_changed': '商品价格变更',
     'product.stock_changed': '库存变更',
+    'product.price_index_changed': '价格指数变更',
     'chat.message_created': '新聊天消息',
+    'chat.message_updated': '聊天消息更新',
+    'chat.message_read': '消息已读',
+    'chat.closed': '聊天关闭',
+    'return.created': '退货创建',
+    'return.status_changed': '退货状态变更',
   };
 
   // 事件类型标签颜色
@@ -212,10 +232,20 @@ const WebhookLogsTable: React.FC = () => {
       'posting.cancelled': 'red',
       'posting.status_changed': 'orange',
       'posting.delivered': 'cyan',
+      'posting.cutoff_date_changed': 'orange',
+      'posting.delivery_date_changed': 'orange',
       'product.created': 'purple',
       'product.updated': 'purple',
+      'product.create_or_update': 'purple',
+      'product.price_changed': 'gold',
       'product.stock_changed': 'magenta',
+      'product.price_index_changed': 'gold',
       'chat.message_created': 'geekblue',
+      'chat.message_updated': 'geekblue',
+      'chat.message_read': 'lime',
+      'chat.closed': 'default',
+      'return.created': 'volcano',
+      'return.status_changed': 'volcano',
     };
     return <Tag color={colors[eventType] || 'default'}>{EVENT_TYPE_MAP[eventType] || eventType}</Tag>;
   };

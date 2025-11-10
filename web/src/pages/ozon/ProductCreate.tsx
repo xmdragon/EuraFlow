@@ -13,7 +13,6 @@ import {
   ThunderboltOutlined,
   MinusCircleOutlined,
 } from '@ant-design/icons';
-import md5 from 'md5';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import {
   Form,
@@ -46,6 +45,9 @@ import type { CategoryAttribute } from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import { VariantImageManagerModal } from '@/components/ozon/VariantImageManagerModal';
+import VideoManagerModal from './components/VideoManagerModal';
+import { useVideoManager } from '@/hooks/useVideoManager';
+import type { VideoInfo } from '@/services/ozonApi';
 import * as draftTemplateApi from '@/services/draftTemplateApi';
 import { useFormAutosave } from '@/hooks/useFormAutosave';
 import { loggers } from '@/utils/logger';
@@ -77,7 +79,7 @@ interface ProductVariant {
   offer_id: string;
   title?: string;  // 标题（变体可以有不同的标题）
   images?: string[];  // 图片数组（支持多图）
-  video?: string;  // 视频
+  videos?: VideoInfo[];  // 视频数组
   price?: number;
   old_price?: number;
   barcode?: string;
@@ -110,6 +112,20 @@ const ProductCreate: React.FC = () => {
   const [syncingCategoryAttributes, setSyncingCategoryAttributes] = useState(false);
   const [form] = Form.useForm();
   const [mainProductImages, setMainProductImages] = useState<string[]>([]);
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [editingVariantForVideo, setEditingVariantForVideo] = useState<ProductVariant | null>(null);
+
+  // 主商品视频管理Hook
+  const videoManager = useVideoManager({
+    initialVideos: [],
+    maxVideos: 10,
+  });
+
+  // 变体视频管理Hook
+  const variantVideoManager = useVideoManager({
+    initialVideos: [],
+    maxVideos: 10,
+  });
 
   // 变体相关状态（重新设计）
   const [variantDimensions, setVariantDimensions] = useState<VariantDimension[]>([]);
@@ -143,6 +159,7 @@ const ProductCreate: React.FC = () => {
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | undefined>(undefined);
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [editingTemplateName, setEditingTemplateName] = useState('');
+  const [editingTemplateTags, setEditingTemplateTags] = useState<string[]>([]);
 
   // 创建商品
   const createProductMutation = useMutation({
@@ -209,6 +226,12 @@ const ProductCreate: React.FC = () => {
       const result = await ozonApi.getCategoryAttributes(selectedShop, categoryId);
       if (result.success && result.data) {
         setCategoryAttributes(result.data);
+
+        // 自动添加 is_aspect=true 的属性到变体维度
+        const aspectAttributes = result.data.filter((attr) => attr.is_aspect);
+        if (aspectAttributes.length > 0) {
+          handleAutoAddVariantDimensions(aspectAttributes);
+        }
       } else {
         setCategoryAttributes([]);
         notifyWarning('提示', '该类目暂无属性数据');
@@ -346,11 +369,16 @@ const ProductCreate: React.FC = () => {
   /**
    * 加载最新草稿（页面初始化时）
    */
-  useQuery({
+  const draftQuery = useQuery({
     queryKey: ['latest-draft'],
     queryFn: draftTemplateApi.getLatestDraft,
     enabled: !draftLoaded,
-    onSuccess: (draft) => {
+  });
+
+  // 处理草稿加载结果
+  useEffect(() => {
+    if (draftQuery.isSuccess && !draftLoaded) {
+      const draft = draftQuery.data;
       if (draft) {
         modal.confirm({
           title: '发现未保存的草稿',
@@ -366,12 +394,12 @@ const ProductCreate: React.FC = () => {
         });
       }
       setDraftLoaded(true);
-    },
-    onError: (error: Error) => {
-      loggers.product.error('加载草稿失败', error);
+    }
+    if (draftQuery.isError && !draftLoaded) {
+      loggers.product.error('加载草稿失败', draftQuery.error);
       setDraftLoaded(true);
-    },
-  });
+    }
+  }, [draftQuery.isSuccess, draftQuery.isError, draftQuery.data, draftQuery.error, draftLoaded, modal]);
 
   /**
    * 自动保存草稿
@@ -512,20 +540,24 @@ const ProductCreate: React.FC = () => {
   });
 
   /**
-   * 重命名模板
+   * 更新模板（名称和标签）
    */
-  const renameTemplateMutation = useMutation({
-    mutationFn: async ({ id, name }: { id: number; name: string }) => {
-      return await draftTemplateApi.updateTemplate(id, { template_name: name });
+  const updateTemplateMutation = useMutation({
+    mutationFn: async ({ id, name, tags }: { id: number; name: string; tags?: string[] }) => {
+      return await draftTemplateApi.updateTemplate(id, {
+        template_name: name,
+        tags: tags,
+      });
     },
     onSuccess: () => {
-      notifySuccess('已重命名', '模板已成功重命名');
+      notifySuccess('已更新', '模板已成功更新');
       setEditingTemplateId(null);
       setEditingTemplateName('');
+      setEditingTemplateTags([]);
       queryClient.invalidateQueries({ queryKey: ['templates'] });
     },
     onError: (error: Error) => {
-      notifyError('重命名失败', `重命名模板失败: ${error.message}`);
+      notifyError('更新失败', `更新模板失败: ${error.message}`);
     },
   });
 
@@ -546,24 +578,26 @@ const ProductCreate: React.FC = () => {
   };
 
   /**
-   * 开始编辑模板名称
+   * 开始编辑模板
    */
-  const handleStartEditTemplate = (templateId: number, currentName: string) => {
+  const handleStartEditTemplate = (templateId: number, currentName: string, currentTags?: string[]) => {
     setEditingTemplateId(templateId);
     setEditingTemplateName(currentName);
+    setEditingTemplateTags(currentTags || []);
   };
 
   /**
-   * 保存模板重命名
+   * 保存模板编辑
    */
-  const handleSaveRename = () => {
+  const handleSaveEdit = () => {
     if (!editingTemplateId || !editingTemplateName.trim()) {
       notifyWarning('请输入模板名称', '模板名称不能为空');
       return;
     }
-    renameTemplateMutation.mutate({
+    updateTemplateMutation.mutate({
       id: editingTemplateId,
       name: editingTemplateName.trim(),
+      tags: editingTemplateTags,
     });
   };
 
@@ -588,6 +622,17 @@ const ProductCreate: React.FC = () => {
       setCategoryAttributes([]);
     }
   }, [selectedCategory, selectedShop]);
+
+  // 店铺选择后，如果Offer ID为空，则自动生成
+  useEffect(() => {
+    if (selectedShop && !variantSectionExpanded) {
+      const currentOfferId = form.getFieldValue('offer_id');
+      if (!currentOfferId) {
+        const offerId = generateOfferId();
+        form.setFieldValue('offer_id', offerId);
+      }
+    }
+  }, [selectedShop, variantSectionExpanded, form]);
 
   // 处理图片上传
   const handleImageUpload = async (file: File): Promise<string> => {
@@ -656,7 +701,7 @@ const ProductCreate: React.FC = () => {
     }
 
     try {
-      // 创建商品（使用已上传的图片URL）
+      // 创建商品（使用已上传的图片URL和视频）
       await createProductMutation.mutateAsync({
         shop_id: selectedShop,
         offer_id: values.offer_id,
@@ -667,6 +712,7 @@ const ProductCreate: React.FC = () => {
         old_price: values.old_price?.toString(),
         category_id: selectedCategory || undefined,
         images: mainProductImages,
+        videos: videoManager.videos,
         height: values.height,
         width: values.width,
         depth: values.depth,
@@ -708,6 +754,41 @@ const ProductCreate: React.FC = () => {
     }
   };
 
+  // 自动添加多个变体维度（用于 is_aspect 属性）
+  const handleAutoAddVariantDimensions = (aspectAttrs: CategoryAttribute[]) => {
+    const newDimensions: VariantDimension[] = [];
+    const newHiddenFields = new Set(hiddenFields);
+
+    aspectAttrs.forEach((attr) => {
+      const fieldKey = `attr_${attr.attribute_id}`;
+
+      // 避免重复添加
+      if (!variantDimensions.find((d) => d.attribute_id === attr.attribute_id)) {
+        newDimensions.push({
+          attribute_id: attr.attribute_id,
+          name: attr.name,
+          attribute_type: attr.attribute_type,
+          dictionary_id: attr.dictionary_id,
+          original_field_key: fieldKey,
+        });
+        newHiddenFields.add(fieldKey);
+      }
+    });
+
+    if (newDimensions.length > 0) {
+      setVariantDimensions([...variantDimensions, ...newDimensions]);
+      setHiddenFields(newHiddenFields);
+      setVariantSectionExpanded(true);
+
+      // 提示用户
+      const dimensionNames = newDimensions.map((d) => d.name).join('、');
+      notifySuccess(
+        '自动添加变体属性',
+        `已自动添加 ${newDimensions.length} 个变体属性：${dimensionNames}`,
+      );
+    }
+  };
+
   // 添加普通字段为变体维度
   const handleAddFieldAsVariant = (
     fieldKey: string,
@@ -743,7 +824,7 @@ const ProductCreate: React.FC = () => {
         const variant1: ProductVariant = {
           id: Date.now().toString(),
           dimension_values: {},
-          offer_id: '',
+          offer_id: generateOfferId(),
           title: '',
           price: undefined,
           old_price: undefined,
@@ -751,7 +832,7 @@ const ProductCreate: React.FC = () => {
         const variant2: ProductVariant = {
           id: (Date.now() + 1).toString(),
           dimension_values: {},
-          offer_id: '',
+          offer_id: generateOfferId(),
           title: '',
           price: undefined,
           old_price: undefined,
@@ -790,7 +871,7 @@ const ProductCreate: React.FC = () => {
     const newVariant: ProductVariant = {
       id: Date.now().toString(),
       dimension_values: {},
-      offer_id: '',
+      offer_id: generateOfferId(), // 自动生成Offer ID
       title: '',
       price: undefined,
       old_price: undefined,
@@ -853,6 +934,37 @@ const ProductCreate: React.FC = () => {
     setEditingVariant(null);
   };
 
+  // 打开视频管理弹窗（变体）
+  const handleOpenVideoModal = (variant: ProductVariant) => {
+    setEditingVariantForVideo(variant);
+    // 加载变体的视频到 variantVideoManager
+    variantVideoManager.resetVideos();
+    if (variant.videos) {
+      variant.videos.forEach(video => {
+        variantVideoManager.addVideo(video);
+      });
+    }
+    setVideoModalVisible(true);
+  };
+
+  // 打开主商品视频管理弹窗
+  const handleOpenMainVideoModal = () => {
+    setEditingVariantForVideo(null); // 标识为主商品视频
+    setVideoModalVisible(true);
+  };
+
+  // 关闭视频管理弹窗
+  const handleCloseVideoModal = () => {
+    if (editingVariantForVideo) {
+      // 保存变体视频
+      handleUpdateVariantRow(editingVariantForVideo.id, 'videos', variantVideoManager.videos);
+    }
+    // 主商品视频已经通过 videoManager 自动管理，不需要手动保存
+    setVideoModalVisible(false);
+    setEditingVariantForVideo(null);
+    variantVideoManager.clearVideos();
+  };
+
   // 取消编辑图片
   const handleCancelImageModal = () => {
     setImageModalVisible(false);
@@ -865,10 +977,18 @@ const ProductCreate: React.FC = () => {
       return;
     }
 
-    const updatedVariants = variants.map((v) => {
-      const timestamp = Date.now() + Math.random() * 1000; // 添加随机数确保唯一性
-      const hash = md5(timestamp.toString());
-      return { ...v, offer_id: `ef_${hash}` };
+    const updatedVariants = variants.map((v, index) => {
+      // 为每个变体生成唯一的Offer ID（添加微小延迟确保唯一性）
+      const offerId = generateOfferId();
+      // 添加微小延迟以确保时间戳不同
+      if (index > 0) {
+        // 使用setTimeout确保时间戳递增，但这里用同步方式处理
+        // 通过添加索引来确保唯一性
+        const timestamp = Date.now().toString();
+        const random = (Math.floor(Math.random() * 900) + index).toString().padStart(3, '0');
+        return { ...v, offer_id: `ef_${timestamp}${random}` };
+      }
+      return { ...v, offer_id: offerId };
     });
 
     setVariants(updatedVariants);
@@ -924,21 +1044,34 @@ const ProductCreate: React.FC = () => {
       title: '视频',
       key: 'video',
       width: 64,
-      render: (_: any, record: ProductVariant) => (
-        <div className={styles.variantVideoCell}>
-          {record.video ? (
-            <div className={styles.variantVideoPreview}>
-              有
-              <span className={styles.videoCount}>1</span>
-            </div>
-          ) : (
-            <div className={styles.variantVideoPlaceholder}>
-              <PlusOutlined />
-              <span className={styles.videoCountZero}>0</span>
-            </div>
-          )}
-        </div>
-      ),
+      render: (_: any, record: ProductVariant) => {
+        const videoCount = record.videos?.length || 0;
+        return (
+          <div
+            className={styles.variantVideoCell}
+            onClick={() => handleOpenVideoModal(record)}
+          >
+            {videoCount > 0 ? (
+              <div className={styles.variantVideoPreview}>
+                <div className={styles.videoPreviewIconSmall}>
+                  <PlusOutlined style={{ fontSize: 16 }} />
+                </div>
+                <span className={styles.videoCount}>{videoCount}</span>
+                {record.videos?.some(v => v.is_cover) && (
+                  <Tag color="gold" style={{ position: 'absolute', top: 2, left: 2, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
+                    封面
+                  </Tag>
+                )}
+              </div>
+            ) : (
+              <div className={styles.variantVideoPlaceholder}>
+                <PlusOutlined />
+                <span className={styles.videoCountZero}>0</span>
+              </div>
+            )}
+          </div>
+        );
+      },
     });
 
     // Offer ID 列（第三列，表头带批量生成）
@@ -1093,11 +1226,16 @@ const ProductCreate: React.FC = () => {
     return columns;
   };
 
-  // 生成Offer ID
+  // 生成Offer ID（格式：ef_16位数字）
+  const generateOfferId = () => {
+    const timestamp = Date.now().toString(); // 13位时间戳
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0'); // 3位随机数
+    return `ef_${timestamp}${random}`; // ef_ + 16位数字
+  };
+
+  // 生成Offer ID（用于表单）
   const handleGenerateOfferId = () => {
-    const timestamp = Date.now(); // 当前时间戳（ms）
-    const hash = md5(timestamp.toString()); // 生成MD5哈希
-    const offerId = `ef_${hash}`; // 添加ef_前缀
+    const offerId = generateOfferId();
     form.setFieldValue('offer_id', offerId);
     // 生成Offer ID（不显示通知，避免干扰用户）
   };
@@ -1301,10 +1439,22 @@ const ProductCreate: React.FC = () => {
       }
     }
 
+    // 为 is_aspect 属性添加"变体属性"标签
+    const labelNode = attr.is_aspect ? (
+      <Space size={4}>
+        {displayLabel}
+        <Tag color="blue" style={{ marginLeft: 4 }}>
+          变体属性
+        </Tag>
+      </Space>
+    ) : (
+      displayLabel
+    );
+
     return (
       <Form.Item
         key={attr.attribute_id}
-        label={displayLabel}
+        label={labelNode}
         tooltip={tooltipContent}
         style={{ marginBottom: 12 }}
       >
@@ -1726,30 +1876,61 @@ const ProductCreate: React.FC = () => {
             )}
           </div>
 
-          {/* 商品图片（无变体时显示） */}
+          {/* 商品媒体（图片+视频，无变体时显示） */}
           {!variantSectionExpanded && (
             <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>商品图片</h3>
+              <h3 className={styles.sectionTitle}>商品媒体</h3>
 
-              <div className={styles.mainImageArea}>
-                <div
-                  className={styles.mainImagePreviewWrapper}
-                  onClick={handleOpenMainImageModal}
-                >
-                  {mainProductImages && mainProductImages.length > 0 ? (
-                    <div className={styles.mainImagePreview}>
-                      <img src={mainProductImages[0]} alt="product" className={styles.mainImage} />
-                      <span className={styles.mainImageCount}>{mainProductImages.length}</span>
-                    </div>
-                  ) : (
-                    <div className={styles.mainImagePlaceholder}>
-                      <PlusOutlined style={{ fontSize: 24 }} />
-                      <div style={{ marginTop: 8 }}>点击添加图片</div>
-                      <span className={styles.mainImageCountZero}>0</span>
-                    </div>
-                  )}
+              <div className={styles.mediaContainer}>
+                {/* 商品图片 */}
+                <div className={styles.mediaItem}>
+                  <div
+                    className={styles.mainImagePreviewWrapper}
+                    onClick={handleOpenMainImageModal}
+                  >
+                    {mainProductImages && mainProductImages.length > 0 ? (
+                      <div className={styles.mainImagePreview}>
+                        <img src={mainProductImages[0]} alt="product" className={styles.mainImage} />
+                        <span className={styles.mainImageCount}>{mainProductImages.length}</span>
+                      </div>
+                    ) : (
+                      <div className={styles.mainImagePlaceholder}>
+                        <PlusOutlined style={{ fontSize: 24 }} />
+                        <div style={{ marginTop: 8 }}>点击添加图片</div>
+                        <span className={styles.mainImageCountZero}>0</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className={styles.uploadHint}>支持JPG/PNG格式，建议3:4比例，最多15张</div>
+
+                {/* 商品视频 */}
+                <div className={styles.mediaItem}>
+                  <div
+                    className={styles.mainImagePreviewWrapper}
+                    onClick={handleOpenMainVideoModal}
+                  >
+                    {videoManager.videos.length > 0 ? (
+                      <div className={styles.mainImagePreview}>
+                        <div className={styles.videoPreviewIcon}>
+                          <PlusOutlined style={{ fontSize: 32 }} />
+                          <div style={{ marginTop: 8 }}>视频</div>
+                        </div>
+                        <span className={styles.mainImageCount}>{videoManager.videos.length}</span>
+                        {videoManager.getCoverVideo() && (
+                          <Tag color="gold" style={{ position: 'absolute', top: 8, left: 8 }}>
+                            封面
+                          </Tag>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={styles.mainImagePlaceholder}>
+                        <PlusOutlined style={{ fontSize: 24 }} />
+                        <div style={{ marginTop: 8 }}>点击添加视频</div>
+                        <span className={styles.mainImageCountZero}>0</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1769,7 +1950,7 @@ const ProductCreate: React.FC = () => {
                       const variant1: ProductVariant = {
                         id: Date.now().toString(),
                         dimension_values: {},
-                        offer_id: '',
+                        offer_id: generateOfferId(),
                         title: '',
                         price: undefined,
                         old_price: undefined,
@@ -1777,7 +1958,7 @@ const ProductCreate: React.FC = () => {
                       const variant2: ProductVariant = {
                         id: (Date.now() + 1).toString(),
                         dimension_values: {},
-                        offer_id: '',
+                        offer_id: generateOfferId(),
                         title: '',
                         price: undefined,
                         old_price: undefined,
@@ -1904,14 +2085,26 @@ const ProductCreate: React.FC = () => {
       {selectedShop && imageModalVisible && (
         <VariantImageManagerModal
           visible={imageModalVisible}
-          variantId={editingVariant?.id || 'main-product'}
-          offerId={editingVariant?.offer_id || '主商品图片'}
+          offerId={editingVariant?.offer_id || form.getFieldValue('offer_id') || '主商品'}
           images={editingVariant ? (editingVariant.images || []) : (mainProductImages || [])}
           shopId={selectedShop}
           onOk={handleSaveImages}
           onCancel={handleCancelImageModal}
         />
       )}
+
+      {/* 视频管理弹窗 */}
+      <VideoManagerModal
+        visible={videoModalVisible}
+        videos={editingVariantForVideo ? variantVideoManager.videos : videoManager.videos}
+        shopId={selectedShop || undefined}
+        offerId={editingVariantForVideo?.offer_id || form.getFieldValue('offer_id') || '主商品'}
+        onAddVideo={editingVariantForVideo ? variantVideoManager.addVideo : videoManager.addVideo}
+        onDeleteVideo={editingVariantForVideo ? variantVideoManager.removeVideo : videoManager.removeVideo}
+        onSetCoverVideo={editingVariantForVideo ? variantVideoManager.setCoverVideo : videoManager.setCoverVideo}
+        onClose={handleCloseVideoModal}
+        maxVideos={10}
+      />
 
       {/* 保存模板弹窗 */}
       <Modal
@@ -1957,16 +2150,17 @@ const ProductCreate: React.FC = () => {
         width={700}
       >
         {/* 筛选区域 */}
-        <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+        <Space style={{ width: '100%', marginBottom: 16 }}>
           <Input
             placeholder="搜索模板名称..."
             value={templateSearchQuery}
             onChange={(e) => setTemplateSearchQuery(e.target.value)}
             allowClear
+            style={{ width: '300px' }}
           />
           <Select
-            style={{ width: '100%' }}
-            placeholder="按标签筛选（可选）"
+            style={{ width: '200px' }}
+            placeholder="按标签筛选"
             value={selectedTagFilter}
             onChange={setSelectedTagFilter}
             allowClear
@@ -1981,19 +2175,13 @@ const ProductCreate: React.FC = () => {
               <List.Item
                 actions={[
                   editingTemplateId === template.id ? (
-                    <Space key="edit">
-                      <Input
-                        value={editingTemplateName}
-                        onChange={(e) => setEditingTemplateName(e.target.value)}
-                        onPressEnter={handleSaveRename}
-                        style={{ width: 150 }}
-                        autoFocus
-                      />
+                    <Space key="edit" size={4}>
                       <Button
                         type="link"
                         size="small"
-                        onClick={handleSaveRename}
-                        loading={renameTemplateMutation.isPending}
+                        onClick={handleSaveEdit}
+                        loading={updateTemplateMutation.isPending}
+                        style={{ padding: '0 4px' }}
                       >
                         保存
                       </Button>
@@ -2003,37 +2191,45 @@ const ProductCreate: React.FC = () => {
                         onClick={() => {
                           setEditingTemplateId(null);
                           setEditingTemplateName('');
+                          setEditingTemplateTags([]);
                         }}
+                        style={{ padding: '0 4px' }}
                       >
                         取消
                       </Button>
                     </Space>
                   ) : (
-                    <Space key="actions">
+                    <Space key="actions" size={4}>
                       <Button
                         type="link"
+                        size="small"
                         onClick={() => applyTemplateMutation.mutate(template.id)}
                         loading={applyTemplateMutation.isPending}
+                        style={{ padding: '0 4px' }}
                       >
                         应用
                       </Button>
                       <Button
                         type="link"
+                        size="small"
                         icon={<EditOutlined />}
                         onClick={() =>
-                          handleStartEditTemplate(template.id, template.template_name)
+                          handleStartEditTemplate(template.id, template.template_name, template.tags)
                         }
+                        style={{ padding: '0 4px' }}
                       >
-                        重命名
+                        编辑
                       </Button>
                       <Button
                         type="link"
+                        size="small"
                         danger
                         icon={<DeleteOutlined />}
                         onClick={() =>
                           handleDeleteTemplate(template.id, template.template_name)
                         }
                         loading={deleteTemplateMutation.isPending}
+                        style={{ padding: '0 4px' }}
                       >
                         删除
                       </Button>
@@ -2042,37 +2238,68 @@ const ProductCreate: React.FC = () => {
                 ]}
               >
                 {editingTemplateId === template.id ? (
-                  <List.Item.Meta description="编辑中..." />
+                  <List.Item.Meta
+                    description={
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        <Input
+                          value={editingTemplateName}
+                          onChange={(e) => setEditingTemplateName(e.target.value)}
+                          onPressEnter={handleSaveEdit}
+                          placeholder="模板名称"
+                          autoFocus
+                        />
+                        <Select
+                          mode="tags"
+                          style={{ width: '100%' }}
+                          placeholder="添加标签（可选，最多10个）"
+                          value={editingTemplateTags}
+                          onChange={(tags) => setEditingTemplateTags(tags.slice(0, 10))}
+                          maxCount={10}
+                          tokenSeparators={[',']}
+                        />
+                      </Space>
+                    }
+                  />
                 ) : (
                   <List.Item.Meta
-                    title={template.template_name}
-                    description={
-                      <Space direction="vertical" size={4}>
-                        <div style={{ fontSize: '12px', color: '#666' }}>
-                          {`更新: ${new Date(template.updated_at).toLocaleString()}`}
-                          {template.used_count > 0 && (
-                            <>
-                              {' | '}
-                              使用次数: {template.used_count}
-                            </>
-                          )}
-                          {template.last_used_at && (
-                            <>
-                              {' | '}
-                              最后使用: {new Date(template.last_used_at).toLocaleString()}
-                            </>
-                          )}
-                        </div>
+                    title={
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          title={(() => {
+                            const updateDate = new Date(template.updated_at);
+                            const updateMonth = updateDate.getMonth() + 1;
+                            const updateDay = updateDate.getDate();
+                            const updateHours = String(updateDate.getHours()).padStart(2, '0');
+                            const updateMinutes = String(updateDate.getMinutes()).padStart(2, '0');
+                            const updateTimeStr = `${updateMonth}-${updateDay} ${updateHours}:${updateMinutes}`;
+
+                            const parts = [`更新: ${updateTimeStr}`];
+                            if (template.used_count > 0) {
+                              parts.push(`次数: ${template.used_count}`);
+                            }
+                            if (template.last_used_at) {
+                              const lastDate = new Date(template.last_used_at);
+                              const lastMonth = lastDate.getMonth() + 1;
+                              const lastDay = lastDate.getDate();
+                              const lastHours = String(lastDate.getHours()).padStart(2, '0');
+                              const lastMinutes = String(lastDate.getMinutes()).padStart(2, '0');
+                              parts.push(`上次: ${lastMonth}-${lastDay} ${lastHours}:${lastMinutes}`);
+                            }
+                            return parts.join('\n');
+                          })()}
+                        >
+                          {template.template_name}
+                        </span>
                         {template.tags && template.tags.length > 0 && (
-                          <div>
+                          <span>
                             {template.tags.map((tag) => (
                               <Tag key={tag} color="blue" style={{ marginRight: 4 }}>
                                 {tag}
                               </Tag>
                             ))}
-                          </div>
+                          </span>
                         )}
-                      </Space>
+                      </div>
                     }
                   />
                 )}

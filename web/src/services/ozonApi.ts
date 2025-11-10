@@ -1437,9 +1437,17 @@ export interface CategoryAttribute {
   attribute_type: string;
   is_required: boolean;
   is_collection: boolean;
+  is_aspect: boolean;
   dictionary_id?: number;
+  category_dependent?: boolean;
+  group_id?: number;
+  group_name?: string;
+  attribute_complex_id?: number;
+  max_value_count?: number;
+  complex_is_collection?: boolean;
   min_value?: number;
   max_value?: number;
+  guide_values?: DictionaryValue[] | null;
 }
 
 export interface DictionaryValue {
@@ -1770,6 +1778,13 @@ export const getProductImportLogs = async (
 
 // ==================== 新建商品相关 API ====================
 
+// 视频信息接口
+export interface VideoInfo {
+  url: string;              // 视频URL（YouTube、OZON视频平台等）
+  name?: string;            // 视频名称
+  is_cover?: boolean;       // 是否为封面视频（每个商品只能有1个封面视频）
+}
+
 // 创建商品记录到数据库
 export interface CreateProductRequest {
   shop_id: number;
@@ -1782,6 +1797,7 @@ export interface CreateProductRequest {
   currency_code?: string;
   category_id?: number;
   images?: string[];
+  videos?: VideoInfo[];     // 视频列表
   attributes?: unknown[];
   height?: number;
   width?: number;
@@ -1797,18 +1813,51 @@ export const createProduct = async (data: CreateProductRequest) => {
   return response.data;
 };
 
-// 上传图片到Cloudinary
+// 上传图片/视频到图床
 export interface UploadMediaRequest {
   shop_id: number;
   type: "base64" | "url";
-  data?: string; // For base64
-  url?: string; // For URL
+  media_type?: "image" | "video";  // 媒体类型（默认为image）
+  data?: string;      // For base64
+  url?: string;       // For URL
   public_id?: string;
   folder?: string;
 }
 
 export const uploadMedia = async (data: UploadMediaRequest) => {
   const response = await apiClient.post("/ozon/listings/media/upload", data);
+  return response.data;
+};
+
+// 上传文件（multipart/form-data）
+export interface UploadMediaFileResponse {
+  success: boolean;
+  url?: string;
+  public_id?: string;
+  size_mb?: number;
+  source?: string;
+  error?: string;
+}
+
+export const uploadMediaFile = async (
+  file: File,
+  shopId: number,
+  mediaType: "image" | "video" = "image",
+  folder?: string
+): Promise<UploadMediaFileResponse> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("shop_id", shopId.toString());
+  formData.append("media_type", mediaType);
+  if (folder) {
+    formData.append("folder", folder);
+  }
+
+  const response = await apiClient.post("/ozon/listings/media/upload-file", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return response.data;
 };
 

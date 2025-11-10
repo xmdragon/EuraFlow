@@ -23,6 +23,7 @@ from ..services.aliyun_oss_service import AliyunOssService, AliyunOssConfigManag
 from ..services.image_storage_factory import ImageStorageFactory
 from ..services.image_processing_service import ImageProcessingService, WatermarkPosition
 from ..utils.datetime_utils import utcnow
+from ..utils.image_utils import is_storage_url
 
 router = APIRouter(prefix="/watermark", tags=["Watermark"])
 logger = logging.getLogger(__name__)
@@ -909,8 +910,48 @@ async def apply_watermark_to_url(
 
     直接在原图URL上添加transformation参数，返回带水印的URL
     原图和水印图都已经在图床上，无需重新上传
+
+    如果图片URL不是图床URL（如象寄URL），会先上传到图床，再应用水印
     """
     try:
+        # 检测图片URL是否是图床URL
+        image_url = request.image_url
+
+        if not is_storage_url(image_url):
+            # 非图床URL，需要先上传到图床
+            logger.info(f"检测到非图床URL，正在上传到图床: {image_url}")
+
+            try:
+                # 获取当前激活的图床服务
+                storage_service = await ImageStorageFactory.create_from_db(db)
+
+                # 生成唯一的public_id
+                from uuid import uuid4
+                public_id = f"watermark_temp_{uuid4().hex[:12]}"
+
+                # 上传图片到图床
+                upload_result = await storage_service.upload_image_from_url(
+                    image_url=image_url,
+                    public_id=public_id,
+                    folder="products"
+                )
+
+                if not upload_result.get("success") or not upload_result.get("url"):
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"图片上传失败: {upload_result.get('error', '未知错误')}"
+                    )
+
+                # 使用上传后的URL
+                image_url = upload_result["url"]
+                logger.info(f"图片已上传到图床: {image_url}")
+
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"图床配置错误: {str(e)}")
+            except Exception as e:
+                logger.error(f"上传图片到图床失败: {e}")
+                raise HTTPException(status_code=500, detail=f"上传图片失败: {str(e)}")
+
         # 获取水印配置
         config = await db.get(WatermarkConfig, request.watermark_config_id)
         if not config:
@@ -925,7 +966,7 @@ async def apply_watermark_to_url(
             from urllib.parse import urlparse
 
             # 从原图URL提取public_id
-            parsed = urlparse(request.image_url)
+            parsed = urlparse(image_url)
             path_parts = parsed.path.split('/')
 
             # Cloudinary URL格式: /{cloud}/image/upload/v{version}/{folder}/{public_id}.{ext}
@@ -982,7 +1023,7 @@ async def apply_watermark_to_url(
 
             # 输出调试信息
             logger.info(f"Cloudinary watermark URL generation:")
-            logger.info(f"  Original URL: {request.image_url}")
+            logger.info(f"  Original URL: {image_url}")
             logger.info(f"  Watermark public_id: {watermark_public_id}")
             logger.info(f"  Transformation: {transformation_str}")
             logger.info(f"  Final URL: {watermarked_url}")
@@ -999,14 +1040,14 @@ async def apply_watermark_to_url(
             processor = WatermarkProcessor(db)
 
             watermarked_url = await processor._build_aliyun_oss_watermark_url(
-                request.image_url,
+                image_url,
                 config,
                 position=request.position
             )
 
             # 从URL提取public_id
             from urllib.parse import urlparse
-            parsed = urlparse(request.image_url)
+            parsed = urlparse(image_url)
             public_id = parsed.path.lstrip('/')
 
             return {

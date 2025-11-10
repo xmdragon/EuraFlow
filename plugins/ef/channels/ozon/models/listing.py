@@ -84,11 +84,22 @@ class OzonCategoryAttribute(Base):
     # 约束信息
     is_required = Column(Boolean, default=False, comment="是否必填")
     is_collection = Column(Boolean, default=False, comment="是否多值属性")
+    is_aspect = Column(Boolean, default=False, comment="是否方面属性（变体维度，入库后不可改）")
     dictionary_id = Column(Integer, comment="字典ID(如果是字典类型)")
+    category_dependent = Column(Boolean, default=False, comment="字典值是否依赖类别")
+
+    # 分组信息
+    group_id = Column(Integer, comment="特征组ID")
+    group_name = Column(String(200), comment="特征组名称")
+
+    # 复合属性信息
+    attribute_complex_id = Column(Integer, comment="复合属性标识符")
+    complex_is_collection = Column(Boolean, default=False, comment="复合特征是否为集合")
 
     # 范围约束(用于数值型)
     min_value = Column(Numeric(18, 4))
     max_value = Column(Numeric(18, 4))
+    max_value_count = Column(Integer, comment="多值属性的最大值数量")
 
     # 缓存信息
     cached_at = Column(DateTime(timezone=True), default=utcnow)

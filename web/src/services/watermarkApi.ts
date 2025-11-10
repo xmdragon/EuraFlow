@@ -10,6 +10,7 @@ export interface CloudinaryConfig {
   api_key: string;
   api_secret?: string;
   product_images_folder?: string;
+  product_videos_folder?: string;
   watermark_images_folder?: string;
   auto_cleanup_days?: number;
 }
@@ -20,6 +21,7 @@ export interface CloudinaryConfigResponse {
   cloud_name: string;
   api_key: string;
   product_images_folder: string;
+  product_videos_folder: string;
   watermark_images_folder: string;
   auto_cleanup_days: number;
   is_active: boolean;
@@ -37,6 +39,7 @@ export interface AliyunOssConfig {
   endpoint: string;
   region_id?: string;
   product_images_folder?: string;
+  product_videos_folder?: string;
   watermark_images_folder?: string;
 }
 
@@ -47,6 +50,7 @@ export interface AliyunOssConfigResponse {
   endpoint: string;
   region_id: string;
   product_images_folder: string;
+  product_videos_folder: string;
   watermark_images_folder: string;
   is_default: boolean;
   enabled: boolean;

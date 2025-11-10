@@ -373,7 +373,14 @@ class CatalogService:
             "attribute_type": attr_data.get("type", "string"),
             "is_required": attr_data.get("is_required", False),
             "is_collection": attr_data.get("is_collection", False),
+            "is_aspect": attr_data.get("is_aspect", False),
             "dictionary_id": attr_data.get("dictionary_id"),
+            "category_dependent": attr_data.get("category_dependent", False),
+            "group_id": attr_data.get("group_id"),
+            "group_name": attr_data.get("group_name"),
+            "attribute_complex_id": attr_data.get("attribute_complex_id"),
+            "max_value_count": attr_data.get("max_value_count"),
+            "complex_is_collection": attr_data.get("complex_is_collection", False),
         }
 
         if existing:

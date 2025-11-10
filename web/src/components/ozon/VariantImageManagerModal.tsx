@@ -1,45 +1,42 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { UploadOutlined, ToolOutlined } from '@ant-design/icons';
 import { Modal, Button, Dropdown, MenuProps, Progress } from 'antd';
-import {
-  UploadOutlined,
-  ToolOutlined,
-} from '@ant-design/icons';
-import { ImageSortableList, ImageItem } from './ImageSortableList';
+import React, { useState, useRef, useEffect } from 'react';
+
 import { CloudinaryImageGrid } from './CloudinaryImageGrid';
-import { uploadMedia } from '@/services/ozonApi';
-import { getCloudinaryConfig, uploadRefinedImages } from '@/services/watermarkApi';
-import { notifyError, notifySuccess, notifyWarning, notifyInfo } from '@/utils/notification';
-import { loggers } from '@/utils/logger';
-import TranslationEngineModal from './TranslationEngineModal';
-import type { TranslationResult as EngineTranslationResult } from './TranslationEngineModal';
+import ImageMattingColorModal from './ImageMattingColorModal';
+import ImageMattingModal from './ImageMattingModal';
 import ImageRefineModal from './ImageRefineModal';
 import type { RefineResult } from './ImageRefineModal';
-import ImageMattingModal from './ImageMattingModal';
-import ImageMattingColorModal from './ImageMattingColorModal';
-import ImageWatermarkModal from './watermark/ImageWatermarkModal';
 import ImageResizeModal from './ImageResizeModal';
+import { ImageSortableList, ImageItem } from './ImageSortableList';
+import TranslationEngineModal from './TranslationEngineModal';
+import type { TranslationResult as EngineTranslationResult } from './TranslationEngineModal';
+import styles from './VariantImageManagerModal.module.scss';
+import ImageWatermarkModal from './watermark/ImageWatermarkModal';
+
+import { uploadMedia } from '@/services/ozonApi';
+import { getCloudinaryConfig, uploadRefinedImages } from '@/services/watermarkApi';
 import {
   translateBatchImages,
   getTranslationResult,
   type TranslationResult,
 } from '@/services/xiangjifanyiApi';
-import styles from './VariantImageManagerModal.module.scss';
+import { loggers } from '@/utils/logger';
+import { notifyError, notifySuccess, notifyWarning, notifyInfo } from '@/utils/notification';
 
 const logger = loggers.ozon;
 
 interface VariantImageManagerModalProps {
   visible: boolean;
-  variantId: string;
   offerId: string;
   images?: string[];
   shopId: number;
-  onOk: (images: string[]) => void;
+  onOk: (_images: string[]) => void;
   onCancel: () => void;
 }
 
 export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> = ({
   visible,
-  variantId,
   offerId,
   images: initialImages,
   shopId,
@@ -60,7 +57,6 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
   const [translationModalVisible, setTranslationModalVisible] = useState(false);
   const [batchTranslating, setBatchTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState(0);
-  const [translationRequestId, setTranslationRequestId] = useState<string | null>(null);
 
   // 精修相关状态
   const [refineModalVisible, setRefineModalVisible] = useState(false);
@@ -71,7 +67,6 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
   // 改分辨率相关状态
   const [resizeModalVisible, setResizeModalVisible] = useState(false);
-  const [resizeImageUrl, setResizeImageUrl] = useState<string>('');
   const [resizeImageId, setResizeImageId] = useState<string>('');
 
   // 抠图相关状态（颜色选择对话框）
@@ -83,7 +78,6 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
   const [mattingRefineModalVisible, setMattingRefineModalVisible] = useState(false);
   const [mattingRefineImageUrl, setMattingRefineImageUrl] = useState<string>('');
   const [mattingRefineImageId, setMattingRefineImageId] = useState<string>('');
-  const [mattingRefineRequestId, setMattingRefineRequestId] = useState<string | undefined>();
 
   // 加载 Cloudinary 配置
   useEffect(() => {
@@ -93,7 +87,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
         if (config.product_images_folder) {
           setProductFolder(config.product_images_folder);
         }
-      } catch (error) {
+      } catch {
         // 使用默认值 'products'
       }
     };
@@ -134,8 +128,8 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
     }
 
     // 过滤掉已存在的图片
-    const existingUrls = new Set(imageItems.map(item => item.url));
-    const newUrls = urls.filter(url => !existingUrls.has(url));
+    const existingUrls = new Set(imageItems.map((item) => item.url));
+    const newUrls = urls.filter((url) => !existingUrls.has(url));
 
     if (newUrls.length === 0) {
       return;
@@ -249,11 +243,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
    */
   const handleWatermark = () => {
     if (imageItems.length === 0) {
-      notification.warning({
-        message: '无可用图片',
-        description: '请先添加图片后再应用水印',
-        placement: 'bottomRight',
-      });
+      notifyWarning('无可用图片', '请先添加图片后再应用水印');
       return;
     }
 
@@ -278,11 +268,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
     setImageItems(updatedItems);
     setWatermarkModalVisible(false);
 
-    notification.success({
-      message: '水印应用成功',
-      description: `成功应用水印到 ${results.length} 张图片`,
-      placement: 'bottomRight',
-    });
+    notifySuccess('水印应用成功', `成功应用水印到 ${results.length} 张图片`);
   };
 
   /**
@@ -291,7 +277,6 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
   const handleResize = (imageId: string, imageUrl: string) => {
     logger.info('打开单张改分辨率对话框', { imageId, imageUrl });
     setResizeImageId(imageId);
-    setResizeImageUrl(imageUrl);
     setResizeModalVisible(true);
   };
 
@@ -300,18 +285,13 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
    */
   const handleBatchResize = () => {
     if (imageItems.length === 0) {
-      notification.warning({
-        message: '无可用图片',
-        description: '请先添加图片后再改分辨率',
-        placement: 'bottomRight',
-      });
+      notifyWarning('无可用图片', '请先添加图片后再改分辨率');
       return;
     }
 
     logger.info('打开批量改分辨率对话框', { count: imageItems.length });
     // 批量模式不需要设置单个图片ID
     setResizeImageId('');
-    setResizeImageUrl('');
     setResizeModalVisible(true);
   };
 
@@ -351,7 +331,11 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
   /**
    * 处理抠图完成（从颜色选择对话框返回）
    */
-  const handleMattingColorComplete = async (imageId: string, mattedUrl: string, requestId: string) => {
+  const handleMattingColorComplete = async (
+    imageId: string,
+    mattedUrl: string,
+    requestId: string
+  ) => {
     logger.info('抠图完成', { imageId, mattedUrl, requestId });
 
     try {
@@ -398,7 +382,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
         notifyWarning('抠图成功，上传图床失败', '图片将使用象寄服务器的链接');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('上传抠图图片失败', { error });
       // 上传失败也要更新URL（使用象寄服务器的URL）
       const newItems = imageItems.map((item) => {
@@ -414,7 +398,8 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
       setImageItems(newItems);
 
-      notifyError('上传图床失败', error.message || '图片将使用象寄服务器的链接');
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      notifyError('上传图床失败', errorMsg || '图片将使用象寄服务器的链接');
     }
   };
 
@@ -425,7 +410,6 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
     logger.info('打开抠图精修对话框', { imageId, imageUrl, mattingRequestId });
     setMattingRefineImageId(imageId);
     setMattingRefineImageUrl(imageUrl);
-    setMattingRefineRequestId(mattingRequestId);
     setMattingRefineModalVisible(true);
   };
 
@@ -479,7 +463,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
         notifyWarning('抠图精修成功，上传图床失败', '图片将使用象寄服务器的链接');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('上传精修图片失败', { error });
       // 上传失败也要更新URL（使用象寄服务器的URL）
       const newItems = imageItems.map((item) => {
@@ -495,7 +479,8 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
       setImageItems(newItems);
 
-      notifyError('上传图床失败', error.message || '图片将使用象寄服务器的链接');
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      notifyError('上传图床失败', errorMsg || '图片将使用象寄服务器的链接');
     }
 
     // 关闭精修对话框
@@ -532,25 +517,17 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
       const requestId = batchResult.request_id;
 
-      notification.info({
-        message: '翻译任务已提交',
-        description: `正在翻译 ${batchResult.total} 张图片，请稍候...`,
-        placement: 'bottomRight',
-        duration: 3,
-      });
+      notifyInfo('翻译任务已提交', `正在翻译 ${batchResult.total} 张图片，请稍候...`);
 
       // 立即返回成功，关闭引擎选择弹窗
       // 然后在后台开始轮询
       startPollingTranslation(requestId);
 
       return { success: true, requestId };
-    } catch (error: any) {
-      notification.error({
-        message: '批量翻译失败',
-        description: error.message || '网络错误',
-        placement: 'bottomRight',
-      });
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : '网络错误';
+      notifyError('批量翻译失败', errorMsg);
+      return { success: false, error: errorMsg };
     }
   };
 
@@ -560,7 +537,6 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
   const startPollingTranslation = async (requestId: string) => {
     setBatchTranslating(true);
     setTranslationProgress(0);
-    setTranslationRequestId(requestId);
 
     try {
       // 最多60次，每2秒一次，总共2分钟
@@ -582,32 +558,23 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
           // 处理翻译结果
           handleBatchTranslationResults(resultData.results || []);
 
-          notification.success({
-            message: '批量翻译完成',
-            description: `成功翻译 ${resultData.results?.filter((r) => r.success).length} 张图片`,
-            placement: 'bottomRight',
-          });
+          notifySuccess(
+            '批量翻译完成',
+            `成功翻译 ${resultData.results?.filter((r) => r.success).length} 张图片`
+          );
 
           return;
         }
       }
 
       // 超时
-      notification.warning({
-        message: '翻译超时',
-        description: '翻译任务处理时间较长，请稍后手动刷新查看结果',
-        placement: 'bottomRight',
-      });
-    } catch (error: any) {
-      notification.error({
-        message: '轮询翻译结果失败',
-        description: error.message || '网络错误',
-        placement: 'bottomRight',
-      });
+      notifyWarning('翻译超时', '翻译任务处理时间较长，请稍后手动刷新查看结果');
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : '网络错误';
+      notifyError('轮询翻译结果失败', errorMsg);
     } finally {
       setBatchTranslating(false);
       setTranslationProgress(0);
-      setTranslationRequestId(null);
     }
   };
 
@@ -639,17 +606,14 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
     setImageItems(tempImageItems);
 
     // 收集所有已翻译图片的requestId（用于批量精修）
-    const requestIds = results
-      .filter((r) => r.success && r.request_id)
-      .map((r) => r.request_id!);
+    const requestIds = results.filter((r) => r.success && r.request_id).map((r) => r.request_id!);
 
     if (requestIds.length > 0) {
       setRefineRequestIds(requestIds);
     }
 
-    // 统计成功和失败数量
+    // 统计成功数量
     const successCount = results.filter((r) => r.success).length;
-    const failCount = results.length - successCount;
 
     // 2. 异步上传到我们的图床
     if (successCount > 0) {
@@ -689,20 +653,15 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
           setImageItems(finalImageItems);
 
           if (uploadResult.success_count > 0) {
-            notification.success({
-              message: '图片已保存到图床',
-              description: `成功上传 ${uploadResult.success_count} 张图片${uploadResult.fail_count > 0 ? `，${uploadResult.fail_count} 张失败` : ''}`,
-              placement: 'bottomRight',
-            });
+            notifySuccess(
+              '图片已保存到图床',
+              `成功上传 ${uploadResult.success_count} 张图片${uploadResult.fail_count > 0 ? `，${uploadResult.fail_count} 张失败` : ''}`
+            );
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('异步上传翻译图片失败', error);
-        notification.warning({
-          message: '图片上传失败',
-          description: '图片将保留象寄服务器的链接',
-          placement: 'bottomRight',
-        });
+        notifyWarning('图片上传失败', '图片将保留象寄服务器的链接');
       }
     }
   };
@@ -740,11 +699,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
     setImageItems(tempImageItems);
 
-    notification.success({
-      message: '批量精修完成',
-      description: '图片已更新，正在上传到图床...',
-      placement: 'bottomRight',
-    });
+    notifySuccess('批量精修完成', '图片已更新，正在上传到图床...');
 
     // 2. 异步上传到我们的图床
     try {
@@ -782,25 +737,17 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
         setImageItems(finalImageItems);
 
         if (uploadResult.success_count > 0) {
-          notification.success({
-            message: '图片已保存到图床',
-            description: `成功上传 ${uploadResult.success_count} 张图片${uploadResult.fail_count > 0 ? `，${uploadResult.fail_count} 张失败` : ''}`,
-            placement: 'bottomRight',
-          });
+          notifySuccess(
+            '图片已保存到图床',
+            `成功上传 ${uploadResult.success_count} 张图片${uploadResult.fail_count > 0 ? `，${uploadResult.fail_count} 张失败` : ''}`
+          );
         } else {
-          notification.warning({
-            message: '图片上传失败',
-            description: '图片将保留象寄服务器的链接',
-            placement: 'bottomRight',
-          });
+          notifyWarning('图片上传失败', '图片将保留象寄服务器的链接');
         }
       }
-    } catch (error: any) {
-      notification.error({
-        message: '图片上传失败',
-        description: error.message || '图片将保留象寄服务器的链接',
-        placement: 'bottomRight',
-      });
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      notifyError('图片上传失败', errorMsg || '图片将保留象寄服务器的链接');
     }
   };
 
@@ -851,7 +798,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
 
   return (
     <Modal
-      title={`变体图片编辑（货号：${offerId}）`}
+      title={`图片编辑(货号：${offerId})`}
       open={visible}
       onOk={handleOk}
       onCancel={handleCancel}
@@ -870,25 +817,20 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
       />
 
       <div className={styles.toolbar}>
-        <Button
-          icon={<UploadOutlined />}
-          onClick={handleUploadClick}
-          loading={uploading}
-        >
+        <Button icon={<UploadOutlined />} onClick={handleUploadClick} loading={uploading}>
           本地图片
         </Button>
 
         <Dropdown menu={{ items: processMenuItems }} trigger={['hover']}>
-          <Button icon={<ToolOutlined />}>
-            图片处理
-          </Button>
+          <Button icon={<ToolOutlined />}>图片处理</Button>
         </Dropdown>
       </div>
 
       <div className={styles.content}>
         <div className={styles.leftPanel}>
           <div className={styles.panelTitle}>
-            该区域为SKU图片，拖动可调整图片顺序。第一张默认为主图（最多可传30张，已有 {imageItems.length} 张）
+            该区域为SKU图片，拖动可调整图片顺序。第一张默认为主图（最多可传30张，已有{' '}
+            {imageItems.length} 张）
           </div>
 
           {/* 批量翻译进度条 */}
@@ -964,7 +906,7 @@ export const VariantImageManagerModal: React.FC<VariantImageManagerModalProps> =
             ? // 单张模式：只传递当前图片
               imageItems
                 .filter((item) => item.id === resizeImageId)
-                .map((item, index) => ({
+                .map((item) => ({
                   id: item.id,
                   url: item.url,
                   label: `图片 ${imageItems.indexOf(item) + 1}`,

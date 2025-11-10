@@ -169,6 +169,7 @@ const ImageStorageConfigTab: React.FC = () => {
         cloud_name: cloudinaryConfig.cloud_name || '',
         api_key: cloudinaryConfig.api_key || '',
         product_images_folder: cloudinaryConfig.product_images_folder || 'products',
+        product_videos_folder: cloudinaryConfig.product_videos_folder || 'videos',
         watermark_images_folder: cloudinaryConfig.watermark_images_folder || 'watermarks',
         auto_cleanup_days: cloudinaryConfig.auto_cleanup_days || 30,
       });
@@ -183,6 +184,7 @@ const ImageStorageConfigTab: React.FC = () => {
         endpoint: ossConfig.endpoint || '',
         region_id: ossConfig.region_id || 'cn-shanghai',
         product_images_folder: ossConfig.product_images_folder || 'products',
+        product_videos_folder: ossConfig.product_videos_folder || 'videos',
         watermark_images_folder: ossConfig.watermark_images_folder || 'watermarks',
       });
     }
@@ -283,12 +285,15 @@ const ImageStorageConfigTab: React.FC = () => {
                       >
                         <Input.Password
                           placeholder={cloudinaryConfig ? '留空表示不修改' : '输入 API Secret'}
-                          style={{ width: 300 }}
-                        />
+                          style={{ width: 300 }} />
                       </Form.Item>
 
                       <Form.Item label="商品图片文件夹" name="product_images_folder">
                         <Input placeholder="products" style={{ width: 300 }} />
+                      </Form.Item>
+
+                      <Form.Item label="商品视频文件夹" name="product_videos_folder">
+                        <Input placeholder="videos" style={{ width: 300 }} />
                       </Form.Item>
 
                       <Form.Item label="水印图片文件夹" name="watermark_images_folder">
@@ -444,6 +449,10 @@ const ImageStorageConfigTab: React.FC = () => {
 
                       <Form.Item label="商品图片文件夹" name="product_images_folder">
                         <Input placeholder="products" style={{ width: 300 }} />
+                      </Form.Item>
+
+                      <Form.Item label="商品视频文件夹" name="product_videos_folder">
+                        <Input placeholder="videos" style={{ width: 300 }} />
                       </Form.Item>
 
                       <Form.Item label="水印图片文件夹" name="watermark_images_folder">
