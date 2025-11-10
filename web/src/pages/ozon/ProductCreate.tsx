@@ -51,6 +51,7 @@ import type { VideoInfo } from '@/services/ozonApi';
 import * as draftTemplateApi from '@/services/draftTemplateApi';
 import { useFormAutosave } from '@/hooks/useFormAutosave';
 import { loggers } from '@/utils/logger';
+import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
 
 // 类目选项接口
 interface CategoryOption {
@@ -779,13 +780,6 @@ const ProductCreate: React.FC = () => {
       setVariantDimensions([...variantDimensions, ...newDimensions]);
       setHiddenFields(newHiddenFields);
       setVariantSectionExpanded(true);
-
-      // 提示用户
-      const dimensionNames = newDimensions.map((d) => d.name).join('、');
-      notifySuccess(
-        '自动添加变体属性',
-        `已自动添加 ${newDimensions.length} 个变体属性：${dimensionNames}`,
-      );
     }
   };
 
@@ -1118,6 +1112,10 @@ const ProductCreate: React.FC = () => {
 
     // 添加用户选择的维度列
     variantDimensions.forEach((dim) => {
+      // 检测是否为颜色属性
+      const isColor = isColorAttribute(dim.name);
+      const hasDictionary = !!dim.dictionary_id;
+
       columns.push({
         title: (
           <Space size={4}>
@@ -1131,16 +1129,68 @@ const ProductCreate: React.FC = () => {
         ),
         key: `dim_${dim.attribute_id}`,
         width: 110,
-        render: (_: any, record: ProductVariant) => (
-          <Input
-            size="small"
-            value={record.dimension_values[dim.attribute_id] || ''}
-            onChange={(e) =>
-              handleUpdateVariantRow(record.id, `dim_${dim.attribute_id}`, e.target.value)
-            }
-            placeholder={`${dim.name}`}
-          />
-        ),
+        render: (_: any, record: ProductVariant) => {
+          // 如果有字典值，使用 Select；否则使用 Input
+          if (hasDictionary) {
+            return (
+              <Select
+                size="small"
+                value={record.dimension_values[dim.attribute_id] || undefined}
+                onChange={(value) =>
+                  handleUpdateVariantRow(record.id, `dim_${dim.attribute_id}`, value)
+                }
+                placeholder={`${dim.name}`}
+                style={{ width: '100%' }}
+                showSearch
+                filterOption={false}
+                onFocus={async () => {
+                  // 加载字典值
+                  if (!dictionaryValuesCache[dim.dictionary_id!]) {
+                    await loadDictionaryValues(dim.dictionary_id!);
+                  }
+                }}
+                optionRender={isColor ? (option) => {
+                  const colorValue = getColorValue(option.label as string);
+                  if (colorValue) {
+                    return (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '4px 8px',
+                          backgroundColor: colorValue,
+                          color: getTextColor(colorValue),
+                          borderRadius: '4px',
+                        }}
+                      >
+                        {option.label}
+                      </div>
+                    );
+                  }
+                  return <span>{option.label}</span>;
+                } : undefined}
+                options={
+                  dictionaryValuesCache[dim.dictionary_id!]?.map((v: any) => ({
+                    label: v.value,
+                    value: v.value_id,
+                  })) || []
+                }
+              />
+            );
+          } else {
+            return (
+              <Input
+                size="small"
+                value={record.dimension_values[dim.attribute_id] || ''}
+                onChange={(e) =>
+                  handleUpdateVariantRow(record.id, `dim_${dim.attribute_id}`, e.target.value)
+                }
+                placeholder={`${dim.name}`}
+              />
+            );
+          }
+        },
       });
     });
 
@@ -1380,6 +1430,9 @@ const ProductCreate: React.FC = () => {
 
     // 优先检查是否有字典值（所有类型都可能有字典值）
     if (attr.dictionary_id) {
+      // 检测是否为颜色属性
+      const isColor = isColorAttribute(attr.name);
+
       inputControl = (
         <Select
           showSearch
@@ -1403,6 +1456,27 @@ const ProductCreate: React.FC = () => {
               await loadDictionaryValues(attr.dictionary_id!);
             }
           }}
+          optionRender={isColor ? (option) => {
+            const colorValue = getColorValue(option.label as string);
+            if (colorValue) {
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '4px 8px',
+                    backgroundColor: colorValue,
+                    color: getTextColor(colorValue),
+                    borderRadius: '4px',
+                  }}
+                >
+                  {option.label}
+                </div>
+              );
+            }
+            return <span>{option.label}</span>;
+          } : undefined}
           options={
             dictionaryValuesCache[attr.dictionary_id]?.map((v: any) => ({
               label: v.value,

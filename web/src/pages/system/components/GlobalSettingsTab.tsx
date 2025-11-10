@@ -47,6 +47,7 @@ import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { notifySuccess, notifyError, notifyInfo, notifyWarning } from '@/utils/notification';
+import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -727,19 +728,45 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
           return <span style={{ color: '#999' }}>无</span>;
         }
 
-        const items: MenuProps['items'] = record.guide_values.map((gv: any, index: number) => ({
-          key: index,
-          label: (
-            <div style={{ maxWidth: 300 }}>
-              <div style={{ fontWeight: 500 }}>{gv.value}</div>
-              {gv.info && (
-                <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                  {gv.info}
-                </div>
-              )}
-            </div>
-          ),
-        }));
+        // 检测是否为颜色属性
+        const isColor = isColorAttribute(record.name);
+
+        const items: MenuProps['items'] = record.guide_values.map((gv: any, index: number) => {
+          // 如果是颜色属性，尝试获取颜色值
+          const colorValue = isColor ? getColorValue(gv.value) : null;
+
+          return {
+            key: index,
+            label: colorValue ? (
+              <div
+                style={{
+                  maxWidth: 300,
+                  padding: '8px 12px',
+                  backgroundColor: colorValue,
+                  color: getTextColor(colorValue),
+                  borderRadius: '4px',
+                  margin: '-5px -12px',
+                }}
+              >
+                <div style={{ fontWeight: 500 }}>{gv.value}</div>
+                {gv.info && (
+                  <div style={{ fontSize: 12, marginTop: 4, opacity: 0.9 }}>
+                    {gv.info}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ maxWidth: 300 }}>
+                <div style={{ fontWeight: 500 }}>{gv.value}</div>
+                {gv.info && (
+                  <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                    {gv.info}
+                  </div>
+                )}
+              </div>
+            ),
+          };
+        });
 
         return (
           <Dropdown menu={{ items }} placement="bottomLeft">

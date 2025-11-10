@@ -36,6 +36,7 @@ import {
   Progress,
   Avatar,
   Table,
+  App,
 } from 'antd';
 import moment from 'moment';
 import React, { useState, useEffect, useRef } from 'react';
@@ -97,6 +98,7 @@ interface _OrderItemRow {
 
 const PackingShipment: React.FC = () => {
   const queryClient = useQueryClient();
+  const { modal } = App.useApp();
   const { currency: userCurrency } = useCurrency();
   const { copyToClipboard } = useCopy();
   const { canOperate, canSync } = usePermission();
@@ -684,16 +686,93 @@ const PackingShipment: React.FC = () => {
     setDetailModalVisible(true);
   };
 
+  // 检查是否需要打印确认（国内单号≥2 或 商品数量>1）
+  const checkNeedsConfirmation = (postings: (ozonApi.Posting | ozonApi.PostingWithOrder | any)[]): boolean => {
+    logger.info('检查打印确认条件', { postings });
+
+    return postings.some((posting) => {
+      // 检查国内单号数量
+      const trackingCount = posting.domestic_tracking_numbers?.length || 0;
+      logger.info('检查国内单号数量', {
+        posting_number: posting.posting_number,
+        trackingCount,
+        domestic_tracking_numbers: posting.domestic_tracking_numbers
+      });
+
+      if (trackingCount >= 2) {
+        logger.info('触发确认：国内单号≥2', { posting_number: posting.posting_number });
+        return true;
+      }
+
+      // 检查商品数量 - 兼容 products 和 items 两种字段
+      const items = posting.products || posting.items || [];
+      const hasHighQuantity = items.some((product: any) => product.quantity > 1);
+      logger.info('检查商品数量', {
+        posting_number: posting.posting_number,
+        products: posting.products,
+        items: posting.items,
+        hasHighQuantity
+      });
+
+      if (hasHighQuantity) {
+        logger.info('触发确认：商品数量>1', { posting_number: posting.posting_number });
+        return true;
+      }
+
+      return false;
+    });
+  };
+
   const handleBatchPrint = async () => {
-    const result = await batchPrint(selectedPostingNumbers);
-    if (result?.success && result.pdf_url) {
-      // 全部成功 - 在新标签页打开PDF
-      window.open(result.pdf_url, '_blank');
-      // 清空选择
-      setSelectedPostingNumbers([]);
-    } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-      // 部分成功 - 打开PDF
-      window.open(result.pdf_url, '_blank');
+    // 获取要打印的 posting 对象
+    const postingsToPrint = allPostings.filter((p) => selectedPostingNumbers.includes(p.posting_number));
+
+    logger.info('批量打印：开始检查', {
+      selectedPostingNumbers,
+      postingsToPrint: postingsToPrint.map((p) => ({
+        posting_number: p.posting_number,
+        domestic_tracking_numbers: p.domestic_tracking_numbers,
+        products: p.products
+      }))
+    });
+
+    // 检查是否需要确认
+    const needsConfirm = checkNeedsConfirmation(postingsToPrint);
+    logger.info('批量打印：检查结果', { needsConfirm });
+
+    if (needsConfirm) {
+      logger.info('批量打印：显示确认对话框');
+      notifyInfo('打印确认', '检测到多个单号或数量>1，需要确认');
+      modal.confirm({
+        title: '确认打印',
+        content: '确认订单商品数量是否正确？',
+        okText: '确认打印',
+        cancelText: '取消',
+        onOk: async () => {
+          const result = await batchPrint(selectedPostingNumbers);
+          if (result?.success && result.pdf_url) {
+            // 全部成功 - 在新标签页打开PDF
+            window.open(result.pdf_url, '_blank');
+            // 清空选择
+            setSelectedPostingNumbers([]);
+          } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
+            // 部分成功 - 打开PDF
+            window.open(result.pdf_url, '_blank');
+          }
+        },
+      });
+    } else {
+      // 不需要确认，直接打印
+      const result = await batchPrint(selectedPostingNumbers);
+      if (result?.success && result.pdf_url) {
+        // 全部成功 - 在新标签页打开PDF
+        window.open(result.pdf_url, '_blank');
+        // 清空选择
+        setSelectedPostingNumbers([]);
+      } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
+        // 部分成功 - 打开PDF
+        window.open(result.pdf_url, '_blank');
+      }
     }
   };
 
@@ -848,41 +927,107 @@ const PackingShipment: React.FC = () => {
 
   // 从扫描结果打印单个标签
   const handlePrintSingleLabel = async (postingNumber: string) => {
-    const result = await batchPrint([postingNumber]);
-    if (result?.success && result.pdf_url) {
-      // 弹出窗口显示PDF，而不是直接打开
-      setPrintLabelUrl(result.pdf_url);
-      setCurrentPrintingPosting(postingNumber);
-      setCurrentPrintingPostings([]); // 单张打印，清空批量标记
-      setShowPrintLabelModal(true);
-      notifySuccess('标签加载成功', '请在弹窗中查看并打印');
-    } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-      setPrintLabelUrl(result.pdf_url);
-      setCurrentPrintingPosting(postingNumber);
-      setCurrentPrintingPostings([]);
-      setShowPrintLabelModal(true);
+    // 从扫描结果中查找该 posting
+    const posting = scanResults.find((p) => p.posting_number === postingNumber);
+
+    // 检查是否需要确认
+    if (posting && checkNeedsConfirmation([posting])) {
+      notifyInfo('打印确认', '检测到多个单号或数量>1，需要确认');
+      modal.confirm({
+        title: '确认打印',
+        content: '确认订单商品数量是否正确？',
+        okText: '确认打印',
+        cancelText: '取消',
+        onOk: async () => {
+          const result = await batchPrint([postingNumber]);
+          if (result?.success && result.pdf_url) {
+            // 弹出窗口显示PDF，而不是直接打开
+            setPrintLabelUrl(result.pdf_url);
+            setCurrentPrintingPosting(postingNumber);
+            setCurrentPrintingPostings([]); // 单张打印，清空批量标记
+            setShowPrintLabelModal(true);
+            notifySuccess('标签加载成功', '请在弹窗中查看并打印');
+          } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
+            setPrintLabelUrl(result.pdf_url);
+            setCurrentPrintingPosting(postingNumber);
+            setCurrentPrintingPostings([]);
+            setShowPrintLabelModal(true);
+          }
+        },
+      });
+    } else {
+      // 不需要确认，直接打印
+      const result = await batchPrint([postingNumber]);
+      if (result?.success && result.pdf_url) {
+        // 弹出窗口显示PDF，而不是直接打开
+        setPrintLabelUrl(result.pdf_url);
+        setCurrentPrintingPosting(postingNumber);
+        setCurrentPrintingPostings([]); // 单张打印，清空批量标记
+        setShowPrintLabelModal(true);
+        notifySuccess('标签加载成功', '请在弹窗中查看并打印');
+      } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
+        setPrintLabelUrl(result.pdf_url);
+        setCurrentPrintingPosting(postingNumber);
+        setCurrentPrintingPostings([]);
+        setShowPrintLabelModal(true);
+      }
     }
   };
 
   // 扫描结果批量打印标签
   const handleScanBatchPrint = async () => {
-    const result = await batchPrint(scanSelectedPostings);
-    if (result?.success && result.pdf_url) {
-      // 弹出窗口显示PDF（与单张打印一致）
-      setPrintLabelUrl(result.pdf_url);
-      setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
-      setCurrentPrintingPosting(''); // 清空单个posting标记
-      setShowPrintLabelModal(true);
-      notifySuccess(
-        '标签加载成功',
-        `成功加载${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}），请在弹窗中查看并打印`
-      );
-    } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
-      // 部分成功 - hook已经显示了错误modal，这里只需要打开PDF
-      setPrintLabelUrl(result.pdf_url);
-      setCurrentPrintingPostings(result.success_postings || []);
-      setCurrentPrintingPosting('');
-      setShowPrintLabelModal(true);
+    // 获取要打印的 posting 对象
+    const postingsToPrint = scanResults.filter((p) => scanSelectedPostings.includes(p.posting_number));
+
+    // 检查是否需要确认
+    if (checkNeedsConfirmation(postingsToPrint)) {
+      notifyInfo('打印确认', '检测到多个单号或数量>1，需要确认');
+      modal.confirm({
+        title: '确认打印',
+        content: '确认订单商品数量是否正确？',
+        okText: '确认打印',
+        cancelText: '取消',
+        onOk: async () => {
+          const result = await batchPrint(scanSelectedPostings);
+          if (result?.success && result.pdf_url) {
+            // 弹出窗口显示PDF（与单张打印一致）
+            setPrintLabelUrl(result.pdf_url);
+            setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
+            setCurrentPrintingPosting(''); // 清空单个posting标记
+            setShowPrintLabelModal(true);
+            notifySuccess(
+              '标签加载成功',
+              `成功加载${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}），请在弹窗中查看并打印`
+            );
+          } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
+            // 部分成功 - hook已经显示了错误modal，这里只需要打开PDF
+            setPrintLabelUrl(result.pdf_url);
+            setCurrentPrintingPostings(result.success_postings || []);
+            setCurrentPrintingPosting('');
+            setShowPrintLabelModal(true);
+          }
+        },
+      });
+    } else {
+      // 不需要确认，直接打印
+      const result = await batchPrint(scanSelectedPostings);
+      if (result?.success && result.pdf_url) {
+        // 弹出窗口显示PDF（与单张打印一致）
+        setPrintLabelUrl(result.pdf_url);
+        setCurrentPrintingPostings([...scanSelectedPostings]); // 保存批量打印的postings
+        setCurrentPrintingPosting(''); // 清空单个posting标记
+        setShowPrintLabelModal(true);
+        notifySuccess(
+          '标签加载成功',
+          `成功加载${result.total}个标签（缓存:${result.cached_count}, 新获取:${result.fetched_count}），请在弹窗中查看并打印`
+        );
+      } else if (result?.error === 'PARTIAL_FAILURE' && result.pdf_url) {
+        // 部分成功 - hook已经显示了错误modal，这里只需要打开PDF
+        setPrintLabelUrl(result.pdf_url);
+        setCurrentPrintingPostings(result.success_postings || []);
+        setCurrentPrintingPosting('');
+        setShowPrintLabelModal(true);
+      }
     }
   };
 
