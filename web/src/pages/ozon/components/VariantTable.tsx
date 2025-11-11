@@ -66,12 +66,13 @@ export const VariantTable: React.FC<VariantTableProps> = ({
   const columns = useMemo((): ColumnsType<ProductVariant> => {
     const cols: ColumnsType<ProductVariant> = [];
 
-    // 图片列（第一列，左固定）
+    // 图片列（第一列，左固定，居中对齐）
     cols.push({
       title: '图片',
       key: 'image',
       width: 64,
       fixed: 'left',
+      align: 'center',
       render: (_: unknown, record: ProductVariant) => {
         const imageCount = record.images?.length || 0;
         return (
@@ -92,11 +93,12 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       },
     });
 
-    // 视频列（第二列）
+    // 视频列（第二列，居中对齐）
     cols.push({
       title: '视频',
       key: 'video',
       width: 64,
+      align: 'center',
       render: (_: unknown, record: ProductVariant) => {
         const videoCount = record.videos?.length || 0;
         return (
@@ -134,10 +136,10 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       },
     });
 
-    // Offer ID 列（第三列，表头两行：第一行显示"货号"，第二行显示"一键生成"按钮）
+    // Offer ID 列（第三列，表头两行：第一行显示"货号"，第二行显示"一键生成"按钮，左对齐）
     cols.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
           <div>货号</div>
           <Button
             size="small"
@@ -179,7 +181,7 @@ export const VariantTable: React.FC<VariantTableProps> = ({
 
       cols.push({
         title: (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
             {/* 第一行：名称 + ? + - */}
             <Space size={4}>
               {dim.name}
@@ -269,10 +271,10 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       });
     });
 
-    // 售价列（表头两行：第一行显示"售价"，第二行显示批量输入框）
+    // 售价列（表头两行：第一行显示"售价"，第二行显示批量输入框，左对齐）
     cols.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
           <div>售价</div>
           <InputNumber
             size="small"
@@ -302,10 +304,10 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       ),
     });
 
-    // 原价列（表头两行：第一行显示"原价"，第二行显示批量输入框）
+    // 原价列（表头两行：第一行显示"原价"，第二行显示批量输入框，左对齐）
     cols.push({
       title: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
           <div>原价</div>
           <InputNumber
             size="small"
