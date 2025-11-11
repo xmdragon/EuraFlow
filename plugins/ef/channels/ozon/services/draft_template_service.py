@@ -37,6 +37,9 @@ class DraftTemplateService:
         Returns:
             保存的草稿对象
         """
+        # 使用部分唯一索引名称进行 UPSERT
+        from sqlalchemy import text
+
         stmt = insert(OzonProductTemplate).values(
             user_id=user_id,
             template_type="draft",
@@ -45,12 +48,12 @@ class DraftTemplateService:
             form_data=form_data
         ).on_conflict_do_update(
             index_elements=["user_id"],
-            index_where=(OzonProductTemplate.template_type == "draft"),
+            index_where=text("template_type = 'draft'"),
             set_={
                 "shop_id": shop_id,
                 "category_id": category_id,
                 "form_data": form_data,
-                "updated_at": OzonProductTemplate.updated_at
+                "updated_at": datetime.now(timezone.utc)
             }
         ).returning(OzonProductTemplate)
 

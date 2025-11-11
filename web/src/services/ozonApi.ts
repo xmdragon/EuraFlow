@@ -1794,11 +1794,18 @@ export interface CreateProductRequest {
   barcode?: string;
   price?: string;
   old_price?: string;
+  premium_price?: string;  // 会员价
   currency_code?: string;
   category_id?: number;
+  type_id?: number;        // 商品类型ID
   images?: string[];
-  videos?: VideoInfo[];     // 视频列表
-  attributes?: unknown[];
+  images360?: string[];    // 360度图片
+  color_image?: string;    // 颜色营销图
+  videos?: VideoInfo[];    // 视频列表
+  pdf_list?: string[];     // PDF文档列表
+  attributes?: unknown[];  // 类目属性
+  variants?: unknown[];    // 变体数据
+  promotions?: number[];   // 参与的促销活动ID
   height?: number;
   width?: number;
   depth?: number;
@@ -2145,4 +2152,24 @@ export const importCommissionsCsv = async (formData: FormData): Promise<any> => 
     },
   });
   return response.data;
+};
+
+// ============ 促销活动接口 ============
+
+export interface PromotionAction {
+  action_id: number;
+  title: string;
+  description?: string;
+  date_start?: string;
+  date_end?: string;
+  candidates_count?: number;
+  products_count?: number;
+}
+
+/**
+ * 获取店铺促销活动列表
+ */
+export const getPromotionActions = async (shopId: number): Promise<PromotionAction[]> => {
+  const response = await apiClient.get(`/ozon/shops/${shopId}/promotions/actions`);
+  return response.data?.data || [];
 };

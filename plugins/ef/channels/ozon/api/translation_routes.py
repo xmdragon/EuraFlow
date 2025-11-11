@@ -16,6 +16,85 @@ router = APIRouter(prefix="/translation", tags=["translation"])
 logger = logging.getLogger(__name__)
 
 
+class TranslateTextRequest(BaseModel):
+    """文本翻译请求"""
+    text: str = Field(..., description="待翻译的文本")
+    source_lang: str = Field(default="zh", description="源语言（zh=中文, ru=俄文, en=英文）")
+    target_lang: str = Field(default="ru", description="目标语言（zh=中文, ru=俄文, en=英文）")
+
+
+@router.post("/text")
+async def translate_text(
+    request: TranslateTextRequest,
+    user: User = Depends(get_current_user)
+) -> dict:
+    """
+    通用文本翻译API
+
+    支持多语言翻译，使用当前激活的翻译引擎（阿里云或ChatGPT）
+    """
+    if not request.text or not request.text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "type": "about:blank",
+                "title": "Invalid Input",
+                "status": 400,
+                "detail": "文本不能为空",
+                "code": "EMPTY_TEXT"
+            }
+        )
+
+    db_manager = get_db_manager()
+    async with db_manager.get_session() as session:
+        # 使用翻译工厂创建翻译服务
+        try:
+            service = await TranslationFactory.create_from_db(session)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "type": "about:blank",
+                    "title": "Translation Service Unavailable",
+                    "status": 500,
+                    "detail": str(e),
+                    "code": "NO_TRANSLATION_SERVICE"
+                }
+            )
+
+        logger.info(f"开始翻译文本: source_lang={request.source_lang}, target_lang={request.target_lang}, length={len(request.text)}")
+
+        # 执行翻译
+        translation = await service.translate_text(
+            text=request.text,
+            source_lang=request.source_lang,
+            target_lang=request.target_lang
+        )
+
+        logger.info(f"翻译结果: translation={'成功' if translation else '失败'}, result_length={len(translation) if translation else 0}")
+
+        if translation:
+            return {
+                "ok": True,
+                "data": {
+                    "translation": translation,
+                    "source_lang": request.source_lang,
+                    "target_lang": request.target_lang
+                }
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "type": "about:blank",
+                    "title": "Translation Failed",
+                    "status": 500,
+                    "detail": "翻译失败",
+                    "code": "TRANSLATION_FAILED"
+                }
+            )
+
+
 @router.get("/active-provider")
 async def get_active_provider(
     user: User = Depends(get_current_user)

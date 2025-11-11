@@ -61,6 +61,7 @@ export interface FormData {
   offer_id?: string;
   price?: number;
   old_price?: number;
+  premium_price?: number;
   width?: number;
   height?: number;
   depth?: number;
@@ -70,12 +71,18 @@ export interface FormData {
   barcode?: string;
   attributes?: Record<string, any>;
   images?: string[];
+  videos?: any[];
+  images360?: string;
+  color_image?: string;
+  pdf_list?: string;
+  promotions?: number[];
   variantDimensions?: any[];
   variants?: any[];
   hiddenFields?: string[];
   variantSectionExpanded?: boolean;
   variantTableCollapsed?: boolean;
   optionalFieldsExpanded?: boolean;
+  autoColorSample?: boolean;
 }
 
 export interface DraftDetail {

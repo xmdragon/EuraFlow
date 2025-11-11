@@ -168,6 +168,29 @@ export const saveTranslationConfig = saveAliyunTranslationConfig;
 export const testTranslationConnection = testAliyunTranslationConnection;
 
 /**
+ * 通用文本翻译
+ */
+export const translateText = async (
+  text: string,
+  sourceLang: string = 'zh',
+  targetLang: string = 'ru'
+): Promise<string> => {
+  const authHeaders = authService.getAuthHeader();
+  const response = await axios.post(
+    `${API_BASE}/ozon/translation/text`,
+    {
+      text,
+      source_lang: sourceLang,
+      target_lang: targetLang,
+    },
+    {
+      headers: authHeaders,
+    }
+  );
+  return response.data.data.translation;
+};
+
+/**
  * 懒加载翻译消息
  */
 export const translateMessage = async (

@@ -96,10 +96,15 @@ class OzonProduct(Base):
 
     # 图片和视频数据
     images = Column(JSONB, comment="商品图片数据")
+    images360 = Column(JSONB, comment="360度全景图URL数组")
     videos = Column(JSONB, comment="商品视频数据 [{url, name, is_cover}]")
     ozon_visibility_details = Column(JSONB, comment="OZON可见性详情")
     ozon_status = Column(String(50), comment="OZON原始状态")
     status_reason = Column(String(200), comment="状态原因说明")
+
+    # 促销和变体数据
+    promotions = Column(JSONB, comment="关联的促销活动ID数组")
+    variants = Column(JSONB, comment="OZON原始变体数据(完整JSON)")
 
     # 同步信息
     last_sync_at = Column(DateTime(timezone=True))
