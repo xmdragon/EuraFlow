@@ -12,8 +12,9 @@ import {
   ThunderboltOutlined,
   MinusCircleOutlined,
   DeleteOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
-import { Table, Input, InputNumber, Button, Select, Space, Tag } from 'antd';
+import { Table, Input, InputNumber, Button, Select, Space, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager';
 import type { DictionaryValue } from '@/services/ozonApi';
@@ -133,30 +134,23 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       },
     });
 
-    // Offer ID 列（第三列，表头带批量生成）
+    // Offer ID 列（第三列，表头两行：第一行显示"货号"，第二行显示"一键生成"按钮）
     cols.push({
       title: (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>货号</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+          <div>货号</div>
           <Button
             size="small"
             icon={<ThunderboltOutlined />}
             onClick={onBatchGenerateOfferId}
             title="批量生成所有变体的 Offer ID"
           >
-            生成
+            一键生成
           </Button>
         </div>
       ),
       key: 'offer_id',
-      width: 160,
+      width: 100,
       render: (_: unknown, record: ProductVariant) => (
         <Input
           size="small"
@@ -173,19 +167,39 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       const isColor = isColorAttribute(dim.name);
       const hasDictionary = !!dim.dictionary_id;
 
+      // 跟随首行功能：将第二行及以后的该维度值设为与首行相同
+      const handleFollowFirstRow = () => {
+        if (variants.length === 0) return;
+        const firstRowValue = variants[0].dimension_values[dim.attribute_id];
+        // 从第二行开始，将每行的该维度值设为首行的值
+        variants.slice(1).forEach((variant) => {
+          onUpdateVariant(variant.id, `dim_${dim.attribute_id}`, firstRowValue);
+        });
+      };
+
       cols.push({
         title: (
-          <Space size={4}>
-            {dim.name}
-            <MinusCircleOutlined
-              style={{ color: '#ff4d4f', cursor: 'pointer', fontSize: 14 }}
-              onClick={() => onRemoveVariantDimension(dim.attribute_id)}
-              title="移除此维度"
-            />
-          </Space>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+            {/* 第一行：名称 + ? + - */}
+            <Space size={4}>
+              {dim.name}
+              <Tooltip title={`${dim.name}维度的说明信息`}>
+                <QuestionCircleOutlined style={{ color: '#1890ff', cursor: 'help', fontSize: 14 }} />
+              </Tooltip>
+              <MinusCircleOutlined
+                style={{ color: '#ff4d4f', cursor: 'pointer', fontSize: 14 }}
+                onClick={() => onRemoveVariantDimension(dim.attribute_id)}
+                title="移除此维度"
+              />
+            </Space>
+            {/* 第二行：跟随首行按钮 */}
+            <Button size="small" onClick={handleFollowFirstRow} title="将所有变体的该维度值设为与第一行相同">
+              跟随首行
+            </Button>
+          </div>
         ),
         key: `dim_${dim.attribute_id}`,
-        width: 110,
+        width: 120,
         render: (_: unknown, record: ProductVariant) => {
           // 如果有字典值，使用 Select；否则使用 Input
           if (hasDictionary) {
@@ -255,11 +269,11 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       });
     });
 
-    // 售价列（表头带批量设置输入框）
+    // 售价列（表头两行：第一行显示"售价"，第二行显示批量输入框）
     cols.push({
       title: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ whiteSpace: 'nowrap' }}>售价</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+          <div>售价</div>
           <InputNumber
             size="small"
             placeholder="批量"
@@ -275,7 +289,7 @@ export const VariantTable: React.FC<VariantTableProps> = ({
         </div>
       ),
       key: 'price',
-      width: 100,
+      width: 80,
       render: (_: unknown, record: ProductVariant) => (
         <InputNumber
           size="small"
@@ -288,11 +302,11 @@ export const VariantTable: React.FC<VariantTableProps> = ({
       ),
     });
 
-    // 原价列（表头带批量设置输入框）
+    // 原价列（表头两行：第一行显示"原价"，第二行显示批量输入框）
     cols.push({
       title: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ whiteSpace: 'nowrap' }}>原价</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+          <div>原价</div>
           <InputNumber
             size="small"
             placeholder="批量"
@@ -308,7 +322,7 @@ export const VariantTable: React.FC<VariantTableProps> = ({
         </div>
       ),
       key: 'old_price',
-      width: 100,
+      width: 80,
       render: (_: unknown, record: ProductVariant) => (
         <InputNumber
           size="small"
