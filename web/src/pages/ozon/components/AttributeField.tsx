@@ -310,10 +310,15 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
           {React.cloneElement(inputControl as React.ReactElement<any>, {
             style: {
               ...((inputControl as React.ReactElement<any>).props?.style || {}),
-              flex: 1,
-              minWidth: 0,
-              borderTopRightRadius: 0,
-              borderBottomRightRadius: 0,
+              // Switch 不需要 flex 拉伸，其他控件使用 flex: 1
+              ...(attr.attribute_type !== 'Boolean'
+                ? {
+                    flex: 1,
+                    minWidth: 0,
+                    borderTopRightRadius: 0,
+                    borderBottomRightRadius: 0,
+                  }
+                : {}),
             },
           })}
         </Form.Item>

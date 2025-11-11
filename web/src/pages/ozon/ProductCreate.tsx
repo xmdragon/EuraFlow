@@ -1435,7 +1435,7 @@ const ProductCreate: React.FC = () => {
                             <Input.TextArea
                               placeholder="每行输入一个图片URL"
                               rows={4}
-                              style={{ minWidth: '300px', maxWidth: '100%' }}
+                              style={{ width: '500px' }}
                             />
                           </Form.Item>
 
@@ -1449,7 +1449,7 @@ const ProductCreate: React.FC = () => {
                             <Input.TextArea
                               placeholder="每行输入一个PDF文件URL"
                               rows={3}
-                              style={{ minWidth: '300px', maxWidth: '100%' }}
+                              style={{ width: '500px' }}
                             />
                           </Form.Item>
 
@@ -1463,7 +1463,7 @@ const ProductCreate: React.FC = () => {
                             <Select
                               mode="multiple"
                               placeholder="选择促销活动"
-                              style={{ minWidth: '300px', maxWidth: '100%' }}
+                              style={{ width: '500px' }}
                               popupMatchSelectWidth={false}
                               loading={!promotionActions}
                               options={promotionActions?.map(action => ({
