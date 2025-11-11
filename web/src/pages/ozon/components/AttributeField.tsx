@@ -178,6 +178,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
         placeholder={`请选择${fullLabel}`}
         popupMatchSelectWidth={false}
         filterOption={false}
+        style={{ width: '250px' }}
         onSearch={async (value) => {
           // 搜索时动态加载并更新缓存
           if (value) {
@@ -243,6 +244,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
             max={attr.max_value ?? undefined}
             placeholder={`请输入${fullLabel}`}
             controls={false}
+            style={{ width: '150px' }}
           />
         );
         break;
@@ -250,7 +252,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
       case 'String':
       case 'URL':
       default:
-        inputControl = <Input placeholder={`请输入${fullLabel}`} />;
+        inputControl = <Input placeholder={`请输入${fullLabel}`} style={{ width: '250px' }} />;
         break;
     }
   }
