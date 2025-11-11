@@ -31,6 +31,8 @@ import {
   Tag,
   Checkbox,
   Tooltip,
+  Row,
+  Col,
 } from 'antd';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -1488,35 +1490,41 @@ const ProductCreate: React.FC = () => {
             <div className={styles.section}>
               <h3 className={styles.sectionTitle}>价格信息</h3>
 
-              <Form.Item label="售价" required style={{ marginBottom: 12 }}>
-                <Form.Item
-                  name="price"
-                  rules={[{ required: true, message: '请输入售价' }]}
-                  noStyle
-                >
-                  <InputNumber
-                    min={0}
-                    placeholder="0"
-                    controls={false}
-                    formatter={getNumberFormatter(2)}
-                    parser={getNumberParser()}
-                    style={{ width: '150px' }}
-                  />
-                </Form.Item>
-              </Form.Item>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item label="售价" required style={{ marginBottom: 12 }}>
+                    <Form.Item
+                      name="price"
+                      rules={[{ required: true, message: '请输入售价' }]}
+                      noStyle
+                    >
+                      <InputNumber
+                        min={0}
+                        placeholder="0"
+                        controls={false}
+                        formatter={getNumberFormatter(2)}
+                        parser={getNumberParser()}
+                        style={{ width: '150px' }}
+                      />
+                    </Form.Item>
+                  </Form.Item>
+                </Col>
 
-              <Form.Item label="原价" style={{ marginBottom: 12 }}>
-                <Form.Item name="old_price" noStyle>
-                  <InputNumber
-                    min={0}
-                    placeholder="0"
-                    controls={false}
-                    formatter={getNumberFormatter(2)}
-                    parser={getNumberParser()}
-                    style={{ width: '150px' }}
-                  />
-                </Form.Item>
-              </Form.Item>
+                <Col span={12}>
+                  <Form.Item label="原价（划线价）" style={{ marginBottom: 12 }}>
+                    <Form.Item name="old_price" noStyle>
+                      <InputNumber
+                        min={0}
+                        placeholder="0"
+                        controls={false}
+                        formatter={getNumberFormatter(2)}
+                        parser={getNumberParser()}
+                        style={{ width: '150px' }}
+                      />
+                    </Form.Item>
+                  </Form.Item>
+                </Col>
+              </Row>
             </div>
           )}
 

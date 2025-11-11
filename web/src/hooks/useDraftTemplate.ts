@@ -55,6 +55,7 @@ export interface UseDraftTemplateReturn {
   selectedTagFilter: string | undefined;
   setSelectedTagFilter: (tag: string | undefined) => void;
   editingTemplateId: number | null;
+  setEditingTemplateId: (id: number | null) => void;
   editingTemplateName: string;
   setEditingTemplateName: (name: string) => void;
   editingTemplateTags: string[];
@@ -344,6 +345,7 @@ export const useDraftTemplate = ({
     selectedTagFilter,
     setSelectedTagFilter,
     editingTemplateId,
+    setEditingTemplateId,
     editingTemplateName,
     setEditingTemplateName,
     editingTemplateTags,
