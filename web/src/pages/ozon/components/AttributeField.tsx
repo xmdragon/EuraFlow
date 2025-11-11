@@ -252,7 +252,20 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
       case 'String':
       case 'URL':
       default:
-        inputControl = <Input placeholder={`请输入${fullLabel}`} style={{ width: '250px' }} />;
+        // 判断是否为多行文本字段（JSON富内容等）
+        const isMultilineField = attr.name.includes('JSON') || attr.name.includes('富内容');
+
+        if (isMultilineField) {
+          inputControl = (
+            <Input.TextArea
+              placeholder={`请输入${fullLabel}`}
+              rows={4}
+              style={{ width: '500px' }}
+            />
+          );
+        } else {
+          inputControl = <Input placeholder={`请输入${fullLabel}`} style={{ width: '250px' }} />;
+        }
         break;
     }
   }
