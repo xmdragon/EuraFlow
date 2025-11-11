@@ -724,9 +724,9 @@ const ProductCreate: React.FC = () => {
    * 打开"保存为模板"弹窗
    */
   const handleOpenSaveTemplateModal = () => {
-    draftTemplate.draftTemplate.setTemplateNameInput('');
-    draftTemplate.draftTemplate.setTemplateTagsInput([]);
-    draftTemplate.draftTemplate.setSaveTemplateModalVisible(true);
+    draftTemplate.setTemplateNameInput('');
+    draftTemplate.setTemplateTagsInput([]);
+    draftTemplate.setSaveTemplateModalVisible(true);
   };
 
   // 类目选择变化时加载属性
