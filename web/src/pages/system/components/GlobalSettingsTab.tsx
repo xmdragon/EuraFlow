@@ -380,19 +380,28 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
 
   const firstShopId = shopsData?.shops?.[0]?.id || 1; // 取第一个店铺，兜底值为1
 
-  // 动态加载类目树（加时间戳避免缓存）
-  const { data: categoryTreeData, isLoading: categoryTreeLoading } = useQuery({
+  // 动态加载类目树（使用文件的generatedAt作为缓存key）
+  const { data: categoryTreeData, isLoading: categoryTreeLoading, refetch: refetchCategoryTree } = useQuery({
     queryKey: ['category-tree'],
     queryFn: async () => {
+      // 首次加载时添加时间戳破坏缓存，获取最新的generatedAt
       const timestamp = Date.now();
       const response = await fetch(`/data/categoryTree.json?t=${timestamp}`);
       if (!response.ok) {
         throw new Error('加载类目树失败');
       }
       const json = await response.json();
-      return json.data as CategoryOption[];
+
+      // 使用文件的 generatedAt 更新 queryKey
+      // 这样当类目同步后，generatedAt变化会自动触发重新加载
+      return {
+        data: json.data as CategoryOption[],
+        generatedAt: json.generatedAt,
+        totalRecords: json.totalRecords,
+      };
     },
-    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+    staleTime: 30 * 60 * 1000, // 30分钟内不重新请求（类目数据更新频率低）
+    select: (response) => response.data, // 只返回 data 部分给组件使用
   });
 
   // 类目树同步轮询 Hook
