@@ -101,6 +101,19 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
       <Spin spinning={loadingWarehouses}>
         <Form form={form} layout="vertical" onFinish={handleFinish}>
           <Form.Item
+            name="warehouse_id"
+            label="仓库"
+            rules={[{ required: true, message: '请选择仓库' }]}
+          >
+            <Select placeholder="选择仓库" loading={loadingWarehouses}>
+              {warehouses.map((wh) => (
+                <Option key={wh.warehouse_id} value={wh.warehouse_id}>
+                  {wh.name} ({wh.is_rfbs ? 'rFBS' : 'FBS'})
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
             name="stock"
             label="库存数量"
             rules={[
@@ -120,19 +133,6 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
             ]}
           >
             <InputNumber style={{ width: '100%' }} min={0} placeholder="请输入库存数量（可以为0）" />
-          </Form.Item>
-          <Form.Item
-            name="warehouse_id"
-            label="仓库"
-            rules={[{ required: true, message: '请选择仓库' }]}
-          >
-            <Select placeholder="选择仓库" loading={loadingWarehouses}>
-              {warehouses.map((wh) => (
-                <Option key={wh.warehouse_id} value={wh.warehouse_id}>
-                  {wh.name} ({wh.is_rfbs ? 'rFBS' : 'FBS'})
-                </Option>
-              ))}
-            </Select>
           </Form.Item>
           <Form.Item>
             <Space>
