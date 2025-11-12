@@ -70,12 +70,25 @@ async def _batch_update_stocks_async(
     from ..models.products import OzonProduct
     from ..api.client import OzonAPIClient
     from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from ef_core.config import get_settings
     from fastapi import HTTPException
 
     try:
-        # 使用全局数据库管理器的会话
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as db:
+        # 在当前事件循环中创建新的数据库引擎和会话
+        # 这样可以避免"Future attached to a different loop"错误
+        settings = get_settings()
+        engine = create_async_engine(
+            settings.get_database_url(),
+            echo=False,
+            pool_pre_ping=True,
+        )
+        async_session_factory = sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+
+        async with async_session_factory() as db:
             # 获取店铺信息
             shop_result = await db.execute(
                 select(OzonShop).where(OzonShop.id == shop_id)
@@ -282,35 +295,38 @@ async def _batch_update_stocks_async(
             # 关闭API客户端
             await client.close()
 
-            # 判断整体成功标志
-            success = updated_count > 0 or len(errors) == 0
+        # 关闭数据库引擎（在 async with 块外）
+        await engine.dispose()
 
-            # 更新最终进度
-            _redis_client.setex(
-                progress_key,
-                3600,
-                json.dumps({
-                    'status': 'completed' if success else 'failed',
-                    'updated': updated_count,
-                    'total': len(stock_items),
-                    'errors': errors[:20],  # 最多保留20个错误
-                    'current': '完成',
-                    'percent': 100
-                })
-            )
+        # 判断整体成功标志
+        success = updated_count > 0 or len(errors) == 0
 
-            result = {
-                "success": success,
-                "message": f"成功更新 {updated_count} 个商品库存",
-                "updated_count": updated_count
-            }
+        # 更新最终进度
+        _redis_client.setex(
+            progress_key,
+            3600,
+            json.dumps({
+                'status': 'completed' if success else 'failed',
+                'updated': updated_count,
+                'total': len(stock_items),
+                'errors': errors[:20],  # 最多保留20个错误
+                'current': '完成',
+                'percent': 100
+            })
+        )
 
-            if len(errors) > 0:
-                result["errors"] = errors[:20]  # 最多返回20个错误
-                result["total_errors"] = len(errors)
+        result = {
+            "success": success,
+            "message": f"成功更新 {updated_count} 个商品库存",
+            "updated_count": updated_count
+        }
 
-            logger.info(f"批量库存更新任务完成: {result}")
-            return result
+        if len(errors) > 0:
+            result["errors"] = errors[:20]  # 最多返回20个错误
+            result["total_errors"] = len(errors)
+
+        logger.info(f"批量库存更新任务完成: {result}")
+        return result
 
     except Exception as e:
         logger.error(f"批量库存更新任务失败: {e}", exc_info=True)
