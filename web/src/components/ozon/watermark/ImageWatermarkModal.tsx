@@ -109,16 +109,17 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
 
   // 应用水印
   const handleApply = async () => {
-    // 筛选出已配置水印的图片
+    // 筛选出已配置的图片（包括选择"不应用水印"或选择了水印配置和位置）
     const imagesToProcess = images.filter((img) => {
       const setting = getSetting(img.id);
-      return setting && setting.position;
+      // 选择了"不应用水印"（configId === -1）或者选择了水印配置和位置
+      return setting && (setting.configId === -1 || setting.position);
     });
 
     if (imagesToProcess.length === 0) {
       notification.warning({
         message: '无图片需要处理',
-        description: '请先为图片选择水印配置和位置',
+        description: '请先为图片选择水印配置或选择"不应用水印"',
         placement: 'bottomRight',
       });
       return;
@@ -135,7 +136,18 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
         const batch = imagesToProcess.slice(i, i + BATCH_SIZE);
         const promises = batch.map(async (img) => {
           const setting = getSetting(img.id);
-          if (!setting || !setting.position) return null;
+          if (!setting) return null;
+
+          // 如果选择了"不应用水印"，直接返回原URL
+          if (setting.configId === -1) {
+            return {
+              id: img.id,
+              url: img.url,
+            };
+          }
+
+          // 正常应用水印
+          if (!setting.position) return null;
 
           try {
             const result = await applyWatermarkToUrl(
@@ -170,6 +182,16 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
         return;
       }
 
+      // 统计应用水印和跳过的图片
+      const appliedCount = finalResults.filter((r) => {
+        const setting = getSetting(r.id);
+        return setting?.configId !== -1;
+      }).length;
+      const skippedCount = finalResults.filter((r) => {
+        const setting = getSetting(r.id);
+        return setting?.configId === -1;
+      }).length;
+
       // 对于未处理的图片，保持原URL
       const allResults = images.map((img) => {
         const processed = finalResults.find((r) => r.id === img.id);
@@ -178,7 +200,11 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
 
       notification.success({
         message: '水印应用完成',
-        description: `成功处理 ${finalResults.length} 张图片`,
+        description: appliedCount > 0 && skippedCount > 0
+          ? `成功应用 ${appliedCount} 张图片水印，跳过 ${skippedCount} 张`
+          : appliedCount > 0
+          ? `成功应用 ${appliedCount} 张图片水印`
+          : `已跳过 ${skippedCount} 张图片`,
         placement: 'bottomRight',
       });
 
@@ -273,6 +299,12 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
                     onChange={(configId) => handleConfigChange(img.id, configId)}
                     allowClear
                   >
+                    {/* 不应用水印选项 */}
+                    <Option key={-1} value={-1}>
+                      <Space size="small">
+                        <span style={{ fontSize: 12, color: '#999' }}>🚫 不应用水印</span>
+                      </Space>
+                    </Option>
                     {(watermarkConfigs || []).map((config) => (
                       <Option key={config.id} value={config.id}>
                         <Space size="small">
@@ -334,7 +366,7 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
                     />
 
                     {/* 水印预览层 */}
-                    {watermarkConfig && setting?.position && (
+                    {watermarkConfig && setting?.position && setting.configId !== -1 && (
                       <img
                         src={optimizeOzonImageUrl(watermarkConfig.image_url, 100)}
                         alt="水印预览"
@@ -347,12 +379,14 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
                       />
                     )}
 
-                    {/* 9宫格位置选择器 */}
-                    <WatermarkPositionGrid
-                      selectedPosition={setting?.position}
-                      watermarkImageUrl={watermarkConfig?.image_url}
-                      onPositionSelect={(position) => handlePositionClick(img.id, position)}
-                    />
+                    {/* 9宫格位置选择器（仅在未选择"不应用水印"时显示） */}
+                    {setting?.configId !== -1 && (
+                      <WatermarkPositionGrid
+                        selectedPosition={setting?.position}
+                        watermarkImageUrl={watermarkConfig?.image_url}
+                        onPositionSelect={(position) => handlePositionClick(img.id, position)}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
