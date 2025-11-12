@@ -156,8 +156,8 @@ class OzonAPIClient:
         request_id = str(uuid.uuid4())
 
         # 调试日志 - 查看实际发送的数据
-        if endpoint == "/v1/product/pictures/import":
-            logger.info(f"[DEBUG] _request sending data: {data}")
+        if endpoint in ["/v1/product/pictures/import", "/v3/product/import"]:
+            logger.info(f"[DEBUG] _request sending data to {endpoint}: {data}")
 
         # 构建请求
         headers = {"X-Request-Id": request_id}
@@ -218,7 +218,16 @@ class OzonAPIClient:
                 f"Ozon API error: {e.response.status_code}",
                 extra={"request_id": request_id, "response": response_content},
             )
-            raise
+
+            # 尝试解析JSON错误响应（OZON API通常返回JSON格式的错误）
+            try:
+                error_json = e.response.json()
+                logger.error(f"OZON API JSON error: {error_json}")
+                # 返回结构化的错误而不是抛出异常
+                return error_json
+            except Exception:
+                # 如果不是JSON，继续抛出异常
+                raise
         except Exception as e:
             logger.error(f"Ozon API request failed: {str(e)}", extra={"request_id": request_id})
             raise
@@ -1830,7 +1839,7 @@ class OzonAPIClient:
     ) -> Dict[str, Any]:
         """
         批量导入商品（新建卡或跟随卡）
-        使用 /v2/product/import 接口
+        使用 /v3/product/import 接口
 
         Args:
             products: 商品信息列表（最多100个），每个包含：
@@ -1863,7 +1872,7 @@ class OzonAPIClient:
 
         return await self._request(
             "POST",
-            "/v2/product/import",
+            "/v3/product/import",
             data=data,
             resource_type="products"
         )

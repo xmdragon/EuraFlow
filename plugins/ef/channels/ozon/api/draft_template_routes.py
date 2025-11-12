@@ -46,6 +46,7 @@ class FormDataSchema(BaseModel):
     offer_id: Optional[str] = None
     price: Optional[float] = None
     old_price: Optional[float] = None
+    premium_price: Optional[float] = None
     width: Optional[float] = None
     height: Optional[float] = None
     depth: Optional[float] = None
@@ -53,14 +54,21 @@ class FormDataSchema(BaseModel):
     dimension_unit: Optional[str] = "mm"
     weight_unit: Optional[str] = "g"
     barcode: Optional[str] = None
+    vat: Optional[str] = None
     attributes: Optional[dict[str, Any]] = None
     images: Optional[list[str]] = None
+    videos: Optional[list[dict]] = None
+    images360: Optional[str] = None
+    color_image: Optional[str] = None
+    pdf_list: Optional[str] = None
+    promotions: Optional[list[int]] = None
     variantDimensions: Optional[list[dict]] = None
     variants: Optional[list[dict]] = None
     hiddenFields: Optional[list[str]] = None
     variantSectionExpanded: Optional[bool] = None
     variantTableCollapsed: Optional[bool] = None
     optionalFieldsExpanded: Optional[bool] = None
+    autoColorSample: Optional[bool] = None
 
 
 class SaveDraftRequest(BaseModel):

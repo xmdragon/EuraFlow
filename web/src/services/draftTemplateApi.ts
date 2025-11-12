@@ -69,6 +69,7 @@ export interface FormData {
   dimension_unit?: string;
   weight_unit?: string;
   barcode?: string;
+  vat?: string;
   attributes?: Record<string, any>;
   images?: string[];
   videos?: any[];

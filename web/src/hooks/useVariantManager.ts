@@ -14,7 +14,7 @@ import { notifySuccess, notifyWarning } from '@/utils/notification';
 // 变体维度（用户选择的属性作为变体维度）
 export interface VariantDimension {
   attribute_id: number;
-  category_id: number; // 新增：类目ID（用于调用搜索API）
+  category_id?: number; // 类目ID（用于调用搜索API，类目属性有值，普通字段可选）
   name: string;
   attribute_type: string;
   dictionary_id?: number;

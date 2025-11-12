@@ -62,8 +62,8 @@ export interface UseDraftTemplateReturn {
   setEditingTemplateTags: (tags: string[]) => void;
 
   // 模板数据
-  templates: draftTemplateApi.Template[];
-  filteredTemplates: draftTemplateApi.Template[];
+  templates: draftTemplateApi.TemplateListItem[];
+  filteredTemplates: draftTemplateApi.TemplateListItem[];
   availableTags: string[];
 
   // 模板操作
@@ -190,6 +190,30 @@ export const useDraftTemplate = ({
   const saveTemplateMutation = useMutation({
     mutationFn: async (params: { name: string; tags: string[] }) => {
       const formData = serializeFormData();
+
+      // 添加详细日志，确认序列化的数据内容
+      loggers.ozon.info('[saveTemplate] 准备保存模板', {
+        template_name: params.name,
+        tags: params.tags,
+        shop_id: formData.shop_id,
+        category_id: formData.category_id,
+        hasTitle: !!formData.title,
+        hasDescription: !!formData.description,
+        hasPrice: !!formData.price,
+        hasImages: !!formData.images && formData.images.length > 0,
+        imagesCount: formData.images?.length || 0,
+        hasVideos: !!formData.videos && formData.videos.length > 0,
+        videosCount: formData.videos?.length || 0,
+        hasAttributes: !!formData.attributes,
+        attributesCount: formData.attributes ? Object.keys(formData.attributes).length : 0,
+        attributesSample: formData.attributes ? Object.keys(formData.attributes).slice(0, 10) : [],
+        hasVariants: !!formData.variants && formData.variants.length > 0,
+        variantsCount: formData.variants?.length || 0,
+        hasVariantDimensions: !!formData.variantDimensions && formData.variantDimensions.length > 0,
+        variantDimensionsCount: formData.variantDimensions?.length || 0,
+        allFields: Object.keys(formData),
+      });
+
       return await draftTemplateApi.createTemplate({
         template_name: params.name,
         shop_id: formData.shop_id,

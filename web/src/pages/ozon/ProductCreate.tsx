@@ -960,20 +960,40 @@ const ProductCreate: React.FC = () => {
     onSave: async (data) => {
       // 检查是否有实质性内容，如果没有则跳过保存
       if (!hasSubstantiveContent(data)) {
-        loggers.ozon.info('表单为初始状态或只有Offer ID，跳过自动保存');
+        loggers.ozon.info('[saveDraft] 表单为初始状态或只有Offer ID，跳过自动保存');
         return;
       }
 
-      loggers.ozon.info('开始自动保存草稿');
+      // 添加详细日志，与保存模板的日志格式保持一致
+      loggers.ozon.info('[saveDraft] 准备保存草稿', {
+        shop_id: data.shop_id,
+        category_id: data.category_id,
+        hasTitle: !!data.title,
+        hasDescription: !!data.description,
+        hasPrice: !!data.price,
+        hasImages: !!data.images && data.images.length > 0,
+        imagesCount: data.images?.length || 0,
+        hasVideos: !!data.videos && data.videos.length > 0,
+        videosCount: data.videos?.length || 0,
+        hasAttributes: !!data.attributes,
+        attributesCount: data.attributes ? Object.keys(data.attributes).length : 0,
+        attributesSample: data.attributes ? Object.keys(data.attributes).slice(0, 10) : [],
+        hasVariants: !!data.variants && data.variants.length > 0,
+        variantsCount: data.variants?.length || 0,
+        hasVariantDimensions: !!data.variantDimensions && data.variantDimensions.length > 0,
+        variantDimensionsCount: data.variantDimensions?.length || 0,
+        allFields: Object.keys(data),
+      });
+
       try {
         await draftTemplateApi.saveDraft({
           shop_id: data.shop_id,
           category_id: data.category_id,
           form_data: data,
         });
-        loggers.ozon.info('草稿自动保存成功');
+        loggers.ozon.info('[saveDraft] 草稿自动保存成功');
       } catch (error) {
-        loggers.ozon.error('草稿自动保存失败', error);
+        loggers.ozon.error('[saveDraft] 草稿自动保存失败', error);
         throw error;
       }
     },

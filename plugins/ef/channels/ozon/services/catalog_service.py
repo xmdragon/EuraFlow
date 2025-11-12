@@ -766,17 +766,25 @@ class CatalogService:
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
-        搜索字典值（直接调用OZON API，不使用本地缓存）
+        搜索字典值
+
+        - 如果有搜索词：调用OZON API搜索
+        - 如果没有搜索词：从本地数据库读取
 
         Args:
             category_id: 类目ID（叶子类目）
             attribute_id: 属性ID
-            query: 搜索关键词（至少2个字符）
+            query: 搜索关键词（至少2个字符，None或空字符串表示获取所有）
             limit: 返回数量限制
 
         Returns:
             字典值列表（字典格式）
         """
+        # 如果没有搜索词，从本地数据库读取
+        if not query or len(query.strip()) < 2:
+            return await self._get_dictionary_values_from_db(attribute_id, limit)
+
+        # 有搜索词，调用OZON搜索API
         # 查询类目信息，获取父类目ID
         category = await self.db.scalar(
             select(OzonCategory).where(OzonCategory.category_id == category_id)
@@ -794,7 +802,7 @@ class CatalogService:
                 attribute_id=attribute_id,
                 category_id=category_id,
                 parent_category_id=parent_id,
-                query=query or "",
+                query=query,
                 limit=limit,
                 language="ZH_HANS"
             )
@@ -806,6 +814,53 @@ class CatalogService:
         except Exception as e:
             logger.error(f"Failed to search attribute values: {e}", exc_info=True)
             return []
+
+    async def _get_dictionary_values_from_db(
+        self,
+        attribute_id: int,
+        limit: int = 500
+    ) -> List[Dict[str, Any]]:
+        """
+        从本地数据库获取字典值（用于无搜索词的情况）
+
+        Args:
+            attribute_id: 属性ID
+            limit: 返回数量限制
+
+        Returns:
+            字典值列表（字典格式）
+        """
+        from ..models import OzonAttributeDictionaryValue
+
+        # 查询属性信息，获取dictionary_id
+        attr = await self.db.scalar(
+            select(OzonCategoryAttribute).where(
+                OzonCategoryAttribute.attribute_id == attribute_id
+            ).limit(1)
+        )
+
+        if not attr or not attr.dictionary_id:
+            logger.warning(f"Attribute {attribute_id} not found or no dictionary_id")
+            return []
+
+        # 从本地数据库查询字典值
+        stmt = select(OzonAttributeDictionaryValue).where(
+            OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id
+        ).limit(limit)
+
+        result = await self.db.execute(stmt)
+        dict_values = result.scalars().all()
+
+        # 转换为字典格式（匹配OZON API返回格式）
+        return [
+            {
+                "id": dv.value_id,
+                "value": dv.value,
+                "info": dv.info or "",
+                "picture": dv.picture or ""
+            }
+            for dv in dict_values
+        ]
 
     async def _generate_category_tree_js(self):
         """

@@ -13,9 +13,9 @@ import { loggers } from "@/utils/logger";
 
 interface UseFormAutosaveOptions<T> {
   /**
-   * 表单数据
+   * 获取表单数据的函数（实时获取）
    */
-  formData: T;
+  getFormData: () => T;
 
   /**
    * 保存函数（异步）
@@ -44,7 +44,7 @@ interface UseFormAutosaveOptions<T> {
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export const useFormAutosave = <T>({
-  formData,
+  getFormData,
   onSave,
   debounceDelay = 1000,
   autoSaveInterval = 60000,
@@ -56,14 +56,20 @@ export const useFormAutosave = <T>({
   const savingRef = useRef(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const getFormDataRef = useRef(getFormData);
+
+  // 更新 getFormData 引用
+  useEffect(() => {
+    getFormDataRef.current = getFormData;
+  }, [getFormData]);
 
   /**
-   * 检查表单是否有变化
+   * 检查表单是否有变化（实时获取最新数据）
    */
   const hasChanges = useCallback(() => {
-    const currentData = JSON.stringify(formData);
+    const currentData = JSON.stringify(getFormDataRef.current());
     return currentData !== lastSavedDataRef.current;
-  }, [formData]);
+  }, []);
 
   /**
    * 执行保存
@@ -77,8 +83,9 @@ export const useFormAutosave = <T>({
     setSaveStatus("saving");
 
     try {
-      await onSave(formData);
-      lastSavedDataRef.current = JSON.stringify(formData);
+      const currentFormData = getFormDataRef.current();
+      await onSave(currentFormData);
+      lastSavedDataRef.current = JSON.stringify(currentFormData);
       setLastSavedAt(new Date());
       setSaveStatus("saved");
       loggers.product.info("表单自动保存成功");
@@ -98,12 +105,13 @@ export const useFormAutosave = <T>({
     } finally {
       savingRef.current = false;
     }
-  }, [enabled, formData, onSave, hasChanges]);
+  }, [enabled, onSave, hasChanges]);
 
   /**
    * 防抖保存（用户停止输入后触发）
+   * 注意：不依赖 formData，避免每次渲染都触发
    */
-  useEffect(() => {
+  const triggerDebounce = useCallback(() => {
     if (!enabled) {
       return;
     }
@@ -117,13 +125,16 @@ export const useFormAutosave = <T>({
     debounceTimerRef.current = setTimeout(() => {
       performSave();
     }, debounceDelay);
+  }, [enabled, debounceDelay, performSave]);
 
+  // 组件卸载时清除计时器
+  useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [formData, enabled, debounceDelay, performSave]);
+  }, []);
 
   /**
    * 定时保存（固定间隔）
@@ -163,9 +174,14 @@ export const useFormAutosave = <T>({
     saveNow: performSave,
 
     /**
-     * 是否有未保存的更改
+     * 触发防抖保存（在表单值变化时调用）
      */
-    hasUnsavedChanges: hasChanges(),
+    triggerDebounce,
+
+    /**
+     * 检查是否有未保存的更改（实时检查）
+     */
+    checkHasChanges: hasChanges,
 
     /**
      * 保存状态

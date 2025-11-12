@@ -306,7 +306,8 @@ async def get_category_attributes(
         return {
             "success": True,
             "data": result_data,
-            "total": len(attributes)
+            "total": len(attributes),
+            "type_id": category_id  # 返回type_id（对于叶子类目，type_id = category_id）
         }
 
     except Exception as e:
@@ -1283,12 +1284,18 @@ async def create_product(
     current_user: User = Depends(require_role("operator"))
 ):
     """
-    创建商品记录到数据库（需要操作员权限）
+    上架商品到OZON（需要操作员权限）
 
-    将商品基础信息保存到ozon_products表，后续可进行上架操作
+    流程：
+    1. 先调用OZON API验证并提交商品
+    2. API成功后保存到数据库
+    3. 返回task_id用于后续轮询状态
+
+    这样可以立即反馈OZON API的验证错误给前端
     """
     try:
         from ..models.products import OzonProduct
+        from ..services.product_import_service import ProductImportService
         from datetime import datetime
 
         shop_id = request.get("shop_id")
@@ -1298,9 +1305,13 @@ async def create_product(
         # 必填字段
         offer_id = request.get("offer_id")
         title = request.get("title")
+        category_id = request.get("category_id")
 
         if not offer_id or not title:
             raise HTTPException(status_code=400, detail="offer_id and title are required")
+
+        if not category_id:
+            raise HTTPException(status_code=400, detail="category_id is required")
 
         # 检查offer_id是否已存在
         existing = await db.scalar(
@@ -1318,19 +1329,158 @@ async def create_product(
 
         # 获取属性列表，自动添加"类型"属性（attribute_id=8229）
         attributes = request.get("attributes", [])
-        category_id = request.get("category_id")
+
+        # 记录收到的请求数据（调试用）
+        logger.info(f"Create product request: offer_id={offer_id}, category_id={category_id}, type_id={request.get('type_id')}, has_dimensions={bool(request.get('height'))}")
 
         # 如果选择了类目且属性中没有"类型"（8229），自动添加
-        if category_id:
-            has_type_attr = any(attr.get("attribute_id") == 8229 for attr in attributes)
-            if not has_type_attr:
-                attributes.append({
-                    "attribute_id": 8229,
-                    "complex_id": 0,
-                    "values": [{"value": str(category_id)}]
-                })
+        has_type_attr = any(attr.get("id") == 8229 or attr.get("attribute_id") == 8229 for attr in attributes)
+        if not has_type_attr:
+            attributes.append({
+                "id": 8229,
+                "complex_id": 0,
+                "values": [{"value": str(category_id)}]
+            })
 
-        # 创建商品记录
+        # 构建 OZON API payload
+        # description_category_id = 父类目ID（第2层）
+        # type_id = 叶子类目ID（第3层）
+        type_id = category_id  # 叶子类目ID
+
+        # 优先使用前端传递的 description_category_id（避免数据库查询）
+        description_category_id = request.get("description_category_id")
+
+        if not description_category_id:
+            # 如果前端未传递，则查询数据库获取（向后兼容）
+            from ..models.listing import OzonCategory
+            category = await db.scalar(
+                select(OzonCategory).where(OzonCategory.category_id == category_id)
+            )
+            if not category:
+                return {
+                    "success": False,
+                    "error": f"类目ID {category_id} 不存在，请刷新类目树后重试"
+                }
+            if not category.parent_id:
+                return {
+                    "success": False,
+                    "error": f"所选类目无父类目（parent_id为空），请选择正确的叶子类目"
+                }
+            description_category_id = category.parent_id
+            logger.info(f"从数据库查询到 description_category_id={description_category_id}")
+        else:
+            logger.info(f"使用前端传递的 description_category_id={description_category_id}")
+
+        payload = {
+            "offer_id": offer_id,
+            "name": title,
+            "price": str(request["price"]) if request.get("price") else "0",
+            "vat": request.get("vat", "0"),
+            "description_category_id": description_category_id,  # 父类目ID（第2层）
+            "type_id": type_id,  # 叶子类目ID（第3层，必填）
+            "images": request.get("images", []),
+            "attributes": attributes,
+        }
+
+        # old_price 只在有值时添加
+        if request.get("old_price"):
+            payload["old_price"] = str(request["old_price"])
+
+        # 可选字段
+        if request.get("description"):
+            payload["description"] = request.get("description")
+        if request.get("barcode"):
+            payload["barcode"] = request.get("barcode")
+
+        # v3 API要求尺寸和重量（必填）
+        # 验证必填字段
+        missing_fields = []
+        if not request.get("height"):
+            missing_fields.append("高度")
+        if not request.get("width"):
+            missing_fields.append("宽度")
+        if not request.get("depth"):
+            missing_fields.append("深度")
+        if not request.get("weight"):
+            missing_fields.append("重量")
+
+        if missing_fields:
+            return {
+                "success": False,
+                "error": f"请填写必填字段: {', '.join(missing_fields)}"
+            }
+
+        # 设置尺寸和重量（前端已传递正确单位：mm 和 g）
+        payload["height"] = int(float(request["height"]))
+        payload["width"] = int(float(request["width"]))
+        payload["depth"] = int(float(request["depth"]))
+        payload["dimension_unit"] = request.get("dimension_unit", "mm")
+        payload["weight"] = int(float(request["weight"]))
+        payload["weight_unit"] = request.get("weight_unit", "g")
+
+        if request.get("currency_code"):
+            payload["currency_code"] = request.get("currency_code")
+
+        # 记录发送的payload（调试用）
+        logger.info(f"Sending payload to OZON API: {payload}")
+
+        # Step 1: 先调用 OZON API 验证并提交
+        client = await get_ozon_client(shop_id, db)
+        try:
+            response = await client.import_products(products=[payload])
+
+            logger.info(f"OZON API response: {response}")
+
+            if not response.get("result"):
+                # OZON 400错误的响应结构：
+                # {
+                #   "code": 400,
+                #   "message": "错误描述",
+                #   "details": [{"typeUrl": "...", "value": "..."}]
+                # }
+                # 或者正常错误响应：
+                # {
+                #   "error": {"code": "...", "message": "..."}
+                # }
+
+                # 先尝试读取根级别的错误（400错误）
+                if "code" in response and "message" in response:
+                    error_code = response.get("code")
+                    error_msg = response.get("message", "Unknown error")
+                    error_details = response.get("details", [])
+                else:
+                    # 否则尝试从error字段读取
+                    error_info = response.get("error", {})
+                    error_code = error_info.get("code", "")
+                    error_msg = error_info.get("message", "Unknown error")
+                    error_details = error_info.get("details", [])
+
+                logger.error(f"OZON API validation failed: code={error_code}, message={error_msg}, details={error_details}")
+
+                return {
+                    "success": False,
+                    "error": f"OZON验证失败: {error_msg}",
+                    "error_code": error_code,
+                    "error_details": error_details
+                }
+
+            task_id = response["result"].get("task_id")
+            if not task_id:
+                return {
+                    "success": False,
+                    "error": "OZON API返回缺少task_id"
+                }
+
+            logger.info(f"OZON API success, task_id={task_id}")
+
+        except Exception as e:
+            logger.error(f"OZON API call failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": f"OZON API调用失败: {str(e)}"
+            }
+
+        # Step 2: API成功后才保存到数据库
         product = OzonProduct(
             shop_id=shop_id,
             offer_id=offer_id,
@@ -1342,14 +1492,15 @@ async def create_product(
             currency_code=request.get("currency_code", "RUB"),
             barcode=request.get("barcode"),
             category_id=category_id,
-            type_id=request.get("type_id"),  # 类目类型ID
+            type_id=type_id,  # 叶子类目ID（第3层）
+            description_category_id=description_category_id,  # 父类目ID（第2层）
             images=request.get("images", []),  # JSONB field
             images360=request.get("images360"),  # 360度全景图
             color_image=request.get("color_image"),  # 颜色营销图
             videos=request.get("videos", []),  # JSONB field [{url, name, is_cover}]
             pdf_list=request.get("pdf_list"),  # PDF文档列表
             attributes=attributes,  # JSONB field（已自动添加"类型"属性）
-            variants=request.get("variants"),  # 变体数据
+            ozon_variants=request.get("variants"),  # OZON原始变体数据
             promotions=request.get("promotions"),  # 促销活动ID数组
             height=request.get("height"),
             width=request.get("width"),
@@ -1357,8 +1508,10 @@ async def create_product(
             dimension_unit=request.get("dimension_unit", "mm"),
             weight=request.get("weight"),
             weight_unit=request.get("weight_unit", "g"),
-            vat=request.get("vat", "0.0"),
-            listing_status="draft",  # 初始状态为draft
+            vat=request.get("vat", "0"),
+            listing_status="import_submitted",  # 已提交到OZON
+            listing_mode="NEW_CARD",
+            import_submitted_at=datetime.utcnow(),
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -1367,15 +1520,7 @@ async def create_product(
         await db.commit()
         await db.refresh(product)
 
-        logger.info(f"Product created successfully: offer_id={offer_id}, id={product.id}")
-
-        # 触发异步上传象寄图片到图床
-        from ..utils.image_utils import has_xiangji_urls
-        from ..tasks.image_upload_task import upload_xiangji_images_to_storage
-
-        if product.images and has_xiangji_urls(product.images):
-            logger.info(f"Triggering async upload for product {product.id} with xiangji URLs")
-            upload_xiangji_images_to_storage.delay(product_id=product.id)
+        logger.info(f"Product created and submitted to OZON: offer_id={offer_id}, id={product.id}, task_id={task_id}")
 
         return {
             "success": True,
@@ -1383,13 +1528,184 @@ async def create_product(
                 "id": product.id,
                 "offer_id": product.offer_id,
                 "title": product.title,
-                "listing_status": product.listing_status
-            }
+                "listing_status": product.listing_status,
+                "task_id": task_id  # 返回task_id供前端轮询
+            },
+            "message": "商品已提交到OZON，正在处理中..."
         }
 
     except Exception as e:
         logger.error(f"Create product failed: {e}", exc_info=True)
         await db.rollback()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.get("/listings/products/import-status/{task_id}")
+async def get_product_import_status(
+    task_id: str,
+    shop_id: int = Query(..., description="店铺ID"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_role("operator"))
+):
+    """
+    查询商品导入状态（前端轮询使用）
+
+    Args:
+        task_id: OZON导入任务ID
+        shop_id: 店铺ID
+
+    Returns:
+        {
+            "success": true,
+            "status": "imported" | "failed" | "processing" | "pending",
+            "product_id": OZON商品ID（成功时）,
+            "sku": OZON SKU（成功时）,
+            "errors": 错误列表（失败时）,
+            "message": 状态说明
+        }
+    """
+    try:
+        from ..models.products import OzonProduct
+        from datetime import datetime
+
+        # 调用OZON API查询任务状态
+        client = await get_ozon_client(shop_id, db)
+        response = await client.get_import_product_info(task_id)
+
+        # 记录OZON API返回的原始数据（调试用）
+        logger.info(f"[DEBUG] OZON import status response for task_id={task_id}: {response}")
+
+        if not response.get("result"):
+            error_msg = response.get("error", {}).get("message", "Unknown error")
+            logger.error(f"Failed to query import task: task_id={task_id}, error={error_msg}")
+            return {
+                "success": False,
+                "error": f"查询导入状态失败: {error_msg}"
+            }
+
+        result = response["result"]
+        items = result.get("items", [])
+
+        if not items:
+            # 任务还在队列中，尚未开始处理
+            return {
+                "success": True,
+                "status": "pending",
+                "message": "任务排队中..."
+            }
+
+        # 取第一个商品的状态（单商品导入只有一个）
+        item = items[0]
+        logger.info(f"[DEBUG] First item in import status: {item}")
+        status = item.get("status", "").lower()
+        offer_id = item.get("offer_id")
+
+        if status == "imported":
+            # 导入成功，更新数据库
+            product_id = item.get("product_id")
+            sku = item.get("sku")
+
+            if offer_id:
+                # 查找并更新商品记录
+                product = await db.scalar(
+                    select(OzonProduct).where(
+                        OzonProduct.shop_id == shop_id,
+                        OzonProduct.offer_id == offer_id
+                    )
+                )
+
+                if product:
+                    product.ozon_product_id = product_id
+                    product.ozon_sku = sku
+                    product.listing_status = "created"  # 商品已创建
+                    product.ozon_created_at = datetime.utcnow()
+                    product.updated_at = datetime.utcnow()
+                    await db.commit()
+
+                    logger.info(f"Product import completed: offer_id={offer_id}, product_id={product_id}, sku={sku}")
+
+                    # 商品成功上架后，删除对应的草稿
+                    try:
+                        from ..services.draft_template_service import DraftTemplateService
+
+                        # 获取最新草稿
+                        draft = await DraftTemplateService.get_latest_draft(db, current_user.id)
+                        if draft:
+                            # 删除草稿
+                            deleted = await DraftTemplateService.delete_draft(db, current_user.id, draft.id)
+                            if deleted:
+                                logger.info(f"Draft deleted after successful import: draft_id={draft.id}, offer_id={offer_id}")
+                            else:
+                                logger.warning(f"Failed to delete draft after import: draft_id={draft.id}, offer_id={offer_id}")
+                    except Exception as e:
+                        # 删除草稿失败不影响商品导入成功的结果
+                        logger.error(f"Error deleting draft after import: {e}", exc_info=True)
+
+            return {
+                "success": True,
+                "status": "imported",
+                "product_id": product_id,
+                "sku": sku,
+                "offer_id": offer_id,
+                "message": "商品导入成功！"
+            }
+
+        elif status == "failed":
+            # 导入失败
+            errors = item.get("errors", [])
+            error_messages = [f"{e.get('code', '')}: {e.get('message', '')}" for e in errors]
+
+            if offer_id:
+                # 更新商品状态为失败
+                product = await db.scalar(
+                    select(OzonProduct).where(
+                        OzonProduct.shop_id == shop_id,
+                        OzonProduct.offer_id == offer_id
+                    )
+                )
+
+                if product:
+                    product.listing_status = "error"
+                    product.listing_error_message = "; ".join(error_messages) if error_messages else "Unknown error"
+                    product.updated_at = datetime.utcnow()
+                    await db.commit()
+
+            logger.error(f"Product import failed: offer_id={offer_id}, errors={errors}")
+
+            return {
+                "success": False,
+                "status": "failed",
+                "errors": errors,
+                "error_messages": error_messages,
+                "offer_id": offer_id,
+                "message": "商品导入失败: " + ("; ".join(error_messages) if error_messages else "未知错误")
+            }
+
+        elif status in ["processing", "pending"]:
+            # 仍在处理中
+            return {
+                "success": True,
+                "status": status,
+                "offer_id": offer_id,
+                "message": "商品正在处理中，请稍候..."
+            }
+
+        else:
+            # 未知状态
+            logger.warning(f"Unknown import status: {status}, item={item}")
+            return {
+                "success": True,
+                "status": "unknown",
+                "raw_status": status,
+                "offer_id": offer_id,
+                "message": f"未知状态: {status}"
+            }
+
+    except Exception as e:
+        logger.error(f"Get product import status failed: {e}", exc_info=True)
         return {
             "success": False,
             "error": str(e)

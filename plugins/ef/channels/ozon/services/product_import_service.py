@@ -167,6 +167,9 @@ class ProductImportService:
         Returns:
             导入payload
         """
+        logger.info(f"Building import payload for product: {product.offer_id}")
+        logger.debug(f"Product type: {type(product)}, has _sa_instance_state: {hasattr(product, '_sa_instance_state')}")
+
         # 基础字段
         payload = {
             "offer_id": product.offer_id,
@@ -275,8 +278,11 @@ class ProductImportService:
         )
         attrs = list(await self.db.scalars(stmt))
 
+        logger.info(f"Found {len(attrs)} attributes for product_id={product_id}")
+
         attributes = []
         for attr in attrs:
+            logger.debug(f"Processing attribute: id={attr.attribute_id}, type={type(attr)}, has _sa_instance_state: {hasattr(attr, '_sa_instance_state')}")
             # 构建属性对象
             attr_obj = {
                 "id": attr.attribute_id

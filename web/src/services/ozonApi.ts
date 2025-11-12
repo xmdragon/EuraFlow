@@ -1804,7 +1804,8 @@ export interface CreateProductRequest {
   premium_price?: string;  // 会员价
   currency_code?: string;
   category_id?: number;
-  type_id?: number;        // 商品类型ID
+  type_id?: number;                  // 商品类型ID（第3层叶子类目）
+  description_category_id?: number;  // 父类目ID（第2层）
   images?: string[];
   images360?: string[];    // 360度图片
   color_image?: string;    // 颜色营销图
@@ -1824,6 +1825,30 @@ export interface CreateProductRequest {
 
 export const createProduct = async (data: CreateProductRequest) => {
   const response = await apiClient.post("/ozon/listings/products/create", data);
+  return response.data;
+};
+
+// 查询商品导入状态
+export interface ProductImportStatusResponse {
+  success: boolean;
+  status?: 'imported' | 'failed' | 'processing' | 'pending' | 'unknown';
+  product_id?: number;
+  sku?: number;
+  offer_id?: string;
+  errors?: Array<{ code: string; message: string }>;
+  error_messages?: string[];
+  message?: string;
+  error?: string;
+}
+
+export const getProductImportStatus = async (
+  taskId: string,
+  shopId: number
+): Promise<ProductImportStatusResponse> => {
+  const response = await apiClient.get(
+    `/ozon/listings/products/import-status/${taskId}`,
+    { params: { shop_id: shopId } }
+  );
   return response.data;
 };
 

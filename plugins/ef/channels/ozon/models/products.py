@@ -44,8 +44,8 @@ class OzonProduct(Base):
     category_id = Column(Integer)
     brand = Column(String(200))
     
-    # 状态
-    status = Column(String(50), default="draft")  # draft/active/inactive/archived/failed
+    # 状态（OZON平台状态，同步后才有值）
+    status = Column(String(50))  # on_sale/ready_to_sell/error/pending_modification/inactive/archived
     visibility = Column(Boolean, default=True)
     is_archived = Column(Boolean, default=False)
 
@@ -63,6 +63,7 @@ class OzonProduct(Base):
     cost = Column(Numeric(18, 4), comment="成本")
     min_price = Column(Numeric(18, 4), comment="最低价")
     currency_code = Column(String(10), comment="货币代码(CNY/RUB/USD等)")
+    vat = Column(String(10), comment="增值税率", default="0")
     
     # 库存信息
     stock = Column(Integer, default=0)
@@ -85,6 +86,7 @@ class OzonProduct(Base):
     primary_image = Column(String(500), comment="主图链接")
 
     # OZON详细属性(JSONB存储)
+    attributes = Column(JSON, comment="商品属性")  # 用于商品创建的属性数据
     ozon_attributes = Column(JSONB, comment="商品特征数组")
     complex_attributes = Column(JSONB, comment="嵌套特征列表")
     model_info = Column(JSONB, comment="型号信息")
@@ -104,12 +106,20 @@ class OzonProduct(Base):
 
     # 促销和变体数据
     promotions = Column(JSONB, comment="关联的促销活动ID数组")
-    variants = Column(JSONB, comment="OZON原始变体数据(完整JSON)")
+    ozon_variants = Column(JSONB, comment="OZON原始变体数据(完整JSON)")
 
     # 同步信息
     last_sync_at = Column(DateTime(timezone=True))
     sync_status = Column(String(50), default="pending")  # pending/syncing/success/failed
     sync_error = Column(String(1000))
+
+    # 商品上架流程状态
+    listing_status = Column(String(50), comment="上架状态: draft/media_ready/import_submitted/created/priced/live/ready_for_sale/error")
+    listing_mode = Column(String(20), comment="上架模式: NEW_CARD/FOLLOW_PDP")
+    listing_error_code = Column(String(100), comment="上架错误代码")
+    listing_error_message = Column(String(1000), comment="上架错误消息")
+    media_ready_at = Column(DateTime(timezone=True), comment="媒体准备完成时间")
+    import_submitted_at = Column(DateTime(timezone=True), comment="导入提交时间")
 
     # 时间戳
     ozon_created_at = Column(DateTime(timezone=True), comment="OZON平台创建时间")
@@ -117,8 +127,8 @@ class OzonProduct(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     # 关系
-    variants = relationship("OzonProductVariant", back_populates="product", cascade="all, delete-orphan")
-    attributes = relationship("OzonProductAttribute", back_populates="product", cascade="all, delete-orphan")
+    variants_list = relationship("OzonProductVariant", back_populates="product", cascade="all, delete-orphan")
+    attributes_list = relationship("OzonProductAttribute", back_populates="product", cascade="all, delete-orphan")
     price_history = relationship("OzonPriceHistory", back_populates="product", cascade="all, delete-orphan")
     
     # 索引
@@ -161,7 +171,7 @@ class OzonProductVariant(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     # 关系
-    product = relationship("OzonProduct", back_populates="variants")
+    product = relationship("OzonProduct", back_populates="variants_list")
     
     __table_args__ = (
         UniqueConstraint("product_id", "variant_id", name="uq_ozon_variants"),
@@ -190,7 +200,7 @@ class OzonProductAttribute(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
     
     # 关系
-    product = relationship("OzonProduct", back_populates="attributes")
+    product = relationship("OzonProduct", back_populates="attributes_list")
     
     __table_args__ = (
         UniqueConstraint("product_id", "attribute_id", name="uq_ozon_attributes"),

@@ -1,8 +1,22 @@
 import React from 'react';
 import { Form, Input, InputNumber, Select, Switch, Button, Space, Tag } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { CategoryAttribute, DictionaryValue } from '@/services/ozonApi';
 import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
+
+/**
+ * 生成随机字符串（大小写字母混合）
+ * @param length 字符串长度，默认16
+ * @returns 随机字符串
+ */
+const generateRandomString = (length: number = 16): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 interface AttributeFieldProps {
   attr: CategoryAttribute;
@@ -15,6 +29,44 @@ interface AttributeFieldProps {
     addVariantDimension: (attr: CategoryAttribute) => void;
   };
 }
+
+/**
+ * 检测是否为"类型名称"或"型号名称"字段
+ * 这些字段需要显示"生成"按钮，用于生成16位随机字符串
+ */
+const isTypeNameField = (name: string): boolean => {
+  const lowerName = name.toLowerCase();
+  return lowerName.includes('类型名称') ||
+         lowerName.includes('型号名称') ||
+         lowerName.includes('типовое название') ||
+         lowerName.includes('type name') ||
+         lowerName.includes('модельное название') ||
+         lowerName.includes('model name');
+};
+
+/**
+ * 检测是否为"品牌"字段
+ */
+const isBrandField = (name: string): boolean => {
+  const lowerName = name.toLowerCase();
+  return lowerName.includes('品牌') ||
+         lowerName.includes('бренд') ||
+         lowerName.includes('brand');
+};
+
+/**
+ * 检测是否为"国家"字段
+ */
+const isCountryField = (name: string): boolean => {
+  const lowerName = name.toLowerCase();
+  return lowerName.includes('国家') ||
+         lowerName.includes('品牌国家') ||
+         lowerName.includes('制造国') ||
+         lowerName.includes('生产国') ||
+         lowerName.includes('страна') ||
+         lowerName.includes('country') ||
+         lowerName.includes('производства'); // 俄语"生产国"
+};
 
 // 从label中提取括号内容
 const extractBracketContent = (text: string): { label: string; bracketContent: string | null } => {
@@ -139,11 +191,47 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
   setDictionaryValuesCache,
   variantManager,
 }) => {
+  const form = Form.useFormInstance();
   const fieldName = `attr_${attr.attribute_id}`;
   const { label, bracketContent } = extractBracketContent(attr.name);
   const { displayLabel, originalLabel } = abbreviateLongLabel(label);
   const required = attr.is_required;
   const tooltipContent = renderTooltipContent(attr.description, bracketContent, originalLabel);
+
+  // 检测特殊字段
+  const isTypeName = isTypeNameField(attr.name);
+  const isBrand = isBrandField(attr.name);
+  const isCountry = isCountryField(attr.name);
+
+  // 处理类型名称生成按钮点击
+  const handleGenerateTypeName = () => {
+    const randomStr = generateRandomString(16);
+    form.setFieldValue(fieldName, randomStr);
+  };
+
+  // 国家字段例外处理：主动加载所有字典值
+  // 品牌字段不再自动加载，使用默认"无品牌"+搜索模式
+  React.useEffect(() => {
+    if (isCountry && attr.dictionary_id) {
+      // 检查是否已有缓存或预加载值
+      const hasCached = dictionaryValuesCache[attr.dictionary_id] && dictionaryValuesCache[attr.dictionary_id].length > 0;
+      const hasPreloaded = attr.dictionary_values && attr.dictionary_values.length > 0;
+
+      if (!hasCached && !hasPreloaded) {
+        // 异步加载所有国家字典值（传空字符串以获取所有值）
+        loadDictionaryValues(attr.category_id, attr.attribute_id, '')
+          .then((values) => {
+            setDictionaryValuesCache((prev) => ({
+              ...prev,
+              [attr.dictionary_id!]: values,
+            }));
+          })
+          .catch((error) => {
+            console.error('[AttributeField] 国家字典值加载失败:', error);
+          });
+      }
+    }
+  }, [isCountry, attr.dictionary_id, attr.category_id, attr.attribute_id, attr.name]);
 
   // 根据类型渲染不同的控件
   // 使用完整label用于提示信息，使用displayLabel用于显示
@@ -173,13 +261,64 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
     // 检测是否为颜色属性
     const isColor = isColorAttribute(attr.name);
 
-    // 智能模式：根据字典值数量决定使用哪种加载方式
-    // - 如果有预加载的值（≤100条），直接下拉选择
-    // - 如果没有预加载（>100条），使用搜索模式
-    const hasPreloadedValues = attr.dictionary_values && attr.dictionary_values.length > 0;
+    // 品牌字段特殊处理：默认只显示"无品牌"，搜索时加载其他品牌
+    if (isBrand) {
+      // 获取缓存值（搜索后的结果）
+      const cachedValues = dictionaryValuesCache[attr.dictionary_id] || [];
 
-    if (hasPreloadedValues) {
-      // 模式1：直接下拉（≤100条）
+      // 默认选项：无品牌（显示中文，value_id = 126745801 对应 OZON 的 "Нет бренда"）
+      const defaultBrandOption = { value_id: 126745801, value: '无品牌' } as DictionaryValue;
+
+      // 合并默认选项和搜索结果（去重）
+      const brandOptions = [
+        defaultBrandOption,
+        ...cachedValues.filter((v: DictionaryValue) => v.value_id !== 126745801)
+      ];
+
+      inputControl = (
+        <Select
+          showSearch
+          placeholder={`请选择${fullLabel}`}
+          popupMatchSelectWidth={false}
+          filterOption={false}
+          style={{ width: '250px' }}
+          onSearch={async (value) => {
+            if (value && value.length >= 2) {
+              const values = await loadDictionaryValues(attr.category_id, attr.attribute_id, value);
+              setDictionaryValuesCache((prev) => ({
+                ...prev,
+                [attr.dictionary_id!]: values,
+              }));
+            } else if (!value) {
+              // 清空搜索时，只保留默认选项
+              setDictionaryValuesCache((prev) => ({
+                ...prev,
+                [attr.dictionary_id!]: [],
+              }));
+            }
+          }}
+          options={brandOptions.map((v: DictionaryValue) => ({
+            label: v.value,
+            value: v.value_id,
+          }))}
+        />
+      );
+    } else {
+      // 其他字段的智能模式
+      // - 如果有预加载的值（≤100条），直接下拉选择
+      // - 如果没有预加载（>100条），使用搜索模式
+      // - 国家字段例外：即使超过100条也使用下拉模式
+      const hasPreloadedValues = attr.dictionary_values && attr.dictionary_values.length > 0;
+      const hasCachedValues = dictionaryValuesCache[attr.dictionary_id] && dictionaryValuesCache[attr.dictionary_id].length > 0;
+      const shouldUseDropdownMode = hasPreloadedValues || (isCountry && hasCachedValues);
+
+      if (shouldUseDropdownMode) {
+        // 模式1：直接下拉（≤100条 或 国家字段）
+        // 获取字典值列表（优先使用缓存，其次使用预加载值）
+        const dictionaryValues = hasCachedValues
+          ? dictionaryValuesCache[attr.dictionary_id]
+          : (attr.dictionary_values || []);
+
       inputControl = (
         <Select
           showSearch
@@ -215,7 +354,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
               : undefined
           }
           options={
-            attr.dictionary_values.map((v: DictionaryValue) => ({
+            dictionaryValues.map((v: DictionaryValue) => ({
               label: v.value,
               value: v.value_id,
             }))
@@ -286,6 +425,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
           }
         />
       );
+    }
     }
   } else {
     // 没有字典值，根据类型渲染对应控件
@@ -393,18 +533,37 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
             },
           })}
         </Form.Item>
-        <Button
-          icon={<PlusOutlined />}
-          onClick={() => variantManager.addVariantDimension(attr)}
-          disabled={isInVariant}
-          title={isInVariant ? '已添加到变体' : '将当前属性添加变体属性'}
-          style={{
-            flexShrink: 0,
-            borderTopLeftRadius: 0,
-            borderBottomLeftRadius: 0,
-            marginLeft: -1, // 紧贴输入框，覆盖边框
-          }}
-        />
+        {/* 根据字段类型显示不同的按钮 */}
+        {isTypeName ? (
+          // 类型名称字段：显示生成按钮
+          <Button
+            icon={<ThunderboltOutlined />}
+            onClick={handleGenerateTypeName}
+            title="生成16位随机字符串"
+            style={{
+              flexShrink: 0,
+              borderTopLeftRadius: 0,
+              borderBottomLeftRadius: 0,
+              marginLeft: -1, // 紧贴输入框，覆盖边框
+            }}
+          >
+            生成
+          </Button>
+        ) : (
+          // 其他字段：显示"+"按钮（添加到变体）
+          <Button
+            icon={<PlusOutlined />}
+            onClick={() => variantManager.addVariantDimension(attr)}
+            disabled={isInVariant}
+            title={isInVariant ? '已添加到变体' : '将当前属性添加变体属性'}
+            style={{
+              flexShrink: 0,
+              borderTopLeftRadius: 0,
+              borderBottomLeftRadius: 0,
+              marginLeft: -1, // 紧贴输入框，覆盖边框
+            }}
+          />
+        )}
       </div>
     </Form.Item>
   );
