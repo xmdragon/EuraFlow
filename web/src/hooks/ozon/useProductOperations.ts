@@ -35,7 +35,7 @@ export const useProductOperations = (selectedShop: number | null) => {
     pollingInterval: 2000,
     timeout: 30 * 60 * 1000,
     notificationKey: 'price-update',
-    initialMessage: '批量价格更新',
+    initialMessage: '价格更新',
     formatProgressContent: (info) => {
       const progress = info.percent || 0;
       const current = info.current || '处理中...';
@@ -44,16 +44,17 @@ export const useProductOperations = (selectedShop: number | null) => {
     formatSuccessMessage: (result) => {
       const updatedCount = result?.updated_count || result?.updated || 0;
       const errors = result?.errors || [];
+      const isSingle = updatedCount === 1 && errors.length === 0;
 
       if (errors.length > 0) {
         return {
-          title: '价格更新部分成功',
+          title: isSingle ? '价格更新部分成功' : '批量价格更新部分成功',
           description: `成功更新 ${updatedCount} 个商品，${errors.length} 个失败。查看控制台了解详情。`,
         };
       }
       return {
-        title: '价格更新完成',
-        description: `成功更新 ${updatedCount} 个商品价格`,
+        title: isSingle ? '价格更新完成' : '批量价格更新完成',
+        description: isSingle ? '商品价格更新成功' : `成功更新 ${updatedCount} 个商品价格`,
       };
     },
     onSuccess: () => {
@@ -77,7 +78,7 @@ export const useProductOperations = (selectedShop: number | null) => {
     pollingInterval: 2000,
     timeout: 30 * 60 * 1000,
     notificationKey: 'stock-update',
-    initialMessage: '批量库存更新',
+    initialMessage: '库存更新',
     formatProgressContent: (info) => {
       const progress = info.percent || 0;
       const current = info.current || '处理中...';
@@ -86,16 +87,17 @@ export const useProductOperations = (selectedShop: number | null) => {
     formatSuccessMessage: (result) => {
       const updatedCount = result?.updated_count || result?.updated || 0;
       const errors = result?.errors || [];
+      const isSingle = updatedCount === 1 && errors.length === 0;
 
       if (errors.length > 0) {
         return {
-          title: '库存更新部分成功',
+          title: isSingle ? '库存更新部分成功' : '批量库存更新部分成功',
           description: `成功更新 ${updatedCount} 个商品，${errors.length} 个失败。查看控制台了解详情。`,
         };
       }
       return {
-        title: '库存更新完成',
-        description: `成功更新 ${updatedCount} 个商品库存`,
+        title: isSingle ? '库存更新完成' : '批量库存更新完成',
+        description: isSingle ? '商品库存更新成功' : `成功更新 ${updatedCount} 个商品库存`,
       };
     },
     onSuccess: () => {
