@@ -284,7 +284,14 @@ export const WatermarkApplyModal: React.FC<WatermarkApplyModalProps> = ({
                                     });
                                     setImageWatermarkSettings(newSettings);
                                   }}
+                                  allowClear
                                 >
+                                {/* 不应用水印选项 */}
+                                <Option key={-1} value={-1}>
+                                  <Space size="small">
+                                    <span style={{ fontSize: 12, color: '#999' }}>🚫 不应用水印</span>
+                                  </Space>
+                                </Option>
                                 {(watermarkConfigs || []).map((config) => (
                                   <Option key={config.id} value={config.id}>
                                     <Space size="small">

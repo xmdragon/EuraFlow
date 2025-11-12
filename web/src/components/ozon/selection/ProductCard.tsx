@@ -10,6 +10,7 @@ import {
   ShoppingOutlined,
   StarOutlined,
   LinkOutlined,
+  ShopOutlined,
 } from '@ant-design/icons';
 
 import type { ProductSelectionItem } from '@/services/productSelectionApi';
@@ -81,6 +82,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   // 渲染封面图片
   const renderCover = () => {
     if (product.image_url) {
+      // 获取 wc800 版本的图片URL用于1688搜索
+      const wc800Url = optimizeOzonImageUrl(product.image_url, 800);
+      const alibaba1688Url = `https://s.1688.com/youyuan/index.htm?ob_search=${encodeURIComponent(wc800Url)}`;
+
       return (
         <div className={styles.productCover} onClick={() => onShowImages(product)}>
           {/* 复选框 - 左上角 */}
@@ -98,6 +103,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             src={optimizeOzonImageUrl(product.image_url, 160)}
             className={styles.productImage}
           />
+          {/* OZON链接 - 右上角 */}
           <Tooltip title="打开OZON链接">
             <div
               className={styles.linkIconOverlay}
@@ -107,6 +113,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               }}
             >
               <LinkOutlined />
+            </div>
+          </Tooltip>
+          {/* 1688找货源 - 右下角 */}
+          <Tooltip title="在1688找货源">
+            <div
+              className={styles.sourcingIconOverlay}
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(alibaba1688Url, '_blank');
+              }}
+            >
+              <ShopOutlined />
             </div>
           </Tooltip>
         </div>
@@ -225,7 +243,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {fieldConfig.brand && (
           <div className={styles.brandInfo}>
             <Text type="secondary">品牌: </Text>
-            <Text>{product.brand === '非热销,无数据' ? '-' : product.brand || '无品牌'}</Text>
+            <Text>
+              {product.brand === '非热销,无数据'
+                ? '-'
+                : product.brand === 'без бренда'
+                  ? '无品牌'
+                  : product.brand || '无品牌'}
+            </Text>
           </div>
         )}
 

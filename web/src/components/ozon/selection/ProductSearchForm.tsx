@@ -98,7 +98,7 @@ export const ProductSearchForm: React.FC<ProductSearchFormProps> = ({
               >
                 {brands.map((brand) => (
                   <Option key={brand} value={brand}>
-                    {brand}
+                    {brand === 'без бренда' ? '无品牌' : brand}
                   </Option>
                 ))}
               </Select>

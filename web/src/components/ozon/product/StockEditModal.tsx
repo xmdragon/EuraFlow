@@ -146,16 +146,16 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
               ))}
             </Select>
           </Form.Item>
+          {selectedProduct && (
+            <div style={{ marginBottom: 16 }}>
+              <span style={{ color: '#666' }}>
+                原有库存：{currentStock ?? 0}
+              </span>
+            </div>
+          )}
           <Form.Item
             name="stock"
             label="库存数量"
-            extra={
-              currentStock !== null && selectedProduct ? (
-                <span style={{ color: '#666', fontSize: '12px' }}>
-                  原有库存：{currentStock}
-                </span>
-              ) : null
-            }
             rules={[
               { required: true, message: '请输入库存数量' },
               {

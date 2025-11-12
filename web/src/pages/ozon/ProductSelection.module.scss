@@ -111,6 +111,29 @@
   }
 }
 
+.sourcingIconOverlay {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 106, 0, 0.8);
+  @include flex-center;
+  cursor: pointer;
+  transition: all 0.3s;
+
+  &:hover {
+    background: rgba(255, 106, 0, 1);
+    transform: scale(1.1);
+  }
+
+  :global(.anticon) {
+    color: white;
+    font-size: 14px;
+  }
+}
+
 // ===== 商品卡片内容 =====
 .productCardBody {
   flex: 1;
