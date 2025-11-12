@@ -1065,6 +1065,105 @@ const ProductCreate: React.FC = () => {
     });
   };
 
+  /**
+   * 同步包装尺寸到类目特征
+   * 当用户修改包装尺寸（长/宽/高/重量）时，自动填充对应的类目属性
+   */
+  const syncDimensionsToAttributes = useCallback(
+    (changedFields: string[]) => {
+      if (categoryAttributes.length === 0) return;
+
+      // 获取当前表单值
+      const values = form.getFieldsValue();
+      const { width, height, depth, weight } = values;
+
+      // 定义属性名称映射（支持多语言）
+      const attributeMapping = {
+        weight: ['含包装重量，克', 'Вес товара с упаковкой', 'Weight with packaging', '重量', '含包装重量'],
+        width: ['宽度，厘米', 'Ширина, см', 'Width, cm', '宽度'],
+        depth: ['深度，厘米', 'Глубина, см', 'Depth, cm', '深度', '长度'],
+        height: ['高度，厘米', 'Высота, см', 'Height, cm', '高度'],
+        dimensions: ['尺寸，毫米', 'Размеры, мм', 'Dimensions, mm', '尺寸'],
+      };
+
+      // 构建待更新的字段
+      const fieldsToUpdate: Record<string, any> = {};
+
+      // 1. 同步重量（克）
+      if (changedFields.includes('weight') && weight) {
+        const weightAttr = categoryAttributes.find((attr) =>
+          attributeMapping.weight.some((name) => attr.name?.includes(name))
+        );
+        if (weightAttr) {
+          const fieldName = `attr_${weightAttr.attribute_id}`;
+          fieldsToUpdate[fieldName] = Math.round(weight); // 直接使用克
+          loggers.ozon.debug(`[同步尺寸] 重量: ${weight}克 → ${fieldName}`);
+        }
+      }
+
+      // 2. 同步宽度（毫米 → 厘米）
+      if (changedFields.includes('width') && width) {
+        const widthAttr = categoryAttributes.find((attr) =>
+          attributeMapping.width.some((name) => attr.name?.includes(name))
+        );
+        if (widthAttr) {
+          const fieldName = `attr_${widthAttr.attribute_id}`;
+          fieldsToUpdate[fieldName] = Math.round(width / 10); // 毫米转厘米
+          loggers.ozon.debug(`[同步尺寸] 宽度: ${width}mm → ${width / 10}cm → ${fieldName}`);
+        }
+      }
+
+      // 3. 同步深度/长度（毫米 → 厘米）
+      if (changedFields.includes('depth') && depth) {
+        const depthAttr = categoryAttributes.find((attr) =>
+          attributeMapping.depth.some((name) => attr.name?.includes(name))
+        );
+        if (depthAttr) {
+          const fieldName = `attr_${depthAttr.attribute_id}`;
+          fieldsToUpdate[fieldName] = Math.round(depth / 10); // 毫米转厘米
+          loggers.ozon.debug(`[同步尺寸] 深度: ${depth}mm → ${depth / 10}cm → ${fieldName}`);
+        }
+      }
+
+      // 4. 同步高度（毫米 → 厘米）
+      if (changedFields.includes('height') && height) {
+        const heightAttr = categoryAttributes.find((attr) =>
+          attributeMapping.height.some((name) => attr.name?.includes(name))
+        );
+        if (heightAttr) {
+          const fieldName = `attr_${heightAttr.attribute_id}`;
+          fieldsToUpdate[fieldName] = Math.round(height / 10); // 毫米转厘米
+          loggers.ozon.debug(`[同步尺寸] 高度: ${height}mm → ${height / 10}cm → ${fieldName}`);
+        }
+      }
+
+      // 5. 同步尺寸组合（长x宽x高，毫米）
+      if (
+        (changedFields.includes('depth') || changedFields.includes('width') || changedFields.includes('height')) &&
+        depth &&
+        width &&
+        height
+      ) {
+        const dimensionsAttr = categoryAttributes.find((attr) =>
+          attributeMapping.dimensions.some((name) => attr.name?.includes(name))
+        );
+        if (dimensionsAttr) {
+          const fieldName = `attr_${dimensionsAttr.attribute_id}`;
+          // 注意：这里是字符串格式，用x连接，不是计算
+          fieldsToUpdate[fieldName] = `${depth}x${width}x${height}`;
+          loggers.ozon.debug(`[同步尺寸] 尺寸: ${depth}x${width}x${height}mm → ${fieldName}`);
+        }
+      }
+
+      // 批量更新字段
+      if (Object.keys(fieldsToUpdate).length > 0) {
+        form.setFieldsValue(fieldsToUpdate);
+        loggers.ozon.info(`[同步尺寸] 已同步 ${Object.keys(fieldsToUpdate).length} 个类目属性`);
+      }
+    },
+    [categoryAttributes, form]
+  );
+
   // 类目选择变化时加载属性
   useEffect(() => {
     if (selectedCategory && selectedShop) {
@@ -1401,10 +1500,19 @@ const ProductCreate: React.FC = () => {
           form={form}
           layout="horizontal"
           onFinish={handleProductSubmit}
-          onValuesChange={() => {
+          onValuesChange={(changedValues) => {
             // 表单值变化时：1) 设置未保存标志 2) 触发防抖保存
             setHasUnsavedChanges(true);
             triggerDebounce();
+
+            // 3) 检测包装尺寸字段变化，自动同步到类目特征
+            const dimensionFields = ['width', 'height', 'depth', 'weight'];
+            const changedDimensionFields = Object.keys(changedValues).filter((field) =>
+              dimensionFields.includes(field)
+            );
+            if (changedDimensionFields.length > 0) {
+              syncDimensionsToAttributes(changedDimensionFields);
+            }
           }}
         >
           {/* 主要信息 */}
