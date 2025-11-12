@@ -43,12 +43,25 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
   // 处理仓库变化
   const handleWarehouseChange = useCallback((warehouseId: number) => {
     // 仅在单个商品时显示原有库存
+    console.log('[StockEditModal] 仓库变化', {
+      warehouseId,
+      selectedProduct: selectedProduct?.offer_id,
+      hasWarehouseStocks: !!selectedProduct?.warehouse_stocks,
+      warehouseStocks: selectedProduct?.warehouse_stocks
+    });
+
     if (selectedProduct && selectedProduct.warehouse_stocks) {
       const warehouseStock = selectedProduct.warehouse_stocks.find(
         (ws: any) => ws.warehouse_id === warehouseId
       );
+      console.log('[StockEditModal] 找到仓库库存', {
+        warehouseId,
+        warehouseStock,
+        present: warehouseStock?.present
+      });
       setCurrentStock(warehouseStock?.present ?? null);
     } else {
+      console.log('[StockEditModal] 未找到仓库库存数据');
       setCurrentStock(null);
     }
   }, [selectedProduct]);
