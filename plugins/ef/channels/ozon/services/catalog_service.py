@@ -205,6 +205,7 @@ class CatalogService:
             existing.name = category_name
             existing.is_leaf = is_leaf
             existing.is_disabled = is_disabled
+            existing.is_deprecated = False  # 重新激活已废弃的类目
             existing.level = level
             existing.last_updated_at = datetime.now(timezone.utc)
         else:
