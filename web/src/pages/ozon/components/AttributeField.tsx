@@ -7,7 +7,7 @@ import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapp
 interface AttributeFieldProps {
   attr: CategoryAttribute;
   dictionaryValuesCache: Record<number, DictionaryValue[]>;
-  loadDictionaryValues: (dictionaryId: number, searchText?: string) => Promise<DictionaryValue[]>;
+  loadDictionaryValues: (categoryId: number, attributeId: number, searchText?: string) => Promise<DictionaryValue[]>;
   setDictionaryValuesCache: React.Dispatch<React.SetStateAction<Record<number, DictionaryValue[]>>>;
   variantManager: {
     hiddenFields: Set<string>;
@@ -151,7 +151,8 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
 
   // 过滤重复字段：隐藏与默认表单字段重复的类目特征
   // 4180=名称（对应title）, 4191=简介（对应description）, 8790=PDF文件（对应pdf_list）, 8789=PDF文件名称
-  const DUPLICATE_ATTRIBUTE_IDS = [4180, 4191, 8790, 8789];
+  // 8229=类型（对应选择的类目本身，后端自动填充）
+  const DUPLICATE_ATTRIBUTE_IDS = [4180, 4191, 8790, 8789, 8229];
   if (DUPLICATE_ATTRIBUTE_IDS.includes(attr.attribute_id)) {
     return null;
   }
@@ -172,63 +173,120 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
     // 检测是否为颜色属性
     const isColor = isColorAttribute(attr.name);
 
-    inputControl = (
-      <Select
-        showSearch
-        placeholder={`请选择${fullLabel}`}
-        popupMatchSelectWidth={false}
-        filterOption={false}
-        style={{ width: '250px' }}
-        onSearch={async (value) => {
-          // 搜索时动态加载并更新缓存
-          if (value) {
-            const values = await loadDictionaryValues(attr.dictionary_id!, value);
-            // 更新缓存以触发重新渲染
-            setDictionaryValuesCache((prev) => ({
-              ...prev,
-              [attr.dictionary_id!]: values,
-            }));
+    // 智能模式：根据字典值数量决定使用哪种加载方式
+    // - 如果有预加载的值（≤100条），直接下拉选择
+    // - 如果没有预加载（>100条），使用搜索模式
+    const hasPreloadedValues = attr.dictionary_values && attr.dictionary_values.length > 0;
+
+    if (hasPreloadedValues) {
+      // 模式1：直接下拉（≤100条）
+      inputControl = (
+        <Select
+          showSearch
+          placeholder={`请选择${fullLabel}`}
+          popupMatchSelectWidth={false}
+          filterOption={(input, option) =>
+            (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
           }
-        }}
-        onFocus={async () => {
-          // 获取焦点时加载初始值（如果缓存为空）
-          if (!dictionaryValuesCache[attr.dictionary_id!]) {
-            await loadDictionaryValues(attr.dictionary_id!);
-          }
-        }}
-        optionRender={
-          isColor
-            ? (option) => {
-                const colorValue = getColorValue(option.label as string);
-                if (colorValue) {
-                  return (
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '4px 8px',
-                        backgroundColor: colorValue,
-                        color: getTextColor(colorValue),
-                        borderRadius: '4px',
-                      }}
-                    >
-                      {option.label}
-                    </div>
-                  );
+          style={{ width: '250px' }}
+          optionRender={
+            isColor
+              ? (option) => {
+                  const colorValue = getColorValue(option.label as string);
+                  if (colorValue) {
+                    return (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '4px 8px',
+                          backgroundColor: colorValue,
+                          color: getTextColor(colorValue),
+                          borderRadius: '4px',
+                        }}
+                      >
+                        {option.label}
+                      </div>
+                    );
+                  }
+                  return <span>{option.label}</span>;
                 }
-                return <span>{option.label}</span>;
-              }
-            : undefined
-        }
-        options={
-          dictionaryValuesCache[attr.dictionary_id]?.map((v: DictionaryValue) => ({
-            label: v.value,
-            value: v.value_id,
-          })) || []
-        }
-      />
-    );
+              : undefined
+          }
+          options={
+            attr.dictionary_values.map((v: DictionaryValue) => ({
+              label: v.value,
+              value: v.value_id,
+            }))
+          }
+        />
+      );
+    } else {
+      // 模式2：搜索模式（>100条）
+      inputControl = (
+        <Select
+          showSearch
+          placeholder={`请输入至少2个字符搜索${fullLabel}`}
+          popupMatchSelectWidth={false}
+          filterOption={false}
+          style={{ width: '250px' }}
+          notFoundContent={
+            <div style={{ padding: '8px', textAlign: 'center', color: '#999' }}>
+              请输入至少2个字符进行搜索
+            </div>
+          }
+          onSearch={async (value) => {
+            // 搜索时动态加载（至少2个字符）
+            if (value && value.length >= 2) {
+              const values = await loadDictionaryValues(attr.category_id, attr.attribute_id, value);
+              // 更新缓存以触发重新渲染
+              setDictionaryValuesCache((prev) => ({
+                ...prev,
+                [attr.dictionary_id!]: values,
+              }));
+            } else {
+              // 清空缓存
+              setDictionaryValuesCache((prev) => ({
+                ...prev,
+                [attr.dictionary_id!]: [],
+              }));
+            }
+          }}
+          optionRender={
+            isColor
+              ? (option) => {
+                  const colorValue = getColorValue(option.label as string);
+                  if (colorValue) {
+                    return (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '4px 8px',
+                          backgroundColor: colorValue,
+                          color: getTextColor(colorValue),
+                          borderRadius: '4px',
+                        }}
+                      >
+                        {option.label}
+                      </div>
+                    );
+                  }
+                  return <span>{option.label}</span>;
+                }
+              : undefined
+          }
+          options={
+            dictionaryValuesCache[attr.dictionary_id]?.map((v: DictionaryValue) => ({
+              label: v.value,
+              value: v.value_id,
+            })) || []
+          }
+        />
+      );
+    }
   } else {
     // 没有字典值，根据类型渲染对应控件
     switch (attr.attribute_type) {

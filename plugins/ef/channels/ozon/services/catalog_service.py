@@ -759,34 +759,52 @@ class CatalogService:
 
     async def search_dictionary_values(
         self,
-        dictionary_id: int,
+        category_id: int,
+        attribute_id: int,
         query: Optional[str] = None,
         limit: int = 100
-    ) -> List[OzonAttributeDictionaryValue]:
+    ) -> List[Dict[str, Any]]:
         """
-        搜索字典值
+        搜索字典值（直接调用OZON API，不使用本地缓存）
 
         Args:
-            dictionary_id: 字典ID
-            query: 搜索关键词
+            category_id: 类目ID（叶子类目）
+            attribute_id: 属性ID
+            query: 搜索关键词（至少2个字符）
             limit: 返回数量限制
 
         Returns:
-            字典值列表
+            字典值列表（字典格式）
         """
-        stmt = select(OzonAttributeDictionaryValue).where(
-            OzonAttributeDictionaryValue.dictionary_id == dictionary_id
+        # 查询类目信息，获取父类目ID
+        category = await self.db.scalar(
+            select(OzonCategory).where(OzonCategory.category_id == category_id)
         )
 
-        if query:
-            stmt = stmt.where(
-                OzonAttributeDictionaryValue.value.ilike(f"%{query}%")
+        if not category:
+            logger.warning(f"Category {category_id} not found")
+            return []
+
+        parent_id = category.parent_id
+
+        # 调用OZON搜索API
+        try:
+            response = await self.client.search_attribute_values(
+                attribute_id=attribute_id,
+                category_id=category_id,
+                parent_category_id=parent_id,
+                query=query or "",
+                limit=limit,
+                language="ZH_HANS"
             )
 
-        stmt = stmt.limit(limit)
+            # 提取结果
+            result = response.get("result", [])
+            return result
 
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
+        except Exception as e:
+            logger.error(f"Failed to search attribute values: {e}", exc_info=True)
+            return []
 
     async def _generate_category_tree_js(self):
         """

@@ -238,6 +238,7 @@ async def get_category_attributes(
         for attr in attributes:
             attr_dict = {
                 "attribute_id": attr.attribute_id,
+                "category_id": attr.category_id,  # 添加 category_id
                 "name": attr.name,
                 "description": attr.description,
                 "attribute_type": attr.attribute_type,
@@ -253,25 +254,51 @@ async def get_category_attributes(
                 "complex_is_collection": attr.complex_is_collection,
                 "min_value": float(attr.min_value) if attr.min_value else None,
                 "max_value": float(attr.max_value) if attr.max_value else None,
-                "guide_values": None
+                "guide_values": None,
+                "dictionary_value_count": None,
+                "dictionary_values": None
             }
 
-            # 如果有字典ID，加载前5个字典值作为指南预览
+            # 智能字典值加载策略：
+            # - ≤100 条：直接预加载所有值（占 97% 字典）
+            # - >100 条：不预加载，前端使用搜索模式
+            # - 例外：颜色、国家、品牌国家等常用字段，即使>100也预加载（上限2000）
             if attr.dictionary_id:
-                dict_values = await catalog_service.search_dictionary_values(
-                    dictionary_id=attr.dictionary_id,
-                    query=None,
-                    limit=5
+                from sqlalchemy import select, func
+                from plugins.ef.channels.ozon.models.listing import OzonAttributeDictionaryValue
+
+                # 查询字典值数量
+                count_result = await db.scalar(
+                    select(func.count()).select_from(OzonAttributeDictionaryValue)
+                    .where(OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id)
                 )
-                if dict_values:
-                    attr_dict["guide_values"] = [
+                dict_value_count = count_result or 0
+                attr_dict["dictionary_value_count"] = dict_value_count
+
+                # 判断是否为常用字段（例外处理：即使>100也预加载）
+                is_common_field = any(keyword in attr.name for keyword in ['颜色', '国家'])
+
+                # 决定是否预加载
+                should_preload = dict_value_count <= 100 or (is_common_field and dict_value_count <= 2000)
+
+                if should_preload:
+                    # 预加载字典值（常用字段最多2000条，普通字段最多100条）
+                    limit = 2000 if is_common_field else 100
+                    dict_values_result = await db.execute(
+                        select(OzonAttributeDictionaryValue)
+                        .where(OzonAttributeDictionaryValue.dictionary_id == attr.dictionary_id)
+                        .order_by(OzonAttributeDictionaryValue.value)
+                        .limit(limit)
+                    )
+                    dict_values = dict_values_result.scalars().all()
+                    attr_dict["dictionary_values"] = [
                         {
-                            "value_id": dv.value_id,
-                            "value": dv.value,
-                            "info": dv.info,
-                            "picture": dv.picture
+                            "value_id": v.value_id,
+                            "value": v.value,
+                            "info": v.info or "",
+                            "picture": v.picture or ""
                         }
-                        for dv in dict_values
+                        for v in dict_values
                     ]
 
             result_data.append(attr_dict)
@@ -290,37 +317,40 @@ async def get_category_attributes(
         }
 
 
-@router.get("/listings/attributes/{dictionary_id}/values")
-async def search_dictionary_values(
-    dictionary_id: int,
-    query: Optional[str] = Query(None, description="搜索关键词"),
+@router.get("/listings/categories/{category_id}/attributes/{attribute_id}/values/search")
+async def search_attribute_values(
+    category_id: int,
+    attribute_id: int,
+    query: Optional[str] = Query(None, description="搜索关键词（至少2个字符）"),
     limit: int = Query(100, le=500, description="返回数量限制"),
     shop_id: int = Query(..., description="店铺ID"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
-    搜索字典值
+    搜索属性字典值（直接调用OZON API）
 
-    用于属性值选择，如颜色、尺码等
+    用于属性值选择，如品牌、颜色、尺码等
     """
     try:
         client = await get_ozon_client(shop_id, db)
         catalog_service = CatalogService(client, db)
 
         values = await catalog_service.search_dictionary_values(
-            dictionary_id=dictionary_id,
+            category_id=category_id,
+            attribute_id=attribute_id,
             query=query,
             limit=limit
         )
 
+        # values 现在是字典列表，直接使用
         return {
             "success": True,
             "data": [
                 {
-                    "value_id": val.value_id,
-                    "value": val.value,
-                    "info": val.info,
-                    "picture": val.picture
+                    "value_id": val.get("id"),
+                    "value": val.get("value"),
+                    "info": val.get("info", ""),
+                    "picture": val.get("picture", "")
                 }
                 for val in values
             ],
@@ -328,7 +358,7 @@ async def search_dictionary_values(
         }
 
     except Exception as e:
-        logger.error(f"Search dictionary values failed: {e}", exc_info=True)
+        logger.error(f"Search attribute values failed: {e}", exc_info=True)
         return {
             "success": False,
             "error": str(e)
@@ -1286,6 +1316,20 @@ async def create_product(
                 "error": f"Product with offer_id '{offer_id}' already exists"
             }
 
+        # 获取属性列表，自动添加"类型"属性（attribute_id=8229）
+        attributes = request.get("attributes", [])
+        category_id = request.get("category_id")
+
+        # 如果选择了类目且属性中没有"类型"（8229），自动添加
+        if category_id:
+            has_type_attr = any(attr.get("attribute_id") == 8229 for attr in attributes)
+            if not has_type_attr:
+                attributes.append({
+                    "attribute_id": 8229,
+                    "complex_id": 0,
+                    "values": [{"value": str(category_id)}]
+                })
+
         # 创建商品记录
         product = OzonProduct(
             shop_id=shop_id,
@@ -1297,14 +1341,14 @@ async def create_product(
             premium_price=Decimal(str(request["premium_price"])) if request.get("premium_price") else None,
             currency_code=request.get("currency_code", "RUB"),
             barcode=request.get("barcode"),
-            category_id=request.get("category_id"),
+            category_id=category_id,
             type_id=request.get("type_id"),  # 类目类型ID
             images=request.get("images", []),  # JSONB field
             images360=request.get("images360"),  # 360度全景图
             color_image=request.get("color_image"),  # 颜色营销图
             videos=request.get("videos", []),  # JSONB field [{url, name, is_cover}]
             pdf_list=request.get("pdf_list"),  # PDF文档列表
-            attributes=request.get("attributes", []),  # JSONB field
+            attributes=attributes,  # JSONB field（已自动添加"类型"属性）
             variants=request.get("variants"),  # 变体数据
             promotions=request.get("promotions"),  # 促销活动ID数组
             height=request.get("height"),

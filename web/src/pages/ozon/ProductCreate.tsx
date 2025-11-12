@@ -289,36 +289,28 @@ const ProductCreate: React.FC = () => {
     }
   }, [selectedShop]);
 
-  // 加载字典值
-  const loadDictionaryValues = async (dictionaryId: number, query?: string) => {
+  // 加载字典值（直接调用OZON搜索API）
+  const loadDictionaryValues = async (
+    categoryId: number,
+    attributeId: number,
+    query?: string
+  ) => {
     if (!selectedShop) {
       return [];
     }
 
-    // 如果是搜索，不使用缓存
-    if (query) {
-      try {
-        const result = await ozonApi.searchDictionaryValues(selectedShop, dictionaryId, query, 100);
-        return result.data || [];
-      } catch (error) {
-        console.error('Failed to search dictionary values:', error);
-        return [];
-      }
-    }
-
-    // 非搜索情况，检查缓存
-    if (dictionaryValuesCache[dictionaryId]) {
-      return dictionaryValuesCache[dictionaryId];
-    }
-
-    // 加载字典值并缓存
+    // 直接调用OZON搜索API（不再使用本地缓存）
     try {
-      const result = await ozonApi.searchDictionaryValues(selectedShop, dictionaryId, undefined, 100);
-      const values = result.data || [];
-      setDictionaryValuesCache((prev) => ({ ...prev, [dictionaryId]: values }));
-      return values;
+      const result = await ozonApi.searchAttributeValues(
+        selectedShop,
+        categoryId,
+        attributeId,
+        query,
+        100
+      );
+      return result.data || [];
     } catch (error) {
-      console.error('Failed to load dictionary values:', error);
+      console.error('Failed to search attribute values:', error);
       return [];
     }
   };
@@ -1237,10 +1229,8 @@ const ProductCreate: React.FC = () => {
                     setCategoryPath(value as number[] | undefined); // 更新状态
                     form.setFieldValue('category_id', value);
 
-                    // 类目变化时，加载类目属性
-                    if (catId) {
-                      loadCategoryAttributes(catId);
-                    } else {
+                    // 类目变化时，清空类目属性（会由useEffect重新加载）
+                    if (!catId) {
                       setCategoryAttributes([]);
                       setTypeId(null);
                     }
@@ -1554,7 +1544,7 @@ const ProductCreate: React.FC = () => {
                             >
                               <Input
                                 placeholder="输入颜色营销图URL"
-                                style={{ minWidth: '300px', maxWidth: '100%' }}
+                                style={{ width: '500px' }}
                               />
                             </Form.Item>
                           )}

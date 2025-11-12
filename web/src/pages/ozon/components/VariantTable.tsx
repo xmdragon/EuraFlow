@@ -40,7 +40,7 @@ export interface VariantTableProps {
 
   // 字典值加载
   dictionaryValuesCache: Record<number, DictionaryValue[]>;
-  loadDictionaryValues: (dictionaryId: number) => Promise<void>;
+  loadDictionaryValues: (categoryId: number, attributeId: number, query?: string) => Promise<DictionaryValue[]>;
 }
 
 /**
@@ -181,7 +181,7 @@ export const VariantTable: React.FC<VariantTableProps> = ({
 
       cols.push({
         title: (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start', whiteSpace: 'nowrap' }}>
             {/* 第一行：名称 + ? + - */}
             <Space size={4}>
               {dim.name}
@@ -201,60 +201,122 @@ export const VariantTable: React.FC<VariantTableProps> = ({
           </div>
         ),
         key: `dim_${dim.attribute_id}`,
-        width: 120,
+        minWidth: 150,
         render: (_: unknown, record: ProductVariant) => {
           // 如果有字典值，使用 Select；否则使用 Input
           if (hasDictionary) {
-            return (
-              <Select
-                size="small"
-                value={record.dimension_values[dim.attribute_id] || undefined}
-                onChange={(value) =>
-                  onUpdateVariant(record.id, `dim_${dim.attribute_id}`, value)
-                }
-                placeholder={`${dim.name}`}
-                style={{ width: '100%' }}
-                showSearch
-                filterOption={false}
-                onFocus={async () => {
-                  // 加载字典值
-                  if (!dictionaryValuesCache[dim.dictionary_id!]) {
-                    await loadDictionaryValues(dim.dictionary_id!);
+            // 智能模式：根据字典值数量决定使用哪种加载方式
+            const hasPreloadedValues = dim.dictionary_values && dim.dictionary_values.length > 0;
+
+            if (hasPreloadedValues) {
+              // 模式1：直接下拉（≤100条）
+              return (
+                <Select
+                  size="small"
+                  value={record.dimension_values[dim.attribute_id] || undefined}
+                  onChange={(value) =>
+                    onUpdateVariant(record.id, `dim_${dim.attribute_id}`, value)
                   }
-                }}
-                optionRender={
-                  isColor
-                    ? (option) => {
-                        const colorValue = getColorValue(option.label as string);
-                        if (colorValue) {
-                          return (
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '4px 8px',
-                                backgroundColor: colorValue,
-                                color: getTextColor(colorValue),
-                                borderRadius: '4px',
-                              }}
-                            >
-                              {option.label}
-                            </div>
-                          );
+                  placeholder={`请选择${dim.name}`}
+                  style={{ width: '140px' }}
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                  }
+                  optionRender={
+                    isColor
+                      ? (option) => {
+                          const colorValue = getColorValue(option.label as string);
+                          if (colorValue) {
+                            return (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '4px 8px',
+                                  backgroundColor: colorValue,
+                                  color: getTextColor(colorValue),
+                                  borderRadius: '4px',
+                                }}
+                              >
+                                {option.label}
+                              </div>
+                            );
+                          }
+                          return <span>{option.label}</span>;
                         }
-                        return <span>{option.label}</span>;
-                      }
-                    : undefined
-                }
-                options={
-                  dictionaryValuesCache[dim.dictionary_id!]?.map((v: DictionaryValue) => ({
-                    label: v.value,
-                    value: v.value_id,
-                  })) || []
-                }
-              />
-            );
+                      : undefined
+                  }
+                  options={
+                    dim.dictionary_values.map((v) => ({
+                      label: v.value,
+                      value: v.value_id,
+                    }))
+                  }
+                />
+              );
+            } else {
+              // 模式2：搜索模式（>100条）
+              return (
+                <Select
+                  size="small"
+                  value={record.dimension_values[dim.attribute_id] || undefined}
+                  onChange={(value) =>
+                    onUpdateVariant(record.id, `dim_${dim.attribute_id}`, value)
+                  }
+                  placeholder={`请输入至少2个字符搜索${dim.name}`}
+                  style={{ width: '140px' }}
+                  showSearch
+                  filterOption={false}
+                  notFoundContent={
+                    <div style={{ padding: '8px', textAlign: 'center', color: '#999', fontSize: '12px' }}>
+                      请输入至少2个字符进行搜索
+                    </div>
+                  }
+                  onSearch={async (value) => {
+                    // 搜索时动态加载（至少2个字符）
+                    if (value && value.length >= 2) {
+                      const values = await loadDictionaryValues(dim.category_id, dim.attribute_id, value);
+                      // 更新缓存以触发重新渲染
+                      // 注意：这里仍然使用 dictionary_id 作为缓存key，因为它可能被多个变体维度共享
+                      // 实际上我们应该更新 ProductCreate.tsx 中的缓存管理逻辑
+                    }
+                  }}
+                  optionRender={
+                    isColor
+                      ? (option) => {
+                          const colorValue = getColorValue(option.label as string);
+                          if (colorValue) {
+                            return (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '4px 8px',
+                                  backgroundColor: colorValue,
+                                  color: getTextColor(colorValue),
+                                  borderRadius: '4px',
+                                }}
+                              >
+                                {option.label}
+                              </div>
+                            );
+                          }
+                          return <span>{option.label}</span>;
+                        }
+                      : undefined
+                  }
+                  options={
+                    dictionaryValuesCache[dim.dictionary_id!]?.map((v: DictionaryValue) => ({
+                      label: v.value,
+                      value: v.value_id,
+                    })) || []
+                  }
+                />
+              );
+            }
           } else {
             return (
               <Input

@@ -1432,6 +1432,7 @@ export interface Category {
 
 export interface CategoryAttribute {
   attribute_id: number;
+  category_id: number;
   name: string;
   description?: string;
   attribute_type: string;
@@ -1448,6 +1449,8 @@ export interface CategoryAttribute {
   min_value?: number;
   max_value?: number;
   guide_values?: DictionaryValue[] | null;
+  dictionary_value_count?: number | null;  // 字典值数量
+  dictionary_values?: DictionaryValue[] | null;  // 预加载的字典值（≤100条时）
 }
 
 export interface DictionaryValue {
@@ -1542,21 +1545,25 @@ export const getCategoryAttributes = async (
   return response.data;
 };
 
-// 搜索字典值
-export const searchDictionaryValues = async (
+// 搜索属性字典值（直接调用OZON API）
+export const searchAttributeValues = async (
   shopId: number,
-  dictionaryId: number,
+  categoryId: number,
+  attributeId: number,
   query?: string,
   limit: number = 100,
 ) => {
   const response = await apiClient.get(
-    `/ozon/listings/attributes/${dictionaryId}/values`,
+    `/ozon/listings/categories/${categoryId}/attributes/${attributeId}/values/search`,
     {
       params: { shop_id: shopId, query, limit },
     },
   );
   return response.data;
 };
+
+// 废弃：保留旧方法名以保持向后兼容（但实际上无法工作，因为API已改变）
+export const searchDictionaryValues = searchAttributeValues;
 
 // 同步类目树（同步模式，会阻塞）
 export const syncCategoryTree = async (

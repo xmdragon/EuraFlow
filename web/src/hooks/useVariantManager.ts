@@ -14,9 +14,12 @@ import { notifySuccess, notifyWarning } from '@/utils/notification';
 // 变体维度（用户选择的属性作为变体维度）
 export interface VariantDimension {
   attribute_id: number;
+  category_id: number; // 新增：类目ID（用于调用搜索API）
   name: string;
   attribute_type: string;
   dictionary_id?: number;
+  dictionary_value_count?: number | null;  // 字典值数量
+  dictionary_values?: Array<{ value_id: number; value: string; info?: string; picture?: string }> | null;  // 预加载的字典值
   // 原始字段key（用于恢复显示）
   original_field_key?: string;
 }
@@ -112,9 +115,12 @@ export const useVariantManager = (): UseVariantManagerReturn => {
 
       const dimension: VariantDimension = {
         attribute_id: attr.attribute_id,
+        category_id: attr.category_id,
         name: attr.name,
         attribute_type: attr.attribute_type,
         dictionary_id: attr.dictionary_id,
+        dictionary_value_count: attr.dictionary_value_count,
+        dictionary_values: attr.dictionary_values,
         original_field_key: fieldKey,
       };
 
@@ -125,6 +131,30 @@ export const useVariantManager = (): UseVariantManagerReturn => {
 
     // 自动展开变体部分
     setVariantSectionExpanded(true);
+
+    // 如果还没有变体行，自动创建2行（首次添加维度时）
+    setVariants((prevVariants) => {
+      if (prevVariants.length === 0) {
+        const variant1: ProductVariant = {
+          id: Date.now().toString(),
+          dimension_values: {},
+          offer_id: generateOfferId(),
+          title: '',
+          price: undefined,
+          old_price: undefined,
+        };
+        const variant2: ProductVariant = {
+          id: (Date.now() + 1).toString(),
+          dimension_values: {},
+          offer_id: generateOfferId(),
+          title: '',
+          price: undefined,
+          old_price: undefined,
+        };
+        return [variant1, variant2];
+      }
+      return prevVariants;
+    });
   }, []);
 
   /**
@@ -179,11 +209,15 @@ export const useVariantManager = (): UseVariantManagerReturn => {
         // 检查是否已存在（包括validDimensions中）
         if (!validDimensions.find((d) => d.attribute_id === attr.attribute_id)) {
           const fieldKey = `attr_${attr.attribute_id}`;
+
           dimensionsToAdd.push({
             attribute_id: attr.attribute_id,
+            category_id: attr.category_id,
             name: attr.name,
             attribute_type: attr.attribute_type,
             dictionary_id: attr.dictionary_id,
+            dictionary_value_count: attr.dictionary_value_count,
+            dictionary_values: attr.dictionary_values,
             original_field_key: fieldKey,
           });
         }

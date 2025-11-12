@@ -1713,6 +1713,46 @@ class OzonAPIClient:
             resource_type="categories"
         )
 
+    async def search_attribute_values(
+        self,
+        attribute_id: int,
+        category_id: int,
+        parent_category_id: Optional[int] = None,
+        query: str = "",
+        limit: int = 100,
+        language: str = "ZH_HANS"
+    ) -> Dict[str, Any]:
+        """
+        搜索属性字典值
+        使用 /v1/description-category/attribute/values/search 接口
+
+        Args:
+            attribute_id: 属性ID
+            category_id: 叶子类目ID（type_id）
+            parent_category_id: 父类目ID（description_category_id），如果不提供则使用category_id
+            query: 搜索关键词（至少2个字符，空字符串表示不搜索）
+            limit: 返回数量限制（最大1000）
+            language: 语言（默认ZH_HANS中文）
+
+        Returns:
+            搜索结果列表
+        """
+        data = {
+            "attribute_id": attribute_id,
+            "description_category_id": parent_category_id if parent_category_id else category_id,
+            "type_id": category_id,  # 叶子类目的 type_id
+            "limit": min(limit, 1000),  # API 最大支持 1000
+            "language": language,
+            "value": query  # 搜索关键词
+        }
+
+        return await self._request(
+            "POST",
+            "/v1/description-category/attribute/values/search",
+            data=data,
+            resource_type="categories"
+        )
+
     async def import_pictures_by_url(
         self,
         picture_urls: List[str]

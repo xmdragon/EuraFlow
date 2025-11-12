@@ -40,7 +40,11 @@ if (!rootElement) {
 }
 
 ReactDOM.createRoot(rootElement).render(
-  <React.StrictMode>
+  // StrictMode 已关闭：避免开发时双重渲染导致 API 重复请求
+  // <React.StrictMode>
+  //   ...
+  // </React.StrictMode>
+  <>
     {/* 全局错误边界：捕获整个应用的未处理错误 */}
     <ErrorBoundary name="应用根组件">
       <QueryClientProvider client={queryClient}>
@@ -62,5 +66,5 @@ ReactDOM.createRoot(rootElement).render(
         </ConfigProvider>
       </QueryClientProvider>
     </ErrorBoundary>
-  </React.StrictMode>
+  </>
 );
