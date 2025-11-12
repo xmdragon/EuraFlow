@@ -4,7 +4,7 @@
  * 支持单个商品或批量商品的库存更新
  */
 import { Modal, Form, InputNumber, Select, Button, Space, Spin } from 'antd';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import type { FormValues } from '@/types/common';
 import * as ozonApi from '@/services/ozonApi';
@@ -38,6 +38,20 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
   const [form] = Form.useForm();
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+  const [currentStock, setCurrentStock] = useState<number | null>(null);
+
+  // 处理仓库变化
+  const handleWarehouseChange = useCallback((warehouseId: number) => {
+    // 仅在单个商品时显示原有库存
+    if (selectedProduct && selectedProduct.warehouse_stocks) {
+      const warehouseStock = selectedProduct.warehouse_stocks.find(
+        (ws: any) => ws.warehouse_id === warehouseId
+      );
+      setCurrentStock(warehouseStock?.present ?? null);
+    } else {
+      setCurrentStock(null);
+    }
+  }, [selectedProduct]);
 
   // 加载仓库列表
   useEffect(() => {
@@ -49,9 +63,11 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
         const response = await ozonApi.getWarehouses(shopId);
         if (response.success && response.data) {
           setWarehouses(response.data);
-          // 如果只有一个仓库，自动选中
+          // 如果只有一个仓库，自动选中并显示库存
           if (response.data.length === 1) {
-            form.setFieldsValue({ warehouse_id: response.data[0].warehouse_id });
+            const warehouseId = response.data[0].warehouse_id;
+            form.setFieldsValue({ warehouse_id: warehouseId });
+            handleWarehouseChange(warehouseId);
           }
         }
       } catch (error) {
@@ -62,7 +78,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
     };
 
     loadWarehouses();
-  }, [visible, shopId, form]);
+  }, [visible, shopId, form, handleWarehouseChange]);
 
   const handleFinish = (values: FormValues) => {
     // 如果既没有选中单个商品，也没有选中批量商品，表示对全部商品操作
@@ -105,7 +121,11 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
             label="仓库"
             rules={[{ required: true, message: '请选择仓库' }]}
           >
-            <Select placeholder="选择仓库" loading={loadingWarehouses}>
+            <Select
+              placeholder="选择仓库"
+              loading={loadingWarehouses}
+              onChange={handleWarehouseChange}
+            >
               {warehouses.map((wh) => (
                 <Option key={wh.warehouse_id} value={wh.warehouse_id}>
                   {wh.name} ({wh.is_rfbs ? 'rFBS' : 'FBS'})
@@ -116,6 +136,13 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
           <Form.Item
             name="stock"
             label="库存数量"
+            extra={
+              currentStock !== null && selectedProduct ? (
+                <span style={{ color: '#666', fontSize: '12px' }}>
+                  原有库存：{currentStock}
+                </span>
+              ) : null
+            }
             rules={[
               { required: true, message: '请输入库存数量' },
               {
