@@ -33,7 +33,9 @@ import {
   Tooltip,
   Row,
   Col,
+  Dropdown,
 } from 'antd';
+import type { MenuProps } from 'antd';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -58,6 +60,8 @@ import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager
 import { VariantTable } from './components/VariantTable';
 import { AttributeField } from './components/AttributeField';
 import { useDraftTemplate } from '@/hooks/useDraftTemplate';
+import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
+import type { TaskStatus } from '@/hooks/useAsyncTaskPolling';
 
 // 类目选项接口
 interface CategoryOption {
@@ -103,6 +107,7 @@ const ProductCreate: React.FC = () => {
   const [mainProductImages, setMainProductImages] = useState<string[]>([]);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [editingVariantForVideo, setEditingVariantForVideo] = useState<ProductVariant | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // 追踪未保存的更改
 
   // 主商品视频管理Hook
   const videoManager = useVideoManager({
@@ -152,6 +157,56 @@ const ProductCreate: React.FC = () => {
   // 暂时保留 autosaveEnabled 状态
   const [autosaveEnabled, _setAutosaveEnabled] = useState(true);
 
+  // 商品导入状态轮询
+  const { startPolling } = useAsyncTaskPolling({
+    getStatus: async (taskId: string): Promise<TaskStatus> => {
+      if (!selectedShop) {
+        return {
+          state: 'FAILURE',
+          error: '店铺信息丢失'
+        };
+      }
+
+      const status = await ozonApi.getProductImportStatus(taskId, selectedShop);
+
+      if (status.status === 'imported') {
+        return {
+          state: 'SUCCESS',
+          result: status,
+        };
+      } else if (status.status === 'failed') {
+        const errorMsg = status.error_messages?.join('; ') || status.message || '未知错误';
+        return {
+          state: 'FAILURE',
+          error: errorMsg,
+        };
+      } else {
+        // processing, pending, unknown
+        return {
+          state: 'PROGRESS',
+          info: {
+            status: status.status,
+            message: status.message || '处理中...',
+          },
+        };
+      }
+    },
+    pollingInterval: 3000, // 每3秒轮询一次
+    timeout: 5 * 60 * 1000, // 5分钟超时
+    notificationKey: 'product-import',
+    initialMessage: '商品导入中',
+    formatSuccessMessage: (result) => ({
+      title: '导入成功',
+      description: `商品已成功导入OZON平台！SKU: ${result.sku || 'N/A'}`,
+    }),
+    onSuccess: () => {
+      // 刷新商品列表
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      // 跳转到商品列表
+      navigate('/dashboard/ozon/products');
+    },
+  });
+
   // 创建商品
   const createProductMutation = useMutation({
     mutationFn: async (data: ozonApi.CreateProductRequest) => {
@@ -159,9 +214,20 @@ const ProductCreate: React.FC = () => {
     },
     onSuccess: (data) => {
       if (data.success) {
-        notifySuccess('创建成功', '商品创建成功！');
-        queryClient.invalidateQueries({ queryKey: ['products'] });
-        navigate('/dashboard/ozon/listing');
+        // 检查是否有 task_id（需要轮询导入状态）
+        if (data.data?.task_id) {
+          loggers.ozon.info('商品已提交OZON，启动状态轮询', {
+            task_id: data.data.task_id,
+            offer_id: data.data.offer_id
+          });
+          // 启动轮询
+          startPolling(String(data.data.task_id));
+        } else {
+          // 没有 task_id，直接显示成功消息并跳转
+          notifySuccess('创建成功', '商品创建成功！');
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          navigate('/dashboard/ozon/products');
+        }
       } else {
         notifyError('创建失败', data.error || '创建失败');
       }
@@ -621,9 +687,10 @@ const ProductCreate: React.FC = () => {
   // ========== 草稿/模板相关函数 ==========
 
   /**
-   * 序列化当前表单状态为 FormData
+   * 序列化表单数据
+   * 注意：不使用 useCallback 缓存，确保每次都获取最新的表单值
    */
-  const serializeFormData = useCallback((): draftTemplateApi.FormData => {
+  const serializeFormData = (): draftTemplateApi.FormData => {
     // 使用 true 参数强制获取所有字段值，包括未触碰的字段
     const values = form.getFieldsValue(true);
 
@@ -632,6 +699,26 @@ const ProductCreate: React.FC = () => {
     const categoryId = Array.isArray(categoryIdPath)
       ? categoryIdPath[categoryIdPath.length - 1]  // 提取最后一个ID（给后端API）
       : categoryIdPath;  // 兼容单个ID
+
+    // 提取类目属性字段（包括空值）
+    const attrFields = Object.keys(values)
+      .filter((k) => k.startsWith('attr_'))
+      .reduce((acc, k) => ({ ...acc, [k]: values[k] }), {});
+
+    // 统计空值字段
+    const emptyAttrFields = Object.keys(attrFields).filter(k =>
+      attrFields[k] === undefined || attrFields[k] === null || attrFields[k] === ''
+    );
+
+    loggers.ozon.info('[serializeFormData] 序列化表单数据', {
+      totalFields: Object.keys(values).length,
+      attrFieldsCount: Object.keys(attrFields).length,
+      emptyAttrFieldsCount: emptyAttrFields.length,
+      attrFieldsSample: Object.keys(attrFields).slice(0, 10),
+      valuesSample: Object.keys(attrFields).slice(0, 5).reduce((acc, k) => ({...acc, [k]: attrFields[k]}), {}),
+      categoryId,
+      shopId: selectedShop
+    });
 
     return {
       shop_id: selectedShop ?? undefined,
@@ -649,13 +736,12 @@ const ProductCreate: React.FC = () => {
       dimension_unit: 'mm',
       weight_unit: 'g',
       barcode: values.barcode,
+      vat: values.vat,
       attributes: {
         // 保存类目路径数组（用于前端恢复Cascader）
         ...(Array.isArray(categoryIdPath) && { _category_id_path: categoryIdPath }),
         // 保存所有类目属性字段
-        ...Object.keys(values)
-          .filter((k) => k.startsWith('attr_'))
-          .reduce((acc, k) => ({ ...acc, [k]: values[k] }), {}),
+        ...attrFields,
       },
       images: mainProductImages,
       videos: videoManager.videos,
@@ -671,26 +757,19 @@ const ProductCreate: React.FC = () => {
       optionalFieldsExpanded,
       autoColorSample,
     };
-  }, [
-    selectedShop,
-    selectedCategory,
-    mainProductImages,
-    videoManager.videos,
-    variantManager.variantDimensions,
-    variantManager.variants,
-    variantManager.hiddenFields,
-    variantManager.variantSectionExpanded,
-    variantManager.variantTableCollapsed,
-    optionalFieldsExpanded,
-    autoColorSample,
-    // form 是稳定引用，不需要加入依赖
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ]);
+  };
 
   /**
    * 反序列化 FormData 到表单状态
    */
   const deserializeFormData = useCallback((data: draftTemplateApi.FormData) => {
+    loggers.ozon.info('[deserializeFormData] 开始反序列化', {
+      hasShopId: !!data.shop_id,
+      hasCategoryId: !!data.category_id,
+      hasAttributes: !!data.attributes,
+      attributesCount: data.attributes ? Object.keys(data.attributes).length : 0,
+    });
+
     // 恢复店铺和类目
     if (data.shop_id) setSelectedShop(data.shop_id);
     if (data.category_id) {
@@ -703,7 +782,9 @@ const ProductCreate: React.FC = () => {
       // 异步加载类目属性，加载完成后再恢复字段值
       loadCategoryAttributes(categoryId)
         .then(() => {
-          // 延迟恢复，确保字段已渲染
+          loggers.ozon.info('[deserializeFormData] 类目属性加载完成，准备恢复字段值');
+
+          // 延迟恢复，确保字段已渲染（增加延迟到 500ms）
           setTimeout(() => {
             if (data.attributes) {
               // 过滤掉内部字段（_开头的）
@@ -711,12 +792,45 @@ const ProductCreate: React.FC = () => {
                 .filter((k) => !k.startsWith('_'))
                 .reduce((acc, k) => ({ ...acc, [k]: data.attributes![k] }), {});
 
+              loggers.ozon.info('[deserializeFormData] 恢复属性字段', {
+                fieldsCount: Object.keys(attrFields).length,
+                fieldsSample: Object.keys(attrFields).slice(0, 10),
+                valuesSample: Object.keys(attrFields).slice(0, 5).reduce((acc, k) => ({...acc, [k]: attrFields[k]}), {}),
+                categoryAttributesCount: categoryAttributes.length
+              });
+
+              // 预加载字典类型字段的选项到 cache
+              Object.keys(attrFields).forEach((fieldName) => {
+                const attrId = parseInt(fieldName.replace('attr_', ''));
+                const attr = categoryAttributes.find(a => a.attribute_id === attrId);
+
+                if (attr?.dictionary_id && attr.dictionary_values && attr.dictionary_values.length > 0) {
+                  // 将预加载的字典值添加到 cache
+                  setDictionaryValuesCache(prev => ({
+                    ...prev,
+                    [attr.dictionary_id!]: attr.dictionary_values || []
+                  }));
+                  loggers.ozon.debug(`[deserializeFormData] 预加载字典值: attr_id=${attrId}, count=${attr.dictionary_values.length}`);
+                }
+              });
+
               form.setFieldsValue(attrFields);
+
+              // 验证恢复是否成功
+              setTimeout(() => {
+                const currentValues = form.getFieldsValue(true);
+                const restoredAttrFields = Object.keys(currentValues).filter(k => k.startsWith('attr_'));
+                loggers.ozon.info('[deserializeFormData] 验证字段恢复', {
+                  expectedCount: Object.keys(attrFields).length,
+                  actualCount: restoredAttrFields.length,
+                  success: restoredAttrFields.length === Object.keys(attrFields).length
+                });
+              }, 100);
             }
-          }, 100);
+          }, 500);
         })
         .catch((error) => {
-          loggers.ozon.error('类目属性加载失败', error);
+          loggers.ozon.error('[deserializeFormData] 类目属性加载失败', error);
         });
 
       // 恢复类目路径
@@ -796,41 +910,60 @@ const ProductCreate: React.FC = () => {
   });
 
   /**
-   * 自动保存草稿
+   * 检查表单是否有实质性内容（排除初始状态和只有Offer ID的情况）
    */
-  // 使用 useMemo 缓存 formData，避免每次渲染都创建新对象
-  const formDataForAutosave = useMemo(() => {
+  const hasSubstantiveContent = (data: draftTemplateApi.FormData): boolean => {
+    // 检查关键字段是否有值（排除 offer_id）
+    const hasShop = !!data.shop_id;
+    const hasCategory = !!data.category_id;
+    const hasTitle = !!data.title && data.title.trim().length > 0;
+    const hasDescription = !!data.description && data.description.trim().length > 0;
+    const hasPrice = !!data.price && data.price > 0;
+    const hasOldPrice = !!data.old_price && data.old_price > 0;
+    const hasDimensions = (!!data.width && data.width > 0) || (!!data.height && data.height > 0) || (!!data.depth && data.depth > 0);
+    const hasWeight = !!data.weight && data.weight > 0;
+    const hasBarcode = !!data.barcode && data.barcode.trim().length > 0;
+    const hasImages = !!data.images && data.images.length > 0;
+    const hasVideos = !!data.videos && data.videos.length > 0;
+
+    // 检查是否有类目属性（attributes对象中除了_category_id_path之外的字段）
+    const hasAttributes = !!data.attributes && Object.keys(data.attributes).some(key =>
+      key !== '_category_id_path' && data.attributes![key] !== undefined && data.attributes![key] !== null && data.attributes![key] !== ''
+    );
+
+    // 检查是否有变体
+    const hasVariants = !!data.variants && data.variants.length > 0;
+
+    // 只要有任何一个实质性字段有值，就认为有内容
+    return hasShop || hasCategory || hasTitle || hasDescription || hasPrice || hasOldPrice ||
+           hasDimensions || hasWeight || hasBarcode || hasImages || hasVideos ||
+           hasAttributes || hasVariants;
+  };
+
+  /**
+   * 自动保存草稿
+   *
+   * 注意：不使用 useMemo 缓存，确保表单字段（包括 attr_* 类目特征）变化时能立即检测到
+   */
+  const getFormDataForAutosave = () => {
     try {
-      const data = serializeFormData();
-      loggers.ozon.debug('序列化表单数据用于自动保存', {
-        hasTitle: !!data.title,
-        hasCategoryId: !!data.category_id,
-        variantCount: variantManager.variants?.length || 0,
-      });
-      return data;
+      return serializeFormData();
     } catch (error) {
       loggers.ozon.error('序列化表单数据失败', error);
       // 返回空对象，避免阻塞自动保存
       return {} as draftTemplateApi.FormData;
     }
-  }, [
-    selectedShop,
-    selectedCategory,
-    mainProductImages,
-    videoManager.videos,
-    variantManager.variantDimensions,
-    variantManager.variants,
-    variantManager.hiddenFields,
-    variantManager.variantSectionExpanded,
-    variantManager.variantTableCollapsed,
-    optionalFieldsExpanded,
-    autoColorSample,
-    serializeFormData,
-  ]);
+  };
 
-  const { saveNow, hasUnsavedChanges, saveStatus, lastSavedAt } = useFormAutosave({
-    formData: formDataForAutosave,
+  const { saveNow, checkHasChanges, triggerDebounce, saveStatus, lastSavedAt } = useFormAutosave({
+    getFormData: getFormDataForAutosave,  // 传入函数引用，而不是调用结果
     onSave: async (data) => {
+      // 检查是否有实质性内容，如果没有则跳过保存
+      if (!hasSubstantiveContent(data)) {
+        loggers.ozon.info('表单为初始状态或只有Offer ID，跳过自动保存');
+        return;
+      }
+
       loggers.ozon.info('开始自动保存草稿');
       try {
         await draftTemplateApi.saveDraft({
@@ -849,12 +982,26 @@ const ProductCreate: React.FC = () => {
     enabled: autosaveEnabled && draftTemplate.draftLoaded,
   });
 
+  // 监听自动保存状态，保存成功后清除未保存标志
+  useEffect(() => {
+    if (saveStatus === 'saved') {
+      setHasUnsavedChanges(false);
+    }
+  }, [saveStatus]);
+
   /**
    * 手动保存草稿
    */
   const handleManualSaveDraft = async () => {
     try {
+      // 实时检查是否有未保存的更改
+      if (!checkHasChanges()) {
+        notifySuccess('已是最新', '草稿已是最新状态，无需保存');
+        return;
+      }
+
       await saveNow();
+      setHasUnsavedChanges(false); // 清除未保存标志
       notifySuccess('已保存草稿', '草稿已成功保存');
     } catch {
       notifyError('保存失败', '保存草稿失败，请重试');
@@ -868,6 +1015,34 @@ const ProductCreate: React.FC = () => {
     draftTemplate.setTemplateNameInput('');
     draftTemplate.setTemplateTagsInput([]);
     draftTemplate.setSaveTemplateModalVisible(true);
+  };
+
+  /**
+   * 删除草稿
+   */
+  const handleDeleteDraft = async () => {
+    modal.confirm({
+      title: '确认删除',
+      content: '确定要删除当前草稿吗？此操作无法撤销。',
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          // 获取最新草稿
+          const draft = await draftTemplateApi.getLatestDraft();
+          if (draft) {
+            await draftTemplateApi.deleteDraft(draft.id);
+            notifySuccess('已删除', '草稿已成功删除');
+            setHasUnsavedChanges(false);
+          } else {
+            notifyWarning('无草稿', '当前没有可删除的草稿');
+          }
+        } catch (error) {
+          notifyError('删除失败', '删除草稿失败，请重试');
+        }
+      },
+    });
   };
 
   // 类目选择变化时加载属性
@@ -1042,6 +1217,20 @@ const ProductCreate: React.FC = () => {
         ? mainProductImages[0]
         : (allFormValues.color_image || undefined);
 
+      // 从类目路径中提取 description_category_id（父类目ID）
+      // categoryPath 示例：[200001506, 200001034, 971405141]
+      // description_category_id = 倒数第二个ID（200001034）
+      const descriptionCategoryId = categoryPath && categoryPath.length >= 2
+        ? categoryPath[categoryPath.length - 2]
+        : undefined;
+
+      loggers.ozon.info('提交商品到OZON', {
+        category_id: selectedCategory,
+        type_id: typeId,
+        description_category_id: descriptionCategoryId,
+        categoryPath
+      });
+
       // 创建商品（使用已上传的图片URL和视频）
       await createProductMutation.mutateAsync({
         shop_id: selectedShop,
@@ -1052,7 +1241,8 @@ const ProductCreate: React.FC = () => {
         price: values.price?.toString(),
         old_price: values.old_price?.toString(),
         category_id: selectedCategory || undefined,
-        type_id: typeId || undefined,  // 添加type_id
+        type_id: typeId || undefined,
+        description_category_id: descriptionCategoryId,  // 传递父类目ID
         images: mainProductImages,
         videos: videoManager.videos,
         attributes,  // 添加转换后的attributes
@@ -1191,6 +1381,11 @@ const ProductCreate: React.FC = () => {
           form={form}
           layout="horizontal"
           onFinish={handleProductSubmit}
+          onValuesChange={() => {
+            // 表单值变化时：1) 设置未保存标志 2) 触发防抖保存
+            setHasUnsavedChanges(true);
+            triggerDebounce();
+          }}
         >
           {/* 主要信息 */}
           <div className={styles.section}>
@@ -1487,8 +1682,7 @@ const ProductCreate: React.FC = () => {
                         {categoryAttributes.filter((attr) => !attr.is_required).length + (!variantManager.hiddenFields.has('barcode') ? 1 : 0) + (!variantManager.hiddenFields.has('vat') ? 1 : 0) + (autoColorSample ? 3 : 4) + 1} 个)
                       </Button>
 
-                      {optionalFieldsExpanded && (
-                        <div style={{ marginTop: '12px' }}>
+                      <div style={{ marginTop: '12px', display: optionalFieldsExpanded ? 'block' : 'none' }}>
                           {/* 条形码（选填） */}
                           {!variantManager.hiddenFields.has('barcode') && (
                             <Form.Item label="条形码 (Barcode)" style={{ marginBottom: 12 }}>
@@ -1612,7 +1806,6 @@ const ProductCreate: React.FC = () => {
                             />
                           </Form.Item>
                         </div>
-                      )}
                     </div>
                   )}
                 </>
@@ -1788,7 +1981,7 @@ const ProductCreate: React.FC = () => {
                         variantManager.setVariantTableCollapsed(false);
                       }}
                     >
-                      重置
+                      重置变体
                     </Button>
                   </div>
                 </div>
@@ -1819,8 +2012,7 @@ const ProductCreate: React.FC = () => {
       {/* 底部操作栏 */}
       <div className={styles.actionBar}>
         <div className={styles.leftActions}>
-          <Button onClick={() => form.resetFields()}>重置</Button>
-          <Button onClick={() => draftTemplate.setTemplateModalVisible(true)}>引用模板</Button>
+          {/* 左侧留空 */}
         </div>
         <div className={styles.rightActions}>
           {hasUnsavedChanges && (
@@ -1828,12 +2020,52 @@ const ProductCreate: React.FC = () => {
               有未保存的更改
             </span>
           )}
-          <Button size="large" onClick={handleManualSaveDraft}>
-            保存草稿
-          </Button>
-          <Button size="large" onClick={handleOpenSaveTemplateModal}>
-            保存为模板
-          </Button>
+
+          {/* 草稿下拉菜单 */}
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'save',
+                  label: '保存',
+                  onClick: handleManualSaveDraft,
+                },
+                {
+                  key: 'delete',
+                  label: '删除',
+                  danger: true,
+                  onClick: handleDeleteDraft,
+                },
+              ],
+            }}
+          >
+            <Button size="large">
+              草稿 <DownOutlined />
+            </Button>
+          </Dropdown>
+
+          {/* 模板下拉菜单 */}
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'save-template',
+                  label: '保存模板',
+                  onClick: handleOpenSaveTemplateModal,
+                },
+                {
+                  key: 'apply-template',
+                  label: '引用模板',
+                  onClick: () => draftTemplate.setTemplateModalVisible(true),
+                },
+              ],
+            }}
+          >
+            <Button size="large">
+              模板 <DownOutlined />
+            </Button>
+          </Dropdown>
+
           <Button
             type="primary"
             size="large"
@@ -1842,7 +2074,11 @@ const ProductCreate: React.FC = () => {
             loading={createProductMutation.isPending || uploadImageMutation.isPending}
             onClick={() => form.submit()}
           >
-            上架至 OZON
+            提交至OZON
+          </Button>
+
+          <Button size="large" onClick={() => form.resetFields()}>
+            重置
           </Button>
         </div>
       </div>
