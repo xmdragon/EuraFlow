@@ -80,7 +80,7 @@ async def _batch_update_stocks_async(
         # 这样可以避免"Future attached to a different loop"错误
         settings = get_settings()
         engine = create_async_engine(
-            settings.get_database_url(),
+            settings.database_url,
             echo=False,
             pool_pre_ping=True,
         )
