@@ -43,6 +43,9 @@ function debounce<T extends (...args: any[]) => void>(
 export class RealPriceCalculator {
   private observer: MutationObserver | null = null;
   private debouncedCalculate: () => void;
+  private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  private lastMessage: string | null = null;
+  private lastPrice: number | null = null;
 
   constructor() {
     this.debouncedCalculate = debounce(
@@ -56,17 +59,38 @@ export class RealPriceCalculator {
    */
   public init(): void {
     try {
-      // 首次执行计算和显示
-      this.calculateAndDisplay();
+      // 延迟2秒注入，避免被其他扩展（如上品帮）覆盖
+      setTimeout(() => {
+        console.log('[EuraFlow] 延迟注入组件（2秒后）');
+        // 首次执行计算和显示
+        this.calculateAndDisplay();
 
-      // 设置动态监听
-      this.setupDynamicListener();
+        // 设置动态监听
+        this.setupDynamicListener();
+
+        // 启动保活机制：每5秒检查一次，如果组件被移除则重新注入
+        this.startKeepAlive();
+      }, 2000);
 
       // 后台预加载配置数据（异步，不阻塞）
       this.preloadConfigInBackground();
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator initialization error:', error);
     }
+  }
+
+  /**
+   * 启动保活机制：定期检查组件是否存在，不存在则重新注入
+   */
+  private startKeepAlive(): void {
+    this.keepAliveTimer = setInterval(() => {
+      // 检查我们的组件是否还存在
+      const ourElement = document.getElementById('euraflow-real-price');
+      if (!ourElement && this.lastMessage) {
+        console.log('[EuraFlow] 检测到组件被移除，重新注入');
+        injectOrUpdateDisplay(this.lastMessage, this.lastPrice);
+      }
+    }, 5000); // 每5秒检查一次
   }
 
   /**
@@ -108,6 +132,10 @@ export class RealPriceCalculator {
         blackPrice,
         currency
       );
+
+      // 保存最后的消息和价格（用于保活机制）
+      this.lastMessage = message;
+      this.lastPrice = price;
 
       // 注入或更新显示（传递价格数值用于"一键跟卖"按钮）
       injectOrUpdateDisplay(message, price);
@@ -160,6 +188,10 @@ export class RealPriceCalculator {
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
+    }
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
     }
   }
 }
