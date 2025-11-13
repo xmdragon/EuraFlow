@@ -14,7 +14,8 @@ from ef_core.api.auth import get_current_user_from_api_key
 from ef_core.models.users import User
 from ..services.quick_publish_service import QuickPublishService
 from ..models import OzonWarehouse, OzonShop
-from ..models.watermark import CloudinaryConfig, AliyunOssConfig
+from ..models.watermark import CloudinaryConfig, AliyunOssConfig, WatermarkConfig
+from ..services.image_storage_factory import ImageStorageFactory
 from sqlalchemy import select, or_
 
 router = APIRouter(prefix="/quick-publish", tags=["ozon-quick-publish"])
@@ -259,37 +260,38 @@ async def get_quick_publish_config(
         else:
             warehouses_by_shop = {}
 
-        # 3. 获取水印配置（Cloudinary + Aliyun OSS）- 全局配置
-        # 只返回激活且可用的图床，is_default标识当前激活的图床
+        # 3. 获取水印配置（基于当前激活的图床）
+        # 仅返回与当前激活图床匹配的水印配置
         watermarks = []
 
-        # Cloudinary配置（全局配置，不按用户分）
-        cloudinary_result = await db.execute(
-            select(CloudinaryConfig).where(CloudinaryConfig.is_active == True)
-        )
-        cloudinary_config = cloudinary_result.scalar_one_or_none()
-        if cloudinary_config:
-            watermarks.append({
-                "id": f"cloudinary_{cloudinary_config.id}",
-                "name": "Cloudinary",
-                "type": "cloudinary",
-                "is_default": cloudinary_config.is_default,
-                "is_active": True  # 已通过查询条件确保
-            })
+        # 获取当前激活的图床类型
+        active_provider = await ImageStorageFactory.get_active_provider_type(db)
 
-        # Aliyun OSS配置（全局配置，单例模式）
-        aliyun_result = await db.execute(
-            select(AliyunOssConfig).where(AliyunOssConfig.enabled == True)
-        )
-        aliyun_config = aliyun_result.scalar_one_or_none()
-        if aliyun_config:
-            watermarks.append({
-                "id": f"aliyun_{aliyun_config.id}",
-                "name": "阿里云OSS",
-                "type": "aliyun_oss",
-                "is_default": aliyun_config.is_default,
-                "is_active": True  # 已通过查询条件确保
-            })
+        if active_provider:
+            logger.info(f"当前激活的图床类型: {active_provider}")
+
+            # 查询该图床关联的水印配置
+            watermark_result = await db.execute(
+                select(WatermarkConfig)
+                .where(WatermarkConfig.storage_provider == active_provider)
+                .order_by(WatermarkConfig.created_at.desc())
+            )
+            watermark_configs = watermark_result.scalars().all()
+
+            logger.info(f"找到 {len(watermark_configs)} 个水印配置")
+
+            watermarks = [
+                {
+                    "id": config.id,
+                    "name": config.name,
+                    "image_url": config.image_url,
+                    "is_active": config.is_active,
+                    "storage_provider": config.storage_provider
+                }
+                for config in watermark_configs
+            ]
+        else:
+            logger.warning("没有找到激活的图床配置，返回空水印列表")
 
         # 4. 组装返回数据
         shops_data = []

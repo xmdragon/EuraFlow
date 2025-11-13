@@ -131,18 +131,30 @@ async function loadConfigData(): Promise<void> {
 
   // 尝试从缓存获取
   const cached = configCache.getCached();
+  console.log('[PublishModal] configCache.getCached() 返回值:', cached);
+
   if (cached) {
     console.log('[PublishModal] 使用缓存配置');
+    console.log('[PublishModal] cached.shops:', cached.shops);
+    console.log('[PublishModal] cached.shops 类型:', typeof cached.shops);
+    console.log('[PublishModal] cached.shops 长度:', Array.isArray(cached.shops) ? cached.shops.length : 'NOT AN ARRAY');
+    console.log('[PublishModal] cached.watermarks:', cached.watermarks);
+    console.log('[PublishModal] cached.warehouses:', cached.warehouses);
+
     shops = cached.shops;
     watermarks = cached.watermarks;
 
     // 默认选择第一个店铺
     if (shops.length > 0) {
+      console.log('[PublishModal] 选择默认店铺:', shops[0]);
       selectedShopId = shops[0].id;
       warehouses = cached.warehouses.get(selectedShopId) || [];
+      console.log('[PublishModal] 默认店铺仓库数:', warehouses.length);
       if (warehouses.length > 0) {
         selectedWarehouseIds = [warehouses[0].id];
       }
+    } else {
+      console.warn('[PublishModal] shops数组为空！');
     }
     return;
   }
@@ -150,14 +162,20 @@ async function loadConfigData(): Promise<void> {
   // 缓存未命中，手动加载
   console.log('[PublishModal] 缓存未命中，重新加载配置');
   shops = await configCache.getShops(apiClient);
+  console.log('[PublishModal] 从API加载的shops:', shops);
+
   watermarks = await configCache.getWatermarks(apiClient);
+  console.log('[PublishModal] 从API加载的watermarks:', watermarks);
 
   if (shops.length > 0) {
     selectedShopId = shops[0].id;
     warehouses = await configCache.getWarehouses(apiClient, selectedShopId);
+    console.log('[PublishModal] 从API加载的warehouses:', warehouses);
     if (warehouses.length > 0) {
       selectedWarehouseIds = [warehouses[0].id];
     }
+  } else {
+    console.warn('[PublishModal] API返回的shops数组为空！');
   }
 
   // 未来功能：预选水印

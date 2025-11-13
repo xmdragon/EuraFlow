@@ -297,69 +297,105 @@ export function isProductDetailPage(): boolean {
 
 /**
  * 从 __NUXT__ 数据中提取变体信息
+ * 参考上品帮的提取逻辑：从 widgetStates.webAspects 提取 aspects 数组
  */
 function extractVariantsFromNuxt(productData: any): { has_variants: boolean; variants?: any[] } {
   try {
-    // 尝试多个可能的变体数据路径
-    let variantsData =
-      productData.variants ||
-      productData.skus ||
-      productData.items ||
-      productData.options;
+    // 尝试从 widgetStates 提取（优先）
+    const widgetStates = productData.widgetStates || window.__NUXT__?.widgetStates;
+    let aspects: any[] | null = null;
 
-    if (!variantsData || !Array.isArray(variantsData) || variantsData.length === 0) {
+    if (widgetStates) {
+      // 查找包含 "webAspects" 的键
+      const aspectsKey = Object.keys(widgetStates).find(key => key.includes('webAspects'));
+      if (aspectsKey) {
+        const aspectsData = widgetStates[aspectsKey];
+        // aspectsData 可能是字符串（需要 JSON.parse）或对象
+        aspects = typeof aspectsData === 'string'
+          ? JSON.parse(aspectsData).aspects
+          : aspectsData?.aspects;
+
+        console.log('[EuraFlow] 从 widgetStates.webAspects 提取到 aspects:', aspects);
+      }
+    }
+
+    // 降级：尝试直接从 productData 提取
+    if (!aspects || !Array.isArray(aspects) || aspects.length === 0) {
+      aspects = productData.aspects || productData.variants || productData.skus || productData.items || productData.options;
+    }
+
+    if (!aspects || !Array.isArray(aspects) || aspects.length === 0) {
+      console.log('[EuraFlow] 未找到变体数据');
       return { has_variants: false };
     }
 
-    const variants = variantsData.map((variant: any, index: number) => {
-      // 提取规格信息
-      const specs: Record<string, string> = {};
-      const specStrings: string[] = [];
+    console.log('[EuraFlow] aspects 数组长度:', aspects.length);
 
-      // 尝试从不同字段提取规格
-      if (variant.attributes) {
-        Object.entries(variant.attributes).forEach(([key, value]) => {
-          specs[key] = String(value);
-          specStrings.push(String(value));
-        });
-      } else if (variant.color || variant.size) {
-        if (variant.color) {
-          specs['颜色'] = variant.color;
-          specStrings.push(variant.color);
-        }
-        if (variant.size) {
-          specs['尺码'] = variant.size;
-          specStrings.push(variant.size);
-        }
+    // 扁平化提取所有维度的变体（参考上品帮：flat(3)）
+    const allVariants = aspects
+      .map(aspect => aspect.variants || [])
+      .flat(3);
+
+    console.log('[EuraFlow] 扁平化后变体总数:', allVariants.length);
+
+    // 过滤掉"Уцененные"（打折商品）
+    const filteredVariants = allVariants.filter((variant: any) => {
+      const searchableText = variant.data?.searchableText || '';
+      return searchableText !== 'Уцененные';
+    });
+
+    console.log('[EuraFlow] 过滤后变体总数:', filteredVariants.length);
+
+    // 提取变体数据并去重
+    const variantMap = new Map();
+
+    filteredVariants.forEach((variant: any, index: number) => {
+      const sku = variant.sku?.toString() || `variant_${index}`;
+
+      // 跳过已存在的 SKU
+      if (variantMap.has(sku)) {
+        return;
+      }
+
+      // 提取规格信息（从 data.searchableText）
+      const specifications = variant.data?.searchableText || variant.data?.title || '';
+
+      // 清理链接（去掉查询参数）
+      let link = variant.link || '';
+      if (link) {
+        link = link.split('?')[0];
+      }
+
+      // 提取价格（从 data.price 或 data 对象）
+      let priceStr = variant.data?.price || '';
+      let price = 0;
+      if (typeof priceStr === 'string') {
+        price = parseFloat(priceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
+      } else {
+        price = parseFloat(priceStr) || 0;
       }
 
       // 提取图片
-      let imageUrl = variant.image || variant.imageUrl || variant.photo || '';
-      if (Array.isArray(variant.images) && variant.images.length > 0) {
-        imageUrl = variant.images[0];
-      }
+      let imageUrl = variant.image || variant.imageUrl || variant.data?.image || '';
 
-      // 提取价格（注意：OZON可能以戈比为单位，1卢布=100戈比）
-      let price = parseFloat(variant.price || variant.sellingPrice || productData.price || 0);
-      let oldPrice = parseFloat(variant.oldPrice || variant.originalPrice || productData.oldPrice || 0);
-
-      // 如果价格看起来是卢布单位且小于1000，可能需要转换为戈比
-      // 但这里我们保持原始值，留待后续处理
-
-      return {
-        variant_id: variant.id?.toString() || `variant_${index}`,
-        specifications: specStrings.join(', ') || `变体 ${index + 1}`,
-        spec_details: Object.keys(specs).length > 0 ? specs : undefined,
+      variantMap.set(sku, {
+        variant_id: sku,
+        specifications: specifications,
+        spec_details: undefined, // 可以后续从 aspects 的结构中提取
         image_url: imageUrl,
+        link: link,
         price: price,
-        old_price: oldPrice > price ? oldPrice : undefined,
-        available: variant.available !== false && variant.inStock !== false,
-      };
+        old_price: undefined, // OZON 的 aspects 中可能不包含 oldPrice
+        available: variant.active !== false,
+      });
     });
 
+    const variants = Array.from(variantMap.values());
+    console.log('[EuraFlow] 最终去重后变体数:', variants.length);
+
     return {
-      has_variants: true,
-      variants: variants.filter(v => v !== null),
+      has_variants: variants.length > 0,
+      variants: variants,
     };
   } catch (error) {
     console.error('[EuraFlow] 提取变体数据失败:', error);
