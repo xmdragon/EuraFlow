@@ -6,8 +6,8 @@
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
-  // 选择器（注入到价格区域内的第一个位置）
-  targetContainer: '.pdp_sa1.pdp_as8.pdp_as5.pdp_a5s',
+  // 选择器（注入到商品详情右侧区域）
+  targetContainer: '.pdp_b8i.pdp_i8b',
   injectedElementId: 'euraflow-real-price',
 
   // 样式
