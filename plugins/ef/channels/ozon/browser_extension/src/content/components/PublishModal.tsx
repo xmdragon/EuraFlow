@@ -71,9 +71,9 @@ let variants: VariantEditData[] = [];
 /**
  * 显示上架配置弹窗（入口）
  * @param realPrice 真实售价（元），用于参考
- * @param productData 商品详情数据（包括变体的真实售价）
+ * @param product 商品详情数据（包括变体的真实售价）
  */
-export async function showPublishModal(realPrice: number, productData: any = null): Promise<void> {
+export async function showPublishModal(realPrice: number, product: any = null): Promise<void> {
   console.log('[PublishModal] 显示弹窗，参考售价:', realPrice, '元');
 
   // 关闭已有弹窗
@@ -95,12 +95,14 @@ export async function showPublishModal(realPrice: number, productData: any = nul
   showLoadingModal('正在加载配置数据...');
 
   try {
-    // 1. 验证商品数据（使用传递的数据）
-    if (!productData || !productData.title) {
+    // 1. 验证并保存商品数据到全局变量
+    if (!product || !product.title) {
       throw new Error('商品数据无效或缺失');
     }
 
-    console.log('[PublishModal] 使用传递的商品数据，变体数:', productData.variants?.length || 0);
+    // 赋值给全局变量（避免参数遮蔽）
+    productData = product;
+    console.log('[PublishModal] 使用传递的商品数据，变体数:', productData!.variants?.length || 0);
 
     // 2. 加载配置数据（从缓存）
     updateLoadingMessage('正在加载配置数据...');
@@ -296,6 +298,15 @@ function updateLoadingMessage(message: string): void {
  * 渲染主弹窗
  */
 function renderMainModal(): void {
+  // 添加调试日志
+  console.log('[PublishModal] renderMainModal 调用，数据状态:', {
+    shops: shops.length,
+    warehouses: warehouses.length,
+    watermarks: watermarks.length,
+    variants: variants.length,
+    productData: !!productData
+  });
+
   if (currentModal) {
     currentModal.remove();
   }
@@ -312,21 +323,27 @@ function renderMainModal(): void {
     <!-- 商品预览 -->
     ${renderProductPreview()}
 
-    <!-- 操作栏：店铺/仓库/库存/批量定价 -->
-    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-      <div style="flex: 1;">
+    <!-- 操作栏：店铺/仓库/水印/库存/批量定价 -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto auto; gap: 12px; align-items: flex-end; margin-bottom: 16px; padding: 16px; background: #f5f5f5; border-radius: 8px;">
+      <div>
         <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">店铺 <span style="color: red;">*</span></label>
         ${renderShopSelect()}
       </div>
-      <div style="flex: 1;">
+      <div>
         <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">仓库 <span style="color: red;">*</span></label>
         ${renderWarehouseSelect()}
       </div>
+      <div>
+        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">水印</label>
+        ${renderWatermarkSelect()}
+      </div>
       <div style="width: 100px;">
         <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">默认库存</label>
-        <input type="number" id="default-stock" value="100" min="1" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+        <input type="number" id="default-stock" value="9" min="1" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
       </div>
-      <button id="batch-pricing-btn" style="padding: 8px 16px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 14px; font-weight: 500; white-space: nowrap;">批量定价</button>
+      <div>
+        <button id="batch-pricing-btn" style="padding: 8px 16px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 14px; font-weight: 500; white-space: nowrap;">批量定价</button>
+      </div>
     </div>
 
     <!-- 变体列表表格 -->
@@ -424,6 +441,24 @@ function renderWarehouseSelect(): string {
 }
 
 /**
+ * 渲染水印下拉选择
+ */
+function renderWatermarkSelect(): string {
+  if (watermarks.length === 0) {
+    return '<div style="color: #999; font-size: 13px;">无可用水印</div>';
+  }
+
+  const options = watermarks
+    .map(wm => `<option value="${wm.id}" ${wm.id === selectedWatermarkId ? 'selected' : ''}>${wm.name}</option>`)
+    .join('');
+
+  return `<select id="watermark-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer;">
+    <option value="">不使用水印</option>
+    ${options}
+  </select>`;
+}
+
+/**
  * 渲染变体行
  */
 function renderVariantRows(): string {
@@ -490,6 +525,13 @@ function bindMainModalEvents(): void {
   warehouseSelect?.addEventListener('change', (e) => {
     const warehouseId = parseInt((e.target as HTMLSelectElement).value);
     selectedWarehouseIds = [warehouseId];
+  });
+
+  // 水印选择
+  const watermarkSelect = document.getElementById('watermark-select') as HTMLSelectElement;
+  watermarkSelect?.addEventListener('change', (e) => {
+    const value = (e.target as HTMLSelectElement).value;
+    selectedWatermarkId = value ? parseInt(value) : null;
   });
 
   // 全选/取消全选
