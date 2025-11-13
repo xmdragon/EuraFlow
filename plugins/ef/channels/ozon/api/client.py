@@ -1877,6 +1877,55 @@ class OzonAPIClient:
             resource_type="products"
         )
 
+    async def import_products_by_sku(
+        self,
+        items: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        通过SKU批量创建商品（复制现有商品卡片）
+        使用 /v1/product/import-by-sku 接口
+
+        Args:
+            items: 商品信息列表（最多1000个），每个包含：
+                - sku: OZON SKU（必需，正整数）
+                - offer_id: 商家SKU（必需，店铺内唯一）
+                - price: 售价（必需，字符串格式）
+                - name: 商品名称（可选）
+                - old_price: 原价（可选）
+                - vat: 增值税率（可选，0-1范围）
+                - currency_code: 货币代码（可选，默认CNY）
+
+        Returns:
+            导入结果，包含：
+            - result: {
+                "task_id": 任务ID（用于轮询状态）,
+                "unmatched_sku_list": 未匹配的商品ID列表
+              }
+        """
+        if not items:
+            raise ValueError("Items list cannot be empty")
+
+        if len(items) > 1000:
+            raise ValueError("Maximum 1000 products per batch")
+
+        # 自动设置默认货币为 CNY
+        for item in items:
+            if 'currency_code' not in item:
+                item['currency_code'] = 'CNY'
+
+        data = {
+            "items": items
+        }
+
+        logger.info(f"[OZON API] Importing {len(items)} products by SKU")
+
+        return await self._request(
+            "POST",
+            "/v1/product/import-by-sku",
+            data=data,
+            resource_type="products"
+        )
+
     async def get_import_product_info(
         self,
         task_id: str

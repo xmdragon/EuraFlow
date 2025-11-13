@@ -2,11 +2,12 @@
 商品管理 API路由
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, and_, cast, Numeric, Text
+from sqlalchemy import select, func, or_, and_
 from datetime import datetime
 from decimal import Decimal
+from pydantic import BaseModel, Field, field_validator
 import logging
 
 from ef_core.database import get_async_session
@@ -18,6 +19,53 @@ from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-products"])
 logger = logging.getLogger(__name__)
+
+
+# ========== Pydantic Schemas ==========
+
+class ImportBySkuItem(BaseModel):
+    """通过SKU导入商品的单个商品数据"""
+    sku: int = Field(..., description="OZON SKU（必需，正整数）", gt=0)
+    offer_id: str = Field(..., description="商家SKU（必需）", max_length=100)
+    price: str = Field(..., description="售价（必需，字符串格式）")
+    name: Optional[str] = Field(None, description="商品名称（可选）", max_length=500)
+    old_price: Optional[str] = Field(None, description="原价（可选）")
+    vat: Optional[str] = Field(None, description="增值税率（可选，0-1范围）")
+    currency_code: Optional[str] = Field("CNY", description="货币代码（默认CNY）")
+
+    @field_validator('price', 'old_price')
+    @classmethod
+    def validate_price_format(cls, v):
+        """验证价格格式"""
+        if v is not None:
+            try:
+                price_decimal = Decimal(v)
+                if price_decimal < 0:
+                    raise ValueError('价格不能为负数')
+            except Exception:
+                raise ValueError('价格格式错误，必须是有效的数字字符串')
+        return v
+
+    @field_validator('vat')
+    @classmethod
+    def validate_vat(cls, v):
+        """验证增值税率范围"""
+        if v is not None:
+            try:
+                vat_decimal = Decimal(v)
+                if not (0 <= vat_decimal <= 1):
+                    raise ValueError('增值税率必须在0-1范围内')
+            except ValueError as e:
+                raise e
+            except Exception:
+                raise ValueError('增值税率格式错误')
+        return v
+
+
+class ImportBySkuRequest(BaseModel):
+    """通过SKU导入商品的请求"""
+    shop_id: int = Field(..., description="店铺ID", gt=0)
+    items: List[ImportBySkuItem] = Field(..., description="商品列表（最多1000个）", min_length=1, max_length=1000)
 
 
 @router.get("/products")
@@ -60,7 +108,7 @@ async def get_products(
     - admin: 可以访问所有店铺的商品
     - operator/viewer: 只能访问已授权店铺的商品
     """
-    from sqlalchemy import or_, and_, cast, Numeric
+    from sqlalchemy import cast, Numeric
 
     # 权限过滤：根据用户角色过滤店铺
     try:
@@ -100,7 +148,7 @@ async def get_products(
         if search.strip().isdigit():
             from sqlalchemy import Text
             search_conditions.append(cast(OzonProduct.ozon_sku, Text).ilike(search_term))
-            logger.info(f"[PRODUCT SEARCH] Numeric search, also searching ozon_sku")
+            logger.info("[PRODUCT SEARCH] Numeric search, also searching ozon_sku")
 
         query = query.where(or_(*search_conditions))
 
@@ -139,9 +187,9 @@ async def get_products(
     # 归档状态筛选
     if archived is not None:
         if archived:
-            query = query.where(or_(OzonProduct.is_archived == True, OzonProduct.ozon_archived == True))
+            query = query.where(or_(OzonProduct.is_archived.is_(True), OzonProduct.ozon_archived.is_(True)))
         else:
-            query = query.where(and_(OzonProduct.is_archived == False, OzonProduct.ozon_archived == False))
+            query = query.where(and_(OzonProduct.is_archived.is_(False), OzonProduct.ozon_archived.is_(False)))
 
     # 类目筛选
     if category_id:
@@ -1116,3 +1164,124 @@ async def get_product_sync_errors(
             "updated_at": sync_error.updated_at.isoformat() if sync_error.updated_at else None
         }
     }
+
+
+@router.post("/products/import-by-sku")
+async def import_products_by_sku(
+    request: ImportBySkuRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    通过SKU批量创建商品
+
+    使用OZON API的 /v1/product/import-by-sku 接口，通过指定现有商品的SKU快速创建商品卡片副本。
+
+    **功能说明**：
+    - 复制现有商品的卡片结构（类目、属性等）
+    - 只需提供SKU和基础价格信息
+    - 适用于快速复制竞品或已有商品
+
+    **限制条件**：
+    - 单次最多1000个商品
+    - 如果原商品禁止复制，将无法创建
+    - 无法用于更新已有商品（仅用于创建）
+
+    **权限控制**：
+    - admin: 可以为所有店铺导入
+    - shop_manager/operator: 只能为自己管理的店铺导入
+
+    Args:
+        request: 导入请求，包含 shop_id 和 items 列表
+
+    Returns:
+        包含 task_id 和 unmatched_sku_list 的响应
+    """
+    # 查询店铺信息
+    shop_query = select(OzonShop).where(OzonShop.id == request.shop_id)
+    shop_result = await db.execute(shop_query)
+    shop = shop_result.scalar_one_or_none()
+
+    if not shop:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "type": "about:blank",
+                "title": "Shop not found",
+                "status": 404,
+                "detail": f"店铺 ID {request.shop_id} 不存在",
+                "code": "SHOP_NOT_FOUND"
+            }
+        )
+
+    # 权限检查（admin可以访问所有店铺，其他角色只能访问自己的店铺）
+    if current_user.role not in ['admin'] and shop.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "type": "about:blank",
+                "title": "Forbidden",
+                "status": 403,
+                "detail": "无权访问此店铺",
+                "code": "FORBIDDEN"
+            }
+        )
+
+    # 导入OZON API客户端
+    from ..api.client import OzonAPIClient
+
+    # 创建API客户端
+    async with OzonAPIClient(
+        client_id=shop.client_id,
+        api_key=shop.api_key_enc,
+        shop_id=shop.id
+    ) as client:
+        try:
+            # 转换请求数据为API格式
+            items_data = [item.model_dump() for item in request.items]
+
+            # 调用OZON API
+            result = await client.import_products_by_sku(items_data)
+
+            # 提取结果
+            task_id = result.get("result", {}).get("task_id")
+            unmatched_sku_list = result.get("result", {}).get("unmatched_sku_list", [])
+
+            # 记录日志
+            logger.info(
+                f"[Import by SKU] User {current_user.id} imported {len(request.items)} products for shop {request.shop_id}. "
+                f"Task ID: {task_id}, Unmatched SKUs: {len(unmatched_sku_list)}"
+            )
+
+            return {
+                "success": True,
+                "task_id": task_id,
+                "unmatched_sku_list": unmatched_sku_list,
+                "message": f"已提交 {len(request.items)} 个商品的导入任务"
+            }
+
+        except ValueError as e:
+            # 客户端验证错误（如商品数量超限）
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "type": "about:blank",
+                    "title": "Bad Request",
+                    "status": 400,
+                    "detail": str(e),
+                    "code": "VALIDATION_ERROR"
+                }
+            )
+        except Exception as e:
+            # OZON API错误或其他异常
+            logger.error(f"[Import by SKU] Error importing products: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "type": "about:blank",
+                    "title": "Internal Server Error",
+                    "status": 500,
+                    "detail": f"导入失败: {str(e)}",
+                    "code": "IMPORT_FAILED"
+                }
+            )
