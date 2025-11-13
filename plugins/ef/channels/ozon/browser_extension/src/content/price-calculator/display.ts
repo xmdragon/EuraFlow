@@ -61,12 +61,17 @@ export function injectOrUpdateDisplay(
       priceText.textContent = message;
     }
 
-    // 更新按钮的 data-price 属性
+    // 更新按钮的数据属性
     const button = displayElement.querySelector(
       '#euraflow-one-click-follow'
     ) as HTMLButtonElement;
-    if (button && realPrice !== null) {
-      button.setAttribute('data-price', realPrice.toString());
+    if (button) {
+      if (realPrice !== null) {
+        button.setAttribute('data-price', realPrice.toString());
+      }
+      if (productData) {
+        button.setAttribute('data-product', JSON.stringify(productData));
+      }
     }
   } else {
     // 创建新元素 - 两列布局

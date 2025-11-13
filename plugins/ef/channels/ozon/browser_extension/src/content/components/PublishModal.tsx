@@ -5,7 +5,7 @@
  * 完全重构以支持多变体、批量定价、配置预加载
  */
 
-import { extractProductData, type ProductDetailData } from '../parsers/product-detail';
+import type { ProductDetailData } from '../parsers/product-detail';
 import { ApiClient } from '../../shared/api-client';
 import { getApiConfig } from '../../shared/storage';
 import { configCache } from '../../shared/config-cache';
@@ -74,7 +74,7 @@ let variants: VariantEditData[] = [];
  * @param productData 商品详情数据（包括变体的真实售价）
  */
 export async function showPublishModal(realPrice: number, productData: any = null): Promise<void> {
-  console.log('[PublishModal] 显示弹窗，参考售价:', realPrice, '元', '商品数据:', productData);
+  console.log('[PublishModal] 显示弹窗，参考售价:', realPrice, '元');
 
   // 关闭已有弹窗
   if (currentModal) {
@@ -92,16 +92,15 @@ export async function showPublishModal(realPrice: number, productData: any = nul
   apiClient = new ApiClient(config.apiUrl, config.apiKey);
 
   // 显示加载提示
-  showLoadingModal('正在采集商品数据...');
+  showLoadingModal('正在加载配置数据...');
 
   try {
-    // 1. 采集商品数据
-    productData = await extractProductData();
-    console.log('[PublishModal] 商品数据:', productData);
-
+    // 1. 验证商品数据（使用传递的数据）
     if (!productData || !productData.title) {
-      throw new Error('未能采集到有效商品数据');
+      throw new Error('商品数据无效或缺失');
     }
+
+    console.log('[PublishModal] 使用传递的商品数据，变体数:', productData.variants?.length || 0);
 
     // 2. 加载配置数据（从缓存）
     updateLoadingMessage('正在加载配置数据...');
