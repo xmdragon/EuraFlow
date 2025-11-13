@@ -14,8 +14,7 @@ from ef_core.api.auth import get_current_user_from_api_key
 from ef_core.models.users import User
 from ..services.quick_publish_service import QuickPublishService
 from ..models import OzonWarehouse, OzonShop
-from ..models.cloudinary_config import CloudinaryConfig
-from ..models.aliyun_oss_config import AliyunOSSConfig
+from ..models.watermark import CloudinaryConfig, AliyunOSSConfig
 from sqlalchemy import select, or_
 
 router = APIRouter(prefix="/quick-publish", tags=["ozon-quick-publish"])
