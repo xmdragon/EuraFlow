@@ -219,13 +219,19 @@ async def get_quick_publish_config(
     优化：单次请求获取所有配置，减少网络往返
     """
     try:
-        # 1. 获取店铺列表
-        shops_result = await db.execute(
-            select(OzonShop)
-            .where(OzonShop.user_id == user.id)
-            .where(OzonShop.is_active == True)
-            .order_by(OzonShop.display_name)
-        )
+        from ef_core.models.users import user_shops
+
+        # 1. 获取店铺列表（根据用户角色和权限）
+        if user.role == "admin":
+            # admin 返回所有店铺
+            stmt = select(OzonShop).where(OzonShop.is_active == True)
+        else:
+            # 其他用户通过 user_shops 关联表获取授权的店铺
+            stmt = select(OzonShop).join(
+                user_shops, OzonShop.id == user_shops.c.shop_id
+            ).where(user_shops.c.user_id == user.id).where(OzonShop.is_active == True)
+
+        shops_result = await db.execute(stmt.order_by(OzonShop.display_name))
         shops = shops_result.scalars().all()
 
         # 2. 获取所有店铺的仓库（批量查询，避免N+1）
@@ -253,12 +259,12 @@ async def get_quick_publish_config(
         else:
             warehouses_by_shop = {}
 
-        # 3. 获取水印配置（Cloudinary + Aliyun OSS）
+        # 3. 获取水印配置（Cloudinary + Aliyun OSS）- 全局配置
         watermarks = []
 
-        # Cloudinary配置
+        # Cloudinary配置（全局配置，不按用户分）
         cloudinary_result = await db.execute(
-            select(CloudinaryConfig).where(CloudinaryConfig.user_id == user.id)
+            select(CloudinaryConfig).where(CloudinaryConfig.is_active == True)
         )
         cloudinary_config = cloudinary_result.scalar_one_or_none()
         if cloudinary_config:
@@ -269,9 +275,9 @@ async def get_quick_publish_config(
                 "is_default": cloudinary_config.is_default
             })
 
-        # Aliyun OSS配置
+        # Aliyun OSS配置（全局配置，单例模式）
         aliyun_result = await db.execute(
-            select(AliyunOssConfig).where(AliyunOssConfig.user_id == user.id)
+            select(AliyunOssConfig).where(AliyunOssConfig.enabled == True)
         )
         aliyun_config = aliyun_result.scalar_one_or_none()
         if aliyun_config:
