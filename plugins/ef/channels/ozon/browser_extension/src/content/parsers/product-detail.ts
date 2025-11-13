@@ -38,6 +38,18 @@ export interface ProductDetailData {
     value: string;
     dictionary_value_id?: number;
   }>;
+
+  // 商品变体（用于一键跟卖）
+  variants?: Array<{
+    variant_id: string;           // 变体ID
+    specifications: string;       // 规格描述："白色,M"
+    spec_details?: Record<string, string>; // 规格详情：{ color: "白色", size: "M" }
+    image_url: string;           // 变体图片
+    price: number;               // 原价格（分）
+    old_price?: number;          // 原划线价（分）
+    available: boolean;          // 是否可用
+  }>;
+  has_variants: boolean;         // 是否有变体
 }
 
 // ========== OZON 原生数据结构（window对象扩展）==========
