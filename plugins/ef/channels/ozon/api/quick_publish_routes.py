@@ -224,14 +224,14 @@ async def get_quick_publish_config(
         # 1. 获取店铺列表（根据用户角色和权限）
         if user.role == "admin":
             # admin 返回所有店铺
-            stmt = select(OzonShop).where(OzonShop.is_active == True)
+            stmt = select(OzonShop).where(OzonShop.status == 'active')
         else:
             # 其他用户通过 user_shops 关联表获取授权的店铺
             stmt = select(OzonShop).join(
                 user_shops, OzonShop.id == user_shops.c.shop_id
-            ).where(user_shops.c.user_id == user.id).where(OzonShop.is_active == True)
+            ).where(user_shops.c.user_id == user.id).where(OzonShop.status == 'active')
 
-        shops_result = await db.execute(stmt.order_by(OzonShop.display_name))
+        shops_result = await db.execute(stmt.order_by(OzonShop.shop_name))
         shops = shops_result.scalars().all()
 
         # 2. 获取所有店铺的仓库（批量查询，避免N+1）
@@ -296,7 +296,7 @@ async def get_quick_publish_config(
         for shop in shops:
             shops_data.append({
                 "id": shop.id,
-                "display_name": shop.display_name,
+                "display_name": shop.shop_name_cn or shop.shop_name,
                 "shop_name": shop.shop_name,
                 "warehouses": warehouses_by_shop.get(shop.id, [])
             })
