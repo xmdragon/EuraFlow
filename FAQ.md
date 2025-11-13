@@ -1205,5 +1205,5 @@ PGPASSWORD=euraflow_dev psql -h localhost -U euraflow -d euraflow \
 
 ---
 
-**最后更新**: 2025-11-01
+**最后更新**: 2025-11-13
 **维护者**: EuraFlow 开发团队

@@ -55,7 +55,7 @@ export class ApiClient {
    */
   async getShops(): Promise<Shop[]> {
     try {
-      const response = await this.request('/ozon/shops');
+      const response = await this.sendRequest('GET_SHOPS', {});
       return response.data || [];
     } catch (error: any) {
       console.error('[ApiClient] Get shops failed:', error);
@@ -68,7 +68,7 @@ export class ApiClient {
    */
   async getWarehouses(shopId: number): Promise<Warehouse[]> {
     try {
-      const response = await this.request(`/ozon/shops/${shopId}/warehouses`);
+      const response = await this.sendRequest('GET_WAREHOUSES', { shopId });
       return response.data || [];
     } catch (error: any) {
       console.error('[ApiClient] Get warehouses failed:', error);
@@ -81,7 +81,7 @@ export class ApiClient {
    */
   async getWatermarks(): Promise<Watermark[]> {
     try {
-      const response = await this.request('/ozon/watermark/configs');
+      const response = await this.sendRequest('GET_WATERMARKS', {});
       return response || [];
     } catch (error: any) {
       console.error('[ApiClient] Get watermarks failed:', error);
@@ -94,10 +94,7 @@ export class ApiClient {
    */
   async quickPublish(data: QuickPublishRequest): Promise<QuickPublishResponse> {
     try {
-      const response = await this.request('/ozon/quick-publish/publish', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+      const response = await this.sendRequest('QUICK_PUBLISH', { data });
       return response;
     } catch (error: any) {
       console.error('[ApiClient] Quick publish failed:', error);
@@ -110,7 +107,7 @@ export class ApiClient {
    */
   async getTaskStatus(taskId: string): Promise<TaskStatus> {
     try {
-      const response = await this.request(`/ozon/quick-publish/task/${taskId}/status`);
+      const response = await this.sendRequest('GET_TASK_STATUS', { taskId });
       return response;
     } catch (error: any) {
       console.error('[ApiClient] Get task status failed:', error);
@@ -119,29 +116,23 @@ export class ApiClient {
   }
 
   /**
-   * 通用HTTP请求方法
+   * 通过 Service Worker 发送 API 请求（绕过 CORS 限制）
    */
-  private async request(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<any> {
-    const url = `${this.apiUrl}${endpoint}`;
-
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': this.apiKey,
-        ...options.headers,
-      },
+  private async sendRequest(type: string, payload: any): Promise<any> {
+    const response = await chrome.runtime.sendMessage({
+      type,
+      data: {
+        apiUrl: this.apiUrl,
+        apiKey: this.apiKey,
+        ...payload
+      }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    if (!response.success) {
+      throw new Error(response.error || '请求失败');
     }
 
-    return await response.json();
+    return response.data;
   }
 
   /**

@@ -55,6 +55,51 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
 
     return true;
   }
+
+  if (message.type === 'GET_SHOPS') {
+    // 获取店铺列表
+    handleGetShops(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message.type === 'GET_WAREHOUSES') {
+    // 获取仓库列表
+    handleGetWarehouses(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message.type === 'GET_WATERMARKS') {
+    // 获取水印配置列表
+    handleGetWatermarks(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message.type === 'QUICK_PUBLISH') {
+    // 快速上架商品
+    handleQuickPublish(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message.type === 'GET_TASK_STATUS') {
+    // 查询任务状态
+    handleGetTaskStatus(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
 });
 
 /**
@@ -183,6 +228,113 @@ async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
 
   const userData = await response.json();
   return { status: 'ok', username: userData.username };
+}
+
+/**
+ * 获取店铺列表
+ */
+async function handleGetShops(data: { apiUrl: string; apiKey: string }) {
+  const { apiUrl, apiKey } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/shops`, {
+    method: 'GET',
+    headers: {
+      'X-API-Key': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * 获取仓库列表
+ */
+async function handleGetWarehouses(data: { apiUrl: string; apiKey: string; shopId: number }) {
+  const { apiUrl, apiKey, shopId } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/shops/${shopId}/warehouses`, {
+    method: 'GET',
+    headers: {
+      'X-API-Key': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * 获取水印配置列表
+ */
+async function handleGetWatermarks(data: { apiUrl: string; apiKey: string }) {
+  const { apiUrl, apiKey } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/watermark/configs`, {
+    method: 'GET',
+    headers: {
+      'X-API-Key': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * 快速上架商品
+ */
+async function handleQuickPublish(data: { apiUrl: string; apiKey: string; data: any }) {
+  const { apiUrl, apiKey, data: publishData } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/publish`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey
+    },
+    body: JSON.stringify(publishData)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * 查询任务状态
+ */
+async function handleGetTaskStatus(data: { apiUrl: string; apiKey: string; taskId: string }) {
+  const { apiUrl, apiKey, taskId } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/task/${taskId}/status`, {
+    method: 'GET',
+    headers: {
+      'X-API-Key': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return await response.json();
 }
 
 // 导出类型（供TypeScript使用）
