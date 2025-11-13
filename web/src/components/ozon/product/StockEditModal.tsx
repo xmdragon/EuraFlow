@@ -11,8 +11,15 @@ import * as ozonApi from '@/services/ozonApi';
 
 const { Option } = Select;
 
+export interface WarehouseStock {
+  warehouse_id: number;
+  present: number;
+  reserved: number;
+}
+
 export interface Product {
   offer_id: string;
+  warehouse_stocks?: WarehouseStock[];
   [key: string]: unknown;
 }
 
@@ -45,7 +52,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
     // 仅在单个商品时显示原有库存
     if (selectedProduct && selectedProduct.warehouse_stocks) {
       const warehouseStock = selectedProduct.warehouse_stocks.find(
-        (ws: any) => ws.warehouse_id === warehouseId
+        (ws) => ws.warehouse_id === warehouseId
       );
       setCurrentStock(warehouseStock?.present ?? null);
     } else {
