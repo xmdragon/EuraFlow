@@ -144,6 +144,9 @@ class ConfigCacheService {
     // 使用新的统一配置API（1次请求代替原来的3+N次）
     const config = await apiClient.getConfig();
 
+    // 输出完整响应用于调试
+    console.log('[ConfigCache] API响应:', JSON.stringify(config, null, 2));
+
     // 验证返回数据格式
     if (!config || typeof config !== 'object') {
       throw new Error('API返回数据格式无效');
@@ -151,6 +154,8 @@ class ConfigCacheService {
 
     if (!Array.isArray(config.shops)) {
       console.error('[ConfigCache] 无效的shops数据:', config);
+      console.error('[ConfigCache] shops类型:', typeof config.shops);
+      console.error('[ConfigCache] 完整config keys:', Object.keys(config));
       throw new Error('API未返回有效的店铺列表（请检查API Key配置）');
     }
 

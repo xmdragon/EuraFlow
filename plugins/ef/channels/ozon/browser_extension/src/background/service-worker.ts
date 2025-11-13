@@ -219,6 +219,8 @@ async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
 async function handleGetConfig(data: { apiUrl: string; apiKey: string }) {
   const { apiUrl, apiKey } = data;
 
+  console.log('[Service Worker] 请求配置, URL:', apiUrl, ', API Key前4位:', apiKey.substring(0, 4));
+
   const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/config`, {
     method: 'GET',
     headers: {
@@ -226,13 +228,25 @@ async function handleGetConfig(data: { apiUrl: string; apiKey: string }) {
     }
   });
 
+  console.log('[Service Worker] 响应状态:', response.status, response.statusText);
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    console.error('[Service Worker] 错误响应:', errorData);
     throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
   }
 
   const result = await response.json();
-  return result.data || result; // 支持 {success, data} 或直接返回数据
+  console.log('[Service Worker] 原始响应:', result);
+  console.log('[Service Worker] result.data存在:', !!result.data);
+  console.log('[Service Worker] result.success:', result.success);
+
+  // 后端返回 {success: true, data: {shops: [], watermarks: []}}
+  // 需要返回data对象
+  if (result.success && result.data) {
+    return result.data;
+  }
+  return result;
 }
 
 /**
