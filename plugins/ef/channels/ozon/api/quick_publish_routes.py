@@ -14,7 +14,7 @@ from ef_core.api.auth import get_current_user_from_api_key
 from ef_core.models.users import User
 from ..services.quick_publish_service import QuickPublishService
 from ..models import OzonWarehouse, OzonShop
-from ..models.watermark import CloudinaryConfig, AliyunOSSConfig
+from ..models.watermark import CloudinaryConfig, AliyunOssConfig
 from sqlalchemy import select, or_
 
 router = APIRouter(prefix="/quick-publish", tags=["ozon-quick-publish"])
@@ -271,7 +271,7 @@ async def get_quick_publish_config(
 
         # Aliyun OSS配置
         aliyun_result = await db.execute(
-            select(AliyunOSSConfig).where(AliyunOSSConfig.user_id == user.id)
+            select(AliyunOssConfig).where(AliyunOssConfig.user_id == user.id)
         )
         aliyun_config = aliyun_result.scalar_one_or_none()
         if aliyun_config:
