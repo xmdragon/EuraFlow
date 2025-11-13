@@ -260,6 +260,7 @@ async def get_quick_publish_config(
             warehouses_by_shop = {}
 
         # 3. 获取水印配置（Cloudinary + Aliyun OSS）- 全局配置
+        # 只返回激活且可用的图床，is_default标识当前激活的图床
         watermarks = []
 
         # Cloudinary配置（全局配置，不按用户分）
@@ -272,7 +273,8 @@ async def get_quick_publish_config(
                 "id": f"cloudinary_{cloudinary_config.id}",
                 "name": "Cloudinary",
                 "type": "cloudinary",
-                "is_default": cloudinary_config.is_default
+                "is_default": cloudinary_config.is_default,
+                "is_active": True  # 已通过查询条件确保
             })
 
         # Aliyun OSS配置（全局配置，单例模式）
@@ -285,7 +287,8 @@ async def get_quick_publish_config(
                 "id": f"aliyun_{aliyun_config.id}",
                 "name": "阿里云OSS",
                 "type": "aliyun_oss",
-                "is_default": aliyun_config.is_default
+                "is_default": aliyun_config.is_default,
+                "is_active": True  # 已通过查询条件确保
             })
 
         # 4. 组装返回数据
