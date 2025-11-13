@@ -74,6 +74,15 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
+  if (message.type === 'QUICK_PUBLISH_BATCH') {
+    // 批量上架商品（多个变体）
+    handleQuickPublishBatch(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
   if (message.type === 'GET_TASK_STATUS') {
     // 查询任务状态
     handleGetTaskStatus(message.data)
@@ -256,6 +265,29 @@ async function handleQuickPublish(data: { apiUrl: string; apiKey: string; data: 
   const { apiUrl, apiKey, data: publishData } = data;
 
   const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/publish`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey
+    },
+    body: JSON.stringify(publishData)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * 批量快速上架商品（多个变体）
+ */
+async function handleQuickPublishBatch(data: { apiUrl: string; apiKey: string; data: any }) {
+  const { apiUrl, apiKey, data: publishData } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/batch`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

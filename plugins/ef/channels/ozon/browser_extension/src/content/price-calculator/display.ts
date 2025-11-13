@@ -147,11 +147,10 @@ export function injectOrUpdateDisplay(
         const { showPublishModal } = await import(
           '../components/PublishModal'
         );
-        const price = parseFloat(button.getAttribute('data-price') || '0');
         const productDataStr = button.getAttribute('data-product');
         const product = productDataStr ? JSON.parse(productDataStr) : null;
 
-        showPublishModal(price, product);
+        showPublishModal(product);
       } catch (error) {
         console.error('[EuraFlow] 打开上架弹窗失败:', error);
         alert('打开上架配置失败，请稍后重试');

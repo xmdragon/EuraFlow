@@ -162,6 +162,7 @@ export interface Watermark {
 export interface QuickPublishRequest {
   shop_id: number;
   warehouse_ids: number[];
+  sku: string;              // OZON SKU
   offer_id: string;         // 商家SKU
   price: number;
   stock: number;
@@ -184,6 +185,57 @@ export interface QuickPublishRequest {
     value: string;
     dictionary_value_id?: number;
   }>;
+}
+
+/**
+ * 单个变体的上架数据（仅变体特有字段）
+ */
+export interface QuickPublishVariant {
+  sku: string;              // OZON SKU
+  offer_id: string;         // 商家SKU
+  price: number;            // 价格（分）
+  stock: number;            // 库存
+  old_price?: number;       // 原价（分）
+  images: string[];         // 变体特定的图片列表（第一张是主图）
+}
+
+/**
+ * 批量上架请求
+ */
+export interface QuickPublishBatchRequest {
+  shop_id: number;
+  warehouse_ids: number[];
+  variants: QuickPublishVariant[];  // 变体列表
+  // 商品共享数据
+  ozon_product_id?: string;
+  title: string;
+  description?: string;
+  images: string[];
+  brand?: string;
+  barcode?: string;
+  category_id: number;
+  dimensions: {
+    weight: number;         // 克
+    height: number;         // 毫米
+    width: number;          // 毫米
+    length: number;         // 毫米
+  };
+  attributes?: Array<{
+    attribute_id: number;
+    value: string;
+    dictionary_value_id?: number;
+  }>;
+}
+
+/**
+ * 批量上架响应
+ */
+export interface QuickPublishBatchResponse {
+  success: boolean;
+  task_ids: string[];       // 任务ID列表
+  task_count: number;       // 任务数量
+  message: string;
+  error?: string;
 }
 
 /**

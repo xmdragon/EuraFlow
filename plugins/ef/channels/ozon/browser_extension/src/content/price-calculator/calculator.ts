@@ -165,8 +165,29 @@ export function calculateRealPrice(
     };
   }
 
-  // 统一使用公式计算：有绿标价时，使用公式
-  if (greenPrice !== null) {
+  // 使用核心计算函数
+  const realPrice = calculateRealPriceCore(greenPrice || 0, blackPrice);
+
+  return {
+    price: realPrice,
+    message: `真实售价：${realPrice.toFixed(2)} ¥`,
+  };
+}
+
+/**
+ * 计算真实售价的核心函数（共用）
+ * 供页面显示和一键跟卖功能共同使用，确保计算逻辑一致
+ *
+ * @param greenPrice 绿标价（Ozon Card 价格）
+ * @param blackPrice 黑标价（常规价格）
+ * @returns 真实售价（数字）
+ */
+export function calculateRealPriceCore(
+  greenPrice: number,
+  blackPrice: number
+): number {
+  // 有绿标价时，使用公式计算
+  if (greenPrice > 0 && blackPrice > greenPrice) {
     // 计算基础价格
     const basePrice = (blackPrice - greenPrice) * CONFIG.FORMULA_MULTIPLIER + blackPrice;
     // 四舍五入到整数
@@ -182,16 +203,9 @@ export function calculateRealPrice(
       }
     }
 
-    const realPrice = roundedPrice - adjustment;
-    return {
-      price: realPrice,
-      message: `真实售价：${realPrice.toFixed(2)} ¥`,
-    };
+    return roundedPrice - adjustment;
   }
 
-  // 只有黑标价时，直接使用黑标价
-  return {
-    price: blackPrice,
-    message: `真实售价：${blackPrice.toFixed(2)} ¥`,
-  };
+  // 没有绿标价或绿标价≥黑标价，直接使用黑标价
+  return Math.round(blackPrice);
 }

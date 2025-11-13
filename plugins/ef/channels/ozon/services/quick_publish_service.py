@@ -29,14 +29,16 @@ class QuickPublishService:
         user_id: int
     ) -> Dict[str, Any]:
         """
-        快速上架商品到OZON
+        快速上架商品到OZON (异步版本)
 
-        流程：
+        新流程 (Celery 任务链):
         1. 验证店铺
-        2. 处理图片（转存Cloudinary）
-        3. 调用OZON API导入商品
-        4. 保存本地草稿记录
-        5. 返回任务ID
+        2. 触发异步任务链:
+           a. 通过 SKU 创建商品
+           b. 上传图片到图库 (Cloudinary/Aliyun OSS)
+           c. 更新 OZON 商品图片
+           d. 更新库存
+        3. 立即返回 task_id 供前端轮询
 
         Args:
             db: 数据库会话
@@ -44,61 +46,133 @@ class QuickPublishService:
             user_id: 用户ID
 
         Returns:
-            {success, task_id, message}
+            {task_id, status, message}
         """
         try:
-            logger.info(f"Quick publish started: offer_id={dto.offer_id}, shop_id={dto.shop_id}")
+            logger.info(f"Quick publish started (async): offer_id={dto.offer_id}, shop_id={dto.shop_id}")
 
-            # 1. 获取店铺信息
+            # 1. 验证店铺存在
             shop = await self._get_shop(db, dto.shop_id)
-            logger.info(f"Shop found: {shop.shop_name}")
+            logger.info(f"Shop validated: {shop.shop_name}")
 
-            # 2. 创建API客户端
-            api_client = OzonAPIClient(
-                client_id=shop.client_id,
-                api_key=shop.api_key_enc,
-                shop_id=shop.id
+            # 2. 序列化 DTO (Celery 需要 JSON-serializable)
+            dto_dict = dto.model_dump() if hasattr(dto, 'model_dump') else dto.dict()
+
+            # 3. 生成任务 ID
+            import time
+            task_id = f"quick_publish_{shop.id}_{dto.offer_id}_{int(time.time())}"
+
+            # 4. 触发 Celery 任务链
+            from ..tasks.quick_publish_task import quick_publish_chain_task
+
+            quick_publish_chain_task.apply_async(
+                args=[dto_dict, user_id, shop.id],
+                task_id=task_id
             )
 
-            # 3. 处理图片（转存到Cloudinary）
-            logger.info(f"Processing {len(dto.images)} images...")
-            image_urls = await self._process_images(
-                db, dto.images, dto.offer_id, shop.id
-            )
-            logger.info(f"Images processed: {len(image_urls)} URLs ready")
+            logger.info(f"Celery task chain triggered: task_id={task_id}")
 
-            # 4. 准备OZON API数据
-            product_data = self._build_ozon_product_data(dto, image_urls)
-            logger.info(f"Product data built: {product_data.get('name')}")
-
-            # 5. 调用OZON API导入商品
-            logger.info("Calling OZON API /v2/product/import...")
-            import_result = await api_client.import_products([product_data])
-
-            if not import_result.get('result'):
-                error_msg = f"OZON API error: {import_result}"
-                logger.error(error_msg)
-                return {
-                    "success": False,
-                    "error": error_msg
-                }
-
-            task_id = import_result['result']['task_id']
-            logger.info(f"OZON import task created: {task_id}")
-
-            # 6. 保存本地记录（草稿状态）
-            await self._save_local_product(db, dto, shop.id, task_id)
-            logger.info(f"Local product record saved: offer_id={dto.offer_id}")
-
+            # 5. 立即返回 task_id
             return {
-                "success": True,
                 "task_id": task_id,
-                "message": "商品已提交到OZON，等待审核中..."
+                "status": "pending",
+                "message": "商品上架任务已提交，正在处理中..."
             }
 
         except Exception as e:
             logger.error(f"Quick publish failed: {e}", exc_info=True)
             return {
+                "task_id": "",
+                "status": "error",
+                "message": "商品上架失败",
+                "error": str(e)
+            }
+
+    async def quick_publish_batch(
+        self,
+        db: AsyncSession,
+        dto: Any,  # QuickPublishBatchDTO
+        user_id: int
+    ) -> Dict[str, Any]:
+        """
+        批量上架商品到OZON (多个变体)
+
+        流程:
+        1. 验证店铺
+        2. 为每个变体创建独立的 Celery 任务
+        3. 返回所有任务ID供前端并发轮询
+
+        Args:
+            db: 数据库会话
+            dto: 批量上架数据DTO
+            user_id: 用户ID
+
+        Returns:
+            {task_ids: List[str], task_count: int, message: str, success: bool}
+        """
+        try:
+            logger.info(f"[QuickPublishService] 批量上架开始: shop_id={dto.shop_id}, 变体数量={len(dto.variants)}")
+
+            # 1. 验证店铺存在
+            shop = await self._get_shop(db, dto.shop_id)
+            logger.info(f"[QuickPublishService] 店铺验证通过: {shop.shop_name}")
+
+            # 2. 为每个变体创建任务
+            from ..tasks.quick_publish_task import quick_publish_chain_task
+            import time
+
+            task_ids = []
+            for idx, variant in enumerate(dto.variants):
+                # 合并共享数据和变体数据
+                # 优先使用变体特定的图片，如果没有则使用共享图片
+                variant_images = variant.images if variant.images else dto.images
+
+                variant_dto = {
+                    "shop_id": dto.shop_id,
+                    "warehouse_ids": dto.warehouse_ids,
+                    "sku": variant.sku,
+                    "offer_id": variant.offer_id,
+                    "price": str(variant.price),  # Decimal → str
+                    "stock": variant.stock,
+                    "old_price": str(variant.old_price) if variant.old_price else None,
+                    "ozon_product_id": dto.ozon_product_id,
+                    "title": dto.title,
+                    "description": dto.description,
+                    "images": variant_images,  # 使用变体特定的图片
+                    "brand": dto.brand,
+                    "barcode": dto.barcode,
+                    "category_id": dto.category_id,
+                    "dimensions": dto.dimensions.model_dump() if hasattr(dto.dimensions, 'model_dump') else dto.dimensions.dict(),
+                    "attributes": [attr.model_dump() if hasattr(attr, 'model_dump') else attr.dict() for attr in dto.attributes],
+                }
+
+                # 生成唯一任务ID
+                task_id = f"quick_publish_{shop.id}_{variant.offer_id}_{int(time.time() * 1000)}_{idx}"
+
+                # 触发 Celery 任务
+                quick_publish_chain_task.apply_async(
+                    args=[variant_dto, user_id, shop.id],
+                    task_id=task_id
+                )
+
+                task_ids.append(task_id)
+                logger.info(f"[QuickPublishService] 变体 {idx+1}/{len(dto.variants)} 任务已创建: task_id={task_id}, SKU={variant.sku}")
+
+            logger.info(f"[QuickPublishService] 批量上架完成: 共创建 {len(task_ids)} 个任务")
+
+            return {
+                "task_ids": task_ids,
+                "task_count": len(task_ids),
+                "message": f"已提交 {len(task_ids)} 个变体上架",
+                "success": True
+            }
+
+        except Exception as e:
+            logger.error(f"[QuickPublishService] 批量上架失败: {e}", exc_info=True)
+            return {
+                "task_ids": [],
+                "task_count": 0,
+                "message": "批量上架失败",
                 "success": False,
                 "error": str(e)
             }
@@ -110,7 +184,67 @@ class QuickPublishService:
         shop_id: int
     ) -> Dict[str, Any]:
         """
-        查询OZON导入任务状态
+        查询 Celery 任务状态 (从 Redis 读取)
+
+        Args:
+            db: 数据库会话
+            task_id: Celery 任务 ID
+            shop_id: 店铺ID (用于验证权限)
+
+        Returns:
+            {
+                task_id, status, current_step, progress,
+                steps, created_at, updated_at, error
+            }
+        """
+        try:
+            import redis
+            import json
+
+            redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+            # 从 Redis 读取任务进度
+            key = f"celery-task-progress:{task_id}"
+            data = redis_client.get(key)
+
+            if not data:
+                # 任务不存在或已过期
+                return {
+                    "task_id": task_id,
+                    "status": "not_found",
+                    "error": "任务不存在或已过期"
+                }
+
+            # 解析任务进度
+            progress_data = json.loads(data)
+
+            return {
+                "task_id": task_id,
+                "status": progress_data.get("status", "unknown"),
+                "current_step": progress_data.get("current_step"),
+                "progress": progress_data.get("progress", 0),
+                "steps": progress_data.get("steps", {}),
+                "created_at": progress_data.get("created_at"),
+                "updated_at": progress_data.get("updated_at"),
+                "error": progress_data.get("error")
+            }
+
+        except Exception as e:
+            logger.error(f"Get task status failed: {e}", exc_info=True)
+            return {
+                "task_id": task_id,
+                "status": "error",
+                "error": str(e)
+            }
+
+    async def get_ozon_import_task_status(
+        self,
+        db: AsyncSession,
+        task_id: str,
+        shop_id: int
+    ) -> Dict[str, Any]:
+        """
+        查询OZON导入任务状态 (旧方法,保留用于兼容)
 
         Args:
             db: 数据库会话

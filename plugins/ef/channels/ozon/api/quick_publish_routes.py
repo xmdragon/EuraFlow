@@ -45,6 +45,7 @@ class QuickPublishDTO(BaseModel):
     warehouse_ids: List[int] = Field(default_factory=list, description="仓库ID列表（FBS/rFBS）")
 
     # 用户输入（必填）
+    sku: str = Field(..., description="OZON SKU", min_length=1, max_length=50)
     offer_id: str = Field(..., description="商家SKU", min_length=1, max_length=50)
     price: Decimal = Field(..., gt=0, description="销售价格（卢布）")
     stock: int = Field(..., ge=0, description="库存数量")
@@ -69,20 +70,80 @@ class QuickPublishDTO(BaseModel):
 
 
 class QuickPublishResponseDTO(BaseModel):
-    """一键上架响应"""
-    success: bool
-    task_id: Optional[str] = None
-    message: Optional[str] = None
-    error: Optional[str] = None
+    """一键上架响应 (异步版本)"""
+    task_id: str = Field(..., description="Celery 任务 ID")
+    status: str = Field(default="pending", description="任务状态")
+    message: str = Field(..., description="提示信息")
+    success: Optional[bool] = Field(None, description="是否成功（已废弃,保留兼容）")
+    error: Optional[str] = Field(None, description="错误信息")
+
+
+class QuickPublishVariantDTO(BaseModel):
+    """单个变体的上架数据（仅变体特有字段）"""
+    sku: str = Field(..., description="OZON SKU", min_length=1, max_length=50)
+    offer_id: str = Field(..., description="商家SKU", min_length=1, max_length=50)
+    price: Decimal = Field(..., gt=0, description="销售价格（分）")
+    stock: int = Field(..., ge=0, description="库存数量")
+    old_price: Optional[Decimal] = Field(None, gt=0, description="原价（分）")
+    images: List[str] = Field(default_factory=list, max_length=15, description="变体特定的图片列表（第一张是主图，最多15张）")
+
+
+class QuickPublishBatchDTO(BaseModel):
+    """批量上架DTO"""
+    # 店铺和仓库（共享）
+    shop_id: int = Field(..., description="店铺ID")
+    warehouse_ids: List[int] = Field(default_factory=list, description="仓库ID列表（FBS/rFBS）")
+
+    # 变体列表
+    variants: List[QuickPublishVariantDTO] = Field(..., min_length=1, max_length=1000, description="变体列表（1-1000个，OZON限制）")
+
+    # 商品共享数据
+    ozon_product_id: Optional[str] = Field(None, description="OZON商品ID（用于参考）")
+    title: str = Field(..., min_length=1, max_length=500, description="商品标题")
+    description: Optional[str] = Field(None, description="商品描述")
+    images: List[str] = Field(default_factory=list, max_length=15, description="图片URL列表（最多15张）")
+    brand: Optional[str] = Field(None, description="品牌")
+    barcode: Optional[str] = Field(None, description="条码")
+    category_id: int = Field(..., description="OZON类目ID（必须是叶子类目）")
+
+    # 尺寸重量（OZON必填）
+    dimensions: DimensionsDTO = Field(..., description="商品尺寸和重量")
+
+    # 属性（根据类目要求）
+    attributes: List[AttributeDTO] = Field(default_factory=list, description="商品属性列表")
+
+
+class QuickPublishBatchResponseDTO(BaseModel):
+    """批量上架响应"""
+    task_ids: List[str] = Field(..., description="任务ID列表")
+    task_count: int = Field(..., description="任务数量")
+    message: str = Field(..., description="提示信息")
+    success: bool = Field(default=True, description="是否成功")
+    error: Optional[str] = Field(None, description="错误信息")
+
+
+class StepDetailDTO(BaseModel):
+    """步骤详情"""
+    status: str = Field(..., description="步骤状态 (pending/running/completed/failed/skipped)")
+    message: Optional[str] = Field(None, description="步骤消息")
+    product_id: Optional[int] = Field(None, description="商品ID (create_product 步骤)")
+    total: Optional[int] = Field(None, description="总数 (upload_images 步骤)")
+    uploaded: Optional[int] = Field(None, description="已上传数 (upload_images 步骤)")
+    storage_type: Optional[str] = Field(None, description="存储类型 (upload_images 步骤)")
+    stock: Optional[int] = Field(None, description="库存 (update_stock 步骤)")
+    error: Optional[str] = Field(None, description="错误信息")
 
 
 class TaskStatusResponseDTO(BaseModel):
-    """任务状态响应"""
-    success: bool
-    task_id: str
-    status: str  # pending/processing/imported/failed
-    items: Optional[List[Dict[str, Any]]] = None
-    error: Optional[str] = None
+    """任务状态响应 (Celery 版本)"""
+    task_id: str = Field(..., description="任务ID")
+    status: str = Field(..., description="任务状态 (pending/running/completed/failed/not_found)")
+    current_step: Optional[str] = Field(None, description="当前步骤")
+    progress: int = Field(default=0, description="进度百分比 (0-100)")
+    steps: Optional[Dict[str, StepDetailDTO]] = Field(None, description="各步骤详情")
+    created_at: Optional[str] = Field(None, description="任务创建时间")
+    updated_at: Optional[str] = Field(None, description="任务更新时间")
+    error: Optional[str] = Field(None, description="错误信息")
 
 
 # API端点
@@ -104,12 +165,81 @@ async def quick_publish(
     权限：需要有效的API Key
     """
     try:
+        # 记录完整的请求数据
+        logger.info("=" * 80)
+        logger.info(f"一键上架请求 - 用户ID: {user.id}")
+        logger.info(f"店铺ID: {dto.shop_id}")
+        logger.info(f"仓库IDs: {dto.warehouse_ids}")
+        logger.info(f"OZON SKU: {dto.sku}")
+        logger.info(f"商家SKU (offer_id): {dto.offer_id}")
+        logger.info(f"价格: {dto.price}, 原价: {dto.old_price}")
+        logger.info(f"库存: {dto.stock}")
+        logger.info(f"类目ID: {dto.category_id}")
+        logger.info(f"标题: {dto.title}")
+        logger.info(f"品牌: {dto.brand}")
+        logger.info(f"条码: {dto.barcode}")
+        logger.info(f"图片数量: {len(dto.images)}")
+        logger.info(f"图片URLs: {dto.images}")
+        logger.info(f"尺寸重量: weight={dto.dimensions.weight}g, h={dto.dimensions.height}mm, w={dto.dimensions.width}mm, l={dto.dimensions.length}mm")
+        logger.info(f"属性数量: {len(dto.attributes)}")
+        for idx, attr in enumerate(dto.attributes):
+            logger.info(f"  属性{idx+1}: id={attr.attribute_id}, value={attr.value}, dict_value_id={attr.dictionary_value_id}")
+        logger.info(f"完整DTO: {dto.model_dump() if hasattr(dto, 'model_dump') else dto.dict()}")
+        logger.info("=" * 80)
+
         service = QuickPublishService()
         result = await service.quick_publish(db, dto, user.id)
         return result
     except Exception as e:
         logger.error(f"Quick publish API error: {e}", exc_info=True)
         return QuickPublishResponseDTO(
+            task_id="",
+            status="error",
+            message="上架失败",
+            error=str(e)
+        )
+
+
+@router.post("/batch", response_model=QuickPublishBatchResponseDTO)
+async def quick_publish_batch(
+    dto: QuickPublishBatchDTO,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(get_current_user_from_api_key)
+):
+    """
+    批量一键上架（多个变体一次性提交）
+
+    使用场景：
+    - 跟卖商品时，有多个变体（如不同颜色、尺寸）
+    - 一次性提交所有变体，每个变体独立上架
+    - 返回多个任务ID，前端并发轮询各任务进度
+
+    限制：
+    - 最多1000个变体（OZON限制）
+    - 每个变体创建独立的Celery任务
+    - 图片、标题、描述等数据由所有变体共享
+    """
+    try:
+        logger.info("=" * 80)
+        logger.info(f"批量上架请求 - 用户ID: {user.id}")
+        logger.info(f"店铺ID: {dto.shop_id}, 变体数量: {len(dto.variants)}")
+        logger.info(f"仓库IDs: {dto.warehouse_ids}")
+        logger.info(f"商品标题: {dto.title}")
+        logger.info(f"图片数量: {len(dto.images)}")
+        logger.info(f"类目ID: {dto.category_id}")
+        for idx, variant in enumerate(dto.variants):
+            logger.info(f"  变体{idx+1}: SKU={variant.sku}, offer_id={variant.offer_id}, price={variant.price}, stock={variant.stock}")
+        logger.info("=" * 80)
+
+        service = QuickPublishService()
+        result = await service.quick_publish_batch(db, dto, user.id)
+        return result
+    except Exception as e:
+        logger.error(f"批量上架失败: {e}", exc_info=True)
+        return QuickPublishBatchResponseDTO(
+            task_ids=[],
+            task_count=0,
+            message="批量上架失败",
             success=False,
             error=str(e)
         )
@@ -118,20 +248,33 @@ async def quick_publish(
 @router.get("/task/{task_id}/status", response_model=TaskStatusResponseDTO)
 async def get_task_status(
     task_id: str,
-    shop_id: int = Query(..., description="店铺ID"),
+    shop_id: int = Query(..., description="店铺ID (用于权限验证)"),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(get_current_user_from_api_key)
 ):
     """
-    查询OZON导入任务状态
+    查询 Celery 任务状态 (一键跟卖异步任务)
 
-    前端需要轮询此接口（每5秒）直到状态为 imported 或 failed
+    前端需要轮询此接口（建议每 3-5 秒）直到状态为 completed 或 failed
 
     状态说明：
-    - pending: 等待处理
-    - processing: 处理中
-    - imported: 导入成功
-    - failed: 导入失败
+    - pending: 任务已提交，等待执行
+    - running: 任务执行中
+    - completed: 任务完成（所有步骤成功）
+    - failed: 任务失败（某个步骤失败）
+    - not_found: 任务不存在或已过期（Redis 中找不到）
+
+    步骤说明：
+    - create_product: 通过 SKU 创建商品
+    - upload_images: 上传图片到图库 (Cloudinary/Aliyun OSS)
+    - update_images: 更新 OZON 商品图片
+    - update_stock: 更新库存
+
+    进度计算：
+    - 0-25%: create_product
+    - 25-50%: upload_images
+    - 50-75%: update_images
+    - 75-100%: update_stock
     """
     try:
         service = QuickPublishService()
@@ -140,9 +283,9 @@ async def get_task_status(
     except Exception as e:
         logger.error(f"Get task status error: {e}", exc_info=True)
         return TaskStatusResponseDTO(
-            success=False,
             task_id=task_id,
             status="error",
+            progress=0,
             error=str(e)
         )
 

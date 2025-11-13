@@ -15,8 +15,8 @@ export interface ProductDetailData {
   category_id?: number; // 类目ID
 
   // 价格
-  price: number; // 当前价格
-  old_price?: number; // 原价
+  price: number; // 当前价格（绿色价格）
+  original_price?: number; // 原价（黑色价格）
 
   // 品牌和条形码
   brand?: string; // 品牌
@@ -46,8 +46,8 @@ export interface ProductDetailData {
     specifications: string;       // 规格描述："白色,M"
     spec_details?: Record<string, string>; // 规格详情：{ color: "白色", size: "M" }
     image_url: string;           // 变体图片
-    price: number;               // 原价格（分）
-    old_price?: number;          // 原划线价（分）
+    price: number;               // 绿色价格（Ozon Card价格）
+    original_price?: number;     // 黑色价格（原价）
     available: boolean;          // 是否可用
     link?: string;               // 变体链接
   }>;
@@ -101,11 +101,13 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
     const headingData = headingKey ? JSON.parse(widgetStates[headingKey]) : null;
     const title = headingData?.title || '';
 
-    // 2. 提取价格
+    // 2. 提取价格（webPrice 中的价格已经是人民币元，不需要转换）
     const priceKey = keys.find(k => k.includes('webPrice'));
     const priceData = priceKey ? JSON.parse(widgetStates[priceKey]) : null;
-    const price = parseFloat(priceData?.price?.replace(/\s/g, '') || priceData?.cardPrice?.replace(/\s/g, '') || '0');
-    const old_price = parseFloat(priceData?.cardPrice?.replace(/\s/g, '') || '0');
+    // 移除空格、逗号（欧洲格式），替换为点
+    const cleanPrice = (str: string) => str.replace(/\s/g, '').replace(/,/g, '.');
+    const price = parseFloat(cleanPrice(priceData?.price || priceData?.cardPrice || '0'));
+    const original_price = parseFloat(cleanPrice(priceData?.originalPrice || '0'));
 
     // 3. 提取图片
     const galleryKey = keys.find(k => k.includes('webGallery'));
@@ -125,7 +127,7 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
       ozon_product_id,
       title,
       price,
-      old_price: old_price > price ? old_price : undefined,
+      original_price: original_price > price ? original_price : undefined,
       images,
     };
   } catch (error) {
@@ -153,14 +155,18 @@ function extractVariantsStage1(widgetStates: any): any[] {
       return [];
     }
 
-    console.log(`[EuraFlow] 第一阶段：aspects 数组长度 ${aspects.length}`);
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 第一阶段：aspects 数组长度 ${aspects.length}`);
+    }
 
     // 扁平化提取所有变体
     const allVariants = aspects
       .map(aspect => aspect.variants || [])
       .flat(3);
 
-    console.log(`[EuraFlow] 第一阶段：扁平化后变体总数 ${allVariants.length}`);
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 第一阶段：扁平化后变体总数 ${allVariants.length}`);
+    }
 
     // 过滤"Уцененные"并清理链接
     const filteredVariants = allVariants
@@ -173,7 +179,9 @@ function extractVariantsStage1(widgetStates: any): any[] {
         link: variant.link ? variant.link.split('?')[0] : '',
       }));
 
-    console.log(`[EuraFlow] 第一阶段：过滤后变体总数 ${filteredVariants.length}`);
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 第一阶段：过滤后变体总数 ${filteredVariants.length}`);
+    }
 
     return filteredVariants;
   } catch (error) {
@@ -194,11 +202,15 @@ async function fetchVariantDetailsInBatches(variantLinks: string[], batchSize: n
     batches.push(variantLinks.slice(i, i + batchSize));
   }
 
-  console.log(`[EuraFlow] 第二阶段：开始批量获取变体详情，共 ${batches.length} 批（每批 ${batchSize} 个）`);
+  if (isDebugEnabled()) {
+    console.log(`[EuraFlow] 第二阶段：开始批量获取变体详情，共 ${batches.length} 批（每批 ${batchSize} 个）`);
+  }
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex];
-    console.log(`[EuraFlow] 第二阶段：处理第 ${batchIndex + 1}/${batches.length} 批（${batch.length} 个变体）`);
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 第二阶段：处理第 ${batchIndex + 1}/${batches.length} 批（${batch.length} 个变体）`);
+    }
 
     const batchPromises = batch.map(async (link) => {
       try {
@@ -219,7 +231,9 @@ async function fetchVariantDetailsInBatches(variantLinks: string[], batchSize: n
     allDetailsVariants.push(...batchVariants);
   }
 
-  console.log(`[EuraFlow] 第二阶段：批量获取完成，共提取 ${allDetailsVariants.length} 个详情变体`);
+  if (isDebugEnabled()) {
+    console.log(`[EuraFlow] 第二阶段：批量获取完成，共提取 ${allDetailsVariants.length} 个详情变体`);
+  }
   return allDetailsVariants;
 }
 
@@ -284,13 +298,25 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
       link = link.split('?')[0];
     }
 
-    // 提取价格
+    // 提取价格（与webPrice格式相同，直接解析即可）
+    // 绿色价格（Ozon Card价格）
     let priceStr = variant.data?.price || '';
     let price = 0;
     if (typeof priceStr === 'string') {
       price = parseFloat(priceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
     } else {
       price = parseFloat(priceStr) || 0;
+    }
+
+    // 黑色价格（原价）
+    let originalPriceStr = variant.data?.originalPrice || '';
+    let original_price = undefined;
+    if (originalPriceStr) {
+      if (typeof originalPriceStr === 'string') {
+        original_price = parseFloat(originalPriceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || undefined;
+      } else {
+        original_price = parseFloat(originalPriceStr) || undefined;
+      }
     }
 
     // 提取图片
@@ -303,31 +329,46 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
       image_url: imageUrl,
       link,
       price,
-      old_price: undefined,
+      original_price,
       available: variant.active !== false,
     };
 
     variantMap.set(sku, variantData);
 
-    // 输出每个变体的完整数据
-    console.log(`[EuraFlow] 变体 [${sku}]:`, {
-      SKU: sku,
-      规格: specifications,
-      价格: price,
-      图片: imageUrl,
-      链接: link,
-      可用: variantData.available,
-    });
+    // 输出每个变体的完整数据（仅调试模式）
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 变体 [${sku}]:`, {
+        SKU: sku,
+        规格: specifications,
+        价格: `${price.toFixed(2)} ¥`,
+        图片: imageUrl,
+        链接: link,
+        可用: variantData.available,
+      });
+    }
   });
 
   return Array.from(variantMap.values());
 }
 
 /**
+ * 检查是否启用调试模式
+ */
+function isDebugEnabled(): boolean {
+  try {
+    return localStorage.getItem('EURAFLOW_DEBUG') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 提取商品数据（主函数）
  */
 export async function extractProductData(): Promise<ProductDetailData> {
-  console.log('[EuraFlow] 开始采集商品数据（OZON API 方案）...');
+  if (isDebugEnabled()) {
+    console.log('[EuraFlow] 开始采集商品数据（OZON API 方案）...');
+  }
 
   try {
     const productUrl = window.location.href;
@@ -344,7 +385,9 @@ export async function extractProductData(): Promise<ProductDetailData> {
     const stage1Variants = extractVariantsStage1(widgetStates);
 
     if (stage1Variants.length === 0) {
-      console.log('[EuraFlow] 商品无变体，采集完成');
+      if (isDebugEnabled()) {
+        console.log('[EuraFlow] 商品无变体，采集完成');
+      }
       return {
         ...baseData,
         has_variants: false,
@@ -362,7 +405,9 @@ export async function extractProductData(): Promise<ProductDetailData> {
     // 合并去重
     const finalVariants = mergeAndDeduplicateVariants(stage1Variants, stage2Variants);
 
-    console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体（去重后）`);
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体（去重后）`);
+    }
 
     return {
       ...baseData,

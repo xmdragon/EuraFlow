@@ -5,6 +5,8 @@ import type {
   Watermark,
   QuickPublishRequest,
   QuickPublishResponse,
+  QuickPublishBatchRequest,
+  QuickPublishBatchResponse,
   TaskStatus,
 } from './types';
 
@@ -76,6 +78,19 @@ export class ApiClient {
       return response;
     } catch (error: any) {
       console.error('[ApiClient] Quick publish failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 批量快速上架（多个变体）
+   */
+  async quickPublishBatch(data: QuickPublishBatchRequest): Promise<QuickPublishBatchResponse> {
+    try {
+      const response = await this.sendRequest('QUICK_PUBLISH_BATCH', { data });
+      return response;
+    } catch (error: any) {
+      console.error('[ApiClient] Batch quick publish failed:', error);
       throw error;
     }
   }

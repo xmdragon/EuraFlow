@@ -138,7 +138,21 @@ export class RealPriceCalculator {
       this.lastMessage = message;
       this.lastPrice = price;
 
-      // 提取商品详情（包括变体信息）
+      // 如果商品数据已经加载过，直接使用缓存的数据
+      if (this.lastProductData !== null) {
+        // 更新变体的真实售价（价格可能变化）
+        if (this.lastProductData.has_variants && this.lastProductData.variants) {
+          this.lastProductData.variants = this.lastProductData.variants.map((variant: any) => ({
+            ...variant,
+            real_price: this.calculateVariantRealPrice(variant.price, variant.old_price)
+          }));
+        }
+        // 直接更新显示，不重新采集数据
+        injectOrUpdateDisplay(message, price, this.lastProductData);
+        return;
+      }
+
+      // 首次加载：提取商品详情（包括变体信息）
       import('../parsers/product-detail').then(async (module) => {
         const productData = await module.extractProductData();
 
@@ -150,7 +164,7 @@ export class RealPriceCalculator {
           }));
         }
 
-        // 保存商品数据（用于保活机制）
+        // 保存商品数据（用于后续复用）
         this.lastProductData = productData;
 
         // 注入或更新显示（传递价格和商品数据用于"一键跟卖"按钮）

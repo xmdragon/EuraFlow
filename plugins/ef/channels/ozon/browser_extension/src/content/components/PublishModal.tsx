@@ -8,9 +8,52 @@
 import type { ProductDetailData } from '../parsers/product-detail';
 import { ApiClient } from '../../shared/api-client';
 import { getApiConfig } from '../../shared/storage';
+import { calculateRealPriceCore } from '../price-calculator/calculator';
 import { configCache } from '../../shared/config-cache';
-import { centsToYuan, yuanToCents, formatYuan } from '../../shared/price-utils';
-import type { Shop, Warehouse, Watermark, QuickPublishRequest } from '../../shared/types';
+import { yuanToCents, formatYuan } from '../../shared/price-utils';
+import type { Shop, Warehouse, Watermark, QuickPublishVariant, QuickPublishBatchRequest } from '../../shared/types';
+
+// ========== 工具函数 ==========
+
+/**
+ * 检查是否启用调试模式
+ */
+function isDebugEnabled(): boolean {
+  try {
+    return localStorage.getItem('EURAFLOW_DEBUG') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 获取缓存的降价百分比（默认1%）
+ */
+function getCachedDiscountPercent(): number {
+  try {
+    const cached = localStorage.getItem('EURAFLOW_DISCOUNT_PERCENT');
+    if (cached) {
+      const percent = parseFloat(cached);
+      if (!isNaN(percent) && percent >= 1 && percent <= 99) {
+        return percent;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return 1; // 默认1%
+}
+
+/**
+ * 缓存降价百分比
+ */
+function setCachedDiscountPercent(percent: number): void {
+  try {
+    localStorage.setItem('EURAFLOW_DISCOUNT_PERCENT', percent.toString());
+  } catch {
+    // ignore
+  }
+}
 
 // ========== 类型定义 ==========
 
@@ -33,9 +76,9 @@ interface VariantEditData {
 }
 
 /**
- * 定价策略类型
+ * 定价策略类型（移除毛利率策略）
  */
-type PricingStrategy = 'manual' | 'discount' | 'profit';
+type PricingStrategy = 'manual' | 'discount';
 
 /**
  * 批量定价配置
@@ -43,8 +86,37 @@ type PricingStrategy = 'manual' | 'discount' | 'profit';
 interface BatchPricingConfig {
   strategy: PricingStrategy;
   discountPercent?: number; // 降价百分比（1-99）
-  profitMargin?: number;    // 毛利率（1-99）
 }
+
+/**
+ * 生成Offer ID（货号）
+ * 格式：ef_{13位时间戳}{3位随机数}
+ */
+function generateOfferId(): string {
+  const timestamp = Date.now().toString(); // 13位时间戳
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0'); // 3位随机数
+  return `ef_${timestamp}${random}`;
+}
+
+/**
+ * 批量生成所有变体的Offer ID
+ */
+function batchGenerateOfferIds(): void {
+  variants.forEach((variant, index) => {
+    if (index > 0) {
+      // 为确保唯一性，后续变体使用时间戳+索引
+      const timestamp = Date.now().toString();
+      const random = (Math.floor(Math.random() * 900) + index).toString().padStart(3, '0');
+      variant.offer_id = `ef_${timestamp}${random}`;
+    } else {
+      variant.offer_id = generateOfferId();
+    }
+  });
+
+  // 重新渲染表格
+  renderMainModal();
+}
+
 
 // ========== 全局状态 ==========
 
@@ -70,11 +142,10 @@ let variants: VariantEditData[] = [];
 
 /**
  * 显示上架配置弹窗（入口）
- * @param realPrice 真实售价（元），用于参考
- * @param product 商品详情数据（包括变体的真实售价）
+ * @param product 商品详情数据（包括变体价格信息）
  */
-export async function showPublishModal(realPrice: number, product: any = null): Promise<void> {
-  console.log('[PublishModal] 显示弹窗，参考售价:', realPrice, '元');
+export async function showPublishModal(product: any = null): Promise<void> {
+  if (isDebugEnabled()) console.log('[PublishModal] 显示弹窗，商品数据:', product);
 
   // 关闭已有弹窗
   if (currentModal) {
@@ -97,12 +168,12 @@ export async function showPublishModal(realPrice: number, product: any = null): 
   try {
     // 1. 验证并保存商品数据到全局变量
     if (!product || !product.title) {
-      throw new Error('商品数据无效或缺失');
+      throw new Error('数据加载中，请稍后重试');
     }
 
     // 赋值给全局变量（避免参数遮蔽）
     productData = product;
-    console.log('[PublishModal] 使用传递的商品数据，变体数:', productData!.variants?.length || 0);
+    if (isDebugEnabled()) console.log('[PublishModal] 使用传递的商品数据，变体数:', productData!.variants?.length || 0);
 
     // 2. 加载配置数据（从缓存）
     updateLoadingMessage('正在加载配置数据...');
@@ -110,10 +181,10 @@ export async function showPublishModal(realPrice: number, product: any = null): 
 
     // 3. 初始化变体数据
     updateLoadingMessage('正在处理变体数据...');
-    initializeVariants(realPrice);
+    initializeVariants();
 
-    // 4. 渲染主弹窗
-    closeModal();
+    // 4. 渲染主弹窗（仅关闭加载弹窗，不重置数据）
+    closeModalElement();
     renderMainModal();
   } catch (error) {
     console.error('[PublishModal] 初始化失败:', error);
@@ -132,25 +203,25 @@ async function loadConfigData(): Promise<void> {
 
   // 尝试从缓存获取
   const cached = configCache.getCached();
-  console.log('[PublishModal] configCache.getCached() 返回值:', cached);
+  if (isDebugEnabled()) console.log('[PublishModal] configCache.getCached() 返回值:', cached);
 
   if (cached) {
-    console.log('[PublishModal] 使用缓存配置');
-    console.log('[PublishModal] cached.shops:', cached.shops);
-    console.log('[PublishModal] cached.shops 类型:', typeof cached.shops);
-    console.log('[PublishModal] cached.shops 长度:', Array.isArray(cached.shops) ? cached.shops.length : 'NOT AN ARRAY');
-    console.log('[PublishModal] cached.watermarks:', cached.watermarks);
-    console.log('[PublishModal] cached.warehouses:', cached.warehouses);
+    if (isDebugEnabled()) console.log('[PublishModal] 使用缓存配置');
+    if (isDebugEnabled()) console.log('[PublishModal] cached.shops:', cached.shops);
+    if (isDebugEnabled()) console.log('[PublishModal] cached.shops 类型:', typeof cached.shops);
+    if (isDebugEnabled()) console.log('[PublishModal] cached.shops 长度:', Array.isArray(cached.shops) ? cached.shops.length : 'NOT AN ARRAY');
+    if (isDebugEnabled()) console.log('[PublishModal] cached.watermarks:', cached.watermarks);
+    if (isDebugEnabled()) console.log('[PublishModal] cached.warehouses:', cached.warehouses);
 
     shops = cached.shops;
     watermarks = cached.watermarks;
 
     // 默认选择第一个店铺
     if (shops.length > 0) {
-      console.log('[PublishModal] 选择默认店铺:', shops[0]);
+      if (isDebugEnabled()) console.log('[PublishModal] 选择默认店铺:', shops[0]);
       selectedShopId = shops[0].id;
       warehouses = cached.warehouses.get(selectedShopId) || [];
-      console.log('[PublishModal] 默认店铺仓库数:', warehouses.length);
+      if (isDebugEnabled()) console.log('[PublishModal] 默认店铺仓库数:', warehouses.length);
       if (warehouses.length > 0) {
         selectedWarehouseIds = [warehouses[0].id];
       }
@@ -161,17 +232,17 @@ async function loadConfigData(): Promise<void> {
   }
 
   // 缓存未命中，手动加载
-  console.log('[PublishModal] 缓存未命中，重新加载配置');
+  if (isDebugEnabled()) console.log('[PublishModal] 缓存未命中，重新加载配置');
   shops = await configCache.getShops(apiClient);
-  console.log('[PublishModal] 从API加载的shops:', shops);
+  if (isDebugEnabled()) console.log('[PublishModal] 从API加载的shops:', shops);
 
   watermarks = await configCache.getWatermarks(apiClient);
-  console.log('[PublishModal] 从API加载的watermarks:', watermarks);
+  if (isDebugEnabled()) console.log('[PublishModal] 从API加载的watermarks:', watermarks);
 
   if (shops.length > 0) {
     selectedShopId = shops[0].id;
     warehouses = await configCache.getWarehouses(apiClient, selectedShopId);
-    console.log('[PublishModal] 从API加载的warehouses:', warehouses);
+    if (isDebugEnabled()) console.log('[PublishModal] 从API加载的warehouses:', warehouses);
     if (warehouses.length > 0) {
       selectedWarehouseIds = [warehouses[0].id];
     }
@@ -180,7 +251,7 @@ async function loadConfigData(): Promise<void> {
   }
 
   // 未来功能：预选水印
-  console.log('[PublishModal] 配置加载完成:', { shops: shops.length, warehouses: warehouses.length, watermarks: watermarks.length, selectedWatermark: selectedWatermarkId });
+  if (isDebugEnabled()) console.log('[PublishModal] 配置加载完成:', { shops: shops.length, warehouses: warehouses.length, watermarks: watermarks.length, selectedWatermark: selectedWatermarkId });
 }
 
 /**
@@ -190,7 +261,7 @@ async function loadWarehouses(shopId: number): Promise<void> {
   if (!apiClient) return;
 
   warehouses = await configCache.getWarehouses(apiClient, shopId);
-  console.log('[PublishModal] 加载仓库:', warehouses.length, '个');
+  if (isDebugEnabled()) console.log('[PublishModal] 加载仓库:', warehouses.length, '个');
 
   // 默认选择第一个仓库
   if (warehouses.length > 0) {
@@ -203,8 +274,10 @@ async function loadWarehouses(shopId: number): Promise<void> {
 /**
  * 初始化变体数据
  */
-function initializeVariants(referencePrice: number): void {
+function initializeVariants(): void {
   variants = [];
+
+  if (isDebugEnabled()) console.log('[PublishModal] initializeVariants 开始，productData:', productData);
 
   if (!productData) {
     console.warn('[PublishModal] productData 为空');
@@ -214,25 +287,48 @@ function initializeVariants(referencePrice: number): void {
   // 保存到局部变量以避免 TypeScript null 检查问题
   const product = productData;
 
+  if (isDebugEnabled()) console.log('[PublishModal] product.has_variants:', product.has_variants);
+  if (isDebugEnabled()) console.log('[PublishModal] product.variants:', product.variants);
+
+  // 获取缓存的降价百分比（默认1%）
+  const discountPercent = getCachedDiscountPercent();
+  const discountMultiplier = 1 - discountPercent / 100;
+
   // 情况1: 商品有变体
   if (product.has_variants && product.variants && product.variants.length > 0) {
-    console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个');
+    if (isDebugEnabled()) console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个');
     product.variants.forEach((variant, index) => {
-      // 价格转换：后端是分，前端显示元
-      const originalPrice = centsToYuan(variant.price);
-      const originalOldPrice = variant.old_price ? centsToYuan(variant.old_price) : undefined;
+      // 注意：product-detail.ts 返回的价格已经是人民币元
+      const greenPrice = variant.price || 0; // 绿色价格（Ozon Card价格）
+      const blackPrice = variant.original_price || greenPrice; // 黑色价格（原价），没有则用绿价
+
+      // 使用共用的价格计算函数，确保与页面显示一致
+      const realPrice = calculateRealPriceCore(greenPrice, blackPrice);
+
+      // 应用降价策略
+      const customPrice = Math.max(0.01, realPrice * discountMultiplier);
+
+      if (isDebugEnabled()) console.log(`[PublishModal] 初始化变体 ${index}:`, {
+        variant_id: variant.variant_id,
+        specifications: variant.specifications,
+        greenPrice,
+        blackPrice,
+        realPrice,
+        customPrice,
+        discountPercent
+      });
 
       variants.push({
         variant_id: variant.variant_id,
         specifications: variant.specifications || `变体 ${index + 1}`,
         spec_details: variant.spec_details,
         image_url: variant.image_url || (product.images && product.images[0]) || '',
-        original_price: originalPrice,
-        original_old_price: originalOldPrice,
-        custom_price: referencePrice, // 默认使用参考价格
-        custom_old_price: originalOldPrice,
-        offer_id: `AUTO-${Date.now()}-${index}`,
-        stock: 100,
+        original_price: realPrice, // 原价格显示真实售价
+        original_old_price: blackPrice,
+        custom_price: customPrice, // 改后售价应用降价策略
+        custom_old_price: customPrice * 1.6, // 划线价 = 改后售价 × 1.6（比例 0.625:1）
+        offer_id: generateOfferId(), // 使用生成函数
+        stock: 9, // 默认库存改为9
         enabled: variant.available, // 默认勾选可用的变体
         available: variant.available,
       });
@@ -240,27 +336,43 @@ function initializeVariants(referencePrice: number): void {
   }
   // 情况2: 单品（无变体）
   else {
-    console.log('[PublishModal] 单品（无变体）');
-    const originalPrice = product.price || 0;
-    const originalOldPrice = product.old_price;
+    if (isDebugEnabled()) console.log('[PublishModal] 单品（无变体）');
+
+    // 根据单品自己的价格计算真实售价
+    const greenPrice = product.price || 0; // 绿色价格
+    const blackPrice = product.original_price || greenPrice; // 黑色价格，没有则用绿价
+
+    // 使用共用的价格计算函数，确保与页面显示一致
+    const realPrice = calculateRealPriceCore(greenPrice, blackPrice);
+
+    // 应用降价策略
+    const customPrice = Math.max(0.01, realPrice * discountMultiplier);
+
+    if (isDebugEnabled()) console.log('[PublishModal] 单品价格计算:', {
+      greenPrice,
+      blackPrice,
+      realPrice,
+      customPrice,
+      discountPercent
+    });
 
     variants.push({
       variant_id: product.ozon_product_id || 'single',
       specifications: '单品',
       spec_details: undefined,
       image_url: (product.images && product.images[0]) || '',
-      original_price: originalPrice,
-      original_old_price: originalOldPrice,
-      custom_price: referencePrice,
-      custom_old_price: originalOldPrice,
-      offer_id: `AUTO-${Date.now()}`,
-      stock: 100,
+      original_price: realPrice, // 原价格显示真实售价
+      original_old_price: blackPrice,
+      custom_price: customPrice, // 改后售价应用降价策略
+      custom_old_price: customPrice * 1.6, // 划线价 = 改后售价 × 1.6（比例 0.625:1）
+      offer_id: generateOfferId(),
+      stock: 9, // 默认库存改为9
       enabled: true,
       available: true,
     });
   }
 
-  console.log('[PublishModal] 初始化变体数据完成:', variants.length, '个');
+  if (isDebugEnabled()) console.log('[PublishModal] 初始化变体数据完成:', variants.length, '个', variants);
 }
 
 // ========== UI 渲染 ==========
@@ -299,7 +411,7 @@ function updateLoadingMessage(message: string): void {
  */
 function renderMainModal(): void {
   // 添加调试日志
-  console.log('[PublishModal] renderMainModal 调用，数据状态:', {
+  if (isDebugEnabled()) console.log('[PublishModal] renderMainModal 调用，数据状态:', {
     shops: shops.length,
     warehouses: warehouses.length,
     watermarks: watermarks.length,
@@ -356,7 +468,10 @@ function renderMainModal(): void {
             </th>
             <th style="padding: 12px 8px; text-align: left; font-size: 13px; font-weight: 600; color: #555; width: 60px;">图片</th>
             <th style="padding: 12px 8px; text-align: left; font-size: 13px; font-weight: 600; color: #555;">规格</th>
-            <th style="padding: 12px 8px; text-align: left; font-size: 13px; font-weight: 600; color: #555; width: 140px;">商家SKU</th>
+            <th style="padding: 12px 8px; text-align: left; font-size: 13px; font-weight: 600; color: #555; width: 200px;">
+              货号
+              <button id="batch-generate-offerid-btn" style="margin-left: 8px; padding: 2px 8px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 12px;">批量生成</button>
+            </th>
             <th style="padding: 12px 8px; text-align: right; font-size: 13px; font-weight: 600; color: #555; width: 90px;">原价格</th>
             <th style="padding: 12px 8px; text-align: right; font-size: 13px; font-weight: 600; color: #555; width: 110px;">自定义价格</th>
             <th style="padding: 12px 8px; text-align: right; font-size: 13px; font-weight: 600; color: #555; width: 90px;">划线价</th>
@@ -590,6 +705,12 @@ function bindMainModalEvents(): void {
     });
   });
 
+  // 批量生成Offer ID按钮
+  const batchGenerateBtn = document.getElementById('batch-generate-offerid-btn');
+  batchGenerateBtn?.addEventListener('click', () => {
+    batchGenerateOfferIds();
+  });
+
   // 批量定价按钮
   const batchPricingBtn = document.getElementById('batch-pricing-btn');
   batchPricingBtn?.addEventListener('click', showBatchPricingModal);
@@ -653,6 +774,9 @@ function showBatchPricingModal(): void {
     return;
   }
 
+  // 获取缓存的降价百分比
+  const cachedDiscountPercent = getCachedDiscountPercent();
+
   // 创建批量定价弹窗
   const overlay = createOverlay();
   const modal = createModalContainer('500px');
@@ -675,26 +799,9 @@ function showBatchPricingModal(): void {
       <div id="discount-input-container" style="margin-bottom: 12px; padding-left: 28px;">
         <label style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 14px;">降价</span>
-          <input type="number" id="discount-percent" value="10" min="1" max="99" step="1" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; text-align: right;">
+          <input type="number" id="discount-percent" value="${cachedDiscountPercent}" min="1" max="99" step="1" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; text-align: right;">
           <span style="font-size: 14px;">%</span>
-          <span style="font-size: 13px; color: #666; margin-left: 8px;">（例：原价 ¥100，降价 10% = ¥90）</span>
-        </label>
-      </div>
-
-      <label style="display: flex; align-items: center; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; margin-bottom: 12px;" id="strategy-profit-label">
-        <input type="radio" name="batch-strategy" value="profit" style="margin-right: 12px;">
-        <div style="flex: 1;">
-          <div style="font-weight: 500; margin-bottom: 4px;">毛利率策略</div>
-          <div style="font-size: 13px; color: #666;">设置目标毛利率，自动计算售价</div>
-        </div>
-      </label>
-
-      <div id="profit-input-container" style="margin-bottom: 12px; padding-left: 28px; display: none;">
-        <label style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 14px;">毛利率</span>
-          <input type="number" id="profit-margin" value="30" min="1" max="99" step="1" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; text-align: right;">
-          <span style="font-size: 14px;">%</span>
-          <span style="font-size: 13px; color: #666; margin-left: 8px;">（例：成本 ¥70，毛利 30% = ¥100）</span>
+          <span style="font-size: 13px; color: #666; margin-left: 8px;">（例：原价 ¥100，降价 ${cachedDiscountPercent}% = ¥${(100 * (1 - cachedDiscountPercent / 100)).toFixed(0)}）</span>
         </label>
       </div>
 
@@ -732,20 +839,14 @@ function bindBatchPricingEvents(batchOverlay: HTMLElement): void {
   // 策略选择
   const strategyRadios = batchOverlay.querySelectorAll('input[name="batch-strategy"]');
   const discountContainer = batchOverlay.querySelector('#discount-input-container') as HTMLElement;
-  const profitContainer = batchOverlay.querySelector('#profit-input-container') as HTMLElement;
 
   strategyRadios.forEach((radio) => {
     radio.addEventListener('change', (e) => {
       const value = (e.target as HTMLInputElement).value;
       if (value === 'discount') {
         discountContainer.style.display = 'block';
-        profitContainer.style.display = 'none';
-      } else if (value === 'profit') {
-        discountContainer.style.display = 'none';
-        profitContainer.style.display = 'block';
       } else {
         discountContainer.style.display = 'none';
-        profitContainer.style.display = 'none';
       }
     });
   });
@@ -770,14 +871,6 @@ function bindBatchPricingEvents(batchOverlay: HTMLElement): void {
         return;
       }
       applyBatchPricing({ strategy: 'discount', discountPercent });
-    } else if (strategy === 'profit') {
-      const profitInput = batchOverlay.querySelector('#profit-margin') as HTMLInputElement;
-      const profitMargin = parseFloat(profitInput.value) || 0;
-      if (profitMargin <= 0 || profitMargin >= 100) {
-        alert('毛利率必须在 1-99 之间');
-        return;
-      }
-      applyBatchPricing({ strategy: 'profit', profitMargin });
     } else {
       // manual - 不做任何修改
     }
@@ -798,23 +891,22 @@ function applyBatchPricing(config: BatchPricingConfig): void {
       const newPrice = variant.original_price * (1 - config.discountPercent / 100);
       variant.custom_price = Math.max(0.01, newPrice); // 最低 0.01 元
 
-      // 更新输入框
-      const priceInput = document.querySelector(`.custom-price-input[data-index="${index}"]`) as HTMLInputElement;
-      if (priceInput) priceInput.value = variant.custom_price.toFixed(2);
-    } else if (config.strategy === 'profit' && config.profitMargin) {
-      // 毛利率策略：价格 = 成本 / (1 - 毛利率/100)
-      // 假设原价即为成本
-      const cost = variant.original_price;
-      const newPrice = cost / (1 - config.profitMargin / 100);
-      variant.custom_price = Math.max(0.01, newPrice);
+      // 自动计算划线价（比例 0.625:1，即划线价 = 改后售价 × 1.6）
+      variant.custom_old_price = variant.custom_price * 1.6;
 
       // 更新输入框
       const priceInput = document.querySelector(`.custom-price-input[data-index="${index}"]`) as HTMLInputElement;
       if (priceInput) priceInput.value = variant.custom_price.toFixed(2);
+
+      const oldPriceInput = document.querySelector(`.custom-old-price-input[data-index="${index}"]`) as HTMLInputElement;
+      if (oldPriceInput) oldPriceInput.value = variant.custom_old_price.toFixed(2);
+
+      // 缓存降价百分比
+      setCachedDiscountPercent(config.discountPercent);
     }
   });
 
-  console.log('[PublishModal] 批量定价完成:', config);
+  if (isDebugEnabled()) console.log('[PublishModal] 批量定价完成:', config);
 }
 
 // ========== 上架处理 ==========
@@ -823,12 +915,18 @@ function applyBatchPricing(config: BatchPricingConfig): void {
  * 处理上架操作
  */
 async function handlePublish(): Promise<void> {
+  console.log('[PublishModal] ========== 开始上架按钮被点击 ==========');
+  console.log('[PublishModal] apiClient:', !!apiClient);
+  console.log('[PublishModal] productData:', productData);
+
   if (!apiClient || !productData) {
+    console.error('[PublishModal] 数据未准备好: apiClient=', !!apiClient, ', productData=', !!productData);
     alert('数据未准备好，请刷新页面重试');
     return;
   }
 
   // 验证必填字段
+  console.log('[PublishModal] 验证必填字段: selectedShopId=', selectedShopId);
   if (!selectedShopId) {
     alert('请选择店铺');
     return;
@@ -880,42 +978,65 @@ async function handlePublish(): Promise<void> {
   showProgressModal(enabledVariants.length);
 
   try {
-    // 逐个上架变体
-    for (let i = 0; i < enabledVariants.length; i++) {
-      const variant = enabledVariants[i];
-      updateProgress(i, enabledVariants.length, `正在上架变体: ${variant.specifications}...`);
+    // 构建批量请求（一次性提交所有变体）
+    const variantsData: QuickPublishVariant[] = enabledVariants.map(variant => {
+      // 构建每个变体的图片列表：
+      // 1. 如果变体有自己的图片，把它放在第一位作为主图
+      // 2. 后面跟着商品的其他图片（去重）
+      // 3. 如果变体没有特定图片，使用商品的所有图片
+      const allImages = productData?.images || [];
+      const variantImages = variant.image_url
+        ? [variant.image_url, ...allImages.filter((url: string) => url !== variant.image_url)]
+        : allImages;
 
-      // 构建请求数据（价格转换：元 → 分）
-      const request: QuickPublishRequest = {
-        shop_id: selectedShopId,
-        warehouse_ids: selectedWarehouseIds,
+      return {
+        sku: variant.variant_id,                      // OZON SKU
         offer_id: variant.offer_id,
-        price: yuanToCents(variant.custom_price), // 元 → 分
+        price: yuanToCents(variant.custom_price),     // 元 → 分
         stock: variant.stock,
         old_price: variant.custom_old_price ? yuanToCents(variant.custom_old_price) : undefined,
-        ozon_product_id: productData.ozon_product_id,
-        title: productData.title,
-        description: productData.description,
-        images: variant.image_url ? [variant.image_url] : productData.images,
-        brand: productData.brand,
-        barcode: productData.barcode,
-        category_id: productData.category_id,
-        dimensions: productData.dimensions,
-        attributes: productData.attributes,
+        images: variantImages,                        // 变体特定的图片列表
       };
+    });
 
-      console.log('[PublishModal] 提交变体上架:', variant.specifications, request);
+    const batchRequest: QuickPublishBatchRequest = {
+      shop_id: selectedShopId,
+      warehouse_ids: selectedWarehouseIds,
+      variants: variantsData,
+      // 商品共享数据（用于创建商品基本信息，不包含图片）
+      ozon_product_id: productData.ozon_product_id,
+      title: productData.title,
+      description: productData.description,
+      images: productData.images, // 作为备用（如果变体没有图片）
+      brand: productData.brand,
+      barcode: productData.barcode,
+      category_id: productData.category_id!,
+      dimensions: productData.dimensions!,
+      attributes: productData.attributes,
+    };
 
-      // 调用API
-      const response = await apiClient.quickPublish(request);
+    console.log('[PublishModal] ========== 批量上架请求 ==========');
+    console.log('[PublishModal] 变体数量:', enabledVariants.length);
+    console.log('[PublishModal] 图片数量:', productData.images.length);
+    console.log('[PublishModal] 完整请求数据:', JSON.stringify(batchRequest, null, 2));
 
-      if (response.success && response.task_id) {
-        // 轮询任务状态
-        await pollTaskStatus(response.task_id, variant.specifications);
-      } else {
-        throw new Error(response.error || `变体"${variant.specifications}"上架失败`);
-      }
+    // 调用批量API
+    console.log('[PublishModal] 调用 apiClient.quickPublishBatch...');
+    const response = await apiClient.quickPublishBatch(batchRequest);
+    console.log('[PublishModal] 批量响应:', response);
+
+    if (!response.success || !response.task_ids || response.task_ids.length === 0) {
+      throw new Error(response.error || '批量上架失败');
     }
+
+    // 并发轮询所有任务
+    console.log('[PublishModal] 开始轮询', response.task_ids.length, '个任务');
+    const pollPromises = response.task_ids.map((taskId: string, idx: number) => {
+      const variant = enabledVariants[idx];
+      return pollTaskStatus(taskId, variant.specifications);
+    });
+
+    await Promise.all(pollPromises);
 
     // 全部成功
     updateProgress(enabledVariants.length, enabledVariants.length, '全部上架完成！');
@@ -925,9 +1046,9 @@ async function handlePublish(): Promise<void> {
       closeProgressModal();
     }, 1000);
   } catch (error) {
-    console.error('[PublishModal] 上架失败:', error);
+    console.error('[PublishModal] 批量上架失败:', error);
     closeProgressModal();
-    alert('上架失败：' + (error as Error).message);
+    alert('批量上架失败：' + (error as Error).message);
 
     // 恢复按钮
     if (publishBtn) {
@@ -958,7 +1079,7 @@ async function pollTaskStatus(taskId: string, variantName: string): Promise<void
 
       if (status.status === 'imported') {
         // 成功
-        console.log(`[PublishModal] 变体"${variantName}"上架成功`);
+        if (isDebugEnabled()) console.log(`[PublishModal] 变体"${variantName}"上架成功`);
         return;
       } else if (status.status === 'failed') {
         // 失败
@@ -1037,13 +1158,20 @@ function closeProgressModal(): void {
 // ========== 关闭弹窗 ==========
 
 /**
- * 关闭主弹窗
+ * 仅关闭弹窗元素（不重置数据）
  */
-function closeModal(): void {
+function closeModalElement(): void {
   if (currentModal) {
     currentModal.remove();
     currentModal = null;
   }
+}
+
+/**
+ * 关闭主弹窗并重置所有状态
+ */
+function closeModal(): void {
+  closeModalElement();
 
   // 重置状态
   productData = null;
