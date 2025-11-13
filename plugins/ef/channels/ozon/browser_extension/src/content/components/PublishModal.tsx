@@ -71,9 +71,10 @@ let variants: VariantEditData[] = [];
 /**
  * 显示上架配置弹窗（入口）
  * @param realPrice 真实售价（元），用于参考
+ * @param productData 商品详情数据（包括变体的真实售价）
  */
-export async function showPublishModal(realPrice: number): Promise<void> {
-  console.log('[PublishModal] 显示弹窗，参考售价:', realPrice, '元');
+export async function showPublishModal(realPrice: number, productData: any = null): Promise<void> {
+  console.log('[PublishModal] 显示弹窗，参考售价:', realPrice, '元', '商品数据:', productData);
 
   // 关闭已有弹窗
   if (currentModal) {

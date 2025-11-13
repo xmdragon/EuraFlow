@@ -46,6 +46,7 @@ export class RealPriceCalculator {
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
   private lastMessage: string | null = null;
   private lastPrice: number | null = null;
+  private lastProductData: any = null;
 
   constructor() {
     this.debouncedCalculate = debounce(
@@ -88,7 +89,7 @@ export class RealPriceCalculator {
       const ourElement = document.getElementById('euraflow-real-price');
       if (!ourElement && this.lastMessage) {
         console.log('[EuraFlow] 检测到组件被移除，重新注入');
-        injectOrUpdateDisplay(this.lastMessage, this.lastPrice);
+        injectOrUpdateDisplay(this.lastMessage, this.lastPrice, this.lastProductData);
       }
     }, 5000); // 每5秒检查一次
   }
@@ -137,10 +138,45 @@ export class RealPriceCalculator {
       this.lastMessage = message;
       this.lastPrice = price;
 
-      // 注入或更新显示（传递价格数值用于"一键跟卖"按钮）
-      injectOrUpdateDisplay(message, price);
+      // 提取商品详情（包括变体信息）
+      import('../parsers/product-detail').then(async (module) => {
+        const productData = await module.extractProductData();
+
+        // 如果有商品数据，计算所有变体的真实售价
+        if (productData && productData.has_variants && productData.variants) {
+          productData.variants = productData.variants.map((variant: any) => ({
+            ...variant,
+            real_price: this.calculateVariantRealPrice(variant.price, variant.old_price)
+          }));
+        }
+
+        // 保存商品数据（用于保活机制）
+        this.lastProductData = productData;
+
+        // 注入或更新显示（传递价格和商品数据用于"一键跟卖"按钮）
+        injectOrUpdateDisplay(message, price, productData);
+      }).catch(error => {
+        console.error('[EuraFlow] 提取商品详情失败:', error);
+        // 如果提取失败，仍然显示价格计算器（不传递商品数据）
+        this.lastProductData = null;
+        injectOrUpdateDisplay(message, price, null);
+      });
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator error:', error);
+    }
+  }
+
+  /**
+   * 计算变体的真实售价
+   */
+  private calculateVariantRealPrice(currentPrice: number, oldPrice: number | null): number | null {
+    if (oldPrice && oldPrice > currentPrice) {
+      // 有划线价且大于当前价，计算折扣率
+      const discount = 1 - (currentPrice / oldPrice);
+      return currentPrice / (1 - discount);
+    } else {
+      // 没有划线价或当前价≥划线价，使用固定系数
+      return currentPrice * CONFIG.FORMULA_MULTIPLIER;
     }
   }
 

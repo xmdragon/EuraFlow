@@ -26,10 +26,12 @@ const DISPLAY_CONFIG = {
  * 注入或更新显示元素（两列布局：左边价格，右边按钮）
  * @param message - 要显示的消息（如 "真实售价：120.00 ¥"）
  * @param realPrice - 真实售价数值（用于传递给弹窗）
+ * @param productData - 商品详情数据（包括变体的真实售价）
  */
 export function injectOrUpdateDisplay(
   message: string | null,
-  realPrice: number | null = null
+  realPrice: number | null = null,
+  productData: any = null
 ): void {
   if (!message) {
     // 如果没有消息，移除已存在的显示元素
@@ -107,6 +109,10 @@ export function injectOrUpdateDisplay(
     if (realPrice !== null) {
       button.setAttribute('data-price', realPrice.toString());
     }
+    // 将商品数据存储在按钮的dataset中（用于弹窗）
+    if (productData) {
+      button.setAttribute('data-product', JSON.stringify(productData));
+    }
 
     Object.assign(button.style, {
       padding: '10px 20px',
@@ -129,7 +135,7 @@ export function injectOrUpdateDisplay(
       button.style.backgroundColor = '#1976D2';
     });
 
-    // 点击事件（后续实现弹窗）
+    // 点击事件（打开上架弹窗，传递商品数据）
     button.addEventListener('click', async () => {
       try {
         // 动态导入弹窗模块
@@ -137,7 +143,10 @@ export function injectOrUpdateDisplay(
           '../components/PublishModal'
         );
         const price = parseFloat(button.getAttribute('data-price') || '0');
-        showPublishModal(price);
+        const productDataStr = button.getAttribute('data-product');
+        const product = productDataStr ? JSON.parse(productDataStr) : null;
+
+        showPublishModal(price, product);
       } catch (error) {
         console.error('[EuraFlow] 打开上架弹窗失败:', error);
         alert('打开上架配置失败，请稍后重试');

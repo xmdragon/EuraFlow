@@ -144,10 +144,27 @@ class ConfigCacheService {
     // 使用新的统一配置API（1次请求代替原来的3+N次）
     const config = await apiClient.getConfig();
 
+    // 验证返回数据格式
+    if (!config || typeof config !== 'object') {
+      throw new Error('API返回数据格式无效');
+    }
+
+    if (!Array.isArray(config.shops)) {
+      console.error('[ConfigCache] 无效的shops数据:', config);
+      throw new Error('API未返回有效的店铺列表（请检查API Key配置）');
+    }
+
+    if (!Array.isArray(config.watermarks)) {
+      console.error('[ConfigCache] 无效的watermarks数据:', config);
+      throw new Error('API未返回有效的水印列表');
+    }
+
     // 转换数据格式
     const warehousesMap = new Map<number, Warehouse[]>();
     for (const shop of config.shops) {
-      warehousesMap.set(shop.id, shop.warehouses);
+      if (shop.warehouses && Array.isArray(shop.warehouses)) {
+        warehousesMap.set(shop.id, shop.warehouses);
+      }
     }
 
     return {
