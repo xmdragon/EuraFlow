@@ -99,14 +99,14 @@ const OzonShopTab: React.FC = () => {
   const isOperator = user?.role === 'operator';
   const userShopIds = user?.shop_ids || [];
 
-  // 获取店铺列表
+  // 获取店铺列表（包含完整信息，包括API凭证）
   const {
     data: shopsData,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['ozon', 'shops'],
-    queryFn: ozonApi.getShops,
+    queryKey: ['ozon', 'shops', 'full'],
+    queryFn: () => ozonApi.getShops(true),  // include_stats=true 以获取完整信息
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -126,7 +126,7 @@ const OzonShopTab: React.FC = () => {
     onSuccess: (data) => {
       notifySuccess('添加成功', '店铺添加成功');
       setAddShopModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });
+      queryClient.invalidateQueries({ queryKey: ['ozon', 'shops'] });  // 刷新所有店铺列表
       setSelectedShop(data);
     },
     onError: (error: Error) => {

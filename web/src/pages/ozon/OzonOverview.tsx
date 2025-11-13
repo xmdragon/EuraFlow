@@ -74,7 +74,7 @@ const OzonOverview: React.FC = () => {
   // 获取店铺列表（与ShopSelector共享查询）
   const { data: shops } = useQuery({
     queryKey: ['ozon', 'shops'],
-    queryFn: ozonApi.getShops,
+    queryFn: () => ozonApi.getShops(),
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });

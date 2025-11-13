@@ -78,7 +78,7 @@ const ChatList: React.FC = () => {
   // 获取店铺列表
   const { data: shopsData, isLoading: shopsLoading } = useQuery({
     queryKey: ["ozon", "shops"],
-    queryFn: ozonApi.getShops,
+    queryFn: () => ozonApi.getShops(),
   });
 
   const shops = shopsData?.data || [];

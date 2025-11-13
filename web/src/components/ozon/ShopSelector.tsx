@@ -36,10 +36,10 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
     value !== undefined ? value : isMultiple ? [] : null
   );
 
-  // 获取店铺列表
+  // 获取店铺列表（仅基本信息，用于下拉选择）
   const { data: shopsData, isLoading } = useQuery({
     queryKey: ['ozon', 'shops'],
-    queryFn: ozonApi.getShops,
+    queryFn: () => ozonApi.getShops(),  // 默认 include_stats=false，仅返回基本信息
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });

@@ -67,8 +67,10 @@ export interface ProductImages {
 // ==================== 店铺 API ====================
 
 // 获取店铺列表
-export const getShops = async () => {
-  const response = await apiClient.get("/ozon/shops");
+export const getShops = async (includeStats: boolean = false) => {
+  const response = await apiClient.get("/ozon/shops", {
+    params: { include_stats: includeStats }
+  });
   return response.data;
 };
 

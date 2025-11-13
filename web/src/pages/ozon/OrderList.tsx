@@ -168,7 +168,7 @@ const OrderList: React.FC = () => {
   // 查询店铺列表（用于显示店铺名称）
   const { data: shopsData } = useQuery({
     queryKey: ['ozonShops'],
-    queryFn: ozonApi.getShops,
+    queryFn: () => ozonApi.getShops(),
     staleTime: 300000, // 5分钟缓存
   });
 
