@@ -6,6 +6,9 @@
 
 import { findPrices, calculateRealPrice, CONFIG } from './calculator';
 import { injectOrUpdateDisplay } from './display';
+import { ApiClient } from '../../shared/api-client';
+import { configCache } from '../../shared/config-cache';
+import { getApiConfig } from '../../shared/storage';
 
 /**
  * 防抖延迟（毫秒）
@@ -58,8 +61,31 @@ export class RealPriceCalculator {
 
       // 设置动态监听
       this.setupDynamicListener();
+
+      // 后台预加载配置数据（异步，不阻塞）
+      this.preloadConfigInBackground();
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator initialization error:', error);
+    }
+  }
+
+  /**
+   * 后台预加载配置数据（店铺、仓库、水印）
+   * 异步执行，不阻塞页面渲染
+   */
+  private async preloadConfigInBackground(): Promise<void> {
+    try {
+      const config = await getApiConfig();
+      if (!config.apiUrl || !config.apiKey) {
+        console.log('[EuraFlow] API未配置，跳过预加载');
+        return;
+      }
+
+      const apiClient = new ApiClient(config.apiUrl, config.apiKey);
+      await configCache.preload(apiClient);
+    } catch (error) {
+      console.error('[EuraFlow] 预加载配置失败:', error);
+      // 预加载失败不影响页面功能
     }
   }
 

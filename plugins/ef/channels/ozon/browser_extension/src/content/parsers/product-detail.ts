@@ -134,6 +134,9 @@ function parseNuxtData(nuxtData: any): ProductDetailData | null {
       });
     }
 
+    // 尝试提取变体信息
+    const variantInfo = extractVariantsFromNuxt(productData);
+
     return {
       ozon_product_id: productData.id?.toString() || productData.productId?.toString(),
       sku: productData.sku?.toString() || productData.offerId?.toString(),
@@ -152,6 +155,8 @@ function parseNuxtData(nuxtData: any): ProductDetailData | null {
         length: parseInt(productData.dimensions.length || productData.dimensions.depth || '0'),
       } : undefined,
       attributes: productData.attributes || productData.specs,
+      has_variants: variantInfo.has_variants,
+      variants: variantInfo.variants,
     };
   } catch (error) {
     console.error('[EuraFlow] 解析 __NUXT__ 数据失败:', error);
@@ -186,6 +191,7 @@ function parseDataLayer(dataLayer: any[]): ProductDetailData | null {
       brand: productData.brand,
       category_id: parseInt(productData.category || '0'),
       images: [], // dataLayer 通常不包含图片
+      has_variants: false, // dataLayer 不包含变体信息
     };
   } catch (error) {
     console.error('[EuraFlow] 解析 dataLayer 数据失败:', error);
@@ -257,6 +263,9 @@ function parseDom(): ProductDetailData {
   const descriptionElement = document.querySelector('[data-widget="webDescription"]');
   const description = descriptionElement?.textContent?.trim();
 
+  // 尝试从 DOM 提取变体信息（降级方案）
+  const variantInfo = extractVariantsFromDOM();
+
   return {
     ozon_product_id,
     title,
@@ -265,6 +274,8 @@ function parseDom(): ProductDetailData {
     brand,
     description,
     images,
+    has_variants: variantInfo.has_variants,
+    variants: variantInfo.variants,
   };
 }
 
@@ -280,4 +291,140 @@ export function getCurrentProductUrl(): string {
  */
 export function isProductDetailPage(): boolean {
   return window.location.pathname.includes('/product/');
+}
+
+// ========== 变体数据提取辅助函数 ==========
+
+/**
+ * 从 __NUXT__ 数据中提取变体信息
+ */
+function extractVariantsFromNuxt(productData: any): { has_variants: boolean; variants?: any[] } {
+  try {
+    // 尝试多个可能的变体数据路径
+    let variantsData =
+      productData.variants ||
+      productData.skus ||
+      productData.items ||
+      productData.options;
+
+    if (!variantsData || !Array.isArray(variantsData) || variantsData.length === 0) {
+      return { has_variants: false };
+    }
+
+    const variants = variantsData.map((variant: any, index: number) => {
+      // 提取规格信息
+      const specs: Record<string, string> = {};
+      const specStrings: string[] = [];
+
+      // 尝试从不同字段提取规格
+      if (variant.attributes) {
+        Object.entries(variant.attributes).forEach(([key, value]) => {
+          specs[key] = String(value);
+          specStrings.push(String(value));
+        });
+      } else if (variant.color || variant.size) {
+        if (variant.color) {
+          specs['颜色'] = variant.color;
+          specStrings.push(variant.color);
+        }
+        if (variant.size) {
+          specs['尺码'] = variant.size;
+          specStrings.push(variant.size);
+        }
+      }
+
+      // 提取图片
+      let imageUrl = variant.image || variant.imageUrl || variant.photo || '';
+      if (Array.isArray(variant.images) && variant.images.length > 0) {
+        imageUrl = variant.images[0];
+      }
+
+      // 提取价格（注意：OZON可能以戈比为单位，1卢布=100戈比）
+      let price = parseFloat(variant.price || variant.sellingPrice || productData.price || 0);
+      let oldPrice = parseFloat(variant.oldPrice || variant.originalPrice || productData.oldPrice || 0);
+
+      // 如果价格看起来是卢布单位且小于1000，可能需要转换为戈比
+      // 但这里我们保持原始值，留待后续处理
+
+      return {
+        variant_id: variant.id?.toString() || `variant_${index}`,
+        specifications: specStrings.join(', ') || `变体 ${index + 1}`,
+        spec_details: Object.keys(specs).length > 0 ? specs : undefined,
+        image_url: imageUrl,
+        price: price,
+        old_price: oldPrice > price ? oldPrice : undefined,
+        available: variant.available !== false && variant.inStock !== false,
+      };
+    });
+
+    return {
+      has_variants: true,
+      variants: variants.filter(v => v !== null),
+    };
+  } catch (error) {
+    console.error('[EuraFlow] 提取变体数据失败:', error);
+    return { has_variants: false };
+  }
+}
+
+/**
+ * 从 DOM 解析变体选择器（降级方案）
+ */
+function extractVariantsFromDOM(): { has_variants: boolean; variants?: any[] } {
+  try {
+    // 查找 OZON 的变体选择器容器
+    const variantSelectors = [
+      '[data-widget="webProductVariants"]',
+      '[data-widget="webColor"]',
+      '[data-widget="webSize"]',
+      '.widget-variants',
+      '.product-options',
+    ];
+
+    let variantContainer: Element | null = null;
+    for (const selector of variantSelectors) {
+      variantContainer = document.querySelector(selector);
+      if (variantContainer) break;
+    }
+
+    if (!variantContainer) {
+      return { has_variants: false };
+    }
+
+    // 提取选项组（颜色、尺码等）
+    const optionGroups = variantContainer.querySelectorAll('[data-option], .option-group');
+    if (optionGroups.length === 0) {
+      return { has_variants: false };
+    }
+
+    // 简化处理：将所有选项组合为变体列表
+    const variants: any[] = [];
+    optionGroups.forEach((group, groupIndex) => {
+      const options = group.querySelectorAll('button, [data-value]');
+      options.forEach((option, optionIndex) => {
+        const button = option as HTMLElement;
+        const value = button.getAttribute('data-value') || button.textContent?.trim() || '';
+        const imageUrl = button.getAttribute('data-image') || '';
+        const isAvailable = !button.classList.contains('disabled') && !button.hasAttribute('disabled');
+
+        variants.push({
+          variant_id: `dom_${groupIndex}_${optionIndex}`,
+          specifications: value,
+          spec_details: undefined,
+          image_url: imageUrl,
+          price: 0, // DOM 无法获取价格，需要用户手动输入
+          old_price: undefined,
+          available: isAvailable,
+        });
+      });
+    });
+
+    return {
+      has_variants: variants.length > 0,
+      variants: variants,
+    };
+  } catch (error) {
+    console.error('[EuraFlow] DOM 变体解析失败:', error);
+    return { has_variants: false };
+  }
 }

@@ -51,40 +51,18 @@ export class ApiClient {
   }
 
   /**
-   * 获取店铺列表
+   * 获取一键上架所需的所有配置（店铺+仓库+水印）
+   * 优化：单次请求减少网络往返，从原来的 3+N 次请求优化到 1 次
    */
-  async getShops(): Promise<Shop[]> {
+  async getConfig(): Promise<{
+    shops: Array<Shop & { warehouses: Warehouse[] }>;
+    watermarks: Watermark[];
+  }> {
     try {
-      const response = await this.sendRequest('GET_SHOPS', {});
-      return response.data || [];
+      const response = await this.sendRequest('GET_CONFIG', {});
+      return response;
     } catch (error: any) {
-      console.error('[ApiClient] Get shops failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取指定店铺的仓库列表
-   */
-  async getWarehouses(shopId: number): Promise<Warehouse[]> {
-    try {
-      const response = await this.sendRequest('GET_WAREHOUSES', { shopId });
-      return response.data || [];
-    } catch (error: any) {
-      console.error('[ApiClient] Get warehouses failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取水印配置列表
-   */
-  async getWatermarks(): Promise<Watermark[]> {
-    try {
-      const response = await this.sendRequest('GET_WATERMARKS', {});
-      return response || [];
-    } catch (error: any) {
-      console.error('[ApiClient] Get watermarks failed:', error);
+      console.error('[ApiClient] Get config failed:', error);
       throw error;
     }
   }

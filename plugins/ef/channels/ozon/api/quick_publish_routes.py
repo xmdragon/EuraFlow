@@ -13,8 +13,10 @@ from ef_core.database import get_async_session
 from ef_core.api.auth import get_current_user_from_api_key
 from ef_core.models.users import User
 from ..services.quick_publish_service import QuickPublishService
-from ..models import OzonWarehouse
-from sqlalchemy import select
+from ..models import OzonWarehouse, OzonShop
+from ..models.cloudinary_config import CloudinaryConfig
+from ..models.aliyun_oss_config import AliyunOSSConfig
+from sqlalchemy import select, or_
 
 router = APIRouter(prefix="/quick-publish", tags=["ozon-quick-publish"])
 logger = logging.getLogger(__name__)
@@ -180,6 +182,127 @@ async def get_shop_warehouses(
         }
     except Exception as e:
         logger.error(f"Get warehouses error: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.get("/config")
+async def get_quick_publish_config(
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(get_current_user_from_api_key)
+):
+    """
+    获取一键上架所需的所有配置（店铺、仓库、水印）
+
+    返回格式：
+    {
+      "success": true,
+      "data": {
+        "shops": [
+          {
+            "id": 1,
+            "display_name": "店铺1",
+            "warehouses": [
+              {"id": 1, "name": "FBS仓", "is_rfbs": false},
+              {"id": 2, "name": "rFBS仓", "is_rfbs": true}
+            ]
+          }
+        ],
+        "watermarks": [
+          {"id": 1, "name": "Cloudinary", "type": "cloudinary", "is_default": true},
+          {"id": 2, "name": "阿里云OSS", "type": "aliyun_oss", "is_default": false}
+        ]
+      }
+    }
+
+    优化：单次请求获取所有配置，减少网络往返
+    """
+    try:
+        # 1. 获取店铺列表
+        shops_result = await db.execute(
+            select(OzonShop)
+            .where(OzonShop.user_id == user.id)
+            .where(OzonShop.is_active == True)
+            .order_by(OzonShop.display_name)
+        )
+        shops = shops_result.scalars().all()
+
+        # 2. 获取所有店铺的仓库（批量查询，避免N+1）
+        shop_ids = [shop.id for shop in shops]
+        if shop_ids:
+            warehouses_result = await db.execute(
+                select(OzonWarehouse)
+                .where(OzonWarehouse.shop_id.in_(shop_ids))
+                .where(OzonWarehouse.status == 'created')
+                .order_by(OzonWarehouse.shop_id, OzonWarehouse.is_rfbs.desc(), OzonWarehouse.name)
+            )
+            all_warehouses = warehouses_result.scalars().all()
+
+            # 按店铺ID分组
+            warehouses_by_shop = {}
+            for wh in all_warehouses:
+                if wh.shop_id not in warehouses_by_shop:
+                    warehouses_by_shop[wh.shop_id] = []
+                warehouses_by_shop[wh.shop_id].append({
+                    "id": wh.warehouse_id,
+                    "name": wh.name,
+                    "is_rfbs": wh.is_rfbs,
+                    "status": wh.status
+                })
+        else:
+            warehouses_by_shop = {}
+
+        # 3. 获取水印配置（Cloudinary + Aliyun OSS）
+        watermarks = []
+
+        # Cloudinary配置
+        cloudinary_result = await db.execute(
+            select(CloudinaryConfig).where(CloudinaryConfig.user_id == user.id)
+        )
+        cloudinary_config = cloudinary_result.scalar_one_or_none()
+        if cloudinary_config:
+            watermarks.append({
+                "id": f"cloudinary_{cloudinary_config.id}",
+                "name": "Cloudinary",
+                "type": "cloudinary",
+                "is_default": cloudinary_config.is_default
+            })
+
+        # Aliyun OSS配置
+        aliyun_result = await db.execute(
+            select(AliyunOSSConfig).where(AliyunOSSConfig.user_id == user.id)
+        )
+        aliyun_config = aliyun_result.scalar_one_or_none()
+        if aliyun_config:
+            watermarks.append({
+                "id": f"aliyun_{aliyun_config.id}",
+                "name": "阿里云OSS",
+                "type": "aliyun_oss",
+                "is_default": aliyun_config.is_default
+            })
+
+        # 4. 组装返回数据
+        shops_data = []
+        for shop in shops:
+            shops_data.append({
+                "id": shop.id,
+                "display_name": shop.display_name,
+                "shop_name": shop.shop_name,
+                "warehouses": warehouses_by_shop.get(shop.id, [])
+            })
+
+        return {
+            "success": True,
+            "data": {
+                "shops": shops_data,
+                "watermarks": watermarks
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Get quick publish config error: {e}", exc_info=True)
         return {
             "success": False,
             "error": str(e)

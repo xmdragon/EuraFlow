@@ -56,27 +56,9 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
-  if (message.type === 'GET_SHOPS') {
-    // 获取店铺列表
-    handleGetShops(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-
-    return true;
-  }
-
-  if (message.type === 'GET_WAREHOUSES') {
-    // 获取仓库列表
-    handleGetWarehouses(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-
-    return true;
-  }
-
-  if (message.type === 'GET_WATERMARKS') {
-    // 获取水印配置列表
-    handleGetWatermarks(message.data)
+  if (message.type === 'GET_CONFIG') {
+    // 获取一键上架所需的所有配置（店铺+仓库+水印）
+    handleGetConfig(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
 
@@ -231,12 +213,13 @@ async function handleTestConnection(data: { apiUrl: string; apiKey: string }) {
 }
 
 /**
- * 获取店铺列表
+ * 获取一键上架所需的所有配置（店铺、仓库、水印）
+ * 优化：单次请求减少网络往返
  */
-async function handleGetShops(data: { apiUrl: string; apiKey: string }) {
+async function handleGetConfig(data: { apiUrl: string; apiKey: string }) {
   const { apiUrl, apiKey } = data;
 
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/shops`, {
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/config`, {
     method: 'GET',
     headers: {
       'X-API-Key': apiKey
@@ -248,49 +231,8 @@ async function handleGetShops(data: { apiUrl: string; apiKey: string }) {
     throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
   }
 
-  return await response.json();
-}
-
-/**
- * 获取仓库列表
- */
-async function handleGetWarehouses(data: { apiUrl: string; apiKey: string; shopId: number }) {
-  const { apiUrl, apiKey, shopId } = data;
-
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/shops/${shopId}/warehouses`, {
-    method: 'GET',
-    headers: {
-      'X-API-Key': apiKey
-    }
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return await response.json();
-}
-
-/**
- * 获取水印配置列表
- */
-async function handleGetWatermarks(data: { apiUrl: string; apiKey: string }) {
-  const { apiUrl, apiKey } = data;
-
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/watermark/configs`, {
-    method: 'GET',
-    headers: {
-      'X-API-Key': apiKey
-    }
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return await response.json();
+  const result = await response.json();
+  return result.data || result; // 支持 {success, data} 或直接返回数据
 }
 
 /**
