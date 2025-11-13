@@ -1,4 +1,12 @@
-import type { ProductData } from './types';
+import type {
+  ProductData,
+  Shop,
+  Warehouse,
+  Watermark,
+  QuickPublishRequest,
+  QuickPublishResponse,
+  TaskStatus,
+} from './types';
 
 /**
  * EuraFlow API 客户端
@@ -40,6 +48,100 @@ export class ApiClient {
       console.error('[ApiClient] Upload failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * 获取店铺列表
+   */
+  async getShops(): Promise<Shop[]> {
+    try {
+      const response = await this.request('/ozon/shops');
+      return response.data || [];
+    } catch (error: any) {
+      console.error('[ApiClient] Get shops failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取指定店铺的仓库列表
+   */
+  async getWarehouses(shopId: number): Promise<Warehouse[]> {
+    try {
+      const response = await this.request(`/ozon/shops/${shopId}/warehouses`);
+      return response.data || [];
+    } catch (error: any) {
+      console.error('[ApiClient] Get warehouses failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取水印配置列表
+   */
+  async getWatermarks(): Promise<Watermark[]> {
+    try {
+      const response = await this.request('/ozon/watermark/configs');
+      return response || [];
+    } catch (error: any) {
+      console.error('[ApiClient] Get watermarks failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 快速上架商品
+   */
+  async quickPublish(data: QuickPublishRequest): Promise<QuickPublishResponse> {
+    try {
+      const response = await this.request('/ozon/quick-publish/publish', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      return response;
+    } catch (error: any) {
+      console.error('[ApiClient] Quick publish failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 查询上架任务状态
+   */
+  async getTaskStatus(taskId: string): Promise<TaskStatus> {
+    try {
+      const response = await this.request(`/ozon/quick-publish/task/${taskId}/status`);
+      return response;
+    } catch (error: any) {
+      console.error('[ApiClient] Get task status failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 通用HTTP请求方法
+   */
+  private async request(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<any> {
+    const url = `${this.apiUrl}${endpoint}`;
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey,
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 
   /**

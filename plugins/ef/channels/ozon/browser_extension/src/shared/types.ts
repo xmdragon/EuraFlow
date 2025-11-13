@@ -116,3 +116,93 @@ export interface FusionStats {
   totalFields: number;      // 总字段数
   fusedFields: string[];    // 从两个数据源融合的字段
 }
+
+// ========== 一键跟卖功能类型 ==========
+
+/**
+ * 店铺信息
+ */
+export interface Shop {
+  id: number;
+  shop_name: string;        // 俄文店铺名
+  shop_name_cn: string;     // 中文店铺名
+  display_name: string;     // 显示名称
+  platform: string;         // 平台（ozon）
+  status: string;           // 状态（active）
+}
+
+/**
+ * 仓库信息
+ */
+export interface Warehouse {
+  id: number;
+  shop_id: number;
+  warehouse_id: number;     // OZON仓库ID
+  name: string;             // 仓库名称
+  is_rfbs: boolean;         // 是否为rFBS仓库
+  status: string;           // 状态
+}
+
+/**
+ * 水印配置
+ */
+export interface Watermark {
+  id: number;
+  name: string;             // 水印名称
+  image_url: string;        // 水印图片URL
+  scale_ratio: number;      // 缩放比例（0.01-1.0）
+  opacity: number;          // 透明度（0.1-1.0）
+  positions: string[];      // 位置列表
+  is_active: boolean;       // 是否激活
+}
+
+/**
+ * 快速上架请求
+ */
+export interface QuickPublishRequest {
+  shop_id: number;
+  warehouse_ids: number[];
+  offer_id: string;         // 商家SKU
+  price: number;
+  stock: number;
+  category_id?: number;
+  old_price?: number;
+  ozon_product_id?: string;
+  title: string;
+  description?: string;
+  images: string[];
+  brand?: string;
+  barcode?: string;
+  dimensions?: {
+    weight: number;         // 克
+    height: number;         // 毫米
+    width: number;          // 毫米
+    length: number;         // 毫米
+  };
+  attributes?: Array<{
+    attribute_id: number;
+    value: string;
+    dictionary_value_id?: number;
+  }>;
+}
+
+/**
+ * 快速上架响应
+ */
+export interface QuickPublishResponse {
+  success: boolean;
+  task_id?: string;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * 任务状态
+ */
+export interface TaskStatus {
+  success: boolean;
+  task_id: string;
+  status: 'pending' | 'processing' | 'imported' | 'failed';
+  items?: any[];
+  error?: string;
+}

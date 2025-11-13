@@ -696,9 +696,15 @@ const ProductCreate: React.FC = () => {
 
     // 处理类目ID：Cascader保存的是路径数组，需要提取最后一个ID
     const categoryIdPath = form.getFieldValue('category_id');
-    const categoryId = Array.isArray(categoryIdPath)
-      ? categoryIdPath[categoryIdPath.length - 1]  // 提取最后一个ID（给后端API）
-      : categoryIdPath;  // 兼容单个ID
+    let categoryId: number | undefined;
+    if (Array.isArray(categoryIdPath)) {
+      // 提取最后一个ID（给后端API）
+      categoryId = categoryIdPath[categoryIdPath.length - 1];
+    } else if (typeof categoryIdPath === 'number') {
+      // 兼容单个ID
+      categoryId = categoryIdPath;
+    }
+    // 如果是字符串（搜索关键词），则忽略，设为 undefined
 
     // 提取类目属性字段（包括空值）
     const attrFields = Object.keys(values)
@@ -1227,8 +1233,10 @@ const ProductCreate: React.FC = () => {
         .filter(attr => {
           const fieldName = `attr_${attr.attribute_id}`;
           const value = allFormValues[fieldName];
-          // 过滤掉未填写的字段（undefined, null, 空字符串）
-          return value !== undefined && value !== null && value !== '';
+          // 过滤掉未填写的字段（undefined, null, 空字符串, 空数组）
+          if (value === undefined || value === null || value === '') return false;
+          if (Array.isArray(value) && value.length === 0) return false;
+          return true;
         })
         .map(attr => {
           const fieldName = `attr_${attr.attribute_id}`;
@@ -1243,14 +1251,21 @@ const ProductCreate: React.FC = () => {
 
           // 处理字典值类型（下拉选择）
           if (attr.dictionary_id) {
-            attrValue.values.push({
-              dictionary_value_id: Number(value),
-              value: String(value)
+            // 支持多选：值可能是数组（多选）或单个值（单选）
+            const values = Array.isArray(value) ? value : [value];
+            values.forEach(v => {
+              attrValue.values.push({
+                dictionary_value_id: Number(v),
+                value: String(v)
+              });
             });
           } else {
             // 处理普通值（文本、数字、布尔等）
-            attrValue.values.push({
-              value: String(value)
+            const values = Array.isArray(value) ? value : [value];
+            values.forEach(v => {
+              attrValue.values.push({
+                value: String(v)
+              });
             });
           }
 
@@ -1277,15 +1292,21 @@ const ProductCreate: React.FC = () => {
           };
 
           if (attrDef?.dictionary_id) {
-            // 字典值类型
-            attr.values.push({
-              dictionary_value_id: Number(value),
-              value: String(value)
+            // 字典值类型（支持多选）
+            const values = Array.isArray(value) ? value : [value];
+            values.forEach(v => {
+              attr.values.push({
+                dictionary_value_id: Number(v),
+                value: String(v)
+              });
             });
           } else {
-            // 普通值
-            attr.values.push({
-              value: String(value)
+            // 普通值（支持多选）
+            const values = Array.isArray(value) ? value : [value];
+            values.forEach(v => {
+              attr.values.push({
+                value: String(v)
+              });
             });
           }
 

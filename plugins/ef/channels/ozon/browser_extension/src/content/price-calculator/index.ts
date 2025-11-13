@@ -77,14 +77,14 @@ export class RealPriceCalculator {
       }
 
       // 计算真实售价
-      const { message } = calculateRealPrice(
+      const { message, price } = calculateRealPrice(
         greenPrice,
         blackPrice,
         currency
       );
 
-      // 注入或更新显示
-      injectOrUpdateDisplay(message);
+      // 注入或更新显示（传递价格数值用于"一键跟卖"按钮）
+      injectOrUpdateDisplay(message, price);
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator error:', error);
     }

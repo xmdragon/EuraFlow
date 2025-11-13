@@ -203,6 +203,10 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
   const isBrand = isBrandField(attr.name);
   const isCountry = isCountryField(attr.name);
 
+  // 检测是否支持多选（优先使用 is_collection 字段，备选检查 description）
+  const isMultiSelect = attr.is_collection ||
+    (attr.description && attr.description.includes('您可以添加多个值'));
+
   // 处理类型名称生成按钮点击
   const handleGenerateTypeName = () => {
     const randomStr = generateRandomString(16);
@@ -277,6 +281,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
 
       inputControl = (
         <Select
+          mode={isMultiSelect ? 'multiple' : undefined}
           showSearch
           placeholder={`请选择${fullLabel}`}
           popupMatchSelectWidth={false}
@@ -321,6 +326,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
 
       inputControl = (
         <Select
+          mode={isMultiSelect ? 'multiple' : undefined}
           showSearch
           placeholder={`请选择${fullLabel}`}
           popupMatchSelectWidth={false}
@@ -365,6 +371,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
       // 模式2：搜索模式（>100条）
       inputControl = (
         <Select
+          mode={isMultiSelect ? 'multiple' : undefined}
           showSearch
           placeholder={`请输入至少2个字符搜索${fullLabel}`}
           popupMatchSelectWidth={false}
