@@ -62,6 +62,7 @@ function setCachedDiscountPercent(percent: number): void {
  */
 interface VariantEditData {
   variant_id: string;           // 变体ID
+  name?: string;               // 商品名称（可选，从product-detail.ts提取）
   specifications: string;       // 规格描述（如 "白色,M"）
   spec_details?: Record<string, string>; // 规格详情（如 { color: "白色", size: "M" }）
   image_url: string;           // 变体图片
@@ -997,7 +998,7 @@ async function handlePublish(): Promise<void> {
       });
 
       return {
-        name: variant.name || productData.title,       // 商品名称（必填）
+        name: variant.name || productData?.title || '',  // 商品名称（必填）
         sku: variant.variant_id,                      // OZON SKU
         offer_id: variant.offer_id,
         price: yuanToCents(variant.custom_price),     // 元 → 分
