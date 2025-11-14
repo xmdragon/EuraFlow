@@ -312,8 +312,20 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
       });
     }
 
+    // 调试：输出原始变体数据中的所有 title 相关字段
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 变体 [${sku}] title字段提取:`, {
+        'variant.title': variant.title,
+        'variant.data?.title': variant.data?.title,
+        'variant.data?.searchableText': variant.data?.searchableText,
+        'specifications': specifications,
+        'productTitle': productTitle,
+        '原始variant对象': variant
+      });
+    }
+
     // 提取变体标题（优先使用变体自己的title）
-    const variantName = variant.data?.title || specifications || productTitle;
+    const variantName = variant.title || variant.data?.title || specifications || productTitle;
 
     const variantData = {
       variant_id: sku,
