@@ -997,6 +997,7 @@ async function handlePublish(): Promise<void> {
       });
 
       return {
+        name: variant.name || productData.title,       // 商品名称（必填）
         sku: variant.variant_id,                      // OZON SKU
         offer_id: variant.offer_id,
         price: yuanToCents(variant.custom_price),     // 元 → 分
@@ -1006,20 +1007,31 @@ async function handlePublish(): Promise<void> {
       };
     });
 
+    // 过滤共享图片：移除已经作为变体主图的图片
+    const variantImageUrls = new Set(
+      variantsData
+        .map(v => v.primary_image)
+        .filter((url): url is string => !!url)
+        .map(url => url.replace(/\/wc\d+\//, '/')) // 移除尺寸标识符以匹配原图
+    );
+
+    const filteredImages = productData.images.filter(img => {
+      const normalizedImg = img.replace(/\/wc\d+\//, '/');
+      return !variantImageUrls.has(normalizedImg);
+    });
+
     const batchRequest: QuickPublishBatchRequest = {
       shop_id: selectedShopId,
       warehouse_ids: selectedWarehouseIds,
       watermark_config_id: selectedWatermarkId || undefined,  // 水印配置ID
       variants: variantsData,
       // 商品共享数据
-      ozon_product_id: productData.ozon_product_id,
-      title: productData.title,
       description: productData.description,
-      images: productData.images,  // 共享图片列表
+      images: filteredImages,  // 共享图片列表（已过滤变体主图）
       brand: productData.brand,
       barcode: productData.barcode,
-      category_id: productData.category_id!,
-      dimensions: productData.dimensions!,
+      category_id: productData.category_id,
+      dimensions: productData.dimensions,
       attributes: productData.attributes,
     };
 

@@ -191,6 +191,7 @@ export interface QuickPublishRequest {
  * 单个变体的上架数据（仅变体特有字段）
  */
 export interface QuickPublishVariant {
+  name: string;             // 商品名称（必填）
   sku: string;              // OZON SKU
   offer_id: string;         // 商家SKU
   price: number;            // 价格（分）
@@ -208,14 +209,12 @@ export interface QuickPublishBatchRequest {
   watermark_config_id?: number;     // 水印配置ID
   variants: QuickPublishVariant[];  // 变体列表
   // 商品共享数据
-  ozon_product_id?: string;
-  title: string;
   description?: string;
   images: string[];
   brand?: string;
   barcode?: string;
-  category_id: number;
-  dimensions: {
+  category_id?: number;
+  dimensions?: {
     weight: number;         // 克
     height: number;         // 毫米
     width: number;          // 毫米
