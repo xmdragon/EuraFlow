@@ -11,8 +11,7 @@
  *    - images / videos: webGallery
  *    - ozon_product_id: URL 路径提取
  *    - category_id: breadCrumbs
- *    - brand: webProductHeading（优先）或 webCharacteristics
- *    - barcode: webCharacteristics
+ *    - brand: webProductHeading（优先）或 webCharacteristics（被上品帮 DOM 覆盖）
  *    - attributes: Page2 API 的 webCharacteristics（最完整）
  *
  * 2. description（来自 Page2 API）
@@ -24,7 +23,7 @@
  *    - 数据源：上品帮扩展注入的 div.text-class 元素
  *    - 等待策略：50ms 间隔轮询，最多等待 5 秒
  *    - dimensions 字段：weight, height, width, length（来自"长宽高(mm)"和"包装重量"）
- *    - brand 字段：来自"品牌"字段，"без бренда" 转换为 "NO_BRAND"
+ *    - brand 字段：来自"品牌"字段，"без бренда"、"非热销,无数据"、空字符串 转换为 "NO_BRAND"
  *    - 特殊处理：如果 dimensions 为"无数据"，则不合并（保持 undefined），阻止弹窗打开
  *
  * 4. variants（来自 Modal API）
@@ -243,8 +242,8 @@ function extractDataFromInjectedDOM(): {
       // 提取品牌（格式：без бренда 或其他品牌名）
       if (label.includes('品牌')) {
         if (value) {
-          // 标准化品牌：将 "без бренда" 转换为 "NO_BRAND"
-          if (value === 'без бренда' || value === '') {
+          // 标准化品牌：将 "без бренда"、空字符串、"非热销,无数据" 转换为 "NO_BRAND"
+          if (value === 'без бренда' || value === '' || value === '非热销,无数据') {
             result.brand = 'NO_BRAND';
           } else {
             result.brand = value;
@@ -505,29 +504,15 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
       }
     }
 
-    // 8. 提取条形码（webCharacteristics）
-    let barcode: string | undefined = undefined;
+    // 8. 提取类目特征（webCharacteristics）
+    const attributes: ProductDetailData['attributes'] = [];
     const characteristicsKey = keys.find(k => k.includes('webCharacteristics'));
     if (characteristicsKey) {
       const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
       if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
-        const barcodeChar = characteristicsData.characteristics.find(
-          (char: any) => char.title === 'Штрихкод' || char.key === 'barcode'
-        );
-        if (barcodeChar?.values && barcodeChar.values.length > 0) {
-          barcode = barcodeChar.values[0].text || barcodeChar.values[0].value;
-        }
-      }
-    }
-
-    // 9. 提取类目特征（webCharacteristics）
-    const attributes: ProductDetailData['attributes'] = [];
-    if (characteristicsKey) {
-      const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
-      if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
         characteristicsData.characteristics.forEach((char: any) => {
-          // 跳过已经提取的字段（品牌、条形码）
-          if (['Бренд', 'Штрихкод'].includes(char.title)) {
+          // 跳过已经提取的字段（品牌）
+          if (['Бренд'].includes(char.title)) {
             return;
           }
 
@@ -554,7 +539,6 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
         videos: videos.length,
         category_id,
         brand,
-        barcode,
         attributes: attributes.length,
       });
     }
@@ -568,7 +552,6 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
       videos: videos.length > 0 ? videos : undefined,
       category_id,
       brand,
-      barcode,
       attributes: attributes.length > 0 ? attributes : undefined,
     };
   } catch (error) {
@@ -842,7 +825,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
       console.log('[EuraFlow] ========== 基础商品数据（从 widgetStates + Page2 提取）==========');
       console.log('[EuraFlow] category_id:', baseData.category_id);
       console.log('[EuraFlow] brand:', baseData.brand);
-      console.log('[EuraFlow] barcode:', baseData.barcode);
       console.log('[EuraFlow] description:', baseData.description ? `${baseData.description.substring(0, 80)}...` : undefined);
       console.log('[EuraFlow] dimensions:', baseData.dimensions);
       console.log('[EuraFlow] attributes:', baseData.attributes);
