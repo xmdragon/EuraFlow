@@ -454,35 +454,16 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
     const urlMatch = window.location.pathname.match(/product\/.*-(\d+)/);
     const ozon_product_id = urlMatch ? urlMatch[1] : undefined;
 
-    // 5. 提取类目ID（breadCrumbs 或 webBreadCrumbs 或 webCurrentSeller）
+    // 5. 提取类目ID（breadCrumbs）
     let category_id: number | undefined = undefined;
-    // 优先查找 breadCrumbs（不带 web 前缀，OZON 新格式）
     const breadcrumbsKey = keys.find(k => k.includes('breadCrumb'));
     if (breadcrumbsKey) {
       const breadcrumbsData = JSON.parse(widgetStates[breadcrumbsKey]);
-      // 类目ID可能在 breadcrumbs 的最后一项中
-      if (breadcrumbsData?.breadcrumbs && Array.isArray(breadcrumbsData.breadcrumbs)) {
-        const lastItem = breadcrumbsData.breadcrumbs[breadcrumbsData.breadcrumbs.length - 1];
-        // 从 link 中提取 category ID，格式：/category/name-{id}/
-        const categoryMatch = lastItem?.link?.match(/\/category\/.*-(\d+)\//);
-        if (categoryMatch) {
-          category_id = parseInt(categoryMatch[1]);
-        }
-      } else if (breadcrumbsData?.items && Array.isArray(breadcrumbsData.items)) {
-        // 兼容旧格式
+      // 从 breadcrumbs.items 数组的最后一项提取 categoryId
+      if (breadcrumbsData?.items && Array.isArray(breadcrumbsData.items)) {
         const lastItem = breadcrumbsData.items[breadcrumbsData.items.length - 1];
         if (lastItem?.categoryId) {
           category_id = parseInt(lastItem.categoryId);
-        }
-      }
-    }
-    // 降级：从其他 widget 提取
-    if (!category_id) {
-      const sellerKey = keys.find(k => k.includes('webCurrentSeller'));
-      if (sellerKey) {
-        const sellerData = JSON.parse(widgetStates[sellerKey]);
-        if (sellerData?.categoryId) {
-          category_id = parseInt(sellerData.categoryId);
         }
       }
     }
