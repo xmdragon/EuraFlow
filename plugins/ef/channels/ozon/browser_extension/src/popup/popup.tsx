@@ -82,7 +82,7 @@ function Popup() {
     <div className="popup-container">
       <header className="popup-header">
         <h1>🛒 EuraFlow 选品助手</h1>
-        <p className="version">v1.1.2</p>
+        <p className="version">v1.3.0</p>
       </header>
 
       {/* API配置 */}

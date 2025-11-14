@@ -24,9 +24,6 @@ function isProductDetailPage(): boolean {
 }
 
 async function init() {
-  // 输出调试提示
-  console.log('[EuraFlow] localStorage.setItem(\'EURAFLOW_DEBUG\', \'true\');');
-
   // 分支处理：商品详情页 vs 商品列表页
   if (isProductDetailPage()) {
     // 初始化真实售价计算器
