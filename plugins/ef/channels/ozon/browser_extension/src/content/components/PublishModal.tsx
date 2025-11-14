@@ -1048,7 +1048,7 @@ async function handlePublish(): Promise<void> {
     console.log('[PublishModal] 开始轮询', response.task_ids.length, '个任务');
     const pollPromises = response.task_ids.map((taskId: string, idx: number) => {
       const variant = enabledVariants[idx];
-      return pollTaskStatus(taskId, variant.specifications, selectedShopId);
+      return pollTaskStatus(taskId, variant.specifications, selectedShopId ?? undefined);
     });
 
     await Promise.all(pollPromises);
