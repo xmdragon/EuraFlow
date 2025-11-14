@@ -275,10 +275,10 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
 @celery_app.task(bind=True, name="ef.ozon.quick_publish.create_product", max_retries=3)
 def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int, parent_task_id: str):
     """
-    步骤 1: 通过 SKU 创建商品
-    调用 OZON API /v1/product/import-by-sku
+    步骤 1: 创建商品（完整商品数据）
+    调用 OZON API /v3/product/import
     """
-    logger.info(f"[Step 1] Creating product by SKU: offer_id={dto_dict.get('offer_id')}")
+    logger.info(f"[Step 1] Creating product: offer_id={dto_dict.get('offer_id')}")
 
     try:
         update_task_progress(
@@ -298,20 +298,40 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
             shop_id=shop.id
         )
 
-        items = [{
-            "sku": dto_dict["sku"],
+        # 构建完整商品数据（/v3/product/import API）
+        product_item = {
             "offer_id": dto_dict["offer_id"],
-            "price": str(dto_dict["price"]),
-            "currency_code": "CNY"
-        }]
+            "name": dto_dict.get("name", ""),
+        }
 
-        if dto_dict.get("old_price"):
-            items[0]["old_price"] = str(dto_dict["old_price"])
-        if dto_dict.get("name"):
-            items[0]["name"] = dto_dict["name"]
+        # category_id（必需，叶子类目）
+        if dto_dict.get("category_id"):
+            product_item["category_id"] = dto_dict["category_id"]
+        else:
+            raise ValueError("category_id 是必需字段，无法创建商品")
 
-        logger.info(f"[Step 1] Calling OZON API import-by-sku with items: {items}")
-        import_result = run_async_in_celery(api_client.import_products_by_sku(items))
+        # dimensions（必需）
+        if dto_dict.get("dimensions"):
+            product_item["dimensions"] = dto_dict["dimensions"]
+        else:
+            raise ValueError("dimensions 是必需字段，无法创建商品")
+
+        # attributes（必需，即使为空列表）
+        product_item["attributes"] = dto_dict.get("attributes", [])
+
+        # 可选字段
+        if dto_dict.get("description"):
+            product_item["description"] = dto_dict["description"]
+        if dto_dict.get("brand"):
+            product_item["brand"] = dto_dict["brand"]
+        if dto_dict.get("barcode"):
+            product_item["barcode"] = dto_dict["barcode"]
+
+        # 图片（注意：这里暂不传递，因为需要先上传到OZON图库）
+        # images 会在后续步骤中处理
+
+        logger.info(f"[Step 1] Calling OZON API /v3/product/import with data: {product_item}")
+        import_result = run_async_in_celery(api_client.import_products([product_item]))
         logger.info(f"[Step 1] OZON API response: {import_result}")
 
         if not import_result.get('result'):

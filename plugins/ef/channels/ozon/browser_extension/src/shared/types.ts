@@ -201,15 +201,48 @@ export interface QuickPublishVariant {
 }
 
 /**
- * 批量上架请求
+ * 商品尺寸
+ */
+export interface Dimensions {
+  weight: number;  // 重量（克）
+  height: number;  // 高度（毫米）
+  width: number;   // 宽度（毫米）
+  length: number;  // 长度（深度，毫米）
+}
+
+/**
+ * 类目特征
+ */
+export interface Attribute {
+  attribute_id: number;
+  value: string;
+  dictionary_value_id?: number;
+}
+
+/**
+ * 批量上架请求（支持完整商品数据）
  */
 export interface QuickPublishBatchRequest {
   shop_id: number;
   warehouse_ids: number[];
   watermark_config_id?: number;     // 水印配置ID
   variants: QuickPublishVariant[];  // 变体列表
-  // 共享图片（供后续步骤使用，如上传图片）
+
+  // 共享图片和视频
   images: string[];
+  videos?: string[];
+
+  // 共享商品信息
+  description?: string;
+  category_id?: number;
+  brand?: string;
+  barcode?: string;
+
+  // 尺寸和重量（必填）
+  dimensions?: Dimensions;
+
+  // 类目特征（可选）
+  attributes?: Attribute[];
 }
 
 /**

@@ -60,7 +60,17 @@ class QuickPublishService:
             except Exception as e:
                 logger.warning(f"[QuickPublishService] 翻译服务初始化失败: {e}")
 
-            # 3. 为每个变体创建任务
+            # 3. 翻译描述（如果有中文）
+            russian_description = dto.description
+            if translation_service and dto.description:
+                try:
+                    if any('\u4e00' <= char <= '\u9fff' for char in dto.description):
+                        russian_description = await translation_service.translate_text(dto.description, target_lang='ru')
+                        logger.info(f"[QuickPublishService] 描述翻译完成")
+                except Exception as e:
+                    logger.warning(f"[QuickPublishService] 描述翻译失败，使用原描述: {e}")
+
+            # 4. 为每个变体创建任务
             from ..tasks.quick_publish_task import quick_publish_chain_task
             import time
 
@@ -79,18 +89,40 @@ class QuickPublishService:
                     except Exception as e:
                         logger.warning(f"[QuickPublishService] 变体[{variant.sku}] 名称翻译失败，使用原名称: {e}")
 
-                # 通过SKU创建商品只需要7个字段：name, offer_id, old_price, price, sku, vat, currency_code
+                # 构建完整商品数据（用于 /v3/product/import API）
                 variant_dto = {
+                    # 基础信息
                     "shop_id": dto.shop_id,
                     "warehouse_ids": dto.warehouse_ids,
-                    "sku": variant.sku,
+                    "watermark_config_id": dto.watermark_config_id,
+
+                    # 变体特有字段
+                    "name": russian_name,  # 使用翻译后的俄文名称
                     "offer_id": variant.offer_id,
                     "price": str(variant.price),  # Decimal → str
                     "stock": variant.stock,
                     "old_price": str(variant.old_price) if variant.old_price else None,
+                    "primary_image": variant.primary_image,
+
+                    # 共享字段（所有变体共享）
+                    "description": russian_description,
+                    "category_id": dto.category_id,
+                    "brand": dto.brand,
+                    "barcode": dto.barcode,
+
+                    # 尺寸（必填）
+                    "dimensions": dto.dimensions.model_dump() if dto.dimensions else None,
+
+                    # 图片和视频
+                    "images": dto.images,
+                    "videos": dto.videos,
+
+                    # 类目特征
+                    "attributes": [attr.model_dump() for attr in dto.attributes] if dto.attributes else [],
+
+                    # OZON API 必需的其他字段
                     "vat": "0",  # 默认税率 0
                     "currency_code": "CNY",  # 默认货币 CNY
-                    "name": russian_name,  # 使用翻译后的俄文名称
                 }
 
                 # 生成唯一任务ID
@@ -103,7 +135,7 @@ class QuickPublishService:
                 )
 
                 task_ids.append(task_id)
-                logger.info(f"[QuickPublishService] 变体 {idx+1}/{len(dto.variants)} 任务已创建: task_id={task_id}, SKU={variant.sku}")
+                logger.info(f"[QuickPublishService] 变体 {idx+1}/{len(dto.variants)} 任务已创建: task_id={task_id}, SKU={variant.offer_id}")
 
             logger.info(f"[QuickPublishService] 批量上架完成: 共创建 {len(task_ids)} 个任务")
 

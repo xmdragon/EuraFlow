@@ -1044,8 +1044,22 @@ async function handlePublish(): Promise<void> {
       warehouse_ids: selectedWarehouseIds,
       watermark_config_id: selectedWatermarkId || undefined,  // 水印配置ID
       variants: variantsData,
-      // 共享图片（供后续步骤使用，如上传图片）
+
+      // 共享图片和视频
       images: filteredImages,  // 共享图片列表（已过滤变体主图）
+      videos: productData.videos || undefined,
+
+      // 共享商品信息（从 product-detail.ts 提取）
+      description: productData.description || undefined,
+      category_id: productData.category_id || undefined,
+      brand: productData.brand || undefined,
+      barcode: productData.barcode || undefined,
+
+      // 尺寸和重量
+      dimensions: productData.dimensions || undefined,
+
+      // 类目特征
+      attributes: productData.attributes || undefined,
     };
 
     console.log('[PublishModal] ========== 批量上架请求 ==========');

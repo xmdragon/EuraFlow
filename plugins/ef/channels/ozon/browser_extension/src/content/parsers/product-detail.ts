@@ -22,8 +22,9 @@ export interface ProductDetailData {
   brand?: string; // 品牌
   barcode?: string; // 条形码
 
-  // 图片
+  // 图片和视频
   images: string[]; // 图片URL列表
+  videos?: string[]; // 视频URL列表
 
   // 尺寸和重量
   dimensions?: {
@@ -109,13 +110,24 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
     const price = parseFloat(cleanPrice(priceData?.price || priceData?.cardPrice || '0'));
     const original_price = parseFloat(cleanPrice(priceData?.originalPrice || '0'));
 
-    // 3. 提取图片
+    // 3. 提取图片和视频
     const galleryKey = keys.find(k => k.includes('webGallery'));
     const galleryData = galleryKey ? JSON.parse(widgetStates[galleryKey]) : null;
     const images: string[] = [];
+    const videos: string[] = [];
     if (galleryData?.images && Array.isArray(galleryData.images)) {
       galleryData.images.forEach((img: any) => {
         if (img.src) images.push(img.src);
+      });
+    }
+    // 提取视频（webGallery 中的 videos 或 videoItems 字段）
+    if (galleryData?.videos && Array.isArray(galleryData.videos)) {
+      galleryData.videos.forEach((video: any) => {
+        if (video.src || video.url) videos.push(video.src || video.url);
+      });
+    } else if (galleryData?.videoItems && Array.isArray(galleryData.videoItems)) {
+      galleryData.videoItems.forEach((video: any) => {
+        if (video.src || video.url) videos.push(video.src || video.url);
       });
     }
 
@@ -123,12 +135,157 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
     const urlMatch = window.location.pathname.match(/product\/.*-(\d+)/);
     const ozon_product_id = urlMatch ? urlMatch[1] : undefined;
 
+    // 5. 提取描述（webDescription 或 webProductHeading 中的 description）
+    let description: string | undefined = undefined;
+    const descriptionKey = keys.find(k => k.includes('webDescription'));
+    if (descriptionKey) {
+      const descriptionData = JSON.parse(widgetStates[descriptionKey]);
+      description = descriptionData?.description || descriptionData?.text || descriptionData?.content || undefined;
+    }
+    // 降级：从 heading 中提取
+    if (!description && headingData?.description) {
+      description = headingData.description;
+    }
+
+    // 6. 提取类目ID（webBreadCrumbs 或 webCurrentSeller）
+    let category_id: number | undefined = undefined;
+    const breadcrumbsKey = keys.find(k => k.includes('webBreadCrumbs'));
+    if (breadcrumbsKey) {
+      const breadcrumbsData = JSON.parse(widgetStates[breadcrumbsKey]);
+      // 类目ID可能在 breadcrumbs 的最后一项中
+      if (breadcrumbsData?.items && Array.isArray(breadcrumbsData.items)) {
+        const lastItem = breadcrumbsData.items[breadcrumbsData.items.length - 1];
+        if (lastItem?.categoryId) {
+          category_id = parseInt(lastItem.categoryId);
+        }
+      }
+    }
+    // 降级：从其他 widget 提取
+    if (!category_id) {
+      const sellerKey = keys.find(k => k.includes('webCurrentSeller'));
+      if (sellerKey) {
+        const sellerData = JSON.parse(widgetStates[sellerKey]);
+        if (sellerData?.categoryId) {
+          category_id = parseInt(sellerData.categoryId);
+        }
+      }
+    }
+
+    // 7. 提取品牌（webProductHeading 或 webCharacteristics）
+    let brand: string | undefined = headingData?.brand || undefined;
+    if (!brand) {
+      const characteristicsKey = keys.find(k => k.includes('webCharacteristics'));
+      if (characteristicsKey) {
+        const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
+        if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
+          const brandChar = characteristicsData.characteristics.find(
+            (char: any) => char.title === 'Бренд' || char.key === 'brand'
+          );
+          if (brandChar?.values && brandChar.values.length > 0) {
+            brand = brandChar.values[0].text || brandChar.values[0].value;
+          }
+        }
+      }
+    }
+
+    // 8. 提取条形码（webCharacteristics）
+    let barcode: string | undefined = undefined;
+    const characteristicsKey = keys.find(k => k.includes('webCharacteristics'));
+    if (characteristicsKey) {
+      const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
+      if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
+        const barcodeChar = characteristicsData.characteristics.find(
+          (char: any) => char.title === 'Штрихкод' || char.key === 'barcode'
+        );
+        if (barcodeChar?.values && barcodeChar.values.length > 0) {
+          barcode = barcodeChar.values[0].text || barcodeChar.values[0].value;
+        }
+      }
+    }
+
+    // 9. 提取尺寸和重量（webCharacteristics）
+    let dimensions: ProductDetailData['dimensions'] | undefined = undefined;
+    if (characteristicsKey) {
+      const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
+      if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
+        const weightChar = characteristicsData.characteristics.find(
+          (char: any) => char.title === 'Вес' || char.key === 'weight'
+        );
+        const heightChar = characteristicsData.characteristics.find(
+          (char: any) => char.title === 'Высота' || char.key === 'height'
+        );
+        const widthChar = characteristicsData.characteristics.find(
+          (char: any) => char.title === 'Ширина' || char.key === 'width'
+        );
+        const lengthChar = characteristicsData.characteristics.find(
+          (char: any) => char.title === 'Длина' || char.key === 'length'
+        );
+
+        if (weightChar || heightChar || widthChar || lengthChar) {
+          dimensions = {
+            weight: weightChar?.values?.[0]?.value ? parseFloat(weightChar.values[0].value) : 0,
+            height: heightChar?.values?.[0]?.value ? parseFloat(heightChar.values[0].value) : 0,
+            width: widthChar?.values?.[0]?.value ? parseFloat(widthChar.values[0].value) : 0,
+            length: lengthChar?.values?.[0]?.value ? parseFloat(lengthChar.values[0].value) : 0,
+          };
+        }
+      }
+    }
+
+    // 10. 提取类目特征（webCharacteristics）
+    const attributes: ProductDetailData['attributes'] = [];
+    if (characteristicsKey) {
+      const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
+      if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
+        characteristicsData.characteristics.forEach((char: any) => {
+          // 跳过已经提取的字段（品牌、条形码、尺寸）
+          if (['Бренд', 'Штрихкод', 'Вес', 'Высота', 'Ширина', 'Длина'].includes(char.title)) {
+            return;
+          }
+
+          if (char.values && char.values.length > 0) {
+            const value = char.values.map((v: any) => v.text || v.value).join(', ');
+            attributes.push({
+              attribute_id: char.id || 0,
+              value,
+              dictionary_value_id: char.values[0]?.id || undefined,
+            });
+          }
+        });
+      }
+    }
+
+    // 调试日志
+    if (isDebugEnabled()) {
+      console.log('[EuraFlow] 提取的完整商品数据:', {
+        ozon_product_id,
+        title,
+        price,
+        original_price,
+        images: images.length,
+        videos: videos.length,
+        description: description ? description.substring(0, 50) + '...' : undefined,
+        category_id,
+        brand,
+        barcode,
+        dimensions,
+        attributes: attributes.length,
+      });
+    }
+
     return {
       ozon_product_id,
       title,
       price,
       original_price: original_price > price ? original_price : undefined,
       images,
+      videos: videos.length > 0 ? videos : undefined,
+      description,
+      category_id,
+      brand,
+      barcode,
+      dimensions,
+      attributes: attributes.length > 0 ? attributes : undefined,
     };
   } catch (error) {
     console.error('[EuraFlow] 解析 widgetStates 失败:', error);

@@ -24,6 +24,21 @@ logger = logging.getLogger(__name__)
 
 # DTO模型
 
+class DimensionsDTO(BaseModel):
+    """商品尺寸"""
+    weight: int = Field(..., gt=0, description="重量（克）")
+    height: int = Field(..., gt=0, description="高度（毫米）")
+    width: int = Field(..., gt=0, description="宽度（毫米）")
+    length: int = Field(..., gt=0, description="长度（深度，毫米）")
+
+
+class AttributeDTO(BaseModel):
+    """类目特征"""
+    attribute_id: int = Field(..., description="特征ID")
+    value: str = Field(..., description="特征值")
+    dictionary_value_id: Optional[int] = Field(None, description="字典值ID（可选）")
+
+
 class QuickPublishVariantDTO(BaseModel):
     """单个变体的上架数据（仅变体特有字段）"""
     name: str = Field(..., description="商品名称（中文，后端会翻译成俄文）", min_length=1, max_length=500)
@@ -36,7 +51,7 @@ class QuickPublishVariantDTO(BaseModel):
 
 
 class QuickPublishBatchDTO(BaseModel):
-    """批量上架DTO"""
+    """批量上架DTO（支持完整商品数据）"""
     # 店铺和仓库（共享）
     shop_id: int = Field(..., description="店铺ID")
     warehouse_ids: List[int] = Field(default_factory=list, description="仓库ID列表（FBS/rFBS）")
@@ -45,8 +60,21 @@ class QuickPublishBatchDTO(BaseModel):
     # 变体列表
     variants: List[QuickPublishVariantDTO] = Field(..., min_length=1, max_length=1000, description="变体列表（1-1000个，OZON限制）")
 
-    # 共享图片（供后续步骤使用，如上传图片）
+    # 共享图片和视频
     images: List[str] = Field(default_factory=list, max_length=29, description="图片URL列表（最多29张，还有1张主图）")
+    videos: List[str] = Field(default_factory=list, max_length=5, description="视频URL列表（最多5个）")
+
+    # 共享商品信息
+    description: Optional[str] = Field(None, max_length=10000, description="商品描述（HTML或纯文本）")
+    category_id: Optional[int] = Field(None, gt=0, description="类目ID（必填，如无法自动提取需用户手动输入）")
+    brand: Optional[str] = Field(None, max_length=100, description="品牌名称")
+    barcode: Optional[str] = Field(None, max_length=50, description="条形码（EAN-13/UPC等）")
+
+    # 尺寸和重量（必填）
+    dimensions: Optional[DimensionsDTO] = Field(None, description="商品尺寸（必填，无法提取时需用户手动输入）")
+
+    # 类目特征（可选）
+    attributes: List[AttributeDTO] = Field(default_factory=list, description="类目特征列表（从OZON页面提取）")
 
 
 class QuickPublishBatchResponseDTO(BaseModel):
