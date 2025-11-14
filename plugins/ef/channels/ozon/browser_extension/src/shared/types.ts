@@ -208,9 +208,7 @@ export interface QuickPublishBatchRequest {
   warehouse_ids: number[];
   watermark_config_id?: number;     // 水印配置ID
   variants: QuickPublishVariant[];  // 变体列表
-  // 商品共享数据（跟卖只需要图片和描述）
-  description?: string;
-  images: string[];
+  // 通过SKU创建商品只需要变体中的7个字段：name, offer_id, old_price, price, sku, vat, currency_code
 }
 
 /**

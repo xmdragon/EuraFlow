@@ -145,15 +145,7 @@ class QuickPublishService:
                     except Exception as e:
                         logger.warning(f"[QuickPublishService] 变体[{variant.sku}] 名称翻译失败，使用原名称: {e}")
 
-                # 构建图片列表：变体主图（如果有）+ 共享图片
-                variant_images = []
-                if variant.primary_image:
-                    variant_images.append(variant.primary_image)
-                # 添加共享图片（去重）
-                for img in dto.images:
-                    if img not in variant_images:
-                        variant_images.append(img)
-
+                # 通过SKU创建商品只需要7个字段：name, offer_id, old_price, price, sku, vat, currency_code
                 variant_dto = {
                     "shop_id": dto.shop_id,
                     "warehouse_ids": dto.warehouse_ids,
@@ -165,10 +157,6 @@ class QuickPublishService:
                     "vat": "0",  # 默认税率 0
                     "currency_code": "CNY",  # 默认货币 CNY
                     "name": russian_name,  # 使用翻译后的俄文名称
-                    "description": dto.description,
-                    "images": variant_images,  # 变体主图 + 共享图片
-                    "brand": dto.brand,
-                    "barcode": dto.barcode,
                 }
 
                 # 生成唯一任务ID
