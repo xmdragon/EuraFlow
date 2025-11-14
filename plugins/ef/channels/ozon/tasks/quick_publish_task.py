@@ -30,6 +30,30 @@ REDIS_TASK_PROGRESS_PREFIX = "celery-task-progress:"
 
 # ========== 辅助函数 ==========
 
+def run_async_in_celery(coro):
+    """
+    在 Celery 任务中安全执行异步函数
+    避免 Event loop is closed 错误
+    """
+    try:
+        # 尝试获取当前事件循环
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            # 如果已关闭，创建新的
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+    except RuntimeError:
+        # 没有事件循环，创建新的
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    try:
+        return loop.run_until_complete(coro)
+    except Exception as e:
+        logger.error(f"Async execution failed: {e}", exc_info=True)
+        raise
+
+
 def get_sync_db_session():
     """创建同步数据库会话 (用于 Celery 任务)"""
     settings = get_settings()
@@ -284,12 +308,7 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         if dto_dict.get("name"):
             items[0]["name"] = dto_dict["name"]
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            import_result = loop.run_until_complete(api_client.import_products_by_sku(items))
-        finally:
-            loop.close()
+        import_result = run_async_in_celery(api_client.import_products_by_sku(items))
 
         if not import_result.get('result'):
             raise ValueError(f"OZON API 错误: {import_result}")
@@ -308,14 +327,9 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         for attempt in range(max_attempts):
             time.sleep(10)
 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                status_result = loop.run_until_complete(
-                    api_client.get_import_product_info(ozon_task_id)
-                )
-            finally:
-                loop.close()
+            status_result = run_async_in_celery(
+                api_client.get_import_product_info(ozon_task_id)
+            )
 
             if not status_result.get('result'):
                 continue
@@ -389,81 +403,74 @@ def upload_images_to_storage_task(self, prev_result: Dict, dto_dict: Dict, shop_
         storage_type = None
         uploaded_urls = []
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        async def upload_all_images():
+            nonlocal storage_type, uploaded_urls
 
-        try:
-            async def upload_all_images():
-                nonlocal storage_type, uploaded_urls
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+            settings = get_settings()
+            async_engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+            AsyncSession = async_sessionmaker(async_engine, expire_on_commit=False)
 
-                from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-                settings = get_settings()
-                async_engine = create_async_engine(settings.database_url, pool_pre_ping=True)
-                AsyncSession = async_sessionmaker(async_engine, expire_on_commit=False)
+            async with AsyncSession() as db:
+                storage_type_result, storage_service = await get_image_storage_config(db)
+                storage_type = storage_type_result
 
-                async with AsyncSession() as db:
-                    storage_type_result, storage_service = await get_image_storage_config(db)
-                    storage_type = storage_type_result
+                if not storage_service:
+                    logger.warning("No image storage configured, using original URLs")
+                    return ozon_image_urls
 
-                    if not storage_service:
-                        logger.warning("No image storage configured, using original URLs")
-                        return ozon_image_urls
+                # 获取激活的水印配置（与当前图床类型匹配）
+                watermark_config = await get_active_watermark_config(db, storage_type)
 
-                    # 获取激活的水印配置（与当前图床类型匹配）
-                    watermark_config = await get_active_watermark_config(db, storage_type)
+                # 构建水印转换参数（仅Cloudinary）
+                transformations = None
+                if watermark_config and storage_type == "cloudinary":
+                    transformations = _build_watermark_transformation(watermark_config)
+                    logger.info(f"Watermark transformation prepared: {watermark_config.name}")
 
-                    # 构建水印转换参数（仅Cloudinary）
-                    transformations = None
-                    if watermark_config and storage_type == "cloudinary":
-                        transformations = _build_watermark_transformation(watermark_config)
-                        logger.info(f"Watermark transformation prepared: {watermark_config.name}")
+                tasks = []
+                for idx, ozon_url in enumerate(ozon_image_urls):
+                    public_id = f"{shop_id}_{prev_result['offer_id']}_{idx}_{int(time.time())}"
 
-                    tasks = []
-                    for idx, ozon_url in enumerate(ozon_image_urls):
-                        public_id = f"{shop_id}_{prev_result['offer_id']}_{idx}_{int(time.time())}"
-
-                        if storage_type == "cloudinary":
-                            folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
-                            task = storage_service.upload_image_from_url(
-                                image_url=ozon_url,
-                                public_id=public_id,
-                                folder=folder,
-                                transformations=transformations  # 应用水印转换
-                            )
-                        else:
-                            folder = "products"
-                            task = storage_service.upload_image_from_url(
-                                image_url=ozon_url, public_id=public_id, folder=folder
-                            )
-
-                        tasks.append(task)
-
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                    uploaded = []
-                    for idx, result in enumerate(results):
-                        if isinstance(result, Exception):
-                            logger.error(f"Image {idx} upload failed: {result}")
-                            uploaded.append(ozon_image_urls[idx])
-                        elif result.get('success'):
-                            uploaded.append(result['url'])
-                        else:
-                            logger.error(f"Image {idx} upload failed: {result.get('error')}")
-                            uploaded.append(ozon_image_urls[idx])
-
-                        progress = 30 + int((idx + 1) / len(ozon_image_urls) * 20)
-                        update_task_progress(
-                            parent_task_id, status="running", current_step="upload_images",
-                            progress=progress,
-                            step_details={"status": "running", "total": len(ozon_image_urls), "uploaded": idx + 1}
+                    if storage_type == "cloudinary":
+                        folder = f"{storage_service.product_images_folder or 'products'}/{shop_id}/quick_publish"
+                        task = storage_service.upload_image_from_url(
+                            image_url=ozon_url,
+                            public_id=public_id,
+                            folder=folder,
+                            transformations=transformations  # 应用水印转换
+                        )
+                    else:
+                        folder = "products"
+                        task = storage_service.upload_image_from_url(
+                            image_url=ozon_url, public_id=public_id, folder=folder
                         )
 
-                    return uploaded
+                    tasks.append(task)
 
-            uploaded_urls = loop.run_until_complete(upload_all_images())
+                results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        finally:
-            loop.close()
+                uploaded = []
+                for idx, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        logger.error(f"Image {idx} upload failed: {result}")
+                        uploaded.append(ozon_image_urls[idx])
+                    elif result.get('success'):
+                        uploaded.append(result['url'])
+                    else:
+                        logger.error(f"Image {idx} upload failed: {result.get('error')}")
+                        uploaded.append(ozon_image_urls[idx])
+
+                    progress = 30 + int((idx + 1) / len(ozon_image_urls) * 20)
+                    update_task_progress(
+                        parent_task_id, status="running", current_step="upload_images",
+                        progress=progress,
+                        step_details={"status": "running", "total": len(ozon_image_urls), "uploaded": idx + 1}
+                    )
+
+                return uploaded
+
+        uploaded_urls = run_async_in_celery(upload_all_images())
 
         if not uploaded_urls:
             uploaded_urls = ozon_image_urls
@@ -526,14 +533,9 @@ def update_ozon_product_images_task(self, prev_result: Dict, parent_task_id: str
             client_id=shop.client_id, api_key=shop.api_key_enc, shop_id=shop.id
         )
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            import_result = loop.run_until_complete(
-                api_client.import_product_pictures(product_id, image_urls)
-            )
-        finally:
-            loop.close()
+        import_result = run_async_in_celery(
+            api_client.import_product_pictures(product_id, image_urls)
+        )
 
         if not import_result.get('result'):
             logger.warning(f"Image update failed: {import_result}, continuing...")
@@ -602,12 +604,7 @@ def update_product_stock_task(self, prev_result: Dict, dto_dict: Dict, shop_id: 
             "warehouse_id": warehouse_id
         }]
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(api_client.update_stocks(stocks))
-        finally:
-            loop.close()
+        result = run_async_in_celery(api_client.update_stocks(stocks))
 
         if not result.get('result'):
             raise ValueError(f"OZON API 错误: {result}")
