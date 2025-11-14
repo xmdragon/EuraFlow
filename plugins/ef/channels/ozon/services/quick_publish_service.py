@@ -99,8 +99,9 @@ class QuickPublishService:
 
         流程:
         1. 验证店铺
-        2. 为每个变体创建独立的 Celery 任务
-        3. 返回所有任务ID供前端并发轮询
+        2. 翻译标题（中文→俄文）
+        3. 为每个变体创建独立的 Celery 任务
+        4. 返回所有任务ID供前端并发轮询
 
         Args:
             db: 数据库会话
@@ -117,7 +118,23 @@ class QuickPublishService:
             shop = await self._get_shop(db, dto.shop_id)
             logger.info(f"[QuickPublishService] 店铺验证通过: {shop.shop_name}")
 
-            # 2. 为每个变体创建任务
+            # 2. 翻译标题（中文→俄文）
+            from .translation_factory import TranslationFactory
+            russian_title = dto.title  # 默认使用原标题
+
+            try:
+                # 检测是否包含中文
+                if any('\u4e00' <= char <= '\u9fff' for char in dto.title):
+                    translation_service = await TranslationFactory.create_from_db(db)
+                    russian_title = await translation_service.translate_text(dto.title, target_lang='ru')
+                    logger.info(f"[QuickPublishService] 标题翻译: {dto.title} -> {russian_title}")
+                else:
+                    logger.info(f"[QuickPublishService] 标题无需翻译（非中文）: {dto.title}")
+            except Exception as e:
+                logger.warning(f"[QuickPublishService] 标题翻译失败，使用原标题: {e}")
+                # 翻译失败不影响上架流程，使用原标题
+
+            # 3. 为每个变体创建任务
             from ..tasks.quick_publish_task import quick_publish_chain_task
             import time
 
@@ -141,15 +158,17 @@ class QuickPublishService:
                     "price": str(variant.price),  # Decimal → str
                     "stock": variant.stock,
                     "old_price": str(variant.old_price) if variant.old_price else None,
+                    "vat": "0",  # 默认税率 0
+                    "currency_code": "CNY",  # 默认货币 CNY
                     "ozon_product_id": dto.ozon_product_id,
-                    "title": dto.title,
+                    "title": russian_title,  # 使用翻译后的俄文标题
                     "description": dto.description,
                     "images": variant_images,  # 变体主图 + 共享图片
                     "brand": dto.brand,
                     "barcode": dto.barcode,
                     "category_id": dto.category_id,
-                    "dimensions": dto.dimensions.model_dump() if hasattr(dto.dimensions, 'model_dump') else dto.dimensions.dict(),
-                    "attributes": [attr.model_dump() if hasattr(attr, 'model_dump') else attr.dict() for attr in dto.attributes],
+                    "dimensions": dto.dimensions.model_dump() if dto.dimensions and hasattr(dto.dimensions, 'model_dump') else (dto.dimensions.dict() if dto.dimensions else None),
+                    "attributes": [attr.model_dump() if hasattr(attr, 'model_dump') else attr.dict() for attr in dto.attributes] if dto.attributes else [],
                 }
 
                 # 生成唯一任务ID

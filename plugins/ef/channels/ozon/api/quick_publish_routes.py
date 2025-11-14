@@ -98,20 +98,18 @@ class QuickPublishBatchDTO(BaseModel):
     # 变体列表
     variants: List[QuickPublishVariantDTO] = Field(..., min_length=1, max_length=1000, description="变体列表（1-1000个，OZON限制）")
 
-    # 商品共享数据
+    # 商品共享数据（通过SKU创建商品API需要）
     ozon_product_id: Optional[str] = Field(None, description="OZON商品ID（用于参考）")
-    title: str = Field(..., min_length=1, max_length=500, description="商品标题")
+    title: str = Field(..., min_length=1, max_length=500, description="商品标题（中文，后端会翻译成俄文）")
     description: Optional[str] = Field(None, description="商品描述")
     images: List[str] = Field(default_factory=list, max_length=15, description="图片URL列表（最多15张）")
     brand: Optional[str] = Field(None, description="品牌")
     barcode: Optional[str] = Field(None, description="条码")
-    category_id: int = Field(..., description="OZON类目ID（必须是叶子类目）")
 
-    # 尺寸重量（OZON必填）
-    dimensions: DimensionsDTO = Field(..., description="商品尺寸和重量")
-
-    # 属性（根据类目要求）
-    attributes: List[AttributeDTO] = Field(default_factory=list, description="商品属性列表")
+    # 以下字段改为可选（通过SKU创建商品不需要）
+    category_id: Optional[int] = Field(None, description="OZON类目ID（可选）")
+    dimensions: Optional[DimensionsDTO] = Field(None, description="商品尺寸和重量（可选）")
+    attributes: List[AttributeDTO] = Field(default_factory=list, description="商品属性列表（可选）")
 
 
 class QuickPublishBatchResponseDTO(BaseModel):
