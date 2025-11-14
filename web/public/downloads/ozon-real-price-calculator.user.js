@@ -1,12 +1,11 @@
 // ==UserScript==
 // @name         OZON真实售价计算器
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.3.1
 // @description  在OZON商品页面显示计算后的真实售价（优化选择器，适配DOM变化）
 // @author       EuraFlow
 // @match        https://www.ozon.ru/product/*
 // @match        https://*.ozon.ru/product/*
-// @include      /^https?://.*\.ozon\.ru/product/.*/
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
@@ -37,9 +36,12 @@
     // 选择器（使用稳定的类名，避免 pdp_xxx 变化导致失效）
     SELECTORS: {
       priceWidget: '[data-widget="webPrice"]',
-      greenPriceText: ".tsHeadline600Large",  // 绿色价格文本（稳定）
-      blackPriceText500: ".tsHeadline500Medium", // 黑色价格（多价格情况，稳定）
-      separatorWidget: '[data-widget="separator"]', // 注入位置
+      // 绿色价格文本（稳定）
+      greenPriceText: ".tsHeadline600Large",
+      // 黑色价格（多价格情况，稳定）
+      blackPriceText500: ".tsHeadline500Medium",
+      // 注入位置
+      separatorWidget: '[data-widget="separator"]',
       injectedElementId: "tampermonkey-real-price",
     },
   };
