@@ -91,6 +91,60 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
 }
 
 /**
+ * 通过 OZON Modal API 获取完整变体数据（上品帮方案）
+ * 调用 /modal/aspectsNew?product_id={id} 获取完整的变体列表
+ */
+async function fetchFullVariantsFromModal(productId: string): Promise<any[] | null> {
+  try {
+    const modalUrl = `/modal/aspectsNew?product_id=${productId}`;
+    const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(modalUrl)}`;
+
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 正在调用 OZON Modal API 获取完整变体: ${apiUrl}`);
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[EuraFlow] Modal API 请求失败: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const widgetStates = data.widgetStates || {};
+    const keys = Object.keys(widgetStates);
+
+    // 查找 webAspectsModal widget
+    const modalKey = keys.find(k => k.includes('webAspectsModal'));
+    if (!modalKey) {
+      console.warn('[EuraFlow] Modal API 返回数据中没有 webAspectsModal');
+      return null;
+    }
+
+    const modalData = JSON.parse(widgetStates[modalKey]);
+    const aspects = modalData?.aspects;
+
+    if (!aspects || !Array.isArray(aspects)) {
+      return null;
+    }
+
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 从 Modal API 获取到 ${aspects.length} 个 aspect`);
+    }
+
+    return aspects;
+  } catch (error) {
+    console.error('[EuraFlow] 调用 Modal API 失败:', error);
+    return null;
+  }
+}
+
+/**
  * 从 widgetStates 解析基础商品数据
  */
 function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'variants' | 'has_variants'> | null {
@@ -147,13 +201,22 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
       description = headingData.description;
     }
 
-    // 6. 提取类目ID（webBreadCrumbs 或 webCurrentSeller）
+    // 6. 提取类目ID（breadCrumbs 或 webBreadCrumbs 或 webCurrentSeller）
     let category_id: number | undefined = undefined;
-    const breadcrumbsKey = keys.find(k => k.includes('webBreadCrumbs'));
+    // 优先查找 breadCrumbs（不带 web 前缀，OZON 新格式）
+    const breadcrumbsKey = keys.find(k => k.includes('breadCrumb'));
     if (breadcrumbsKey) {
       const breadcrumbsData = JSON.parse(widgetStates[breadcrumbsKey]);
       // 类目ID可能在 breadcrumbs 的最后一项中
-      if (breadcrumbsData?.items && Array.isArray(breadcrumbsData.items)) {
+      if (breadcrumbsData?.breadcrumbs && Array.isArray(breadcrumbsData.breadcrumbs)) {
+        const lastItem = breadcrumbsData.breadcrumbs[breadcrumbsData.breadcrumbs.length - 1];
+        // 从 link 中提取 category ID，格式：/category/name-{id}/
+        const categoryMatch = lastItem?.link?.match(/\/category\/.*-(\d+)\//);
+        if (categoryMatch) {
+          category_id = parseInt(categoryMatch[1]);
+        }
+      } else if (breadcrumbsData?.items && Array.isArray(breadcrumbsData.items)) {
+        // 兼容旧格式
         const lastItem = breadcrumbsData.items[breadcrumbsData.items.length - 1];
         if (lastItem?.categoryId) {
           category_id = parseInt(lastItem.categoryId);
@@ -537,7 +600,10 @@ export async function extractProductData(): Promise<ProductDetailData> {
       throw new Error('解析基础数据失败');
     }
 
-    // 第一阶段：提取变体列表
+    // 提取商品ID（用于 Modal API）
+    const productId = baseData.ozon_product_id;
+
+    // 第一阶段：提取当前页面的变体列表
     const stage1Variants = extractVariantsStage1(widgetStates);
 
     if (stage1Variants.length === 0) {
@@ -548,12 +614,51 @@ export async function extractProductData(): Promise<ProductDetailData> {
       };
     }
 
-    // 第二阶段：批量获取变体详情
-    const variantLinks = stage1Variants
-      .map(v => v.link)
-      .filter(link => link && link.length > 0);
+    let stage2Variants: any[] = [];
 
-    const stage2Variants = await fetchVariantDetailsInBatches(variantLinks);
+    // 优先使用 Modal API 获取完整变体（上品帮方案）
+    if (productId) {
+      if (isDebugEnabled()) {
+        console.log(`[EuraFlow] 尝试使用 Modal API 获取完整变体（product_id=${productId}）`);
+      }
+
+      const modalAspects = await fetchFullVariantsFromModal(productId);
+      if (modalAspects && modalAspects.length > 0) {
+        // 从 Modal API 提取变体（aspects 的最后一个元素包含完整变体）
+        const lastAspect = modalAspects[modalAspects.length - 1];
+        const modalVariants = (lastAspect?.variants || [])
+          .flat(3)
+          .filter((variant: any) => {
+            const searchableText = variant.data?.searchableText || '';
+            return searchableText !== 'Уцененные';
+          })
+          .map((variant: any) => ({
+            ...variant,
+            link: variant.link ? variant.link.split('?')[0] : '',
+          }));
+
+        stage2Variants = modalVariants;
+
+        if (isDebugEnabled()) {
+          console.log(`[EuraFlow] Modal API 成功获取 ${stage2Variants.length} 个变体`);
+        }
+      } else {
+        console.warn('[EuraFlow] Modal API 未返回变体，降级到批量详情页方案');
+      }
+    }
+
+    // 降级方案：如果 Modal API 失败，使用原来的批量详情页方案
+    if (stage2Variants.length === 0) {
+      if (isDebugEnabled()) {
+        console.log('[EuraFlow] 使用批量详情页方案获取变体');
+      }
+
+      const variantLinks = stage1Variants
+        .map(v => v.link)
+        .filter(link => link && link.length > 0);
+
+      stage2Variants = await fetchVariantDetailsInBatches(variantLinks);
+    }
 
     // 合并去重（每个变体使用自己的 data.title）
     const finalVariants = mergeAndDeduplicateVariants(stage1Variants, stage2Variants);
