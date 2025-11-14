@@ -297,12 +297,13 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
       }
     }
 
-    // 提取图片
-    let imageUrl = variant.image || variant.imageUrl || variant.data?.image || '';
+    // 提取图片（优先级：coverImage > image > imageUrl > data.image）
+    let imageUrl = variant.coverImage || variant.image || variant.imageUrl || variant.data?.image || '';
 
     // 调试：输出原始变体数据中的图片字段
     if (isDebugEnabled()) {
       console.log(`[EuraFlow] 变体 [${sku}] 图片提取:`, {
+        'variant.coverImage': variant.coverImage,
         'variant.image': variant.image,
         'variant.imageUrl': variant.imageUrl,
         'variant.data?.image': variant.data?.image,
