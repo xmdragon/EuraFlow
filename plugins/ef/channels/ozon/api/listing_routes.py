@@ -1313,6 +1313,14 @@ async def create_product(
         if not category_id:
             raise HTTPException(status_code=400, detail="category_id is required")
 
+        # 验证 category_id 必须是大于0的整数（OZON API要求type_id > 0）
+        try:
+            category_id = int(category_id)
+            if category_id <= 0:
+                raise HTTPException(status_code=400, detail="category_id must be greater than 0")
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="category_id must be a valid integer")
+
         # 检查offer_id是否已存在
         existing = await db.scalar(
             select(OzonProduct).where(
