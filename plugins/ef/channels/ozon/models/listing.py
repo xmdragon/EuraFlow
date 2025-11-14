@@ -35,7 +35,9 @@ class OzonCategory(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, comment="自增主键")
     category_id = Column(Integer, nullable=False, comment="OZON类目ID")
     parent_id = Column(Integer, nullable=True, comment="父类目ID")
-    name = Column(String(500), nullable=False)
+    name = Column(String(500), nullable=False, comment="主显示名称（优先中文）")
+    name_zh = Column(String(500), nullable=True, comment="类目中文名称")
+    name_ru = Column(String(500), nullable=True, comment="类目俄文名称")
     is_leaf = Column(Boolean, default=False, comment="是否叶子类目(只有叶子类目可建品)")
     is_disabled = Column(Boolean, default=False)
     is_deprecated = Column(Boolean, default=False, comment="是否已废弃(不再出现在OZON API中)")
@@ -77,8 +79,12 @@ class OzonCategoryAttribute(Base):
     attribute_id = Column(Integer, nullable=False)
 
     # 属性基本信息
-    name = Column(String(500), nullable=False)
-    description = Column(Text)
+    name = Column(String(500), nullable=False, comment="主显示名称（优先中文）")
+    name_zh = Column(String(500), nullable=True, comment="属性中文名称")
+    name_ru = Column(String(500), nullable=True, comment="属性俄文名称")
+    description = Column(Text, comment="主显示描述（优先中文）")
+    description_zh = Column(Text, nullable=True, comment="属性中文描述")
+    description_ru = Column(Text, nullable=True, comment="属性俄文描述")
     attribute_type = Column(String(50), nullable=False, comment="string/number/boolean/dictionary/multivalue")
 
     # 约束信息
@@ -90,7 +96,9 @@ class OzonCategoryAttribute(Base):
 
     # 分组信息
     group_id = Column(Integer, comment="特征组ID")
-    group_name = Column(String(200), comment="特征组名称")
+    group_name = Column(String(200), comment="特征组名称（优先中文）")
+    group_name_zh = Column(String(200), nullable=True, comment="特征组中文名称")
+    group_name_ru = Column(String(200), nullable=True, comment="特征组俄文名称")
 
     # 复合属性信息
     attribute_complex_id = Column(Integer, comment="复合属性标识符")
@@ -130,8 +138,12 @@ class OzonAttributeDictionaryValue(Base):
     value_id = Column(BigInteger, nullable=False)
 
     # 值信息
-    value = Column(Text, nullable=False)
-    info = Column(Text)
+    value = Column(Text, nullable=False, comment="主显示值（优先中文）")
+    value_zh = Column(Text, nullable=True, comment="字典值中文")
+    value_ru = Column(Text, nullable=True, comment="字典值俄文")
+    info = Column(Text, comment="附加信息（优先中文）")
+    info_zh = Column(Text, nullable=True, comment="附加信息中文")
+    info_ru = Column(Text, nullable=True, comment="附加信息俄文")
     picture = Column(String(500))
 
     # 缓存信息

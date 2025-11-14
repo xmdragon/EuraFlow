@@ -43,7 +43,7 @@ class CatalogService:
         progress_callback: Optional[callable] = None
     ) -> Dict[str, Any]:
         """
-        同步类目树
+        同步类目树（中文+俄文双语）
 
         Args:
             root_category_id: 根类目ID(None表示从顶层开始)
@@ -55,7 +55,8 @@ class CatalogService:
         """
         try:
             from datetime import datetime, timezone
-            logger.info(f"Starting category tree sync, root={root_category_id}, force={force_refresh}")
+            from sqlalchemy import func
+            logger.info(f"Starting bilingual category tree sync, root={root_category_id}, force={force_refresh}")
 
             # 检查缓存是否过期
             if not force_refresh and root_category_id is None:
@@ -69,34 +70,34 @@ class CatalogService:
             # 记录同步开始时间
             sync_start_time = datetime.now(timezone.utc)
 
-            # 调用OZON API获取类目树
-            response = await self.client.get_category_tree(
-                category_id=root_category_id
+            # 第一步：同步中文
+            logger.info("Step 1/2: Syncing Chinese names...")
+            zh_response = await self.client.get_category_tree(
+                category_id=root_category_id,
+                language="ZH_HANS"
             )
 
-            if not response.get("result"):
-                error_msg = response.get("error", {}).get("message", "Unknown error")
-                logger.error(f"Failed to fetch category tree: {error_msg}")
+            if not zh_response.get("result"):
+                error_msg = zh_response.get("error", {}).get("message", "Unknown error")
+                logger.error(f"Failed to fetch Chinese category tree: {error_msg}")
                 return {"success": False, "error": error_msg}
 
-            categories = response["result"]
-
-            # 先计算总类目数
-            total_count = self._count_categories_recursive(categories)
+            zh_categories = zh_response["result"]
+            total_count = self._count_categories_recursive(zh_categories)
             logger.info(f"Total categories to sync: {total_count}")
 
             # 初始化进度追踪
             progress_state = {"current": 0}
-
             synced_count = 0
             new_count = 0
             updated_count = 0
 
-            # 递归保存类目
-            for category_data in categories:
+            # 递归保存中文类目
+            for category_data in zh_categories:
                 result = await self._save_category_recursive(
                     category_data,
                     parent_id=root_category_id,
+                    language="zh",
                     progress_state=progress_state,
                     total_count=total_count,
                     progress_callback=progress_callback
@@ -104,6 +105,45 @@ class CatalogService:
                 synced_count += result['count']
                 new_count += result['new']
                 updated_count += result['updated']
+
+            # 提交中文数据
+            await self.db.commit()
+            logger.info(f"Chinese sync completed: {synced_count} categories")
+
+            # 第二步：同步俄文
+            logger.info("Step 2/2: Syncing Russian names...")
+            ru_response = await self.client.get_category_tree(
+                category_id=root_category_id,
+                language="DEFAULT"  # OZON默认语言为俄文
+            )
+
+            if not ru_response.get("result"):
+                logger.warning("Failed to fetch Russian category tree, skipping Russian names")
+            else:
+                ru_categories = ru_response["result"]
+                progress_state = {"current": 0}
+
+                # 递归保存俄文类目
+                for category_data in ru_categories:
+                    await self._save_category_recursive(
+                        category_data,
+                        parent_id=root_category_id,
+                        language="ru",
+                        progress_state=progress_state,
+                        total_count=total_count,
+                        progress_callback=progress_callback
+                    )
+
+                await self.db.commit()
+                logger.info("Russian sync completed")
+
+            # 第三步：更新主显示字段（name = name_zh or name_ru）
+            logger.info("Step 3/3: Updating primary display fields...")
+            await self.db.execute(
+                update(OzonCategory)
+                .values(name=func.coalesce(OzonCategory.name_zh, OzonCategory.name_ru))
+            )
+            await self.db.commit()
 
             # 标记废弃的类目（未在本次同步中更新的类目）
             from sqlalchemy import update
@@ -114,13 +154,12 @@ class CatalogService:
                 .values(is_deprecated=True)
             )
             deprecated_count = result.rowcount
-
             await self.db.commit()
 
             if deprecated_count > 0:
                 logger.info(f"Marked {deprecated_count} categories as deprecated")
 
-            logger.info(f"Category tree sync completed: {synced_count} categories ({new_count} new, {updated_count} updated), {deprecated_count} deprecated")
+            logger.info(f"Bilingual category tree sync completed: {synced_count} categories ({new_count} new, {updated_count} updated), {deprecated_count} deprecated")
 
             # 生成前端可用的 JS 文件
             await self._generate_category_tree_js()
@@ -135,7 +174,7 @@ class CatalogService:
             }
 
         except Exception as e:
-            logger.error(f"Category tree sync failed: {e}", exc_info=True)
+            logger.error(f"Bilingual category tree sync failed: {e}", exc_info=True)
             await self.db.rollback()
             return {"success": False, "error": str(e)}
 
@@ -153,6 +192,7 @@ class CatalogService:
         self,
         category_data: Dict[str, Any],
         parent_id: Optional[int] = None,
+        language: str = "zh",
         level: int = 0,
         progress_state: Optional[Dict] = None,
         total_count: int = 0,
@@ -164,6 +204,7 @@ class CatalogService:
         Args:
             category_data: 类目数据
             parent_id: 父类目ID
+            language: 语言（zh=中文, ru=俄文）
             level: 层级深度
             progress_state: 进度状态 {'current': 0}
             total_count: 总类目数
@@ -202,29 +243,41 @@ class CatalogService:
         is_new = False
         if existing:
             # 更新现有类目
-            existing.name = category_name
-            existing.is_leaf = is_leaf
-            existing.is_disabled = is_disabled
-            existing.is_deprecated = False  # 重新激活已废弃的类目
-            existing.level = level
-            existing.last_updated_at = datetime.now(timezone.utc)
-        else:
-            # 创建新类目
-            category = OzonCategory(
-                category_id=category_id,
-                parent_id=parent_id,
-                name=category_name,
-                is_leaf=is_leaf,
-                is_disabled=is_disabled,
-                level=level
-            )
-            self.db.add(category)
-            # 立即flush确保后续查询能找到此记录，避免重复插入
-            await self.db.flush()
-            is_new = True
+            if language == "zh":
+                existing.name_zh = category_name
+            elif language == "ru":
+                existing.name_ru = category_name
 
-        # 更新进度
-        if progress_state is not None:
+            # 仅在中文同步时更新结构字段
+            if language == "zh":
+                existing.is_leaf = is_leaf
+                existing.is_disabled = is_disabled
+                existing.is_deprecated = False  # 重新激活已废弃的类目
+                existing.level = level
+                existing.last_updated_at = datetime.now(timezone.utc)
+        else:
+            # 创建新类目（仅在中文同步时创建）
+            if language == "zh":
+                category = OzonCategory(
+                    category_id=category_id,
+                    parent_id=parent_id,
+                    name=category_name,  # 主显示字段（临时设置为中文，后续会被COALESCE更新）
+                    name_zh=category_name,
+                    is_leaf=is_leaf,
+                    is_disabled=is_disabled,
+                    level=level
+                )
+                self.db.add(category)
+                # 立即flush确保后续查询能找到此记录，避免重复插入
+                await self.db.flush()
+                is_new = True
+            else:
+                # 俄文同步时类目应该已存在，记录警告
+                logger.warning(f"Category {category_id} not found during Russian sync, skipping")
+                return {'count': 0, 'new': 0, 'updated': 0}
+
+        # 更新进度（仅在中文同步时）
+        if language == "zh" and progress_state is not None:
             progress_state['current'] += 1
             if progress_callback:
                 progress_callback(
@@ -246,6 +299,7 @@ class CatalogService:
                     child_result = await self._save_category_recursive(
                         child_data,
                         parent_id=category_id,
+                        language=language,
                         level=level + 1,
                         progress_state=progress_state,
                         total_count=total_count,
@@ -268,12 +322,12 @@ class CatalogService:
         language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
-        同步类目属性
+        同步类目属性（中文+俄文双语）
 
         Args:
             category_id: 类目ID
             force_refresh: 是否强制刷新
-            language: 语言（ZH_HANS/DEFAULT/RU/EN/TR）
+            language: 语言（保留参数以兼容旧代码，实际会同步双语）
 
         Returns:
             同步结果
@@ -302,15 +356,16 @@ class CatalogService:
                 logger.error(error_msg)
                 return {"success": False, "error": error_msg}
 
-            # 调用API（parent_id作为category，category_id作为type）
-            response = await self.client.get_category_attributes(
+            # 第一步：同步中文属性
+            logger.info(f"Step 1/2: Syncing Chinese attributes for category {category_id}...")
+            zh_response = await self.client.get_category_attributes(
                 category_id=category.parent_id,  # 父类别ID
                 type_id=category_id,  # 商品类型ID（叶子节点）
-                language=language
+                language="ZH_HANS"
             )
 
-            if not response.get("result"):
-                error_msg = response.get("error", {}).get("message", "Unknown error")
+            if not zh_response.get("result"):
+                error_msg = zh_response.get("error", {}).get("message", "Unknown error")
 
                 # 如果是 OZON 类目不存在的错误，返回更友好的提示
                 if "is not found" in error_msg or "not found" in error_msg.lower():
@@ -321,20 +376,50 @@ class CatalogService:
                         "ozon_error": error_msg
                     }
 
-                logger.error(f"Failed to fetch category attributes: {error_msg}")
+                logger.error(f"Failed to fetch Chinese category attributes: {error_msg}")
                 return {"success": False, "error": error_msg}
 
-            attributes = response["result"]
+            zh_attributes = zh_response["result"]
             synced_count = 0
 
-            for attr_data in attributes:
-                await self._save_category_attribute(category_id, attr_data)
+            for attr_data in zh_attributes:
+                await self._save_category_attribute(category_id, attr_data, language="zh")
                 synced_count += 1
+
+            logger.info(f"Chinese attributes synced: {synced_count}")
+
+            # 第二步：同步俄文属性
+            logger.info(f"Step 2/2: Syncing Russian attributes for category {category_id}...")
+            ru_response = await self.client.get_category_attributes(
+                category_id=category.parent_id,
+                type_id=category_id,
+                language="DEFAULT"  # OZON默认语言为俄文
+            )
+
+            if ru_response.get("result"):
+                ru_attributes = ru_response["result"]
+                for attr_data in ru_attributes:
+                    await self._save_category_attribute(category_id, attr_data, language="ru")
+                logger.info("Russian attributes synced")
+            else:
+                logger.warning("Failed to fetch Russian attributes, skipping Russian names")
+
+            # 第三步：更新主显示字段
+            from sqlalchemy import func
+            await self.db.execute(
+                update(OzonCategoryAttribute)
+                .where(OzonCategoryAttribute.category_id == category_id)
+                .values(
+                    name=func.coalesce(OzonCategoryAttribute.name_zh, OzonCategoryAttribute.name_ru),
+                    description=func.coalesce(OzonCategoryAttribute.description_zh, OzonCategoryAttribute.description_ru),
+                    group_name=func.coalesce(OzonCategoryAttribute.group_name_zh, OzonCategoryAttribute.group_name_ru)
+                )
+            )
 
             # 注意：不在这里commit，由外层调用者统一commit
             # await self.db.flush()
 
-            logger.info(f"Synced {synced_count} attributes for category {category_id}")
+            logger.info(f"Bilingual sync completed: {synced_count} attributes for category {category_id}")
 
             return {
                 "success": True,
@@ -350,9 +435,10 @@ class CatalogService:
     async def _save_category_attribute(
         self,
         category_id: int,
-        attr_data: Dict[str, Any]
+        attr_data: Dict[str, Any],
+        language: str = "zh"
     ):
-        """保存单个类目属性"""
+        """保存单个类目属性（支持双语）"""
         attribute_id = attr_data.get("id")
         if not attribute_id:
             return
@@ -366,30 +452,59 @@ class CatalogService:
         )
         existing = await self.db.scalar(stmt)
 
-        attr_info = {
-            "category_id": category_id,
-            "attribute_id": attribute_id,
-            "name": attr_data.get("name", ""),
-            "description": attr_data.get("description", ""),
-            "attribute_type": attr_data.get("type", "string"),
-            "is_required": attr_data.get("is_required", False),
-            "is_collection": attr_data.get("is_collection", False),
-            "is_aspect": attr_data.get("is_aspect", False),
-            "dictionary_id": attr_data.get("dictionary_id"),
-            "category_dependent": attr_data.get("category_dependent", False),
-            "group_id": attr_data.get("group_id"),
-            "group_name": attr_data.get("group_name"),
-            "attribute_complex_id": attr_data.get("attribute_complex_id"),
-            "max_value_count": attr_data.get("max_value_count"),
-            "complex_is_collection": attr_data.get("complex_is_collection", False),
-        }
+        name = attr_data.get("name", "")
+        description = attr_data.get("description", "")
+        group_name = attr_data.get("group_name")
 
         if existing:
-            for key, value in attr_info.items():
-                setattr(existing, key, value)
+            # 更新现有属性
+            if language == "zh":
+                existing.name_zh = name
+                existing.description_zh = description
+                existing.group_name_zh = group_name
+                # 仅在中文同步时更新结构字段
+                existing.attribute_type = attr_data.get("type", "string")
+                existing.is_required = attr_data.get("is_required", False)
+                existing.is_collection = attr_data.get("is_collection", False)
+                existing.is_aspect = attr_data.get("is_aspect", False)
+                existing.dictionary_id = attr_data.get("dictionary_id")
+                existing.category_dependent = attr_data.get("category_dependent", False)
+                existing.group_id = attr_data.get("group_id")
+                existing.attribute_complex_id = attr_data.get("attribute_complex_id")
+                existing.max_value_count = attr_data.get("max_value_count")
+                existing.complex_is_collection = attr_data.get("complex_is_collection", False)
+            elif language == "ru":
+                existing.name_ru = name
+                existing.description_ru = description
+                existing.group_name_ru = group_name
         else:
-            attribute = OzonCategoryAttribute(**attr_info)
-            self.db.add(attribute)
+            # 创建新属性（仅在中文同步时创建）
+            if language == "zh":
+                attr_info = {
+                    "category_id": category_id,
+                    "attribute_id": attribute_id,
+                    "name": name,  # 主显示字段（临时设置为中文）
+                    "name_zh": name,
+                    "description": description,  # 主显示字段
+                    "description_zh": description,
+                    "attribute_type": attr_data.get("type", "string"),
+                    "is_required": attr_data.get("is_required", False),
+                    "is_collection": attr_data.get("is_collection", False),
+                    "is_aspect": attr_data.get("is_aspect", False),
+                    "dictionary_id": attr_data.get("dictionary_id"),
+                    "category_dependent": attr_data.get("category_dependent", False),
+                    "group_id": attr_data.get("group_id"),
+                    "group_name": group_name,  # 主显示字段
+                    "group_name_zh": group_name,
+                    "attribute_complex_id": attr_data.get("attribute_complex_id"),
+                    "max_value_count": attr_data.get("max_value_count"),
+                    "complex_is_collection": attr_data.get("complex_is_collection", False),
+                }
+                attribute = OzonCategoryAttribute(**attr_info)
+                self.db.add(attribute)
+            else:
+                # 俄文同步时属性应该已存在，记录警告
+                logger.warning(f"Attribute {attribute_id} for category {category_id} not found during Russian sync")
 
     async def sync_attribute_values(
         self,
@@ -399,13 +514,13 @@ class CatalogService:
         language: str = "ZH_HANS"
     ) -> Dict[str, Any]:
         """
-        同步属性字典值（支持分页）
+        同步属性字典值（中文+俄文双语，支持分页）
 
         Args:
             attribute_id: 属性ID
             category_id: 类目ID
             force_refresh: 是否强制刷新
-            language: 语言（ZH_HANS/DEFAULT/RU/EN/TR）
+            language: 语言（保留参数以兼容旧代码，实际会同步双语）
 
         Returns:
             同步结果
@@ -451,7 +566,8 @@ class CatalogService:
                     logger.info(f"Dictionary {dictionary_id} cached ({cached_count}), skipping")
                     return {"success": True, "cached": True, "count": cached_count}
 
-            # 分页拉取字典值
+            # 第一步：同步中文字典值
+            logger.info(f"Step 1/2: Syncing Chinese dictionary values for dict {dictionary_id}...")
             synced_count = 0
             last_value_id = 0
             has_more = True
@@ -460,10 +576,10 @@ class CatalogService:
                 response = await self.client.get_attribute_values(
                     attribute_id=attribute_id,
                     category_id=category_id,
-                    parent_category_id=parent_id,  # 传递父类目ID
+                    parent_category_id=parent_id,
                     last_value_id=last_value_id,
                     limit=2000,
-                    language=language
+                    language="ZH_HANS"
                 )
 
                 if not response.get("result"):
@@ -474,16 +590,59 @@ class CatalogService:
                     break
 
                 for value_data in values:
-                    await self._save_dictionary_value(dictionary_id, value_data)
+                    await self._save_dictionary_value(dictionary_id, value_data, language="zh")
                     synced_count += 1
                     last_value_id = value_data.get("id", 0)
 
-                # 根据 has_next 字段判断是否还有更多数据
                 has_more = response.get("has_next", False)
 
-            await self.db.flush()  # 使用flush代替commit，避免事务冲突
+            await self.db.flush()
+            logger.info(f"Chinese dictionary values synced: {synced_count}")
 
-            logger.info(f"Synced {synced_count} values for dictionary {dictionary_id}")
+            # 第二步：同步俄文字典值
+            logger.info(f"Step 2/2: Syncing Russian dictionary values for dict {dictionary_id}...")
+            last_value_id = 0
+            has_more = True
+
+            while has_more:
+                response = await self.client.get_attribute_values(
+                    attribute_id=attribute_id,
+                    category_id=category_id,
+                    parent_category_id=parent_id,
+                    last_value_id=last_value_id,
+                    limit=2000,
+                    language="DEFAULT"  # OZON默认语言为俄文
+                )
+
+                if not response.get("result"):
+                    break
+
+                values = response.get("result", [])
+                if not values:
+                    break
+
+                for value_data in values:
+                    await self._save_dictionary_value(dictionary_id, value_data, language="ru")
+                    last_value_id = value_data.get("id", 0)
+
+                has_more = response.get("has_next", False)
+
+            await self.db.flush()
+            logger.info("Russian dictionary values synced")
+
+            # 第三步：更新主显示字段
+            from sqlalchemy import func
+            await self.db.execute(
+                update(OzonAttributeDictionaryValue)
+                .where(OzonAttributeDictionaryValue.dictionary_id == dictionary_id)
+                .values(
+                    value=func.coalesce(OzonAttributeDictionaryValue.value_zh, OzonAttributeDictionaryValue.value_ru),
+                    info=func.coalesce(OzonAttributeDictionaryValue.info_zh, OzonAttributeDictionaryValue.info_ru)
+                )
+            )
+            await self.db.flush()
+
+            logger.info(f"Bilingual sync completed: {synced_count} values for dictionary {dictionary_id}")
 
             return {
                 "success": True,
@@ -499,9 +658,10 @@ class CatalogService:
     async def _save_dictionary_value(
         self,
         dictionary_id: int,
-        value_data: Dict[str, Any]
+        value_data: Dict[str, Any],
+        language: str = "zh"
     ):
-        """保存单个字典值"""
+        """保存单个字典值（支持双语）"""
         value_id = value_data.get("id")
         if not value_id:
             return
@@ -515,20 +675,36 @@ class CatalogService:
         )
         existing = await self.db.scalar(stmt)
 
-        value_info = {
-            "dictionary_id": dictionary_id,
-            "value_id": value_id,
-            "value": value_data.get("value", ""),
-            "info": value_data.get("info", ""),
-            "picture": value_data.get("picture", ""),
-        }
+        value_text = value_data.get("value", "")
+        info_text = value_data.get("info", "")
+        picture = value_data.get("picture", "")
 
         if existing:
-            for key, value in value_info.items():
-                setattr(existing, key, value)
+            # 更新现有字典值
+            if language == "zh":
+                existing.value_zh = value_text
+                existing.info_zh = info_text
+                # 仅在中文同步时更新 picture
+                existing.picture = picture
+            elif language == "ru":
+                existing.value_ru = value_text
+                existing.info_ru = info_text
         else:
-            dict_value = OzonAttributeDictionaryValue(**value_info)
-            self.db.add(dict_value)
+            # 创建新字典值（仅在中文同步时创建）
+            if language == "zh":
+                dict_value = OzonAttributeDictionaryValue(
+                    dictionary_id=dictionary_id,
+                    value_id=value_id,
+                    value=value_text,  # 主显示字段（临时设置为中文）
+                    value_zh=value_text,
+                    info=info_text,  # 主显示字段
+                    info_zh=info_text,
+                    picture=picture
+                )
+                self.db.add(dict_value)
+            else:
+                # 俄文同步时字典值应该已存在，记录警告
+                logger.warning(f"Dictionary value {value_id} for dict {dictionary_id} not found during Russian sync")
 
     async def batch_sync_category_attributes(
         self,
@@ -892,11 +1068,13 @@ class CatalogService:
                     children_map[cat.parent_id] = []
                 children_map[cat.parent_id].append(cat)
 
-            # 递归构建树形结构
+            # 递归构建树形结构（包含双语数据）
             def build_tree_node(category: OzonCategory) -> Dict[str, Any]:
                 node = {
                     "value": category.category_id,  # 前端使用 category_id
-                    "label": category.name,
+                    "label": category.name,  # 主显示名称（优先中文）
+                    "label_zh": category.name_zh,  # 中文名称
+                    "label_ru": category.name_ru,  # 俄文名称
                     "isLeaf": category.is_leaf,
                     "disabled": category.is_disabled,
                 }
