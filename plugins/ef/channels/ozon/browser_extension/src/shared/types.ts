@@ -208,23 +208,11 @@ export interface QuickPublishBatchRequest {
   warehouse_ids: number[];
   watermark_config_id?: number;     // 水印配置ID
   variants: QuickPublishVariant[];  // 变体列表
-  // 商品共享数据
+  // 商品共享数据（跟卖不需要category_id、dimensions、attributes）
   description?: string;
   images: string[];
   brand?: string;
   barcode?: string;
-  category_id?: number;
-  dimensions?: {
-    weight: number;         // 克
-    height: number;         // 毫米
-    width: number;          // 毫米
-    length: number;         // 毫米
-  };
-  attributes?: Array<{
-    attribute_id: number;
-    value: string;
-    dictionary_value_id?: number;
-  }>;
 }
 
 /**

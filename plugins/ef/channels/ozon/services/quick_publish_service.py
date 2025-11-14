@@ -169,9 +169,6 @@ class QuickPublishService:
                     "images": variant_images,  # 变体主图 + 共享图片
                     "brand": dto.brand,
                     "barcode": dto.barcode,
-                    "category_id": dto.category_id,
-                    "dimensions": dto.dimensions.model_dump() if dto.dimensions and hasattr(dto.dimensions, 'model_dump') else (dto.dimensions.dict() if dto.dimensions else None),
-                    "attributes": [attr.model_dump() if hasattr(attr, 'model_dump') else attr.dict() for attr in dto.attributes] if dto.attributes else [],
                 }
 
                 # 生成唯一任务ID
