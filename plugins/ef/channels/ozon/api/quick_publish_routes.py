@@ -80,6 +80,7 @@ class QuickPublishResponseDTO(BaseModel):
 
 class QuickPublishVariantDTO(BaseModel):
     """单个变体的上架数据（仅变体特有字段）"""
+    name: str = Field(..., description="商品名称（中文，后端会翻译成俄文）", min_length=1, max_length=500)
     sku: str = Field(..., description="OZON SKU", min_length=1, max_length=50)
     offer_id: str = Field(..., description="商家SKU", min_length=1, max_length=50)
     price: Decimal = Field(..., gt=0, description="销售价格（分）")
@@ -98,9 +99,7 @@ class QuickPublishBatchDTO(BaseModel):
     # 变体列表
     variants: List[QuickPublishVariantDTO] = Field(..., min_length=1, max_length=1000, description="变体列表（1-1000个，OZON限制）")
 
-    # 商品共享数据（通过SKU创建商品API需要）
-    ozon_product_id: Optional[str] = Field(None, description="OZON商品ID（用于参考）")
-    title: str = Field(..., min_length=1, max_length=500, description="商品标题（中文，后端会翻译成俄文）")
+    # 商品共享数据（可选）
     description: Optional[str] = Field(None, description="商品描述")
     images: List[str] = Field(default_factory=list, max_length=15, description="图片URL列表（最多15张）")
     brand: Optional[str] = Field(None, description="品牌")

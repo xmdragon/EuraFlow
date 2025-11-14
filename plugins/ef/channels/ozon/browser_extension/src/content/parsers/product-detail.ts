@@ -253,7 +253,7 @@ function extractVariantsStage2(widgetStates: any): any[] {
 /**
  * 合并并去重变体数据
  */
-function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[]): Array<any> {
+function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[], productTitle: string): Array<any> {
   const variantMap = new Map<string, any>();
 
   // 合并两阶段的变体
@@ -314,6 +314,7 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
 
     const variantData = {
       variant_id: sku,
+      name: productTitle,  // 每个变体使用商品标题作为name
       specifications,
       spec_details: undefined,
       image_url: imageUrl,
@@ -385,8 +386,8 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
     const stage2Variants = await fetchVariantDetailsInBatches(variantLinks);
 
-    // 合并去重
-    const finalVariants = mergeAndDeduplicateVariants(stage1Variants, stage2Variants);
+    // 合并去重（传入商品标题，用于每个变体的name字段）
+    const finalVariants = mergeAndDeduplicateVariants(stage1Variants, stage2Variants, baseData.title);
 
     if (isDebugEnabled()) {
       console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体`);

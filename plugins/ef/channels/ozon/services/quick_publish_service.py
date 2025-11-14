@@ -118,21 +118,13 @@ class QuickPublishService:
             shop = await self._get_shop(db, dto.shop_id)
             logger.info(f"[QuickPublishService] 店铺验证通过: {shop.shop_name}")
 
-            # 2. 翻译标题（中文→俄文）
+            # 2. 初始化翻译服务（用于变体name翻译）
             from .translation_factory import TranslationFactory
-            russian_title = dto.title  # 默认使用原标题
-
+            translation_service = None
             try:
-                # 检测是否包含中文
-                if any('\u4e00' <= char <= '\u9fff' for char in dto.title):
-                    translation_service = await TranslationFactory.create_from_db(db)
-                    russian_title = await translation_service.translate_text(dto.title, target_lang='ru')
-                    logger.info(f"[QuickPublishService] 标题翻译: {dto.title} -> {russian_title}")
-                else:
-                    logger.info(f"[QuickPublishService] 标题无需翻译（非中文）: {dto.title}")
+                translation_service = await TranslationFactory.create_from_db(db)
             except Exception as e:
-                logger.warning(f"[QuickPublishService] 标题翻译失败，使用原标题: {e}")
-                # 翻译失败不影响上架流程，使用原标题
+                logger.warning(f"[QuickPublishService] 翻译服务初始化失败: {e}")
 
             # 3. 为每个变体创建任务
             from ..tasks.quick_publish_task import quick_publish_chain_task
@@ -140,7 +132,19 @@ class QuickPublishService:
 
             task_ids = []
             for idx, variant in enumerate(dto.variants):
-                # 合并共享数据和变体数据
+                # 翻译变体名称（中文→俄文）
+                russian_name = variant.name  # 默认使用原名称
+                if translation_service:
+                    try:
+                        # 检测是否包含中文
+                        if any('\u4e00' <= char <= '\u9fff' for char in variant.name):
+                            russian_name = await translation_service.translate_text(variant.name, target_lang='ru')
+                            logger.info(f"[QuickPublishService] 变体[{variant.sku}] 名称翻译: {variant.name} -> {russian_name}")
+                        else:
+                            logger.info(f"[QuickPublishService] 变体[{variant.sku}] 名称无需翻译（非中文）: {variant.name}")
+                    except Exception as e:
+                        logger.warning(f"[QuickPublishService] 变体[{variant.sku}] 名称翻译失败，使用原名称: {e}")
+
                 # 构建图片列表：变体主图（如果有）+ 共享图片
                 variant_images = []
                 if variant.primary_image:
@@ -160,8 +164,7 @@ class QuickPublishService:
                     "old_price": str(variant.old_price) if variant.old_price else None,
                     "vat": "0",  # 默认税率 0
                     "currency_code": "CNY",  # 默认货币 CNY
-                    "ozon_product_id": dto.ozon_product_id,
-                    "title": russian_title,  # 使用翻译后的俄文标题
+                    "name": russian_name,  # 使用翻译后的俄文名称
                     "description": dto.description,
                     "images": variant_images,  # 变体主图 + 共享图片
                     "brand": dto.brand,
