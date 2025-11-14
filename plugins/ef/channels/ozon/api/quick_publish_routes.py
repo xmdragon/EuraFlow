@@ -214,11 +214,9 @@ async def quick_publish_batch(
         logger.info(f"批量上架请求 - 用户ID: {user.id}")
         logger.info(f"店铺ID: {dto.shop_id}, 变体数量: {len(dto.variants)}")
         logger.info(f"仓库IDs: {dto.warehouse_ids}")
-        logger.info(f"商品标题: {dto.title}")
         logger.info(f"图片数量: {len(dto.images)}")
-        logger.info(f"类目ID: {dto.category_id}")
         for idx, variant in enumerate(dto.variants):
-            logger.info(f"  变体{idx+1}: SKU={variant.sku}, offer_id={variant.offer_id}, price={variant.price}, stock={variant.stock}")
+            logger.info(f"  变体{idx+1}: name={variant.name}, SKU={variant.sku}, offer_id={variant.offer_id}, price={variant.price}, stock={variant.stock}")
         logger.info("=" * 80)
 
         service = QuickPublishService()
