@@ -34,7 +34,6 @@ class ConfigCacheService {
 
     // 如果缓存有效，直接返回
     if (this.isCacheValid()) {
-      console.log('[ConfigCache] 使用有效缓存');
       return;
     }
 
@@ -44,10 +43,6 @@ class ConfigCacheService {
 
     try {
       this.cache = await this.loadPromise;
-      console.log('[ConfigCache] 预加载完成', {
-        shops: this.cache.shops.length,
-        watermarks: this.cache.watermarks.length,
-      });
     } catch (error) {
       console.error('[ConfigCache] 预加载失败:', error);
       // 加载失败不影响页面，用户点击时会重新加载
@@ -118,7 +113,6 @@ class ConfigCacheService {
    */
   clearCache(): void {
     this.cache = null;
-    console.log('[ConfigCache] 缓存已清除');
   }
 
   /**
@@ -139,13 +133,8 @@ class ConfigCacheService {
    * 加载所有配置数据（优化：使用统一API减少请求次数）
    */
   private async loadConfig(apiClient: ApiClient): Promise<ConfigCache> {
-    console.log('[ConfigCache] 开始加载配置...');
-
     // 使用新的统一配置API（1次请求代替原来的3+N次）
     const config = await apiClient.getConfig();
-
-    // 输出完整响应用于调试
-    console.log('[ConfigCache] API响应:', JSON.stringify(config, null, 2));
 
     // 验证返回数据格式
     if (!config || typeof config !== 'object') {

@@ -14,9 +14,9 @@ export const CONFIG = {
     priceWidget: '[data-widget="webPrice"]',
     greenPriceContainer: '.pdp_fb1',
     greenPriceText: '.tsHeadline600Large',
-    blackPriceContainer: '.pdp_bf9',
-    blackPriceText500: '.pdp_b7f.tsHeadline500Medium',
-    blackPriceText600: '.pdp_b7f.tsHeadline600Large',
+    blackPriceContainer: '.pdp_fb9',
+    blackPriceText500: '.tsHeadline500Medium',
+    blackPriceText600: '.tsHeadline600Large',
   },
 };
 

@@ -6,9 +6,10 @@
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
-  // 选择器（注入到商品详情右侧区域）
-  targetContainer: '.pdp_b8i.pdp_i8b',
+  // 选择器（注入到 separator 之前）
+  separatorSelector: '[data-widget="separator"]',
   injectedElementId: 'euraflow-real-price',
+  injectedDataWidget: 'webEuraflowPrice',
 
   // 样式
   style: {
@@ -39,11 +40,11 @@ export function injectOrUpdateDisplay(
     return;
   }
 
-  // 查找目标容器
-  const targetContainer = document.querySelector(
-    DISPLAY_CONFIG.targetContainer
+  // 查找 separator 元素
+  const separator = document.querySelector(
+    DISPLAY_CONFIG.separatorSelector
   );
-  if (!targetContainer) {
+  if (!separator || !separator.parentElement) {
     return;
   }
 
@@ -77,6 +78,8 @@ export function injectOrUpdateDisplay(
     // 创建新元素 - 两列布局
     displayElement = document.createElement('div');
     displayElement.id = DISPLAY_CONFIG.injectedElementId;
+    // 添加 data-widget 属性，模仿 OZON 原生组件
+    displayElement.setAttribute('data-widget', DISPLAY_CONFIG.injectedDataWidget);
 
     // 容器样式（flex布局）
     Object.assign(displayElement.style, {
@@ -161,8 +164,8 @@ export function injectOrUpdateDisplay(
     displayElement.appendChild(priceSection);
     displayElement.appendChild(buttonSection);
 
-    // 注入到目标容器内的第一个位置
-    targetContainer.insertBefore(displayElement, targetContainer.firstChild);
+    // 注入到 separator 之前
+    separator.parentElement.insertBefore(displayElement, separator);
   }
 }
 
@@ -179,8 +182,8 @@ export function removeDisplay(): void {
 }
 
 /**
- * 获取目标容器元素（用于检查页面是否准备好）
+ * 获取 separator 元素（用于检查页面是否准备好）
  */
 export function getTargetContainer(): Element | null {
-  return document.querySelector(DISPLAY_CONFIG.targetContainer);
+  return document.querySelector(DISPLAY_CONFIG.separatorSelector);
 }

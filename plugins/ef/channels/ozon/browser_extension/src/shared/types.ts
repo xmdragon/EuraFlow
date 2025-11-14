@@ -196,7 +196,7 @@ export interface QuickPublishVariant {
   price: number;            // 价格（分）
   stock: number;            // 库存
   old_price?: number;       // 原价（分）
-  images: string[];         // 变体特定的图片列表（第一张是主图）
+  primary_image?: string;   // 变体主图URL（单个图片）
 }
 
 /**
@@ -205,6 +205,7 @@ export interface QuickPublishVariant {
 export interface QuickPublishBatchRequest {
   shop_id: number;
   warehouse_ids: number[];
+  watermark_config_id?: number;     // 水印配置ID
   variants: QuickPublishVariant[];  // 变体列表
   // 商品共享数据
   ozon_product_id?: string;

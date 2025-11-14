@@ -124,8 +124,14 @@ class QuickPublishService:
             task_ids = []
             for idx, variant in enumerate(dto.variants):
                 # 合并共享数据和变体数据
-                # 优先使用变体特定的图片，如果没有则使用共享图片
-                variant_images = variant.images if variant.images else dto.images
+                # 构建图片列表：变体主图（如果有）+ 共享图片
+                variant_images = []
+                if variant.primary_image:
+                    variant_images.append(variant.primary_image)
+                # 添加共享图片（去重）
+                for img in dto.images:
+                    if img not in variant_images:
+                        variant_images.append(img)
 
                 variant_dto = {
                     "shop_id": dto.shop_id,
@@ -138,7 +144,7 @@ class QuickPublishService:
                     "ozon_product_id": dto.ozon_product_id,
                     "title": dto.title,
                     "description": dto.description,
-                    "images": variant_images,  # 使用变体特定的图片
+                    "images": variant_images,  # 变体主图 + 共享图片
                     "brand": dto.brand,
                     "barcode": dto.barcode,
                     "category_id": dto.category_id,

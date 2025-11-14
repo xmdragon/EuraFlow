@@ -25,7 +25,7 @@ function isProductDetailPage(): boolean {
 
 async function init() {
   // 输出调试提示
-  console.log('[EuraFlow] 选品助手已加载。调试模式：在控制台输入 localStorage.setItem(\'EURAFLOW_DEBUG\', \'true\'); 启用调试日志');
+  console.log('[EuraFlow] localStorage.setItem(\'EURAFLOW_DEBUG\', \'true\');');
 
   // 分支处理：商品详情页 vs 商品列表页
   if (isProductDetailPage()) {
@@ -64,6 +64,7 @@ async function init() {
 }
 
 // 导出 onExecute 函数（Vite CRXJS 插件要求）
+// 注意：不要在这里直接调用 onExecute()，loader 会调用它
 export function onExecute() {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
@@ -71,6 +72,3 @@ export function onExecute() {
     init();
   }
 }
-
-// 立即执行初始化
-onExecute();

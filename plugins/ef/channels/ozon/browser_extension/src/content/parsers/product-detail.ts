@@ -155,18 +155,10 @@ function extractVariantsStage1(widgetStates: any): any[] {
       return [];
     }
 
-    if (isDebugEnabled()) {
-      console.log(`[EuraFlow] 第一阶段：aspects 数组长度 ${aspects.length}`);
-    }
-
     // 扁平化提取所有变体
     const allVariants = aspects
       .map(aspect => aspect.variants || [])
       .flat(3);
-
-    if (isDebugEnabled()) {
-      console.log(`[EuraFlow] 第一阶段：扁平化后变体总数 ${allVariants.length}`);
-    }
 
     // 过滤"Уцененные"并清理链接
     const filteredVariants = allVariants
@@ -178,10 +170,6 @@ function extractVariantsStage1(widgetStates: any): any[] {
         ...variant,
         link: variant.link ? variant.link.split('?')[0] : '',
       }));
-
-    if (isDebugEnabled()) {
-      console.log(`[EuraFlow] 第一阶段：过滤后变体总数 ${filteredVariants.length}`);
-    }
 
     return filteredVariants;
   } catch (error) {
@@ -202,15 +190,8 @@ async function fetchVariantDetailsInBatches(variantLinks: string[], batchSize: n
     batches.push(variantLinks.slice(i, i + batchSize));
   }
 
-  if (isDebugEnabled()) {
-    console.log(`[EuraFlow] 第二阶段：开始批量获取变体详情，共 ${batches.length} 批（每批 ${batchSize} 个）`);
-  }
-
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex];
-    if (isDebugEnabled()) {
-      console.log(`[EuraFlow] 第二阶段：处理第 ${batchIndex + 1}/${batches.length} 批（${batch.length} 个变体）`);
-    }
 
     const batchPromises = batch.map(async (link) => {
       try {
@@ -231,9 +212,6 @@ async function fetchVariantDetailsInBatches(variantLinks: string[], batchSize: n
     allDetailsVariants.push(...batchVariants);
   }
 
-  if (isDebugEnabled()) {
-    console.log(`[EuraFlow] 第二阶段：批量获取完成，共提取 ${allDetailsVariants.length} 个详情变体`);
-  }
   return allDetailsVariants;
 }
 
@@ -322,6 +300,17 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
     // 提取图片
     let imageUrl = variant.image || variant.imageUrl || variant.data?.image || '';
 
+    // 调试：输出原始变体数据中的图片字段
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 变体 [${sku}] 图片提取:`, {
+        'variant.image': variant.image,
+        'variant.imageUrl': variant.imageUrl,
+        'variant.data?.image': variant.data?.image,
+        '最终图片URL': imageUrl,
+        '完整variant对象': variant
+      });
+    }
+
     const variantData = {
       variant_id: sku,
       specifications,
@@ -337,7 +326,7 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
 
     // 输出每个变体的完整数据（仅调试模式）
     if (isDebugEnabled()) {
-      console.log(`[EuraFlow] 变体 [${sku}]:`, {
+      console.log(`[EuraFlow] 变体 [${sku}] 最终数据:`, {
         SKU: sku,
         规格: specifications,
         价格: `${price.toFixed(2)} ¥`,
@@ -366,10 +355,6 @@ function isDebugEnabled(): boolean {
  * 提取商品数据（主函数）
  */
 export async function extractProductData(): Promise<ProductDetailData> {
-  if (isDebugEnabled()) {
-    console.log('[EuraFlow] 开始采集商品数据（OZON API 方案）...');
-  }
-
   try {
     const productUrl = window.location.href;
 
@@ -385,9 +370,6 @@ export async function extractProductData(): Promise<ProductDetailData> {
     const stage1Variants = extractVariantsStage1(widgetStates);
 
     if (stage1Variants.length === 0) {
-      if (isDebugEnabled()) {
-        console.log('[EuraFlow] 商品无变体，采集完成');
-      }
       return {
         ...baseData,
         has_variants: false,
@@ -406,7 +388,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
     const finalVariants = mergeAndDeduplicateVariants(stage1Variants, stage2Variants);
 
     if (isDebugEnabled()) {
-      console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体（去重后）`);
+      console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体`);
     }
 
     return {

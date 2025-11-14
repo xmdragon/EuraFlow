@@ -318,11 +318,19 @@ function initializeVariants(): void {
         discountPercent
       });
 
+      // 调试：输出原始变体图片
+      console.log(`[PublishModal] 初始化变体 ${index + 1}:`, {
+        variant_id: variant.variant_id,
+        specifications: variant.specifications,
+        image_url: variant.image_url,
+        '是否有图片': !!variant.image_url
+      });
+
       variants.push({
         variant_id: variant.variant_id,
         specifications: variant.specifications || `变体 ${index + 1}`,
         spec_details: variant.spec_details,
-        image_url: variant.image_url || (product.images && product.images[0]) || '',
+        image_url: variant.image_url || '',  // 保留原始值，不回退到商品主图
         original_price: realPrice, // 原价格显示真实售价
         original_old_price: blackPrice,
         custom_price: customPrice, // 改后售价应用降价策略
@@ -979,15 +987,14 @@ async function handlePublish(): Promise<void> {
 
   try {
     // 构建批量请求（一次性提交所有变体）
-    const variantsData: QuickPublishVariant[] = enabledVariants.map(variant => {
-      // 构建每个变体的图片列表：
-      // 1. 如果变体有自己的图片，把它放在第一位作为主图
-      // 2. 后面跟着商品的其他图片（去重）
-      // 3. 如果变体没有特定图片，使用商品的所有图片
-      const allImages = productData?.images || [];
-      const variantImages = variant.image_url
-        ? [variant.image_url, ...allImages.filter((url: string) => url !== variant.image_url)]
-        : allImages;
+    const variantsData: QuickPublishVariant[] = enabledVariants.map((variant, idx) => {
+      // 调试：输出原始变体数据
+      console.log(`[PublishModal] 变体 ${idx + 1} 原始数据:`, {
+        variant_id: variant.variant_id,
+        specifications: variant.specifications,
+        image_url: variant.image_url,
+        '是否有变体图片': !!variant.image_url
+      });
 
       return {
         sku: variant.variant_id,                      // OZON SKU
@@ -995,19 +1002,20 @@ async function handlePublish(): Promise<void> {
         price: yuanToCents(variant.custom_price),     // 元 → 分
         stock: variant.stock,
         old_price: variant.custom_old_price ? yuanToCents(variant.custom_old_price) : undefined,
-        images: variantImages,                        // 变体特定的图片列表
+        primary_image: variant.image_url || undefined,  // 变体主图URL（单个字符串）
       };
     });
 
     const batchRequest: QuickPublishBatchRequest = {
       shop_id: selectedShopId,
       warehouse_ids: selectedWarehouseIds,
+      watermark_config_id: selectedWatermarkId || undefined,  // 水印配置ID
       variants: variantsData,
-      // 商品共享数据（用于创建商品基本信息，不包含图片）
+      // 商品共享数据
       ozon_product_id: productData.ozon_product_id,
       title: productData.title,
       description: productData.description,
-      images: productData.images, // 作为备用（如果变体没有图片）
+      images: productData.images,  // 共享图片列表
       brand: productData.brand,
       barcode: productData.barcode,
       category_id: productData.category_id!,

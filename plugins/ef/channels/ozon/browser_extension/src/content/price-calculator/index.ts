@@ -13,7 +13,7 @@ import { getApiConfig } from '../../shared/storage';
 /**
  * 防抖延迟（毫秒）
  */
-const DEBOUNCE_DELAY = 500;
+const DEBOUNCE_DELAY = 0;
 
 /**
  * 防抖函数
@@ -60,21 +60,20 @@ export class RealPriceCalculator {
    */
   public init(): void {
     try {
-      // 延迟2秒注入，避免被其他扩展（如上品帮）覆盖
-      setTimeout(() => {
-        console.log('[EuraFlow] 延迟注入组件（2秒后）');
-        // 首次执行计算和显示
-        this.calculateAndDisplay();
+      // 首次执行计算和显示
+      this.calculateAndDisplay();
 
-        // 设置动态监听
-        this.setupDynamicListener();
+      // 设置动态监听
+      this.setupDynamicListener();
 
-        // 启动保活机制：每5秒检查一次，如果组件被移除则重新注入
-        this.startKeepAlive();
-      }, 2000);
+      // 启动保活机制：每5秒检查一次，如果组件被移除则重新注入
+      this.startKeepAlive();
 
       // 后台预加载配置数据（异步，不阻塞）
       this.preloadConfigInBackground();
+
+      // 后台异步加载商品详情（只执行一次）
+      this.loadProductDataInBackground(this.lastMessage, this.lastPrice);
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator initialization error:', error);
     }
@@ -152,31 +151,39 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 首次加载：提取商品详情（包括变体信息）
-      import('../parsers/product-detail').then(async (module) => {
-        const productData = await module.extractProductData();
-
-        // 如果有商品数据，计算所有变体的真实售价
-        if (productData && productData.has_variants && productData.variants) {
-          productData.variants = productData.variants.map((variant: any) => ({
-            ...variant,
-            real_price: this.calculateVariantRealPrice(variant.price, variant.old_price)
-          }));
-        }
-
-        // 保存商品数据（用于后续复用）
-        this.lastProductData = productData;
-
-        // 注入或更新显示（传递价格和商品数据用于"一键跟卖"按钮）
-        injectOrUpdateDisplay(message, price, productData);
-      }).catch(error => {
-        console.error('[EuraFlow] 提取商品详情失败:', error);
-        // 如果提取失败，仍然显示价格计算器（不传递商品数据）
-        this.lastProductData = null;
-        injectOrUpdateDisplay(message, price, null);
-      });
+      // 首次加载或正在加载商品数据：只显示价格计算器
+      injectOrUpdateDisplay(message, price, null);
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator error:', error);
+    }
+  }
+
+  /**
+   * 后台异步加载商品详情（不阻塞价格计算器显示）
+   * 只在初始化时调用一次
+   */
+  private async loadProductDataInBackground(message: string | null, price: number | null): Promise<void> {
+    try {
+      const module = await import('../parsers/product-detail');
+      const productData = await module.extractProductData();
+
+      // 如果有商品数据，计算所有变体的真实售价
+      if (productData && productData.has_variants && productData.variants) {
+        productData.variants = productData.variants.map((variant: any) => ({
+          ...variant,
+          real_price: this.calculateVariantRealPrice(variant.price, variant.old_price)
+        }));
+      }
+
+      // 保存商品数据（用于后续复用）
+      this.lastProductData = productData;
+
+      // 更新显示，启用"一键跟卖"按钮
+      injectOrUpdateDisplay(message, price, productData);
+    } catch (error) {
+      console.error('[EuraFlow] 提取商品详情失败:', error);
+      // 加载失败不影响价格显示，按钮保持禁用状态
+      this.lastProductData = null;
     }
   }
 

@@ -85,7 +85,7 @@ class QuickPublishVariantDTO(BaseModel):
     price: Decimal = Field(..., gt=0, description="销售价格（分）")
     stock: int = Field(..., ge=0, description="库存数量")
     old_price: Optional[Decimal] = Field(None, gt=0, description="原价（分）")
-    images: List[str] = Field(default_factory=list, max_length=15, description="变体特定的图片列表（第一张是主图，最多15张）")
+    primary_image: Optional[str] = Field(None, description="变体主图URL（单个图片）")
 
 
 class QuickPublishBatchDTO(BaseModel):
@@ -93,6 +93,7 @@ class QuickPublishBatchDTO(BaseModel):
     # 店铺和仓库（共享）
     shop_id: int = Field(..., description="店铺ID")
     warehouse_ids: List[int] = Field(default_factory=list, description="仓库ID列表（FBS/rFBS）")
+    watermark_config_id: Optional[int] = Field(None, description="水印配置ID（可选）")
 
     # 变体列表
     variants: List[QuickPublishVariantDTO] = Field(..., min_length=1, max_length=1000, description="变体列表（1-1000个，OZON限制）")
