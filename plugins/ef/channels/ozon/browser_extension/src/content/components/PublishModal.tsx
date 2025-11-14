@@ -1065,6 +1065,15 @@ async function handlePublish(): Promise<void> {
     console.log('[PublishModal] ========== 批量上架请求 ==========');
     console.log('[PublishModal] 变体数量:', enabledVariants.length);
     console.log('[PublishModal] 图片数量:', productData.images.length);
+    console.log('[PublishModal] 共享商品数据（从 productData 提取）:', {
+      category_id: productData.category_id,
+      brand: productData.brand,
+      barcode: productData.barcode,
+      description: productData.description ? `${productData.description.substring(0, 50)}...` : undefined,
+      dimensions: productData.dimensions,
+      attributes: productData.attributes,
+      videos: productData.videos?.length || 0,
+    });
     console.log('[PublishModal] 完整请求数据:', JSON.stringify(batchRequest, null, 2));
 
     // 调用批量API

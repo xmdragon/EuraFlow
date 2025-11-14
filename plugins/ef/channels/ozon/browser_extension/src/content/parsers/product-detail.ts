@@ -593,6 +593,18 @@ export async function extractProductData(): Promise<ProductDetailData> {
       throw new Error('解析基础数据失败');
     }
 
+    // 调试：输出提取到的基础商品数据
+    if (isDebugEnabled()) {
+      console.log('[EuraFlow] ========== 基础商品数据（从 widgetStates 提取）==========');
+      console.log('[EuraFlow] category_id:', baseData.category_id);
+      console.log('[EuraFlow] brand:', baseData.brand);
+      console.log('[EuraFlow] barcode:', baseData.barcode);
+      console.log('[EuraFlow] description:', baseData.description ? `${baseData.description.substring(0, 80)}...` : undefined);
+      console.log('[EuraFlow] dimensions:', baseData.dimensions);
+      console.log('[EuraFlow] attributes:', baseData.attributes);
+      console.log('[EuraFlow] videos:', baseData.videos?.length || 0);
+    }
+
     // 提取商品ID（用于 Modal API）
     const productId = baseData.ozon_product_id;
 
