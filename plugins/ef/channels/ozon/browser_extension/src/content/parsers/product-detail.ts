@@ -145,6 +145,112 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
 }
 
 /**
+ * 通过 OZON Page2 API 获取完整特征和描述
+ * 调用 /product/{slug}/?layout_container=pdpPage2column&layout_page_index=2
+ */
+async function fetchCharacteristicsAndDescription(productSlug: string): Promise<{
+  description?: string;
+  attributes?: Array<{ attribute_id: number; value: string; dictionary_value_id?: number }>;
+} | null> {
+  try {
+    // 构造 Page2 API URL
+    const page2Url = `/product/${productSlug}/?layout_container=pdpPage2column&layout_page_index=2`;
+    const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(page2Url)}`;
+
+    if (isDebugEnabled()) {
+      console.log(`[EuraFlow] 正在调用 OZON Page2 API 获取特征和描述: ${apiUrl}`);
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[EuraFlow] Page2 API 请求失败: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const widgetStates = data.widgetStates || {};
+    const keys = Object.keys(widgetStates);
+
+    const result: {
+      description?: string;
+      attributes?: Array<{ attribute_id: number; value: string; dictionary_value_id?: number }>;
+    } = {};
+
+    // 1. 提取 webDescription
+    const descriptionKey = keys.find(k => k.includes('webDescription') && k.includes('pdpPage2column'));
+    if (descriptionKey) {
+      const descriptionData = JSON.parse(widgetStates[descriptionKey]);
+      if (descriptionData?.richAnnotation) {
+        const desc = descriptionData.richAnnotation;
+        result.description = desc;
+        if (isDebugEnabled()) {
+          console.log(`[EuraFlow] 从 Page2 API 提取到描述: ${desc.substring(0, 80)}...`);
+        }
+      }
+    }
+
+    // 2. 提取 webCharacteristics
+    const characteristicsKey = keys.find(k => k.includes('webCharacteristics') && k.includes('pdpPage2column'));
+    if (characteristicsKey) {
+      const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
+      if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
+        const attributes: Array<{ attribute_id: number; value: string; dictionary_value_id?: number }> = [];
+
+        // 遍历所有特征组
+        for (const group of characteristicsData.characteristics) {
+          if (group.short && Array.isArray(group.short)) {
+            for (const attr of group.short) {
+              // 提取特征值
+              if (attr.values && Array.isArray(attr.values) && attr.values.length > 0) {
+                const value = attr.values.map((v: any) => v.text).join(', ');
+
+                // 简单的 attribute_id 生成（基于 key 的哈希）
+                const attributeId = Math.abs(hashCode(attr.key));
+
+                attributes.push({
+                  attribute_id: attributeId,
+                  value: value,
+                });
+              }
+            }
+          }
+        }
+
+        result.attributes = attributes;
+
+        if (isDebugEnabled()) {
+          console.log(`[EuraFlow] 从 Page2 API 提取到 ${attributes.length} 个特征`);
+        }
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (error) {
+    console.error('[EuraFlow] 调用 Page2 API 失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 简单的字符串哈希函数（用于生成 attribute_id）
+ */
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash;
+}
+
+/**
  * 从 widgetStates 解析基础商品数据
  */
 function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'variants' | 'has_variants'> | null {
@@ -593,9 +699,35 @@ export async function extractProductData(): Promise<ProductDetailData> {
       throw new Error('解析基础数据失败');
     }
 
+    // 提取商品 slug（用于 Page2 API）
+    const slugMatch = productUrl.match(/\/product\/([^\/\?]+)/);
+    const productSlug = slugMatch ? slugMatch[1] : null;
+
+    // 调用 Page2 API 获取完整特征和描述
+    if (productSlug) {
+      if (isDebugEnabled()) {
+        console.log(`[EuraFlow] 尝试使用 Page2 API 获取完整特征和描述（slug=${productSlug}）`);
+      }
+
+      const page2Data = await fetchCharacteristicsAndDescription(productSlug);
+      if (page2Data) {
+        // 合并 Page2 数据到基础数据
+        if (page2Data.description) {
+          baseData.description = page2Data.description;
+        }
+        if (page2Data.attributes && page2Data.attributes.length > 0) {
+          baseData.attributes = page2Data.attributes;
+        }
+
+        if (isDebugEnabled()) {
+          console.log(`[EuraFlow] Page2 API 成功合并数据`);
+        }
+      }
+    }
+
     // 调试：输出提取到的基础商品数据
     if (isDebugEnabled()) {
-      console.log('[EuraFlow] ========== 基础商品数据（从 widgetStates 提取）==========');
+      console.log('[EuraFlow] ========== 基础商品数据（从 widgetStates + Page2 提取）==========');
       console.log('[EuraFlow] category_id:', baseData.category_id);
       console.log('[EuraFlow] brand:', baseData.brand);
       console.log('[EuraFlow] barcode:', baseData.barcode);
