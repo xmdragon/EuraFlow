@@ -216,6 +216,23 @@ function Popup() {
         </ol>
       </section>
 
+      {/* 调试方法 */}
+      <section className="popup-section debug-section">
+        <h2>调试方法</h2>
+        <p className="debug-description">
+          如需查看详细的调试日志，请在浏览器控制台（F12）执行以下命令：
+        </p>
+        <div className="code-block">
+          <code>localStorage.setItem('EURAFLOW_DEBUG', 'true')</code>
+        </div>
+        <p className="debug-hint">
+          刷新页面后生效。关闭调试模式：
+        </p>
+        <div className="code-block">
+          <code>localStorage.removeItem('EURAFLOW_DEBUG')</code>
+        </div>
+      </section>
+
       <footer className="popup-footer">
         <p>© 2024 EuraFlow Team</p>
       </footer>
