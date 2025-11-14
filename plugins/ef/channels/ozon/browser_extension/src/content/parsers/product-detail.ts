@@ -145,6 +145,123 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
 }
 
 /**
+ * 从上品帮注入的 DOM 中提取数据
+ * 上品帮会在页面上注入包含这些信息的元素
+ */
+function extractDataFromInjectedDOM(): {
+  weight?: number;
+  height?: number;
+  width?: number;
+  length?: number;
+  brand?: string;
+  description?: string;
+} | null {
+  try {
+    const result: {
+      weight?: number;
+      height?: number;
+      width?: number;
+      length?: number;
+      brand?: string;
+      description?: string;
+    } = {};
+
+    // 查找所有包含 "text-class" 的 div（上品帮的数据容器）
+    const textElements = document.querySelectorAll('div.text-class');
+
+    for (const element of textElements) {
+      const span = element.querySelector('span');
+      const b = element.querySelector('b');
+
+      if (!span || !b) continue;
+
+      const label = span.textContent?.trim() || '';
+      const value = b.textContent?.trim() || '';
+
+      // 提取包装重量（格式：130 g）
+      if (label.includes('包装重量')) {
+        const weightMatch = value.match(/(\d+(?:\.\d+)?)\s*g/i);
+        if (weightMatch) {
+          result.weight = parseFloat(weightMatch[1]);
+        }
+      }
+
+      // 提取长宽高（格式：250* 130 * 30 或 250*130*30）
+      if (label.includes('长宽高')) {
+        // 匹配格式：数字 * 数字 * 数字（允许空格）
+        const dimensionsMatch = value.match(/(\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)/);
+        if (dimensionsMatch) {
+          result.length = parseFloat(dimensionsMatch[1]);
+          result.width = parseFloat(dimensionsMatch[2]);
+          result.height = parseFloat(dimensionsMatch[3]);
+        }
+      }
+
+      // 提取品牌（格式：без бренда 或其他品牌名）
+      if (label.includes('品牌')) {
+        if (value) {
+          // 标准化品牌：将 "без бренда" 转换为 "NO_BRAND"
+          if (value === 'без бренда' || value === '') {
+            result.brand = 'NO_BRAND';
+          } else {
+            result.brand = value;
+          }
+        }
+      }
+    }
+
+    // 如果提取到了数据，返回结果
+    if (Object.keys(result).length > 0) {
+      if (isDebugEnabled()) {
+        console.log('[EuraFlow] 从上品帮注入的 DOM 中提取到数据:', result);
+      }
+      return result;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[EuraFlow] 从 DOM 提取数据失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 等待上品帮注入 DOM 数据
+ * 使用 50ms 间隔检测，最多等待 5 秒
+ */
+async function waitForInjectedDOM(): Promise<boolean> {
+  const maxAttempts = 100; // 5000ms / 50ms = 100次
+  let attempts = 0;
+
+  return new Promise((resolve) => {
+    const checkInterval = setInterval(() => {
+      attempts++;
+
+      // 检查是否存在上品帮注入的 DOM 元素
+      const textElements = document.querySelectorAll('div.text-class');
+      const hasInjectedData = textElements.length > 0;
+
+      if (hasInjectedData) {
+        clearInterval(checkInterval);
+        if (isDebugEnabled()) {
+          console.log(`[EuraFlow] 检测到上品帮注入的 DOM（尝试 ${attempts} 次）`);
+        }
+        resolve(true);
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(checkInterval);
+        if (isDebugEnabled()) {
+          console.log('[EuraFlow] 超时：未检测到上品帮注入的 DOM');
+        }
+        resolve(false);
+      }
+    }, 50);
+  });
+}
+
+/**
  * 通过 OZON Page2 API 获取完整特征和描述
  * 调用 /product/{slug}/?layout_container=pdpPage2column&layout_page_index=2
  */
@@ -722,6 +839,60 @@ export async function extractProductData(): Promise<ProductDetailData> {
         if (isDebugEnabled()) {
           console.log(`[EuraFlow] Page2 API 成功合并数据`);
         }
+      }
+    }
+
+    // 等待并尝试从上品帮注入的 DOM 中提取数据
+    if (isDebugEnabled()) {
+      console.log('[EuraFlow] 等待上品帮注入 DOM 数据...');
+    }
+
+    const hasInjectedDOM = await waitForInjectedDOM();
+
+    if (hasInjectedDOM) {
+      const injectedData = extractDataFromInjectedDOM();
+
+      if (injectedData && Object.keys(injectedData).length > 0) {
+        // 合并 dimensions 数据（如果所有必需字段都存在）
+        if (
+          injectedData.weight !== undefined &&
+          injectedData.height !== undefined &&
+          injectedData.width !== undefined &&
+          injectedData.length !== undefined
+        ) {
+          baseData.dimensions = {
+            weight: injectedData.weight,
+            height: injectedData.height,
+            width: injectedData.width,
+            length: injectedData.length,
+          };
+
+          if (isDebugEnabled()) {
+            console.log('[EuraFlow] 成功从上品帮 DOM 中提取 dimensions:', baseData.dimensions);
+          }
+        }
+
+        // 合并 brand 数据（上品帮数据优先）
+        if (injectedData.brand) {
+          baseData.brand = injectedData.brand;
+
+          if (isDebugEnabled()) {
+            console.log('[EuraFlow] 成功从上品帮 DOM 中提取 brand:', baseData.brand);
+          }
+        }
+
+        // 合并 description 数据（如果存在）
+        if (injectedData.description) {
+          baseData.description = injectedData.description;
+
+          if (isDebugEnabled()) {
+            console.log('[EuraFlow] 成功从上品帮 DOM 中提取 description');
+          }
+        }
+      }
+    } else {
+      if (isDebugEnabled()) {
+        console.log('[EuraFlow] 上品帮未注入 DOM，跳过上品帮数据提取');
       }
     }
 
