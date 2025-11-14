@@ -10,7 +10,7 @@
  *    - price / original_price: webPrice
  *    - images / videos: webGallery
  *    - ozon_product_id: URL 路径提取
- *    - category_id: breadCrumbs
+ *    - category_id: layoutTrackingInfo.categoryId（API 顶层字段）
  *    - brand: webProductHeading（优先）或 webCharacteristics（被上品帮 DOM 覆盖）
  *    - attributes: Page2 API 的 webCharacteristics（最完整）
  *
@@ -117,7 +117,8 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
       throw new Error('widgetStates 不存在');
     }
 
-    return data.widgetStates;
+    // 返回完整的 API 响应（包含 layoutTrackingInfo 等字段）
+    return data;
   } catch (error) {
     console.error('[EuraFlow] 调用 OZON API 失败:', error);
     throw error;
@@ -410,10 +411,12 @@ function hashCode(str: string): number {
 }
 
 /**
- * 从 widgetStates 解析基础商品数据
+ * 从 OZON API 响应解析基础商品数据
+ * @param apiResponse - 完整的 API 响应对象（包含 widgetStates 和 layoutTrackingInfo）
  */
-function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'variants' | 'has_variants'> | null {
+function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'variants' | 'has_variants'> | null {
   try {
+    const widgetStates = apiResponse.widgetStates;
     const keys = Object.keys(widgetStates);
 
     // 1. 提取标题
@@ -454,17 +457,20 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
     const urlMatch = window.location.pathname.match(/product\/.*-(\d+)/);
     const ozon_product_id = urlMatch ? urlMatch[1] : undefined;
 
-    // 5. 提取类目ID（breadCrumbs）
+    // 5. 提取类目ID（从 layoutTrackingInfo）
     let category_id: number | undefined = undefined;
-    const breadcrumbsKey = keys.find(k => k.includes('breadCrumb'));
-    if (breadcrumbsKey) {
-      const breadcrumbsData = JSON.parse(widgetStates[breadcrumbsKey]);
-      // 从 breadcrumbs.items 数组的最后一项提取 categoryId
-      if (breadcrumbsData?.items && Array.isArray(breadcrumbsData.items)) {
-        const lastItem = breadcrumbsData.items[breadcrumbsData.items.length - 1];
-        if (lastItem?.categoryId) {
-          category_id = parseInt(lastItem.categoryId);
+    if (apiResponse.layoutTrackingInfo) {
+      try {
+        // layoutTrackingInfo 是一个 JSON 字符串，需要解析
+        const layoutTracking = typeof apiResponse.layoutTrackingInfo === 'string'
+          ? JSON.parse(apiResponse.layoutTrackingInfo)
+          : apiResponse.layoutTrackingInfo;
+
+        if (layoutTracking.categoryId) {
+          category_id = parseInt(layoutTracking.categoryId);
         }
+      } catch (error) {
+        console.error('[EuraFlow] 解析 layoutTrackingInfo 失败:', error);
       }
     }
 
@@ -698,9 +704,9 @@ export async function extractProductData(): Promise<ProductDetailData> {
   try {
     const productUrl = window.location.href;
 
-    // 获取基础数据
-    const widgetStates = await fetchProductDataFromOzonAPI(productUrl);
-    const baseData = parseFromWidgetStates(widgetStates);
+    // 获取基础数据（完整的 API 响应，包含 widgetStates 和 layoutTrackingInfo）
+    const apiResponse = await fetchProductDataFromOzonAPI(productUrl);
+    const baseData = parseFromWidgetStates(apiResponse);
 
     if (!baseData) {
       throw new Error('解析基础数据失败');
@@ -816,7 +822,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
     const productId = baseData.ozon_product_id;
 
     // 第一阶段：提取当前页面的变体列表
-    const stage1Variants = extractVariantsStage1(widgetStates);
+    const stage1Variants = extractVariantsStage1(apiResponse.widgetStates);
 
     if (stage1Variants.length === 0) {
       return {
