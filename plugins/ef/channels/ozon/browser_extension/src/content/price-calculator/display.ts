@@ -146,12 +146,19 @@ export function injectOrUpdateDisplay(
     // 点击事件（打开上架弹窗，传递商品数据+当前页面显示的真实售价）
     button.addEventListener('click', async () => {
       try {
+        const productDataStr = button.getAttribute('data-product');
+        const product = productDataStr ? JSON.parse(productDataStr) : null;
+
+        // 检查商品数据是否存在dimensions
+        if (!product || !product.dimensions) {
+          alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
+          return;
+        }
+
         // 动态导入弹窗模块
         const { showPublishModal } = await import(
           '../components/PublishModal'
         );
-        const productDataStr = button.getAttribute('data-product');
-        const product = productDataStr ? JSON.parse(productDataStr) : null;
 
         // 从按钮的 data-price 属性获取当前页面显示的真实售价（最新）
         const currentRealPriceStr = button.getAttribute('data-price');

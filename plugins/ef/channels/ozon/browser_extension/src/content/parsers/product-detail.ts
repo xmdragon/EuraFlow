@@ -188,12 +188,20 @@ function extractDataFromInjectedDOM(): {
 
       // 提取长宽高（格式：250* 130 * 30 或 250*130*30）
       if (label.includes('长宽高')) {
-        // 匹配格式：数字 * 数字 * 数字（允许空格）
-        const dimensionsMatch = value.match(/(\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)/);
-        if (dimensionsMatch) {
-          result.length = parseFloat(dimensionsMatch[1]);
-          result.width = parseFloat(dimensionsMatch[2]);
-          result.height = parseFloat(dimensionsMatch[3]);
+        // 检查是否为"无数据"
+        if (value === '无数据' || value === '-' || value === '') {
+          // 明确标记为不可用
+          result.length = -1;
+          result.width = -1;
+          result.height = -1;
+        } else {
+          // 匹配格式：数字 * 数字 * 数字（允许空格）
+          const dimensionsMatch = value.match(/(\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)/);
+          if (dimensionsMatch) {
+            result.length = parseFloat(dimensionsMatch[1]);
+            result.width = parseFloat(dimensionsMatch[2]);
+            result.height = parseFloat(dimensionsMatch[3]);
+          }
         }
       }
 
@@ -853,22 +861,37 @@ export async function extractProductData(): Promise<ProductDetailData> {
       const injectedData = extractDataFromInjectedDOM();
 
       if (injectedData && Object.keys(injectedData).length > 0) {
-        // 合并 dimensions 数据（如果所有必需字段都存在）
+        // 合并 dimensions 数据（如果所有必需字段都存在且有效）
         if (
           injectedData.weight !== undefined &&
           injectedData.height !== undefined &&
           injectedData.width !== undefined &&
           injectedData.length !== undefined
         ) {
-          baseData.dimensions = {
-            weight: injectedData.weight,
-            height: injectedData.height,
-            width: injectedData.width,
-            length: injectedData.length,
-          };
+          // 检查是否为"无数据"（-1表示无数据）
+          if (
+            injectedData.weight === -1 ||
+            injectedData.height === -1 ||
+            injectedData.width === -1 ||
+            injectedData.length === -1
+          ) {
+            // 不合并dimensions，保持为undefined
+            baseData.dimensions = undefined;
 
-          if (isDebugEnabled()) {
-            console.log('[EuraFlow] 成功从上品帮 DOM 中提取 dimensions:', baseData.dimensions);
+            if (isDebugEnabled()) {
+              console.log('[EuraFlow] 上品帮 DOM 中的 dimensions 为"无数据"，跳过合并');
+            }
+          } else {
+            baseData.dimensions = {
+              weight: injectedData.weight,
+              height: injectedData.height,
+              width: injectedData.width,
+              length: injectedData.length,
+            };
+
+            if (isDebugEnabled()) {
+              console.log('[EuraFlow] 成功从上品帮 DOM 中提取 dimensions:', baseData.dimensions);
+            }
           }
         }
 
