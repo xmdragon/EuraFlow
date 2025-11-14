@@ -129,7 +129,7 @@ async def quick_publish_batch(
 @router.get("/task/{task_id}/status", response_model=TaskStatusResponseDTO)
 async def get_task_status(
     task_id: str,
-    shop_id: int = Query(..., description="店铺ID (用于权限验证)"),
+    shop_id: Optional[int] = Query(None, description="店铺ID (可选，用于权限验证)"),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(get_current_user_from_api_key)
 ):
