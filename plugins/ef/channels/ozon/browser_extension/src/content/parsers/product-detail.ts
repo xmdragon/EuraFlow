@@ -2,7 +2,42 @@
  * OZON 商品详情页数据采集器
  *
  * 用于从商品详情页提取完整的商品数据，支持"一键跟卖"功能
- * 采用 OZON API 方案，实现二阶段变体采集
+ *
+ * ========== 数据源说明 ==========
+ *
+ * 1. 基础字段（来自 widgetStates API）
+ *    - title: webProductHeading
+ *    - price / original_price: webPrice
+ *    - images / videos: webGallery
+ *    - ozon_product_id: URL 路径提取
+ *    - category_id: breadCrumbs
+ *    - brand: webProductHeading（优先）或 webCharacteristics
+ *    - barcode: webCharacteristics
+ *    - attributes: Page2 API 的 webCharacteristics（最完整）
+ *
+ * 2. description（来自 Page2 API）
+ *    - 数据源：Page2 API 的 webDescription.richAnnotation
+ *    - 调用方式：/product/{slug}/?layout_container=pdpPage2column&layout_page_index=2
+ *    - 优先级：Page2 API > 上品帮 DOM（如果存在）
+ *
+ * 3. dimensions & brand（来自上品帮注入的 DOM）
+ *    - 数据源：上品帮扩展注入的 div.text-class 元素
+ *    - 等待策略：50ms 间隔轮询，最多等待 5 秒
+ *    - dimensions 字段：weight, height, width, length（来自"长宽高(mm)"和"包装重量"）
+ *    - brand 字段：来自"品牌"字段，"без бренда" 转换为 "NO_BRAND"
+ *    - 特殊处理：如果 dimensions 为"无数据"，则不合并（保持 undefined），阻止弹窗打开
+ *
+ * 4. variants（来自 Modal API）
+ *    - 数据源：Modal API 的 webAspectsModal
+ *    - 调用方式：/modal/aspectsNew?product_id={id}
+ *    - 优势：一次请求获取所有变体的完整数据（图片、价格、规格、库存）
+ *    - 降级方案：如果 Modal API 失败，仅使用 stage1 的变体列表
+ *
+ * ========== 废弃的提取逻辑（已移除）==========
+ *
+ * - widgetStates 中的 description 提取（成功率 < 5%）
+ * - widgetStates 中的 dimensions 提取（成功率 0%）
+ * - 批量详情页方案（fetchVariantDetailsInBatches）（太慢且不稳定）
  */
 
 // ========== 类型定义 ==========
@@ -420,19 +455,7 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
     const urlMatch = window.location.pathname.match(/product\/.*-(\d+)/);
     const ozon_product_id = urlMatch ? urlMatch[1] : undefined;
 
-    // 5. 提取描述（webDescription 或 webProductHeading 中的 description）
-    let description: string | undefined = undefined;
-    const descriptionKey = keys.find(k => k.includes('webDescription'));
-    if (descriptionKey) {
-      const descriptionData = JSON.parse(widgetStates[descriptionKey]);
-      description = descriptionData?.description || descriptionData?.text || descriptionData?.content || undefined;
-    }
-    // 降级：从 heading 中提取
-    if (!description && headingData?.description) {
-      description = headingData.description;
-    }
-
-    // 6. 提取类目ID（breadCrumbs 或 webBreadCrumbs 或 webCurrentSeller）
+    // 5. 提取类目ID（breadCrumbs 或 webBreadCrumbs 或 webCurrentSeller）
     let category_id: number | undefined = undefined;
     // 优先查找 breadCrumbs（不带 web 前缀，OZON 新格式）
     const breadcrumbsKey = keys.find(k => k.includes('breadCrumb'));
@@ -497,43 +520,14 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
       }
     }
 
-    // 9. 提取尺寸和重量（webCharacteristics）
-    let dimensions: ProductDetailData['dimensions'] | undefined = undefined;
-    if (characteristicsKey) {
-      const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
-      if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
-        const weightChar = characteristicsData.characteristics.find(
-          (char: any) => char.title === 'Вес' || char.key === 'weight'
-        );
-        const heightChar = characteristicsData.characteristics.find(
-          (char: any) => char.title === 'Высота' || char.key === 'height'
-        );
-        const widthChar = characteristicsData.characteristics.find(
-          (char: any) => char.title === 'Ширина' || char.key === 'width'
-        );
-        const lengthChar = characteristicsData.characteristics.find(
-          (char: any) => char.title === 'Длина' || char.key === 'length'
-        );
-
-        if (weightChar || heightChar || widthChar || lengthChar) {
-          dimensions = {
-            weight: weightChar?.values?.[0]?.value ? parseFloat(weightChar.values[0].value) : 0,
-            height: heightChar?.values?.[0]?.value ? parseFloat(heightChar.values[0].value) : 0,
-            width: widthChar?.values?.[0]?.value ? parseFloat(widthChar.values[0].value) : 0,
-            length: lengthChar?.values?.[0]?.value ? parseFloat(lengthChar.values[0].value) : 0,
-          };
-        }
-      }
-    }
-
-    // 10. 提取类目特征（webCharacteristics）
+    // 9. 提取类目特征（webCharacteristics）
     const attributes: ProductDetailData['attributes'] = [];
     if (characteristicsKey) {
       const characteristicsData = JSON.parse(widgetStates[characteristicsKey]);
       if (characteristicsData?.characteristics && Array.isArray(characteristicsData.characteristics)) {
         characteristicsData.characteristics.forEach((char: any) => {
-          // 跳过已经提取的字段（品牌、条形码、尺寸）
-          if (['Бренд', 'Штрихкод', 'Вес', 'Высота', 'Ширина', 'Длина'].includes(char.title)) {
+          // 跳过已经提取的字段（品牌、条形码）
+          if (['Бренд', 'Штрихкод'].includes(char.title)) {
             return;
           }
 
@@ -558,11 +552,9 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
         original_price,
         images: images.length,
         videos: videos.length,
-        description: description ? description.substring(0, 50) + '...' : undefined,
         category_id,
         brand,
         barcode,
-        dimensions,
         attributes: attributes.length,
       });
     }
@@ -574,11 +566,9 @@ function parseFromWidgetStates(widgetStates: any): Omit<ProductDetailData, 'vari
       original_price: original_price > price ? original_price : undefined,
       images,
       videos: videos.length > 0 ? videos : undefined,
-      description,
       category_id,
       brand,
       barcode,
-      dimensions,
       attributes: attributes.length > 0 ? attributes : undefined,
     };
   } catch (error) {
@@ -625,78 +615,6 @@ function extractVariantsStage1(widgetStates: any): any[] {
     return filteredVariants;
   } catch (error) {
     console.error('[EuraFlow] 第一阶段变体提取失败:', error);
-    return [];
-  }
-}
-
-/**
- * 第二阶段：批量获取每个变体的详情页数据（分批处理）
- */
-async function fetchVariantDetailsInBatches(variantLinks: string[], batchSize: number = 50): Promise<any[]> {
-  const allDetailsVariants: any[] = [];
-  const batches = [];
-
-  // 分批
-  for (let i = 0; i < variantLinks.length; i += batchSize) {
-    batches.push(variantLinks.slice(i, i + batchSize));
-  }
-
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-    const batch = batches[batchIndex];
-
-    const batchPromises = batch.map(async (link) => {
-      try {
-        const fullUrl = `https://www.ozon.ru${link}`;
-        const widgetStates = await fetchProductDataFromOzonAPI(fullUrl);
-        if (widgetStates) {
-          return extractVariantsStage2(widgetStates);
-        }
-        return [];
-      } catch (error) {
-        // 单个变体失败不影响整体
-        return [];
-      }
-    });
-
-    const batchResults = await Promise.all(batchPromises);
-    const batchVariants = batchResults.flat();
-    allDetailsVariants.push(...batchVariants);
-  }
-
-  return allDetailsVariants;
-}
-
-/**
- * 第二阶段：从详情页的 webAspects 提取变体
- */
-function extractVariantsStage2(widgetStates: any): any[] {
-  try {
-    const keys = Object.keys(widgetStates);
-    const aspectsKey = keys.find(k => k.includes('webAspects'));
-
-    if (!aspectsKey) {
-      return [];
-    }
-
-    const aspectsData = JSON.parse(widgetStates[aspectsKey]);
-    const aspects = aspectsData?.aspects;
-
-    if (!aspects || !Array.isArray(aspects) || aspects.length === 0) {
-      return [];
-    }
-
-    // 从最后一个 aspect 提取 variants（参考上品帮逻辑）
-    const lastAspect = aspects[aspects.length - 1];
-    const variants = lastAspect?.variants || [];
-
-    return variants
-      .flat(3)
-      .filter((v: any) => v.data?.searchableText !== 'Уцененные')
-      .map((v: any) => ({
-        ...v,
-        link: v.link ? v.link.split('?')[0] : '',
-      }));
-  } catch (error) {
     return [];
   }
 }
@@ -974,21 +892,8 @@ export async function extractProductData(): Promise<ProductDetailData> {
           console.log(`[EuraFlow] Modal API 成功获取 ${stage2Variants.length} 个变体`);
         }
       } else {
-        console.warn('[EuraFlow] Modal API 未返回变体，降级到批量详情页方案');
+        console.warn('[EuraFlow] Modal API 未返回变体');
       }
-    }
-
-    // 降级方案：如果 Modal API 失败，使用原来的批量详情页方案
-    if (stage2Variants.length === 0) {
-      if (isDebugEnabled()) {
-        console.log('[EuraFlow] 使用批量详情页方案获取变体');
-      }
-
-      const variantLinks = stage1Variants
-        .map(v => v.link)
-        .filter(link => link && link.length > 0);
-
-      stage2Variants = await fetchVariantDetailsInBatches(variantLinks);
     }
 
     // 合并去重（每个变体使用自己的 data.title）
