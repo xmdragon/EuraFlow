@@ -1110,16 +1110,19 @@ async function pollTaskStatus(taskId: string, variantName: string, shopId?: numb
     try {
       const status = await apiClient.getTaskStatus(taskId, shopId);
 
-      if (status.status === 'imported') {
-        // 成功
+      if (status.status === 'completed') {
+        // 任务完成（所有步骤成功）
         if (isDebugEnabled()) console.log(`[PublishModal] 变体"${variantName}"上架成功`);
         return;
       } else if (status.status === 'failed') {
-        // 失败
+        // 任务失败
         throw new Error(status.error || `变体"${variantName}"上架失败`);
-      } else if (status.status === 'pending' || status.status === 'processing') {
-        // 继续等待
+      } else if (status.status === 'running' || status.status === 'pending') {
+        // 继续等待（任务执行中或等待中）
         await new Promise(resolve => setTimeout(resolve, interval));
+      } else if (status.status === 'not_found') {
+        // 任务不存在或已过期
+        throw new Error(`任务不存在或已过期`);
       }
     } catch (error) {
       console.error('[PublishModal] 查询任务状态失败:', error);
