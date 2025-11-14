@@ -290,6 +290,8 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         if not shop:
             raise ValueError(f"店铺 {shop_id} 不存在")
 
+        logger.info(f"[Step 1] Shop info: shop_id={shop.id}, client_id={shop.client_id}")
+
         api_client = OzonAPIClient(
             client_id=shop.client_id,
             api_key=shop.api_key_enc,
@@ -308,7 +310,9 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
         if dto_dict.get("name"):
             items[0]["name"] = dto_dict["name"]
 
+        logger.info(f"[Step 1] Calling OZON API import-by-sku with items: {items}")
         import_result = run_async_in_celery(api_client.import_products_by_sku(items))
+        logger.info(f"[Step 1] OZON API response: {import_result}")
 
         if not import_result.get('result'):
             raise ValueError(f"OZON API 错误: {import_result}")

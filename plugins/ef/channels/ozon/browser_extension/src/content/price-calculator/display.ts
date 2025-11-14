@@ -143,7 +143,7 @@ export function injectOrUpdateDisplay(
       button.style.backgroundColor = '#1976D2';
     });
 
-    // 点击事件（打开上架弹窗，传递商品数据）
+    // 点击事件（打开上架弹窗，传递商品数据+当前页面显示的真实售价）
     button.addEventListener('click', async () => {
       try {
         // 动态导入弹窗模块
@@ -153,7 +153,12 @@ export function injectOrUpdateDisplay(
         const productDataStr = button.getAttribute('data-product');
         const product = productDataStr ? JSON.parse(productDataStr) : null;
 
-        showPublishModal(product);
+        // 从按钮的 data-price 属性获取当前页面显示的真实售价（最新）
+        const currentRealPriceStr = button.getAttribute('data-price');
+        const currentRealPrice = currentRealPriceStr ? parseFloat(currentRealPriceStr) : null;
+
+        // 传递商品数据和当前真实售价
+        showPublishModal(product, currentRealPrice);
       } catch (error) {
         console.error('[EuraFlow] 打开上架弹窗失败:', error);
         alert('打开上架配置失败，请稍后重试');

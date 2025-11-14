@@ -145,8 +145,8 @@ let variants: VariantEditData[] = [];
  * 显示上架配置弹窗（入口）
  * @param product 商品详情数据（包括变体价格信息）
  */
-export async function showPublishModal(product: any = null): Promise<void> {
-  if (isDebugEnabled()) console.log('[PublishModal] 显示弹窗，商品数据:', product);
+export async function showPublishModal(product: any = null, currentRealPrice: number | null = null): Promise<void> {
+  if (isDebugEnabled()) console.log('[PublishModal] 显示弹窗，商品数据:', product, '当前真实售价:', currentRealPrice);
 
   // 关闭已有弹窗
   if (currentModal) {
@@ -180,9 +180,9 @@ export async function showPublishModal(product: any = null): Promise<void> {
     updateLoadingMessage('正在加载配置数据...');
     await loadConfigData();
 
-    // 3. 初始化变体数据
+    // 3. 初始化变体数据（传递当前页面显示的真实售价）
     updateLoadingMessage('正在处理变体数据...');
-    initializeVariants();
+    initializeVariants(currentRealPrice);
 
     // 4. 渲染主弹窗（仅关闭加载弹窗，不重置数据）
     closeModalElement();
@@ -274,11 +274,12 @@ async function loadWarehouses(shopId: number): Promise<void> {
 
 /**
  * 初始化变体数据
+ * @param pageRealPrice 当前页面显示的真实售价（从DOM提取，最新）
  */
-function initializeVariants(): void {
+function initializeVariants(pageRealPrice: number | null = null): void {
   variants = [];
 
-  if (isDebugEnabled()) console.log('[PublishModal] initializeVariants 开始，productData:', productData);
+  if (isDebugEnabled()) console.log('[PublishModal] initializeVariants 开始，productData:', productData, '页面真实售价:', pageRealPrice);
 
   if (!productData) {
     console.warn('[PublishModal] productData 为空');
@@ -297,14 +298,18 @@ function initializeVariants(): void {
 
   // 情况1: 商品有变体
   if (product.has_variants && product.variants && product.variants.length > 0) {
-    if (isDebugEnabled()) console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个');
+    if (isDebugEnabled()) console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个', '页面真实售价:', pageRealPrice);
+
+    // 只有一个变体且提供了页面真实售价时，使用页面价格（确保一致性）
+    const usePageRealPrice = product.variants.length === 1 && pageRealPrice !== null;
+
     product.variants.forEach((variant, index) => {
       // 注意：product-detail.ts 返回的价格已经是人民币元
       const greenPrice = variant.price || 0; // 绿色价格（Ozon Card价格）
       const blackPrice = variant.original_price || greenPrice; // 黑色价格（原价），没有则用绿价
 
-      // 使用共用的价格计算函数，确保与页面显示一致
-      const realPrice = calculateRealPriceCore(greenPrice, blackPrice);
+      // 使用页面真实售价（单变体）或计算售价（多变体）
+      const realPrice = usePageRealPrice ? pageRealPrice! : calculateRealPriceCore(greenPrice, blackPrice);
 
       // 应用降价策略
       const customPrice = Math.max(0.01, realPrice * discountMultiplier);
@@ -347,17 +352,30 @@ function initializeVariants(): void {
   else {
     if (isDebugEnabled()) console.log('[PublishModal] 单品（无变体）');
 
-    // 根据单品自己的价格计算真实售价
-    const greenPrice = product.price || 0; // 绿色价格
-    const blackPrice = product.original_price || greenPrice; // 黑色价格，没有则用绿价
+    // 优先使用页面显示的真实售价（最新），否则从API数据计算
+    let realPrice: number;
+    let greenPrice: number;
+    let blackPrice: number;
 
-    // 使用共用的价格计算函数，确保与页面显示一致
-    const realPrice = calculateRealPriceCore(greenPrice, blackPrice);
+    if (pageRealPrice !== null) {
+      // 使用页面显示的价格（确保和页面一致）
+      realPrice = pageRealPrice;
+      greenPrice = product.price || 0;
+      blackPrice = product.original_price || greenPrice;
+      if (isDebugEnabled()) console.log('[PublishModal] 使用页面真实售价:', realPrice);
+    } else {
+      // 从API数据计算
+      greenPrice = product.price || 0;
+      blackPrice = product.original_price || greenPrice;
+      realPrice = calculateRealPriceCore(greenPrice, blackPrice);
+      if (isDebugEnabled()) console.log('[PublishModal] 从API数据计算真实售价:', realPrice);
+    }
 
     // 应用降价策略
     const customPrice = Math.max(0.01, realPrice * discountMultiplier);
 
     if (isDebugEnabled()) console.log('[PublishModal] 单品价格计算:', {
+      pageRealPrice,
       greenPrice,
       blackPrice,
       realPrice,
@@ -1118,33 +1136,45 @@ async function pollTaskStatus(taskId: string, variantName: string, shopId?: numb
 let progressOverlay: HTMLElement | null = null;
 
 /**
- * 显示进度弹窗
+ * 显示进度通知（右下角，不阻塞）
  */
 function showProgressModal(totalCount: number): void {
-  progressOverlay = createOverlay();
-  const modal = createModalContainer('500px');
+  // 创建右下角通知容器（非阻塞）
+  const notification = document.createElement('div');
+  notification.id = 'euraflow-progress-notification';
+  notification.style.cssText = `
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 360px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+    padding: 20px;
+    z-index: 999999;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
 
-  modal.innerHTML = `
-    <div style="text-align: center; padding: 32px;">
-      <div style="font-size: 18px; font-weight: bold; margin-bottom: 16px; color: #333;">正在上架中...</div>
-      <div id="progress-message" style="font-size: 14px; margin-bottom: 16px; color: #666;">准备中...</div>
-      <div style="width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
-        <div id="progress-bar" style="width: 0%; height: 100%; background: #1976D2; transition: width 0.3s;"></div>
+  notification.innerHTML = `
+    <div style="display: flex; align-items: flex-start; gap: 12px;">
+      <div style="flex-shrink: 0; width: 40px; height: 40px; background: #1976D2; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        </svg>
       </div>
-      <div id="progress-count" style="font-size: 13px; color: #999;">0 / ${totalCount}</div>
+      <div style="flex: 1; min-width: 0;">
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #333;">正在上架...</div>
+        <div id="progress-message" style="font-size: 14px; margin-bottom: 12px; color: #666;">准备中...</div>
+        <div style="width: 100%; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
+          <div id="progress-bar" style="width: 0%; height: 100%; background: #1976D2; transition: width 0.3s;"></div>
+        </div>
+        <div id="progress-count" style="font-size: 13px; color: #999;">0 / ${totalCount}</div>
+      </div>
     </div>
   `;
 
-  progressOverlay.appendChild(modal);
-  document.body.appendChild(progressOverlay);
-
-  // 阻止点击关闭
-  modal.addEventListener('click', (e) => {
-    e.stopPropagation();
-  });
-  progressOverlay.addEventListener('click', (e) => {
-    e.stopPropagation();
-  });
+  document.body.appendChild(notification);
+  progressOverlay = notification; // 保存引用（用于后续关闭）
 }
 
 /**
