@@ -1154,7 +1154,7 @@ function showProgressModal(totalCount: number): void {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
     padding: 20px;
-    z-index: 999999;
+    z-index: 2147483647;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `;
 
