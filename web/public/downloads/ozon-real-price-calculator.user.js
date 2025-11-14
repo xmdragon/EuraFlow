@@ -1,17 +1,40 @@
 // ==UserScript==
 // @name         OZON真实售价计算器
 // @namespace    http://tampermonkey.net/
-// @version      1.3.1
-// @description  在OZON商品页面显示计算后的真实售价（优化选择器，适配DOM变化）
+// @version      1.3.2
+// @description  在OZON商品页面显示计算后的真实售价（修复OZON删除chrome.runtime导致的错误）
 // @author       EuraFlow
 // @match        https://www.ozon.ru/product/*
 // @match        https://*.ozon.ru/product/*
 // @grant        none
-// @run-at       document-end
+// @run-at       document-start
 // ==/UserScript==
 
 (function () {
   "use strict";
+
+  // ========== 修复 OZON 删除 chrome.runtime 的问题 ==========
+  // OZON 网站会删除 chrome.runtime 以防止扩展抓取数据
+  // 这会导致 Tampermonkey 扩展报错，但不影响脚本功能
+  // 我们提供一个空的 polyfill 来消除错误
+  if (typeof chrome !== 'undefined' && !chrome.runtime) {
+    try {
+      Object.defineProperty(chrome, 'runtime', {
+        value: {
+          connect: function() { return { postMessage: function() {}, onMessage: { addListener: function() {} } }; },
+          sendMessage: function() {},
+          onMessage: { addListener: function() {} },
+          getURL: function(path) { return path; },
+          id: 'tampermonkey-polyfill',
+          lastError: null,
+        },
+        writable: false,
+        configurable: false,
+      });
+    } catch (e) {
+      // 如果无法定义，静默失败（不影响脚本功能）
+    }
+  }
 
   // ========== 配置常量 ==========
   const CONFIG = {
