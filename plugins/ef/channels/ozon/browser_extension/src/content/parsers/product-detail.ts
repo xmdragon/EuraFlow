@@ -560,14 +560,7 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
 
     // 输出每个变体的完整数据（仅调试模式）
     if (isDebugEnabled()) {
-      console.log(`[EuraFlow] 变体 [${sku}] 最终数据:`, {
-        SKU: sku,
-        规格: specifications,
-        价格: `${price.toFixed(2)} ¥`,
-        图片: imageUrl,
-        链接: link,
-        可用: variantData.available,
-      });
+      console.log(`[EuraFlow] 变体 [${sku}] 最终数据（完整）:`, variantData);
     }
   });
 
