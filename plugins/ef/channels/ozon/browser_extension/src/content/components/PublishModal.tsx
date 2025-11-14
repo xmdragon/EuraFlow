@@ -1048,7 +1048,7 @@ async function handlePublish(): Promise<void> {
     console.log('[PublishModal] 开始轮询', response.task_ids.length, '个任务');
     const pollPromises = response.task_ids.map((taskId: string, idx: number) => {
       const variant = enabledVariants[idx];
-      return pollTaskStatus(taskId, variant.specifications);
+      return pollTaskStatus(taskId, variant.specifications, selectedShopId);
     });
 
     await Promise.all(pollPromises);
@@ -1082,7 +1082,7 @@ async function handlePublish(): Promise<void> {
 /**
  * 轮询任务状态
  */
-async function pollTaskStatus(taskId: string, variantName: string): Promise<void> {
+async function pollTaskStatus(taskId: string, variantName: string, shopId?: number): Promise<void> {
   if (!apiClient) return;
 
   const maxAttempts = 60; // 最多轮询60次（5分钟）
@@ -1090,7 +1090,7 @@ async function pollTaskStatus(taskId: string, variantName: string): Promise<void
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const status = await apiClient.getTaskStatus(taskId);
+      const status = await apiClient.getTaskStatus(taskId, shopId);
 
       if (status.status === 'imported') {
         // 成功

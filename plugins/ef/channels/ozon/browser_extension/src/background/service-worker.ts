@@ -307,10 +307,16 @@ async function handleQuickPublishBatch(data: { apiUrl: string; apiKey: string; d
 /**
  * 查询任务状态
  */
-async function handleGetTaskStatus(data: { apiUrl: string; apiKey: string; taskId: string }) {
-  const { apiUrl, apiKey, taskId } = data;
+async function handleGetTaskStatus(data: { apiUrl: string; apiKey: string; taskId: string; shopId?: number }) {
+  const { apiUrl, apiKey, taskId, shopId } = data;
 
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/quick-publish/task/${taskId}/status`, {
+  // 构建URL，如果有shopId则添加查询参数
+  let url = `${apiUrl}/api/ef/v1/ozon/quick-publish/task/${taskId}/status`;
+  if (shopId !== undefined) {
+    url += `?shop_id=${shopId}`;
+  }
+
+  const response = await fetch(url, {
     method: 'GET',
     headers: {
       'X-API-Key': apiKey

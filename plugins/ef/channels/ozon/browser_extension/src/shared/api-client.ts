@@ -98,9 +98,9 @@ export class ApiClient {
   /**
    * 查询上架任务状态
    */
-  async getTaskStatus(taskId: string): Promise<TaskStatus> {
+  async getTaskStatus(taskId: string, shopId?: number): Promise<TaskStatus> {
     try {
-      const response = await this.sendRequest('GET_TASK_STATUS', { taskId });
+      const response = await this.sendRequest('GET_TASK_STATUS', { taskId, shopId });
       return response;
     } catch (error: any) {
       console.error('[ApiClient] Get task status failed:', error);
