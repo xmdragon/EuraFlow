@@ -99,7 +99,8 @@ class QuickPublishBatchDTO(BaseModel):
     # 变体列表
     variants: List[QuickPublishVariantDTO] = Field(..., min_length=1, max_length=1000, description="变体列表（1-1000个，OZON限制）")
 
-    # 通过SKU创建商品只需要变体中的7个字段：name, offer_id, old_price, price, sku, vat, currency_code
+    # 共享图片（供后续步骤使用，如上传图片）
+    images: List[str] = Field(default_factory=list, max_length=29, description="图片URL列表（最多29张，还有1张主图）")
 
 
 class QuickPublishBatchResponseDTO(BaseModel):

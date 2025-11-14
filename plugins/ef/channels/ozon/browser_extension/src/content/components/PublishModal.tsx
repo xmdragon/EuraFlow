@@ -1026,8 +1026,8 @@ async function handlePublish(): Promise<void> {
       warehouse_ids: selectedWarehouseIds,
       watermark_config_id: selectedWatermarkId || undefined,  // 水印配置ID
       variants: variantsData,
-      // 通过SKU创建商品只需要变体中的7个字段：name, offer_id, old_price, price, sku, vat, currency_code
-      // 不需要description和images
+      // 共享图片（供后续步骤使用，如上传图片）
+      images: filteredImages,  // 共享图片列表（已过滤变体主图）
     };
 
     console.log('[PublishModal] ========== 批量上架请求 ==========');
