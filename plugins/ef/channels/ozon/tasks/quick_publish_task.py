@@ -304,9 +304,9 @@ def create_product_by_sku_task(self, dto_dict: Dict, user_id: int, shop_id: int,
             "name": dto_dict.get("name", ""),
         }
 
-        # category_id（必需，叶子类目）
+        # type_id（必需，叶子类目）- OZON API 字段名为 type_id
         if dto_dict.get("category_id"):
-            product_item["category_id"] = dto_dict["category_id"]
+            product_item["type_id"] = dto_dict["category_id"]  # 将 category_id 映射为 type_id
         else:
             raise ValueError("category_id 是必需字段，无法创建商品")
 
