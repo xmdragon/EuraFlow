@@ -312,9 +312,12 @@ function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[
       });
     }
 
+    // 提取变体标题（优先使用变体自己的title）
+    const variantName = variant.data?.title || specifications || productTitle;
+
     const variantData = {
       variant_id: sku,
-      name: productTitle,  // 每个变体使用商品标题作为name
+      name: variantName,  // 使用变体的 data.title
       specifications,
       spec_details: undefined,
       image_url: imageUrl,
