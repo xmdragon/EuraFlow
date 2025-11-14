@@ -239,7 +239,7 @@ export interface QuickPublishResponse {
 export interface TaskStatus {
   success: boolean;
   task_id: string;
-  status: 'pending' | 'processing' | 'imported' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'not_found';
   items?: any[];
   error?: string;
 }
