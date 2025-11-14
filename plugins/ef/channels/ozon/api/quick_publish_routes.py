@@ -23,60 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 # DTO模型
-class DimensionsDTO(BaseModel):
-    """商品尺寸重量"""
-    weight: int = Field(..., description="重量（克）", gt=0)
-    height: int = Field(..., description="高度（毫米）", gt=0)
-    width: int = Field(..., description="宽度（毫米）", gt=0)
-    length: int = Field(..., description="长度（毫米）", gt=0)
-
-
-class AttributeDTO(BaseModel):
-    """商品属性"""
-    attribute_id: int
-    value: Optional[str] = None
-    dictionary_value_id: Optional[int] = None
-
-
-class QuickPublishDTO(BaseModel):
-    """一键上架DTO"""
-    # 店铺和仓库
-    shop_id: int = Field(..., description="店铺ID")
-    warehouse_ids: List[int] = Field(default_factory=list, description="仓库ID列表（FBS/rFBS）")
-
-    # 用户输入（必填）
-    sku: str = Field(..., description="OZON SKU", min_length=1, max_length=50)
-    offer_id: str = Field(..., description="商家SKU", min_length=1, max_length=50)
-    price: Decimal = Field(..., gt=0, description="销售价格（卢布）")
-    stock: int = Field(..., ge=0, description="库存数量")
-    category_id: int = Field(..., description="OZON类目ID（必须是叶子类目）")
-
-    # 可选
-    old_price: Optional[Decimal] = Field(None, gt=0, description="原价（卢布）")
-
-    # 从页面采集的数据
-    ozon_product_id: Optional[str] = Field(None, description="OZON商品ID（用于参考）")
-    title: str = Field(..., min_length=1, max_length=500, description="商品标题")
-    description: Optional[str] = Field(None, description="商品描述")
-    images: List[str] = Field(default_factory=list, max_items=15, description="图片URL列表（最多15张）")
-    brand: Optional[str] = Field(None, description="品牌")
-    barcode: Optional[str] = Field(None, description="条码")
-
-    # 尺寸重量（OZON必填）
-    dimensions: DimensionsDTO = Field(..., description="商品尺寸和重量")
-
-    # 属性（根据类目要求）
-    attributes: List[AttributeDTO] = Field(default_factory=list, description="商品属性列表")
-
-
-class QuickPublishResponseDTO(BaseModel):
-    """一键上架响应 (异步版本)"""
-    task_id: str = Field(..., description="Celery 任务 ID")
-    status: str = Field(default="pending", description="任务状态")
-    message: str = Field(..., description="提示信息")
-    success: Optional[bool] = Field(None, description="是否成功（已废弃,保留兼容）")
-    error: Optional[str] = Field(None, description="错误信息")
-
 
 class QuickPublishVariantDTO(BaseModel):
     """单个变体的上架数据（仅变体特有字段）"""
@@ -137,59 +83,6 @@ class TaskStatusResponseDTO(BaseModel):
 
 
 # API端点
-@router.post("/publish", response_model=QuickPublishResponseDTO)
-async def quick_publish(
-    dto: QuickPublishDTO,
-    db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(get_current_user_from_api_key)
-):
-    """
-    一键上架到OZON
-
-    流程：
-    1. 验证店铺和仓库
-    2. 图片转存到Cloudinary（如果配置）
-    3. 调用OZON API导入商品
-    4. 返回任务ID供前端轮询状态
-
-    权限：需要有效的API Key
-    """
-    try:
-        # 记录完整的请求数据
-        logger.info("=" * 80)
-        logger.info(f"一键上架请求 - 用户ID: {user.id}")
-        logger.info(f"店铺ID: {dto.shop_id}")
-        logger.info(f"仓库IDs: {dto.warehouse_ids}")
-        logger.info(f"OZON SKU: {dto.sku}")
-        logger.info(f"商家SKU (offer_id): {dto.offer_id}")
-        logger.info(f"价格: {dto.price}, 原价: {dto.old_price}")
-        logger.info(f"库存: {dto.stock}")
-        logger.info(f"类目ID: {dto.category_id}")
-        logger.info(f"标题: {dto.title}")
-        logger.info(f"品牌: {dto.brand}")
-        logger.info(f"条码: {dto.barcode}")
-        logger.info(f"图片数量: {len(dto.images)}")
-        logger.info(f"图片URLs: {dto.images}")
-        logger.info(f"尺寸重量: weight={dto.dimensions.weight}g, h={dto.dimensions.height}mm, w={dto.dimensions.width}mm, l={dto.dimensions.length}mm")
-        logger.info(f"属性数量: {len(dto.attributes)}")
-        for idx, attr in enumerate(dto.attributes):
-            logger.info(f"  属性{idx+1}: id={attr.attribute_id}, value={attr.value}, dict_value_id={attr.dictionary_value_id}")
-        logger.info(f"完整DTO: {dto.model_dump() if hasattr(dto, 'model_dump') else dto.dict()}")
-        logger.info("=" * 80)
-
-        service = QuickPublishService()
-        result = await service.quick_publish(db, dto, user.id)
-        return result
-    except Exception as e:
-        logger.error(f"Quick publish API error: {e}", exc_info=True)
-        return QuickPublishResponseDTO(
-            task_id="",
-            status="error",
-            message="上架失败",
-            error=str(e)
-        )
-
-
 @router.post("/batch", response_model=QuickPublishBatchResponseDTO)
 async def quick_publish_batch(
     dto: QuickPublishBatchDTO,
