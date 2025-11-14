@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OZON真实售价计算器
 // @namespace    http://tampermonkey.net/
-// @version      1.3.3
-// @description  在OZON商品页面显示计算后的真实售价（添加调试日志）
+// @version      1.4.0
+// @description  在OZON商品页面显示计算后的真实售价（修复注入位置）
 // @author       EuraFlow
 // @match        https://www.ozon.ru/product/*
 // @match        https://*.ozon.ru/product/*
@@ -13,14 +13,11 @@
 (function () {
   "use strict";
 
-  console.log('[OZON真实售价] 脚本开始执行');
-
   // ========== 修复 OZON 删除 chrome.runtime 的问题 ==========
   // OZON 网站会删除 chrome.runtime 以防止扩展抓取数据
   // 这会导致 Tampermonkey 扩展报错，但不影响脚本功能
   // 我们提供一个空的 polyfill 来消除错误
   if (typeof chrome !== 'undefined' && !chrome.runtime) {
-    console.log('[OZON真实售价] 检测到 chrome.runtime 不存在，尝试添加 polyfill');
     try {
       Object.defineProperty(chrome, 'runtime', {
         value: {
@@ -34,14 +31,9 @@
         writable: false,
         configurable: false,
       });
-      console.log('[OZON真实售价] chrome.runtime polyfill 添加成功');
     } catch (e) {
-      console.warn('[OZON真实售价] 无法添加 chrome.runtime polyfill:', e);
+      // 静默失败
     }
-  } else if (typeof chrome !== 'undefined' && chrome.runtime) {
-    console.log('[OZON真实售价] chrome.runtime 已存在');
-  } else {
-    console.log('[OZON真实售价] chrome 对象不存在');
   }
 
   // ========== 配置常量 ==========
@@ -71,8 +63,8 @@
       greenPriceText: ".tsHeadline600Large",
       // 黑色价格（多价格情况，稳定）
       blackPriceText500: ".tsHeadline500Medium",
-      // 注入位置
-      separatorWidget: '[data-widget="separator"]',
+      // 注入位置（价格区域容器）
+      targetContainer: ".pdp_i8b.pdp_b9i",
       injectedElementId: "tampermonkey-real-price",
     },
   };
@@ -130,7 +122,6 @@
    * @returns {{greenPrice: number|null, blackPrice: number|null, currency: string|null}}
    */
   function findPrices() {
-    console.log('[OZON真实售价] 开始查找价格');
     const result = {
       greenPrice: null,
       blackPrice: null,
@@ -139,9 +130,7 @@
 
     // 查找价格组件
     const priceWidget = document.querySelector(CONFIG.SELECTORS.priceWidget);
-    console.log('[OZON真实售价] priceWidget:', priceWidget);
     if (!priceWidget) {
-      console.warn('[OZON真实售价] 未找到价格组件');
       return result;
     }
 
@@ -153,16 +142,12 @@
       CONFIG.SELECTORS.blackPriceText500
     );
 
-    console.log('[OZON真实售价] 绿色价格元素数量:', greenPriceElements.length);
-    console.log('[OZON真实售价] 黑色价格元素数量:', blackPriceElements.length);
-
     // 提取绿色价格（Ozon Card价格）
     // 策略：第一个 tsHeadline600Large 通常是绿色价格
     if (greenPriceElements.length > 0) {
       const parsed = parsePrice(greenPriceElements[0].textContent);
       result.greenPrice = parsed.value;
       result.currency = parsed.currency;
-      console.log('[OZON真实售价] 绿色价格:', result.greenPrice, result.currency);
     }
 
     // 提取黑色价格（常规价格）
@@ -173,10 +158,8 @@
       if (!result.currency) {
         result.currency = parsed.currency;
       }
-      console.log('[OZON真实售价] 黑色价格:', result.blackPrice);
     }
 
-    console.log('[OZON真实售价] 最终价格结果:', result);
     return result;
   }
 
@@ -240,8 +223,6 @@
    * @param {string} message - 要显示的消息
    */
   function injectOrUpdateDisplay(message) {
-    console.log('[OZON真实售价] injectOrUpdateDisplay 调用, message:', message);
-
     if (!message) {
       // 如果没有消息，移除已存在的显示元素
       const existingElement = document.getElementById(
@@ -249,17 +230,13 @@
       );
       if (existingElement) {
         existingElement.remove();
-        console.log('[OZON真实售价] 移除已存在的元素');
       }
       return;
     }
 
-    // 查找 separator 元素（更稳定的注入位置）
-    const separator = document.querySelector(CONFIG.SELECTORS.separatorWidget);
-    console.log('[OZON真实售价] separator 元素:', separator);
-
-    if (!separator || !separator.parentElement) {
-      console.warn('[OZON真实售价] 未找到 separator 元素或其父元素');
+    // 查找目标容器（价格区域）
+    const targetContainer = document.querySelector(CONFIG.SELECTORS.targetContainer);
+    if (!targetContainer || !targetContainer.parentElement) {
       return;
     }
 
@@ -271,7 +248,6 @@
     if (displayElement) {
       // 更新现有元素
       displayElement.textContent = message;
-      console.log('[OZON真实售价] 更新已存在的元素');
     } else {
       // 创建新元素
       displayElement = document.createElement("div");
@@ -283,9 +259,11 @@
       // 设置文本
       displayElement.textContent = message;
 
-      // 注入到 separator 之前
-      separator.parentElement.insertBefore(displayElement, separator);
-      console.log('[OZON真实售价] 创建并注入新元素成功');
+      // 注入到目标容器后面
+      targetContainer.parentElement.insertBefore(
+        displayElement,
+        targetContainer.nextSibling
+      );
     }
   }
 
@@ -293,14 +271,12 @@
    * 主执行函数
    */
   function calculateAndDisplay() {
-    console.log('[OZON真实售价] ========== calculateAndDisplay 执行 ==========');
     try {
       // 查找价格
       const { greenPrice, blackPrice, currency } = findPrices();
 
       // 如果没有找到任何价格，静默失败
       if (blackPrice === null && greenPrice === null) {
-        console.warn('[OZON真实售价] 未找到任何价格，跳过');
         return;
       }
 
@@ -310,7 +286,6 @@
         blackPrice,
         currency
       );
-      console.log('[OZON真实售价] 计算结果 - price:', price, 'message:', message);
 
       // 注入或更新显示
       injectOrUpdateDisplay(message);
@@ -364,19 +339,15 @@
    * 初始化脚本
    */
   function init() {
-    console.log('[OZON真实售价] init 函数执行, readyState:', document.readyState);
     try {
       // 等待页面完全加载
       if (document.readyState === "loading") {
-        console.log('[OZON真实售价] 页面加载中，等待 DOMContentLoaded');
         document.addEventListener("DOMContentLoaded", () => {
-          console.log('[OZON真实售价] DOMContentLoaded 触发');
           calculateAndDisplay();
           setupDynamicListener();
         });
       } else {
         // 页面已加载，直接执行
-        console.log('[OZON真实售价] 页面已加载，直接执行');
         calculateAndDisplay();
         setupDynamicListener();
       }
@@ -386,7 +357,5 @@
   }
 
   // ========== 启动脚本 ==========
-  console.log('[OZON真实售价] 即将调用 init()');
   init();
-  console.log('[OZON真实售价] init() 调用完成');
 })();
