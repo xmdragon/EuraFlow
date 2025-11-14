@@ -1026,11 +1026,9 @@ async function handlePublish(): Promise<void> {
       warehouse_ids: selectedWarehouseIds,
       watermark_config_id: selectedWatermarkId || undefined,  // 水印配置ID
       variants: variantsData,
-      // 商品共享数据（跟卖不需要category_id、dimensions、attributes）
+      // 商品共享数据（跟卖只需要图片和描述）
       description: productData.description,
       images: filteredImages,  // 共享图片列表（已过滤变体主图）
-      brand: productData.brand,
-      barcode: productData.barcode,
     };
 
     console.log('[PublishModal] ========== 批量上架请求 ==========');
