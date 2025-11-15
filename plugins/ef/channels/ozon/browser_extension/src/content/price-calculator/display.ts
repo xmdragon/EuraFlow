@@ -6,22 +6,12 @@
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
-  // 选择器（注入到 webSale 之后）
+  // 选择器（注入到 webSale 之前）
   stickyColumnSelector: '[data-widget="webStickyColumn"]',
   webSaleSelector: '[data-widget="webSale"]',
-  injectedElementId: 'euraflow-real-price',
-  injectedDataWidget: 'webEuraflowPrice',
-
-  // 样式
-  style: {
-    backgroundColor: '#FFE7BA',
-    color: '#D84315',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    padding: '16px',
-    borderRadius: '8px',
-    marginBottom: '16px',
-  },
+  // 使用 OZON 风格的命名
+  injectedElementId: 'euraflow-widget-price',
+  injectedDataWidget: 'webEuraflowRealPrice',
 };
 
 /**
@@ -96,11 +86,15 @@ export function injectOrUpdateDisplay(
       }
     }
   } else {
-    // 创建新元素 - 两列布局
+    // 创建新元素 - 模仿 OZON 原生组件结构
     displayElement = document.createElement('div');
     displayElement.id = DISPLAY_CONFIG.injectedElementId;
     // 添加 data-widget 属性，模仿 OZON 原生组件
     displayElement.setAttribute('data-widget', DISPLAY_CONFIG.injectedDataWidget);
+    // 添加 OZON 风格的 class（让它看起来像原生组件）
+    displayElement.className = 'widget-euraflow-price';
+    // 添加一些 OZON 常见的属性
+    displayElement.setAttribute('data-state', 'loaded');
 
     // 容器样式（flex布局）
     Object.assign(displayElement.style, {
@@ -112,6 +106,7 @@ export function injectOrUpdateDisplay(
       padding: '16px',
       borderRadius: '8px',
       marginBottom: '16px',
+      boxSizing: 'border-box',
     });
 
     // 左列：价格显示
@@ -294,12 +289,8 @@ export function injectOrUpdateDisplay(
     displayElement.appendChild(priceSection);
     displayElement.appendChild(buttonSection);
 
-    // 注入到 webSale 之后（在 webStickyColumn 内）
-    if (webSale.nextSibling) {
-      stickyColumn.insertBefore(displayElement, webSale.nextSibling);
-    } else {
-      stickyColumn.appendChild(displayElement);
-    }
+    // 注入到 webSale 之前（在 webStickyColumn 内）
+    stickyColumn.insertBefore(displayElement, webSale);
   }
 }
 

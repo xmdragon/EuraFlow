@@ -151,8 +151,8 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 首次加载或正在加载商品数据：只显示价格计算器
-      injectOrUpdateDisplay(message, price, null);
+      // 首次加载时不注入，等商品数据准备好后再注入（避免被OZON移除）
+      // injectOrUpdateDisplay(message, price, null);
     } catch (error) {
       console.error('[EuraFlow] Real Price Calculator error:', error);
     }
