@@ -909,23 +909,28 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
       const modalAspects = await fetchFullVariantsFromModal(productId);
       if (modalAspects && modalAspects.length > 0) {
-        // 从 Modal API 提取变体（aspects 的最后一个元素包含完整变体）
-        const lastAspect = modalAspects[modalAspects.length - 1];
-        const modalVariants = (lastAspect?.variants || [])
-          .flat(3)
-          .filter((variant: any) => {
-            const searchableText = variant.data?.searchableText || '';
-            return searchableText !== 'Уцененные';
-          })
-          .map((variant: any) => ({
-            ...variant,
-            link: variant.link ? variant.link.split('?')[0] : '',
-          }));
+        // 从 Modal API 提取变体（遍历所有 aspects，提取每个 aspect 的变体）
+        const allModalVariants: any[] = [];
 
-        stage2Variants = modalVariants;
+        for (const aspect of modalAspects) {
+          const variants = (aspect?.variants || [])
+            .flat(3)
+            .filter((variant: any) => {
+              const searchableText = variant.data?.searchableText || '';
+              return searchableText !== 'Уцененные';
+            })
+            .map((variant: any) => ({
+              ...variant,
+              link: variant.link ? variant.link.split('?')[0] : '',
+            }));
+
+          allModalVariants.push(...variants);
+        }
+
+        stage2Variants = allModalVariants;
 
         if (isDebugEnabled()) {
-          console.log(`[EuraFlow] Modal API 成功获取 ${stage2Variants.length} 个变体`);
+          console.log(`[EuraFlow] Modal API 返回 ${modalAspects.length} 个 aspect，共提取 ${stage2Variants.length} 个变体`);
         }
       } else {
         console.warn('[EuraFlow] Modal API 未返回变体');
