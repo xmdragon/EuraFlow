@@ -314,10 +314,11 @@ async function waitForInjectedDOM(): Promise<boolean> {
 
 /**
  * 等待上品帮二次注入尺寸数据（从"-"变为实际值）
- * 使用 100ms 间隔检测，最多等待 2 秒（20次）
+ * 使用 100ms 间隔检测，最多等待 10 秒（100次）
+ * 对于多变体商品（如80个变体），上品帮需要更长时间加载数据
  */
 async function waitForDimensionsData(): Promise<boolean> {
-  const maxAttempts = 20; // 2000ms / 100ms = 20次（从有上品帮DOM开始最多等待2秒）
+  const maxAttempts = 100; // 10000ms / 100ms = 100次（从有上品帮DOM开始最多等待10秒）
   let attempts = 0;
 
   return new Promise((resolve) => {
@@ -331,7 +332,7 @@ async function waitForDimensionsData(): Promise<boolean> {
       if (data && data.length !== undefined && data.length !== -1) {
         clearInterval(checkInterval);
         if (isDebugEnabled()) {
-          console.log(`[EuraFlow] 尺寸数据已更新（尝试 ${attempts} 次）:`, data);
+          console.log(`[EuraFlow] 尺寸数据已更新（尝试 ${attempts} 次，耗时 ${attempts * 100}ms）:`, data);
         }
         resolve(true);
         return;
@@ -340,7 +341,7 @@ async function waitForDimensionsData(): Promise<boolean> {
       if (attempts >= maxAttempts) {
         clearInterval(checkInterval);
         if (isDebugEnabled()) {
-          console.log('[EuraFlow] 超时：尺寸数据仍为"-"，可能真的没有数据');
+          console.log('[EuraFlow] 超时：尺寸数据仍为"-"（等待10秒后超时），可能真的没有数据');
         }
         resolve(false);
       }
@@ -805,7 +806,8 @@ export async function extractProductData(): Promise<ProductDetailData> {
            injectedData.length === -1)
         ) {
           if (isDebugEnabled()) {
-            console.log('[EuraFlow] 尺寸数据为"-"，开始二次轮询（100ms × 20次，最多等待2秒）...');
+            console.log('[EuraFlow] 尺寸数据为"-"，开始二次轮询（100ms × 100次，最多等待10秒）...');
+            console.log('[EuraFlow] 多变体商品（如80个变体）可能需要较长时间，请耐心等待...');
           }
 
           // 等待尺寸数据更新
