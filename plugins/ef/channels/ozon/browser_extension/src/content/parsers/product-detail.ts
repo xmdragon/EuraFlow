@@ -223,13 +223,21 @@ function extractDataFromInjectedDOM(): {
 
       // 提取长宽高（格式：250* 130 * 30 或 250*130*30）
       if (label.includes('长宽高')) {
-        // 检查是否为"无数据"
-        if (value === '无数据' || value === '-' || value === '') {
-          // 明确标记为不可用
+        // 真正没数据的情况
+        if (value === '非热销,无数据') {
+          result.length = undefined;
+          result.width = undefined;
+          result.height = undefined;
+        }
+        // 数据还在加载中（需要二次轮询）
+        else if (value === '-' || value === '') {
+          // 返回特殊值 -1 表示需要等待
           result.length = -1;
           result.width = -1;
           result.height = -1;
-        } else {
+        }
+        // 有实际数据
+        else {
           // 匹配格式：数字 * 数字 * 数字（允许空格）
           const dimensionsMatch = value.match(/(\d+)\s*\*\s*(\d+)\s*\*\s*(\d+)/);
           if (dimensionsMatch) {
@@ -301,6 +309,42 @@ async function waitForInjectedDOM(): Promise<boolean> {
         resolve(false);
       }
     }, 50);
+  });
+}
+
+/**
+ * 等待上品帮二次注入尺寸数据（从"-"变为实际值）
+ * 使用 100ms 间隔检测，最多等待 1 秒（10次）
+ */
+async function waitForDimensionsData(): Promise<boolean> {
+  const maxAttempts = 10; // 1000ms / 100ms = 10次
+  let attempts = 0;
+
+  return new Promise((resolve) => {
+    const checkInterval = setInterval(() => {
+      attempts++;
+
+      // 重新提取数据
+      const data = extractDataFromInjectedDOM();
+
+      // 检查尺寸数据是否已更新（不再是 -1）
+      if (data && data.length !== undefined && data.length !== -1) {
+        clearInterval(checkInterval);
+        if (isDebugEnabled()) {
+          console.log(`[EuraFlow] 尺寸数据已更新（尝试 ${attempts} 次）:`, data);
+        }
+        resolve(true);
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(checkInterval);
+        if (isDebugEnabled()) {
+          console.log('[EuraFlow] 超时：尺寸数据仍为"-"，可能真的没有数据');
+        }
+        resolve(false);
+      }
+    }, 100);
   });
 }
 
@@ -746,28 +790,51 @@ export async function extractProductData(): Promise<ProductDetailData> {
     const hasInjectedDOM = await waitForInjectedDOM();
 
     if (hasInjectedDOM) {
-      const injectedData = extractDataFromInjectedDOM();
+      let injectedData = extractDataFromInjectedDOM();
 
       if (injectedData && Object.keys(injectedData).length > 0) {
+        // 检查尺寸数据是否为"-"（-1），需要二次轮询
+        if (
+          injectedData.weight !== undefined &&
+          injectedData.height !== undefined &&
+          injectedData.width !== undefined &&
+          injectedData.length !== undefined &&
+          (injectedData.weight === -1 ||
+           injectedData.height === -1 ||
+           injectedData.width === -1 ||
+           injectedData.length === -1)
+        ) {
+          if (isDebugEnabled()) {
+            console.log('[EuraFlow] 尺寸数据为"-"，开始二次轮询（100ms × 10次）...');
+          }
+
+          // 等待尺寸数据更新
+          await waitForDimensionsData();
+
+          // 重新提取数据
+          injectedData = extractDataFromInjectedDOM();
+        }
+
         // 合并 dimensions 数据（如果所有必需字段都存在且有效）
         if (
+          injectedData &&
           injectedData.weight !== undefined &&
           injectedData.height !== undefined &&
           injectedData.width !== undefined &&
           injectedData.length !== undefined
         ) {
-          // 检查是否为"无数据"（-1表示无数据）
+          // 检查是否仍为 -1（真正没数据）或者是"非热销,无数据"（undefined）
           if (
             injectedData.weight === -1 ||
             injectedData.height === -1 ||
             injectedData.width === -1 ||
             injectedData.length === -1
           ) {
-            // 不合并dimensions，保持为undefined
+            // 二次轮询后仍为"-"，真正没有数据
             baseData.dimensions = undefined;
 
             if (isDebugEnabled()) {
-              console.log('[EuraFlow] 上品帮 DOM 中的 dimensions 为"无数据"，跳过合并');
+              console.log('[EuraFlow] 二次轮询后尺寸数据仍为"-"，确认无数据');
             }
           } else {
             baseData.dimensions = {
@@ -784,7 +851,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
         }
 
         // 合并 brand 数据（上品帮数据优先）
-        if (injectedData.brand) {
+        if (injectedData && injectedData.brand) {
           baseData.brand = injectedData.brand;
 
           if (isDebugEnabled()) {
@@ -793,7 +860,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
         }
 
         // 合并 description 数据（如果存在）
-        if (injectedData.description) {
+        if (injectedData && injectedData.description) {
           baseData.description = injectedData.description;
 
           if (isDebugEnabled()) {
