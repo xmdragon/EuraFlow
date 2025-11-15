@@ -909,8 +909,8 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
       const modalAspects = await fetchFullVariantsFromModal(productId);
       if (modalAspects && modalAspects.length > 0) {
-        // 从 Modal API 提取变体（遍历所有 aspects，提取每个 aspect 的变体）
-        const allModalVariants: any[] = [];
+        // 从 Modal API 提取所有变体（遍历所有 aspects）
+        let allVariantLinks: any[] = [];
 
         for (const aspect of modalAspects) {
           const variants = (aspect?.variants || [])
@@ -924,13 +924,42 @@ export async function extractProductData(): Promise<ProductDetailData> {
               link: variant.link ? variant.link.split('?')[0] : '',
             }));
 
-          allModalVariants.push(...variants);
+          allVariantLinks.push(...variants);
         }
 
-        stage2Variants = allModalVariants;
+        if (isDebugEnabled()) {
+          console.log(`[EuraFlow] Modal API 返回 ${modalAspects.length} 个 aspect，共提取 ${allVariantLinks.length} 个变体链接`);
+        }
+
+        // 批量访问每个变体的详情页（每批50个）
+        const batchSize = 50;
+        const batches = Math.ceil(allVariantLinks.length / batchSize);
+
+        for (let i = 0; i < batches; i++) {
+          const batch = allVariantLinks.slice(i * batchSize, i * batchSize + batchSize);
+          const batchPromises = batch.map(async (variant) => {
+            try {
+              const fullUrl = `https://www.ozon.ru${variant.link}`;
+              const apiResponse = await fetchProductDataFromOzonAPI(fullUrl);
+              if (apiResponse && apiResponse.widgetStates) {
+                // 从详情页的 aspects 中提取变体数据
+                const detailAspects = extractVariantsStage1(apiResponse.widgetStates);
+                return detailAspects;
+              }
+              return [];
+            } catch (error) {
+              // 单个变体失败不影响整体
+              return [];
+            }
+          });
+
+          const batchResults = await Promise.all(batchPromises);
+          const batchVariants = batchResults.flat();
+          stage2Variants.push(...batchVariants);
+        }
 
         if (isDebugEnabled()) {
-          console.log(`[EuraFlow] Modal API 返回 ${modalAspects.length} 个 aspect，共提取 ${stage2Variants.length} 个变体`);
+          console.log(`[EuraFlow] 批量详情页采集完成，共提取 ${stage2Variants.length} 个变体`);
         }
       } else {
         console.warn('[EuraFlow] Modal API 未返回变体');
