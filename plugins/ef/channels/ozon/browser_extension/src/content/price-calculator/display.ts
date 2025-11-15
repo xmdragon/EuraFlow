@@ -6,8 +6,9 @@
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
-  // 选择器（注入到 separator 之前）
-  separatorSelector: '[data-widget="separator"]',
+  // 选择器（注入到 webSale 之后）
+  stickyColumnSelector: '[data-widget="webStickyColumn"]',
+  webSaleSelector: '[data-widget="webSale"]',
   injectedElementId: 'euraflow-real-price',
   injectedDataWidget: 'webEuraflowPrice',
 
@@ -40,11 +41,18 @@ export function injectOrUpdateDisplay(
     return;
   }
 
-  // 查找 separator 元素
-  const separator = document.querySelector(
-    DISPLAY_CONFIG.separatorSelector
+  // 查找 webStickyColumn 和 webSale 元素
+  const stickyColumn = document.querySelector(
+    DISPLAY_CONFIG.stickyColumnSelector
   );
-  if (!separator || !separator.parentElement) {
+  if (!stickyColumn) {
+    return;
+  }
+
+  const webSale = stickyColumn.querySelector(
+    DISPLAY_CONFIG.webSaleSelector
+  );
+  if (!webSale) {
     return;
   }
 
@@ -281,8 +289,12 @@ export function injectOrUpdateDisplay(
     displayElement.appendChild(priceSection);
     displayElement.appendChild(buttonSection);
 
-    // 注入到 separator 之前
-    separator.parentElement.insertBefore(displayElement, separator);
+    // 注入到 webSale 之后（在 webStickyColumn 内）
+    if (webSale.nextSibling) {
+      stickyColumn.insertBefore(displayElement, webSale.nextSibling);
+    } else {
+      stickyColumn.appendChild(displayElement);
+    }
   }
 }
 
@@ -299,8 +311,8 @@ export function removeDisplay(): void {
 }
 
 /**
- * 获取 separator 元素（用于检查页面是否准备好）
+ * 获取 webStickyColumn 元素（用于检查页面是否准备好）
  */
 export function getTargetContainer(): Element | null {
-  return document.querySelector(DISPLAY_CONFIG.separatorSelector);
+  return document.querySelector(DISPLAY_CONFIG.stickyColumnSelector);
 }
