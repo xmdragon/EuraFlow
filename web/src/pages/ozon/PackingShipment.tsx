@@ -628,6 +628,8 @@ const PackingShipment: React.FC = () => {
       setShipModalVisible(false);
       shipForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
     },
     onError: (error: Error) => {
       notifyError('发货失败', `发货失败: ${error.message}`);
@@ -641,6 +643,8 @@ const PackingShipment: React.FC = () => {
     onSuccess: () => {
       notifySuccess('订单已取消', '订单已成功取消');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
     },
     onError: (error: Error) => {
       notifyError('取消失败', `取消失败: ${error.message}`);
@@ -883,8 +887,9 @@ const PackingShipment: React.FC = () => {
       if (scanTrackingNumber.trim()) {
         handleScanSearch();
       }
-      // 刷新计数
+      // 刷新计数和列表
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
       // 从当前列表中移除该posting
       setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
     } catch (error) {
@@ -930,8 +935,9 @@ const PackingShipment: React.FC = () => {
         setScanSelectedPostings([]);
       }
 
-      // 刷新计数
+      // 刷新计数和列表
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
 
       // 从当前列表中移除这些posting
       setAllPostings((prev) => prev.filter((p) => !postingsToMark.includes(p.posting_number)));

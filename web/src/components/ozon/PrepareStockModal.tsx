@@ -61,6 +61,8 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       notifySuccess('操作成功', '备货操作成功');
       // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 刷新订单列表查询（确保切换标签页时数据正确）
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
       // 调用父组件回调（用于从列表中移除）
       if (onSuccess) {
         onSuccess();

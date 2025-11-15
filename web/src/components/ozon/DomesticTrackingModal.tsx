@@ -57,6 +57,8 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       }
       // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 刷新订单列表查询（确保切换标签页时数据正确）
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
       // 调用父组件回调（用于从列表中移除）
       if (onSuccess) {
         onSuccess();
@@ -81,6 +83,8 @@ const DomesticTrackingModal: React.FC<DomesticTrackingModalProps> = ({
       notifySuccess('国内单号已更新', '国内单号已成功更新');
       // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
+      // 刷新订单列表查询（确保切换标签页时数据正确）
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
       // 调用父组件回调（用于从列表中移除或更新）
       if (onSuccess) {
         onSuccess();

@@ -86,6 +86,8 @@ export const ExtraInfoForm: React.FC<ExtraInfoFormProps> = ({
 
       // 刷新列表
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
+      // 刷新打包发货列表（确保在打包发货页面也能正确刷新）
+      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
     } catch (error) {
       // 如果是403权限错误，不显示自定义错误，让axios拦截器统一处理
       if (error.response?.status === 403) {
