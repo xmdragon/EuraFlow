@@ -238,6 +238,9 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
     2. 上传图片到图库
     3. 更新 OZON 商品图片
     4. 更新库存
+
+    注意: 不能在任务内部调用 result.get()，会导致死锁
+    改为直接返回 chain，让 Celery 自动处理链的执行
     """
     task_id = self.request.id
     logger.info(f"Quick publish chain started: task_id={task_id}, shop_id={shop_id}")
@@ -252,21 +255,22 @@ def quick_publish_chain_task(self, dto_dict: Dict, user_id: int, shop_id: int):
             update_product_stock_task.s(dto_dict, shop_id, task_id)
         )
 
+        # 直接应用链，不等待结果（避免 "Never call result.get() within a task" 错误）
         result = task_chain.apply_async()
-        final_result = result.get(timeout=300)
 
-        update_task_progress(
-            task_id, status="completed", current_step="update_stock",
-            progress=100, step_details={"status": "completed", "result": final_result}
-        )
+        logger.info(f"Quick publish chain dispatched: task_id={task_id}, chain_id={result.id}")
 
-        logger.info(f"Quick publish chain completed: task_id={task_id}")
-        return final_result
+        # 返回 chain 的 AsyncResult，前端可以轮询状态
+        return {
+            "status": "dispatched",
+            "chain_id": result.id,
+            "task_id": task_id
+        }
 
     except Exception as e:
         logger.error(f"Quick publish chain failed: {e}", exc_info=True)
         update_task_progress(
-            task_id, status="failed", current_step=self.request.get("current_step", "unknown"),
+            task_id, status="failed", current_step="create_product",
             progress=0, error=str(e)
         )
         raise self.retry(countdown=60, exc=e)
