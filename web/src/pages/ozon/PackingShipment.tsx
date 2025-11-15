@@ -272,7 +272,14 @@ const PackingShipment: React.FC = () => {
       if (scanPrintStatusFilter === 'printed') {
         return isPrinted;
       } else if (scanPrintStatusFilter === 'unprinted') {
-        return !isPrinted;
+        // 未打印：仅包含打印之前的订单
+        // - 操作状态：tracking_confirmed（单号确认）
+        // - OZON状态：awaiting_deliver（等待发货）
+        // 排除：运输中(delivering)和发货中(shipping)的订单
+        return (
+          posting.operation_status === 'tracking_confirmed' &&
+          posting.status === 'awaiting_deliver'
+        );
       }
 
       return true;
@@ -1251,16 +1258,19 @@ const PackingShipment: React.FC = () => {
                   title={`查询结果 (${scanResults.length})`}
                   extra={
                     <Space>
-                      <Select
-                        value={scanPrintStatusFilter}
-                        onChange={setScanPrintStatusFilter}
-                        style={{ width: 120 }}
-                        options={[
-                          { label: '全部', value: 'all' },
-                          { label: '已打印', value: 'printed' },
-                          { label: '未打印', value: 'unprinted' },
-                        ]}
-                      />
+                      <Space size="small">
+                        <Text type="secondary">打印状态:</Text>
+                        <Select
+                          value={scanPrintStatusFilter}
+                          onChange={setScanPrintStatusFilter}
+                          style={{ width: 120 }}
+                          options={[
+                            { label: '全部', value: 'all' },
+                            { label: '已打印', value: 'printed' },
+                            { label: '未打印', value: 'unprinted' },
+                          ]}
+                        />
+                      </Space>
                       {canOperate && (
                         <Button
                           type="primary"
