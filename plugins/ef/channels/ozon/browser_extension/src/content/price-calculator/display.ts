@@ -62,16 +62,29 @@ export function injectOrUpdateDisplay(
       priceText.textContent = message;
     }
 
-    // 更新按钮的数据属性
-    const button = displayElement.querySelector(
-      '#euraflow-one-click-follow'
+    // 更新"采集"按钮的数据属性
+    const collectButton = displayElement.querySelector(
+      '#euraflow-collect'
     ) as HTMLButtonElement;
-    if (button) {
+    if (collectButton) {
       if (realPrice !== null) {
-        button.setAttribute('data-price', realPrice.toString());
+        collectButton.setAttribute('data-price', realPrice.toString());
       }
       if (productData) {
-        button.setAttribute('data-product', JSON.stringify(productData));
+        collectButton.setAttribute('data-product', JSON.stringify(productData));
+      }
+    }
+
+    // 更新"跟卖"按钮的数据属性
+    const followButton = displayElement.querySelector(
+      '#euraflow-follow-sell'
+    ) as HTMLButtonElement;
+    if (followButton) {
+      if (realPrice !== null) {
+        followButton.setAttribute('data-price', realPrice.toString());
+      }
+      if (productData) {
+        followButton.setAttribute('data-product', JSON.stringify(productData));
       }
     }
   } else {
