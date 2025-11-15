@@ -104,25 +104,27 @@ export function injectOrUpdateDisplay(
     });
     priceSection.textContent = message;
 
-    // 右列：按钮
+    // 右列：按钮（跟卖 + 采集）
     const buttonSection = document.createElement('div');
     Object.assign(buttonSection.style, {
       flexShrink: '0',
+      display: 'flex',
+      gap: '8px',
     });
 
-    const button = document.createElement('button');
-    button.id = 'euraflow-one-click-follow';
-    button.textContent = '一键跟卖';
-    button.setAttribute('type', 'button');
+    // 创建"跟卖"按钮
+    const followButton = document.createElement('button');
+    followButton.id = 'euraflow-follow-sell';
+    followButton.textContent = '跟卖';
+    followButton.setAttribute('type', 'button');
     if (realPrice !== null) {
-      button.setAttribute('data-price', realPrice.toString());
+      followButton.setAttribute('data-price', realPrice.toString());
     }
-    // 将商品数据存储在按钮的dataset中（用于弹窗）
     if (productData) {
-      button.setAttribute('data-product', JSON.stringify(productData));
+      followButton.setAttribute('data-product', JSON.stringify(productData));
     }
 
-    Object.assign(button.style, {
+    Object.assign(followButton.style, {
       padding: '10px 20px',
       backgroundColor: '#1976D2',
       color: 'white',
@@ -135,44 +137,99 @@ export function injectOrUpdateDisplay(
       transition: 'background-color 0.2s',
     });
 
-    // 悬停效果
-    button.addEventListener('mouseenter', () => {
-      button.style.backgroundColor = '#1565C0';
+    followButton.addEventListener('mouseenter', () => {
+      followButton.style.backgroundColor = '#1565C0';
     });
-    button.addEventListener('mouseleave', () => {
-      button.style.backgroundColor = '#1976D2';
+    followButton.addEventListener('mouseleave', () => {
+      followButton.style.backgroundColor = '#1976D2';
     });
 
-    // 点击事件（打开上架弹窗，传递商品数据+当前页面显示的真实售价）
-    button.addEventListener('click', async () => {
+    followButton.addEventListener('click', async () => {
       try {
-        const productDataStr = button.getAttribute('data-product');
+        const productDataStr = followButton.getAttribute('data-product');
         const product = productDataStr ? JSON.parse(productDataStr) : null;
 
-        // 检查商品数据是否存在dimensions
         if (!product || !product.dimensions) {
           alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
           return;
         }
 
-        // 动态导入弹窗模块
-        const { showPublishModal } = await import(
-          '../components/PublishModal'
-        );
+        const dims = product.dimensions;
+        if (dims.weight === -1 || dims.height === -1 || dims.width === -1 || dims.length === -1) {
+          alert('上品帮尺寸和重量数据较慢，请稍后重试');
+          return;
+        }
 
-        // 从按钮的 data-price 属性获取当前页面显示的真实售价（最新）
-        const currentRealPriceStr = button.getAttribute('data-price');
+        const { showPublishModal } = await import('../components/PublishModal');
+        const currentRealPriceStr = followButton.getAttribute('data-price');
         const currentRealPrice = currentRealPriceStr ? parseFloat(currentRealPriceStr) : null;
-
-        // 传递商品数据和当前真实售价
         showPublishModal(product, currentRealPrice);
       } catch (error) {
-        console.error('[EuraFlow] 打开上架弹窗失败:', error);
+        console.error('[EuraFlow] 打开跟卖弹窗失败:', error);
         alert('打开上架配置失败，请稍后重试');
       }
     });
 
-    buttonSection.appendChild(button);
+    // 创建"采集"按钮
+    const collectButton = document.createElement('button');
+    collectButton.id = 'euraflow-collect';
+    collectButton.textContent = '采集';
+    collectButton.setAttribute('type', 'button');
+    if (realPrice !== null) {
+      collectButton.setAttribute('data-price', realPrice.toString());
+    }
+    if (productData) {
+      collectButton.setAttribute('data-product', JSON.stringify(productData));
+    }
+
+    Object.assign(collectButton.style, {
+      padding: '10px 20px',
+      backgroundColor: '#52c41a',
+      color: 'white',
+      border: 'none',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: 'bold',
+      whiteSpace: 'nowrap',
+      transition: 'background-color 0.2s',
+    });
+
+    collectButton.addEventListener('mouseenter', () => {
+      collectButton.style.backgroundColor = '#389e0d';
+    });
+    collectButton.addEventListener('mouseleave', () => {
+      collectButton.style.backgroundColor = '#52c41a';
+    });
+
+    collectButton.addEventListener('click', async () => {
+      try {
+        const productDataStr = collectButton.getAttribute('data-product');
+        const product = productDataStr ? JSON.parse(productDataStr) : null;
+
+        if (!product || !product.dimensions) {
+          alert('商品数据不完整（缺少尺寸和重量信息），请通过其它插件上架');
+          return;
+        }
+
+        const dims = product.dimensions;
+        if (dims.weight === -1 || dims.height === -1 || dims.width === -1 || dims.length === -1) {
+          alert('上品帮尺寸和重量数据较慢，请稍后重试');
+          return;
+        }
+
+        const { showPublishModal } = await import('../components/PublishModal');
+        const currentRealPriceStr = collectButton.getAttribute('data-price');
+        const currentRealPrice = currentRealPriceStr ? parseFloat(currentRealPriceStr) : null;
+        showPublishModal(product, currentRealPrice);
+      } catch (error) {
+        console.error('[EuraFlow] 打开采集弹窗失败:', error);
+        alert('打开采集配置失败，请稍后重试');
+      }
+    });
+
+    buttonSection.appendChild(collectButton);
+    buttonSection.appendChild(followButton);
     displayElement.appendChild(priceSection);
     displayElement.appendChild(buttonSection);
 

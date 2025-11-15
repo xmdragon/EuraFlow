@@ -314,10 +314,10 @@ async function waitForInjectedDOM(): Promise<boolean> {
 
 /**
  * 等待上品帮二次注入尺寸数据（从"-"变为实际值）
- * 使用 100ms 间隔检测，最多等待 1 秒（10次）
+ * 使用 100ms 间隔检测，最多等待 2 秒（20次）
  */
 async function waitForDimensionsData(): Promise<boolean> {
-  const maxAttempts = 10; // 1000ms / 100ms = 10次
+  const maxAttempts = 20; // 2000ms / 100ms = 20次（从有上品帮DOM开始最多等待2秒）
   let attempts = 0;
 
   return new Promise((resolve) => {
@@ -805,7 +805,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
            injectedData.length === -1)
         ) {
           if (isDebugEnabled()) {
-            console.log('[EuraFlow] 尺寸数据为"-"，开始二次轮询（100ms × 10次）...');
+            console.log('[EuraFlow] 尺寸数据为"-"，开始二次轮询（100ms × 20次，最多等待2秒）...');
           }
 
           // 等待尺寸数据更新
