@@ -231,13 +231,48 @@ export function injectOrUpdateDisplay(
           return;
         }
 
-        const { showPublishModal } = await import('../components/PublishModal');
-        const currentRealPriceStr = collectButton.getAttribute('data-price');
-        const currentRealPrice = currentRealPriceStr ? parseFloat(currentRealPriceStr) : null;
-        showPublishModal(product, currentRealPrice);
+        // 直接发送采集请求，不打开弹窗
+        collectButton.disabled = true;
+        collectButton.style.opacity = '0.5';
+        collectButton.textContent = '采集中...';
+
+        const { getApiConfig } = await import('../../shared/storage');
+        const config = await getApiConfig();
+
+        if (!config || !config.apiUrl || !config.apiKey) {
+          alert('API未配置，请先配置API');
+          return;
+        }
+
+        const requestData = {
+          source_url: window.location.href,
+          product_data: product,
+        };
+
+        const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': config.apiKey,
+          },
+          credentials: 'include',
+          body: JSON.stringify(requestData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          throw new Error(errorData?.error?.detail || errorData?.detail || '采集失败');
+        }
+
+        await response.json();
+        alert('✓ 商品已采集，请到系统采集记录中查看');
       } catch (error) {
-        console.error('[EuraFlow] 打开采集弹窗失败:', error);
-        alert('打开采集配置失败，请稍后重试');
+        console.error('[EuraFlow] 采集失败:', error);
+        alert('采集失败：' + (error as Error).message);
+      } finally {
+        collectButton.disabled = false;
+        collectButton.style.opacity = '1';
+        collectButton.textContent = '采集';
       }
     });
 

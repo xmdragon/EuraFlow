@@ -515,7 +515,6 @@ function renderMainModal(): void {
     <div style="display: flex; gap: 12px; justify-content: flex-end; align-items: center;">
       <div id="selected-count" style="flex: 1; color: #666; font-size: 14px;">已选择 ${variants.filter(v => v.enabled).length} 个变体</div>
       <button id="cancel-btn" style="padding: 10px 20px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">取消</button>
-      <button id="collect-btn" style="padding: 10px 20px; background: #52c41a; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">采集</button>
       <button id="follow-pdp-btn" style="padding: 10px 20px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">跟卖</button>
     </div>
   `;
@@ -649,10 +648,6 @@ function bindMainModalEvents(): void {
   // 取消按钮
   const cancelBtn = document.getElementById('cancel-btn');
   cancelBtn?.addEventListener('click', closeModal);
-
-  // 采集按钮
-  const collectBtn = document.getElementById('collect-btn');
-  collectBtn?.addEventListener('click', handleCollect);
 
   // 跟卖按钮
   const followPdpBtn = document.getElementById('follow-pdp-btn');
@@ -944,133 +939,6 @@ function applyBatchPricing(config: BatchPricingConfig): void {
 // ========== 上架处理 ==========
 
 /**
- * 处理采集操作（不立即上架）
- */
-async function handleCollect(): Promise<void> {
-  console.log('[PublishModal] ========== 采集按钮被点击 ==========');
-
-  if (!apiClient || !productData) {
-    console.error('[PublishModal] 数据未准备好');
-    alert('数据未准备好，请刷新页面重试');
-    return;
-  }
-
-  // 验证必填字段
-  if (!selectedShopId) {
-    alert('请选择店铺');
-    return;
-  }
-
-  // 校验尺寸和重量
-  const dimensions = productData.dimensions;
-  if (!dimensions || !dimensions.width || !dimensions.height || !dimensions.length || !dimensions.weight) {
-    alert('尺寸和重量数据缺失，请刷新重试');
-    return;
-  }
-
-  // 获取已选择的变体
-  const enabledVariants = variants.filter(v => v.enabled);
-  if (enabledVariants.length === 0) {
-    alert('请至少选择一个变体');
-    return;
-  }
-
-  // 禁用按钮
-  const collectBtn = document.getElementById('collect-btn') as HTMLButtonElement;
-  const followPdpBtn = document.getElementById('follow-pdp-btn') as HTMLButtonElement;
-  const cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
-  if (collectBtn) {
-    collectBtn.disabled = true;
-    collectBtn.style.opacity = '0.5';
-    collectBtn.style.cursor = 'not-allowed';
-  }
-  if (followPdpBtn) {
-    followPdpBtn.disabled = true;
-    followPdpBtn.style.opacity = '0.5';
-    followPdpBtn.style.cursor = 'not-allowed';
-  }
-  if (cancelBtn) {
-    cancelBtn.disabled = true;
-    cancelBtn.style.opacity = '0.5';
-    cancelBtn.style.cursor = 'not-allowed';
-  }
-
-  try {
-    // 获取 API 配置
-    const config = await getApiConfig();
-    if (!config || !config.apiUrl) {
-      throw new Error('API配置未初始化');
-    }
-
-    // 构建请求数据
-    const requestData = {
-      shop_id: selectedShopId,
-      source_url: window.location.href,
-      product_data: {
-        title: productData.title,
-        images: productData.images,
-        price: productData.price,
-        original_price: productData.original_price,
-        ozon_product_id: productData.ozon_product_id,
-        has_variants: productData.has_variants,
-        variants: productData.variants,
-        description: productData.description,
-        category_id: productData.category_id,
-        brand: productData.brand,
-        barcode: productData.barcode,
-        dimensions: productData.dimensions,
-        attributes: productData.attributes,
-        videos: productData.videos,
-      },
-    };
-
-    console.log('[PublishModal] 采集请求数据:', requestData);
-
-    // 调用采集接口
-    const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': config.apiKey || '',
-      },
-      credentials: 'include',
-      body: JSON.stringify(requestData),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.error?.detail || errorData?.detail || '采集失败');
-    }
-
-    const result = await response.json();
-    console.log('[PublishModal] 采集成功:', result);
-
-    // 显示成功消息（不关闭窗口）
-    alert('✓ 商品已采集，请到系统采集记录中查看');
-  } catch (error) {
-    console.error('[PublishModal] 采集失败:', error);
-    alert('采集失败：' + (error as Error).message);
-  } finally {
-    // 恢复按钮状态
-    if (collectBtn) {
-      collectBtn.disabled = false;
-      collectBtn.style.opacity = '1';
-      collectBtn.style.cursor = 'pointer';
-    }
-    if (followPdpBtn) {
-      followPdpBtn.disabled = false;
-      followPdpBtn.style.opacity = '1';
-      followPdpBtn.style.cursor = 'pointer';
-    }
-    if (cancelBtn) {
-      cancelBtn.disabled = false;
-      cancelBtn.style.opacity = '1';
-      cancelBtn.style.cursor = 'pointer';
-    }
-  }
-}
-
-/**
  * 处理跟卖操作（立即上架）
  */
 async function handleFollowPdp(): Promise<void> {
@@ -1124,14 +992,8 @@ async function handleFollowPdp(): Promise<void> {
   }
 
   // 禁用按钮
-  const collectBtn = document.getElementById('collect-btn') as HTMLButtonElement;
   const followPdpBtn = document.getElementById('follow-pdp-btn') as HTMLButtonElement;
   const cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
-  if (collectBtn) {
-    collectBtn.disabled = true;
-    collectBtn.style.opacity = '0.5';
-    collectBtn.style.cursor = 'not-allowed';
-  }
   if (followPdpBtn) {
     followPdpBtn.disabled = true;
     followPdpBtn.style.opacity = '0.5';
@@ -1237,11 +1099,6 @@ async function handleFollowPdp(): Promise<void> {
     alert('跟卖失败：' + (error as Error).message);
 
     // 恢复按钮状态
-    if (collectBtn) {
-      collectBtn.disabled = false;
-      collectBtn.style.opacity = '1';
-      collectBtn.style.cursor = 'pointer';
-    }
     if (followPdpBtn) {
       followPdpBtn.disabled = false;
       followPdpBtn.style.opacity = '1';

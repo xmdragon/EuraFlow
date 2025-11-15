@@ -91,17 +91,18 @@ async def collect_product(
 
     前置校验：检查商品数据是否包含尺寸和重量
     """
-    # 校验尺寸和重量
+    # 校验尺寸和重量（注意：dimensions 是嵌套对象）
     product_data = request.product_data
-    required_fields = ['width', 'height', 'depth', 'weight']
-    missing_fields = [f for f in required_fields if not product_data.get(f)]
+    dimensions = product_data.get('dimensions', {})
+    required_fields = ['width', 'height', 'length', 'weight']
+    missing_fields = [f for f in required_fields if not dimensions.get(f)]
 
     if missing_fields:
         problem(
             status=422,
             code="MISSING_DIMENSIONS",
             title="Validation Error",
-            detail="尺寸和重量数据缺失，请刷新重试"
+            detail=f"尺寸和重量数据缺失：{', '.join(missing_fields)}"
         )
 
     # 创建采集记录
