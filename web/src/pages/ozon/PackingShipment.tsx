@@ -39,7 +39,7 @@ import {
   App,
 } from 'antd';
 import moment from 'moment';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { useCurrency } from '../../hooks/useCurrency';
@@ -234,6 +234,8 @@ const PackingShipment: React.FC = () => {
   // 扫描结果的批量打印状态
   const [scanSelectedPostings, setScanSelectedPostings] = useState<string[]>([]);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  // 扫描结果的打印状态过滤
+  const [scanPrintStatusFilter, setScanPrintStatusFilter] = useState<'all' | 'printed' | 'unprinted'>('all');
   // 扫描输入框自动填充状态
   const [isScanAutoFilled, setIsScanAutoFilled] = useState(false);
   // 记录上次自动填充的内容（避免重复填充）
@@ -258,6 +260,25 @@ const PackingShipment: React.FC = () => {
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
 
+  // 根据打印状态过滤扫描结果
+  const filteredScanResults = useMemo(() => {
+    if (scanPrintStatusFilter === 'all') {
+      return scanResults;
+    }
+
+    return scanResults.filter((posting) => {
+      const isPrinted = (posting.label_print_count || 0) > 0 && posting.operation_status === 'printed';
+
+      if (scanPrintStatusFilter === 'printed') {
+        return isPrinted;
+      } else if (scanPrintStatusFilter === 'unprinted') {
+        return !isPrinted;
+      }
+
+      return true;
+    });
+  }, [scanResults, scanPrintStatusFilter]);
+
   // 计算每行显示数量（根据屏幕宽度预估）
   const calculateItemsPerRow = React.useCallback(() => {
     const screenWidth = window.innerWidth;
@@ -277,6 +298,18 @@ const PackingShipment: React.FC = () => {
     window.addEventListener('resize', calculateItemsPerRow);
     return () => window.removeEventListener('resize', calculateItemsPerRow);
   }, [calculateItemsPerRow]);
+
+  // 当打印状态过滤条件改变时，清理不在过滤结果中的选中项
+  useEffect(() => {
+    if (scanSelectedPostings.length > 0) {
+      const filteredPostingNumbers = new Set(filteredScanResults.map(p => p.posting_number));
+      const validSelections = scanSelectedPostings.filter(pn => filteredPostingNumbers.has(pn));
+
+      if (validSelections.length !== scanSelectedPostings.length) {
+        setScanSelectedPostings(validSelections);
+      }
+    }
+  }, [scanPrintStatusFilter, filteredScanResults]);
 
   // 从 URL 参数初始化状态（用于通知点击跳转）
   useEffect(() => {
@@ -804,6 +837,7 @@ const PackingShipment: React.FC = () => {
     setScanResults([]);
     setScanError('');
     setScanSelectedPostings([]);
+    setScanPrintStatusFilter('all'); // 重置打印状态过滤
 
     try {
       const result = await ozonApi.searchPostingByTracking(scanTrackingNumber.trim());
@@ -1216,21 +1250,33 @@ const PackingShipment: React.FC = () => {
                 <Card
                   title={`查询结果 (${scanResults.length})`}
                   extra={
-                    canOperate && (
-                      <Button
-                        type="primary"
-                        icon={<PrinterOutlined />}
-                        loading={isPrinting}
-                        disabled={scanSelectedPostings.length === 0}
-                        onClick={handleScanBatchPrint}
-                      >
-                        批量打印 ({scanSelectedPostings.length}/{scanResults.length})
-                      </Button>
-                    )
+                    <Space>
+                      <Select
+                        value={scanPrintStatusFilter}
+                        onChange={setScanPrintStatusFilter}
+                        style={{ width: 120 }}
+                        options={[
+                          { label: '全部', value: 'all' },
+                          { label: '已打印', value: 'printed' },
+                          { label: '未打印', value: 'unprinted' },
+                        ]}
+                      />
+                      {canOperate && (
+                        <Button
+                          type="primary"
+                          icon={<PrinterOutlined />}
+                          loading={isPrinting}
+                          disabled={scanSelectedPostings.length === 0}
+                          onClick={handleScanBatchPrint}
+                        >
+                          批量打印 ({scanSelectedPostings.length}/{filteredScanResults.length})
+                        </Button>
+                      )}
+                    </Space>
                   }
                 >
                   <ScanResultTable
-                    scanResults={scanResults}
+                    scanResults={filteredScanResults}
                     scanSelectedPostings={scanSelectedPostings}
                     onSelectedPostingsChange={setScanSelectedPostings}
                     onPrintSingle={handlePrintSingleLabel}
