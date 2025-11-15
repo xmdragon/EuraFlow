@@ -216,18 +216,11 @@ export class RealPriceCalculator {
       return;
     }
 
-    // 找到上品帮内部的 <ul> 列表
-    const ulList = shangpinbang.querySelector('ul');
-    if (!ulList) {
-      console.log('[EuraFlow] 未找到上品帮的 <ul> 列表，无法监听');
-      return;
-    }
+    console.log('[EuraFlow] 找到上品帮组件，开始监听');
 
-    console.log('[EuraFlow] 找到上品帮组件和列表，开始监听');
-
-    // 创建 MutationObserver 监听列表的子元素变化
+    // 创建 MutationObserver 监听上品帮组件的子元素变化
     this.containerObserver = new MutationObserver(() => {
-      // 检查我们的组件是否还在列表里
+      // 检查我们的组件是否还存在
       const ourElement = document.getElementById('euraflow-section');
       if (!ourElement && this.lastMessage) {
         console.log('[EuraFlow] 检测到组件被移除，立即重新注入');
@@ -235,10 +228,10 @@ export class RealPriceCalculator {
       }
     });
 
-    // 监听列表的子元素变化
-    this.containerObserver.observe(ulList, {
+    // 监听上品帮组件的子元素变化（包括子树）
+    this.containerObserver.observe(shangpinbang, {
       childList: true,
-      subtree: false,
+      subtree: true,
     });
 
     console.log('[EuraFlow] 已启动上品帮组件监听');

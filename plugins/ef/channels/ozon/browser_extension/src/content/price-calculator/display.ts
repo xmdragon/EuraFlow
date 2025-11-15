@@ -14,7 +14,7 @@ const DISPLAY_CONFIG = {
 };
 
 /**
- * 注入或更新显示元素（注入到上品帮内部的列表中）
+ * 注入或更新显示元素（注入到上品帮按钮区域后面）
  * @param message - 要显示的消息（如 "真实售价：120.00 ¥"）
  * @param realPrice - 真实售价数值（用于传递给弹窗）
  * @param productData - 商品详情数据（包括变体的真实售价）
@@ -42,19 +42,19 @@ export function injectOrUpdateDisplay(
 
   console.log('[EuraFlow] 找到上品帮组件');
 
-  // 找到上品帮内部的 <ul> 列表
-  const ulList = shangpinbang.querySelector('ul') as HTMLUListElement | null;
-  if (!ulList) {
-    console.log('[EuraFlow] 未找到上品帮的 <ul> 列表，跳过注入');
+  // 找到上品帮的按钮容器（在 </ul> 之后的 div）
+  const buttonContainer = shangpinbang.querySelector('div[style*="padding-right: 15px"]') as HTMLDivElement | null;
+  if (!buttonContainer) {
+    console.log('[EuraFlow] 未找到上品帮的按钮容器，跳过注入');
     return;
   }
 
-  console.log('[EuraFlow] 找到上品帮的 <ul> 列表');
+  console.log('[EuraFlow] 找到上品帮的按钮容器');
 
   // 检查是否已存在 EuraFlow 区域
   let euraflowSection = document.getElementById(
     DISPLAY_CONFIG.injectedSectionId
-  ) as HTMLLIElement | null;
+  ) as HTMLDivElement | null;
 
   if (euraflowSection) {
     // 已存在，只更新价格文字和按钮数据
@@ -96,48 +96,50 @@ export function injectOrUpdateDisplay(
     // 不存在，创建新的 EuraFlow 区域
     console.log('[EuraFlow] 创建新的 EuraFlow 区域');
 
-    // 1. 创建分隔标题 <li>
-    const titleLi = document.createElement('li');
-    titleLi.setAttribute('data-v-7f40698a', ''); // 模仿上品帮的 Vue scoped 属性
-    titleLi.style.borderTop = '2px solid #1976D2';
-    titleLi.style.marginTop = '12px';
-    titleLi.style.paddingTop = '12px';
+    // 创建 EuraFlow 容器（模仿上品帮的按钮容器）
+    const euraflowContainer = document.createElement('div');
+    euraflowContainer.id = DISPLAY_CONFIG.injectedSectionId;
+    euraflowContainer.setAttribute('data-v-7f40698a', '');
+    euraflowContainer.style.paddingRight = '15px';
+    euraflowContainer.style.borderTop = '2px solid #1976D2';
+    euraflowContainer.style.paddingTop = '12px';
+    euraflowContainer.style.marginTop = '12px';
 
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'text-class';
-    titleDiv.setAttribute('data-v-7f40698a', '');
-    titleDiv.innerHTML = '<span data-v-7f40698a="" style="font-size: 16px; font-weight: bold; color: #1976D2;">EuraFlow</span>';
-    titleLi.appendChild(titleDiv);
+    // 第一行：EuraFlow 标题 + 真实售价（在同一行）
+    const titleRow = document.createElement('div');
+    titleRow.setAttribute('data-v-7f40698a', '');
+    titleRow.className = 'mui-flex mui-flex__aic jcsb';
+    titleRow.style.margin = '12px 0px';
 
-    // 2. 创建价格显示 <li>
-    const priceLi = document.createElement('li');
-    priceLi.id = DISPLAY_CONFIG.injectedSectionId; // 用于后续查找
-    priceLi.setAttribute('data-v-7f40698a', '');
+    const titleSpan = document.createElement('span');
+    titleSpan.setAttribute('data-v-7f40698a', '');
+    titleSpan.style.fontSize = '16px';
+    titleSpan.style.fontWeight = 'bold';
+    titleSpan.style.color = '#1976D2';
+    titleSpan.textContent = 'EuraFlow';
 
-    const priceDiv = document.createElement('div');
-    priceDiv.className = 'text-class';
-    priceDiv.setAttribute('data-v-7f40698a', '');
-    priceDiv.id = 'euraflow-price-text';
-    priceDiv.innerHTML = `<b>${message}</b>`;
-    priceLi.appendChild(priceDiv);
+    const priceSpan = document.createElement('span');
+    priceSpan.setAttribute('data-v-7f40698a', '');
+    priceSpan.id = 'euraflow-price-text';
+    priceSpan.innerHTML = `<b style="color: #D84315;">${message}</b>`;
 
-    // 3. 创建按钮组 <li>
-    const buttonLi = document.createElement('li');
-    buttonLi.setAttribute('data-v-7f40698a', '');
+    titleRow.appendChild(titleSpan);
+    titleRow.appendChild(priceSpan);
 
-    const buttonDiv = document.createElement('div');
-    buttonDiv.className = 'text-class';
-    buttonDiv.setAttribute('data-v-7f40698a', '');
-    buttonDiv.style.display = 'flex';
-    buttonDiv.style.gap = '8px';
-    buttonDiv.style.marginTop = '8px';
+    // 第二行：跟卖 + 采集按钮（模仿上品帮的布局）
+    const buttonRow = document.createElement('div');
+    buttonRow.setAttribute('data-v-7f40698a', '');
+    buttonRow.className = 'mui-flex jcsb';
+    buttonRow.style.margin = '12px 0px';
 
-    // 创建"跟卖"按钮
+    // 创建"跟卖"按钮（模仿上品帮的样式）
     const followButton = document.createElement('button');
     followButton.id = 'euraflow-follow-sell';
-    followButton.textContent = '跟卖';
     followButton.setAttribute('type', 'button');
-    followButton.className = 'css-dev-only-do-not-override-1xuzwek ant-btn ant-btn-primary';
+    followButton.setAttribute('data-v-7f40698a', '');
+    followButton.className = 'css-dev-only-do-not-override-1xuzwek ant-btn ant-btn-primary mui-flex__cell';
+    followButton.style.marginRight = '12px';
+    followButton.style.backgroundColor = '#1976D2';
     if (realPrice !== null) {
       followButton.setAttribute('data-price', realPrice.toString());
     }
@@ -145,25 +147,19 @@ export function injectOrUpdateDisplay(
       followButton.setAttribute('data-product', JSON.stringify(productData));
     }
 
-    Object.assign(followButton.style, {
-      flex: '1',
-      padding: '8px 16px',
-      backgroundColor: '#1976D2',
-      color: 'white',
-      border: 'none',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: 'bold',
-      transition: 'background-color 0.2s',
-    });
+    // 创建按钮内容（带图标）
+    const followIcon = document.createElement('span');
+    followIcon.setAttribute('data-v-7f40698a', '');
+    followIcon.setAttribute('role', 'img');
+    followIcon.setAttribute('aria-label', 'thunderbolt');
+    followIcon.className = 'anticon anticon-thunderbolt';
+    followIcon.innerHTML = '<svg focusable="false" data-icon="thunderbolt" width="1em" height="1em" fill="currentColor" aria-hidden="true" viewBox="64 64 896 896"><path d="M848 359.3H627.7L825.8 109c4.1-5.3.4-13-6.3-13H436c-2.8 0-5.5 1.5-6.9 4L170 547.5c-3.1 5.3.7 12 6.9 12h174.4l-89.4 357.6c-1.9 7.8 7.5 13.3 13.3 7.7L853.5 373c5.2-4.9 1.7-13.7-5.5-13.7zM378.2 732.5l60.3-241H281.1l189.6-327.4h224.6L487 427.4h211L378.2 732.5z"></path></svg>';
 
-    followButton.addEventListener('mouseenter', () => {
-      followButton.style.backgroundColor = '#1565C0';
-    });
-    followButton.addEventListener('mouseleave', () => {
-      followButton.style.backgroundColor = '#1976D2';
-    });
+    const followText = document.createElement('span');
+    followText.textContent = '跟卖';
+
+    followButton.appendChild(followIcon);
+    followButton.appendChild(followText);
 
     followButton.addEventListener('click', async () => {
       try {
@@ -191,12 +187,13 @@ export function injectOrUpdateDisplay(
       }
     });
 
-    // 创建"采集"按钮
+    // 创建"采集"按钮（模仿上品帮的样式）
     const collectButton = document.createElement('button');
     collectButton.id = 'euraflow-collect';
-    collectButton.textContent = '采集';
     collectButton.setAttribute('type', 'button');
-    collectButton.className = 'css-dev-only-do-not-override-1xuzwek ant-btn ant-btn-primary';
+    collectButton.setAttribute('data-v-7f40698a', '');
+    collectButton.className = 'css-dev-only-do-not-override-1xuzwek ant-btn ant-btn-primary mui-flex__cell';
+    collectButton.style.backgroundColor = '#52c41a';
     if (realPrice !== null) {
       collectButton.setAttribute('data-price', realPrice.toString());
     }
@@ -204,25 +201,19 @@ export function injectOrUpdateDisplay(
       collectButton.setAttribute('data-product', JSON.stringify(productData));
     }
 
-    Object.assign(collectButton.style, {
-      flex: '1',
-      padding: '8px 16px',
-      backgroundColor: '#52c41a',
-      color: 'white',
-      border: 'none',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: 'bold',
-      transition: 'background-color 0.2s',
-    });
+    // 创建按钮内容（带图标）
+    const collectIcon = document.createElement('span');
+    collectIcon.setAttribute('data-v-7f40698a', '');
+    collectIcon.setAttribute('role', 'img');
+    collectIcon.setAttribute('aria-label', 'dropbox');
+    collectIcon.className = 'anticon anticon-dropbox';
+    collectIcon.innerHTML = '<svg focusable="false" data-icon="dropbox" width="1em" height="1em" fill="currentColor" aria-hidden="true" viewBox="64 64 896 896"><path d="M64 556.9l264.2 173.5L512.5 577 246.8 412.7zm896-290.3zm0 0L696.8 95 512.5 248.5l265.2 164.2L512.5 577l184.3 153.4L960 558.8 777.7 412.7zM513 609.8L328.2 763.3l-79.4-51.5v57.8L513 928l263.7-158.4v-57.8l-78.9 51.5zM328.2 95L64 265.1l182.8 147.6 265.7-164.2zM64 556.9z"></path></svg>';
 
-    collectButton.addEventListener('mouseenter', () => {
-      collectButton.style.backgroundColor = '#389e0d';
-    });
-    collectButton.addEventListener('mouseleave', () => {
-      collectButton.style.backgroundColor = '#52c41a';
-    });
+    const collectText = document.createElement('span');
+    collectText.textContent = '采集';
+
+    collectButton.appendChild(collectIcon);
+    collectButton.appendChild(collectText);
 
     collectButton.addEventListener('click', async () => {
       try {
@@ -293,16 +284,18 @@ export function injectOrUpdateDisplay(
       }
     });
 
-    buttonDiv.appendChild(followButton);
-    buttonDiv.appendChild(collectButton);
-    buttonLi.appendChild(buttonDiv);
+    // 将按钮添加到按钮行
+    buttonRow.appendChild(followButton);
+    buttonRow.appendChild(collectButton);
 
-    // 将所有元素添加到上品帮的 <ul> 列表末尾
-    ulList.appendChild(titleLi);
-    ulList.appendChild(priceLi);
-    ulList.appendChild(buttonLi);
+    // 将标题行和按钮行添加到容器
+    euraflowContainer.appendChild(titleRow);
+    euraflowContainer.appendChild(buttonRow);
 
-    console.log('[EuraFlow] 已将 EuraFlow 组件注入到上品帮内部');
+    // 将 EuraFlow 容器插入到上品帮按钮容器后面
+    buttonContainer.parentNode?.insertBefore(euraflowContainer, buttonContainer.nextSibling);
+
+    console.log('[EuraFlow] 已将 EuraFlow 组件注入到上品帮按钮区域后面');
   }
 }
 
@@ -314,20 +307,7 @@ export function removeDisplay(): void {
     DISPLAY_CONFIG.injectedSectionId
   );
   if (euraflowSection) {
-    // 移除价格 <li>（包含 ID 的元素）
     euraflowSection.remove();
-
-    // 移除标题 <li>（查找前一个兄弟元素，如果是 EuraFlow 标题则移除）
-    const prevSibling = euraflowSection.previousElementSibling;
-    if (prevSibling && prevSibling.textContent?.includes('EuraFlow')) {
-      prevSibling.remove();
-    }
-
-    // 移除按钮 <li>（查找下一个兄弟元素，如果包含按钮则移除）
-    const nextSibling = euraflowSection.nextElementSibling;
-    if (nextSibling && nextSibling.querySelector('#euraflow-collect, #euraflow-follow-sell')) {
-      nextSibling.remove();
-    }
   }
 }
 
