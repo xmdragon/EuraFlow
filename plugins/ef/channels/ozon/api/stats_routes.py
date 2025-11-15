@@ -354,38 +354,67 @@ async def get_statistics(
         week_start = week_start_tz.astimezone(dt_timezone.utc)
         month_start = month_start_tz.astimezone(dt_timezone.utc)
 
-        # 昨日收入（按订单创建时间 ordered_at）
-        yesterday_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_price))
+        # 昨日收入（从raw_payload的products列表计算）
+        # OZON API不返回total_price，需要从products中计算：price * quantity
+        yesterday_orders_result = await db.execute(
+            select(OzonOrder.raw_payload)
             .where(
                 OzonOrder.ordered_at >= yesterday_start,
                 OzonOrder.ordered_at < today_start,
                 *order_filter
             )
         )
-        yesterday_revenue = yesterday_revenue_result.scalar() or Decimal('0')
+        yesterday_orders = yesterday_orders_result.scalars().all()
 
-        # 本周收入
-        week_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_price))
+        # 计算昨日总收入（从products列表中计算）
+        yesterday_revenue = Decimal('0')
+        for order_payload in yesterday_orders:
+            if order_payload and 'products' in order_payload:
+                products = order_payload.get('products', [])
+                for product in products:
+                    price = Decimal(str(product.get('price', '0')))
+                    quantity = int(product.get('quantity', 0))
+                    yesterday_revenue += price * quantity
+
+        # 本周收入（从raw_payload的products列表计算）
+        week_orders_result = await db.execute(
+            select(OzonOrder.raw_payload)
             .where(
                 OzonOrder.created_at >= week_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),
                 *order_filter
             )
         )
-        week_revenue = week_revenue_result.scalar() or Decimal('0')
+        week_orders = week_orders_result.scalars().all()
 
-        # 本月收入
-        month_revenue_result = await db.execute(
-            select(func.sum(OzonOrder.total_price))
+        week_revenue = Decimal('0')
+        for order_payload in week_orders:
+            if order_payload and 'products' in order_payload:
+                products = order_payload.get('products', [])
+                for product in products:
+                    price = Decimal(str(product.get('price', '0')))
+                    quantity = int(product.get('quantity', 0))
+                    week_revenue += price * quantity
+
+        # 本月收入（从raw_payload的products列表计算）
+        month_orders_result = await db.execute(
+            select(OzonOrder.raw_payload)
             .where(
                 OzonOrder.created_at >= month_start,
                 OzonOrder.status.in_(['delivered', 'shipped']),
                 *order_filter
             )
         )
-        month_revenue = month_revenue_result.scalar() or Decimal('0')
+        month_orders = month_orders_result.scalars().all()
+
+        month_revenue = Decimal('0')
+        for order_payload in month_orders:
+            if order_payload and 'products' in order_payload:
+                products = order_payload.get('products', [])
+                for product in products:
+                    price = Decimal(str(product.get('price', '0')))
+                    quantity = int(product.get('quantity', 0))
+                    month_revenue += price * quantity
 
         return {
             "products": {
