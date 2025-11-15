@@ -42,6 +42,7 @@ function debounce<T extends (...args: any[]) => void>(
  */
 export class RealPriceCalculator {
   private observer: MutationObserver | null = null;
+  private containerObserver: MutationObserver | null = null;
   private debouncedCalculate: () => void;
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
   private lastMessage: string | null = null;
@@ -66,6 +67,9 @@ export class RealPriceCalculator {
       // 设置动态监听
       this.setupDynamicListener();
 
+      // 监听 pdp_as2 容器变化，防止组件被 OZON 重新渲染时移除
+      this.setupContainerObserver();
+
       // 启动保活机制：每5秒检查一次，如果组件被移除则重新注入
       this.startKeepAlive();
 
@@ -85,7 +89,7 @@ export class RealPriceCalculator {
   private startKeepAlive(): void {
     this.keepAliveTimer = setInterval(() => {
       // 检查我们的组件是否还存在
-      const ourElement = document.getElementById('euraflow-real-price');
+      const ourElement = document.getElementById('euraflow-section');
       if (!ourElement && this.lastMessage) {
         console.log('[EuraFlow] 检测到组件被移除，重新注入');
         injectOrUpdateDisplay(this.lastMessage, this.lastPrice, this.lastProductData);
@@ -199,6 +203,45 @@ export class RealPriceCalculator {
       // 没有划线价或当前价≥划线价，使用固定系数
       return currentPrice * CONFIG.FORMULA_MULTIPLIER;
     }
+  }
+
+  /**
+   * 监听上品帮组件的变化，防止组件被 OZON 重新渲染时移除
+   */
+  private setupContainerObserver(): void {
+    // 查找上品帮组件
+    const shangpinbang = document.querySelector('.ozon-bang-item');
+    if (!shangpinbang) {
+      console.log('[EuraFlow] 未找到上品帮组件，无法监听');
+      return;
+    }
+
+    // 找到上品帮内部的 <ul> 列表
+    const ulList = shangpinbang.querySelector('ul');
+    if (!ulList) {
+      console.log('[EuraFlow] 未找到上品帮的 <ul> 列表，无法监听');
+      return;
+    }
+
+    console.log('[EuraFlow] 找到上品帮组件和列表，开始监听');
+
+    // 创建 MutationObserver 监听列表的子元素变化
+    this.containerObserver = new MutationObserver(() => {
+      // 检查我们的组件是否还在列表里
+      const ourElement = document.getElementById('euraflow-section');
+      if (!ourElement && this.lastMessage) {
+        console.log('[EuraFlow] 检测到组件被移除，立即重新注入');
+        injectOrUpdateDisplay(this.lastMessage, this.lastPrice, this.lastProductData);
+      }
+    });
+
+    // 监听列表的子元素变化
+    this.containerObserver.observe(ulList, {
+      childList: true,
+      subtree: false,
+    });
+
+    console.log('[EuraFlow] 已启动上品帮组件监听');
   }
 
   /**
