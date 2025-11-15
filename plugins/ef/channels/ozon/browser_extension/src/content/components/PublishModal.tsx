@@ -11,7 +11,7 @@ import { getApiConfig } from '../../shared/storage';
 import { calculateRealPriceCore } from '../price-calculator/calculator';
 import { configCache } from '../../shared/config-cache';
 import { yuanToCents, formatYuan } from '../../shared/price-utils';
-import type { Shop, Warehouse, Watermark, QuickPublishVariant, QuickPublishBatchRequest } from '../../shared/types';
+import type { Shop, Warehouse, Watermark, QuickPublishVariant } from '../../shared/types';
 
 // ========== 工具函数 ==========
 
@@ -963,7 +963,7 @@ async function handleCollect(): Promise<void> {
 
   // 校验尺寸和重量
   const dimensions = productData.dimensions;
-  if (!dimensions || !dimensions.width || !dimensions.height || !dimensions.depth || !dimensions.weight) {
+  if (!dimensions || !dimensions.width || !dimensions.height || !dimensions.length || !dimensions.weight) {
     alert('尺寸和重量数据缺失，请刷新重试');
     return;
   }
@@ -1008,7 +1008,6 @@ async function handleCollect(): Promise<void> {
       source_url: window.location.href,
       product_data: {
         title: productData.title,
-        title_cn: productData.title_cn,
         images: productData.images,
         price: productData.price,
         original_price: productData.original_price,
@@ -1096,7 +1095,7 @@ async function handleFollowPdp(): Promise<void> {
 
   // 校验尺寸和重量
   const dimensions = productData.dimensions;
-  if (!dimensions || !dimensions.width || !dimensions.height || !dimensions.depth || !dimensions.weight) {
+  if (!dimensions || !dimensions.width || !dimensions.height || !dimensions.length || !dimensions.weight) {
     alert('尺寸和重量数据缺失，请刷新重试');
     return;
   }
@@ -1194,7 +1193,6 @@ async function handleFollowPdp(): Promise<void> {
       attributes: productData.attributes || undefined,
       product_data: {
         title: productData.title,
-        title_cn: productData.title_cn,
         images: productData.images,
         price: productData.price,
         original_price: productData.original_price,
@@ -1257,111 +1255,8 @@ async function handleFollowPdp(): Promise<void> {
   }
 }
 
-/**
- * 轮询任务状态
- */
-async function pollTaskStatus(taskId: string, variantName: string, shopId?: number): Promise<void> {
-  if (!apiClient) return;
-
-  const maxAttempts = 60; // 最多轮询60次（5分钟）
-  const interval = 5000; // 5秒
-
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const status = await apiClient.getTaskStatus(taskId, shopId);
-
-      if (status.status === 'completed') {
-        // 任务完成（所有步骤成功）
-        if (isDebugEnabled()) console.log(`[PublishModal] 变体"${variantName}"上架成功`);
-        return;
-      } else if (status.status === 'failed') {
-        // 任务失败
-        throw new Error(status.error || `变体"${variantName}"上架失败`);
-      } else if (status.status === 'running' || status.status === 'pending') {
-        // 继续等待（任务执行中或等待中）
-        await new Promise(resolve => setTimeout(resolve, interval));
-      } else if (status.status === 'not_found') {
-        // 任务不存在或已过期
-        throw new Error(`任务不存在或已过期`);
-      }
-    } catch (error) {
-      console.error('[PublishModal] 查询任务状态失败:', error);
-      throw error;
-    }
-  }
-
-  // 超时
-  throw new Error(`变体"${variantName}"上架超时`);
-}
-
-// ========== 进度弹窗 ==========
-
-let progressOverlay: HTMLElement | null = null;
-
-/**
- * 显示进度通知（右下角，不阻塞）
- */
-function showProgressModal(totalCount: number): void {
-  // 创建右下角通知容器（非阻塞）
-  const notification = document.createElement('div');
-  notification.id = 'euraflow-progress-notification';
-  notification.style.cssText = `
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 360px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
-    padding: 20px;
-    z-index: 2147483647;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  `;
-
-  notification.innerHTML = `
-    <div style="display: flex; align-items: flex-start; gap: 12px;">
-      <div style="flex-shrink: 0; width: 40px; height: 40px; background: #1976D2; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-        </svg>
-      </div>
-      <div style="flex: 1; min-width: 0;">
-        <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #333;">正在上架...</div>
-        <div id="progress-message" style="font-size: 14px; margin-bottom: 12px; color: #666;">准备中...</div>
-        <div style="width: 100%; height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
-          <div id="progress-bar" style="width: 0%; height: 100%; background: #1976D2; transition: width 0.3s;"></div>
-        </div>
-        <div id="progress-count" style="font-size: 13px; color: #999;">0 / ${totalCount}</div>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(notification);
-  progressOverlay = notification; // 保存引用（用于后续关闭）
-}
-
-/**
- * 更新进度
- */
-function updateProgress(current: number, total: number, message: string): void {
-  const progressMessage = document.getElementById('progress-message');
-  const progressBar = document.getElementById('progress-bar');
-  const progressCount = document.getElementById('progress-count');
-
-  if (progressMessage) progressMessage.textContent = message;
-  if (progressBar) progressBar.style.width = `${(current / total) * 100}%`;
-  if (progressCount) progressCount.textContent = `${current} / ${total}`;
-}
-
-/**
- * 关闭进度弹窗
- */
-function closeProgressModal(): void {
-  if (progressOverlay) {
-    progressOverlay.remove();
-    progressOverlay = null;
-  }
-}
+// ========== 进度弹窗（已废弃，新流程使用异步提交）==========
+// 注：以下代码保留供参考，新流程不再需要前端轮询
 
 // ========== 关闭弹窗 ==========
 
@@ -1418,7 +1313,6 @@ function createOverlay(): HTMLDivElement {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) {
       closeModal();
-      closeProgressModal();
     }
   });
 
