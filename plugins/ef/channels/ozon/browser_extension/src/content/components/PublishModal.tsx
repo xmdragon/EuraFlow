@@ -456,7 +456,7 @@ function renderMainModal(): void {
   // 弹窗内容
   modal.innerHTML = `
     <div style="margin-bottom: 20px;">
-      <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #333;">一键跟卖到 OZON</h2>
+      <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #333;">商品上架选项</h2>
     </div>
 
     <!-- 商品预览 -->
@@ -515,7 +515,8 @@ function renderMainModal(): void {
     <div style="display: flex; gap: 12px; justify-content: flex-end; align-items: center;">
       <div id="selected-count" style="flex: 1; color: #666; font-size: 14px;">已选择 ${variants.filter(v => v.enabled).length} 个变体</div>
       <button id="cancel-btn" style="padding: 10px 20px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">取消</button>
-      <button id="publish-btn" style="padding: 10px 20px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">开始上架</button>
+      <button id="collect-btn" style="padding: 10px 20px; background: #52c41a; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">采集</button>
+      <button id="follow-pdp-btn" style="padding: 10px 20px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">跟卖</button>
     </div>
   `;
 
@@ -649,9 +650,13 @@ function bindMainModalEvents(): void {
   const cancelBtn = document.getElementById('cancel-btn');
   cancelBtn?.addEventListener('click', closeModal);
 
-  // 上架按钮
-  const publishBtn = document.getElementById('publish-btn');
-  publishBtn?.addEventListener('click', handlePublish);
+  // 采集按钮
+  const collectBtn = document.getElementById('collect-btn');
+  collectBtn?.addEventListener('click', handleCollect);
+
+  // 跟卖按钮
+  const followPdpBtn = document.getElementById('follow-pdp-btn');
+  followPdpBtn?.addEventListener('click', handleFollowPdp);
 
   // 店铺切换
   const shopSelect = document.getElementById('shop-select') as HTMLSelectElement;
@@ -939,21 +944,146 @@ function applyBatchPricing(config: BatchPricingConfig): void {
 // ========== 上架处理 ==========
 
 /**
- * 处理上架操作
+ * 处理采集操作（不立即上架）
  */
-async function handlePublish(): Promise<void> {
-  console.log('[PublishModal] ========== 开始上架按钮被点击 ==========');
-  console.log('[PublishModal] apiClient:', !!apiClient);
-  console.log('[PublishModal] productData:', productData);
+async function handleCollect(): Promise<void> {
+  console.log('[PublishModal] ========== 采集按钮被点击 ==========');
 
   if (!apiClient || !productData) {
-    console.error('[PublishModal] 数据未准备好: apiClient=', !!apiClient, ', productData=', !!productData);
+    console.error('[PublishModal] 数据未准备好');
     alert('数据未准备好，请刷新页面重试');
     return;
   }
 
   // 验证必填字段
-  console.log('[PublishModal] 验证必填字段: selectedShopId=', selectedShopId);
+  if (!selectedShopId) {
+    alert('请选择店铺');
+    return;
+  }
+
+  // 校验尺寸和重量
+  const dimensions = productData.dimensions;
+  if (!dimensions || !dimensions.width || !dimensions.height || !dimensions.depth || !dimensions.weight) {
+    alert('尺寸和重量数据缺失，请刷新重试');
+    return;
+  }
+
+  // 获取已选择的变体
+  const enabledVariants = variants.filter(v => v.enabled);
+  if (enabledVariants.length === 0) {
+    alert('请至少选择一个变体');
+    return;
+  }
+
+  // 禁用按钮
+  const collectBtn = document.getElementById('collect-btn') as HTMLButtonElement;
+  const followPdpBtn = document.getElementById('follow-pdp-btn') as HTMLButtonElement;
+  const cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
+  if (collectBtn) {
+    collectBtn.disabled = true;
+    collectBtn.style.opacity = '0.5';
+    collectBtn.style.cursor = 'not-allowed';
+  }
+  if (followPdpBtn) {
+    followPdpBtn.disabled = true;
+    followPdpBtn.style.opacity = '0.5';
+    followPdpBtn.style.cursor = 'not-allowed';
+  }
+  if (cancelBtn) {
+    cancelBtn.disabled = true;
+    cancelBtn.style.opacity = '0.5';
+    cancelBtn.style.cursor = 'not-allowed';
+  }
+
+  try {
+    // 获取 API 配置
+    const config = await getApiConfig();
+    if (!config || !config.apiUrl) {
+      throw new Error('API配置未初始化');
+    }
+
+    // 构建请求数据
+    const requestData = {
+      shop_id: selectedShopId,
+      source_url: window.location.href,
+      product_data: {
+        title: productData.title,
+        title_cn: productData.title_cn,
+        images: productData.images,
+        price: productData.price,
+        original_price: productData.original_price,
+        ozon_product_id: productData.ozon_product_id,
+        has_variants: productData.has_variants,
+        variants: productData.variants,
+        description: productData.description,
+        category_id: productData.category_id,
+        brand: productData.brand,
+        barcode: productData.barcode,
+        dimensions: productData.dimensions,
+        attributes: productData.attributes,
+        videos: productData.videos,
+      },
+    };
+
+    console.log('[PublishModal] 采集请求数据:', requestData);
+
+    // 调用采集接口
+    const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': config.apiKey || '',
+      },
+      credentials: 'include',
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error?.detail || errorData?.detail || '采集失败');
+    }
+
+    const result = await response.json();
+    console.log('[PublishModal] 采集成功:', result);
+
+    // 显示成功消息（不关闭窗口）
+    alert('✓ 商品已采集，请到系统采集记录中查看');
+  } catch (error) {
+    console.error('[PublishModal] 采集失败:', error);
+    alert('采集失败：' + (error as Error).message);
+  } finally {
+    // 恢复按钮状态
+    if (collectBtn) {
+      collectBtn.disabled = false;
+      collectBtn.style.opacity = '1';
+      collectBtn.style.cursor = 'pointer';
+    }
+    if (followPdpBtn) {
+      followPdpBtn.disabled = false;
+      followPdpBtn.style.opacity = '1';
+      followPdpBtn.style.cursor = 'pointer';
+    }
+    if (cancelBtn) {
+      cancelBtn.disabled = false;
+      cancelBtn.style.opacity = '1';
+      cancelBtn.style.cursor = 'pointer';
+    }
+  }
+}
+
+/**
+ * 处理跟卖操作（立即上架）
+ */
+async function handleFollowPdp(): Promise<void> {
+  console.log('[PublishModal] ========== 跟卖按钮被点击 ==========');
+
+  if (!apiClient || !productData) {
+    console.error('[PublishModal] 数据未准备好');
+    alert('数据未准备好，请刷新页面重试');
+    return;
+  }
+
+  // 验证必填字段
   if (!selectedShopId) {
     alert('请选择店铺');
     return;
@@ -961,6 +1091,13 @@ async function handlePublish(): Promise<void> {
 
   if (selectedWarehouseIds.length === 0) {
     alert('请选择仓库');
+    return;
+  }
+
+  // 校验尺寸和重量
+  const dimensions = productData.dimensions;
+  if (!dimensions || !dimensions.width || !dimensions.height || !dimensions.depth || !dimensions.weight) {
+    alert('尺寸和重量数据缺失，请刷新重试');
     return;
   }
 
@@ -988,12 +1125,18 @@ async function handlePublish(): Promise<void> {
   }
 
   // 禁用按钮
-  const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement;
+  const collectBtn = document.getElementById('collect-btn') as HTMLButtonElement;
+  const followPdpBtn = document.getElementById('follow-pdp-btn') as HTMLButtonElement;
   const cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
-  if (publishBtn) {
-    publishBtn.disabled = true;
-    publishBtn.style.opacity = '0.5';
-    publishBtn.style.cursor = 'not-allowed';
+  if (collectBtn) {
+    collectBtn.disabled = true;
+    collectBtn.style.opacity = '0.5';
+    collectBtn.style.cursor = 'not-allowed';
+  }
+  if (followPdpBtn) {
+    followPdpBtn.disabled = true;
+    followPdpBtn.style.opacity = '0.5';
+    followPdpBtn.style.cursor = 'not-allowed';
   }
   if (cancelBtn) {
     cancelBtn.disabled = true;
@@ -1001,28 +1144,23 @@ async function handlePublish(): Promise<void> {
     cancelBtn.style.cursor = 'not-allowed';
   }
 
-  // 显示进度弹窗
-  showProgressModal(enabledVariants.length);
-
   try {
-    // 构建批量请求（一次性提交所有变体）
-    const variantsData: QuickPublishVariant[] = enabledVariants.map((variant, idx) => {
-      // 调试：输出原始变体数据
-      console.log(`[PublishModal] 变体 ${idx + 1} 原始数据:`, {
-        variant_id: variant.variant_id,
-        specifications: variant.specifications,
-        image_url: variant.image_url,
-        '是否有变体图片': !!variant.image_url
-      });
+    // 获取 API 配置
+    const config = await getApiConfig();
+    if (!config || !config.apiUrl) {
+      throw new Error('API配置未初始化');
+    }
 
+    // 构建变体数据
+    const variantsData: QuickPublishVariant[] = enabledVariants.map((variant) => {
       return {
-        name: variant.name || productData?.title || '',  // 商品名称（必填）
-        sku: variant.variant_id,                      // OZON SKU
+        name: variant.name || productData?.title || '',
+        sku: variant.variant_id,
         offer_id: variant.offer_id,
-        price: yuanToCents(variant.custom_price),     // 元 → 分
+        price: yuanToCents(variant.custom_price),
         stock: variant.stock,
         old_price: variant.custom_old_price ? yuanToCents(variant.custom_old_price) : undefined,
-        primary_image: variant.image_url || undefined,  // 变体主图URL（单个字符串）
+        primary_image: variant.image_url || undefined,
       };
     });
 
@@ -1031,7 +1169,7 @@ async function handlePublish(): Promise<void> {
       variantsData
         .map(v => v.primary_image)
         .filter((url): url is string => !!url)
-        .map(url => url.replace(/\/wc\d+\//, '/')) // 移除尺寸标识符以匹配原图
+        .map(url => url.replace(/\/wc\d+\//, '/'))
     );
 
     const filteredImages = productData.images.filter(img => {
@@ -1039,78 +1177,77 @@ async function handlePublish(): Promise<void> {
       return !variantImageUrls.has(normalizedImg);
     });
 
-    const batchRequest: QuickPublishBatchRequest = {
+    // 构建请求数据
+    const requestData = {
       shop_id: selectedShopId,
       warehouse_ids: selectedWarehouseIds,
-      watermark_config_id: selectedWatermarkId || undefined,  // 水印配置ID
+      watermark_config_id: selectedWatermarkId || undefined,
+      source_url: window.location.href,
       variants: variantsData,
-
-      // 共享图片和视频
-      images: filteredImages,  // 共享图片列表（已过滤变体主图）
+      images: filteredImages,
       videos: productData.videos || undefined,
-
-      // 共享商品信息（从 product-detail.ts 提取）
       description: productData.description || undefined,
       category_id: productData.category_id || undefined,
       brand: productData.brand || undefined,
       barcode: productData.barcode || undefined,
-
-      // 尺寸和重量
-      dimensions: productData.dimensions || undefined,
-
-      // 类目特征
+      dimensions: productData.dimensions,
       attributes: productData.attributes || undefined,
+      product_data: {
+        title: productData.title,
+        title_cn: productData.title_cn,
+        images: productData.images,
+        price: productData.price,
+        original_price: productData.original_price,
+        ozon_product_id: productData.ozon_product_id,
+        has_variants: productData.has_variants,
+        variants: productData.variants,
+        description: productData.description,
+        category_id: productData.category_id,
+        brand: productData.brand,
+        barcode: productData.barcode,
+        dimensions: productData.dimensions,
+        attributes: productData.attributes,
+        videos: productData.videos,
+      },
     };
 
-    console.log('[PublishModal] ========== 批量上架请求 ==========');
-    console.log('[PublishModal] 变体数量:', enabledVariants.length);
-    console.log('[PublishModal] 图片数量:', productData.images.length);
-    console.log('[PublishModal] 共享商品数据（从 productData 提取）:', {
-      category_id: productData.category_id,
-      brand: productData.brand,
-      barcode: productData.barcode,
-      description: productData.description ? `${productData.description.substring(0, 50)}...` : undefined,
-      dimensions: productData.dimensions,
-      attributes: productData.attributes,
-      videos: productData.videos?.length || 0,
+    console.log('[PublishModal] 跟卖请求数据:', requestData);
+
+    // 调用跟卖接口
+    const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/follow-pdp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': config.apiKey || '',
+      },
+      credentials: 'include',
+      body: JSON.stringify(requestData),
     });
-    console.log('[PublishModal] 完整请求数据:', JSON.stringify(batchRequest, null, 2));
 
-    // 调用批量API
-    console.log('[PublishModal] 调用 apiClient.quickPublishBatch...');
-    const response = await apiClient.quickPublishBatch(batchRequest);
-    console.log('[PublishModal] 批量响应:', response);
-
-    if (!response.success || !response.task_ids || response.task_ids.length === 0) {
-      throw new Error(response.error || '批量上架失败');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error?.detail || errorData?.detail || '跟卖失败');
     }
 
-    // 并发轮询所有任务
-    console.log('[PublishModal] 开始轮询', response.task_ids.length, '个任务');
-    const pollPromises = response.task_ids.map((taskId: string, idx: number) => {
-      const variant = enabledVariants[idx];
-      return pollTaskStatus(taskId, variant.specifications, selectedShopId ?? undefined);
-    });
+    const result = await response.json();
+    console.log('[PublishModal] 跟卖成功:', result);
 
-    await Promise.all(pollPromises);
-
-    // 全部成功
-    updateProgress(enabledVariants.length, enabledVariants.length, '全部上架完成！');
-    setTimeout(() => {
-      alert(`✓ 成功上架 ${enabledVariants.length} 个变体到 OZON！`);
-      closeModal();
-      closeProgressModal();
-    }, 1000);
+    // 成功后关闭窗口（不显示任何通知）
+    window.close();
   } catch (error) {
-    console.error('[PublishModal] 批量上架失败:', error);
-    closeProgressModal();
-    alert('批量上架失败：' + (error as Error).message);
+    console.error('[PublishModal] 跟卖失败:', error);
+    alert('跟卖失败：' + (error as Error).message);
 
-    // 恢复按钮
-    if (publishBtn) {
-      publishBtn.disabled = false;
-      publishBtn.style.opacity = '1';
-      publishBtn.style.cursor = 'pointer';
+    // 恢复按钮状态
+    if (collectBtn) {
+      collectBtn.disabled = false;
+      collectBtn.style.opacity = '1';
+      collectBtn.style.cursor = 'pointer';
+    }
+    if (followPdpBtn) {
+      followPdpBtn.disabled = false;
+      followPdpBtn.style.opacity = '1';
+      followPdpBtn.style.cursor = 'pointer';
     }
     if (cancelBtn) {
       cancelBtn.disabled = false;

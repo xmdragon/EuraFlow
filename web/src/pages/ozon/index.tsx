@@ -16,6 +16,8 @@ const ProductList = lazyWithRetry(() => import("./ProductList"));
 const ProductListing = lazyWithRetry(() => import("./ProductListing"));
 const ProductCreate = lazyWithRetry(() => import("./ProductCreate"));
 const ProductSelection = lazyWithRetry(() => import("./ProductSelection"));
+const ListingRecords = lazyWithRetry(() => import("./ListingRecords"));
+const CollectionRecords = lazyWithRetry(() => import("./CollectionRecords"));
 const ChatList = lazyWithRetry(() => import("./ChatList"));
 const ChatDetail = lazyWithRetry(() => import("./ChatDetail"));
 const Promotions = lazyWithRetry(() => import("./Promotions"));
@@ -43,6 +45,8 @@ const OzonManagement: React.FC = () => {
         <Route path="products" element={<ProductList />} />
         <Route path="products/create" element={<ProductCreate />} />
         <Route path="listing" element={<ProductListing />} />
+        <Route path="listing-records" element={<ListingRecords />} />
+        <Route path="collection-records" element={<CollectionRecords />} />
         <Route path="promotions" element={<Promotions />} />
         <Route path="orders" element={<OrderList />} />
         <Route path="packing" element={<PackingShipment />} />

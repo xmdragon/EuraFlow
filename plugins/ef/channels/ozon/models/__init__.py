@@ -24,6 +24,8 @@ from .global_settings import OzonGlobalSetting
 from .category_commissions import OzonCategoryCommission
 from .translation import AliyunTranslationConfig
 from .chatgpt_translation import ChatGPTTranslationConfig
+from .collection_record import OzonProductCollectionRecord
+from .draft_template import OzonProductTemplate
 
 __all__ = [
     "OzonShop",
@@ -66,4 +68,8 @@ __all__ = [
     # Translation configs
     "AliyunTranslationConfig",
     "ChatGPTTranslationConfig",
+    # Collection records
+    "OzonProductCollectionRecord",
+    # Draft & Template
+    "OzonProductTemplate",
 ]

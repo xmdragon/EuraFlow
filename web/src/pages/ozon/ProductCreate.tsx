@@ -37,7 +37,7 @@ import {
 } from 'antd';
 import type { MenuProps } from 'antd';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import styles from './ProductCreate.module.scss';
 
@@ -94,6 +94,7 @@ const { TextArea } = Input;
 const ProductCreate: React.FC = () => {
   const { modal } = App.useApp();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -914,6 +915,37 @@ const ProductCreate: React.FC = () => {
     selectedShop,
     selectedCategory,
   });
+
+  /**
+   * 从采集记录恢复数据
+   * 当从采集记录页面跳转过来时，自动填充表单数据
+   */
+  useEffect(() => {
+    const state = location.state as {
+      draftData?: draftTemplateApi.FormData;
+      source?: string;
+      sourceRecordId?: number;
+    };
+
+    if (state?.draftData && state.source === 'collection_record') {
+      loggers.ozon.info('[CollectionRecord] 从采集记录恢复数据', {
+        sourceRecordId: state.sourceRecordId,
+        hasDraftData: !!state.draftData,
+      });
+
+      // 使用 deserializeFormData 将采集记录数据填充到表单
+      try {
+        deserializeFormData(state.draftData);
+        notifySuccess('数据已恢复', '已从采集记录恢复商品数据，请检查并完善信息');
+
+        // 清除 location.state，避免刷新页面时重复恢复
+        window.history.replaceState({}, document.title);
+      } catch (error) {
+        loggers.ozon.error('[CollectionRecord] 恢复数据失败', error);
+        notifyError('恢复失败', '从采集记录恢复数据失败，请重试');
+      }
+    }
+  }, [location.state, deserializeFormData]);
 
   /**
    * 检查表单是否有实质性内容（排除初始状态和只有Offer ID的情况）

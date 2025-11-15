@@ -705,6 +705,23 @@ async def setup(hooks) -> None:
         import traceback
         traceback.print_exc()
 
+    # 注册采集记录上架状态轮询任务
+    try:
+        from .tasks.collection_listing_tasks import poll_listing_status
+
+        # 注册轮询任务（每10分钟执行一次）
+        await hooks.register_cron(
+            name="ef.ozon.collection.poll_listing_status",
+            cron="*/10 * * * *",
+            task=poll_listing_status
+        )
+
+        logger.info("✓ Registered collection listing status polling task successfully")
+    except Exception as e:
+        logger.warning(f"Warning: Failed to register collection listing polling task: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 配置信息已在上面打印
 
 

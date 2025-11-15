@@ -14,6 +14,7 @@ import {
   SyncOutlined,
   DollarOutlined,
   CloudUploadOutlined,
+  DatabaseOutlined,
   AppstoreOutlined,
   PlusOutlined,
   CheckOutlined,
@@ -223,10 +224,16 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate("/dashboard/ozon/products"),
         },
         {
-          key: "ozon-listing",
+          key: "ozon-listing-records",
           icon: <CloudUploadOutlined />,
-          label: createMenuLabel("ozon-listing", "商品上架", "/dashboard/ozon/listing"),
-          onClick: () => navigate("/dashboard/ozon/listing"),
+          label: createMenuLabel("ozon-listing-records", "上架记录", "/dashboard/ozon/listing-records"),
+          onClick: () => navigate("/dashboard/ozon/listing-records"),
+        },
+        {
+          key: "ozon-collection-records",
+          icon: <DatabaseOutlined />,
+          label: createMenuLabel("ozon-collection-records", "采集记录", "/dashboard/ozon/collection-records"),
+          onClick: () => navigate("/dashboard/ozon/collection-records"),
         },
         {
           key: "ozon-promotions",
