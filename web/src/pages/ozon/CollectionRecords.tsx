@@ -57,11 +57,21 @@ const CollectionRecords: React.FC = () => {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['collection-records', selectedShop, currentPage, pageSize],
     queryFn: async () => {
-      if (!selectedShop) return { items: [], total: 0 };
+      // 构建查询参数
+      const params = new URLSearchParams({
+        collection_type: 'collect_only',
+        page: String(currentPage),
+        page_size: String(pageSize),
+      });
+
+      // 如果选择了具体店铺，添加 shop_id 参数
+      if (selectedShop && selectedShop > 0) {
+        params.append('shop_id', String(selectedShop));
+      }
+      // 如果 selectedShop 为 null 或 0，不传 shop_id（查询所有记录）
 
       const response = await fetch(
-        `/api/ef/v1/ozon/collection-records?` +
-        `collection_type=collect_only&shop_id=${selectedShop}&page=${currentPage}&page_size=${pageSize}`,
+        `/api/ef/v1/ozon/collection-records?${params.toString()}`,
         {
           credentials: 'include',
         }
@@ -74,7 +84,6 @@ const CollectionRecords: React.FC = () => {
       const result = await response.json();
       return result.data;
     },
-    enabled: selectedShop !== null,
   });
 
   // 删除记录
