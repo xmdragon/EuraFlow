@@ -91,6 +91,15 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
 
     return true;
   }
+
+  if (message.type === 'COLLECT_PRODUCT') {
+    // 采集商品
+    handleCollectProduct(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
 });
 
 /**
@@ -326,6 +335,47 @@ async function handleGetTaskStatus(data: { apiUrl: string; apiKey: string; taskI
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * 采集商品
+ */
+async function handleCollectProduct(data: { apiUrl: string; apiKey: string; source_url: string; product_data: any }) {
+  const { apiUrl, apiKey, source_url, product_data } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey
+    },
+    body: JSON.stringify({
+      source_url,
+      product_data
+    })
+  });
+
+  if (!response.ok) {
+    let errorMessage = '采集失败';
+    try {
+      const errorData = await response.json();
+      // 多层级解析错误信息
+      if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.detail) {
+        errorMessage = errorData.detail.detail;
+      } else if (errorData.detail && typeof errorData.detail === 'string') {
+        errorMessage = errorData.detail;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error && errorData.error.message) {
+        errorMessage = errorData.error.message;
+      }
+    } catch {
+      errorMessage = `服务器错误 (HTTP ${response.status})`;
+    }
+    throw new Error(errorMessage);
   }
 
   return await response.json();

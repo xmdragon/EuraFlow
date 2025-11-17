@@ -247,27 +247,21 @@ export function injectOrUpdateDisplay(
           return;
         }
 
-        const requestData = {
-          source_url: window.location.href,
-          product_data: product,
-        };
-
-        const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': config.apiKey,
-          },
-          credentials: 'include',
-          body: JSON.stringify(requestData),
+        // 通过 background service worker 发送请求（避免 CORS）
+        const response = await chrome.runtime.sendMessage({
+          type: 'COLLECT_PRODUCT',
+          data: {
+            apiUrl: config.apiUrl,
+            apiKey: config.apiKey,
+            source_url: window.location.href,
+            product_data: product
+          }
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          throw new Error(errorData?.error?.detail || errorData?.detail || '采集失败');
+        if (!response.success) {
+          throw new Error(response.error || '采集失败');
         }
 
-        await response.json();
         alert('✓ 商品已采集，请到系统采集记录中查看');
       } catch (error) {
         console.error('[EuraFlow] 采集失败:', error);
