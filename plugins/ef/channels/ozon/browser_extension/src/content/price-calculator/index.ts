@@ -57,10 +57,64 @@ export class RealPriceCalculator {
   }
 
   /**
+   * 等待目标容器出现且稳定（Vue渲染完成）
+   * 使用轮询+稳定性检查
+   */
+  private async waitForContainerReady(): Promise<boolean> {
+    const MAX_ATTEMPTS = 50; // 最多等待5秒（50 * 100ms）
+    const STABLE_CHECK_COUNT = 3; // 连续3次检查都存在才认为稳定
+
+    let stableCount = 0;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const container = document.querySelector('.container') as HTMLElement | null;
+
+      if (container?.lastChild) {
+        const rightSide = (container.lastChild as HTMLElement).lastChild as HTMLElement | null;
+
+        if (rightSide && rightSide.children && rightSide.children.length > 0) {
+          const targetContainer = (rightSide.children[0] as HTMLElement)?.firstChild as HTMLElement ||
+                                  (rightSide.children[1] as HTMLElement)?.firstChild as HTMLElement;
+
+          if (targetContainer) {
+            stableCount++;
+            console.log(`[EuraFlow] 目标容器检查 ${stableCount}/${STABLE_CHECK_COUNT}`);
+
+            // 连续3次都检测到容器，认为已稳定
+            if (stableCount >= STABLE_CHECK_COUNT) {
+              console.log('[EuraFlow] 目标容器已稳定，可以注入');
+              return true;
+            }
+          } else {
+            stableCount = 0; // 重置计数器
+          }
+        } else {
+          stableCount = 0;
+        }
+      } else {
+        stableCount = 0;
+      }
+
+      // 等待100ms后重试
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    console.warn('[EuraFlow] 等待目标容器超时，强制执行');
+    return false;
+  }
+
+  /**
    * 初始化计算器
    */
-  public init(): void {
+  public async init(): Promise<void> {
     try {
+      console.log('[EuraFlow] 开始初始化，等待Vue渲染完成...');
+
+      // 等待目标容器出现且稳定
+      await this.waitForContainerReady();
+
+      console.log('[EuraFlow] 容器就绪，开始注入组件');
+
       // 首次执行计算和显示
       this.calculateAndDisplay();
 
@@ -87,12 +141,17 @@ export class RealPriceCalculator {
    * 启动保活机制：定期检查组件是否存在，不存在则重新注入
    */
   private startKeepAlive(): void {
-    this.keepAliveTimer = setInterval(() => {
+    this.keepAliveTimer = setInterval(async () => {
       // 检查我们的组件是否还存在
       const ourElement = document.getElementById('euraflow-section');
       if (!ourElement && this.lastMessage) {
-        console.log('[EuraFlow] 检测到组件被移除，重新注入');
-        injectOrUpdateDisplay(this.lastMessage, this.lastPrice, this.lastProductData);
+        console.log('[EuraFlow] 检测到组件被移除，等待容器稳定后重新注入');
+
+        // 等待容器稳定（避免在Vue渲染过程中注入）
+        const isReady = await this.waitForContainerReady();
+        if (isReady) {
+          injectOrUpdateDisplay(this.lastMessage, this.lastPrice, this.lastProductData);
+        }
       }
     }, 5000); // 每5秒检查一次
   }
@@ -225,13 +284,27 @@ export class RealPriceCalculator {
 
     console.log('[EuraFlow] 找到右侧容器，开始监听');
 
+    let reinjectionTimeout: ReturnType<typeof setTimeout> | null = null;
+
     // 创建 MutationObserver 监听右侧容器的子元素变化
     this.containerObserver = new MutationObserver(() => {
       // 检查我们的组件是否还存在
       const ourElement = document.getElementById('euraflow-section');
       if (!ourElement && this.lastMessage) {
-        console.log('[EuraFlow] 检测到组件被移除，立即重新注入');
-        injectOrUpdateDisplay(this.lastMessage, this.lastPrice, this.lastProductData);
+        // 使用防抖，避免在Vue渲染过程中频繁触发
+        if (reinjectionTimeout) {
+          clearTimeout(reinjectionTimeout);
+        }
+
+        reinjectionTimeout = setTimeout(async () => {
+          console.log('[EuraFlow] 检测到组件被移除（延迟300ms），等待容器稳定后重新注入');
+
+          // 等待容器稳定（避免在Vue渲染过程中注入）
+          const isReady = await this.waitForContainerReady();
+          if (isReady) {
+            injectOrUpdateDisplay(this.lastMessage, this.lastPrice, this.lastProductData);
+          }
+        }, 300); // 延迟300ms，等待Vue渲染完成
       }
     });
 

@@ -142,7 +142,7 @@ function Popup() {
     <div className="popup-container">
       <header className="popup-header">
         <h1>EuraFlow 选品助手</h1>
-        <p className="version">v1.5.1</p>
+        <p className="version">v1.5.2</p>
       </header>
 
       {/* 标签页导航 */}

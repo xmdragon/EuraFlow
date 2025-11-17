@@ -26,9 +26,9 @@ function isProductDetailPage(): boolean {
 async function init() {
   // 分支处理：商品详情页 vs 商品列表页
   if (isProductDetailPage()) {
-    // 初始化真实售价计算器
+    // 初始化真实售价计算器（等待Vue渲染完成）
     const priceCalculator = new RealPriceCalculator();
-    priceCalculator.init();
+    await priceCalculator.init();
     return;
   }
 
