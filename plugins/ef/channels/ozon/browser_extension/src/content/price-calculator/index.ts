@@ -207,20 +207,25 @@ export class RealPriceCalculator {
 
   /**
    * 监听目标容器的变化，防止组件被 OZON 重新渲染时移除
+   * 参考上品帮的逻辑
    */
   private setupContainerObserver(): void {
-    // 查找 separator 元素的父容器
-    const separator = document.querySelector('div[data-widget="separator"][style*="height:8px"]');
-    const targetContainer = separator?.parentElement;
-
-    if (!targetContainer) {
-      console.log('[EuraFlow] 未找到目标容器，无法监听');
+    // 参考上品帮：获取 .container 的右侧区域
+    const container = document.querySelector('.container') as HTMLElement | null;
+    if (!container || !container.lastChild) {
+      console.log('[EuraFlow] 未找到 .container，无法监听');
       return;
     }
 
-    console.log('[EuraFlow] 找到目标容器，开始监听');
+    const rightSide = (container.lastChild as HTMLElement).lastChild as HTMLElement | null;
+    if (!rightSide) {
+      console.log('[EuraFlow] 未找到右侧容器，无法监听');
+      return;
+    }
 
-    // 创建 MutationObserver 监听目标容器的子元素变化
+    console.log('[EuraFlow] 找到右侧容器，开始监听');
+
+    // 创建 MutationObserver 监听右侧容器的子元素变化
     this.containerObserver = new MutationObserver(() => {
       // 检查我们的组件是否还存在
       const ourElement = document.getElementById('euraflow-section');
@@ -230,13 +235,13 @@ export class RealPriceCalculator {
       }
     });
 
-    // 监听目标容器的子元素变化（包括子树）
-    this.containerObserver.observe(targetContainer, {
+    // 监听右侧容器的子元素变化（包括子树）
+    this.containerObserver.observe(rightSide, {
       childList: true,
       subtree: true,
     });
 
-    console.log('[EuraFlow] 已启动目标容器监听');
+    console.log('[EuraFlow] 已启动右侧容器监听');
   }
 
   /**

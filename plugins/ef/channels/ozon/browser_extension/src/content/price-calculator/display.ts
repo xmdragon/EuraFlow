@@ -6,8 +6,6 @@
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
-  // 选择器（找到 separator 元素作为插入位置的标记）
-  separatorSelector: 'div[data-widget="separator"][style*="height:8px"]',
   // 使用 OZON 风格的命名
   injectedElementId: 'euraflow-widget-price',
   injectedSectionId: 'euraflow-section',
@@ -30,17 +28,31 @@ export function injectOrUpdateDisplay(
     return;
   }
 
-  // 查找 separator 元素（用作插入位置的标记）
-  const separator = document.querySelector(
-    DISPLAY_CONFIG.separatorSelector
-  ) as HTMLDivElement | null;
+  // 参考上品帮的逻辑：获取 .container 的最后子元素的最后子元素
+  const container = document.querySelector('.container') as HTMLElement | null;
 
-  if (!separator) {
-    console.log('[EuraFlow] 未找到 separator 元素，跳过注入');
+  if (!container || !container.lastChild) {
+    console.log('[EuraFlow] 未找到 .container，跳过注入');
     return;
   }
 
-  console.log('[EuraFlow] 找到 separator 元素');
+  const rightSide = (container.lastChild as HTMLElement).lastChild as HTMLElement | null;
+
+  if (!rightSide || !rightSide.children || rightSide.children.length === 0) {
+    console.log('[EuraFlow] 未找到右侧容器，跳过注入');
+    return;
+  }
+
+  // 获取目标容器：children[0].firstChild 或 children[1].firstChild
+  const targetContainer = (rightSide.children[0] as HTMLElement)?.firstChild as HTMLElement ||
+                          (rightSide.children[1] as HTMLElement)?.firstChild as HTMLElement;
+
+  if (!targetContainer) {
+    console.log('[EuraFlow] 未找到目标容器，跳过注入');
+    return;
+  }
+
+  console.log('[EuraFlow] 找到目标容器');
 
   // 检查是否已存在 EuraFlow 区域
   let euraflowSection = document.getElementById(
@@ -48,8 +60,15 @@ export function injectOrUpdateDisplay(
   ) as HTMLDivElement | null;
 
   if (euraflowSection) {
-    // 已存在，只更新价格文字和按钮数据
-    console.log('[EuraFlow] EuraFlow 区域已存在，仅更新数据');
+    // 已存在，更新容器属性、价格文字和按钮数据
+    console.log('[EuraFlow] EuraFlow 区域已存在，更新数据和样式');
+
+    // 确保容器属性正确（修复可能的错误属性）
+    euraflowSection.setAttribute('data-widget', 'webPdpGrid');
+    euraflowSection.className = 'pdp_as2 pdp_sa8 pdp_sa5 pdp_as6';
+    euraflowSection.style.padding = '8px 0px';
+    euraflowSection.style.width = '388px';
+    euraflowSection.style.height = ''; // 移除 height 属性
 
     const priceText = euraflowSection.querySelector(
       '#euraflow-price-text'
@@ -271,10 +290,15 @@ export function injectOrUpdateDisplay(
     euraflowContainer.appendChild(titleRow);
     euraflowContainer.appendChild(buttonRow);
 
-    // 将 EuraFlow 容器插入到 separator 之前
-    separator.parentNode?.insertBefore(euraflowContainer, separator);
+    // 参考上品帮：设置第一个子元素的高度为 auto
+    if (rightSide.children[0]?.firstChild) {
+      (rightSide.children[0].firstChild as HTMLElement).style.height = 'auto';
+    }
 
-    console.log('[EuraFlow] 已将 EuraFlow 组件注入到 separator 之前');
+    // 参考上品帮：插入到目标容器的第一个子元素之前
+    targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
+
+    console.log('[EuraFlow] 已将 EuraFlow 组件注入到目标容器（参考上品帮逻辑）');
   }
 }
 
@@ -292,8 +316,16 @@ export function removeDisplay(): void {
 
 /**
  * 获取目标容器元素（用于检查页面是否准备好）
+ * 参考上品帮的逻辑
  */
 export function getTargetContainer(): Element | null {
-  const separator = document.querySelector(DISPLAY_CONFIG.separatorSelector);
-  return separator?.parentElement || null;
+  const container = document.querySelector('.container') as HTMLElement | null;
+  if (!container || !container.lastChild) return null;
+
+  const rightSide = (container.lastChild as HTMLElement).lastChild as HTMLElement | null;
+  if (!rightSide || !rightSide.children || rightSide.children.length === 0) return null;
+
+  return (rightSide.children[0] as HTMLElement)?.firstChild as HTMLElement ||
+         (rightSide.children[1] as HTMLElement)?.firstChild as HTMLElement ||
+         null;
 }
