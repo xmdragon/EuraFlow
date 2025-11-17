@@ -24,6 +24,7 @@ import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import axios from '@/services/axios';
 
 interface CollectionRecord {
   id: number;
@@ -62,31 +63,23 @@ const CollectionRecords: React.FC = () => {
     queryKey: ['collection-records', selectedShop, currentPage, pageSize],
     queryFn: async () => {
       // 构建查询参数
-      const params = new URLSearchParams({
+      const params: Record<string, string> = {
         collection_type: 'collect_only',
         page: String(currentPage),
         page_size: String(pageSize),
-      });
+      };
 
       // 如果选择了具体店铺，添加 shop_id 参数
       if (selectedShop && selectedShop > 0) {
-        params.append('shop_id', String(selectedShop));
+        params.shop_id = String(selectedShop);
       }
       // 如果 selectedShop 为 null 或 0，不传 shop_id（查询所有记录）
 
-      const response = await fetch(
-        `/api/ef/v1/ozon/collection-records?${params.toString()}`,
-        {
-          credentials: 'include',
-        }
-      );
+      const response = await axios.get('/api/ef/v1/ozon/collection-records', {
+        params,
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch collection records');
-      }
-
-      const result = await response.json();
-      return result.data;
+      return response.data.data;
     },
   });
 
@@ -97,15 +90,7 @@ const CollectionRecords: React.FC = () => {
       content: '确定要删除这条采集记录吗？删除后将无法恢复。',
       onOk: async () => {
         try {
-          const response = await fetch(`/api/ef/v1/ozon/collection-records/${recordId}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to delete record');
-          }
-
+          await axios.delete(`/api/ef/v1/ozon/collection-records/${recordId}`);
           notifySuccess('删除成功');
           refetch();
         } catch (error) {
@@ -119,17 +104,8 @@ const CollectionRecords: React.FC = () => {
   // 上架（跳转到新建商品页并填充数据）
   const handleListing = async (recordId: number) => {
     try {
-      const response = await fetch(`/api/ef/v1/ozon/collection-records/${recordId}/to-draft`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to convert to draft');
-      }
-
-      const result = await response.json();
-      const draftData = result.data.draft_data;
+      const response = await axios.post(`/api/ef/v1/ozon/collection-records/${recordId}/to-draft`);
+      const draftData = response.data.data.draft_data;
 
       // 跳转到新建商品页，携带草稿数据
       navigate('/dashboard/ozon/products/create', {

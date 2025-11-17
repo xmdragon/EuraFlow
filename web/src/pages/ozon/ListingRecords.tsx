@@ -24,6 +24,7 @@ import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import axios from '@/services/axios';
 
 interface ListingRecord {
   id: number;
@@ -61,20 +62,16 @@ const ListingRecords: React.FC = () => {
     queryFn: async () => {
       if (!selectedShop) return { items: [], total: 0 };
 
-      const response = await fetch(
-        `/api/ef/v1/ozon/collection-records?` +
-        `collection_type=follow_pdp&shop_id=${selectedShop}&page=${currentPage}&page_size=${pageSize}`,
-        {
-          credentials: 'include',
-        }
-      );
+      const response = await axios.get('/api/ef/v1/ozon/collection-records', {
+        params: {
+          collection_type: 'follow_pdp',
+          shop_id: selectedShop,
+          page: currentPage,
+          page_size: pageSize,
+        },
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch listing records');
-      }
-
-      const result = await response.json();
-      return result.data;
+      return response.data.data;
     },
     enabled: selectedShop !== null,
   });
@@ -86,15 +83,7 @@ const ListingRecords: React.FC = () => {
       content: '确定要删除这条上架记录吗？删除后将无法恢复。',
       onOk: async () => {
         try {
-          const response = await fetch(`/api/ef/v1/ozon/collection-records/${recordId}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to delete record');
-          }
-
+          await axios.delete(`/api/ef/v1/ozon/collection-records/${recordId}`);
           notifySuccess('删除成功');
           refetch();
         } catch (error) {
