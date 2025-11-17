@@ -239,8 +239,6 @@ export function injectOrUpdateDisplay(
         const { getApiConfig } = await import('../../shared/storage');
         const config = await getApiConfig();
 
-        console.log('[EuraFlow] API配置:', config);
-
         if (!config || !config.apiUrl || !config.apiKey) {
           alert('API未配置，请先配置API');
           collectButton.disabled = false;
@@ -253,9 +251,6 @@ export function injectOrUpdateDisplay(
           source_url: window.location.href,
           product_data: product,
         };
-
-        console.log('[EuraFlow] 采集请求URL:', `${config.apiUrl}/api/ef/v1/ozon/collection-records/collect`);
-        console.log('[EuraFlow] 采集请求数据:', requestData);
 
         const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
           method: 'POST',

@@ -95,7 +95,8 @@ async def collect_product(
     product_data = request.product_data
     dimensions = product_data.get('dimensions', {})
     required_fields = ['width', 'height', 'length', 'weight']
-    missing_fields = [f for f in required_fields if not dimensions.get(f)]
+    # 修复：允许值为 0 的字段，只检查是否存在（not None）
+    missing_fields = [f for f in required_fields if dimensions.get(f) is None]
 
     if missing_fields:
         problem(
