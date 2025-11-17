@@ -276,3 +276,116 @@ export interface TaskStatus {
   items?: any[];
   error?: string;
 }
+
+// ========== 上品帮集成类型 ==========
+
+/**
+ * 上品帮配置
+ */
+export interface ShangpinbangConfig {
+  phone: string;            // 手机号
+  password: string;         // 密码（明文存储）
+  token?: string;           // 登录Token
+  tokenExpiry?: number;     // Token过期时间戳（预留）
+}
+
+/**
+ * 上品帮登录请求
+ */
+export interface ShangpinbangLoginRequest {
+  phone: string;
+  pwd: string;
+}
+
+/**
+ * 上品帮登录响应
+ */
+export interface ShangpinbangLoginResponse {
+  code: number;             // 0=成功, -1=失败
+  data: {
+    token: string;
+  } | null;
+  message: string;          // "成功" | "密码错误" | "手机号未注册"
+}
+
+/**
+ * Service Worker 消息类型
+ */
+export const MESSAGE_TYPES = {
+  // 上品帮登录
+  SPB_LOGIN: 'SPB_LOGIN',
+  SPB_GET_TOKEN: 'SPB_GET_TOKEN',
+  SPB_API_CALL: 'SPB_API_CALL',  // 通用上品帮 API 调用（支持自动 Token 刷新）
+
+  // OZON API
+  GET_OZON_PRODUCT_DETAIL: 'GET_OZON_PRODUCT_DETAIL',  // 获取 OZON 商品详情
+} as const;
+
+export type MessageType = typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES];
+
+/**
+ * 上品帮 API 调用请求
+ */
+export interface ShangpinbangAPIRequest {
+  apiUrl: string;      // API 地址
+  apiType: string;     // API 类型
+  params: Record<string, any>;  // API 参数
+}
+
+// ========== OZON API 集成类型 ==========
+
+/**
+ * OZON 商品属性
+ */
+export interface OzonProductAttribute {
+  key: string;
+  value: string;
+  collection?: any[];
+  complex?: any[];
+  complex_collection?: any[];
+}
+
+/**
+ * OZON 商品类目
+ */
+export interface OzonCategory {
+  id: string;
+  level: string;
+  name: string;
+}
+
+/**
+ * OZON 商品图片
+ */
+export interface OzonProductImage {
+  url: string;
+  is_primary: boolean;
+}
+
+/**
+ * OZON 商品详情（从 search-variant-model 返回）
+ */
+export interface OzonProductDetail {
+  variant_id: string;
+  name: string;
+  description: string;
+  description_category_id: string;
+  categories: OzonCategory[];
+  attributes: OzonProductAttribute[];
+  images: OzonProductImage[];
+}
+
+/**
+ * OZON search-variant-model API 响应
+ */
+export interface OzonSearchVariantResponse {
+  items: OzonProductDetail[];
+  last_id: string;
+}
+
+/**
+ * 获取 OZON 商品详情请求
+ */
+export interface GetOzonProductDetailRequest {
+  productSku: string;  // 商品 SKU（如：3083658390）
+}

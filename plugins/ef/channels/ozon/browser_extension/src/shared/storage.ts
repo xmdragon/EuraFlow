@@ -1,4 +1,4 @@
-import type { ApiConfig, CollectorConfig } from './types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig } from './types';
 
 /**
  * 浏览器扩展存储工具
@@ -83,4 +83,55 @@ export async function testApiConnection(apiUrl: string, apiKey: string): Promise
     console.error('[Storage] Test connection failed:', error);
     return false;
   }
+}
+
+// ========== 上品帮配置存储 ==========
+
+const DEFAULT_SHANGPINBANG_CONFIG: ShangpinbangConfig = {
+  phone: '',
+  password: '',
+  token: undefined,
+  tokenExpiry: undefined
+};
+
+/**
+ * 获取上品帮配置
+ */
+export async function getShangpinbangConfig(): Promise<ShangpinbangConfig> {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(['spbPhone', 'spbPassword', 'spbToken', 'spbTokenExpiry'], (result: { [key: string]: any }) => {
+      resolve({
+        phone: result.spbPhone || DEFAULT_SHANGPINBANG_CONFIG.phone,
+        password: result.spbPassword || DEFAULT_SHANGPINBANG_CONFIG.password,
+        token: result.spbToken || DEFAULT_SHANGPINBANG_CONFIG.token,
+        tokenExpiry: result.spbTokenExpiry || DEFAULT_SHANGPINBANG_CONFIG.tokenExpiry
+      });
+    });
+  });
+}
+
+/**
+ * 保存上品帮配置
+ */
+export async function setShangpinbangConfig(config: Partial<ShangpinbangConfig>): Promise<void> {
+  return new Promise((resolve) => {
+    const storageData: { [key: string]: any } = {};
+
+    if (config.phone !== undefined) storageData.spbPhone = config.phone;
+    if (config.password !== undefined) storageData.spbPassword = config.password;
+    if (config.token !== undefined) storageData.spbToken = config.token;
+    if (config.tokenExpiry !== undefined) storageData.spbTokenExpiry = config.tokenExpiry;
+
+    chrome.storage.sync.set(storageData, () => {
+      resolve();
+    });
+  });
+}
+
+/**
+ * 获取上品帮Token（快捷方法）
+ */
+export async function getShangpinbangToken(): Promise<string | undefined> {
+  const config = await getShangpinbangConfig();
+  return config.token;
 }

@@ -757,24 +757,33 @@ async function getOzonSellerId(cookieString: string): Promise<number> {
 /**
  * 处理获取 OZON 商品详情请求
  */
-async function handleGetOzonProductDetail(data: { productSku: string }) {
-  const { productSku } = data;
+async function handleGetOzonProductDetail(data: { productSku: string; cookieString?: string }) {
+  const { productSku, cookieString: documentCookie } = data;
 
   console.log('[OZON API] 获取商品详情, SKU:', productSku);
 
   try {
-    // 1. 获取 OZON Seller Cookie
-    const cookieString = await getOzonSellerCookies();
+    // 1. 获取 background 的 Cookie（可能包含 HttpOnly Cookie）
+    const backgroundCookie = await getOzonSellerCookies();
 
-    // 2. 从 Cookie 字符串中提取 Seller ID
-    const sellerId = await getOzonSellerId(cookieString);
+    // 2. 合并 background Cookie 和 content script 传来的 document.cookie
+    // 参考 spbang：backgroundCookie + documentCookie
+    const mergedCookie = documentCookie ? (backgroundCookie + documentCookie) : backgroundCookie;
 
-    // 3. 调用 OZON search-variant-model API（参考 spbang 的 headers）
+    console.log('[OZON API] Cookie 来源统计:');
+    console.log(`  - Background Cookie 长度: ${backgroundCookie.length}`);
+    console.log(`  - Document Cookie 长度: ${documentCookie?.length || 0}`);
+    console.log(`  - 合并后 Cookie 长度: ${mergedCookie.length}`);
+
+    // 3. 从合并后的 Cookie 字符串中提取 Seller ID
+    const sellerId = await getOzonSellerId(mergedCookie);
+
+    // 4. 调用 OZON search-variant-model API（参考 spbang 的 headers）
     const response = await fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': cookieString,
+        'Cookie': mergedCookie,
         'x-o3-company-id': sellerId.toString(),
         'x-o3-app-name': 'seller-ui',
         'x-o3-language': 'zh-Hans',

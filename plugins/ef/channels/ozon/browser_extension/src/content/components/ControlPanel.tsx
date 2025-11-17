@@ -6,7 +6,7 @@
 import type { DataFusionEngine } from '../fusion/engine';
 import type { ProductCollector } from '../collector';
 import type { CollectorConfig } from '../../shared/types';
-import { getApiConfig, setApiConfig } from '../../shared/storage';
+import { getApiConfig } from '../../shared/storage';
 import { ApiClient } from '../../shared/api-client';
 
 interface ControlPanelProps {
@@ -73,7 +73,6 @@ export function ControlPanel(props: ControlPanelProps) {
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
       <div style="font-weight: bold; font-size: 16px;">🎯 Ozon选品助手 v${version}</div>
       <div style="display: flex; gap: 8px;">
-        <button id="ef-settings-btn" style="background: rgba(255,255,255,0.3); border: none; color: white; width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.2s;">⚙️</button>
         <button id="ef-minimize-btn" style="background: rgba(255,255,255,0.3); border: none; color: white; width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.2s;">➖</button>
       </div>
     </div>
@@ -105,82 +104,9 @@ export function ControlPanel(props: ControlPanelProps) {
     </div>
   `;
 
-  // 创建 API 设置模态框
-  const apiModal = document.createElement('div');
-  apiModal.id = 'ef-api-modal';
-  apiModal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    z-index: 2147483647;
-    display: none;
-    align-items: center;
-    justify-content: center;
-  `;
-
-  apiModal.innerHTML = `
-    <div style="background: white; padding: 24px; border-radius: 8px; width: 400px; max-width: 90%;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h3 style="margin: 0; color: #333; font-size: 18px;">⚙️ API 配置</h3>
-        <button id="ef-close-modal-btn" style="background: rgba(0,0,0,0.1); border: none; color: #666; width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.2s;">✖️</button>
-      </div>
-
-      <div style="margin-bottom: 16px;">
-        <label style="display: block; margin-bottom: 6px; color: #333; font-size: 14px; font-weight: 600;">API URL：</label>
-        <input
-          id="ef-api-url"
-          type="text"
-          placeholder="https://your-api.com/api/ef/v1"
-          style="width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
-        />
-      </div>
-
-      <div style="margin-bottom: 20px;">
-        <label style="display: block; margin-bottom: 6px; color: #333; font-size: 14px; font-weight: 600;">API Key：</label>
-        <input
-          id="ef-api-key"
-          type="password"
-          placeholder="your-api-key"
-          style="width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
-        />
-      </div>
-
-      <div style="display: flex; gap: 12px;">
-        <button id="ef-test-connection-btn" style="flex: 1; padding: 12px; background: #17a2b8; border: none; color: white; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
-          🔍 测试连接
-        </button>
-        <button id="ef-save-config-btn" disabled style="flex: 1; padding: 12px; background: #ccc; border: none; color: #666; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: not-allowed; transition: all 0.2s;">
-          💾 保存配置
-        </button>
-      </div>
-    </div>
-  `;
-
   // 状态变量
   let isCollecting = false;
   let collectedCount = 0;
-
-  // 加载 API 配置
-  async function loadAPIConfig() {
-    const apiConfig = await getApiConfig();
-    const apiUrlInput = document.getElementById('ef-api-url') as HTMLInputElement;
-    const apiKeyInput = document.getElementById('ef-api-key') as HTMLInputElement;
-    const saveConfigBtn = document.getElementById('ef-save-config-btn') as HTMLButtonElement;
-
-    if (apiUrlInput) apiUrlInput.value = apiConfig.apiUrl;
-    if (apiKeyInput) apiKeyInput.value = apiConfig.apiKey;
-
-    // 如果已经有配置，启用保存按钮
-    if (saveConfigBtn && apiConfig.apiUrl && apiConfig.apiKey) {
-      saveConfigBtn.disabled = false;
-      saveConfigBtn.style.background = '#5b9bd5';
-      saveConfigBtn.style.color = 'white';
-      saveConfigBtn.style.cursor = 'pointer';
-    }
-  }
 
   // 绑定事件
   function bindEvents() {
@@ -204,23 +130,6 @@ export function ControlPanel(props: ControlPanelProps) {
       minimizeBtn.onmouseout = () => {
         minimizeBtn.style.background = 'rgba(255,255,255,0.3)';
         minimizeBtn.style.transform = 'scale(1)';
-      };
-    }
-
-    // 设置按钮
-    const settingsBtn = document.getElementById('ef-settings-btn');
-    if (settingsBtn) {
-      settingsBtn.onclick = () => {
-        apiModal.style.display = 'flex';
-        loadAPIConfig();
-      };
-      settingsBtn.onmouseover = () => {
-        settingsBtn.style.background = 'rgba(255,255,255,0.5)';
-        settingsBtn.style.transform = 'scale(1.1)';
-      };
-      settingsBtn.onmouseout = () => {
-        settingsBtn.style.background = 'rgba(255,255,255,0.3)';
-        settingsBtn.style.transform = 'scale(1)';
       };
     }
 
@@ -270,119 +179,6 @@ export function ControlPanel(props: ControlPanelProps) {
       toggleBtn.onmouseout = () => {
         toggleBtn.style.transform = 'scale(1)';
         toggleBtn.style.boxShadow = 'none';
-      };
-    }
-
-    // 关闭模态框
-    const closeModalBtn = document.getElementById('ef-close-modal-btn');
-    if (closeModalBtn) {
-      closeModalBtn.onclick = () => {
-        apiModal.style.display = 'none';
-      };
-      closeModalBtn.onmouseover = () => {
-        closeModalBtn.style.background = 'rgba(0,0,0,0.2)';
-        closeModalBtn.style.transform = 'scale(1.1)';
-      };
-      closeModalBtn.onmouseout = () => {
-        closeModalBtn.style.background = 'rgba(0,0,0,0.1)';
-        closeModalBtn.style.transform = 'scale(1)';
-      };
-    }
-
-    // 点击模态框外部关闭
-    apiModal.onclick = (e) => {
-      if (e.target === apiModal) {
-        apiModal.style.display = 'none';
-      }
-    };
-
-    // 测试连接
-    const testConnectionBtn = document.getElementById('ef-test-connection-btn');
-    if (testConnectionBtn) {
-      testConnectionBtn.onclick = async () => {
-        const apiUrlInput = document.getElementById('ef-api-url') as HTMLInputElement;
-        const apiKeyInput = document.getElementById('ef-api-key') as HTMLInputElement;
-        const saveConfigBtn = document.getElementById('ef-save-config-btn') as HTMLButtonElement;
-
-        const apiUrl = apiUrlInput.value.trim();
-        const apiKey = apiKeyInput.value.trim();
-
-        if (!apiUrl || !apiKey) {
-          updateStatus('⚠️ 请填写 API 地址和 Key');
-          return;
-        }
-
-        updateStatus('🔍 测试连接中...');
-        testConnectionBtn.textContent = '测试中...';
-        (testConnectionBtn as HTMLButtonElement).disabled = true;
-
-        try {
-          const response = await chrome.runtime.sendMessage({
-            type: 'TEST_CONNECTION',
-            data: { apiUrl, apiKey }
-          });
-
-          if (response.success) {
-            const username = response.data?.username || '未知用户';
-            updateStatus(`✅ 连接成功！用户: ${username}`);
-            testConnectionBtn.textContent = '✅ 连接成功';
-            testConnectionBtn.style.background = '#28a745';
-
-            // 启用保存按钮
-            saveConfigBtn.disabled = false;
-            saveConfigBtn.style.background = '#5b9bd5';
-            saveConfigBtn.style.color = 'white';
-            saveConfigBtn.style.cursor = 'pointer';
-          } else {
-            const errorMsg = response.error || '未知错误';
-            console.error('[ControlPanel] Test connection failed:', errorMsg);
-            updateStatus(`❌ 连接失败: ${errorMsg}`);
-            testConnectionBtn.textContent = '❌ 连接失败';
-            testConnectionBtn.style.background = '#dc3545';
-            setTimeout(() => {
-              testConnectionBtn.textContent = '🔍 测试连接';
-              testConnectionBtn.style.background = '#17a2b8';
-              (testConnectionBtn as HTMLButtonElement).disabled = false;
-            }, 2000);
-          }
-        } catch (error: any) {
-          console.error('[ControlPanel] Test connection exception:', error);
-          updateStatus(`❌ 测试失败: ${error.message}`);
-          testConnectionBtn.textContent = '❌ 测试失败';
-          testConnectionBtn.style.background = '#dc3545';
-          setTimeout(() => {
-            testConnectionBtn.textContent = '🔍 测试连接';
-            testConnectionBtn.style.background = '#17a2b8';
-            (testConnectionBtn as HTMLButtonElement).disabled = false;
-          }, 2000);
-        }
-      };
-    }
-
-    // 保存配置
-    const saveConfigBtn = document.getElementById('ef-save-config-btn');
-    if (saveConfigBtn) {
-      saveConfigBtn.onclick = async () => {
-        const apiUrlInput = document.getElementById('ef-api-url') as HTMLInputElement;
-        const apiKeyInput = document.getElementById('ef-api-key') as HTMLInputElement;
-
-        await setApiConfig({
-          apiUrl: apiUrlInput.value.trim(),
-          apiKey: apiKeyInput.value.trim()
-        });
-
-        updateStatus('✅ 配置已保存');
-        apiModal.style.display = 'none';
-      };
-      saveConfigBtn.onmouseover = () => {
-        if (!(saveConfigBtn as HTMLButtonElement).disabled) {
-          saveConfigBtn.style.transform = 'scale(1.05)';
-          saveConfigBtn.style.boxShadow = '0 4px 12px rgba(91,155,213,0.4)';
-        }
-      };
-      saveConfigBtn.onmouseout = () => {
-        saveConfigBtn.style.transform = 'scale(1)';
-        saveConfigBtn.style.boxShadow = 'none';
       };
     }
   }
@@ -550,13 +346,9 @@ export function ControlPanel(props: ControlPanelProps) {
   // 挂载到 DOM
   document.body.appendChild(minimizedIcon);
   document.body.appendChild(panel);
-  document.body.appendChild(apiModal);
 
   // 绑定事件
   bindEvents();
-
-  // 初始加载配置
-  loadAPIConfig();
 
   // 初始化时更新累计统计显示
   const stats = collector.getCumulativeStats();
