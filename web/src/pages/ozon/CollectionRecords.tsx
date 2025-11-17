@@ -167,7 +167,7 @@ const CollectionRecords: React.FC = () => {
       title: '商品图片',
       dataIndex: 'product_data',
       key: 'image',
-      width: 100,
+      width: 80,
       render: (product_data: CollectionRecord['product_data']) => {
         const imageUrl = product_data?.images?.[0];
         return imageUrl ? (
@@ -190,14 +190,28 @@ const CollectionRecords: React.FC = () => {
       ),
     },
     {
-      title: '来源链接',
+      title: '价格',
+      dataIndex: 'product_data',
+      key: 'price',
+      width: 100,
+      render: (product_data: CollectionRecord['product_data']) => {
+        const price = product_data?.price;
+        return price ? `₽${price.toFixed(2)}` : '-';
+      },
+    },
+    {
+      title: '来源',
       dataIndex: 'source_url',
       key: 'source_url',
-      ellipsis: true,
-      width: 200,
+      minWidth: 80,
+      width: 80,
+      align: 'center' as const,
       render: (url: string) => (
-        <a href={url} target="_blank" rel="noopener noreferrer">
-          {url}
+        <a href={url} target="_blank" rel="noopener noreferrer" title={url}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" fill="#005BFF"/>
+            <path d="M12 7C9.24 7 7 9.24 7 12s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zm0 8c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" fill="white"/>
+          </svg>
         </a>
       ),
     },
@@ -205,20 +219,24 @@ const CollectionRecords: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 180,
-      render: (time: string) => dayjs(time).format('YYYY-MM-DD HH:mm:ss'),
+      minWidth: 100,
+      width: 100,
+      render: (time: string) => dayjs(time).format('MM-DD HH:mm'),
     },
     {
       title: '操作',
       key: 'actions',
-      width: 280,
+      minWidth: 80,
+      width: 80,
+      align: 'center' as const,
       render: (_: unknown, record: CollectionRecord) => (
-        <Space>
+        <Space direction="vertical" size="small">
           <Button
             type="link"
             size="small"
             icon={<EyeOutlined />}
             onClick={() => handleView(record)}
+            style={{ padding: 0 }}
           >
             查看
           </Button>
@@ -228,6 +246,7 @@ const CollectionRecords: React.FC = () => {
               size="small"
               icon={<EditOutlined />}
               onClick={() => handleEdit(record.id)}
+              style={{ padding: 0 }}
             >
               编辑
             </Button>
@@ -238,6 +257,7 @@ const CollectionRecords: React.FC = () => {
               size="small"
               icon={<CloudUploadOutlined />}
               onClick={() => handleListing(record.id)}
+              style={{ padding: 0 }}
             >
               上架
             </Button>
@@ -249,6 +269,7 @@ const CollectionRecords: React.FC = () => {
               danger
               icon={<DeleteOutlined />}
               onClick={() => handleDelete(record.id)}
+              style={{ padding: 0 }}
             >
               删除
             </Button>
@@ -260,6 +281,11 @@ const CollectionRecords: React.FC = () => {
 
   return (
     <div>
+      <style>{`
+        .compact-table .ant-table-cell {
+          padding: 2px 8px !important;
+        }
+      `}</style>
       <PageTitle icon={<DatabaseOutlined />} title="采集记录" />
 
       {/* 过滤栏 */}
@@ -289,6 +315,7 @@ const CollectionRecords: React.FC = () => {
           loading={isLoading}
           rowKey="id"
           scroll={{ x: true }}
+          size="small"
           pagination={{
             current: currentPage,
             pageSize,
@@ -300,6 +327,7 @@ const CollectionRecords: React.FC = () => {
               setPageSize(size);
             },
           }}
+          className="compact-table"
         />
       </Card>
     </div>
