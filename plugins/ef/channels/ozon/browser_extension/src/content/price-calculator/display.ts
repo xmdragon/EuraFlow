@@ -78,7 +78,11 @@ export function injectOrUpdateDisplay(
       '#euraflow-price-text'
     ) as HTMLElement;
     if (priceText) {
-      priceText.innerHTML = `<b>${message}</b>`;
+      // 更新价格值（在第二个span中）
+      const priceValue = priceText.querySelector('.tsHeadline500Medium') as HTMLElement;
+      if (priceValue) {
+        priceValue.innerHTML = message.replace('真实售价：', '');
+      }
     }
 
     // 更新"采集"按钮的数据属性
@@ -118,38 +122,54 @@ export function injectOrUpdateDisplay(
     euraflowContainer.style.padding = '8px 0px';
     euraflowContainer.style.width = '388px';
 
-    // 第一行：真实售价（右对齐）
+    // 第一行：真实售价（使用OZON原生样式）
     const priceRow = document.createElement('div');
-    priceRow.setAttribute('data-v-7f40698a', '');
-    priceRow.className = 'mui-flex mui-flex__aic';
-    priceRow.style.margin = '12px 0px';
-    priceRow.style.justifyContent = 'flex-end';
+    priceRow.style.padding = '8px 0';
 
-    const priceSpan = document.createElement('span');
-    priceSpan.setAttribute('data-v-7f40698a', '');
-    priceSpan.id = 'euraflow-price-text';
-    priceSpan.style.fontSize = '18px';
-    priceSpan.style.fontWeight = 'bold';
-    priceSpan.style.color = '#D84315';
-    priceSpan.innerHTML = `<b>${message}</b>`;
+    const priceText = document.createElement('div');
+    priceText.id = 'euraflow-price-text';
+    priceText.style.display = 'flex';
+    priceText.style.alignItems = 'center';
+    priceText.style.justifyContent = 'space-between';
+    priceText.style.padding = '12px 16px';
+    priceText.style.backgroundColor = '#FFF3E0';
+    priceText.style.borderRadius = '8px';
+    priceText.style.marginBottom = '12px';
 
-    priceRow.appendChild(priceSpan);
+    const priceLabel = document.createElement('span');
+    priceLabel.className = 'tsBody400Medium';
+    priceLabel.style.color = '#757575';
+    priceLabel.textContent = '真实售价';
 
-    // 第二行：跟卖 + 采集按钮（模仿上品帮的布局）
+    const priceValue = document.createElement('span');
+    priceValue.className = 'tsHeadline500Medium';
+    priceValue.style.color = '#D84315';
+    priceValue.innerHTML = message.replace('真实售价：', '');
+
+    priceText.appendChild(priceLabel);
+    priceText.appendChild(priceValue);
+    priceRow.appendChild(priceText);
+
+    // 第二行：跟卖 + 采集按钮（使用OZON原生按钮样式）
     const buttonRow = document.createElement('div');
     buttonRow.id = 'euraflow-button-row';
-    buttonRow.setAttribute('data-v-7f40698a', '');
-    buttonRow.className = 'mui-flex jcsb';
-    buttonRow.style.margin = '12px 0px';
+    buttonRow.style.display = 'flex';
+    buttonRow.style.gap = '8px';
 
-    // 创建"跟卖"按钮（模仿上品帮的样式）
+    // 创建"跟卖"按钮（OZON原生样式）
     const followButton = document.createElement('button');
     followButton.id = 'euraflow-follow-sell';
     followButton.setAttribute('type', 'button');
-    followButton.setAttribute('data-v-7f40698a', '');
-    followButton.className = 'css-dev-only-do-not-override-1xuzwek ant-btn ant-btn-primary mui-flex__cell';
-    followButton.style.marginRight = '12px';
-    followButton.style.backgroundColor = '#1976D2';
+    followButton.className = 'pdp_e9a pdp_fa3 b25_5_1-a0 b25_5_1-b3 b25_5_1-a5';
+    followButton.style.background = 'var(--bgActionPrimary)';
+    followButton.style.color = 'var(--textLightKey)';
+    followButton.style.flex = '1';
+    followButton.style.height = '48px';
+    followButton.style.borderRadius = '8px';
+    followButton.style.border = 'none';
+    followButton.style.cursor = 'pointer';
+    followButton.style.position = 'relative';
+    followButton.style.overflow = 'hidden';
     if (realPrice !== null) {
       followButton.setAttribute('data-price', realPrice.toString());
     }
@@ -157,19 +177,27 @@ export function injectOrUpdateDisplay(
       followButton.setAttribute('data-product', JSON.stringify(productData));
     }
 
-    // 创建按钮内容（带图标）
-    const followIcon = document.createElement('span');
-    followIcon.setAttribute('data-v-7f40698a', '');
-    followIcon.setAttribute('role', 'img');
-    followIcon.setAttribute('aria-label', 'thunderbolt');
-    followIcon.className = 'anticon anticon-thunderbolt';
-    followIcon.innerHTML = '<svg focusable="false" data-icon="thunderbolt" width="1em" height="1em" fill="currentColor" aria-hidden="true" viewBox="64 64 896 896"><path d="M848 359.3H627.7L825.8 109c4.1-5.3.4-13-6.3-13H436c-2.8 0-5.5 1.5-6.9 4L170 547.5c-3.1 5.3.7 12 6.9 12h174.4l-89.4 357.6c-1.9 7.8 7.5 13.3 13.3 7.7L853.5 373c5.2-4.9 1.7-13.7-5.5-13.7zM378.2 732.5l60.3-241H281.1l189.6-327.4h224.6L487 427.4h211L378.2 732.5z"></path></svg>';
+    // 按钮内容容器
+    const followContent = document.createElement('div');
+    followContent.className = 'b25_5_1-a2';
+    followContent.style.display = 'flex';
+    followContent.style.alignItems = 'center';
+    followContent.style.justifyContent = 'center';
+    followContent.style.gap = '4px';
 
-    const followText = document.createElement('span');
+    const followText = document.createElement('div');
+    followText.className = 'b25_5_1-a9 tsBodyControl500Medium';
     followText.textContent = '跟卖';
 
-    followButton.appendChild(followIcon);
-    followButton.appendChild(followText);
+    followContent.appendChild(followText);
+
+    // 按钮波纹效果层
+    const followRipple = document.createElement('div');
+    followRipple.className = 'b25_5_1-a';
+    followRipple.style.backgroundColor = 'var(--textLightKey)';
+
+    followButton.appendChild(followContent);
+    followButton.appendChild(followRipple);
 
     followButton.addEventListener('click', async () => {
       try {
@@ -197,13 +225,20 @@ export function injectOrUpdateDisplay(
       }
     });
 
-    // 创建"采集"按钮（模仿上品帮的样式）
+    // 创建"采集"按钮（OZON原生样式，辅助按钮）
     const collectButton = document.createElement('button');
     collectButton.id = 'euraflow-collect';
     collectButton.setAttribute('type', 'button');
-    collectButton.setAttribute('data-v-7f40698a', '');
-    collectButton.className = 'css-dev-only-do-not-override-1xuzwek ant-btn ant-btn-primary mui-flex__cell';
-    collectButton.style.backgroundColor = '#52c41a';
+    collectButton.className = 'pdp_e9a pdp_fa3 b25_5_1-a0 b25_5_1-b3 b25_5_1-a5';
+    collectButton.style.background = 'var(--bgActionSecondary)';
+    collectButton.style.color = 'var(--textActionPrimary)';
+    collectButton.style.flex = '1';
+    collectButton.style.height = '48px';
+    collectButton.style.borderRadius = '8px';
+    collectButton.style.border = 'none';
+    collectButton.style.cursor = 'pointer';
+    collectButton.style.position = 'relative';
+    collectButton.style.overflow = 'hidden';
     if (realPrice !== null) {
       collectButton.setAttribute('data-price', realPrice.toString());
     }
@@ -211,19 +246,27 @@ export function injectOrUpdateDisplay(
       collectButton.setAttribute('data-product', JSON.stringify(productData));
     }
 
-    // 创建按钮内容（带图标）
-    const collectIcon = document.createElement('span');
-    collectIcon.setAttribute('data-v-7f40698a', '');
-    collectIcon.setAttribute('role', 'img');
-    collectIcon.setAttribute('aria-label', 'dropbox');
-    collectIcon.className = 'anticon anticon-dropbox';
-    collectIcon.innerHTML = '<svg focusable="false" data-icon="dropbox" width="1em" height="1em" fill="currentColor" aria-hidden="true" viewBox="64 64 896 896"><path d="M64 556.9l264.2 173.5L512.5 577 246.8 412.7zm896-290.3zm0 0L696.8 95 512.5 248.5l265.2 164.2L512.5 577l184.3 153.4L960 558.8 777.7 412.7zM513 609.8L328.2 763.3l-79.4-51.5v57.8L513 928l263.7-158.4v-57.8l-78.9 51.5zM328.2 95L64 265.1l182.8 147.6 265.7-164.2zM64 556.9z"></path></svg>';
+    // 按钮内容容器
+    const collectContent = document.createElement('div');
+    collectContent.className = 'b25_5_1-a2';
+    collectContent.style.display = 'flex';
+    collectContent.style.alignItems = 'center';
+    collectContent.style.justifyContent = 'center';
+    collectContent.style.gap = '4px';
 
-    const collectText = document.createElement('span');
+    const collectText = document.createElement('div');
+    collectText.className = 'b25_5_1-a9 tsBodyControl500Medium';
     collectText.textContent = '采集';
 
-    collectButton.appendChild(collectIcon);
-    collectButton.appendChild(collectText);
+    collectContent.appendChild(collectText);
+
+    // 按钮波纹效果层
+    const collectRipple = document.createElement('div');
+    collectRipple.className = 'b25_5_1-a';
+    collectRipple.style.backgroundColor = 'var(--graphicActionPrimary)';
+
+    collectButton.appendChild(collectContent);
+    collectButton.appendChild(collectRipple);
 
     collectButton.addEventListener('click', async () => {
       try {
@@ -244,7 +287,7 @@ export function injectOrUpdateDisplay(
         // 直接发送采集请求，不打开弹窗
         collectButton.disabled = true;
         collectButton.style.opacity = '0.5';
-        collectButton.textContent = '采集中...';
+        collectText.textContent = '采集中...';
 
         const { getApiConfig } = await import('../../shared/storage');
         const config = await getApiConfig();
@@ -253,7 +296,7 @@ export function injectOrUpdateDisplay(
           alert('API未配置，请先配置API');
           collectButton.disabled = false;
           collectButton.style.opacity = '1';
-          collectButton.textContent = '采集';
+          collectText.textContent = '采集';
           return;
         }
 
@@ -279,7 +322,7 @@ export function injectOrUpdateDisplay(
       } finally {
         collectButton.disabled = false;
         collectButton.style.opacity = '1';
-        collectButton.textContent = '采集';
+        collectText.textContent = '采集';
       }
     });
 
