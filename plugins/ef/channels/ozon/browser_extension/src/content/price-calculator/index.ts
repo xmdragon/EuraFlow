@@ -209,8 +209,10 @@ export class RealPriceCalculator {
    * 监听目标容器的变化，防止组件被 OZON 重新渲染时移除
    */
   private setupContainerObserver(): void {
-    // 查找 OZON 商品详情页右侧容器
-    const targetContainer = document.querySelector('div[data-widget="webPdpGrid"]');
+    // 查找 separator 元素的父容器
+    const separator = document.querySelector('div[data-widget="separator"][style*="height:8px"]');
+    const targetContainer = separator?.parentElement;
+
     if (!targetContainer) {
       console.log('[EuraFlow] 未找到目标容器，无法监听');
       return;

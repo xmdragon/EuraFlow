@@ -6,8 +6,8 @@
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
-  // 选择器（找到 OZON 商品详情页右侧容器）
-  targetContainerSelector: 'div[data-widget="webPdpGrid"]',
+  // 选择器（找到 separator 元素作为插入位置的标记）
+  separatorSelector: 'div[data-widget="separator"][style*="height:8px"]',
   // 使用 OZON 风格的命名
   injectedElementId: 'euraflow-widget-price',
   injectedSectionId: 'euraflow-section',
@@ -30,17 +30,17 @@ export function injectOrUpdateDisplay(
     return;
   }
 
-  // 查找 OZON 商品详情页右侧容器
-  const targetContainer = document.querySelector(
-    DISPLAY_CONFIG.targetContainerSelector
+  // 查找 separator 元素（用作插入位置的标记）
+  const separator = document.querySelector(
+    DISPLAY_CONFIG.separatorSelector
   ) as HTMLDivElement | null;
 
-  if (!targetContainer) {
-    console.log('[EuraFlow] 未找到目标容器，跳过注入');
+  if (!separator) {
+    console.log('[EuraFlow] 未找到 separator 元素，跳过注入');
     return;
   }
 
-  console.log('[EuraFlow] 找到目标容器');
+  console.log('[EuraFlow] 找到 separator 元素');
 
   // 检查是否已存在 EuraFlow 区域
   let euraflowSection = document.getElementById(
@@ -87,14 +87,13 @@ export function injectOrUpdateDisplay(
     // 不存在，创建新的 EuraFlow 区域
     console.log('[EuraFlow] 创建新的 EuraFlow 区域');
 
-    // 创建 EuraFlow 容器（模仿上品帮的按钮容器）
+    // 创建 EuraFlow 容器（模仿 OZON 原生组件样式）
     const euraflowContainer = document.createElement('div');
     euraflowContainer.id = DISPLAY_CONFIG.injectedSectionId;
-    euraflowContainer.setAttribute('data-v-7f40698a', '');
-    euraflowContainer.style.paddingRight = '15px';
-    euraflowContainer.style.borderTop = '2px solid #1976D2';
-    euraflowContainer.style.paddingTop = '12px';
-    euraflowContainer.style.marginTop = '12px';
+    euraflowContainer.setAttribute('data-widget', 'webPdpGrid');
+    euraflowContainer.className = 'pdp_as2 pdp_sa8 pdp_sa5 pdp_as6';
+    euraflowContainer.style.padding = '8px 0px';
+    euraflowContainer.style.width = '388px';
 
     // 第一行：EuraFlow 标题 + 真实售价（在同一行）
     const titleRow = document.createElement('div');
@@ -272,10 +271,10 @@ export function injectOrUpdateDisplay(
     euraflowContainer.appendChild(titleRow);
     euraflowContainer.appendChild(buttonRow);
 
-    // 将 EuraFlow 容器插入到目标容器内部（末尾）
-    targetContainer.appendChild(euraflowContainer);
+    // 将 EuraFlow 容器插入到 separator 之前
+    separator.parentNode?.insertBefore(euraflowContainer, separator);
 
-    console.log('[EuraFlow] 已将 EuraFlow 组件注入到 OZON 商品详情页右侧容器');
+    console.log('[EuraFlow] 已将 EuraFlow 组件注入到 separator 之前');
   }
 }
 
@@ -295,5 +294,6 @@ export function removeDisplay(): void {
  * 获取目标容器元素（用于检查页面是否准备好）
  */
 export function getTargetContainer(): Element | null {
-  return document.querySelector(DISPLAY_CONFIG.targetContainerSelector);
+  const separator = document.querySelector(DISPLAY_CONFIG.separatorSelector);
+  return separator?.parentElement || null;
 }
