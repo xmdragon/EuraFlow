@@ -9,7 +9,6 @@ import {
   Button,
   Space,
   Card,
-  Image,
   App,
   Form,
 } from 'antd';
@@ -17,6 +16,7 @@ import dayjs from 'dayjs';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
@@ -172,24 +172,14 @@ const CollectionRecords: React.FC = () => {
       key: 'image',
       width: 100,
       render: (product_data: CollectionRecord['product_data']) => {
-        const images = product_data?.images || [];
-        const imageUrl = images[0];
-        return imageUrl ? (
-          <Image.PreviewGroup items={images}>
-            <Image src={imageUrl} alt="商品图片" width={80} height={80} />
-          </Image.PreviewGroup>
-        ) : (
-          <div style={{ width: 80, height: 80, background: '#f0f0f0' }} />
+        const imageUrl = product_data?.images?.[0];
+        return (
+          <ProductImage
+            imageUrl={imageUrl}
+            size="small"
+            hoverBehavior="medium"
+          />
         );
-      },
-    },
-    {
-      title: 'SKU',
-      dataIndex: 'product_data',
-      key: 'sku',
-      width: 120,
-      render: (product_data: CollectionRecord['product_data']) => {
-        return product_data?.product_id || '-';
       },
     },
     {
