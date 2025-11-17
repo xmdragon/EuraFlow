@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EuraFlow OZON选品助手",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "智能采集OZON商品数据，支持上品帮和毛子ERP数据融合，商品详情页显示真实售价",
   "permissions": [
     "storage",
@@ -9,8 +9,7 @@
     "cookies"
   ],
   "host_permissions": [
-    "https://www.ozon.ru/*",
-    "https://seller.ozon.ru/*",
+    "https://*.ozon.ru/*",
     "https://euraflow.hjdtrading.com/*",
     "http://localhost:8000/*",
     "https://*.shopbang.cn/*"

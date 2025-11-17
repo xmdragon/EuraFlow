@@ -648,51 +648,62 @@ async function callShangpinbangAPIWithAutoRefresh(
  * 参考 spbang 插件的实现：使用 .ozon.ru 域名 + partitionKey
  */
 async function getOzonSellerCookies(): Promise<string> {
-  console.log('[OZON API] 开始读取 OZON Cookie...');
+  console.log('[OZON API] ========== 开始读取 OZON Cookie ==========');
 
   try {
-    // 1. 先获取普通 Cookie（域名：.ozon.ru）
-    const normalCookies = await chrome.cookies.getAll({ domain: '.ozon.ru' });
-    console.log(`[OZON API] 从 .ozon.ru 获取到 ${normalCookies.length} 个普通 Cookie`);
+    // 1. 尝试多种域名格式
+    const domains = ['.ozon.ru', 'ozon.ru', '.seller.ozon.ru', 'seller.ozon.ru'];
+    let allCookies: chrome.cookies.Cookie[] = [];
+
+    for (const domain of domains) {
+      const cookies = await chrome.cookies.getAll({ domain });
+      console.log(`[OZON API] 从 ${domain} 获取到 ${cookies.length} 个 Cookie`);
+      if (cookies.length > 0) {
+        console.log(`[OZON API] Cookie 名称:`, cookies.map(c => c.name).join(', '));
+        allCookies = allCookies.concat(cookies);
+      }
+    }
 
     // 2. 等待 2 秒（让 Cookie 加载完成）
+    console.log('[OZON API] 等待 2 秒...');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // 3. 获取分区 Cookie（带 partitionKey）
-    // 注意：partitionKey 是 Chrome 的实验性 API，TypeScript 类型可能不支持
+    // 3. 尝试获取分区 Cookie（带 partitionKey）
+    console.log('[OZON API] 尝试获取分区 Cookie...');
     const partitionKey: any = { topLevelSite: 'https://www.ozon.ru' };
-    let partitionedCookies: chrome.cookies.Cookie[] = [];
     try {
-      partitionedCookies = await chrome.cookies.getAll({
+      const partitionedCookies = await chrome.cookies.getAll({
         domain: '.ozon.ru',
         partitionKey
       } as any);
       console.log(`[OZON API] 从 .ozon.ru (partitionKey) 获取到 ${partitionedCookies.length} 个分区 Cookie`);
+
+      const validPartitionedCookie = partitionedCookies.find(
+        (cookie: any) => cookie.partitionKey && cookie.partitionKey.hasCrossSiteAncestor === false
+      );
+
+      if (validPartitionedCookie) {
+        console.log(`[OZON API] 找到有效的分区 Cookie: ${validPartitionedCookie.name}`);
+        allCookies.push(validPartitionedCookie);
+      }
     } catch (error) {
-      console.log('[OZON API] 不支持 partitionKey 或获取失败，跳过分区 Cookie');
+      console.log('[OZON API] 不支持 partitionKey 或获取失败:', error);
     }
 
-    // 4. 找到没有跨站祖先的分区 Cookie
-    const validPartitionedCookie = partitionedCookies.find(
-      (cookie: any) => cookie.partitionKey && cookie.partitionKey.hasCrossSiteAncestor === false
-    );
-
-    // 5. 合并 Cookie
-    const allCookies = [...normalCookies];
-    if (validPartitionedCookie) {
-      console.log(`[OZON API] 找到有效的分区 Cookie: ${validPartitionedCookie.name}`);
-      allCookies.push(validPartitionedCookie);
-    }
+    // 4. 检查是否获取到 Cookie
+    console.log(`[OZON API] 总共获取到 ${allCookies.length} 个 Cookie`);
 
     if (allCookies.length === 0) {
-      console.error('[OZON API] 未找到任何 OZON Cookie');
-      console.error('[OZON API] 请确认：');
-      console.error('[OZON API] 1. 已登录 https://seller.ozon.ru');
-      console.error('[OZON API] 2. 扩展已重新加载（chrome://extensions/ 点击刷新按钮）');
+      console.error('[OZON API] ========== 错误：未找到任何 OZON Cookie ==========');
+      console.error('[OZON API] 请按以下步骤排查：');
+      console.error('[OZON API] 1. 在新标签页打开 https://seller.ozon.ru 并登录');
+      console.error('[OZON API] 2. 按 F12 打开控制台，输入 document.cookie 查看是否有 Cookie');
+      console.error('[OZON API] 3. 在 chrome://extensions/ 页面点击扩展的刷新按钮');
+      console.error('[OZON API] 4. 重新访问商品页面');
       throw new Error('未找到 OZON Cookie，请先登录 OZON Seller 后台并重新加载扩展');
     }
 
-    // 6. 去重并拼接 Cookie 字符串
+    // 5. 去重并拼接 Cookie 字符串
     const uniqueCookies = Array.from(
       new Map(allCookies.map(c => [c.name, c])).values()
     );
@@ -701,8 +712,8 @@ async function getOzonSellerCookies(): Promise<string> {
       .map(cookie => `${cookie.name}=${cookie.value}`)
       .join('; ');
 
-    console.log(`[OZON API] 成功获取 ${uniqueCookies.length} 个有效 Cookie`);
-    console.log(`[OZON API] Cookie 名称: ${uniqueCookies.map(c => c.name).slice(0, 10).join(', ')}...`);
+    console.log(`[OZON API] ========== 成功获取 ${uniqueCookies.length} 个有效 Cookie ==========`);
+    console.log(`[OZON API] Cookie 前10个: ${uniqueCookies.map(c => c.name).slice(0, 10).join(', ')}`);
 
     return cookieString;
 
