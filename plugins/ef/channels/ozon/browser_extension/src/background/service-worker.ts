@@ -724,24 +724,34 @@ async function getOzonSellerCookies(): Promise<string> {
 }
 
 /**
- * 从 Cookie 中提取 sellerId
+ * 从 Cookie 字符串中提取 sellerId
+ * 参考 spbang：从 Cookie 中匹配 sc_company_id=数字
  */
-async function getOzonSellerId(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    chrome.cookies.get(
-      { url: 'https://seller.ozon.ru', name: '_ozonSellerId' },
-      (cookie) => {
-        if (!cookie) {
-          reject(new Error('未找到 OZON Seller ID，请先登录 OZON Seller 后台'));
-          return;
-        }
+async function getOzonSellerId(cookieString: string): Promise<number> {
+  console.log('[OZON API] 从 Cookie 中提取 Seller ID...');
 
-        const sellerId = parseInt(cookie.value, 10);
-        console.log('[OZON API] Seller ID:', sellerId);
-        resolve(sellerId);
-      }
-    );
-  });
+  // 1. 尝试匹配 sc_company_id=数字
+  let match = cookieString.match(/sc_company_id=(\d+)/);
+
+  if (match && match[1]) {
+    const sellerId = parseInt(match[1], 10);
+    console.log(`[OZON API] 从 sc_company_id 提取到 Seller ID: ${sellerId}`);
+    return sellerId;
+  }
+
+  // 2. 尝试匹配 contentId=数字（备用方案）
+  match = cookieString.match(/contentId=(\d+)/);
+  if (match && match[1]) {
+    const sellerId = parseInt(match[1], 10);
+    console.log(`[OZON API] 从 contentId 提取到 Seller ID: ${sellerId}`);
+    return sellerId;
+  }
+
+  // 3. 都没有找到，抛出错误
+  console.error('[OZON API] Cookie 内容:', cookieString.substring(0, 200) + '...');
+  console.error('[OZON API] 未找到 sc_company_id 或 contentId');
+  console.error('[OZON API] 请确认已登录 OZON Seller 后台');
+  throw new Error('未找到 OZON Seller ID，请先登录 OZON Seller 后台');
 }
 
 /**
@@ -756,19 +766,25 @@ async function handleGetOzonProductDetail(data: { productSku: string }) {
     // 1. 获取 OZON Seller Cookie
     const cookieString = await getOzonSellerCookies();
 
-    // 2. 获取 Seller ID
-    const sellerId = await getOzonSellerId();
+    // 2. 从 Cookie 字符串中提取 Seller ID
+    const sellerId = await getOzonSellerId(cookieString);
 
-    // 3. 调用 OZON search-variant-model API
+    // 3. 调用 OZON search-variant-model API（参考 spbang 的 headers）
     const response = await fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': cookieString
+        'Cookie': cookieString,
+        'x-o3-company-id': sellerId.toString(),
+        'x-o3-app-name': 'seller-ui',
+        'x-o3-language': 'zh-Hans',
+        'x-o3-page-type': 'products-other',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache'
       },
       body: JSON.stringify({
-        name: productSku,
-        sellerId: sellerId
+        limit: '10',
+        name: productSku
       })
     });
 
