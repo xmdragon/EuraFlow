@@ -101,6 +101,46 @@ const CollectionRecords: React.FC = () => {
     });
   };
 
+  // 查看记录详情
+  const handleView = (record: CollectionRecord) => {
+    modal.info({
+      title: '商品详情',
+      width: 800,
+      content: (
+        <div>
+          <p><strong>来源链接：</strong><a href={record.source_url} target="_blank" rel="noopener noreferrer">{record.source_url}</a></p>
+          <p><strong>商品标题：</strong>{record.product_data?.title || '-'}</p>
+          <p><strong>中文标题：</strong>{record.product_data?.title_cn || '-'}</p>
+          <p><strong>创建时间：</strong>{dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}</p>
+          <p><strong>商品数据：</strong></p>
+          <pre style={{ maxHeight: 400, overflow: 'auto', background: '#f5f5f5', padding: 12, borderRadius: 4 }}>
+            {JSON.stringify(record.product_data, null, 2)}
+          </pre>
+        </div>
+      ),
+    });
+  };
+
+  // 编辑记录（跳转到新建商品页并填充数据）
+  const handleEdit = async (recordId: number) => {
+    try {
+      const response = await axios.post(`/api/ef/v1/ozon/collection-records/${recordId}/to-draft`);
+      const draftData = response.data.data.draft_data;
+
+      // 跳转到新建商品页，携带草稿数据
+      navigate('/dashboard/ozon/products/create', {
+        state: {
+          draftData,
+          source: 'collection_record',
+          sourceRecordId: recordId,
+        },
+      });
+    } catch (error) {
+      loggers.api.error('Convert to draft failed', { error });
+      notifyError('转换失败');
+    }
+  };
+
   // 上架（跳转到新建商品页并填充数据）
   const handleListing = async (recordId: number) => {
     try {
@@ -171,14 +211,24 @@ const CollectionRecords: React.FC = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 240,
+      width: 280,
       render: (_: unknown, record: CollectionRecord) => (
         <Space>
-          <Button type="link" size="small" icon={<EyeOutlined />}>
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleView(record)}
+          >
             查看
           </Button>
           {canOperate && (
-            <Button type="link" size="small" icon={<EditOutlined />}>
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record.id)}
+            >
               编辑
             </Button>
           )}
