@@ -100,6 +100,42 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
 
     return true;
   }
+
+  if (message.type === 'SPB_LOGIN') {
+    // 上品帮登录
+    handleShangpinbangLogin(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message.type === 'SPB_GET_TOKEN') {
+    // 获取上品帮Token
+    handleGetShangpinbangToken()
+      .then(token => sendResponse({ success: true, data: { token } }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message.type === 'SPB_API_CALL') {
+    // 调用上品帮 API（支持自动 Token 刷新）
+    handleShangpinbangAPICall(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
+  if (message.type === 'GET_OZON_PRODUCT_DETAIL') {
+    // 获取 OZON 商品详情
+    handleGetOzonProductDetail(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
 });
 
 /**
@@ -379,6 +415,393 @@ async function handleCollectProduct(data: { apiUrl: string; apiKey: string; sour
   }
 
   return await response.json();
+}
+
+// ========== 上品帮登录功能 ==========
+
+/**
+ * 处理上品帮登录
+ */
+async function handleShangpinbangLogin(data: { phone: string; password: string }) {
+  const { phone, password } = data;
+
+  console.log('[上品帮登录] 发起登录请求, 手机号:', phone);
+
+  try {
+    const response = await fetch('https://plus.shopbang.cn/api/user/open/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ phone, pwd: password })
+    });
+
+    console.log('[上品帮登录] 响应状态:', response.status);
+
+    // 解析响应
+    const result = await response.json();
+    console.log('[上品帮登录] 响应数据:', { code: result.code, message: result.message });
+
+    // 判断登录结果
+    if (result.code === 0 && result.data && result.data.token) {
+      // 登录成功，存储token
+      const token = result.data.token;
+      await chrome.storage.sync.set({
+        spbToken: token,
+        spbPhone: phone,
+        spbPassword: password
+      });
+
+      console.log('[上品帮登录] 登录成功，Token已存储');
+
+      return {
+        success: true,
+        token: token,
+        message: result.message
+      };
+    } else if (result.code === -1) {
+      // 登录失败（密码错误或手机号未注册）
+      console.warn('[上品帮登录] 登录失败:', result.message);
+      throw new Error(result.message);
+    } else {
+      // 其他未知错误
+      console.error('[上品帮登录] 未知错误:', result);
+      throw new Error('登录失败，服务器返回异常数据');
+    }
+  } catch (error: any) {
+    console.error('[上品帮登录] 错误:', error);
+
+    // 区分网络错误和业务错误
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      throw new Error('网络连接失败，请检查网络');
+    } else {
+      throw error;
+    }
+  }
+}
+
+/**
+ * 获取上品帮Token
+ */
+async function handleGetShangpinbangToken(): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(['spbToken'], (result) => {
+      resolve(result.spbToken);
+    });
+  });
+}
+
+/**
+ * 获取上品帮完整配置（包括账号密码）
+ */
+async function getShangpinbangCredentials(): Promise<{ phone: string; password: string; token?: string } | null> {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(['spbPhone', 'spbPassword', 'spbToken'], (result) => {
+      if (!result.spbPhone || !result.spbPassword) {
+        resolve(null);
+      } else {
+        resolve({
+          phone: result.spbPhone,
+          password: result.spbPassword,
+          token: result.spbToken
+        });
+      }
+    });
+  });
+}
+
+/**
+ * 检测是否为 Token 过期错误
+ */
+function isTokenExpiredError(responseData: any): boolean {
+  if (responseData.code !== -1) {
+    return false;
+  }
+
+  const message = (responseData.message || '').toLowerCase();
+  const tokenRelatedKeywords = [
+    'token',
+    '登录',
+    '登陆',
+    '过期',
+    '失效',
+    '未登录',
+    '请登录',
+    'expired',
+    'unauthorized',
+    'not logged in'
+  ];
+
+  return tokenRelatedKeywords.some(keyword => message.includes(keyword));
+}
+
+/**
+ * 处理上品帮 API 调用请求
+ */
+async function handleShangpinbangAPICall(data: { apiUrl: string; apiType: string; params: Record<string, any> }) {
+  const { apiUrl, apiType, params } = data;
+  return await callShangpinbangAPIWithAutoRefresh(apiUrl, apiType, params);
+}
+
+/**
+ * 通用上品帮 API 调用函数（支持自动 Token 刷新）
+ *
+ * @param apiUrl - API 地址（如：https://api.shopbang.cn/api/goods/collect）
+ * @param apiType - API 类型（如：goodsCollect）
+ * @param params - API 参数
+ * @param retryCount - 当前重试次数（内部使用，外部调用时不传）
+ * @returns API 响应数据
+ */
+async function callShangpinbangAPIWithAutoRefresh(
+  apiUrl: string,
+  apiType: string,
+  params: Record<string, any>,
+  retryCount: number = 0
+): Promise<any> {
+  // 获取配置（包括 token 和账号密码）
+  const credentials = await getShangpinbangCredentials();
+
+  if (!credentials) {
+    throw new Error('未配置上品帮账号密码，请先在扩展配置中设置');
+  }
+
+  if (!credentials.token) {
+    console.log('[上品帮 API] Token 不存在，尝试自动登录...');
+    // Token 不存在，先尝试登录
+    try {
+      const loginResult = await handleShangpinbangLogin({
+        phone: credentials.phone,
+        password: credentials.password
+      });
+      credentials.token = loginResult.token;
+    } catch (error: any) {
+      throw new Error(`自动登录失败: ${error.message}`);
+    }
+  }
+
+  // 调用 API
+  console.log(`[上品帮 API] 调用 ${apiType}, URL: ${apiUrl}`);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        token: credentials.token,
+        apiType: apiType,
+        ...params
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log(`[上品帮 API] ${apiType} 响应:`, { code: result.code, message: result.message });
+
+    // 检测是否为 Token 过期错误
+    if (isTokenExpiredError(result)) {
+      if (retryCount >= 1) {
+        // 已经重试过一次，不再重试
+        console.error('[上品帮 API] Token 刷新后仍然失败，停止重试');
+        throw new Error(`Token 已失效: ${result.message}`);
+      }
+
+      console.warn('[上品帮 API] 检测到 Token 过期，尝试重新登录...');
+
+      // 重新登录
+      try {
+        await handleShangpinbangLogin({
+          phone: credentials.phone,
+          password: credentials.password
+        });
+
+        console.log('[上品帮 API] 重新登录成功，重试原请求...');
+
+        // 递归重试（retryCount + 1）
+        return await callShangpinbangAPIWithAutoRefresh(apiUrl, apiType, params, retryCount + 1);
+      } catch (loginError: any) {
+        throw new Error(`自动重新登录失败: ${loginError.message}`);
+      }
+    }
+
+    // 返回 API 响应
+    return result;
+  } catch (error: any) {
+    console.error(`[上品帮 API] ${apiType} 调用失败:`, error);
+
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      throw new Error('网络连接失败，请检查网络');
+    } else {
+      throw error;
+    }
+  }
+}
+
+// ========== OZON API 集成 ==========
+
+/**
+ * 获取 OZON Seller 的所有 Cookie
+ * 参考 spbang 插件的实现：使用 .ozon.ru 域名 + partitionKey
+ */
+async function getOzonSellerCookies(): Promise<string> {
+  console.log('[OZON API] 开始读取 OZON Cookie...');
+
+  try {
+    // 1. 先获取普通 Cookie（域名：.ozon.ru）
+    const normalCookies = await chrome.cookies.getAll({ domain: '.ozon.ru' });
+    console.log(`[OZON API] 从 .ozon.ru 获取到 ${normalCookies.length} 个普通 Cookie`);
+
+    // 2. 等待 2 秒（让 Cookie 加载完成）
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // 3. 获取分区 Cookie（带 partitionKey）
+    // 注意：partitionKey 是 Chrome 的实验性 API，TypeScript 类型可能不支持
+    const partitionKey: any = { topLevelSite: 'https://www.ozon.ru' };
+    let partitionedCookies: chrome.cookies.Cookie[] = [];
+    try {
+      partitionedCookies = await chrome.cookies.getAll({
+        domain: '.ozon.ru',
+        partitionKey
+      } as any);
+      console.log(`[OZON API] 从 .ozon.ru (partitionKey) 获取到 ${partitionedCookies.length} 个分区 Cookie`);
+    } catch (error) {
+      console.log('[OZON API] 不支持 partitionKey 或获取失败，跳过分区 Cookie');
+    }
+
+    // 4. 找到没有跨站祖先的分区 Cookie
+    const validPartitionedCookie = partitionedCookies.find(
+      (cookie: any) => cookie.partitionKey && cookie.partitionKey.hasCrossSiteAncestor === false
+    );
+
+    // 5. 合并 Cookie
+    const allCookies = [...normalCookies];
+    if (validPartitionedCookie) {
+      console.log(`[OZON API] 找到有效的分区 Cookie: ${validPartitionedCookie.name}`);
+      allCookies.push(validPartitionedCookie);
+    }
+
+    if (allCookies.length === 0) {
+      console.error('[OZON API] 未找到任何 OZON Cookie');
+      console.error('[OZON API] 请确认：');
+      console.error('[OZON API] 1. 已登录 https://seller.ozon.ru');
+      console.error('[OZON API] 2. 扩展已重新加载（chrome://extensions/ 点击刷新按钮）');
+      throw new Error('未找到 OZON Cookie，请先登录 OZON Seller 后台并重新加载扩展');
+    }
+
+    // 6. 去重并拼接 Cookie 字符串
+    const uniqueCookies = Array.from(
+      new Map(allCookies.map(c => [c.name, c])).values()
+    );
+
+    const cookieString = uniqueCookies
+      .map(cookie => `${cookie.name}=${cookie.value}`)
+      .join('; ');
+
+    console.log(`[OZON API] 成功获取 ${uniqueCookies.length} 个有效 Cookie`);
+    console.log(`[OZON API] Cookie 名称: ${uniqueCookies.map(c => c.name).slice(0, 10).join(', ')}...`);
+
+    return cookieString;
+
+  } catch (error: any) {
+    console.error('[OZON API] Cookie 读取失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 从 Cookie 中提取 sellerId
+ */
+async function getOzonSellerId(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    chrome.cookies.get(
+      { url: 'https://seller.ozon.ru', name: '_ozonSellerId' },
+      (cookie) => {
+        if (!cookie) {
+          reject(new Error('未找到 OZON Seller ID，请先登录 OZON Seller 后台'));
+          return;
+        }
+
+        const sellerId = parseInt(cookie.value, 10);
+        console.log('[OZON API] Seller ID:', sellerId);
+        resolve(sellerId);
+      }
+    );
+  });
+}
+
+/**
+ * 处理获取 OZON 商品详情请求
+ */
+async function handleGetOzonProductDetail(data: { productSku: string }) {
+  const { productSku } = data;
+
+  console.log('[OZON API] 获取商品详情, SKU:', productSku);
+
+  try {
+    // 1. 获取 OZON Seller Cookie
+    const cookieString = await getOzonSellerCookies();
+
+    // 2. 获取 Seller ID
+    const sellerId = await getOzonSellerId();
+
+    // 3. 调用 OZON search-variant-model API
+    const response = await fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookieString
+      },
+      body: JSON.stringify({
+        name: productSku,
+        sellerId: sellerId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('[OZON API] 获取商品详情成功, 商品数:', result.items?.length || 0);
+
+    // 4. 提取尺寸和重量（如果存在）
+    if (result.items && result.items.length > 0) {
+      const attrs = result.items[0].attributes || [];
+      const findAttr = (key: string) => {
+        const attr = attrs.find((a: any) => a.key == key);
+        return attr ? attr.value : null;
+      };
+
+      const dimensions = {
+        weight: findAttr('4497'),   // 重量（克）
+        depth: findAttr('9454'),    // 深度（毫米）
+        width: findAttr('9455'),    // 宽度（毫米）
+        height: findAttr('9456')    // 高度（毫米）
+      };
+
+      console.log('[OZON API] 尺寸和重量:', dimensions);
+
+      // 将尺寸信息附加到结果中
+      return {
+        ...result,
+        dimensions: dimensions
+      };
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('[OZON API] 获取商品详情失败:', error);
+
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      throw new Error('网络连接失败，请检查网络');
+    } else {
+      throw error;
+    }
+  }
 }
 
 // 导出类型（供TypeScript使用）

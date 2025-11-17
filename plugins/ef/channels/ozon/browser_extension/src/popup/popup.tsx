@@ -5,12 +5,16 @@ import {
   setApiConfig,
   getCollectorConfig,
   setCollectorConfig,
-  testApiConnection
+  testApiConnection,
+  getShangpinbangConfig
 } from '../shared/storage';
-import type { ApiConfig, CollectorConfig } from '../shared/types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig } from '../shared/types';
 import './popup.scss';
 
 function Popup() {
+  // 标签页状态
+  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'collector'>('api');
+
   // API配置
   const [apiConfig, setApiConfigState] = useState<ApiConfig>({
     apiUrl: '',
@@ -24,19 +28,33 @@ function Popup() {
     scrollWaitTime: 1000
   });
 
+  // 上品帮配置
+  const [spbConfig, setSpbConfig] = useState<ShangpinbangConfig>({
+    phone: '',
+    password: '',
+    token: undefined
+  });
+
   // UI状态
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
 
+  // 上品帮登录状态
+  const [isSpbLoggingIn, setIsSpbLoggingIn] = useState(false);
+  const [spbLoginResult, setSpbLoginResult] = useState<'success' | 'error' | null>(null);
+  const [spbLoginMessage, setSpbLoginMessage] = useState('');
+
   // 加载配置
   useEffect(() => {
     const loadConfig = async () => {
       const api = await getApiConfig();
       const collector = await getCollectorConfig();
+      const spb = await getShangpinbangConfig();
       setApiConfigState(api);
       setCollectorConfigState(collector);
+      setSpbConfig(spb);
     };
     loadConfig();
   }, []);
@@ -78,160 +96,260 @@ function Popup() {
     }
   };
 
+  // 上品帮登录
+  const handleSpbLogin = async () => {
+    if (!spbConfig.phone || !spbConfig.password) {
+      setSpbLoginResult('error');
+      setSpbLoginMessage('请填写手机号和密码');
+      return;
+    }
+
+    setIsSpbLoggingIn(true);
+    setSpbLoginResult(null);
+    setSpbLoginMessage('');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'SPB_LOGIN',
+        data: {
+          phone: spbConfig.phone,
+          password: spbConfig.password
+        }
+      });
+
+      if (response.success) {
+        setSpbLoginResult('success');
+        setSpbLoginMessage('✓ 登录成功');
+        // 更新本地token状态
+        setSpbConfig({ ...spbConfig, token: response.data.token });
+        setTimeout(() => {
+          setSpbLoginResult(null);
+          setSpbLoginMessage('');
+        }, 3000);
+      } else {
+        setSpbLoginResult('error');
+        setSpbLoginMessage(`✗ ${response.error || '登录失败'}`);
+      }
+    } catch (error: any) {
+      setSpbLoginResult('error');
+      setSpbLoginMessage(`✗ ${error.message || '登录失败'}`);
+    } finally {
+      setIsSpbLoggingIn(false);
+    }
+  };
+
   return (
     <div className="popup-container">
       <header className="popup-header">
-        <h1>🛒 EuraFlow 选品助手</h1>
-        <p className="version">v1.3.0</p>
+        <h1>EuraFlow 选品助手</h1>
+        <p className="version">v1.4.1</p>
       </header>
 
-      {/* API配置 */}
-      <section className="popup-section">
-        <h2>API 配置</h2>
+      {/* 标签页导航 */}
+      <nav className="tab-nav">
+        <button
+          className={`tab-button ${activeTab === 'api' ? 'active' : ''}`}
+          onClick={() => setActiveTab('api')}
+        >
+          API配置
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'spb' ? 'active' : ''}`}
+          onClick={() => setActiveTab('spb')}
+        >
+          上品帮
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'collector' ? 'active' : ''}`}
+          onClick={() => setActiveTab('collector')}
+        >
+          采集参数
+        </button>
+      </nav>
 
-        <div className="form-group">
-          <label className="form-label">API URL:</label>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="https://your-euraflow-api.com/api/ef/v1"
-            value={apiConfig.apiUrl}
-            onChange={(e) => setApiConfigState({ ...apiConfig, apiUrl: e.target.value })}
-          />
-        </div>
+      {/* 标签页内容 */}
+      <div className="tab-content">
+        {/* API配置 */}
+        {activeTab === 'api' && (
+          <div className="tab-panel">
+            <div className="form-group">
+              <label className="form-label">API URL:</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="https://euraflow.hjdtrading.com"
+                value={apiConfig.apiUrl}
+                onChange={(e) => setApiConfigState({ ...apiConfig, apiUrl: e.target.value })}
+              />
+              <p className="hint">只需填写域名，不需要带路径</p>
+            </div>
 
-        <div className="form-group">
-          <label className="form-label">API Key:</label>
-          <input
-            type="password"
-            className="form-input"
-            placeholder="your-api-key"
-            value={apiConfig.apiKey}
-            onChange={(e) => setApiConfigState({ ...apiConfig, apiKey: e.target.value })}
-          />
-        </div>
-      </section>
+            <div className="form-group">
+              <label className="form-label">API Key:</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="your-api-key"
+                value={apiConfig.apiKey}
+                onChange={(e) => setApiConfigState({ ...apiConfig, apiKey: e.target.value })}
+              />
+            </div>
 
-      {/* 采集参数 */}
-      <section className="popup-section">
-        <h2>采集参数</h2>
+            <div className="button-group">
+              <button
+                className="btn btn-secondary"
+                onClick={handleTestConnection}
+                disabled={isTesting || !apiConfig.apiUrl || !apiConfig.apiKey}
+              >
+                {isTesting ? '测试中...' : '测试连接'}
+              </button>
 
-        <div className="form-group">
-          <label className="form-label">默认采集数量:</label>
-          <input
-            type="number"
-            className="form-input"
-            min={1}
-            max={1000}
-            value={collectorConfig.targetCount}
-            onChange={(e) =>
-              setCollectorConfigState({
-                ...collectorConfig,
-                targetCount: parseInt(e.target.value) || 100
-              })
-            }
-          />
-        </div>
+              <button
+                className="btn btn-primary"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? '保存中...' : '保存配置'}
+              </button>
+            </div>
 
-        <div className="form-group">
-          <label className="form-label">滚动延迟 (毫秒):</label>
-          <input
-            type="number"
-            className="form-input"
-            min={1000}
-            max={30000}
-            step={1000}
-            value={collectorConfig.scrollDelay}
-            onChange={(e) =>
-              setCollectorConfigState({
-                ...collectorConfig,
-                scrollDelay: parseInt(e.target.value) || 5000
-              })
-            }
-          />
-          <p className="hint">防反爬虫延迟，建议 3000-8000ms</p>
-        </div>
+            {testResult && (
+              <p className={`test-result ${testResult}`}>
+                {testResult === 'success' ? '✓ 连接成功' : '✗ 连接失败'}
+              </p>
+            )}
 
-        <div className="form-group">
-          <label className="form-label">加载等待时间 (毫秒):</label>
-          <input
-            type="number"
-            className="form-input"
-            min={500}
-            max={10000}
-            step={500}
-            value={collectorConfig.scrollWaitTime}
-            onChange={(e) =>
-              setCollectorConfigState({
-                ...collectorConfig,
-                scrollWaitTime: parseInt(e.target.value) || 1000
-              })
-            }
-          />
-          <p className="hint">滚动后等待内容加载的时间</p>
-        </div>
-      </section>
-
-      {/* 操作按钮 */}
-      <section className="popup-section">
-        <div className="button-group">
-          <button
-            className="btn btn-secondary"
-            onClick={handleTestConnection}
-            disabled={isTesting || !apiConfig.apiUrl || !apiConfig.apiKey}
-          >
-            {isTesting ? '测试中...' : '测试连接'}
-          </button>
-
-          <button
-            className="btn btn-primary"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? '保存中...' : '保存配置'}
-          </button>
-        </div>
-
-        {testResult && (
-          <p className={`test-result ${testResult}`}>
-            {testResult === 'success' ? '✓ 连接成功' : '✗ 连接失败'}
-          </p>
+            {saveMessage && (
+              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
+                {saveMessage}
+              </p>
+            )}
+          </div>
         )}
 
-        {saveMessage && (
-          <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
-            {saveMessage}
-          </p>
+        {/* 上品帮配置 */}
+        {activeTab === 'spb' && (
+          <div className="tab-panel">
+            <div className="form-group">
+              <label className="form-label">手机号:</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="请输入手机号"
+                value={spbConfig.phone}
+                onChange={(e) => setSpbConfig({ ...spbConfig, phone: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">密码:</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="请输入密码"
+                value={spbConfig.password}
+                onChange={(e) => setSpbConfig({ ...spbConfig, password: e.target.value })}
+              />
+            </div>
+
+            <div className="button-group">
+              <button
+                className="btn btn-primary"
+                onClick={handleSpbLogin}
+                disabled={isSpbLoggingIn || !spbConfig.phone || !spbConfig.password}
+              >
+                {isSpbLoggingIn ? '登录中...' : '测试登录'}
+              </button>
+
+              {spbConfig.token && (
+                <span className="spb-status success">✓ 已登录</span>
+              )}
+            </div>
+
+            {spbLoginMessage && (
+              <p className={`test-result ${spbLoginResult}`}>
+                {spbLoginMessage}
+              </p>
+            )}
+
+            <p className="hint">用于后续直接调用上品帮 API</p>
+          </div>
         )}
-      </section>
 
-      {/* 使用说明 */}
-      <section className="popup-section usage-section">
-        <h2>使用说明</h2>
-        <ol className="usage-list">
-          <li>访问 OZON 商品列表页面（如搜索结果、分类页面）</li>
-          <li>等待数据源工具（上品帮/毛子ERP）加载完成</li>
-          <li>点击页面右上角的控制面板中的"开始采集"按钮</li>
-          <li>采集完成后数据将自动上传到 EuraFlow（如启用自动上传）</li>
-        </ol>
-      </section>
+        {/* 采集参数 */}
+        {activeTab === 'collector' && (
+          <div className="tab-panel">
+            <div className="form-group">
+              <label className="form-label">默认采集数量:</label>
+              <input
+                type="number"
+                className="form-input"
+                min={1}
+                max={1000}
+                value={collectorConfig.targetCount}
+                onChange={(e) =>
+                  setCollectorConfigState({
+                    ...collectorConfig,
+                    targetCount: parseInt(e.target.value) || 100
+                  })
+                }
+              />
+            </div>
 
-      {/* 调试方法 */}
-      <section className="popup-section debug-section">
-        <h2>调试方法</h2>
-        <p className="debug-description">
-          如需查看详细的调试日志，请在浏览器控制台（F12）执行以下命令：
-        </p>
-        <div className="code-block">
-          <code>localStorage.setItem('EURAFLOW_DEBUG', 'true')</code>
-        </div>
-        <p className="debug-hint">
-          刷新页面后生效。关闭调试模式：
-        </p>
-        <div className="code-block">
-          <code>localStorage.removeItem('EURAFLOW_DEBUG')</code>
-        </div>
-      </section>
+            <div className="form-group">
+              <label className="form-label">滚动延迟 (毫秒):</label>
+              <input
+                type="number"
+                className="form-input"
+                min={1000}
+                max={30000}
+                step={1000}
+                value={collectorConfig.scrollDelay}
+                onChange={(e) =>
+                  setCollectorConfigState({
+                    ...collectorConfig,
+                    scrollDelay: parseInt(e.target.value) || 5000
+                  })
+                }
+              />
+              <p className="hint">防反爬虫延迟，建议 3000-8000ms</p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">加载等待时间 (毫秒):</label>
+              <input
+                type="number"
+                className="form-input"
+                min={500}
+                max={10000}
+                step={500}
+                value={collectorConfig.scrollWaitTime}
+                onChange={(e) =>
+                  setCollectorConfigState({
+                    ...collectorConfig,
+                    scrollWaitTime: parseInt(e.target.value) || 1000
+                  })
+                }
+              />
+              <p className="hint">滚动后等待内容加载的时间</p>
+            </div>
+
+            <button
+              className="btn btn-primary btn-save"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? '保存中...' : '保存配置'}
+            </button>
+
+            {saveMessage && (
+              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
+                {saveMessage}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       <footer className="popup-footer">
         <p>© 2024 EuraFlow Team</p>
