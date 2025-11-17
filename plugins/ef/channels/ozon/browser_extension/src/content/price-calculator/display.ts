@@ -59,16 +59,20 @@ export function injectOrUpdateDisplay(
     DISPLAY_CONFIG.injectedSectionId
   ) as HTMLDivElement | null;
 
+  // 如果组件已存在但结构被破坏，先移除再重建
   if (euraflowSection) {
-    // 已存在，更新容器属性、价格文字和按钮数据
-    console.log('[EuraFlow] EuraFlow 区域已存在，更新数据和样式');
+    const buttonRow = euraflowSection.querySelector('#euraflow-button-row');
+    if (!buttonRow) {
+      // 按钮行被移除了，直接删除整个组件重建
+      console.log('[EuraFlow] 检测到组件结构被破坏，重建组件');
+      euraflowSection.remove();
+      euraflowSection = null;
+    }
+  }
 
-    // 确保容器属性正确（修复可能的错误属性）
-    euraflowSection.setAttribute('data-widget', 'webPdpGrid');
-    euraflowSection.className = 'pdp_as2 pdp_sa8 pdp_sa5 pdp_as6';
-    euraflowSection.style.padding = '8px 0px';
-    euraflowSection.style.width = '388px';
-    euraflowSection.style.height = ''; // 移除 height 属性
+  if (euraflowSection) {
+    // 已存在且结构完整，只更新价格和数据
+    console.log('[EuraFlow] 组件存在且结构完整，仅更新数据');
 
     const priceText = euraflowSection.querySelector(
       '#euraflow-price-text'
@@ -114,29 +118,26 @@ export function injectOrUpdateDisplay(
     euraflowContainer.style.padding = '8px 0px';
     euraflowContainer.style.width = '388px';
 
-    // 第一行：EuraFlow 标题 + 真实售价（在同一行）
-    const titleRow = document.createElement('div');
-    titleRow.setAttribute('data-v-7f40698a', '');
-    titleRow.className = 'mui-flex mui-flex__aic jcsb';
-    titleRow.style.margin = '12px 0px';
-
-    const titleSpan = document.createElement('span');
-    titleSpan.setAttribute('data-v-7f40698a', '');
-    titleSpan.style.fontSize = '16px';
-    titleSpan.style.fontWeight = 'bold';
-    titleSpan.style.color = '#1976D2';
-    titleSpan.textContent = 'EuraFlow';
+    // 第一行：真实售价（右对齐）
+    const priceRow = document.createElement('div');
+    priceRow.setAttribute('data-v-7f40698a', '');
+    priceRow.className = 'mui-flex mui-flex__aic';
+    priceRow.style.margin = '12px 0px';
+    priceRow.style.justifyContent = 'flex-end';
 
     const priceSpan = document.createElement('span');
     priceSpan.setAttribute('data-v-7f40698a', '');
     priceSpan.id = 'euraflow-price-text';
-    priceSpan.innerHTML = `<b style="color: #D84315;">${message}</b>`;
+    priceSpan.style.fontSize = '18px';
+    priceSpan.style.fontWeight = 'bold';
+    priceSpan.style.color = '#D84315';
+    priceSpan.innerHTML = `<b>${message}</b>`;
 
-    titleRow.appendChild(titleSpan);
-    titleRow.appendChild(priceSpan);
+    priceRow.appendChild(priceSpan);
 
     // 第二行：跟卖 + 采集按钮（模仿上品帮的布局）
     const buttonRow = document.createElement('div');
+    buttonRow.id = 'euraflow-button-row';
     buttonRow.setAttribute('data-v-7f40698a', '');
     buttonRow.className = 'mui-flex jcsb';
     buttonRow.style.margin = '12px 0px';
@@ -286,8 +287,8 @@ export function injectOrUpdateDisplay(
     buttonRow.appendChild(followButton);
     buttonRow.appendChild(collectButton);
 
-    // 将标题行和按钮行添加到容器
-    euraflowContainer.appendChild(titleRow);
+    // 将价格行和按钮行添加到容器
+    euraflowContainer.appendChild(priceRow);
     euraflowContainer.appendChild(buttonRow);
 
     // 参考上品帮：设置第一个子元素的高度为 auto
