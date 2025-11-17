@@ -21,6 +21,7 @@ import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
+import { useCurrency } from '@/hooks/useCurrency';
 import * as ozonApi from '@/services/ozonApi';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -33,6 +34,7 @@ interface CollectionRecord {
   collection_type: string;
   source_url: string;
   product_data: {
+    product_id?: string;
     title?: string;
     title_cn?: string;
     images?: string[];
@@ -47,6 +49,7 @@ const CollectionRecords: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canDelete } = usePermission();
+  const { formatPrice } = useCurrency();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -167,14 +170,26 @@ const CollectionRecords: React.FC = () => {
       title: '商品图片',
       dataIndex: 'product_data',
       key: 'image',
-      width: 80,
+      width: 100,
       render: (product_data: CollectionRecord['product_data']) => {
-        const imageUrl = product_data?.images?.[0];
+        const images = product_data?.images || [];
+        const imageUrl = images[0];
         return imageUrl ? (
-          <Image src={imageUrl} alt="商品图片" width={60} height={60} />
+          <Image.PreviewGroup items={images}>
+            <Image src={imageUrl} alt="商品图片" width={80} height={80} />
+          </Image.PreviewGroup>
         ) : (
-          <div style={{ width: 60, height: 60, background: '#f0f0f0' }} />
+          <div style={{ width: 80, height: 80, background: '#f0f0f0' }} />
         );
+      },
+    },
+    {
+      title: 'SKU',
+      dataIndex: 'product_data',
+      key: 'sku',
+      width: 120,
+      render: (product_data: CollectionRecord['product_data']) => {
+        return product_data?.product_id || '-';
       },
     },
     {
@@ -196,7 +211,7 @@ const CollectionRecords: React.FC = () => {
       width: 100,
       render: (product_data: CollectionRecord['product_data']) => {
         const price = product_data?.price;
-        return price ? `₽${price.toFixed(2)}` : '-';
+        return price ? formatPrice(price) : '-';
       },
     },
     {
