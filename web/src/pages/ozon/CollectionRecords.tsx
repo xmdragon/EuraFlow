@@ -239,7 +239,7 @@ const CollectionRecords: React.FC = () => {
             <ShopSelector
               value={selectedShop}
               onChange={handleShopChange}
-              showAllOption={false}
+              showAllOption={true}
               style={{ width: 200 }}
             />
           </Form.Item>
