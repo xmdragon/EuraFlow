@@ -6,15 +6,15 @@
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
-  // 选择器（找到上品帮组件）
-  shangpinbangSelector: '.ozon-bang-item',
+  // 选择器（找到 OZON 商品详情页右侧容器）
+  targetContainerSelector: 'div[data-widget="webPdpGrid"]',
   // 使用 OZON 风格的命名
   injectedElementId: 'euraflow-widget-price',
   injectedSectionId: 'euraflow-section',
 };
 
 /**
- * 注入或更新显示元素（注入到上品帮按钮区域后面）
+ * 注入或更新显示元素（注入到 OZON 商品详情页右侧容器）
  * @param message - 要显示的消息（如 "真实售价：120.00 ¥"）
  * @param realPrice - 真实售价数值（用于传递给弹窗）
  * @param productData - 商品详情数据（包括变体的真实售价）
@@ -30,26 +30,17 @@ export function injectOrUpdateDisplay(
     return;
   }
 
-  // 查找上品帮组件
-  const shangpinbang = document.querySelector(
-    DISPLAY_CONFIG.shangpinbangSelector
+  // 查找 OZON 商品详情页右侧容器
+  const targetContainer = document.querySelector(
+    DISPLAY_CONFIG.targetContainerSelector
   ) as HTMLDivElement | null;
 
-  if (!shangpinbang) {
-    console.log('[EuraFlow] 未找到上品帮组件，跳过注入');
+  if (!targetContainer) {
+    console.log('[EuraFlow] 未找到目标容器，跳过注入');
     return;
   }
 
-  console.log('[EuraFlow] 找到上品帮组件');
-
-  // 找到上品帮的按钮容器（在 </ul> 之后的 div）
-  const buttonContainer = shangpinbang.querySelector('div[style*="padding-right: 15px"]') as HTMLDivElement | null;
-  if (!buttonContainer) {
-    console.log('[EuraFlow] 未找到上品帮的按钮容器，跳过注入');
-    return;
-  }
-
-  console.log('[EuraFlow] 找到上品帮的按钮容器');
+  console.log('[EuraFlow] 找到目标容器');
 
   // 检查是否已存在 EuraFlow 区域
   let euraflowSection = document.getElementById(
@@ -281,10 +272,10 @@ export function injectOrUpdateDisplay(
     euraflowContainer.appendChild(titleRow);
     euraflowContainer.appendChild(buttonRow);
 
-    // 将 EuraFlow 容器插入到上品帮按钮容器后面
-    buttonContainer.parentNode?.insertBefore(euraflowContainer, buttonContainer.nextSibling);
+    // 将 EuraFlow 容器插入到目标容器内部（末尾）
+    targetContainer.appendChild(euraflowContainer);
 
-    console.log('[EuraFlow] 已将 EuraFlow 组件注入到上品帮按钮区域后面');
+    console.log('[EuraFlow] 已将 EuraFlow 组件注入到 OZON 商品详情页右侧容器');
   }
 }
 
@@ -301,8 +292,8 @@ export function removeDisplay(): void {
 }
 
 /**
- * 获取上品帮组件元素（用于检查页面是否准备好）
+ * 获取目标容器元素（用于检查页面是否准备好）
  */
 export function getTargetContainer(): Element | null {
-  return document.querySelector(DISPLAY_CONFIG.shangpinbangSelector);
+  return document.querySelector(DISPLAY_CONFIG.targetContainerSelector);
 }

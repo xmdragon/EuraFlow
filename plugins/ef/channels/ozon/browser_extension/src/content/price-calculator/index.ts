@@ -206,19 +206,19 @@ export class RealPriceCalculator {
   }
 
   /**
-   * 监听上品帮组件的变化，防止组件被 OZON 重新渲染时移除
+   * 监听目标容器的变化，防止组件被 OZON 重新渲染时移除
    */
   private setupContainerObserver(): void {
-    // 查找上品帮组件
-    const shangpinbang = document.querySelector('.ozon-bang-item');
-    if (!shangpinbang) {
-      console.log('[EuraFlow] 未找到上品帮组件，无法监听');
+    // 查找 OZON 商品详情页右侧容器
+    const targetContainer = document.querySelector('div[data-widget="webPdpGrid"]');
+    if (!targetContainer) {
+      console.log('[EuraFlow] 未找到目标容器，无法监听');
       return;
     }
 
-    console.log('[EuraFlow] 找到上品帮组件，开始监听');
+    console.log('[EuraFlow] 找到目标容器，开始监听');
 
-    // 创建 MutationObserver 监听上品帮组件的子元素变化
+    // 创建 MutationObserver 监听目标容器的子元素变化
     this.containerObserver = new MutationObserver(() => {
       // 检查我们的组件是否还存在
       const ourElement = document.getElementById('euraflow-section');
@@ -228,13 +228,13 @@ export class RealPriceCalculator {
       }
     });
 
-    // 监听上品帮组件的子元素变化（包括子树）
-    this.containerObserver.observe(shangpinbang, {
+    // 监听目标容器的子元素变化（包括子树）
+    this.containerObserver.observe(targetContainer, {
       childList: true,
       subtree: true,
     });
 
-    console.log('[EuraFlow] 已启动上品帮组件监听');
+    console.log('[EuraFlow] 已启动目标容器监听');
   }
 
   /**
