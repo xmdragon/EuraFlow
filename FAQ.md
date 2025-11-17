@@ -11,6 +11,7 @@
 - [前端问题](#前端问题)
   - [Ant Design Modal.confirm 不弹出](#ant-design-modalconfirm-不弹出)
   - [Ant Design notification 不显示或显示位置错误](#ant-design-notification-不显示或显示位置错误)
+  - [浏览器扩展 CORS 跨域请求错误](#浏览器扩展-cors-跨域请求错误)
 - [后端问题](#后端问题)
   - [Celery 异步任务报错 "Future attached to a different loop"](#celery-异步任务报错-future-attached-to-a-different-loop)
   - [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
@@ -372,6 +373,286 @@ const handleSync = () => {
 - [Ant Design v5 notification 组件文档](https://ant.design/components/notification-cn)
 - [Ant Design v5 App 组件文档](https://ant.design/components/app-cn)
 - [notification API 完整参数](https://ant.design/components/notification-cn#api)
+
+---
+
+### 浏览器扩展 CORS 跨域请求错误
+
+**问题描述**：
+- 浏览器扩展的 content script 直接使用 `fetch()` 发送 API 请求时，被 CORS 策略阻止
+- 控制台报错：`Access to fetch at 'https://euraflow.hjdtrading.com/api/...' from origin 'https://www.ozon.ru' has been blocked by CORS policy`
+- 错误详情：`No 'Access-Control-Allow-Origin' header is present on the requested resource`
+- 请求状态：`net::ERR_FAILED`
+
+**根本原因**：
+1. **浏览器 CORS 策略** - Content script 在网页上下文中运行，受同源策略限制
+2. **跨域请求被阻止** - 从 `ozon.ru` 向 `euraflow.hjdtrading.com` 发送请求是跨域行为
+3. **fetch() 受限** - Content script 中的 `fetch()` 无法绕过 CORS 限制
+
+**错误示例**：
+
+```typescript
+// ❌ 错误：在 content script 中直接使用 fetch（会触发 CORS 错误）
+// 文件：src/content/price-calculator/display.ts
+
+const response = await fetch(`${config.apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': config.apiKey,
+  },
+  body: JSON.stringify(requestData),
+});
+
+// ❌ 报错：
+// Access to fetch at 'https://euraflow.hjdtrading.com/...'
+// from origin 'https://www.ozon.ru' has been blocked by CORS policy
+```
+
+**排查步骤**：
+
+```bash
+# 1. 检查是否在 content script 中直接使用 fetch
+grep -rn "fetch.*api/ef" plugins/ef/channels/ozon/browser_extension/src/content/
+
+# 2. 检查浏览器控制台的 Network 面板
+# 查看请求状态是否为 CORS error 或 (failed)
+
+# 3. 检查是否已经在 background service worker 中添加消息处理
+grep -n "COLLECT_PRODUCT\|QUICK_PUBLISH" plugins/ef/channels/ozon/browser_extension/src/background/service-worker.ts
+```
+
+**标准解决方案**：
+
+#### 方法1：通过 Background Service Worker 发送请求（推荐 ✅）
+
+浏览器扩展的 **background service worker** 不受 CORS 限制，可以向任意域发送请求。
+
+**实现步骤**：
+
+**步骤1：在 service-worker.ts 中添加消息处理**
+
+```typescript
+// 文件：src/background/service-worker.ts
+
+// 监听来自 content script 的消息
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+  if (message.type === 'COLLECT_PRODUCT') {
+    // 处理采集商品请求
+    handleCollectProduct(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true; // 保持消息通道开启（异步响应）
+  }
+
+  // 其他消息处理...
+});
+
+/**
+ * 采集商品
+ */
+async function handleCollectProduct(data: {
+  apiUrl: string;
+  apiKey: string;
+  source_url: string;
+  product_data: any
+}) {
+  const { apiUrl, apiKey, source_url, product_data } = data;
+
+  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey
+    },
+    body: JSON.stringify({ source_url, product_data })
+  });
+
+  if (!response.ok) {
+    let errorMessage = '采集失败';
+    try {
+      const errorData = await response.json();
+      // 多层级解析错误信息
+      if (errorData.detail?.detail) {
+        errorMessage = errorData.detail.detail;
+      } else if (typeof errorData.detail === 'string') {
+        errorMessage = errorData.detail;
+      }
+    } catch {
+      errorMessage = `服务器错误 (HTTP ${response.status})`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+```
+
+**步骤2：在 content script 中发送消息**
+
+```typescript
+// 文件：src/content/price-calculator/display.ts
+
+// ✅ 正确：通过 chrome.runtime.sendMessage 发送消息
+const response = await chrome.runtime.sendMessage({
+  type: 'COLLECT_PRODUCT',
+  data: {
+    apiUrl: config.apiUrl,
+    apiKey: config.apiKey,
+    source_url: window.location.href,
+    product_data: product
+  }
+});
+
+if (!response.success) {
+  throw new Error(response.error || '采集失败');
+}
+
+alert('✓ 商品已采集，请到系统采集记录中查看');
+```
+
+**优点**：
+- ✅ 不受 CORS 限制（service worker 拥有特殊权限）
+- ✅ 代码清晰，职责分离（content script 负责 UI，service worker 负责请求）
+- ✅ 安全（API Key 在 service worker 中处理，不暴露给页面）
+- ✅ 统一管理所有 API 请求
+
+#### 方法2：使用 ApiClient 封装（最佳实践 ⭐）
+
+对于需要频繁发送请求的场景，建议封装成 `ApiClient` 类：
+
+```typescript
+// 文件：src/shared/api-client.ts
+
+/**
+ * EuraFlow API 客户端
+ *
+ * 通过 background service worker 发送请求（绕过 CORS 限制）
+ */
+export class ApiClient {
+  constructor(
+    private apiUrl: string,
+    private apiKey: string
+  ) {}
+
+  /**
+   * 采集商品
+   */
+  async collectProduct(source_url: string, product_data: any): Promise<any> {
+    return this.sendRequest('COLLECT_PRODUCT', { source_url, product_data });
+  }
+
+  /**
+   * 快速上架商品
+   */
+  async quickPublish(data: QuickPublishRequest): Promise<QuickPublishResponse> {
+    return this.sendRequest('QUICK_PUBLISH', { data });
+  }
+
+  /**
+   * 通过 Service Worker 发送 API 请求（绕过 CORS 限制）
+   */
+  private async sendRequest(type: string, payload: any): Promise<any> {
+    const response = await chrome.runtime.sendMessage({
+      type,
+      data: {
+        apiUrl: this.apiUrl,
+        apiKey: this.apiKey,
+        ...payload
+      }
+    });
+
+    if (!response.success) {
+      throw new Error(response.error || '请求失败');
+    }
+
+    return response.data;
+  }
+}
+```
+
+**使用示例**：
+
+```typescript
+// 在 content script 中使用
+import { ApiClient } from '../../shared/api-client';
+import { getApiConfig } from '../../shared/storage';
+
+const config = await getApiConfig();
+const apiClient = new ApiClient(config.apiUrl, config.apiKey);
+
+// 发送请求
+const result = await apiClient.collectProduct(window.location.href, productData);
+```
+
+**为什么这样可以解决 CORS 问题？**
+
+浏览器扩展的 **background service worker** 拥有特殊权限：
+- ✅ 不受 CORS 策略限制
+- ✅ 可以向任意域发送请求
+- ✅ 在 `manifest.json` 中声明了 `host_permissions`
+
+**请求路径对比**：
+
+```
+❌ 直接请求（会触发 CORS 错误）：
+Content Script (ozon.ru) → fetch() → API (euraflow.hjdtrading.com) ✗ CORS error
+
+✅ 通过 service worker 请求（不受 CORS 限制）：
+Content Script (ozon.ru)
+  → chrome.runtime.sendMessage
+    → Background Service Worker
+      → fetch() → API (euraflow.hjdtrading.com) ✓ Success
+```
+
+**manifest.json 配置**：
+
+确保 `manifest.json` 中声明了 `host_permissions`：
+
+```json
+{
+  "manifest_version": 3,
+  "name": "EuraFlow OZON Selector",
+  "version": "1.0.0",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://euraflow.hjdtrading.com/*",
+    "https://*.ozon.ru/*"
+  ],
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  }
+}
+```
+
+**检查清单**：
+
+- [ ] ✅ service-worker.ts 中已添加消息处理（如 `COLLECT_PRODUCT`）
+- [ ] ✅ content script 使用 `chrome.runtime.sendMessage` 发送消息
+- [ ] ✅ manifest.json 中声明了 `host_permissions`
+- [ ] ✅ 所有 API 请求都通过 service worker 发送（不在 content script 中直接使用 `fetch`）
+
+**相关文件**：
+- 浏览器扩展目录：`plugins/ef/channels/ozon/browser_extension/`
+- Service Worker：`src/background/service-worker.ts`
+- API Client：`src/shared/api-client.ts`
+- Content Script：`src/content/price-calculator/display.ts`
+
+**参考资料**：
+- [Chrome Extension Manifest V3 - Cross-origin requests](https://developer.chrome.com/docs/extensions/mv3/xhr/)
+- [Chrome Extension - Message passing](https://developer.chrome.com/docs/extensions/mv3/messaging/)
+- [MDN - CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS)
+
+**防止复发**：
+- ✅ 所有浏览器扩展的 API 请求统一使用 `ApiClient` 类
+- ✅ 禁止在 content script 中直接使用 `fetch()` 发送跨域请求
+- ✅ 在 `CLAUDE.md` 中补充浏览器扩展开发规范
+- ✅ 代码审查：检查所有 content script 是否使用了 `chrome.runtime.sendMessage`
 
 ---
 
