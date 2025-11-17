@@ -50,7 +50,11 @@ const CollectionRecords: React.FC = () => {
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const { selectedShop, handleShopChange } = useShopSelection();
+  // 使用独立的 localStorage 键，默认为 null（全部店铺）
+  const { selectedShop, handleShopChange } = useShopSelection({
+    persistKey: 'ozon_collection_records_shop',
+    initialValue: null,
+  });
   const [filterForm] = Form.useForm();
 
   // 查询采集记录列表
