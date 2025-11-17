@@ -288,6 +288,7 @@ const CollectionRecords: React.FC = () => {
           dataSource={data?.items || []}
           loading={isLoading}
           rowKey="id"
+          scroll={{ x: true }}
           pagination={{
             current: currentPage,
             pageSize,

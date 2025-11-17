@@ -12,6 +12,7 @@
   - [Ant Design Modal.confirm 不弹出](#ant-design-modalconfirm-不弹出)
   - [Ant Design notification 不显示或显示位置错误](#ant-design-notification-不显示或显示位置错误)
   - [浏览器扩展 CORS 跨域请求错误](#浏览器扩展-cors-跨域请求错误)
+  - [Ant Design Table 页面出现横向滚动条](#ant-design-table-页面出现横向滚动条)
 - [后端问题](#后端问题)
   - [Celery 异步任务报错 "Future attached to a different loop"](#celery-异步任务报错-future-attached-to-a-different-loop)
   - [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
@@ -653,6 +654,73 @@ Content Script (ozon.ru)
 - ✅ 禁止在 content script 中直接使用 `fetch()` 发送跨域请求
 - ✅ 在 `CLAUDE.md` 中补充浏览器扩展开发规范
 - ✅ 代码审查：检查所有 content script 是否使用了 `chrome.runtime.sendMessage`
+
+---
+
+### Ant Design Table 页面出现横向滚动条
+
+**问题描述**：
+- 页面出现横向滚动条，影响用户体验
+- 表格列宽度总和超过容器宽度
+- 在小屏幕或窄屏设备上尤其明显
+
+**根本原因**：
+- Table 组件的列宽度固定值总和过大（如：100px + 200px + 180px + 280px = 760px）
+- 加上自适应列的宽度，总宽度可能超过视口
+- 没有配置 `scroll` 属性，导致整个页面产生横向滚动条
+
+**解决方案**：
+
+1. **添加 `scroll={{ x: true }}` 配置**（推荐）：
+```tsx
+<Table
+  columns={columns}
+  dataSource={data}
+  scroll={{ x: true }}  // 启用表格内横向滚动
+  pagination={...}
+/>
+```
+
+**效果**：
+- 表格内容在 Card 容器内横向滚动
+- 页面本身不会出现横向滚动条
+- 在小屏幕上可以左右滑动查看完整表格
+
+2. **优化列宽度**（可选）：
+```tsx
+const columns = [
+  {
+    title: '商品图片',
+    width: 100,  // 固定宽度
+  },
+  {
+    title: '商品标题',
+    ellipsis: true,  // 超长文本显示省略号
+    // 不设置 width，自适应剩余空间
+  },
+  {
+    title: '操作',
+    width: 200,  // 适当减小固定宽度
+    fixed: 'right',  // 固定在右侧（可选）
+  },
+];
+```
+
+**参考示例**：
+- `web/src/pages/ozon/ProductList.tsx:437` - 商品列表使用 `scroll={{ x: true }}`
+- `web/src/pages/ozon/ChatDetail.tsx:815` - 聊天详情使用 `scroll={{ x: true }}`
+
+**验证方法**：
+```bash
+# 查找项目中所有使用 scroll 的 Table
+grep -rn "scroll.*x.*true" web/src/pages/ozon/*.tsx
+```
+
+**防止复发**：
+- ✅ 所有包含多列的 Table 组件都应添加 `scroll={{ x: true }}`
+- ✅ 合理设置列宽度，避免固定宽度列过多
+- ✅ 对超长文本列启用 `ellipsis: true`
+- ✅ 代码审查：检查新增的 Table 组件是否配置了 scroll 属性
 
 ---
 
