@@ -12,6 +12,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import {
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -140,6 +142,19 @@ const OzonOverview: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
   });
 
+  // 获取每日销售额统计
+  const { data: dailyRevenueData, isLoading: isDailyRevenueLoading } = useQuery({
+    queryKey: ['ozon', 'daily-revenue-stats', debouncedShop, dateRangeParams],
+    queryFn: () => ozonApi.getDailyRevenueStats(
+      debouncedShop,
+      'days' in dateRangeParams ? dateRangeParams.days : undefined,
+      'startDate' in dateRangeParams ? dateRangeParams.startDate : undefined,
+      'endDate' in dateRangeParams ? dateRangeParams.endDate : undefined
+    ),
+    enabled: shouldFetchData,
+    staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
+  });
+
   // 使用statistics API数据
   const stats = {
     products: {
@@ -200,7 +215,38 @@ const OzonOverview: React.FC = () => {
     });
   }, [dailyStatsData, displayMode, selectedShop, dateRangeLabel]);
 
-  // 自定义tooltip内容
+  // 转换销售额图表数据 - Recharts格式（支持货币转换）
+  const revenueChartData = useMemo(() => {
+    if (!dailyRevenueData) return [];
+
+    // TODO: 如果用户货币是CNY，这里需要获取汇率进行转换
+    // 目前直接使用RUB显示
+    return dailyRevenueData.dates.map((date) => {
+      // 将日期格式从 YYYY-MM-DD 转换为 MM-DD
+      const displayDate = dayjs(date).format('MM-DD');
+      const dayData: Record<string, string | number> = { date: displayDate };
+
+      if (displayMode === 'total' && !selectedShop) {
+        // 汇总模式：计算所有店铺的总和
+        let total = 0;
+        dailyRevenueData.shops.forEach((shop) => {
+          const value = dailyRevenueData.data[date]?.[shop];
+          total += parseFloat(value || '0');
+        });
+        dayData[dateRangeLabel] = total;
+      } else {
+        // 单店模式：显示各店铺独立数据
+        dailyRevenueData.shops.forEach((shop) => {
+          const value = dailyRevenueData.data[date]?.[shop];
+          dayData[shop] = parseFloat(value || '0');
+        });
+      }
+
+      return dayData;
+    });
+  }, [dailyRevenueData, displayMode, selectedShop, dateRangeLabel]);
+
+  // 自定义tooltip内容 - 订单数量
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       // 计算总数量
@@ -216,6 +262,30 @@ const OzonOverview: React.FC = () => {
         }}>
           <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>{label}</p>
           <p style={{ margin: 0, color: '#1890ff' }}>数量: {total}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // 自定义tooltip内容 - 销售额
+  const RevenueTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      // 计算总销售额
+      const total = payload.reduce((sum: number, item: any) => sum + (item.value || 0), 0);
+
+      return (
+        <div style={{
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          padding: '10px',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+        }}>
+          <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>{label}</p>
+          <p style={{ margin: 0, color: '#52c41a' }}>
+            销售额: {currencySymbol}{total.toFixed(2)}
+          </p>
         </div>
       );
     }
@@ -384,6 +454,102 @@ const OzonOverview: React.FC = () => {
                   ))
                 )}
               </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className={styles.chartEmpty}>
+              <Text type="secondary">暂无数据</Text>
+            </div>
+          )}
+        </Card>
+
+        {/* 每日销售额统计趋势图 */}
+        <Card
+          title={
+            <Space>
+              <LineChartOutlined />
+              <span>每日销售额统计趋势</span>
+            </Space>
+          }
+          extra={
+            <Space>
+              {!selectedShop && (
+                <Select
+                  value={displayMode}
+                  onChange={setDisplayMode}
+                  style={{ width: 120 }}
+                  options={[
+                    { label: '单店显示', value: 'single' },
+                    { label: '汇总显示', value: 'total' },
+                  ]}
+                />
+              )}
+              <Select
+                value={timeRangeType}
+                onChange={(value) => {
+                  setTimeRangeType(value);
+                  if (value !== 'custom') {
+                    setCustomDateRange([null, null]);
+                  }
+                }}
+                style={{ width: 100 }}
+                options={[
+                  { label: '7天', value: '7days' },
+                  { label: '14天', value: '14days' },
+                  { label: '本月', value: 'thisMonth' },
+                  { label: '上月', value: 'lastMonth' },
+                  { label: '自定义', value: 'custom' },
+                ]}
+              />
+              {timeRangeType === 'custom' && (
+                <DatePicker.RangePicker
+                  value={customDateRange}
+                  onChange={(dates) => setCustomDateRange(dates as [Dayjs | null, Dayjs | null])}
+                  format="YYYY-MM-DD"
+                  placeholder={['开始日期', '结束日期']}
+                />
+              )}
+            </Space>
+          }
+          className={styles.chartCard}
+        >
+          {isDailyRevenueLoading ? (
+            <div className={styles.chartLoading}>
+              <Spin size="large" />
+            </div>
+          ) : revenueChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={revenueChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tick={{ fontSize: 12 }}
+                />
+                <YAxis />
+                <Tooltip content={<RevenueTooltip />} />
+                <Legend />
+                {displayMode === 'total' && !selectedShop ? (
+                  // 汇总模式：只显示一条总计柱
+                  <Bar
+                    key="total"
+                    dataKey={dateRangeLabel}
+                    fill={CHART_COLORS[1]}
+                    radius={[4, 4, 0, 0]}
+                  />
+                ) : (
+                  // 单店模式：显示各店铺的柱
+                  dailyRevenueData?.shops.map((shop, index) => (
+                    <Bar
+                      key={shop}
+                      dataKey={shop}
+                      fill={CHART_COLORS[index % CHART_COLORS.length]}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  ))
+                )}
+              </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className={styles.chartEmpty}>

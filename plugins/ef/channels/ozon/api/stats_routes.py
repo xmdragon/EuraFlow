@@ -621,6 +621,193 @@ async def get_daily_posting_stats(
         raise HTTPException(status_code=500, detail=f"获取每日统计失败: {str(e)}")
 
 
+@router.get("/daily-revenue-stats")
+async def get_daily_revenue_stats(
+    shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
+    days: Optional[int] = Query(None, ge=1, le=365, description="统计天数（与start_date/end_date互斥）"),
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user = Depends(get_current_user_flexible)
+):
+    """
+    获取每日销售额统计数据（按店铺分组，RUB货币）
+
+    Args:
+        shop_id: 店铺ID，可选
+        days: 统计天数，默认30天（与start_date/end_date互斥）
+        start_date: 开始日期（与days互斥）
+        end_date: 结束日期（与days互斥）
+        db: 数据库会话
+        current_user: 当前用户
+
+    Returns:
+        每日每个店铺的销售额统计（RUB）
+    """
+    from ..models import OzonPosting, OzonShop, OzonOrder
+    from sqlalchemy import select, and_
+    from .permissions import filter_by_shop_permission
+
+    # 权限验证
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    # 获取全局时区设置
+    global_timezone = await get_global_timezone(db)
+
+    try:
+        # 计算起始日期和结束日期（按全局时区）
+        if start_date and end_date:
+            # 使用自定义日期范围（前端传入的是用户时区的日期）
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+
+            # 按全局时区解析日期字符串
+            tz = ZoneInfo(global_timezone)
+            start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
+            end_date_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=tz)
+
+            # 转换为UTC后取日期部分（用于统计）
+            start_date_obj = start_date_dt.astimezone(ZoneInfo('UTC')).date()
+            end_date_obj = end_date_dt.astimezone(ZoneInfo('UTC')).date()
+        elif days:
+            # 使用天数计算（基于全局时区的当前日期）
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            tz = ZoneInfo(global_timezone)
+            now_in_tz = datetime.now(tz)
+            end_date_obj = now_in_tz.date()
+            start_date_obj = end_date_obj - timedelta(days=days - 1)
+        else:
+            # 默认30天（基于全局时区的当前日期）
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            tz = ZoneInfo(global_timezone)
+            now_in_tz = datetime.now(tz)
+            end_date_obj = now_in_tz.date()
+            start_date_obj = end_date_obj - timedelta(days=29)
+
+        # 计算UTC时间范围（用于数据库查询）
+        # 将全局时区的日期范围转换为UTC时间戳
+        start_datetime_tz = start_date_obj  # 已经是全局时区的日期
+        end_datetime_tz = end_date_obj
+
+        # 转换为全局时区的datetime（00:00:00）
+        start_datetime = datetime.combine(start_datetime_tz, datetime.min.time()).replace(tzinfo=tz)
+        # 转换为全局时区的datetime（23:59:59）
+        end_datetime = datetime.combine(end_datetime_tz, datetime.max.time()).replace(tzinfo=tz)
+
+        # 转换为UTC
+        from datetime import timezone as dt_timezone
+        start_datetime_utc = start_datetime.astimezone(dt_timezone.utc)
+        end_datetime_utc = end_datetime.astimezone(dt_timezone.utc)
+
+        # 构建查询条件（使用UTC时间戳范围）
+        posting_filter = [
+            OzonPosting.status != 'cancelled',  # 根据 ozon status 排除取消的订单
+            OzonPosting.in_process_at.isnot(None),  # 必须有下单时间
+            OzonPosting.in_process_at >= start_datetime_utc,
+            OzonPosting.in_process_at <= end_datetime_utc
+        ]
+
+        # 如果指定了店铺，添加店铺过滤
+        if shop_id:
+            posting_filter.append(OzonPosting.shop_id == shop_id)
+        elif allowed_shop_ids:
+            # 如果没有指定店铺但有权限限制，使用权限列表
+            posting_filter.append(OzonPosting.shop_id.in_(allowed_shop_ids))
+
+        # 查询posting和order数据（JOIN获取raw_payload）
+        stats_result = await db.execute(
+            select(
+                OzonPosting.in_process_at,
+                OzonPosting.shop_id,
+                OzonOrder.raw_payload
+            )
+            .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
+            .where(and_(*posting_filter))
+            .order_by(OzonPosting.in_process_at)
+        )
+        stats_rows = stats_result.all()
+
+        # 获取所有涉及的店铺信息
+        shop_ids = list(set([row.shop_id for row in stats_rows]))
+        if shop_ids:
+            shops_result = await db.execute(
+                select(OzonShop.id, OzonShop.shop_name)
+                .where(OzonShop.id.in_(shop_ids))
+            )
+            shops_data = {shop.id: shop.shop_name for shop in shops_result.all()}
+        else:
+            shops_data = {}
+
+        # 组织数据结构
+        # 1. 按日期分组，计算每日销售额（在Python中转换时区后分组）
+        daily_stats = {}
+        for row in stats_rows:
+            # 将UTC时间转换为全局时区
+            in_process_at_tz = row.in_process_at.astimezone(tz)
+            # 提取日期
+            date_str = in_process_at_tz.date().isoformat()
+
+            if date_str not in daily_stats:
+                daily_stats[date_str] = {}
+            shop_name = shops_data.get(row.shop_id, f"店铺{row.shop_id}")
+
+            # 计算该订单的销售额（从raw_payload的products列表计算）
+            order_revenue = Decimal('0')
+            if row.raw_payload and 'products' in row.raw_payload:
+                products = row.raw_payload.get('products', [])
+                for product in products:
+                    price = Decimal(str(product.get('price', '0')))
+                    quantity = int(product.get('quantity', 0))
+                    order_revenue += price * quantity
+
+            # 累加到店铺的当日销售额
+            if shop_name not in daily_stats[date_str]:
+                daily_stats[date_str][shop_name] = Decimal('0')
+            daily_stats[date_str][shop_name] += order_revenue
+
+        # 2. 生成完整的日期序列（填充缺失日期）
+        all_dates = []
+        current_date = start_date_obj
+        while current_date <= end_date_obj:
+            date_str = current_date.isoformat()
+            all_dates.append(date_str)
+            if date_str not in daily_stats:
+                daily_stats[date_str] = {}
+            current_date += timedelta(days=1)
+
+        # 3. 获取所有店铺名称列表
+        shop_names = sorted(set(shops_data.values()))
+
+        # 4. 确保每个日期都有所有店铺的数据（缺失的填0）并转换为字符串
+        for date_str in all_dates:
+            for shop_name in shop_names:
+                if shop_name not in daily_stats[date_str]:
+                    daily_stats[date_str][shop_name] = "0"
+                else:
+                    # 将Decimal转换为字符串（保持精度）
+                    daily_stats[date_str][shop_name] = str(daily_stats[date_str][shop_name])
+
+        # 计算实际天数
+        actual_days = (end_date_obj - start_date_obj).days + 1
+
+        return {
+            "dates": all_dates,
+            "shops": shop_names,
+            "data": daily_stats,
+            "total_days": actual_days,
+            "currency": "RUB"  # 标注货币单位为RUB
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get daily revenue stats: {e}")
+        raise HTTPException(status_code=500, detail=f"获取每日销售额统计失败: {str(e)}")
+
+
 @router.post("/test-connection")
 async def test_connection(
     credentials: Dict[str, str] = Body(..., description="API凭证")

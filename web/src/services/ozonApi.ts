@@ -699,6 +699,39 @@ export const getDailyPostingStats = async (
   return response.data;
 };
 
+export interface DailyRevenueStats {
+  dates: string[];
+  shops: string[];
+  data: Record<string, Record<string, string>>;  // 销售额为字符串格式（保持精度）
+  total_days: number;
+  currency: string;  // 货币单位（RUB）
+}
+
+// 获取每日销售额统计
+export const getDailyRevenueStats = async (
+  shopId?: number | null,
+  days?: number,
+  startDate?: string,
+  endDate?: string
+) => {
+  const params: { shop_id?: number; days?: number; start_date?: string; end_date?: string } = {};
+
+  if (shopId) {
+    params.shop_id = shopId;
+  }
+
+  // 优先使用自定义日期范围
+  if (startDate && endDate) {
+    params.start_date = startDate;
+    params.end_date = endDate;
+  } else if (days) {
+    params.days = days;
+  }
+
+  const response = await apiClient.get<DailyRevenueStats>("/ozon/daily-revenue-stats", { params });
+  return response.data;
+};
+
 // ==================== 同步日志 API ====================
 
 export interface SyncLog {
