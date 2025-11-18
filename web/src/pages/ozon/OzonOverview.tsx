@@ -560,7 +560,7 @@ const OzonOverview: React.FC = () => {
                 <Tooltip content={<RevenueTooltip />} />
                 <Legend />
                 {displayMode === 'total' && !selectedShop ? (
-                  // 汇总模式：只显示一条总计柱
+                  // 汇总模式：只显示一条总计柱（红色）
                   <Bar
                     key="total"
                     dataKey={dateRangeLabel}
@@ -569,12 +569,12 @@ const OzonOverview: React.FC = () => {
                     label={renderBarLabel}
                   />
                 ) : (
-                  // 单店模式：显示各店铺的柱
+                  // 单店模式：显示各店铺的柱（多种颜色）
                   dailyRevenueData?.shops.map((shop, index) => (
                     <Bar
                       key={shop}
                       dataKey={shop}
-                      fill="#f5222d"
+                      fill={CHART_COLORS[index % CHART_COLORS.length]}
                       radius={[4, 4, 0, 0]}
                       label={renderBarLabel}
                     />
