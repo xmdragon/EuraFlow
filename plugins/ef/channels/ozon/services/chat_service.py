@@ -524,6 +524,17 @@ class OzonChatService:
                     if not message_id:
                         continue
 
+                    # 预检查：跳过空消息（避免创建无用对象）
+                    data_array = msg_data.get("data", [])
+                    content_preview = " ".join(data_array) if isinstance(data_array, list) else str(data_array)
+                    if not content_preview or not content_preview.strip():
+                        logger.warning(
+                            f"Skipping empty chat message during sync: "
+                            f"chat_id={chat_id}, message_id={message_id}, "
+                            f"user_type={msg_data.get('user', {}).get('type', '')}"
+                        )
+                        continue
+
                     # 检查消息是否已存在
                     msg_stmt = select(OzonChatMessage).where(
                         OzonChatMessage.message_id == message_id

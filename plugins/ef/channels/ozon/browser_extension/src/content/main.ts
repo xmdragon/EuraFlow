@@ -4,8 +4,6 @@
  * 此脚本会被注入到OZON页面（商品列表页或详情页）
  */
 
-import { ShangpinbangParser } from './parsers/shangpinbang';
-import { MaoziErpParser } from './parsers/maozi-erp';
 import { DataFusionEngine } from './fusion/engine';
 import { ProductCollector } from './collector';
 import { getCollectorConfig } from '../shared/storage';
@@ -34,22 +32,16 @@ async function init() {
 
   if (isProductListPage()) {
 
-    // 1. 初始化解析器
-    const parsers = [
-      new ShangpinbangParser(),
-      new MaoziErpParser()
-    ];
+    // 1. 创建数据融合引擎（直接提取OZON原生数据 + 批量调用上品帮API）
+    const fusionEngine = new DataFusionEngine();
 
-    // 2. 创建融合引擎
-    const fusionEngine = new DataFusionEngine(parsers);
-
-    // 3. 加载采集配置
+    // 2. 加载采集配置
     const collectorConfig = await getCollectorConfig();
 
-    // 4. 创建采集器（API配置和上传由 ControlPanel 负责，等待时间已硬编码优化）
+    // 3. 创建采集器（API配置和上传由 ControlPanel 负责）
     const collector = new ProductCollector(fusionEngine);
 
-    // 6. 创建并挂载控制面板
+    // 4. 创建并挂载控制面板
     ControlPanel({
       fusionEngine,
       collector,

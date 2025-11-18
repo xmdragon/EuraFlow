@@ -40,9 +40,9 @@ export const ProductSelectionGuide: React.FC = () => {
           <RocketOutlined /> Ozon选品助手
         </Title>
         <Paragraph>
-          智能采集Ozon商品数据的浏览器工具，支持
-          <Text strong>上品帮</Text>和<Text strong>毛子ERP</Text>
-          数据源融合，自动滚动、虚拟列表适配、自动上传到EuraFlow平台。
+          智能采集Ozon商品数据的浏览器工具，集成
+          <Text strong>上品帮</Text>
+          数据源，自动滚动、虚拟列表适配、自动上传到EuraFlow平台。
         </Paragraph>
         <Alert
           message="推荐使用浏览器扩展"
@@ -60,7 +60,7 @@ export const ProductSelectionGuide: React.FC = () => {
         <Space direction="vertical" size="large" className={styles.fullWidthInput}>
           <Alert
             message="✨ 推荐使用"
-            description="支持上品帮和毛子ERP数据融合，智能选择最优数据，更稳定、功能更强大。"
+            description="集成上品帮数据源，自动提取42个字段，更稳定、功能更强大。"
             type="success"
             showIcon
           />
@@ -70,16 +70,16 @@ export const ProductSelectionGuide: React.FC = () => {
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Alert
-                  message="智能数据融合"
-                  description="自动从上品帮和毛子ERP提取数据，数值取最大值，品牌优先毛子ERP"
+                  message="上品帮集成"
+                  description="自动从上品帮提取商品数据，包含价格、销量、佣金、物流等42个字段"
                   type="info"
                   showIcon
                 />
               </Col>
               <Col span={12}>
                 <Alert
-                  message="自适应降级"
-                  description="仅一个工具可用时自动降级为单源模式，确保功能可用"
+                  message="商品详情页增强"
+                  description="商品详情页自动显示真实售价、各项费用和利润分析"
                   type="info"
                   showIcon
                 />
@@ -175,7 +175,7 @@ export const ProductSelectionGuide: React.FC = () => {
                   color: 'blue',
                 },
                 {
-                  children: '确保上品帮或毛子ERP插件已安装并工作',
+                  children: '确保上品帮插件已安装并工作',
                   color: 'blue',
                 },
                 {
@@ -273,7 +273,7 @@ export const ProductSelectionGuide: React.FC = () => {
                   <ul>
                     <li>
                       <Text strong>必须</Text>
-                      安装上品帮或毛子ERP插件 - 扩展依赖这些工具提供的数据
+                      安装上品帮插件 - 扩展依赖上品帮提供的数据
                     </li>
                     <li>等待时间是否足够 - 默认滚动等待1秒，可在配置中调整</li>
                     <li>检查浏览器控制台是否有错误信息</li>

@@ -6,14 +6,17 @@ import {
   getCollectorConfig,
   setCollectorConfig,
   testApiConnection,
-  getShangpinbangConfig
+  getShangpinbangConfig,
+  getDataPanelConfig,
+  setDataPanelConfig
 } from '../shared/storage';
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig } from '../shared/types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig } from '../shared/types';
+import { FIELD_GROUPS, DEFAULT_FIELDS } from '../shared/types';
 import './popup.scss';
 
 function Popup() {
   // 标签页状态
-  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'collector'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'collector' | 'dataPanel'>('api');
 
   // API配置
   const [apiConfig, setApiConfigState] = useState<ApiConfig>({
@@ -35,6 +38,11 @@ function Popup() {
     token: undefined
   });
 
+  // 数据面板配置
+  const [dataPanelConfig, setDataPanelConfigState] = useState<DataPanelConfig>({
+    visibleFields: [...DEFAULT_FIELDS]
+  });
+
   // UI状态
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
@@ -52,9 +60,11 @@ function Popup() {
       const api = await getApiConfig();
       const collector = await getCollectorConfig();
       const spb = await getShangpinbangConfig();
+      const dataPanel = await getDataPanelConfig();
       setApiConfigState(api);
       setCollectorConfigState(collector);
       setSpbConfig(spb);
+      setDataPanelConfigState(dataPanel);
     };
     loadConfig();
   }, []);
@@ -138,11 +148,40 @@ function Popup() {
     }
   };
 
+  // 数据面板：切换字段显示
+  const handleToggleField = (fieldKey: string) => {
+    const newVisibleFields = dataPanelConfig.visibleFields.includes(fieldKey)
+      ? dataPanelConfig.visibleFields.filter(key => key !== fieldKey)
+      : [...dataPanelConfig.visibleFields, fieldKey];
+    setDataPanelConfigState({ visibleFields: newVisibleFields });
+  };
+
+  // 数据面板：重置为默认字段
+  const handleResetFields = () => {
+    setDataPanelConfigState({ visibleFields: [...DEFAULT_FIELDS] });
+  };
+
+  // 数据面板：保存配置
+  const handleSaveDataPanel = async () => {
+    setIsSaving(true);
+    setSaveMessage('');
+
+    try {
+      await setDataPanelConfig(dataPanelConfig);
+      setSaveMessage('配置已保存');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      setSaveMessage('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="popup-container">
       <header className="popup-header">
         <h1>EuraFlow 选品助手</h1>
-        <p className="version">v1.5.3</p>
+        <p className="version">v1.6.0</p>
       </header>
 
       {/* 标签页导航 */}
@@ -164,6 +203,12 @@ function Popup() {
           onClick={() => setActiveTab('collector')}
         >
           采集参数
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'dataPanel' ? 'active' : ''}`}
+          onClick={() => setActiveTab('dataPanel')}
+        >
+          数据面板
         </button>
       </nav>
 
@@ -347,6 +392,70 @@ function Popup() {
                 {saveMessage}
               </p>
             )}
+          </div>
+        )}
+
+        {/* 数据面板配置 */}
+        {activeTab === 'dataPanel' && (
+          <div className="tab-panel data-panel-config">
+            <p className="hint">选择在商品详情页数据面板中显示的字段</p>
+
+            {/* 字段分组 */}
+            {Object.entries(FIELD_GROUPS).map(([groupKey, fields]) => {
+              // 分组标题映射
+              const groupTitles: Record<string, string> = {
+                sales: '销售数据',
+                marketing: '营销数据',
+                basic: '基础信息',
+                competitor: '竞品数据',
+                commission: '佣金信息'
+              };
+
+              return (
+                <div key={groupKey} className="field-group">
+                  <h3 className="group-title">{groupTitles[groupKey]}</h3>
+                  <div className="field-list">
+                    {fields.map((field) => (
+                      <label key={field.key} className="field-item">
+                        <input
+                          type="checkbox"
+                          checked={dataPanelConfig.visibleFields.includes(field.key)}
+                          onChange={() => handleToggleField(field.key)}
+                        />
+                        <span className="field-label">{field.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* 操作按钮 */}
+            <div className="button-group">
+              <button
+                className="btn btn-secondary"
+                onClick={handleResetFields}
+              >
+                重置为默认
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveDataPanel}
+                disabled={isSaving}
+              >
+                {isSaving ? '保存中...' : '保存配置'}
+              </button>
+            </div>
+
+            {saveMessage && (
+              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
+                {saveMessage}
+              </p>
+            )}
+
+            <p className="hint">
+              已选择 {dataPanelConfig.visibleFields.length} 个字段
+            </p>
           </div>
         )}
       </div>

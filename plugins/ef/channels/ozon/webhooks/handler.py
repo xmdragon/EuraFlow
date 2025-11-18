@@ -1322,6 +1322,23 @@ class OzonWebhookHandler:
         sender_id = user.get("id")
         sender_type_raw = user.get("type", "Customer")
 
+        # 丢弃空消息：如果data为空数组或空内容，直接忽略
+        if not content or not content.strip():
+            logger.warning(
+                f"Discarding chat message webhook with empty content: "
+                f"chat_id={chat_id}, message_id={message_id}, "
+                f"sender_type={sender_type_raw}, data_array={data_array}"
+            )
+            webhook_event.status = "ignored"
+            webhook_event.entity_type = "chat_message"
+            webhook_event.entity_id = message_id
+            return {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "message_saved": False,
+                "reason": "empty_content"
+            }
+
         # 规范化sender_type和sender_name
         # OZON文档: Customer(买家), Support(客服), NotificationUser(Ozon通知)
         if sender_type_raw == "Customer":

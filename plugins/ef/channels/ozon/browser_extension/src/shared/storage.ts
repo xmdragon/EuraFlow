@@ -1,4 +1,5 @@
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig } from './types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig } from './types';
+import { DEFAULT_FIELDS } from './types';
 
 /**
  * 浏览器扩展存储工具
@@ -134,4 +135,40 @@ export async function setShangpinbangConfig(config: Partial<ShangpinbangConfig>)
 export async function getShangpinbangToken(): Promise<string | undefined> {
   const config = await getShangpinbangConfig();
   return config.token;
+}
+
+// ========== 数据面板配置存储 ==========
+
+const DEFAULT_DATA_PANEL_CONFIG: DataPanelConfig = {
+  visibleFields: [...DEFAULT_FIELDS],  // 默认显示的字段
+};
+
+/**
+ * 获取数据面板配置
+ */
+export async function getDataPanelConfig(): Promise<DataPanelConfig> {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(['dataPanelVisibleFields'], (result: { [key: string]: any }) => {
+      resolve({
+        visibleFields: result.dataPanelVisibleFields || DEFAULT_DATA_PANEL_CONFIG.visibleFields
+      });
+    });
+  });
+}
+
+/**
+ * 保存数据面板配置
+ */
+export async function setDataPanelConfig(config: Partial<DataPanelConfig>): Promise<void> {
+  return new Promise((resolve) => {
+    const storageData: { [key: string]: any } = {};
+
+    if (config.visibleFields !== undefined) {
+      storageData.dataPanelVisibleFields = config.visibleFields;
+    }
+
+    chrome.storage.sync.set(storageData, () => {
+      resolve();
+    });
+  });
 }

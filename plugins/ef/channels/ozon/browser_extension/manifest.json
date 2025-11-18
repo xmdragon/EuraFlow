@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "EuraFlow OZON选品助手",
-  "version": "1.5.3",
-  "description": "智能采集OZON商品数据，支持上品帮和毛子ERP数据融合，商品详情页显示真实售价",
+  "version": "1.6.0",
+  "description": "智能采集OZON商品数据，集成上品帮数据源，商品详情页显示真实售价和销售数据",
   "permissions": [
     "storage",
     "activeTab",

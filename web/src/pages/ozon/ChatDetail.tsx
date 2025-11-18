@@ -507,7 +507,7 @@ const ChatDetail: React.FC = () => {
                 <ReactMarkdown components={{ a: CustomLink }}>
                   {msg.content ||
                     (Array.isArray(msg.content_data) ? msg.content_data.join(' ') : '') ||
-                    ''}
+                    '（空消息）'}
                 </ReactMarkdown>
 
                 {/* 中文翻译（如果有） */}

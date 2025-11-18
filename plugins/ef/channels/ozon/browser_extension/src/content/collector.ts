@@ -1,4 +1,6 @@
 import { DataFusionEngine } from './fusion/engine';
+import { spbApiClient } from '../shared/spbang-api-client';
+import { additionalDataClient } from '../shared/additional-data-client';
 import type { ProductData, CollectionProgress } from '../shared/types';
 
 // 全局DEBUG变量，可在控制台修改: window.EURAFLOW_DEBUG = true
@@ -75,15 +77,6 @@ export class ProductCollector {
     if (debugFlag === 'true' || debugFlag === '1') {
       window.EURAFLOW_DEBUG = true;
       console.log('[EuraFlow] 🐞 调试模式已启用');
-    }
-
-    // 【检测数据工具】必须安装上品帮或毛子ERP
-    const availableParsers = this.fusionEngine.getAvailableParsers();
-
-    if (availableParsers.length === 0) {
-      const errorMsg = '❌ 未检测到上品帮或毛子ERP插件\n\n请先安装至少一个数据工具：\n- 上品帮 Chrome扩展\n- 毛子ERP Chrome扩展\n\n提示：安装后刷新OZON页面';
-      this.progress.errors.push(errorMsg);
-      throw new Error(errorMsg);
     }
 
     this.isRunning = true;
@@ -224,10 +217,184 @@ export class ProductCollector {
       const products = Array.from(this.collected.values());
 
       if (window.EURAFLOW_DEBUG) {
-        console.log('[DEBUG] 采集完成！');
+        console.log('[DEBUG] OZON数据采集完成！');
         console.log('[DEBUG] 总采集数:', products.length);
         console.log('[DEBUG] 目标数量:', targetCount);
         console.log('[DEBUG] 滚动次数:', this.scrollCount);
+      }
+
+      // 【阶段2】批量调用上品帮API获取销售数据
+      if (products.length > 0) {
+        this.progress.status = '正在获取销售数据...';
+        onProgress?.(this.progress);
+
+        console.log(`%c[阶段2: 销售数据] 开始获取 ${products.length} 个商品的销售数据`, 'color: #1890ff; font-weight: bold');
+
+        try {
+          const skus = products.map(p => p.product_id);
+
+          const spbDataMap = await spbApiClient.getSalesDataInBatches(
+            skus,
+            (current, total) => {
+              this.progress.status = `获取销售数据: ${current}/${total}`;
+              onProgress?.(this.progress);
+            }
+          );
+
+          // 合并上品帮数据到已采集的商品
+          let successCount = 0;
+          products.forEach(product => {
+            const spbData = spbDataMap.get(product.product_id);
+            if (spbData) {
+              // 合并数据（保留OZON原生数据，补充上品帮数据）
+              Object.assign(product, spbData);
+
+              // 品牌标准化
+              if (spbData.brand && !product.brand_normalized) {
+                product.brand_normalized = spbData.brand.toUpperCase().replace(/\s+/g, '_');
+              }
+
+              successCount++;
+            }
+          });
+
+          console.log(`%c[阶段2: 销售数据] 成功 ${successCount}/${products.length}`, 'color: #52c41a; font-weight: bold');
+
+          if (window.EURAFLOW_DEBUG) {
+            console.log('[DEBUG 销售数据] 详细统计:', {
+              总数: products.length,
+              成功: successCount,
+              失败: products.length - successCount,
+              字段示例: {
+                SKU: products[0]?.product_id,
+                月销量: products[0]?.monthly_sales_volume,
+                品牌: products[0]?.brand,
+                类目: products[0]?.category_path,
+                包装重量: products[0]?.package_weight
+              }
+            });
+          }
+        } catch (error: any) {
+          console.error('%c[阶段2: 销售数据] 失败:', 'color: #ff4d4f; font-weight: bold', error.message);
+          // 容错：即使上品帮API失败，也返回OZON原生数据
+        }
+      }
+
+      // 【阶段3】批量获取佣金数据
+      if (products.length > 0) {
+        this.progress.status = '正在获取佣金数据...';
+        onProgress?.(this.progress);
+
+        console.log(`%c[阶段3: 佣金数据] 开始获取 ${products.length} 个商品的佣金数据`, 'color: #1890ff; font-weight: bold');
+
+        try {
+          // 准备佣金API请求参数（需要 goods_id 和 category_name）
+          // ⚠️ 不过滤！即使没有category也尝试调用API（上品帮会处理）
+          const goodsForCommissions = products.map(p => ({
+            goods_id: p.product_id,
+            category_name: p.category_level_1 || p.category_path?.split(' > ')[0] || '未知类目'
+          }));
+
+          console.log(`[佣金数据] 准备请求:`, {
+            总数: goodsForCommissions.length,
+            有类目: products.filter(p => p.category_level_1).length,
+            无类目: products.filter(p => !p.category_level_1).length,
+            示例: goodsForCommissions.slice(0, 2)
+          });
+
+          const commissionsMap = await additionalDataClient.getCommissionsDataBatch(goodsForCommissions);
+
+          // 合并佣金数据
+          let successCount = 0;
+          products.forEach(product => {
+            const commissionData = commissionsMap.get(product.product_id);
+            if (commissionData) {
+              Object.assign(product, commissionData);
+              successCount++;
+            }
+          });
+
+          console.log(`%c[阶段3: 佣金数据] 成功 ${successCount}/${goodsForCommissions.length}`, 'color: #52c41a; font-weight: bold');
+
+          if (window.EURAFLOW_DEBUG && successCount > 0) {
+            const sampleProduct = products.find(p => p.rfbs_commission_mid);
+            console.log('[DEBUG 佣金数据] 示例:', {
+              SKU: sampleProduct?.product_id,
+              rFBS低: sampleProduct?.rfbs_commission_low,
+              rFBS中: sampleProduct?.rfbs_commission_mid,
+              rFBS高: sampleProduct?.rfbs_commission_high,
+              FBP低: sampleProduct?.fbp_commission_low,
+              FBP中: sampleProduct?.fbp_commission_mid,
+              FBP高: sampleProduct?.fbp_commission_high
+            });
+          }
+        } catch (error: any) {
+          console.error('%c[阶段3: 佣金数据] 失败:', 'color: #ff4d4f; font-weight: bold', error.message);
+          // 容错：佣金数据获取失败不影响主流程
+        }
+      }
+
+      // 【阶段4】批量获取跟卖数据
+      if (products.length > 0) {
+        this.progress.status = '正在获取跟卖数据...';
+        onProgress?.(this.progress);
+
+        console.log(`%c[阶段4: 跟卖数据] 开始获取 ${products.length} 个商品的跟卖数据`, 'color: #1890ff; font-weight: bold');
+
+        try {
+          const skus = products.map(p => p.product_id);
+
+          const followSellerMap = await additionalDataClient.getFollowSellerDataBatch(
+            skus,
+            (current, total) => {
+              this.progress.status = `获取跟卖数据: ${current}/${total}`;
+              onProgress?.(this.progress);
+            }
+          );
+
+          // 合并跟卖数据
+          let successCount = 0;
+          products.forEach(product => {
+            const followSellerData = followSellerMap.get(product.product_id);
+            if (followSellerData) {
+              Object.assign(product, followSellerData);
+              successCount++;
+            }
+          });
+
+          console.log(`%c[阶段4: 跟卖数据] 成功 ${successCount}/${skus.length}`, 'color: #52c41a; font-weight: bold');
+
+          if (window.EURAFLOW_DEBUG && successCount > 0) {
+            const sampleProduct = products.find(p => p.follow_seller_count && p.follow_seller_count > 0);
+            console.log('[DEBUG 跟卖数据] 示例:', {
+              SKU: sampleProduct?.product_id,
+              跟卖数量: sampleProduct?.follow_seller_count,
+              跟卖SKU: sampleProduct?.follow_seller_skus?.slice(0, 3),
+              价格分布: sampleProduct?.follow_seller_prices?.slice(0, 3)
+            });
+          }
+        } catch (error: any) {
+          console.error('%c[阶段4: 跟卖数据] 失败:', 'color: #ff4d4f; font-weight: bold', error.message);
+          // 容错：跟卖数据获取失败不影响主流程
+        }
+
+        this.progress.status = '采集完成';
+        onProgress?.(this.progress);
+
+        if (window.EURAFLOW_DEBUG) {
+          console.log('%c[DEBUG] 所有数据融合完成', 'color: #52c41a; font-weight: bold', {
+            总数: products.length,
+            示例数据: {
+              SKU: products[0]?.product_id,
+              标题: products[0]?.product_name_ru,
+              价格: products[0]?.current_price,
+              月销量: products[0]?.monthly_sales_volume,
+              包装重量: products[0]?.package_weight,
+              佣金rFBS: products[0]?.rfbs_commission_mid,
+              跟卖数量: products[0]?.follow_seller_count
+            }
+          });
+        }
       }
 
       // 上传数据（如果配置了自动上传）
@@ -592,8 +759,7 @@ export class ProductCollector {
       // 检查所有商品卡片中有多少已被注入数据
       const markedCount = allCards.filter(card => {
         const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
-        const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
-        return hasShangpinbang || hasMaoziErp;
+        return hasShangpinbang;
       }).length;
 
       const ratio = markedCount / allCards.length;
@@ -698,35 +864,30 @@ export class ProductCollector {
             continue;
           }
 
-          // 检查是否有数据工具标记（已注入数据）
-          const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
-          const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
+          // 立即采集OZON原生数据（不等待上品帮标记）
+          alreadyProcessed.add(sku);
 
-          if (hasShangpinbang || hasMaoziErp) {
-            alreadyProcessed.add(sku);
+          if (window.EURAFLOW_DEBUG) {
+            console.log(`[DEBUG waitAndCollect] 第一轮 按DOM顺序采集 ${sku}`);
+          }
+
+          // 采集单个商品（仅OZON原生数据）
+          const product = await this.collectSingleProduct(card, sku);
+
+          if (product) {
+            this.collected.set(sku, product);
+            newCollectedCount++;
+
+            // 更新进度
+            this.progress.collected = this.collected.size;
+            this.onProgressCallback?.(this.progress);
 
             if (window.EURAFLOW_DEBUG) {
-              console.log(`[DEBUG waitAndCollect] 第一轮 按DOM顺序采集 ${sku}`);
+              console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);
             }
-
-            // 采集单个商品（包括轮询增强）
-            const product = await this.collectSingleProduct(card, sku);
-
-            if (product) {
-              this.collected.set(sku, product);
-              newCollectedCount++;
-
-              // 更新进度
-              this.progress.collected = this.collected.size;
-              this.onProgressCallback?.(this.progress);
-
-              if (window.EURAFLOW_DEBUG) {
-                console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);
-              }
-            } else {
-              if (window.EURAFLOW_DEBUG) {
-                console.warn(`[DEBUG waitAndCollect] ✗ 采集失败 ${sku}`);
-              }
+          } else {
+            if (window.EURAFLOW_DEBUG) {
+              console.warn(`[DEBUG waitAndCollect] ✗ 采集失败 ${sku}`);
             }
           }
         }
@@ -747,16 +908,11 @@ export class ProductCollector {
             continue;
           }
 
-          // 检查是否有数据工具标记（已注入数据）
-          const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
-          const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
-
-          if (hasShangpinbang || hasMaoziErp) {
-            newReadyCards.push({ card, sku });
-          }
+          // 立即采集（不等待上品帮标记）
+          newReadyCards.push({ card, sku });
         }
 
-        // 立即采集这些新就绪的商品
+        // 立即采集这些新商品
         for (const { card, sku } of newReadyCards) {
           if (!this.isRunning) break;
           if (this.collected.size >= targetCount) break;
@@ -767,7 +923,7 @@ export class ProductCollector {
             console.log(`[DEBUG waitAndCollect] 第${round}轮 发现新商品 ${sku}，开始采集...`);
           }
 
-          // 采集单个商品（包括轮询增强）
+          // 采集单个商品（仅OZON原生数据）
           const product = await this.collectSingleProduct(card, sku);
 
           if (product) {
@@ -833,55 +989,13 @@ export class ProductCollector {
       }
 
       if (window.EURAFLOW_DEBUG) {
-        const weightDisplay = product.package_weight === undefined
-          ? 'undefined(未加载)'
-          : (product.package_weight === 0 ? '0(无数据)' : `${product.package_weight}g`);
-
-        console.log(`[DEBUG 即时采集] ${sku}`, {
-          完整: this.isProductComplete(product),
-          'rFBS(高/中/低)': `${product.rfbs_commission_high}/${product.rfbs_commission_mid}/${product.rfbs_commission_low}`,
-          重量: weightDisplay,
-          跟卖: product.competitor_count
+        console.log(`[DEBUG 采集OZON数据] ${sku}`, {
+          标题: product.product_name_ru,
+          当前价格: product.current_price,
+          原价: product.original_price,
+          评分: product.rating,
+          评论数: product.review_count
         });
-      }
-
-      // 3. 如果数据不完整，轮询增强（最多2秒）
-      const maxRounds = 40;  // 40轮 × 50ms = 2秒
-      let round = 0;
-
-      while (!this.isProductComplete(product) && round < maxRounds && this.isRunning) {
-        await this.sleep(50);
-        round++;
-
-        // 通过 data-sku 属性定位卡片
-        const cardNow = document.querySelector(`[data-sku="${sku}"]`) as HTMLElement;
-        if (!cardNow) {
-          if (window.EURAFLOW_DEBUG) {
-            console.warn(`[DEBUG 轮询增强] SKU=${sku} 卡片已移除`);
-          }
-          break;
-        }
-
-        // 重新提取数据
-        const updated = await this.fusionEngine.fuseProductDataImmediate(cardNow);
-        const beforeData = { ...product };
-        this.smartMerge(product, updated);
-
-        // DEBUG：仅在有新字段被填充时打印
-        if (window.EURAFLOW_DEBUG) {
-          const newlyFilledFields = this.getNewlyFilledFields(beforeData, product);
-          if (newlyFilledFields.length > 0) {
-            console.log(`[DEBUG 轮询增强] SKU=${sku} 第${round}轮 新填充:`, newlyFilledFields);
-          }
-        }
-
-        // 数据完整，结束轮询
-        if (this.isProductComplete(product)) {
-          if (window.EURAFLOW_DEBUG) {
-            console.log(`[DEBUG 轮询增强] SKU=${sku} 数据完整 (第${round}轮)`);
-          }
-          break;
-        }
       }
 
       return product;
@@ -931,7 +1045,7 @@ export class ProductCollector {
 
   /**
    * 获取当前可见的商品卡片
-   * 【重要】仅返回有数据工具标记的商品（上品帮或毛子ERP）
+   * 【重要】仅返回有数据工具标记的商品（上品帮）
    */
   private getVisibleProductCards(): HTMLElement[] {
     // 获取所有可能的商品卡片
@@ -966,11 +1080,8 @@ export class ProductCollector {
       // 检查上品帮标记
       const hasShangpinbang = card.getAttribute('data-ozon-bang') === 'true';
 
-      // 检查毛子ERP标记
-      const hasMaoziErp = !!card.querySelector('[data-mz-widget]');
-
-      // 必须至少有一个数据工具标记
-      return hasShangpinbang || hasMaoziErp;
+      // 必须有上品帮标记
+      return hasShangpinbang;
     });
 
     return filtered;

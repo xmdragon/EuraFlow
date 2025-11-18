@@ -6,13 +6,13 @@ export type { ProductData };
 /**
  * 页面数据解析器接口
  *
- * 每个第三方工具（上品帮、毛子ERP等）对应一个解析器实现
+ * 每个第三方工具（上品帮）对应一个解析器实现
  */
 export interface PageDataParser {
   /**
    * 工具标识符
    */
-  readonly toolName: 'shangpinbang' | 'maozi-erp';
+  readonly toolName: 'shangpinbang';
 
   /**
    * 工具显示名称

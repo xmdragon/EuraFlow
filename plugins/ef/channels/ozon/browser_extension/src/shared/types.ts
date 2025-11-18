@@ -53,9 +53,14 @@ export interface ProductData {
   ad_cost_share?: number;
   product_created_date?: Date;
 
-  // 竞争对手数据
+  // 竞争对手数据（上品帮销售数据API）
   competitor_count?: number;
   competitor_min_price?: number;
+
+  // 跟卖数据（OZON API）
+  follow_seller_count?: number;         // 跟卖商家数量
+  follow_seller_skus?: string[];        // 跟卖商家SKU数组
+  follow_seller_prices?: number[];      // 跟卖价格数组（按价格排序）
 
   // 营销分析字段（上品帮新增）
   card_views?: number;                  // 商品卡片浏览量
@@ -112,9 +117,8 @@ export interface CollectionProgress {
  */
 export interface FusionStats {
   spbFields: number;        // 上品帮提供的字段数
-  mzFields: number;         // 毛子ERP提供的字段数
   totalFields: number;      // 总字段数
-  fusedFields: string[];    // 从两个数据源融合的字段
+  fusedFields: string[];    // 融合的字段
 }
 
 // ========== 一键跟卖功能类型 ==========
@@ -316,9 +320,14 @@ export const MESSAGE_TYPES = {
   SPB_LOGIN: 'SPB_LOGIN',
   SPB_GET_TOKEN: 'SPB_GET_TOKEN',
   SPB_API_CALL: 'SPB_API_CALL',  // 通用上品帮 API 调用（支持自动 Token 刷新）
+  GET_SPB_SALES_DATA: 'GET_SPB_SALES_DATA',  // 获取上品帮销售数据
+  GET_SPB_COMMISSIONS: 'GET_SPB_COMMISSIONS',  // 获取上品帮佣金数据
 
   // OZON API
   GET_OZON_PRODUCT_DETAIL: 'GET_OZON_PRODUCT_DETAIL',  // 获取 OZON 商品详情
+
+  // 商品采集
+  COLLECT_PRODUCT: 'COLLECT_PRODUCT',  // 采集商品
 } as const;
 
 export type MessageType = typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES];
@@ -389,3 +398,144 @@ export interface OzonSearchVariantResponse {
 export interface GetOzonProductDetailRequest {
   productSku: string;  // 商品 SKU（如：3083658390）
 }
+
+// ========== 上品帮销售数据类型 ==========
+
+/**
+ * 上品帮销售数据（从 getGoodsInfoByIds API 返回）
+ */
+export interface SpbSalesData {
+  // 基础信息
+  goodsId: string;                      // 商品ID
+  category: string;                     // 类目（如：住宅和花园 > 礼品袋）
+  brand: string;                        // 品牌
+
+  // 佣金（6个字段）
+  rfbsCommissionLow: number;            // rFBS ≤1500₽
+  rfbsCommissionMid: number;            // rFBS 1501-5000₽
+  rfbsCommissionHigh: number;           // rFBS >5000₽
+  fbpCommissionLow: number;             // FBP ≤1500₽
+  fbpCommissionMid: number;             // FBP 1501-5000₽
+  fbpCommissionHigh: number;            // FBP >5000₽
+
+  // 销售数据
+  monthlySales: number | null;          // 月销量（件）
+  monthlySalesAmount: number | null;    // 月销售额（₽）
+  dailySales: number | null;            // 日销量（件）
+  dailySalesAmount: number | null;      // 日销售额（₽）
+  salesDynamic: number | null;          // 月销售动态（%）
+
+  // 营销分析
+  cardViews: number | null;             // 商品卡片浏览量
+  cardAddToCartRate: number | null;     // 商品卡片加购率（%）
+  searchViews: number | null;           // 搜索和目录浏览量
+  searchAddToCartRate: number | null;   // 搜索和目录加购率（%）
+  clickThroughRate: number | null;      // 点击率（%）
+  promoDays: number | null;             // 参与促销天数
+  promoDiscount: number | null;         // 参与促销的折扣（%）
+  promoConversion: number | null;       // 促销活动的转化率（%）
+  paidPromoDays: number | null;         // 付费推广天数
+  adShare: number | null;               // 广告份额（%）
+
+  // 成交数据
+  transactionRate: number | null;       // 成交率（%）
+  returnCancelRate: number | null;      // 退货取消率（%）
+
+  // 商品基础数据
+  avgPrice: number | null;              // 平均价格（₽）
+  packageWeight: number | null;         // 包装重量（g）
+  packageLength: number | null;         // 长（mm）
+  packageWidth: number | null;          // 宽（mm）
+  packageHeight: number | null;         // 高（mm）
+  sellerMode: string | null;            // 发货模式（FBS/FBO）
+
+  // 跟卖信息
+  competitorCount: number | null;       // 跟卖者数量
+  competitorMinPrice: number | null;    // 跟卖最低价（¥）
+
+  // 上架信息
+  listingDate: string | null;           // 上架时间（YYYY-MM-DD）
+  listingDays: number | null;           // 上架天数
+  sku: string | null;                   // SKU
+}
+
+/**
+ * 数据面板配置
+ */
+export interface DataPanelConfig {
+  // 显示的字段列表（字段key数组）
+  visibleFields: string[];
+}
+
+/**
+ * 数据字段定义（用于配置界面）
+ */
+export interface DataField {
+  key: string;                          // 字段key（如：monthlySales）
+  label: string;                        // 显示标签（如：月销量）
+  group: 'sales' | 'marketing' | 'basic' | 'competitor' | 'commission';  // 字段分组
+  isDefault: boolean;                   // 是否为默认显示字段
+  formatter?: (value: any) => string;   // 值格式化函数
+}
+
+// 默认显示的字段列表
+export const DEFAULT_FIELDS = [
+  'monthlySales',       // 月销量
+  'cardViews',          // 浏览量
+  'transactionRate',    // 成交率
+  'packageWeight',      // 包装重量
+  'packageLength',      // 包装长度
+  'packageWidth',       // 包装宽度
+  'packageHeight',      // 包装高度
+  'listingDate',        // 上架时间
+] as const;
+
+// 所有可选字段（按分组）
+export const FIELD_GROUPS: Record<string, DataField[]> = {
+  sales: [
+    { key: 'monthlySales', label: '月销量', group: 'sales', isDefault: true },
+    { key: 'monthlySalesAmount', label: '月销售额', group: 'sales', isDefault: false },
+    { key: 'dailySales', label: '日销量', group: 'sales', isDefault: false },
+    { key: 'dailySalesAmount', label: '日销售额', group: 'sales', isDefault: false },
+    { key: 'salesDynamic', label: '月销售动态', group: 'sales', isDefault: false },
+  ],
+  marketing: [
+    { key: 'cardViews', label: '商品卡片浏览量', group: 'marketing', isDefault: true },
+    { key: 'cardAddToCartRate', label: '商品卡片加购率', group: 'marketing', isDefault: false },
+    { key: 'searchViews', label: '搜索和目录浏览量', group: 'marketing', isDefault: false },
+    { key: 'searchAddToCartRate', label: '搜索和目录加购率', group: 'marketing', isDefault: false },
+    { key: 'clickThroughRate', label: '点击率', group: 'marketing', isDefault: false },
+    { key: 'promoDays', label: '参与促销天数', group: 'marketing', isDefault: false },
+    { key: 'promoDiscount', label: '参与促销的折扣', group: 'marketing', isDefault: false },
+    { key: 'promoConversion', label: '促销活动的转化率', group: 'marketing', isDefault: false },
+    { key: 'paidPromoDays', label: '付费推广天数', group: 'marketing', isDefault: false },
+    { key: 'adShare', label: '广告份额', group: 'marketing', isDefault: false },
+    { key: 'transactionRate', label: '成交率', group: 'marketing', isDefault: true },
+    { key: 'returnCancelRate', label: '退货取消率', group: 'marketing', isDefault: false },
+  ],
+  basic: [
+    { key: 'category', label: '类目', group: 'basic', isDefault: false },
+    { key: 'brand', label: '品牌', group: 'basic', isDefault: false },
+    { key: 'avgPrice', label: '平均价格', group: 'basic', isDefault: false },
+    { key: 'packageWeight', label: '包装重量', group: 'basic', isDefault: true },
+    { key: 'packageLength', label: '长度', group: 'basic', isDefault: true },
+    { key: 'packageWidth', label: '宽度', group: 'basic', isDefault: true },
+    { key: 'packageHeight', label: '高度', group: 'basic', isDefault: true },
+    { key: 'sellerMode', label: '发货模式', group: 'basic', isDefault: false },
+    { key: 'listingDate', label: '上架时间', group: 'basic', isDefault: true },
+    { key: 'listingDays', label: '上架天数', group: 'basic', isDefault: false },
+    { key: 'sku', label: 'SKU', group: 'basic', isDefault: false },
+  ],
+  competitor: [
+    { key: 'competitorCount', label: '跟卖者数量', group: 'competitor', isDefault: false },
+    { key: 'competitorMinPrice', label: '跟卖最低价', group: 'competitor', isDefault: false },
+  ],
+  commission: [
+    { key: 'rfbsCommissionLow', label: 'rFBS ≤1500₽', group: 'commission', isDefault: false },
+    { key: 'rfbsCommissionMid', label: 'rFBS 1501-5000₽', group: 'commission', isDefault: false },
+    { key: 'rfbsCommissionHigh', label: 'rFBS >5000₽', group: 'commission', isDefault: false },
+    { key: 'fbpCommissionLow', label: 'FBP ≤1500₽', group: 'commission', isDefault: false },
+    { key: 'fbpCommissionMid', label: 'FBP 1501-5000₽', group: 'commission', isDefault: false },
+    { key: 'fbpCommissionHigh', label: 'FBP >5000₽', group: 'commission', isDefault: false },
+  ],
+};

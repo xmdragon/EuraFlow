@@ -803,12 +803,14 @@ function isDebugEnabled(): boolean {
  * 提取商品数据（主函数）
  */
 export async function extractProductData(): Promise<ProductDetailData> {
+  let baseData: any = null;  // 提升到外部，确保 catch 块能访问
+
   try {
     const productUrl = window.location.href;
 
     // 获取基础数据（完整的 API 响应，包含 widgetStates 和 layoutTrackingInfo）
     const apiResponse = await fetchProductDataFromOzonAPI(productUrl);
-    const baseData = parseFromWidgetStates(apiResponse);
+    baseData = parseFromWidgetStates(apiResponse);
 
     if (!baseData) {
       throw new Error('解析基础数据失败');
@@ -1083,7 +1085,17 @@ export async function extractProductData(): Promise<ProductDetailData> {
   } catch (error) {
     console.error('[EuraFlow] 商品数据采集失败:', error);
 
-    // 返回最小有效数据
+    // 如果 baseData 已成功提取（包含 dimensions 等关键数据），返回它
+    if (baseData && baseData.ozon_product_id) {
+      console.warn('[EuraFlow] 变体处理失败，但返回已提取的基础数据（包含 dimensions）');
+      return {
+        ...baseData,
+        has_variants: false,
+        variants: undefined,
+      };
+    }
+
+    // 完全失败时才返回最小有效数据
     return {
       title: '',
       price: 0,

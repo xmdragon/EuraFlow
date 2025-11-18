@@ -1,341 +1,130 @@
-import type { PageDataParser } from '../parsers/base';
-import type { ProductData, FusionStats } from '../../shared/types';
+import type { ProductData } from '../../shared/types';
 
 /**
- * 智能数据融合引擎
+ * 数据融合引擎（重构版）
  *
- * 从多个数据源（上品帮、毛子ERP）提取数据并动态选择最佳值
+ * 功能：直接从OZON商品卡片提取原生数据（SKU、标题、价格、图片等）
+ * 不再依赖上品帮DOM注入，销售数据通过API获取
  */
 export class DataFusionEngine {
-  constructor(
-    private parsers: PageDataParser[]
-  ) {}
-
-  /**
-   * 获取所有可用的解析器
-   */
-  getAvailableParsers(): PageDataParser[] {
-    return this.parsers.filter(p => p.isInjected());
+  constructor() {
+    // 不再需要parser参数
   }
 
   /**
-   * 智能融合：从所有可用解析器提取数据，选择最佳值
-   */
-  async fuseProductData(cardElement: HTMLElement): Promise<ProductData> {
-    const available = this.getAvailableParsers();
-
-    if (available.length === 0) {
-      throw new Error('未检测到任何数据工具（上品帮/毛子ERP），请先安装至少一个');
-    }
-
-    // 1. 等待所有可用工具完成数据注入
-    // 注意：parseProductCard 方法内部已经包含了对单个卡片的等待逻辑
-    await Promise.all(
-      available.map(p => p.waitForInjection?.() || Promise.resolve())
-    );
-
-    // 2. 从所有解析器并行提取数据
-    // 每个解析器的 parseProductCard 方法会自行等待数据就绪
-    const dataList = await Promise.all(
-      available.map(async parser => ({
-        parser,
-        data: await parser.parseProductCard(cardElement)
-      }))
-    );
-
-    // 3. 融合数据（对每个字段选择最佳值）
-    const fused = this.mergeData(dataList);
-
-    // 4. 验证必需字段
-    if (!fused.product_id) {
-      throw new Error('无法提取商品ID（所有数据源都没有）');
-    }
-
-    // 5. 验证关键数据完整性（注意：0 值也是有效的，表示无跟卖）
-    // 不再警告跟卖数据缺失，因为有些商品确实没有跟卖是正常的
-
-    return fused as ProductData;
-  }
-
-  /**
-   * 立即融合数据（不等待数据加载）
+   * 立即提取OZON原生数据（重构版）
    *
-   * 用于两阶段采集：
-   * 1. 快速采集阶段：立即提取所有已有数据
-   * 2. 轮询增强阶段：补充未加载的关键数据
+   * 功能：从商品卡片中提取OZON原生数据
+   * - SKU（从URL）
+   * - 标题（俄文）
+   * - 当前价格
+   * - 原价
+   * - 商品链接
+   * - 图片URL
+   * - 评分
+   * - 评论数
    *
-   * 与 fuseProductData 的区别：
-   * - 不等待数据注入（waitForInjection）
-   * - 调用 parseProductCardImmediate 而非 parseProductCard
-   * - 提取当前已有数据，未加载的字段为 undefined
+   * 注意：不再提取上品帮数据（佣金、销量等），这些数据将通过API获取
    */
   async fuseProductDataImmediate(cardElement: HTMLElement): Promise<ProductData> {
-    const available = this.getAvailableParsers();
+    const product: Partial<ProductData> = {};
 
-    if (available.length === 0) {
-      throw new Error('未检测到任何数据工具（上品帮/毛子ERP），请先安装至少一个');
+    // 1. 提取SKU（从商品链接）
+    const link = cardElement.querySelector<HTMLAnchorElement>('a[href*="/product/"]');
+    if (link && link.href) {
+      // URL格式: https://www.ozon.ru/product/name-3083658390/
+      const urlParts = link.href.split('/product/');
+      if (urlParts.length > 1) {
+        const pathPart = urlParts[1].split('?')[0].replace(/\/$/, '');
+        const lastDashIndex = pathPart.lastIndexOf('-');
+        if (lastDashIndex !== -1) {
+          const sku = pathPart.substring(lastDashIndex + 1);
+          if (/^\d{6,}$/.test(sku)) {
+            product.product_id = sku;
+          }
+        }
+      }
+
+      // 商品链接
+      product.ozon_link = link.href;
     }
 
-    // 从所有解析器并行提取数据（不等待）
-    const dataList = await Promise.all(
-      available.map(async parser => ({
-        parser,
-        data: await parser.parseProductCardImmediate(cardElement)
-      }))
-    );
+    // 2. 提取标题（俄文）
+    const titleElement = cardElement.querySelector('a[href*="/product/"] span.tsBody500Medium');
+    if (titleElement) {
+      product.product_name_ru = titleElement.textContent?.trim();
+    }
 
-    // 【DEBUG】检查各个parser提取的package_weight
-    if ((window as any).EURAFLOW_DEBUG) {
-      dataList.forEach(({ parser, data }) => {
-        if (data.product_id) {
-          console.log(`[DEBUG fuseProductDataImmediate] ${parser.toolName} SKU=${data.product_id} package_weight =`, data.package_weight);
+    // 3. 提取当前价格（不带删除线）
+    const currentPriceElement = cardElement.querySelector('span.tsHeadline500Medium:not([class*="strikethrough"])');
+    if (currentPriceElement) {
+      const priceText = currentPriceElement.textContent?.replace(/[₽¥\s]/g, '').trim();
+      if (priceText) {
+        product.current_price = parseFloat(priceText);
+      }
+    }
+
+    // 4. 提取原价（带删除线）
+    const originalPriceElement = cardElement.querySelector('span.tsBodyControl400Small.c35_3_11-b');
+    if (originalPriceElement) {
+      const priceText = originalPriceElement.textContent?.replace(/[₽¥\s]/g, '').trim();
+      if (priceText) {
+        product.original_price = parseFloat(priceText);
+      }
+    }
+
+    // 5. 提取评分（带 --textPremium 样式）
+    const ratingSpans = cardElement.querySelectorAll('span[style*="--textPremium"]');
+    for (const span of Array.from(ratingSpans)) {
+      const text = span.textContent?.trim();
+      if (text && /^\d+(\.\d+)?$/.test(text)) {
+        product.rating = parseFloat(text);
+        break;
+      }
+    }
+
+    // 6. 提取评论数（带 --textSecondary 样式，纯数字，无小数点）
+    const reviewSpans = cardElement.querySelectorAll('span[style*="--textSecondary"]');
+    for (const span of Array.from(reviewSpans)) {
+      const text = span.textContent?.trim();
+      if (text && !text.includes('.')) {
+        const num = text.replace(/[^\d]/g, '');
+        if (num) {
+          product.review_count = parseInt(num, 10);
+          break;
         }
+      }
+    }
+
+    // 7. 提取图片URL
+    const imageElement = cardElement.querySelector('img:not(.ozon-bang-img)') as HTMLImageElement;
+    if (imageElement) {
+      product.image_url = imageElement.src;
+    }
+
+    // 【DEBUG】检查提取的数据
+    if ((window as any).EURAFLOW_DEBUG && product.product_id) {
+      console.log(`[DEBUG 提取OZON数据] SKU=${product.product_id}`, {
+        标题: product.product_name_ru,
+        当前价格: product.current_price,
+        原价: product.original_price,
+        评分: product.rating,
+        评论数: product.review_count
       });
     }
 
-    // 融合数据（对每个字段选择最佳值）
-    const fused = this.mergeData(dataList);
-
-    // 【DEBUG】检查融合后的package_weight
-    if ((window as any).EURAFLOW_DEBUG && fused.product_id) {
-      console.log(`[DEBUG fuseProductDataImmediate] 融合后 SKU=${fused.product_id} package_weight =`, fused.package_weight);
-    }
-
-    // 验证必需字段
-    if (!fused.product_id) {
-      throw new Error('无法提取商品ID（所有数据源都没有）');
-    }
-
-    return fused as ProductData;
+    return product as ProductData;
   }
 
   /**
-   * 合并多个数据源的数据
+   * 获取融合统计（已废弃，保留用于兼容）
+   * @deprecated 不再使用parser，返回空统计
    */
-  private mergeData(
-    dataList: Array<{ parser: PageDataParser; data: Partial<ProductData> }>
-  ): Partial<ProductData> {
-    const merged: any = {};
-
-    // 收集所有字段
-    const allFields = new Set<keyof ProductData>();
-    dataList.forEach(({ data }) => {
-      Object.keys(data).forEach(key => allFields.add(key as keyof ProductData));
-    });
-
-    // 对每个字段选择最佳值
-    for (const field of allFields) {
-      merged[field] = this.selectBestValue(field, dataList);
-    }
-
-    return merged;
-  }
-
-  /**
-   * 为单个字段选择最佳值
-   */
-  private selectBestValue<K extends keyof ProductData>(
-    field: K,
-    dataList: Array<{ parser: PageDataParser; data: Partial<ProductData> }>
-  ): ProductData[K] | undefined {
-    // 收集所有非空值
-    const values = dataList
-      .map(({ parser, data }) => ({ parser, value: data[field] }))
-      .filter(({ value }) => !this.isNullish(value));
-
-    // 1. 没有任何数据源有值
-    if (values.length === 0) {
-      return undefined;
-    }
-
-    // 2. 只有一个数据源有值
-    if (values.length === 1) {
-      return values[0].value as ProductData[K];
-    }
-
-    // 3. 多个数据源都有值 → 根据字段类型选择
-
-    // 3.1 数值型：取最大值
-    const firstValue = values[0].value;
-    if (typeof firstValue === 'number') {
-      let maxValue = firstValue;
-      for (const { value } of values) {
-        if (typeof value === 'number' && value > maxValue) {
-          maxValue = value;
-        }
-      }
-      return maxValue as ProductData[K];
-    }
-
-    // 3.2 字符串型：根据字段特性选择
-    if (typeof firstValue === 'string') {
-      return this.selectBestString(field, values) as ProductData[K];
-    }
-
-    // 3.3 日期型：取最新的
-    if (firstValue instanceof Date) {
-      let latestDate = firstValue;
-      for (const { value } of values) {
-        if (value instanceof Date && value > latestDate) {
-          latestDate = value;
-        }
-      }
-      return latestDate as ProductData[K];
-    }
-
-    // 默认：返回第一个值
-    return firstValue as ProductData[K];
-  }
-
-  /**
-   * 为字符串字段选择最佳值
-   */
-  private selectBestString<K extends keyof ProductData>(
-    field: K,
-    values: Array<{ parser: PageDataParser; value: any }>
-  ): string {
-    // 品牌：优先毛子ERP（中文识别更准）
-    if (field === 'brand') {
-      const mzValue = values.find(({ parser }) => parser.toolName === 'maozi-erp');
-      if (mzValue && mzValue.value) {
-        return mzValue.value;
-      }
-    }
-
-    // SKU：应该相同，如果不同取长的
-    if (field === 'product_id') {
-      let longestValue = values[0].value;
-      for (const { value } of values) {
-        if (String(value).length > String(longestValue).length) {
-          longestValue = value;
-        }
-      }
-      return longestValue;
-    }
-
-    // 商品名称：取更长/更完整的
-    if (field === 'product_name_ru' || field === 'product_name_cn') {
-      let longestValue = values[0].value;
-      for (const { value } of values) {
-        if (String(value).length > String(longestValue).length) {
-          longestValue = value;
-        }
-      }
-      return longestValue;
-    }
-
-    // URL类：优先有效的（以http开头）
-    if (field === 'ozon_link' || field === 'image_url') {
-      for (const { value } of values) {
-        if (String(value).startsWith('http')) {
-          return value;
-        }
-      }
-    }
-
-    // 默认：对于字符串类型，取更长的（信息更完整）
-    // 对于其他类型，返回第一个值
-    if (typeof values[0].value === 'string') {
-      let longestValue = values[0].value;
-      for (const { value } of values) {
-        if (String(value).length > String(longestValue).length) {
-          longestValue = value;
-        }
-      }
-      return longestValue;
-    }
-
-    // 对于非字符串类型，返回第一个值
-    return values[0].value;
-  }
-
-  /**
-   * 检查值是否为空
-   */
-  private isNullish(value: any): boolean {
-    return value === null ||
-           value === undefined ||
-           value === '' ||
-           value === '--' ||
-           value === 'null' ||
-           value === 'undefined';
-  }
-
-  /**
-   * 获取融合统计信息（用于UI显示）
-   */
-  async getFusionStats(
-    cardElement: HTMLElement
-  ): Promise<FusionStats> {
-    const available = this.getAvailableParsers();
-
-    if (available.length === 0) {
-      return {
-        spbFields: 0,
-        mzFields: 0,
-        totalFields: 0,
-        fusedFields: []
-      };
-    }
-
-    // 从所有解析器提取数据
-    const dataList = await Promise.all(
-      available.map(async parser => ({
-        parser,
-        data: await parser.parseProductCard(cardElement)
-      }))
-    );
-
-    // 统计每个数据源的字段数
-    const spbData = dataList.find(({ parser }) => parser.toolName === 'shangpinbang');
-    const mzData = dataList.find(({ parser }) => parser.toolName === 'maozi-erp');
-
-    const spbFields = spbData ? this.countFields(spbData.data) : 0;
-    const mzFields = mzData ? this.countFields(mzData.data) : 0;
-
-    // 统计融合的字段（两个数据源都有的字段）
-    const fusedFields: string[] = [];
-    if (spbData && mzData) {
-      const spbKeys = new Set(Object.keys(spbData.data));
-      const mzKeys = new Set(Object.keys(mzData.data));
-
-      for (const key of spbKeys) {
-        if (mzKeys.has(key) &&
-            !this.isNullish(spbData.data[key as keyof ProductData]) &&
-            !this.isNullish(mzData.data[key as keyof ProductData])) {
-          fusedFields.push(key);
-        }
-      }
-    }
-
-    // 总字段数
-    const allFields = new Set<string>();
-    dataList.forEach(({ data }) => {
-      Object.keys(data).forEach(key => allFields.add(key));
-    });
-
+  getFusionStats(): { spbFields: number; totalFields: number; fusedFields: string[] } {
     return {
-      spbFields,
-      mzFields,
-      totalFields: allFields.size,
-      fusedFields
-    };
-  }
-
-  /**
-   * 统计非空字段数量
-   */
-  private countFields(data: Partial<ProductData>): number {
-    return Object.values(data).filter(v => !this.isNullish(v)).length;
-  }
-
-  /**
-   * 获取数据源状态（用于UI显示）
-   */
-  getSourceStatus(): { shangpinbang: boolean; maoziErp: boolean } {
-    return {
-      shangpinbang: this.parsers.find(p => p.toolName === 'shangpinbang')?.isInjected() || false,
-      maoziErp: this.parsers.find(p => p.toolName === 'maozi-erp')?.isInjected() || false
+      spbFields: 0,
+      totalFields: 0,
+      fusedFields: []
     };
   }
 }
