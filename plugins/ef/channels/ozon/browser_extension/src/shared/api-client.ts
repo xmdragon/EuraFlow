@@ -10,20 +10,12 @@ import type {
   TaskStatus,
 } from './types';
 
-/**
- * EuraFlow API 客户端
- *
- * 通过后台服务工作线程发送请求（绕过CSP限制）
- */
 export class ApiClient {
   constructor(
     private apiUrl: string,
     private apiKey: string
   ) {}
 
-  /**
-   * 批量上传商品数据
-   */
   async uploadProducts(products: ProductData[]): Promise<{
     success: boolean;
     total: number;
@@ -52,10 +44,7 @@ export class ApiClient {
     }
   }
 
-  /**
-   * 获取一键上架所需的所有配置（店铺+仓库+水印）
-   * 优化：单次请求减少网络往返，从原来的 3+N 次请求优化到 1 次
-   */
+  // 优化：单次请求减少网络往返，从原来的 3+N 次请求优化到 1 次
   async getConfig(): Promise<{
     shops: Array<Shop & { warehouses: Warehouse[] }>;
     watermarks: Watermark[];
@@ -69,9 +58,6 @@ export class ApiClient {
     }
   }
 
-  /**
-   * 快速上架商品
-   */
   async quickPublish(data: QuickPublishRequest): Promise<QuickPublishResponse> {
     try {
       const response = await this.sendRequest('QUICK_PUBLISH', { data });
@@ -82,9 +68,6 @@ export class ApiClient {
     }
   }
 
-  /**
-   * 批量快速上架（多个变体）
-   */
   async quickPublishBatch(data: QuickPublishBatchRequest): Promise<QuickPublishBatchResponse> {
     try {
       const response = await this.sendRequest('QUICK_PUBLISH_BATCH', { data });
@@ -95,9 +78,6 @@ export class ApiClient {
     }
   }
 
-  /**
-   * 查询上架任务状态
-   */
   async getTaskStatus(taskId: string, shopId?: number): Promise<TaskStatus> {
     try {
       const response = await this.sendRequest('GET_TASK_STATUS', { taskId, shopId });
@@ -108,9 +88,6 @@ export class ApiClient {
     }
   }
 
-  /**
-   * 通过 Service Worker 发送 API 请求（绕过 CORS 限制）
-   */
   private async sendRequest(type: string, payload: any): Promise<any> {
     const response = await chrome.runtime.sendMessage({
       type,
@@ -128,9 +105,6 @@ export class ApiClient {
     return response.data;
   }
 
-  /**
-   * 转换商品数据为API格式
-   */
   private convertProductsToApiFormat(products: ProductData[]): any[] {
     return products.map(product => ({
       product_id: product.product_id,

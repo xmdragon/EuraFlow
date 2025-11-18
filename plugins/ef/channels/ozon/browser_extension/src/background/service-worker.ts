@@ -1,14 +1,4 @@
-/**
- * 后台服务工作线程
- *
- * 负责：
- * 1. 监听扩展安装和更新事件
- * 2. 处理跨域API请求
- * 3. 管理扩展状态
- * 4. 全局商品数据缓存
- */
-
-// ========== 全局商品数据缓存 ==========
+// 全局商品数据缓存（5分钟有效期）
 
 interface GlobalProductData {
   url: string;
@@ -20,17 +10,13 @@ interface GlobalProductData {
 }
 
 const productDataCache = new Map<string, GlobalProductData>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+const CACHE_DURATION = 5 * 60 * 1000;
 
-// 监听扩展安装
 chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {
-
   if (details.reason === 'install' || details.reason === 'update') {
-    // 首次安装或更新：确保默认配置存在
     chrome.storage.sync.get(['targetCount', 'scrollDelay', 'scrollWaitTime'], (result) => {
       const updates: { [key: string]: any } = {};
 
-      // 只设置缺失的配置项
       if (result.targetCount === undefined) {
         updates.targetCount = 100;
       }
@@ -41,7 +27,6 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
         updates.scrollWaitTime = 1000;
       }
 
-      // 如果有缺失项，更新存储
       if (Object.keys(updates).length > 0) {
         chrome.storage.sync.set(updates);
       }
@@ -49,156 +34,121 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
   }
 });
 
-// 监听来自内容脚本的消息
 chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
 
-
   if (message.type === 'UPLOAD_PRODUCTS') {
-    // 处理商品数据上传
     handleUploadProducts(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
-    return true; // 保持消息通道开启（异步响应）
+    return true;
   }
 
   if (message.type === 'TEST_CONNECTION') {
-    // 测试API连接
     handleTestConnection(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_CONFIG') {
-    // 获取一键上架所需的所有配置（店铺+仓库+水印）
     handleGetConfig(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'QUICK_PUBLISH') {
-    // 快速上架商品
     handleQuickPublish(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'QUICK_PUBLISH_BATCH') {
-    // 批量上架商品（多个变体）
     handleQuickPublishBatch(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_TASK_STATUS') {
-    // 查询任务状态
     handleGetTaskStatus(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'COLLECT_PRODUCT') {
-    // 采集商品
     handleCollectProduct(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'SPB_LOGIN') {
-    // 上品帮登录
     handleShangpinbangLogin(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'SPB_GET_TOKEN') {
-    // 获取上品帮Token
     handleGetShangpinbangToken()
       .then(token => sendResponse({ success: true, data: { token } }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'SPB_API_CALL') {
-    // 调用上品帮 API（支持自动 Token 刷新）
     handleShangpinbangAPICall(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_OZON_PRODUCT_DETAIL') {
-    // 获取 OZON 商品详情
     handleGetOzonProductDetail(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_SPB_SALES_DATA') {
-    // 获取上品帮销售数据（单个SKU）
     handleGetSpbSalesData(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_SPB_SALES_DATA_BATCH') {
-    // 获取上品帮销售数据（批量SKU）
     handleGetSpbSalesDataBatch(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_GOODS_COMMISSIONS_BATCH') {
-    // 批量获取上品帮佣金数据
     handleGetGoodsCommissionsBatch(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_FOLLOW_SELLER_DATA_BATCH') {
-    // 批量获取OZON跟卖数据
     handleGetFollowSellerDataBatch(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_FOLLOW_SELLER_DATA_SINGLE') {
-    // 单个获取OZON跟卖数据
     handleGetFollowSellerDataSingle(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
-
     return true;
   }
 
   if (message.type === 'GET_SPB_COMMISSIONS') {
-    // 获取上品帮佣金数据
     handleGetSpbCommissions(message.data)
       .then(response => sendResponse({ success: true, data: response }))
       .catch(error => sendResponse({ success: false, error: error.message }));
@@ -311,7 +261,6 @@ async function handleUploadProducts(data: { apiUrl: string; apiKey: string; prod
   } catch (error: any) {
     clearTimeout(timeoutId);
 
-    // 处理不同类型的错误
     if (error.name === 'AbortError') {
       throw new Error('上传超时（请检查网络连接或减少上传数量）');
     } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
@@ -657,7 +606,6 @@ async function callShangpinbangAPIWithAutoRefresh(
     }
   }
 
-  // 调用 API
   console.log(`[上品帮 API] 调用 ${apiType}, URL: ${apiUrl}`);
 
   try {
@@ -1016,7 +964,6 @@ async function handleGetSpbSalesData(data: { productId: string }): Promise<any> 
       }
     }
 
-    // 调用上品帮销售数据 API
     const requestBody = {
       goodsIds: [productId],
       token: credentials.token,
@@ -1179,7 +1126,6 @@ async function handleGetSpbSalesDataBatch(data: { productIds: string[] }): Promi
       }
     }
 
-    // 调用上品帮批量销售数据 API
     const requestBody = {
       goodsIds: productIds,  // 支持批量（最多50个）
       token: credentials.token,
@@ -1324,7 +1270,6 @@ async function handleGetGoodsCommissionsBatch(data: { goods: Array<{ goods_id: s
       }
     }
 
-    // 调用上品帮批量佣金 API
     const requestBody = {
       token: credentials.token,
       apiType: 'getGoodsCommissions',
@@ -1601,7 +1546,6 @@ async function handleGetSpbCommissions(data: { price: number; categoryId: string
       }
     }
 
-    // 调用上品帮佣金 API
     const response = await fetch('https://api.shopbang.cn/ozonMallSale/', {
       method: 'POST',
       headers: {

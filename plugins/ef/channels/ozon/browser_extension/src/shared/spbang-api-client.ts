@@ -1,21 +1,6 @@
-/**
- * 上品帮API客户端
- *
- * 功能：
- * - 批量获取商品销售数据
- * - 自动Token刷新（通过Service Worker）
- * - 数据格式转换（SpbSalesData → ProductData）
- */
-
 import type { ProductData, SpbSalesData } from './types';
 
 export class ShangpinbangAPIClient {
-  /**
-   * 批量获取商品销售数据
-   *
-   * @param productIds - SKU数组（最多50个）
-   * @returns Map<SKU, ProductData>
-   */
   async getSalesDataBatch(productIds: string[]): Promise<Map<string, Partial<ProductData>>> {
     if (productIds.length === 0) {
       return new Map();
@@ -26,7 +11,6 @@ export class ShangpinbangAPIClient {
     }
 
     try {
-      // 通过Service Worker调用上品帮API（绕过CORS）
       const response = await chrome.runtime.sendMessage({
         type: 'GET_SPB_SALES_DATA_BATCH',
         data: { productIds }
@@ -36,7 +20,6 @@ export class ShangpinbangAPIClient {
         throw new Error(response.error || '获取上品帮数据失败');
       }
 
-      // 转换为Map（key=SKU, value=ProductData）
       const dataMap = new Map<string, Partial<ProductData>>();
 
       if (Array.isArray(response.data)) {
@@ -55,13 +38,6 @@ export class ShangpinbangAPIClient {
     }
   }
 
-  /**
-   * 分批获取商品数据（自动拆分为多个批次）
-   *
-   * @param productIds - SKU数组（支持任意数量）
-   * @param onProgress - 进度回调
-   * @returns Map<SKU, ProductData>
-   */
   async getSalesDataInBatches(
     productIds: string[],
     onProgress?: (current: number, total: number) => void

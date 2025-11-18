@@ -3,40 +3,26 @@ import { spbApiClient } from '../shared/spbang-api-client';
 import { additionalDataClient } from '../shared/additional-data-client';
 import type { ProductData, CollectionProgress } from '../shared/types';
 
-// 全局DEBUG变量，可在控制台修改: window.EURAFLOW_DEBUG = true
 declare global {
   interface Window {
     EURAFLOW_DEBUG: boolean;
   }
 }
 
-// 初始化DEBUG为false
 if (typeof window.EURAFLOW_DEBUG === 'undefined') {
   window.EURAFLOW_DEBUG = false;
 }
 
-/**
- * 正在采集的商品数据（两阶段采集）
- */
 interface CollectingProduct {
-  data: ProductData;          // 商品数据（不断更新）
-  isComplete: boolean;         // 关键数据是否完整
-  checkCount: number;          // 检测轮数
+  data: ProductData;
+  isComplete: boolean;
+  checkCount: number;
 }
 
-/**
- * 商品采集器（完全对齐原 Tampermonkey 版本）
- *
- * 核心特性：
- * 1. 渐进式滚动（半屏滚动，适配虚拟滚动）
- * 2. 智能重试机制（noChangeThreshold、forceScrollThreshold）
- * 3. 动态速度调整（根据新增商品数量）
- * 4. 防反爬虫延迟
- */
 export class ProductCollector {
   public isRunning = false;
-  private collected = new Map<string, ProductData>(); // SKU -> ProductData
-  private uploadedFingerprints = new Set<string>(); // 已上传商品的SKU集合（页面级生命周期）
+  private collected = new Map<string, ProductData>();
+  private uploadedFingerprints = new Set<string>();
   private progress: CollectionProgress = {
     collected: 0,
     target: 0,
@@ -44,23 +30,13 @@ export class ProductCollector {
     errors: []
   };
 
-  // 滚动控制参数
-  private scrollStepSize = 0.5;  // 每次滚动视口倍数（0.5 = 半屏）
+  private scrollStepSize = 0.5;
   private scrollCount = 0;
   private noChangeCount = 0;
-
-  // 进度更新回调
   private onProgressCallback?: (progress: CollectionProgress) => void;
 
-  constructor(
-    private fusionEngine: DataFusionEngine
-  ) {
-    // 上传逻辑已移至 ControlPanel，collector 仅负责采集
-  }
+  constructor(private fusionEngine: DataFusionEngine) {}
 
-  /**
-   * 开始采集
-   */
   async startCollection(
     targetCount: number,
     onProgress?: (progress: CollectionProgress) => void
@@ -69,10 +45,8 @@ export class ProductCollector {
       throw new Error('采集已在运行中');
     }
 
-    // 保存进度回调
     this.onProgressCallback = onProgress;
 
-    // 【同步 DEBUG 状态】从 localStorage 读取（解决 content script 隔离环境问题）
     const debugFlag = localStorage.getItem('EURAFLOW_DEBUG');
     if (debugFlag === 'true' || debugFlag === '1') {
       window.EURAFLOW_DEBUG = true;
@@ -93,7 +67,6 @@ export class ProductCollector {
     };
 
     try {
-      // 【新】初始扫描：边检测边采集
       await this.waitAndCollect(targetCount);
       onProgress?.(this.progress);
 
@@ -103,47 +76,37 @@ export class ProductCollector {
       const maxScrollAttempts = 200;
       const noChangeThreshold = 5;
 
-      // 自动滚动采集
       while (this.isRunning && this.scrollCount < maxScrollAttempts) {
         this.scrollCount++;
 
-        // 检查是否达到目标
         if (this.collected.size >= targetCount) {
           break;
         }
 
-        // 获取当前页面状态
         const currentScroll = window.scrollY;
         const pageHeight = document.body.scrollHeight;
         const viewportHeight = window.innerHeight;
         const isNearBottom = currentScroll + viewportHeight >= pageHeight - 100;
 
-        // 【智能滚动策略】
         let scrollDistance;
         if (isNearBottom) {
-          // 接近底部：滚到最底部
-          // 【修复】执行前重新获取页面高度，防止动态内容注入导致高度变化
           const latestPageHeight = document.body.scrollHeight;
           scrollDistance = latestPageHeight - currentScroll;
         } else {
-          // 渐进式滚动：半屏或更少
           scrollDistance = viewportHeight * this.scrollStepSize;
         }
 
-        // 执行滚动
         window.scrollTo({
           top: currentScroll + scrollDistance,
           behavior: 'smooth'
         });
 
-        // 【新】边检测边采集（50ms轮询，最多3秒）
         const actualNewCount = await this.waitAndCollect(targetCount);
         const afterCount = this.collected.size;
 
         this.progress.collected = this.collected.size;
         onProgress?.(this.progress);
 
-        // 【智能重试机制】
         if (actualNewCount === 0) {
           this.noChangeCount++;
 
@@ -491,7 +454,6 @@ export class ProductCollector {
           continue;
         }
 
-        // 【修复】在跳过重复商品之后再检查目标数量
         if (targetCount && (tempMap.size + this.collected.size) >= targetCount) {
           if (window.EURAFLOW_DEBUG) {
             console.log(`[DEBUG 阶段1] 已达目标数量，停止采集 (tempMap=${tempMap.size}, collected=${this.collected.size}, target=${targetCount})`);
@@ -834,7 +796,6 @@ export class ProductCollector {
     for (let round = 0; round < maxRounds; round++) {
       if (!this.isRunning) break;
 
-      // 检查是否达到目标
       if (this.collected.size >= targetCount) {
         break;
       }
