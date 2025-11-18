@@ -14,21 +14,9 @@ const CACHE_DURATION = 5 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {
   if (details.reason === 'install' || details.reason === 'update') {
-    chrome.storage.sync.get(['targetCount', 'scrollDelay', 'scrollWaitTime'], (result) => {
-      const updates: { [key: string]: any } = {};
-
+    chrome.storage.sync.get(['targetCount'], (result) => {
       if (result.targetCount === undefined) {
-        updates.targetCount = 100;
-      }
-      if (result.scrollDelay === undefined) {
-        updates.scrollDelay = 5000;
-      }
-      if (result.scrollWaitTime === undefined) {
-        updates.scrollWaitTime = 1000;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        chrome.storage.sync.set(updates);
+        chrome.storage.sync.set({ targetCount: 100 });
       }
     });
   }
@@ -904,12 +892,12 @@ function transformSpbData(rawData: any): any {
     transactionRate: rawData.convToCart ?? null,  // 成交率（暂用加购率）
     returnCancelRate: rawData.nullableRedemptionRate ?? null,  // 退货取消率
 
-    // 商品基础数据
+    // 商品基础数据（直接使用上品帮API字段名）
     avgPrice: rawData.avgPrice ?? rawData.minSellerPrice ?? null,  // 平均价格
-    packageWeight: null,  // API未直接提供（volume是体积）
-    packageLength: null,  // API未提供详细尺寸
-    packageWidth: null,  // API未提供详细尺寸
-    packageHeight: null,  // API未提供详细尺寸
+    weight: rawData.weight ?? null,  // 包装重量（克）
+    depth: rawData.depth ?? null,  // 深度/长度（毫米）
+    width: rawData.width ?? null,  // 宽度（毫米）
+    height: rawData.height ?? null,  // 高度（毫米）
     sellerMode: rawData.salesSchema ?? null,  // 发货模式（FBS/FBO）
 
     // 跟卖信息
@@ -1209,8 +1197,21 @@ async function handleGetSpbSalesDataBatch(data: { productIds: string[] }): Promi
       console.log(`[上品帮批量销售数据] 获取成功，共 ${result.data.length} 个商品`);
 
       // 转换所有商品数据
-      return result.data.map((item: any) => {
+      return result.data.map((item: any, index: number) => {
         const rawData = item.data || item;
+
+        // 调试：输出第一条原始数据的包装信息
+        if (index === 0) {
+          console.log('[上品帮DEBUG] 第一条原始数据的包装字段:', {
+            weight: rawData.weight,
+            depth: rawData.depth,
+            width: rawData.width,
+            height: rawData.height,
+            // 完整的rawData前20个键
+            allKeys: Object.keys(rawData).slice(0, 20)
+          });
+        }
+
         return transformSpbData(rawData);
       });
     } else {
@@ -1435,8 +1436,8 @@ async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): P
       results.push({ goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] });
     }
 
-    // 批次间延迟（避免限流）
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // 批次间延迟（至少100ms，避免限流）
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   console.log(`[OZON跟卖数据] 总计获取 ${results.length}/${productIds.length} 个商品数据`);

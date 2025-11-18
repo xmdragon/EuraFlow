@@ -35,12 +35,11 @@ export interface ProductData {
   sales_dynamic_percent?: number;
   conversion_rate?: number;
 
-  // 物流信息
-  package_weight?: number;          // 克
-  package_volume?: number;          // 升
-  package_length?: number;          // 毫米
-  package_width?: number;           // 毫米
-  package_height?: number;          // 毫米
+  // 物流信息（统一使用上品帮API字段名）
+  weight?: number;                  // 克
+  depth?: number;                   // 深度/长度（毫米）- 上品帮API字段名
+  width?: number;                   // 宽度（毫米）
+  height?: number;                  // 高度（毫米）
 
   // 商品评价
   rating?: number;
@@ -93,13 +92,8 @@ export interface ApiConfig {
   apiKey: string;
 }
 
-/**
- * 采集配置
- */
 export interface CollectorConfig {
   targetCount: number;
-  scrollDelay: number;
-  scrollWaitTime: number;
 }
 
 /**
@@ -444,10 +438,10 @@ export interface SpbSalesData {
 
   // 商品基础数据
   avgPrice: number | null;              // 平均价格（₽）
-  packageWeight: number | null;         // 包装重量（g）
-  packageLength: number | null;         // 长（mm）
-  packageWidth: number | null;          // 宽（mm）
-  packageHeight: number | null;         // 高（mm）
+  weight: number | null;                // 包装重量（g）
+  depth: number | null;                 // 深度/长度（mm）
+  width: number | null;                 // 宽度（mm）
+  height: number | null;                // 高度（mm）
   sellerMode: string | null;            // 发货模式（FBS/FBO）
 
   // 跟卖信息

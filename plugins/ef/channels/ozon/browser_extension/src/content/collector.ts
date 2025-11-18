@@ -104,9 +104,6 @@ export class ProductCollector {
         const actualNewCount = await this.waitAndCollect(targetCount);
         const afterCount = this.collected.size;
 
-        this.progress.collected = this.collected.size;
-        onProgress?.(this.progress);
-
         if (actualNewCount === 0) {
           this.noChangeCount++;
 
@@ -160,8 +157,8 @@ export class ProductCollector {
           }
         }
 
-        // 【优化等待3】随机延迟（100-500ms），模拟真人浏览
-        const randomDelay = Math.floor(Math.random() * 400) + 100; // 100-500ms
+        // 随机延迟（1000-2000ms），等待页面加载新商品
+        const randomDelay = Math.floor(Math.random() * 1000) + 1000;
         await this.sleep(randomDelay);
       }
 
@@ -190,10 +187,10 @@ export class ProductCollector {
             const firstEntry = Array.from(spbDataMap.entries())[0];
             console.log(`[销售数据] Map第一条 SKU=${firstEntry[0]}:`, firstEntry[1]);
             console.log(`[销售数据] 包装数据:`, {
-              package_weight: firstEntry[1]?.package_weight,
-              package_length: firstEntry[1]?.package_length,
-              package_width: firstEntry[1]?.package_width,
-              package_height: firstEntry[1]?.package_height
+              weight: firstEntry[1]?.weight,
+              depth: firstEntry[1]?.depth,
+              width: firstEntry[1]?.width,
+              height: firstEntry[1]?.height
             });
           }
 
@@ -202,8 +199,14 @@ export class ProductCollector {
           products.forEach((product, index) => {
             const spbData = spbDataMap.get(product.product_id);
             if (spbData) {
-              // 合并数据（保留OZON原生数据，补充上品帮数据）
+              // 合并数据到临时数组（保留OZON原生数据，补充上品帮数据）
               Object.assign(product, spbData);
+
+              // 同步更新 this.collected 中的数据
+              const collectedProduct = this.collected.get(product.product_id);
+              if (collectedProduct) {
+                Object.assign(collectedProduct, spbData);
+              }
 
               // 品牌标准化
               if (spbData.brand && !product.brand_normalized) {
@@ -216,7 +219,8 @@ export class ProductCollector {
               if (window.EURAFLOW_DEBUG && index < 3) {
                 console.log(`[销售数据] 合并后 ${product.product_id}:`, {
                   月销量: product.monthly_sales_volume,
-                  包装重量: product.package_weight
+                  包装重量: product.weight,
+                  深度: product.depth
                 });
               }
             }
@@ -274,7 +278,15 @@ export class ProductCollector {
           products.forEach((product, index) => {
             const commissionData = commissionsMap.get(product.product_id);
             if (commissionData) {
+              // 合并数据到临时数组
               Object.assign(product, commissionData);
+
+              // 同步更新 this.collected 中的数据
+              const collectedProduct = this.collected.get(product.product_id);
+              if (collectedProduct) {
+                Object.assign(collectedProduct, commissionData);
+              }
+
               successCount++;
 
               // 输出前3个合并结果
@@ -323,6 +335,10 @@ export class ProductCollector {
 
                 successCount++;
 
+                // ✅ 跟卖数据获取成功，该商品所有数据完整，更新进度
+                this.progress.collected = successCount + errorCount;
+                this.onProgressCallback?.(this.progress);
+
                 // 输出前3个合并结果
                 if (window.EURAFLOW_DEBUG && i < 3) {
                   console.log(`[跟卖数据] 第${i+1}个 ${product.product_id}:`, {
@@ -333,10 +349,18 @@ export class ProductCollector {
                 }
               } else {
                 errorCount++;
+
+                // ⚠️ 跟卖数据获取失败，但商品已有基础+销售+佣金数据，也计入进度
+                this.progress.collected = successCount + errorCount;
+                this.onProgressCallback?.(this.progress);
               }
             } catch (error: any) {
               console.warn(`[跟卖数据] SKU=${product.product_id} 获取失败:`, error.message);
               errorCount++;
+
+              // ⚠️ 即使出错，也计入进度（商品至少有基础+销售+佣金数据）
+              this.progress.collected = successCount + errorCount;
+              this.onProgressCallback?.(this.progress);
             }
 
             // 延迟150-200ms（防止限流）
@@ -357,17 +381,35 @@ export class ProductCollector {
 
         console.log('%c所有数据融合完成', 'color: #52c41a; font-weight: bold');
 
+        // 验证 this.collected 是否包含完整数据
+        const collectedProducts = Array.from(this.collected.values());
+        console.log(`[DEBUG] this.collected 大小: ${this.collected.size}`);
+        console.log(`[DEBUG] products 大小: ${products.length}`);
+
         // 输出前3个商品的完整数据
         console.table(products.slice(0, 3).map(p => ({
           SKU: p.product_id,
           标题: p.product_name_ru?.substring(0, 30) + '...',
           价格: p.current_price,
           月销量: p.monthly_sales_volume,
-          包装重量: p.package_weight,
+          重量: p.weight,
+          深度: p.depth,
+          宽度: p.width,
+          高度: p.height,
           'rFBS佣金(中)': p.rfbs_commission_mid,
           'FBP佣金(中)': p.fbp_commission_mid,
           跟卖数量: p.follow_seller_count,
           最低跟卖价: p.follow_seller_min_price
+        })));
+
+        // 再次验证 this.collected 中的数据
+        console.log('[DEBUG] this.collected 前3个商品:');
+        console.table(collectedProducts.slice(0, 3).map(p => ({
+          SKU: p.product_id,
+          重量: p.weight,
+          深度: p.depth,
+          跟卖数量: p.follow_seller_count,
+          'rFBS佣金': p.rfbs_commission_mid
         })));
       }
 
@@ -477,9 +519,9 @@ export class ProductCollector {
 
           if (window.EURAFLOW_DEBUG) {
             // 【增强】更清晰地显示重量值（区分undefined、0和数字）
-            const weightDisplay = product.package_weight === undefined
+            const weightDisplay = product.weight === undefined
               ? 'undefined(未加载)'
-              : (product.package_weight === 0 ? '0(无数据)' : `${product.package_weight}g`);
+              : (product.weight === 0 ? '0(无数据)' : `${product.weight}g`);
 
             console.log(`[DEBUG 阶段1] 采集 ${tempMap.size}/${targetCount || '∞'}: ${product.product_id}`, {
               完整: this.isProductComplete(product),
@@ -554,7 +596,7 @@ export class ProductCollector {
             if (window.EURAFLOW_DEBUG) {
               console.log(`[DEBUG 阶段2] 数据完整 (第${round}轮): ${sku}`, {
                 'rFBS(高/中/低)': `${item.data.rfbs_commission_high}/${item.data.rfbs_commission_mid}/${item.data.rfbs_commission_low}`,
-                重量: item.data.package_weight,
+                重量: item.data.weight,
                 跟卖: item.data.competitor_count
               });
             }
@@ -599,8 +641,8 @@ export class ProductCollector {
         this.collected.set(sku, item.data);
 
         if (window.EURAFLOW_DEBUG) {
-          const weightDisplay = item.data.package_weight !== undefined
-            ? (item.data.package_weight === 0 ? '无数据' : item.data.package_weight)
+          const weightDisplay = item.data.weight !== undefined
+            ? (item.data.weight === 0 ? '无数据' : item.data.weight)
             : '✗';
 
           console.log(`[DEBUG 阶段3] 存储: ${sku}`, {
@@ -646,7 +688,7 @@ export class ProductCollector {
                     product.rfbs_commission_low !== undefined;
 
     // 关键数据2：包装重量
-    const hasWeight = product.package_weight !== undefined;
+    const hasWeight = product.weight !== undefined;
 
     // 关键数据3：跟卖数据（数量或价格至少有一个不是 undefined）
     const hasCompetitor = product.competitor_count !== undefined ||
@@ -835,10 +877,6 @@ export class ProductCollector {
             this.collected.set(sku, product);
             newCollectedCount++;
 
-            // 更新进度
-            this.progress.collected = this.collected.size;
-            this.onProgressCallback?.(this.progress);
-
             if (window.EURAFLOW_DEBUG) {
               console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);
             }
@@ -886,10 +924,6 @@ export class ProductCollector {
           if (product) {
             this.collected.set(sku, product);
             newCollectedCount++;
-
-            // 更新进度
-            this.progress.collected = this.collected.size;
-            this.onProgressCallback?.(this.progress);
 
             if (window.EURAFLOW_DEBUG) {
               console.log(`[DEBUG waitAndCollect] ✓ 采集成功 ${sku} (${this.collected.size}/${targetCount})`);

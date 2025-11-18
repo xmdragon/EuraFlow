@@ -26,9 +26,7 @@ function Popup() {
 
   // 采集配置
   const [collectorConfig, setCollectorConfigState] = useState<CollectorConfig>({
-    targetCount: 100,
-    scrollDelay: 5000,
-    scrollWaitTime: 1000
+    targetCount: 100
   });
 
   // 上品帮配置
@@ -199,12 +197,6 @@ function Popup() {
           上品帮
         </button>
         <button
-          className={`tab-button ${activeTab === 'collector' ? 'active' : ''}`}
-          onClick={() => setActiveTab('collector')}
-        >
-          采集参数
-        </button>
-        <button
           className={`tab-button ${activeTab === 'dataPanel' ? 'active' : ''}`}
           onClick={() => setActiveTab('dataPanel')}
         >
@@ -321,80 +313,6 @@ function Popup() {
           </div>
         )}
 
-        {/* 采集参数 */}
-        {activeTab === 'collector' && (
-          <div className="tab-panel">
-            <div className="form-group">
-              <label className="form-label">默认采集数量:</label>
-              <input
-                type="number"
-                className="form-input"
-                min={1}
-                max={1000}
-                value={collectorConfig.targetCount}
-                onChange={(e) =>
-                  setCollectorConfigState({
-                    ...collectorConfig,
-                    targetCount: parseInt(e.target.value) || 100
-                  })
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">滚动延迟 (毫秒):</label>
-              <input
-                type="number"
-                className="form-input"
-                min={1000}
-                max={30000}
-                step={1000}
-                value={collectorConfig.scrollDelay}
-                onChange={(e) =>
-                  setCollectorConfigState({
-                    ...collectorConfig,
-                    scrollDelay: parseInt(e.target.value) || 5000
-                  })
-                }
-              />
-              <p className="hint">防反爬虫延迟，建议 3000-8000ms</p>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">加载等待时间 (毫秒):</label>
-              <input
-                type="number"
-                className="form-input"
-                min={500}
-                max={10000}
-                step={500}
-                value={collectorConfig.scrollWaitTime}
-                onChange={(e) =>
-                  setCollectorConfigState({
-                    ...collectorConfig,
-                    scrollWaitTime: parseInt(e.target.value) || 1000
-                  })
-                }
-              />
-              <p className="hint">滚动后等待内容加载的时间</p>
-            </div>
-
-            <button
-              className="btn btn-primary btn-save"
-              onClick={handleSave}
-              disabled={isSaving}
-            >
-              {isSaving ? '保存中...' : '保存配置'}
-            </button>
-
-            {saveMessage && (
-              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
-                {saveMessage}
-              </p>
-            )}
-          </div>
-        )}
-
         {/* 数据面板配置 */}
         {activeTab === 'dataPanel' && (
           <div className="tab-panel data-panel-config">
@@ -410,6 +328,46 @@ function Popup() {
                 competitor: '竞品数据',
                 commission: '佣金信息'
               };
+
+              // 佣金信息使用两列布局
+              if (groupKey === 'commission') {
+                const rfbsFields = fields.filter(f => f.key.startsWith('rfbs'));
+                const fbpFields = fields.filter(f => f.key.startsWith('fbp'));
+
+                return (
+                  <div key={groupKey} className="field-group">
+                    <h3 className="group-title">{groupTitles[groupKey]}</h3>
+                    <div className="field-list-two-columns">
+                      <div className="field-column">
+                        <div className="column-title">rFBS 佣金</div>
+                        {rfbsFields.map((field) => (
+                          <label key={field.key} className="field-item">
+                            <input
+                              type="checkbox"
+                              checked={dataPanelConfig.visibleFields.includes(field.key)}
+                              onChange={() => handleToggleField(field.key)}
+                            />
+                            <span className="field-label">{field.label.replace('rFBS ', '')}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="field-column">
+                        <div className="column-title">FBP 佣金</div>
+                        {fbpFields.map((field) => (
+                          <label key={field.key} className="field-item">
+                            <input
+                              type="checkbox"
+                              checked={dataPanelConfig.visibleFields.includes(field.key)}
+                              onChange={() => handleToggleField(field.key)}
+                            />
+                            <span className="field-label">{field.label.replace('FBP ', '')}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div key={groupKey} className="field-group">

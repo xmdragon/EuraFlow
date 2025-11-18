@@ -131,11 +131,11 @@ export class ApiClient {
       sales_dynamic_percent: product.sales_dynamic_percent,
       conversion_rate: product.conversion_rate,
 
-      package_weight: product.package_weight,
-      package_volume: product.package_volume,
-      package_length: product.package_length,
-      package_width: product.package_width,
-      package_height: product.package_height,
+      // 映射到后端数据库字段名
+      package_weight: product.weight,
+      package_length: product.depth,  // depth → package_length
+      package_width: product.width,
+      package_height: product.height,
 
       rating: product.rating,
       review_count: product.review_count,

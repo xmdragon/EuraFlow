@@ -101,11 +101,11 @@ export class ShangpinbangAPIClient {
       sales_dynamic_percent: this.parseNumber(spbData.salesDynamic),
       conversion_rate: this.parseNumber(spbData.transactionRate),
 
-      // 物流信息
-      package_weight: this.parseNumber(spbData.packageWeight),
-      package_length: this.parseNumber(spbData.packageLength),
-      package_width: this.parseNumber(spbData.packageWidth),
-      package_height: this.parseNumber(spbData.packageHeight),
+      // 物流信息（直接使用上品帮API字段名）
+      weight: this.parseNumber(spbData.weight),
+      depth: this.parseNumber(spbData.depth),
+      width: this.parseNumber(spbData.width),
+      height: this.parseNumber(spbData.height),
 
       // 竞争对手数据
       competitor_count: this.parseNumber(spbData.competitorCount),
@@ -134,15 +134,19 @@ export class ShangpinbangAPIClient {
     // 调试：输出原始数据中的关键字段
     if (window.EURAFLOW_DEBUG) {
       console.log('[SPB转换] 原始数据字段:', {
-        packageWeight: spbData.packageWeight,
-        packageLength: spbData.packageLength,
+        weight: spbData.weight,
+        depth: spbData.depth,
+        width: spbData.width,
+        height: spbData.height,
         rfbsCommissionMid: spbData.rfbsCommissionMid,
         fbpCommissionMid: spbData.fbpCommissionMid,
         monthlySales: spbData.monthlySales
       });
       console.log('[SPB转换] 转换后:', {
-        package_weight: result.package_weight,
-        package_length: result.package_length,
+        weight: result.weight,
+        depth: result.depth,
+        width: result.width,
+        height: result.height,
         rfbs_commission_mid: result.rfbs_commission_mid,
         fbp_commission_mid: result.fbp_commission_mid,
         monthly_sales_volume: result.monthly_sales_volume

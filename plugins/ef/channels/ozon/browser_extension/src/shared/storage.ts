@@ -13,14 +13,9 @@ const DEFAULT_API_CONFIG: ApiConfig = {
 };
 
 const DEFAULT_COLLECTOR_CONFIG: CollectorConfig = {
-  targetCount: 100,
-  scrollDelay: 5000,
-  scrollWaitTime: 1000
+  targetCount: 100
 };
 
-/**
- * 获取API配置
- */
 export async function getApiConfig(): Promise<ApiConfig> {
   return new Promise((resolve) => {
     chrome.storage.sync.get(['apiUrl', 'apiKey'], (result: { [key: string]: any }) => {
@@ -43,24 +38,16 @@ export async function setApiConfig(config: Partial<ApiConfig>): Promise<void> {
   });
 }
 
-/**
- * 获取采集配置
- */
 export async function getCollectorConfig(): Promise<CollectorConfig> {
   return new Promise((resolve) => {
-    chrome.storage.sync.get(['targetCount', 'scrollDelay', 'scrollWaitTime'], (result: { [key: string]: any }) => {
+    chrome.storage.sync.get(['targetCount'], (result: { [key: string]: any }) => {
       resolve({
-        targetCount: result.targetCount || DEFAULT_COLLECTOR_CONFIG.targetCount,
-        scrollDelay: result.scrollDelay || DEFAULT_COLLECTOR_CONFIG.scrollDelay,
-        scrollWaitTime: result.scrollWaitTime || DEFAULT_COLLECTOR_CONFIG.scrollWaitTime
+        targetCount: result.targetCount || DEFAULT_COLLECTOR_CONFIG.targetCount
       });
     });
   });
 }
 
-/**
- * 保存采集配置
- */
 export async function setCollectorConfig(config: Partial<CollectorConfig>): Promise<void> {
   return new Promise((resolve) => {
     chrome.storage.sync.set(config, () => {

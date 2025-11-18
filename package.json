@@ -31,7 +31,8 @@
     "husky": "^8.0.3",
     "prettier": "^3.4.2",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.21.0"
+    "typescript-eslint": "^8.21.0",
+    "vite-plugin-remove-console": "^2.2.0"
   },
   "engines": {
     "node": ">=18.0.0",
