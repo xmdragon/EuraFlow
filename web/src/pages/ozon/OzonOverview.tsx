@@ -292,6 +292,35 @@ const OzonOverview: React.FC = () => {
     return null;
   };
 
+  // 自定义柱状图标签 - 显示销售额
+  const renderBarLabel = (props: any) => {
+    const { x, y, width, height, value } = props;
+
+    // 如果值为0或太小，不显示标签
+    if (!value || value < 1) return null;
+
+    // 格式化显示：大于1000显示为 1.2k，否则显示整数
+    let displayValue: string;
+    if (value >= 1000) {
+      displayValue = (value / 1000).toFixed(1) + 'k';
+    } else {
+      displayValue = Math.round(value).toString();
+    }
+
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 5}
+        fill="#666"
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight="500"
+      >
+        {displayValue}
+      </text>
+    );
+  };
+
   return (
     <div>
       <PageTitle icon={<ShoppingOutlined />} title="Ozon 管理概览" />
@@ -535,8 +564,9 @@ const OzonOverview: React.FC = () => {
                   <Bar
                     key="total"
                     dataKey={dateRangeLabel}
-                    fill={CHART_COLORS[1]}
+                    fill="#f5222d"
                     radius={[4, 4, 0, 0]}
+                    label={renderBarLabel}
                   />
                 ) : (
                   // 单店模式：显示各店铺的柱
@@ -544,8 +574,9 @@ const OzonOverview: React.FC = () => {
                     <Bar
                       key={shop}
                       dataKey={shop}
-                      fill={CHART_COLORS[index % CHART_COLORS.length]}
+                      fill="#f5222d"
                       radius={[4, 4, 0, 0]}
+                      label={renderBarLabel}
                     />
                   ))
                 )}
