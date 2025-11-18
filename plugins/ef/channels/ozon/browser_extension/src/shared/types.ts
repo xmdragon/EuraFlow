@@ -59,8 +59,9 @@ export interface ProductData {
 
   // 跟卖数据（OZON API）
   follow_seller_count?: number;         // 跟卖商家数量
-  follow_seller_skus?: string[];        // 跟卖商家SKU数组
-  follow_seller_prices?: number[];      // 跟卖价格数组（按价格排序）
+  follow_seller_min_price?: number;     // 最低跟卖价
+  follow_seller_skus?: string[];        // 跟卖商家SKU数组（调试用）
+  follow_seller_prices?: number[];      // 跟卖价格数组（按价格排序，调试用）
 
   // 营销分析字段（上品帮新增）
   card_views?: number;                  // 商品卡片浏览量

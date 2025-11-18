@@ -92,11 +92,6 @@ export class ProductCollector {
       errors: []
     };
 
-    if (window.EURAFLOW_DEBUG) {
-      console.log('[DEBUG] 开始采集，目标数量:', targetCount);
-      console.log('[DEBUG] 已上传指纹集大小:', this.uploadedFingerprints.size);
-    }
-
     try {
       // 【新】初始扫描：边检测边采集
       await this.waitAndCollect(targetCount);
@@ -147,13 +142,6 @@ export class ProductCollector {
 
         this.progress.collected = this.collected.size;
         onProgress?.(this.progress);
-
-        if (window.EURAFLOW_DEBUG) {
-          console.log('[DEBUG] 滚动次数:', this.scrollCount);
-          console.log('[DEBUG] 新增商品数:', actualNewCount);
-          console.log('[DEBUG] 当前采集总数:', afterCount, '/', targetCount);
-          console.log('[DEBUG] 进度更新:', this.progress);
-        }
 
         // 【智能重试机制】
         if (actualNewCount === 0) {
@@ -216,13 +204,6 @@ export class ProductCollector {
 
       const products = Array.from(this.collected.values());
 
-      if (window.EURAFLOW_DEBUG) {
-        console.log('[DEBUG] OZON数据采集完成！');
-        console.log('[DEBUG] 总采集数:', products.length);
-        console.log('[DEBUG] 目标数量:', targetCount);
-        console.log('[DEBUG] 滚动次数:', this.scrollCount);
-      }
-
       // 【阶段2】批量调用上品帮API获取销售数据
       if (products.length > 0) {
         this.progress.status = '正在获取销售数据...';
@@ -241,9 +222,21 @@ export class ProductCollector {
             }
           );
 
+          console.log(`[销售数据] API返回Map大小: ${spbDataMap.size}`);
+          if (spbDataMap.size > 0) {
+            const firstEntry = Array.from(spbDataMap.entries())[0];
+            console.log(`[销售数据] Map第一条 SKU=${firstEntry[0]}:`, firstEntry[1]);
+            console.log(`[销售数据] 包装数据:`, {
+              package_weight: firstEntry[1]?.package_weight,
+              package_length: firstEntry[1]?.package_length,
+              package_width: firstEntry[1]?.package_width,
+              package_height: firstEntry[1]?.package_height
+            });
+          }
+
           // 合并上品帮数据到已采集的商品
           let successCount = 0;
-          products.forEach(product => {
+          products.forEach((product, index) => {
             const spbData = spbDataMap.get(product.product_id);
             if (spbData) {
               // 合并数据（保留OZON原生数据，补充上品帮数据）
@@ -255,25 +248,18 @@ export class ProductCollector {
               }
 
               successCount++;
+
+              // 输出前3个合并结果
+              if (window.EURAFLOW_DEBUG && index < 3) {
+                console.log(`[销售数据] 合并后 ${product.product_id}:`, {
+                  月销量: product.monthly_sales_volume,
+                  包装重量: product.package_weight
+                });
+              }
             }
           });
 
           console.log(`%c[阶段2: 销售数据] 成功 ${successCount}/${products.length}`, 'color: #52c41a; font-weight: bold');
-
-          if (window.EURAFLOW_DEBUG) {
-            console.log('[DEBUG 销售数据] 详细统计:', {
-              总数: products.length,
-              成功: successCount,
-              失败: products.length - successCount,
-              字段示例: {
-                SKU: products[0]?.product_id,
-                月销量: products[0]?.monthly_sales_volume,
-                品牌: products[0]?.brand,
-                类目: products[0]?.category_path,
-                包装重量: products[0]?.package_weight
-              }
-            });
-          }
         } catch (error: any) {
           console.error('%c[阶段2: 销售数据] 失败:', 'color: #ff4d4f; font-weight: bold', error.message);
           // 容错：即使上品帮API失败，也返回OZON原生数据
@@ -304,75 +290,100 @@ export class ProductCollector {
 
           const commissionsMap = await additionalDataClient.getCommissionsDataBatch(goodsForCommissions);
 
+          console.log(`[佣金数据] API返回Map大小: ${commissionsMap.size}`);
+          if (commissionsMap.size > 0) {
+            const firstEntry = Array.from(commissionsMap.entries())[0];
+            console.log(`[佣金数据] Map第一条 SKU=${firstEntry[0]}:`, firstEntry[1]);
+            console.log(`[佣金数据] 原始值:`, {
+              rfbs_commission_low: firstEntry[1]?.rfbs_commission_low,
+              rfbs_commission_mid: firstEntry[1]?.rfbs_commission_mid,
+              rfbs_commission_high: firstEntry[1]?.rfbs_commission_high,
+              fbp_commission_low: firstEntry[1]?.fbp_commission_low,
+              fbp_commission_mid: firstEntry[1]?.fbp_commission_mid,
+              fbp_commission_high: firstEntry[1]?.fbp_commission_high
+            });
+          } else {
+            console.warn(`[佣金数据] ⚠️ API返回的Map是空的！检查API调用`);
+          }
+
           // 合并佣金数据
           let successCount = 0;
-          products.forEach(product => {
+          products.forEach((product, index) => {
             const commissionData = commissionsMap.get(product.product_id);
             if (commissionData) {
               Object.assign(product, commissionData);
               successCount++;
+
+              // 输出前3个合并结果
+              if (window.EURAFLOW_DEBUG && index < 3) {
+                console.log(`[佣金数据] 合并后 ${product.product_id}:`, {
+                  rfbs_mid: product.rfbs_commission_mid,
+                  fbp_mid: product.fbp_commission_mid
+                });
+              }
             }
           });
 
           console.log(`%c[阶段3: 佣金数据] 成功 ${successCount}/${goodsForCommissions.length}`, 'color: #52c41a; font-weight: bold');
-
-          if (window.EURAFLOW_DEBUG && successCount > 0) {
-            const sampleProduct = products.find(p => p.rfbs_commission_mid);
-            console.log('[DEBUG 佣金数据] 示例:', {
-              SKU: sampleProduct?.product_id,
-              rFBS低: sampleProduct?.rfbs_commission_low,
-              rFBS中: sampleProduct?.rfbs_commission_mid,
-              rFBS高: sampleProduct?.rfbs_commission_high,
-              FBP低: sampleProduct?.fbp_commission_low,
-              FBP中: sampleProduct?.fbp_commission_mid,
-              FBP高: sampleProduct?.fbp_commission_high
-            });
-          }
         } catch (error: any) {
           console.error('%c[阶段3: 佣金数据] 失败:', 'color: #ff4d4f; font-weight: bold', error.message);
           // 容错：佣金数据获取失败不影响主流程
         }
       }
 
-      // 【阶段4】批量获取跟卖数据
+      // 【阶段4】逐个获取跟卖数据（避免限流）
       if (products.length > 0) {
-        this.progress.status = '正在获取跟卖数据...';
-        onProgress?.(this.progress);
-
-        console.log(`%c[阶段4: 跟卖数据] 开始获取 ${products.length} 个商品的跟卖数据`, 'color: #1890ff; font-weight: bold');
+        console.log(`%c[阶段4: 跟卖数据] 开始逐个获取 ${products.length} 个商品的跟卖数据`, 'color: #1890ff; font-weight: bold');
 
         try {
-          const skus = products.map(p => p.product_id);
-
-          const followSellerMap = await additionalDataClient.getFollowSellerDataBatch(
-            skus,
-            (current, total) => {
-              this.progress.status = `获取跟卖数据: ${current}/${total}`;
-              onProgress?.(this.progress);
-            }
-          );
-
-          // 合并跟卖数据
           let successCount = 0;
-          products.forEach(product => {
-            const followSellerData = followSellerMap.get(product.product_id);
-            if (followSellerData) {
-              Object.assign(product, followSellerData);
-              successCount++;
+          let errorCount = 0;
+
+          for (let i = 0; i < products.length; i++) {
+            const product = products[i];
+
+            this.progress.status = `获取跟卖数据: ${i + 1}/${products.length}`;
+            onProgress?.(this.progress);
+
+            try {
+              const followSellerData = await additionalDataClient.getFollowSellerDataSingle(product.product_id);
+
+              if (followSellerData) {
+                // 合并跟卖数据到product对象
+                Object.assign(product, followSellerData);
+
+                // 同时更新 this.collected 中的数据
+                const collectedProduct = this.collected.get(product.product_id);
+                if (collectedProduct) {
+                  Object.assign(collectedProduct, followSellerData);
+                }
+
+                successCount++;
+
+                // 输出前3个合并结果
+                if (window.EURAFLOW_DEBUG && i < 3) {
+                  console.log(`[跟卖数据] 第${i+1}个 ${product.product_id}:`, {
+                    count: product.follow_seller_count,
+                    min_price: product.follow_seller_min_price,
+                    原始数据: followSellerData
+                  });
+                }
+              } else {
+                errorCount++;
+              }
+            } catch (error: any) {
+              console.warn(`[跟卖数据] SKU=${product.product_id} 获取失败:`, error.message);
+              errorCount++;
             }
-          });
 
-          console.log(`%c[阶段4: 跟卖数据] 成功 ${successCount}/${skus.length}`, 'color: #52c41a; font-weight: bold');
-
-          if (window.EURAFLOW_DEBUG && successCount > 0) {
-            const sampleProduct = products.find(p => p.follow_seller_count && p.follow_seller_count > 0);
-            console.log('[DEBUG 跟卖数据] 示例:', {
-              SKU: sampleProduct?.product_id,
-              跟卖数量: sampleProduct?.follow_seller_count,
-              跟卖SKU: sampleProduct?.follow_seller_skus?.slice(0, 3),
-              价格分布: sampleProduct?.follow_seller_prices?.slice(0, 3)
-            });
+            // 延迟150-200ms（防止限流）
+            if (i < products.length - 1) {
+              const delay = 150 + Math.random() * 50;
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
           }
+
+          console.log(`%c[阶段4: 跟卖数据] 完成 成功=${successCount} 失败=${errorCount}`, 'color: #52c41a; font-weight: bold');
         } catch (error: any) {
           console.error('%c[阶段4: 跟卖数据] 失败:', 'color: #ff4d4f; font-weight: bold', error.message);
           // 容错：跟卖数据获取失败不影响主流程
@@ -381,20 +392,20 @@ export class ProductCollector {
         this.progress.status = '采集完成';
         onProgress?.(this.progress);
 
-        if (window.EURAFLOW_DEBUG) {
-          console.log('%c[DEBUG] 所有数据融合完成', 'color: #52c41a; font-weight: bold', {
-            总数: products.length,
-            示例数据: {
-              SKU: products[0]?.product_id,
-              标题: products[0]?.product_name_ru,
-              价格: products[0]?.current_price,
-              月销量: products[0]?.monthly_sales_volume,
-              包装重量: products[0]?.package_weight,
-              佣金rFBS: products[0]?.rfbs_commission_mid,
-              跟卖数量: products[0]?.follow_seller_count
-            }
-          });
-        }
+        console.log('%c所有数据融合完成', 'color: #52c41a; font-weight: bold');
+
+        // 输出前3个商品的完整数据
+        console.table(products.slice(0, 3).map(p => ({
+          SKU: p.product_id,
+          标题: p.product_name_ru?.substring(0, 30) + '...',
+          价格: p.current_price,
+          月销量: p.monthly_sales_volume,
+          包装重量: p.package_weight,
+          'rFBS佣金(中)': p.rfbs_commission_mid,
+          'FBP佣金(中)': p.fbp_commission_mid,
+          跟卖数量: p.follow_seller_count,
+          最低跟卖价: p.follow_seller_min_price
+        })));
       }
 
       // 上传数据（如果配置了自动上传）
@@ -820,18 +831,11 @@ export class ProductCollector {
     const alreadyProcessed = new Set<string>(); // 已处理的SKU（包括跳过的）
     let newCollectedCount = 0;
 
-    if (window.EURAFLOW_DEBUG) {
-      console.log(`[DEBUG waitAndCollect] 开始边检测边采集，目标=${targetCount}, 当前已采集=${this.collected.size}`);
-    }
-
     for (let round = 0; round < maxRounds; round++) {
       if (!this.isRunning) break;
 
       // 检查是否达到目标
       if (this.collected.size >= targetCount) {
-        if (window.EURAFLOW_DEBUG) {
-          console.log(`[DEBUG waitAndCollect] 已达目标数量，结束`);
-        }
         break;
       }
 
@@ -846,10 +850,6 @@ export class ProductCollector {
       // 2. 第一轮：严格按DOM顺序采集；后续轮：按数据就绪速度采集
       if (round === 0) {
         // 【第一轮】按DOM顺序逐个检查和采集
-        if (window.EURAFLOW_DEBUG) {
-          console.log(`[DEBUG waitAndCollect] 第一轮：按DOM顺序采集 (共${allCards.length}个商品)`);
-        }
-
         for (const card of allCards) {
           if (!this.isRunning) break;
           if (this.collected.size >= targetCount) break;
@@ -866,10 +866,6 @@ export class ProductCollector {
 
           // 立即采集OZON原生数据（不等待上品帮标记）
           alreadyProcessed.add(sku);
-
-          if (window.EURAFLOW_DEBUG) {
-            console.log(`[DEBUG waitAndCollect] 第一轮 按DOM顺序采集 ${sku}`);
-          }
 
           // 采集单个商品（仅OZON原生数据）
           const product = await this.collectSingleProduct(card, sku);

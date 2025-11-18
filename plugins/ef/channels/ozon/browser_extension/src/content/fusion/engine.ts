@@ -102,17 +102,6 @@ export class DataFusionEngine {
       product.image_url = imageElement.src;
     }
 
-    // 【DEBUG】检查提取的数据
-    if ((window as any).EURAFLOW_DEBUG && product.product_id) {
-      console.log(`[DEBUG 提取OZON数据] SKU=${product.product_id}`, {
-        标题: product.product_name_ru,
-        当前价格: product.current_price,
-        原价: product.original_price,
-        评分: product.rating,
-        评论数: product.review_count
-      });
-    }
-
     return product as ProductData;
   }
 

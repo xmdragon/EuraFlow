@@ -28,7 +28,14 @@ export class AdditionalDataClient {
         data: { goods }
       });
 
+      console.log('[佣金数据Client] 收到响应:', {
+        success: response.success,
+        dataLength: response.data?.length,
+        error: response.error
+      });
+
       if (!response.success) {
+        console.error('[佣金数据Client] API调用失败:', response.error);
         throw new Error(response.error || '获取佣金数据失败');
       }
 
@@ -36,19 +43,29 @@ export class AdditionalDataClient {
       const dataMap = new Map<string, Partial<ProductData>>();
 
       if (Array.isArray(response.data)) {
-        response.data.forEach((item: any) => {
+        console.log('[佣金数据Client] API返回数组，第一条原始数据:', response.data[0]);
+
+        response.data.forEach((item: any, index: number) => {
           const sku = item.goods_id;
           if (sku) {
-            dataMap.set(sku, {
+            const commissionData = {
               rfbs_commission_low: this.parseNumber(item.rfbs_small),
               rfbs_commission_mid: this.parseNumber(item.rfbs),
               rfbs_commission_high: this.parseNumber(item.rfbs_large),
               fbp_commission_low: this.parseNumber(item.fbp_small),
               fbp_commission_mid: this.parseNumber(item.fbp),
               fbp_commission_high: this.parseNumber(item.fbp_large),
-            });
+            };
+
+            if (index === 0) {
+              console.log('[佣金数据Client] 第一条转换后:', commissionData);
+            }
+
+            dataMap.set(sku, commissionData);
           }
         });
+      } else {
+        console.warn('[佣金数据Client] response.data 不是数组:', typeof response.data, response.data);
       }
 
       return dataMap;
@@ -92,10 +109,12 @@ export class AdditionalDataClient {
         response.data.forEach((item: any) => {
           const sku = item.goods_id;
           if (sku) {
+            const prices = item.gmArr || [];
             dataMap.set(sku, {
               follow_seller_count: item.gm || 0,
+              follow_seller_min_price: prices.length > 0 ? prices[0] : undefined,  // 价格数组第一个元素是最低价
               follow_seller_skus: item.gmGoodsIds || [],
-              follow_seller_prices: item.gmArr || []
+              follow_seller_prices: prices
             });
           }
         });
@@ -111,6 +130,45 @@ export class AdditionalDataClient {
     } catch (error: any) {
       console.error('[跟卖数据] 批量获取失败:', error);
       return new Map();
+    }
+  }
+
+  /**
+   * 单个获取跟卖数据
+   *
+   * @param productId - SKU
+   * @returns 跟卖数据对象
+   */
+  async getFollowSellerDataSingle(productId: string): Promise<Partial<ProductData> | null> {
+    if (!productId) {
+      return null;
+    }
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'GET_FOLLOW_SELLER_DATA_SINGLE',
+        data: { productId }
+      });
+
+      if (!response.success) {
+        return null;
+      }
+
+      const item = response.data;
+      if (!item || !item.goods_id) {
+        return null;
+      }
+
+      const prices = item.gmArr || [];
+      return {
+        follow_seller_count: item.gm || 0,
+        follow_seller_min_price: prices.length > 0 ? prices[0] : undefined,
+        follow_seller_skus: item.gmGoodsIds || [],
+        follow_seller_prices: prices
+      };
+    } catch (error: any) {
+      console.error(`[跟卖数据] 获取失败 SKU=${productId}:`, error);
+      return null;
     }
   }
 

@@ -389,17 +389,38 @@ const OzonOverview: React.FC = () => {
           </Col>
         </Row>
 
-        {/* 每日Posting统计趋势图 */}
-        <Card
-          title={
-            <Space>
-              <LineChartOutlined />
-              <span>每日订单统计趋势</span>
-            </Space>
-          }
-          extra={
-            <Space>
-              {!selectedShop && (
+        {/* 统一时间范围选择器 */}
+        <Card className={styles.filterCard}>
+          <Space size="middle">
+            <Text strong>时间范围：</Text>
+            <Select
+              value={timeRangeType}
+              onChange={(value) => {
+                setTimeRangeType(value);
+                if (value !== 'custom') {
+                  setCustomDateRange([null, null]);
+                }
+              }}
+              style={{ width: 100 }}
+              options={[
+                { label: '7天', value: '7days' },
+                { label: '14天', value: '14days' },
+                { label: '本月', value: 'thisMonth' },
+                { label: '上月', value: 'lastMonth' },
+                { label: '自定义', value: 'custom' },
+              ]}
+            />
+            {timeRangeType === 'custom' && (
+              <DatePicker.RangePicker
+                value={customDateRange}
+                onChange={(dates) => setCustomDateRange(dates as [Dayjs | null, Dayjs | null])}
+                format="YYYY-MM-DD"
+                placeholder={['开始日期', '结束日期']}
+              />
+            )}
+            {!selectedShop && (
+              <>
+                <Text strong style={{ marginLeft: 16 }}>显示模式：</Text>
                 <Select
                   value={displayMode}
                   onChange={setDisplayMode}
@@ -409,32 +430,17 @@ const OzonOverview: React.FC = () => {
                     { label: '汇总显示', value: 'total' },
                   ]}
                 />
-              )}
-              <Select
-                value={timeRangeType}
-                onChange={(value) => {
-                  setTimeRangeType(value);
-                  if (value !== 'custom') {
-                    setCustomDateRange([null, null]);
-                  }
-                }}
-                style={{ width: 100 }}
-                options={[
-                  { label: '7天', value: '7days' },
-                  { label: '14天', value: '14days' },
-                  { label: '本月', value: 'thisMonth' },
-                  { label: '上月', value: 'lastMonth' },
-                  { label: '自定义', value: 'custom' },
-                ]}
-              />
-              {timeRangeType === 'custom' && (
-                <DatePicker.RangePicker
-                  value={customDateRange}
-                  onChange={(dates) => setCustomDateRange(dates as [Dayjs | null, Dayjs | null])}
-                  format="YYYY-MM-DD"
-                  placeholder={['开始日期', '结束日期']}
-                />
-              )}
+              </>
+            )}
+          </Space>
+        </Card>
+
+        {/* 每日Posting统计趋势图 */}
+        <Card
+          title={
+            <Space>
+              <LineChartOutlined />
+              <span>每日订单统计趋势</span>
             </Space>
           }
           className={styles.chartCard}
@@ -497,46 +503,6 @@ const OzonOverview: React.FC = () => {
             <Space>
               <LineChartOutlined />
               <span>每日销售额统计趋势</span>
-            </Space>
-          }
-          extra={
-            <Space>
-              {!selectedShop && (
-                <Select
-                  value={displayMode}
-                  onChange={setDisplayMode}
-                  style={{ width: 120 }}
-                  options={[
-                    { label: '单店显示', value: 'single' },
-                    { label: '汇总显示', value: 'total' },
-                  ]}
-                />
-              )}
-              <Select
-                value={timeRangeType}
-                onChange={(value) => {
-                  setTimeRangeType(value);
-                  if (value !== 'custom') {
-                    setCustomDateRange([null, null]);
-                  }
-                }}
-                style={{ width: 100 }}
-                options={[
-                  { label: '7天', value: '7days' },
-                  { label: '14天', value: '14days' },
-                  { label: '本月', value: 'thisMonth' },
-                  { label: '上月', value: 'lastMonth' },
-                  { label: '自定义', value: 'custom' },
-                ]}
-              />
-              {timeRangeType === 'custom' && (
-                <DatePicker.RangePicker
-                  value={customDateRange}
-                  onChange={(dates) => setCustomDateRange(dates as [Dayjs | null, Dayjs | null])}
-                  format="YYYY-MM-DD"
-                  placeholder={['开始日期', '结束日期']}
-                />
-              )}
             </Space>
           }
           className={styles.chartCard}

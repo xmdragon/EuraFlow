@@ -103,7 +103,7 @@ export class ShangpinbangAPIClient {
    * 数据格式转换：SpbSalesData → ProductData
    */
   private transformSpbData(spbData: SpbSalesData): Partial<ProductData> {
-    return {
+    const result: Partial<ProductData> = {
       // 品牌和类目
       brand: spbData.brand || undefined,
       category_path: spbData.category || undefined,
@@ -154,6 +154,26 @@ export class ShangpinbangAPIClient {
       seller_mode: spbData.sellerMode || undefined,
       ad_cost_share: this.parseNumber(spbData.adShare),
     };
+
+    // 调试：输出原始数据中的关键字段
+    if (window.EURAFLOW_DEBUG) {
+      console.log('[SPB转换] 原始数据字段:', {
+        packageWeight: spbData.packageWeight,
+        packageLength: spbData.packageLength,
+        rfbsCommissionMid: spbData.rfbsCommissionMid,
+        fbpCommissionMid: spbData.fbpCommissionMid,
+        monthlySales: spbData.monthlySales
+      });
+      console.log('[SPB转换] 转换后:', {
+        package_weight: result.package_weight,
+        package_length: result.package_length,
+        rfbs_commission_mid: result.rfbs_commission_mid,
+        fbp_commission_mid: result.fbp_commission_mid,
+        monthly_sales_volume: result.monthly_sales_volume
+      });
+    }
+
+    return result;
   }
 
   /**

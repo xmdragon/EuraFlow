@@ -188,6 +188,15 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
+  if (message.type === 'GET_FOLLOW_SELLER_DATA_SINGLE') {
+    // 单个获取OZON跟卖数据
+    handleGetFollowSellerDataSingle(message.data)
+      .then(response => sendResponse({ success: true, data: response }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+
+    return true;
+  }
+
   if (message.type === 'GET_SPB_COMMISSIONS') {
     // 获取上品帮佣金数据
     handleGetSpbCommissions(message.data)
@@ -1487,6 +1496,77 @@ async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): P
 
   console.log(`[OZON跟卖数据] 总计获取 ${results.length}/${productIds.length} 个商品数据`);
   return results;
+}
+
+/**
+ * 单个获取 OZON 跟卖数据（新增）
+ *
+ * @param data.productId - 单个SKU
+ * @returns 跟卖数据 { goods_id, gm, gmGoodsIds, gmArr }
+ */
+async function handleGetFollowSellerDataSingle(data: { productId: string }): Promise<any> {
+  const { productId } = data;
+
+  if (!productId) {
+    console.warn('[OZON跟卖数据] productId为空');
+    return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
+  }
+
+  try {
+    const origin = 'https://www.ozon.ru';
+    const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
+    const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn(`[OZON跟卖数据] SKU=${productId} HTTP错误: ${response.status}`);
+      return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
+    }
+
+    const data = await response.json();
+    const widgetStates = data.widgetStates || {};
+
+    // 查找包含 "webSellerList" 的 key
+    const sellerListKey = Object.keys(widgetStates).find(key => key.includes('webSellerList'));
+
+    if (!sellerListKey || !widgetStates[sellerListKey]) {
+      return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
+    }
+
+    const sellerListData = JSON.parse(widgetStates[sellerListKey]);
+    const sellers = sellerListData.sellers || [];
+
+    if (sellers.length === 0) {
+      return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
+    }
+
+    // 提取跟卖价格并解析
+    sellers.forEach((seller: any) => {
+      let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
+      priceStr = priceStr.replace(/,/g, '.').replace(/[^\d.]/g, '');
+      seller.priceNum = isNaN(parseFloat(priceStr)) ? 99999999 : parseFloat(priceStr);
+    });
+
+    // 按价格排序
+    sellers.sort((a: any, b: any) => a.priceNum - b.priceNum);
+
+    return {
+      goods_id: productId,
+      gm: sellers.length,
+      gmGoodsIds: sellers.map((s: any) => s.sku),
+      gmArr: sellers.map((s: any) => s.priceNum)
+    };
+
+  } catch (error: any) {
+    console.error(`[OZON跟卖数据] SKU=${productId} 获取失败:`, error.message);
+    return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
+  }
 }
 
 /**
