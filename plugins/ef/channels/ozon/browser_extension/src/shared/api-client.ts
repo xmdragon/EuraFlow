@@ -111,8 +111,11 @@ export class ApiClient {
       product_name_ru: product.product_name_ru,
       product_name_cn: product.product_name_cn,
       brand: product.brand,
-      current_price: product.current_price,
-      original_price: product.original_price,
+
+      // 价格字段：转换成"分"（乘以100）
+      current_price: product.current_price != null ? Math.round(product.current_price * 100) : undefined,
+      original_price: product.original_price != null ? Math.round(product.original_price * 100) : undefined,
+
       ozon_link: product.ozon_link,
       image_url: product.image_url,
       category_link: product.category_link,
@@ -125,9 +128,9 @@ export class ApiClient {
       fbp_commission_high: product.fbp_commission_high,
 
       monthly_sales_volume: product.monthly_sales_volume,
-      monthly_sales_revenue: product.monthly_sales_revenue,
+      monthly_sales_revenue: product.monthly_sales_revenue != null ? Math.round(product.monthly_sales_revenue * 100) : undefined,
       daily_sales_volume: product.daily_sales_volume,
-      daily_sales_revenue: product.daily_sales_revenue,
+      daily_sales_revenue: product.daily_sales_revenue != null ? Math.round(product.daily_sales_revenue * 100) : undefined,
       sales_dynamic_percent: product.sales_dynamic_percent,
       conversion_rate: product.conversion_rate,
 
@@ -147,7 +150,11 @@ export class ApiClient {
       product_created_date: product.product_created_date?.toISOString(),
 
       competitor_count: product.competitor_count,
-      competitor_min_price: product.competitor_min_price,
+      competitor_min_price: product.competitor_min_price != null ? Math.round(product.competitor_min_price * 100) : undefined,
+
+      // 跟卖数据字段（OZON API）
+      follow_seller_count: product.follow_seller_count,
+      follow_seller_min_price: product.follow_seller_min_price != null ? Math.round(product.follow_seller_min_price * 100) : undefined,
 
       // 营销分析字段（上品帮）
       card_views: product.card_views,
@@ -163,7 +170,7 @@ export class ApiClient {
 
       // 基础字段（上品帮）
       category_path: product.category_path,
-      avg_price: product.avg_price,
+      avg_price: product.avg_price != null ? Math.round(product.avg_price * 100) : undefined,
       listing_date: product.listing_date?.toISOString(),
       listing_days: product.listing_days,
       seller_mode: product.seller_mode,
