@@ -35,7 +35,7 @@ class CancelReturnService:
         Returns:
             同步结果
         """
-        logger.info("开始同步取消申请数据")
+        logger.info(f"开始同步取消申请数据，config={config}")
 
         total_synced = 0
         total_updated = 0
@@ -44,6 +44,8 @@ class CancelReturnService:
         async with self.db_manager.get_session() as db:
             # 获取要同步的店铺列表
             shop_id = config.get("shop_id")
+            logger.info(f"shop_id from config: {shop_id}, type: {type(shop_id)}")
+
             if shop_id:
                 # 同步指定店铺
                 result = await db.execute(
@@ -53,12 +55,14 @@ class CancelReturnService:
                     )
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询指定店铺 {shop_id}，找到 {len(shops)} 个活跃店铺")
             else:
                 # 同步所有活跃店铺
                 result = await db.execute(
                     select(OzonShop).where(OzonShop.status == "active")
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询所有活跃店铺，找到 {len(shops)} 个")
 
             for shop in shops:
                 try:
@@ -241,7 +245,7 @@ class CancelReturnService:
         Returns:
             同步结果
         """
-        logger.info("开始同步退货申请数据")
+        logger.info(f"开始同步退货申请数据，config={config}")
 
         total_synced = 0
         total_updated = 0
@@ -250,6 +254,8 @@ class CancelReturnService:
         async with self.db_manager.get_session() as db:
             # 获取要同步的店铺列表
             shop_id = config.get("shop_id")
+            logger.info(f"shop_id from config: {shop_id}, type: {type(shop_id)}")
+
             if shop_id:
                 # 同步指定店铺
                 result = await db.execute(
@@ -259,12 +265,14 @@ class CancelReturnService:
                     )
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询指定店铺 {shop_id}，找到 {len(shops)} 个活跃店铺")
             else:
                 # 同步所有活跃店铺
                 result = await db.execute(
                     select(OzonShop).where(OzonShop.status == "active")
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询所有活跃店铺，找到 {len(shops)} 个")
 
             for shop in shops:
                 try:
