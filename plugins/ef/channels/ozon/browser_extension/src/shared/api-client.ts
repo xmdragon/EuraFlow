@@ -24,12 +24,54 @@ export class ApiClient {
     errors?: any[];
   }> {
     try {
+      // 转换成API格式
+      const apiFormatProducts = this.convertProductsToApiFormat(products);
+
+      // 🔍 上传前输出前3个商品的完整数据（调试用）
+      console.log('%c========== 上传数据前检查 ==========', 'color: #ff4d4f; font-weight: bold; font-size: 14px');
+      console.log('总商品数:', products.length);
+
+      const sampleProducts = products.slice(0, 3);
+      sampleProducts.forEach((product, index) => {
+        console.log(`%c商品 ${index + 1}: ${product.product_id}`, 'color: #1890ff; font-weight: bold');
+        console.table({
+          '当前价格(元)': product.current_price,
+          '原价(元)': product.original_price,
+          'rFBS佣金(中)': product.rfbs_commission_mid,
+          'FBP佣金(中)': product.fbp_commission_mid,
+          '跟卖数量': product.follow_seller_count,
+          '跟卖最低价(元)': product.follow_seller_min_price,
+          '重量(g)': product.weight,
+          '深度(mm)': product.depth,
+          '宽度(mm)': product.width,
+          '高度(mm)': product.height,
+        });
+      });
+
+      console.log('%c转换后的API格式（前3个）:', 'color: #52c41a; font-weight: bold');
+      const sampleApiProducts = apiFormatProducts.slice(0, 3);
+      sampleApiProducts.forEach((product, index) => {
+        console.log(`商品 ${index + 1}: ${product.product_id}`);
+        console.table({
+          '当前价格(分)': product.current_price,
+          '原价(分)': product.original_price,
+          'rFBS佣金(中)': product.rfbs_commission_mid,
+          'FBP佣金(中)': product.fbp_commission_mid,
+          '跟卖数量': product.follow_seller_count,
+          '跟卖最低价(分)': product.follow_seller_min_price,
+          '重量(g)': product.package_weight,
+          '深度(mm)': product.package_length,
+          '宽度(mm)': product.package_width,
+          '高度(mm)': product.package_height,
+        });
+      });
+
       const response = await chrome.runtime.sendMessage({
         type: 'UPLOAD_PRODUCTS',
         data: {
           apiUrl: this.apiUrl,
           apiKey: this.apiKey,
-          products: this.convertProductsToApiFormat(products)
+          products: apiFormatProducts
         }
       });
 

@@ -31,7 +31,8 @@ export class DataFusionEngine {
     if (currentPriceElement) {
       const priceText = currentPriceElement.textContent?.replace(/[₽¥\s]/g, '').trim();
       if (priceText) {
-        product.current_price = parseFloat(priceText);
+        // 处理欧洲格式：21,89 → 21.89
+        product.current_price = parseFloat(priceText.replace(/,/g, '.'));
       }
     }
 
@@ -39,7 +40,8 @@ export class DataFusionEngine {
     if (originalPriceElement) {
       const priceText = originalPriceElement.textContent?.replace(/[₽¥\s]/g, '').trim();
       if (priceText) {
-        product.original_price = parseFloat(priceText);
+        // 处理欧洲格式：21,89 → 21.89
+        product.original_price = parseFloat(priceText.replace(/,/g, '.'));
       }
     }
 

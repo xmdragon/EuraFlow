@@ -50,6 +50,7 @@ const CHART_COLORS = [
 const OzonOverview: React.FC = () => {
   // 获取系统默认货币和时区工具
   const { symbol: currencySymbol } = useCurrency();
+  const { timezone } = useDateTime();
 
   // 初始化为 null 表示"全部店铺"
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -93,9 +94,10 @@ const OzonOverview: React.FC = () => {
     staleTime: 1 * 60 * 1000, // 1分钟内不重新请求
   });
 
-  // 计算日期范围参数
+  // 计算日期范围参数（使用用户设置的时区）
   const dateRangeParams = useMemo(() => {
-    const now = dayjs();
+    // 使用用户设置的时区计算当前时间
+    const now = dayjs().tz(timezone);
 
     switch (timeRangeType) {
       case '7days':
@@ -103,20 +105,20 @@ const OzonOverview: React.FC = () => {
       case '14days':
         return { days: 14 };
       case 'thisMonth':
-        // 从本月1日到今天
+        // 从本月1日到今天（用户时区）
         return {
           startDate: now.startOf('month').format('YYYY-MM-DD'),
           endDate: now.format('YYYY-MM-DD'),
         };
       case 'lastMonth':
-        // 上个月1日到上个月最后一天
+        // 上个月1日到上个月最后一天（用户时区）
         const lastMonth = now.subtract(1, 'month');
         return {
           startDate: lastMonth.startOf('month').format('YYYY-MM-DD'),
           endDate: lastMonth.endOf('month').format('YYYY-MM-DD'),
         };
       case 'custom':
-        // 自定义日期范围
+        // 自定义日期范围（用户时区）
         if (customDateRange[0] && customDateRange[1]) {
           return {
             startDate: customDateRange[0].format('YYYY-MM-DD'),
@@ -127,7 +129,7 @@ const OzonOverview: React.FC = () => {
       default:
         return { days: 7 };
     }
-  }, [timeRangeType, customDateRange]);
+  }, [timeRangeType, customDateRange, timezone]);
 
   // 获取每日posting统计
   const { data: dailyStatsData, isLoading: isDailyStatsLoading } = useQuery({
