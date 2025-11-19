@@ -126,10 +126,11 @@ class CancelReturnService:
                     limit=500  # OZON API 最大值为500
                 )
 
-                result = response.get("result", {})
-                cancellations = result.get("items", [])
-                has_next = result.get("has_next", False)
-                next_last_id = result.get("last_id", 0)
+                # OZON API 响应格式：{'result': [...], 'last_id': 0, 'counter': 0}
+                # result 字段直接就是数组，不是包含 items 的对象
+                cancellations = response.get("result", [])
+                next_last_id = response.get("last_id", 0)
+                counter = response.get("counter", 0)
 
                 for cancellation_data in cancellations:
                     try:
@@ -145,8 +146,8 @@ class CancelReturnService:
                 # 提交批次
                 await db.commit()
 
-                # 更新分页状态
-                if has_next and next_last_id > current_last_id:
+                # 更新分页状态：如果 result 为空或 last_id 没变化，说明没有更多数据
+                if len(cancellations) > 0 and next_last_id > current_last_id:
                     current_last_id = next_last_id
                 else:
                     has_more = False
@@ -332,10 +333,11 @@ class CancelReturnService:
                     limit=500  # OZON API 最大值为500
                 )
 
-                result = response.get("result", {})
-                returns = result.get("items", [])
-                has_next = result.get("has_next", False)
-                next_last_id = result.get("last_id", 0)
+                # OZON API 响应格式：{'result': [...], 'last_id': 0, 'counter': 0}
+                # result 字段直接就是数组，不是包含 items 的对象
+                returns = response.get("result", [])
+                next_last_id = response.get("last_id", 0)
+                counter = response.get("counter", 0)
 
                 for return_data in returns:
                     try:
@@ -351,8 +353,8 @@ class CancelReturnService:
                 # 提交批次
                 await db.commit()
 
-                # 更新分页状态
-                if has_next and next_last_id > current_last_id:
+                # 更新分页状态：如果 result 为空或 last_id 没变化，说明没有更多数据
+                if len(returns) > 0 and next_last_id > current_last_id:
                     current_last_id = next_last_id
                 else:
                     has_more = False
