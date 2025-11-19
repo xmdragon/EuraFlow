@@ -131,26 +131,10 @@ export class ShangpinbangAPIClient {
       ad_cost_share: this.parseNumber(spbData.adShare),
     };
 
-    // 调试：输出原始数据中的关键字段（包含SKU）
+    // 调试：输出完整的原始数据和转换结果（包含SKU）
     if (window.EURAFLOW_DEBUG) {
-      console.log(`[SPB转换] SKU=${sku} 原始数据:`, {
-        weight: spbData.weight,
-        depth: spbData.depth,
-        width: spbData.width,
-        height: spbData.height,
-        rfbsCommissionMid: spbData.rfbsCommissionMid,
-        fbpCommissionMid: spbData.fbpCommissionMid,
-        monthlySales: spbData.monthlySales
-      });
-      console.log(`[SPB转换] SKU=${sku} 转换后:`, {
-        weight: result.weight,
-        depth: result.depth,
-        width: result.width,
-        height: result.height,
-        rfbs_commission_mid: result.rfbs_commission_mid,
-        fbp_commission_mid: result.fbp_commission_mid,
-        monthly_sales_volume: result.monthly_sales_volume
-      });
+      console.log(`[SPB转换] SKU=${sku} 原始数据（完整）:`, spbData);
+      console.log(`[SPB转换] SKU=${sku} 转换后（完整）:`, result);
     }
 
     return result;
@@ -173,6 +157,7 @@ export class ShangpinbangAPIClient {
 
   /**
    * 解析数字（null/0/"无数据" → undefined，有效数字 → number）
+   * 支持带单位的数字：17.67万 → 176700
    */
   private parseNumber(value: number | null | undefined | string): number | undefined {
     if (value === null || value === undefined) {
@@ -184,6 +169,15 @@ export class ShangpinbangAPIClient {
       if (value.includes('无') || value.includes('-') || value.trim() === '') {
         return undefined;
       }
+
+      // 处理带"万"单位的数字：17.67万 → 176700
+      if (value.includes('万')) {
+        const numStr = value.replace(/[^\d.]/g, ''); // 移除非数字字符（保留小数点）
+        const num = parseFloat(numStr);
+        return isNaN(num) ? undefined : num * 10000;
+      }
+
+      // 处理普通数字字符串
       const num = parseFloat(value);
       return isNaN(num) ? undefined : num;
     }
