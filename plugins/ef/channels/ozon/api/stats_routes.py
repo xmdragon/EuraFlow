@@ -451,9 +451,9 @@ async def get_statistics(
 @router.get("/daily-posting-stats")
 async def get_daily_posting_stats(
     shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
-    days: Optional[int] = Query(None, ge=1, le=365, description="统计天数（与start_date/end_date互斥）"),
-    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
-    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    range_type: Optional[str] = Query(None, description="时间范围类型：7days/14days/thisMonth/lastMonth/custom"),
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
     db: AsyncSession = Depends(get_async_session),
     current_user = Depends(get_current_user_flexible)
 ):
@@ -462,9 +462,9 @@ async def get_daily_posting_stats(
 
     Args:
         shop_id: 店铺ID，可选
-        days: 统计天数，默认30天（与start_date/end_date互斥）
-        start_date: 开始日期（与days互斥）
-        end_date: 结束日期（与days互斥）
+        range_type: 时间范围类型（后端根据用户时区计算日期）
+        start_date: 开始日期（仅 custom 模式）
+        end_date: 结束日期（仅 custom 模式）
         db: 数据库会话
         current_user: 当前用户
 
@@ -486,46 +486,47 @@ async def get_daily_posting_stats(
     global_timezone = await get_global_timezone(db)
 
     try:
-        # 计算起始日期和结束日期（按全局时区）
-        if start_date and end_date:
-            # 使用自定义日期范围（前端传入的是用户时区的日期）
-            from datetime import datetime
-            from zoneinfo import ZoneInfo
+        # 根据 range_type 和用户时区计算日期范围
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
 
-            # 按全局时区解析日期字符串
-            tz = ZoneInfo(global_timezone)
+        tz = ZoneInfo(global_timezone)
+        now_in_tz = datetime.now(tz)
+
+        if range_type == '7days':
+            end_date_obj = now_in_tz.date()
+            start_date_obj = end_date_obj - timedelta(days=6)
+        elif range_type == '14days':
+            end_date_obj = now_in_tz.date()
+            start_date_obj = end_date_obj - timedelta(days=13)
+        elif range_type == 'thisMonth':
+            # 本月1日到今天（用户时区）
+            end_date_obj = now_in_tz.date()
+            start_date_obj = now_in_tz.replace(day=1).date()
+        elif range_type == 'lastMonth':
+            # 上月1日到上月最后一天（用户时区）
+            first_day_of_this_month = now_in_tz.replace(day=1)
+            last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
+            first_day_of_last_month = last_day_of_last_month.replace(day=1)
+            start_date_obj = first_day_of_last_month.date()
+            end_date_obj = last_day_of_last_month.date()
+        elif range_type == 'custom' and start_date and end_date:
+            # 自定义日期范围（前端传入的是日期字符串，后端按用户时区解析）
             start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
             end_date_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=tz)
-
-            # 转换为UTC后取日期部分（用于统计）
-            start_date_obj = start_date_dt.astimezone(ZoneInfo('UTC')).date()
-            end_date_obj = end_date_dt.astimezone(ZoneInfo('UTC')).date()
-        elif days:
-            # 使用天数计算（基于全局时区的当前日期）
-            from zoneinfo import ZoneInfo
-            from datetime import datetime
-            tz = ZoneInfo(global_timezone)
-            now_in_tz = datetime.now(tz)
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=days - 1)
+            start_date_obj = start_date_dt.date()
+            end_date_obj = end_date_dt.date()
         else:
-            # 默认30天（基于全局时区的当前日期）
-            from zoneinfo import ZoneInfo
-            from datetime import datetime
-            tz = ZoneInfo(global_timezone)
-            now_in_tz = datetime.now(tz)
+            # 默认7天
             end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=29)
+            start_date_obj = end_date_obj - timedelta(days=6)
 
         # 计算UTC时间范围（用于数据库查询）
-        # 将全局时区的日期范围转换为UTC时间戳
-        start_datetime_tz = start_date_obj  # 已经是全局时区的日期
-        end_datetime_tz = end_date_obj
-
-        # 转换为全局时区的datetime（00:00:00）
-        start_datetime = datetime.combine(start_datetime_tz, datetime.min.time()).replace(tzinfo=tz)
-        # 转换为全局时区的datetime（23:59:59）
-        end_datetime = datetime.combine(end_datetime_tz, datetime.max.time()).replace(tzinfo=tz)
+        # 将用户时区的日期范围转换为UTC时间戳
+        # 转换为用户时区的datetime（00:00:00）
+        start_datetime = datetime.combine(start_date_obj, datetime.min.time()).replace(tzinfo=tz)
+        # 转换为用户时区的datetime（23:59:59）
+        end_datetime = datetime.combine(end_date_obj, datetime.max.time()).replace(tzinfo=tz)
 
         # 转换为UTC
         from datetime import timezone as dt_timezone
@@ -624,9 +625,9 @@ async def get_daily_posting_stats(
 @router.get("/daily-revenue-stats")
 async def get_daily_revenue_stats(
     shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
-    days: Optional[int] = Query(None, ge=1, le=365, description="统计天数（与start_date/end_date互斥）"),
-    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
-    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    range_type: Optional[str] = Query(None, description="时间范围类型：7days/14days/thisMonth/lastMonth/custom"),
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
     db: AsyncSession = Depends(get_async_session),
     current_user = Depends(get_current_user_flexible)
 ):
@@ -635,9 +636,9 @@ async def get_daily_revenue_stats(
 
     Args:
         shop_id: 店铺ID，可选
-        days: 统计天数，默认30天（与start_date/end_date互斥）
-        start_date: 开始日期（与days互斥）
-        end_date: 结束日期（与days互斥）
+        range_type: 时间范围类型（后端根据用户时区计算日期）
+        start_date: 开始日期（仅 custom 模式）
+        end_date: 结束日期（仅 custom 模式）
         db: 数据库会话
         current_user: 当前用户
 
@@ -658,46 +659,47 @@ async def get_daily_revenue_stats(
     global_timezone = await get_global_timezone(db)
 
     try:
-        # 计算起始日期和结束日期（按全局时区）
-        if start_date and end_date:
-            # 使用自定义日期范围（前端传入的是用户时区的日期）
-            from datetime import datetime
-            from zoneinfo import ZoneInfo
+        # 根据 range_type 和用户时区计算日期范围
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
 
-            # 按全局时区解析日期字符串
-            tz = ZoneInfo(global_timezone)
+        tz = ZoneInfo(global_timezone)
+        now_in_tz = datetime.now(tz)
+
+        if range_type == '7days':
+            end_date_obj = now_in_tz.date()
+            start_date_obj = end_date_obj - timedelta(days=6)
+        elif range_type == '14days':
+            end_date_obj = now_in_tz.date()
+            start_date_obj = end_date_obj - timedelta(days=13)
+        elif range_type == 'thisMonth':
+            # 本月1日到今天（用户时区）
+            end_date_obj = now_in_tz.date()
+            start_date_obj = now_in_tz.replace(day=1).date()
+        elif range_type == 'lastMonth':
+            # 上月1日到上月最后一天（用户时区）
+            first_day_of_this_month = now_in_tz.replace(day=1)
+            last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
+            first_day_of_last_month = last_day_of_last_month.replace(day=1)
+            start_date_obj = first_day_of_last_month.date()
+            end_date_obj = last_day_of_last_month.date()
+        elif range_type == 'custom' and start_date and end_date:
+            # 自定义日期范围（前端传入的是日期字符串，后端按用户时区解析）
             start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
             end_date_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=tz)
-
-            # 转换为UTC后取日期部分（用于统计）
-            start_date_obj = start_date_dt.astimezone(ZoneInfo('UTC')).date()
-            end_date_obj = end_date_dt.astimezone(ZoneInfo('UTC')).date()
-        elif days:
-            # 使用天数计算（基于全局时区的当前日期）
-            from zoneinfo import ZoneInfo
-            from datetime import datetime
-            tz = ZoneInfo(global_timezone)
-            now_in_tz = datetime.now(tz)
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=days - 1)
+            start_date_obj = start_date_dt.date()
+            end_date_obj = end_date_dt.date()
         else:
-            # 默认30天（基于全局时区的当前日期）
-            from zoneinfo import ZoneInfo
-            from datetime import datetime
-            tz = ZoneInfo(global_timezone)
-            now_in_tz = datetime.now(tz)
+            # 默认7天
             end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=29)
+            start_date_obj = end_date_obj - timedelta(days=6)
 
         # 计算UTC时间范围（用于数据库查询）
-        # 将全局时区的日期范围转换为UTC时间戳
-        start_datetime_tz = start_date_obj  # 已经是全局时区的日期
-        end_datetime_tz = end_date_obj
-
-        # 转换为全局时区的datetime（00:00:00）
-        start_datetime = datetime.combine(start_datetime_tz, datetime.min.time()).replace(tzinfo=tz)
-        # 转换为全局时区的datetime（23:59:59）
-        end_datetime = datetime.combine(end_datetime_tz, datetime.max.time()).replace(tzinfo=tz)
+        # 将用户时区的日期范围转换为UTC时间戳
+        # 转换为用户时区的datetime（00:00:00）
+        start_datetime = datetime.combine(start_date_obj, datetime.min.time()).replace(tzinfo=tz)
+        # 转换为用户时区的datetime（23:59:59）
+        end_datetime = datetime.combine(end_date_obj, datetime.max.time()).replace(tzinfo=tz)
 
         # 转换为UTC
         from datetime import timezone as dt_timezone

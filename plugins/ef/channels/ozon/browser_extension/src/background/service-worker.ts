@@ -1412,10 +1412,13 @@ async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): P
         continue;
       }
 
-      // 提取跟卖价格并解析
+      // 提取跟卖价格并解析（处理欧洲格式：2 189,50 → 2189.50）
       sellers.forEach((seller: any) => {
         let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
-        priceStr = priceStr.replace(/,/g, '.').replace(/[^\d.]/g, '');
+        // 1. 移除空格（千位分隔符）
+        // 2. 替换逗号为点（小数分隔符）
+        // 3. 移除其他非数字字符（₽等）
+        priceStr = priceStr.replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.]/g, '');
         seller.priceNum = isNaN(parseFloat(priceStr)) ? 99999999 : parseFloat(priceStr);
       });
 
@@ -1492,10 +1495,13 @@ async function handleGetFollowSellerDataSingle(data: { productId: string }): Pro
       return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
     }
 
-    // 提取跟卖价格并解析
+    // 提取跟卖价格并解析（处理欧洲格式：2 189,50 → 2189.50）
     sellers.forEach((seller: any) => {
       let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
-      priceStr = priceStr.replace(/,/g, '.').replace(/[^\d.]/g, '');
+      // 1. 移除空格（千位分隔符）
+      // 2. 替换逗号为点（小数分隔符）
+      // 3. 移除其他非数字字符（₽等）
+      priceStr = priceStr.replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.]/g, '');
       seller.priceNum = isNaN(parseFloat(priceStr)) ? 99999999 : parseFloat(priceStr);
     });
 

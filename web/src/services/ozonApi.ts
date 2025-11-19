@@ -677,22 +677,24 @@ export interface DailyPostingStats {
 // 获取每日Posting统计
 export const getDailyPostingStats = async (
   shopId?: number | null,
-  days?: number,
+  rangeType?: string,
   startDate?: string,
   endDate?: string
 ) => {
-  const params: { shop_id?: number; days?: number; start_date?: string; end_date?: string } = {};
+  const params: { shop_id?: number; range_type?: string; start_date?: string; end_date?: string } = {};
 
   if (shopId) {
     params.shop_id = shopId;
   }
 
-  // 优先使用自定义日期范围
+  if (rangeType) {
+    params.range_type = rangeType;
+  }
+
+  // 自定义日期范围
   if (startDate && endDate) {
     params.start_date = startDate;
     params.end_date = endDate;
-  } else if (days) {
-    params.days = days;
   }
 
   const response = await apiClient.get<DailyPostingStats>("/ozon/daily-posting-stats", { params });
@@ -710,22 +712,24 @@ export interface DailyRevenueStats {
 // 获取每日销售额统计
 export const getDailyRevenueStats = async (
   shopId?: number | null,
-  days?: number,
+  rangeType?: string,
   startDate?: string,
   endDate?: string
 ) => {
-  const params: { shop_id?: number; days?: number; start_date?: string; end_date?: string } = {};
+  const params: { shop_id?: number; range_type?: string; start_date?: string; end_date?: string } = {};
 
   if (shopId) {
     params.shop_id = shopId;
   }
 
-  // 优先使用自定义日期范围
+  if (rangeType) {
+    params.range_type = rangeType;
+  }
+
+  // 自定义日期范围
   if (startDate && endDate) {
     params.start_date = startDate;
     params.end_date = endDate;
-  } else if (days) {
-    params.days = days;
   }
 
   const response = await apiClient.get<DailyRevenueStats>("/ozon/daily-revenue-stats", { params });
