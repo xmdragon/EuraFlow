@@ -355,16 +355,21 @@ async def get_statistics(
         month_start = month_start_tz.astimezone(dt_timezone.utc)
 
         # 昨日收入（从raw_payload的products列表计算）
+        # ⚠️ 重要：使用 OzonPosting.in_process_at 而不是 OzonOrder.ordered_at
+        # 原因：与柱状图的查询条件保持一致，确保"昨日销售额"和柱状图的"昨天"数据相同
         # OZON API不返回total_price，需要从products中计算：price * quantity
-        yesterday_orders_result = await db.execute(
+        yesterday_postings_result = await db.execute(
             select(OzonOrder.raw_payload)
+            .join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
             .where(
-                OzonOrder.ordered_at >= yesterday_start,
-                OzonOrder.ordered_at < today_start,
-                *order_filter
+                OzonPosting.in_process_at >= yesterday_start,
+                OzonPosting.in_process_at < today_start,
+                OzonPosting.status != 'cancelled',  # 排除已取消的订单
+                OzonPosting.in_process_at.isnot(None),  # 必须有下单时间
+                *posting_filter
             )
         )
-        yesterday_orders = yesterday_orders_result.scalars().all()
+        yesterday_orders = yesterday_postings_result.scalars().all()
 
         # 计算昨日总收入（从products列表中计算）
         yesterday_revenue = Decimal('0')
