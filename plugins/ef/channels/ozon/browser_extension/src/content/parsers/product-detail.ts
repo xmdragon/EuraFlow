@@ -48,30 +48,23 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
   try {
     const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(productUrl)}`;
 
-    // 使用全局OZON API限流器和标准headers（避免触发限流）
-    const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
-    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
-    const limiter = OzonApiRateLimiter.getInstance();
-
-    const headers = await getOzonStandardHeaders({
-      referer: window.location.href,
-      includeContentType: false
+    // ⚠️ 通过 Service Worker 统一执行 OZON API 请求（避免 Content Script 直接调用触发限流）
+    // Service Worker 内部会使用 OzonApiRateLimiter 进行限流控制
+    const result = await chrome.runtime.sendMessage({
+      type: 'FETCH_OZON_API',
+      data: {
+        url: apiUrl,
+        options: { method: 'GET' },
+        referer: window.location.href
+      }
     });
 
-    const response = await limiter.execute(() =>
-      fetch(apiUrl, {
-        method: 'GET',
-        headers,
-        credentials: 'include',
-      })
-    );
-
-    if (!response.ok) {
-      console.error(`[EuraFlow] OZON API 请求失败: ${response.status}`);
-      throw new Error(`API请求失败: ${response.status}`);
+    if (!result.success) {
+      console.error(`[EuraFlow] OZON API 请求失败: ${result.error}`);
+      throw new Error(`API请求失败: ${result.error}`);
     }
 
-    const data = await response.json();
+    const data = result.data;
     if (!data.widgetStates) {
       console.error('[EuraFlow] OZON API 返回数据中没有 widgetStates');
       throw new Error('widgetStates 不存在');
@@ -98,24 +91,22 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
       console.log(`[EuraFlow] 正在调用 OZON Modal API 获取完整变体: ${apiUrl}`);
     }
 
-    // 使用标准headers（避免触发限流）
-    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
-    const headers = await getOzonStandardHeaders({
-      referer: window.location.href
+    // ⚠️ 通过 Service Worker 统一执行 OZON API 请求（避免 Content Script 直接调用触发限流）
+    const result = await chrome.runtime.sendMessage({
+      type: 'FETCH_OZON_API',
+      data: {
+        url: apiUrl,
+        options: { method: 'GET' },
+        referer: window.location.href
+      }
     });
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers,
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      console.warn(`[EuraFlow] Modal API 请求失败: ${response.status}`);
+    if (!result.success) {
+      console.warn(`[EuraFlow] Modal API 请求失败: ${result.error}`);
       return null;
     }
 
-    const data = await response.json();
+    const data = result.data;
     const widgetStates = data.widgetStates || {};
     const keys = Object.keys(widgetStates);
 
@@ -388,28 +379,26 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       console.log(`[EuraFlow] 正在调用 OZON Page2 API 获取特征和描述: ${apiUrl}`);
     }
 
-    // 使用标准headers（避免触发限流）
-    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
-    const headers = await getOzonStandardHeaders({
-      referer: window.location.href
+    // ⚠️ 通过 Service Worker 统一执行 OZON API 请求（避免 Content Script 直接调用触发限流）
+    const result = await chrome.runtime.sendMessage({
+      type: 'FETCH_OZON_API',
+      data: {
+        url: apiUrl,
+        options: { method: 'GET' },
+        referer: window.location.href
+      }
     });
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers,
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      console.warn(`[EuraFlow] Page2 API 请求失败: ${response.status}`);
+    if (!result.success) {
+      console.warn(`[EuraFlow] Page2 API 请求失败: ${result.error}`);
       return null;
     }
 
-    const data = await response.json();
+    const data = result.data;
     const widgetStates = data.widgetStates || {};
     const keys = Object.keys(widgetStates);
 
-    const result: {
+    const extracted: {
       description?: string;
       attributes?: Array<{ attribute_id: number; value: string; dictionary_value_id?: number }>;
     } = {};
@@ -420,7 +409,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       const descriptionData = JSON.parse(widgetStates[descriptionKey]);
       if (descriptionData?.richAnnotation) {
         const desc = descriptionData.richAnnotation;
-        result.description = desc;
+        extracted.description = desc;
         if (window.EURAFLOW_DEBUG) {
           console.log(`[EuraFlow] 从 Page2 API 提取到描述: ${desc.substring(0, 80)}...`);
         }
@@ -454,7 +443,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
           }
         }
 
-        result.attributes = attributes;
+        extracted.attributes = attributes;
 
         if (window.EURAFLOW_DEBUG) {
           console.log(`[EuraFlow] 从 Page2 API 提取到 ${attributes.length} 个特征`);
@@ -462,7 +451,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       }
     }
 
-    return Object.keys(result).length > 0 ? result : null;
+    return Object.keys(extracted).length > 0 ? extracted : null;
   } catch (error) {
     console.error('[EuraFlow] 调用 Page2 API 失败:', error);
     return null;
@@ -989,35 +978,39 @@ export async function extractProductData(): Promise<ProductDetailData> {
           console.log(`[EuraFlow] Modal API 返回 ${modalAspects.length} 个 aspect，共提取 ${allVariantLinks.length} 个变体链接`);
         }
 
-        // 批量访问每个变体的详情页（每批50个）
-        const batchSize = 50;
-        const batches = Math.ceil(allVariantLinks.length / batchSize);
+        // ⚠️ 串行访问每个变体的详情页（避免批量并发触发限流）
+        // 原方案：Promise.all 并发 50 个请求 → 极度异常 → 被限流
+        // 新方案：串行执行 + Service Worker 统一限流 → 自然请求模式
+        if (window.EURAFLOW_DEBUG) {
+          console.log(`[EuraFlow] 开始串行采集 ${allVariantLinks.length} 个变体详情页...`);
+        }
 
-        for (let i = 0; i < batches; i++) {
-          const batch = allVariantLinks.slice(i * batchSize, i * batchSize + batchSize);
-          const batchPromises = batch.map(async (variant) => {
-            try {
-              const fullUrl = `https://www.ozon.ru${variant.link}`;
-              const apiResponse = await fetchProductDataFromOzonAPI(fullUrl);
-              if (apiResponse && apiResponse.widgetStates) {
-                // 从详情页的 aspects 中提取变体数据
-                const detailAspects = extractVariantsStage1(apiResponse.widgetStates);
-                return detailAspects;
-              }
-              return [];
-            } catch (error) {
-              // 单个变体失败不影响整体
-              return [];
+        let processedCount = 0;
+        for (const variant of allVariantLinks) {
+          try {
+            processedCount++;
+            const fullUrl = `https://www.ozon.ru${variant.link}`;
+
+            if (window.EURAFLOW_DEBUG) {
+              console.log(`[EuraFlow] 正在采集变体 ${processedCount}/${allVariantLinks.length}: ${fullUrl.substring(0, 80)}...`);
             }
-          });
 
-          const batchResults = await Promise.all(batchPromises);
-          const batchVariants = batchResults.flat();
-          stage2Variants.push(...batchVariants);
+            const apiResponse = await fetchProductDataFromOzonAPI(fullUrl);
+            if (apiResponse && apiResponse.widgetStates) {
+              // 从详情页的 aspects 中提取变体数据
+              const detailAspects = extractVariantsStage1(apiResponse.widgetStates);
+              stage2Variants.push(...detailAspects);
+            }
+          } catch (error) {
+            // 单个变体失败不影响整体
+            if (window.EURAFLOW_DEBUG) {
+              console.warn(`[EuraFlow] 变体 ${processedCount} 采集失败:`, error);
+            }
+          }
         }
 
         if (window.EURAFLOW_DEBUG) {
-          console.log(`[EuraFlow] 批量详情页采集完成，共提取 ${stage2Variants.length} 个变体`);
+          console.log(`[EuraFlow] 串行采集完成，共提取 ${stage2Variants.length} 个变体`);
         }
       } else {
         console.warn('[EuraFlow] Modal API 未返回变体');
