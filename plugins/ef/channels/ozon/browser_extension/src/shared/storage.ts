@@ -1,4 +1,4 @@
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig } from './types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig } from './types';
 import { DEFAULT_FIELDS } from './types';
 
 /**
@@ -153,6 +153,55 @@ export async function setDataPanelConfig(config: Partial<DataPanelConfig>): Prom
     if (config.visibleFields !== undefined) {
       storageData.dataPanelVisibleFields = config.visibleFields;
     }
+
+    chrome.storage.sync.set(storageData, () => {
+      resolve();
+    });
+  });
+}
+
+// ========== OZON API 频率限制配置存储 ==========
+
+const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
+  mode: 'random',           // 默认随机频率
+  fixedDelay: 1000,         // 默认固定延迟1秒
+  randomDelayMin: 500,      // 默认随机延迟最小500ms
+  randomDelayMax: 2000,     // 默认随机延迟最大2秒
+  enabled: true,            // 默认启用频率限制
+};
+
+/**
+ * 获取OZON API频率限制配置
+ */
+export async function getRateLimitConfig(): Promise<RateLimitConfig> {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(
+      ['rateLimitMode', 'rateLimitFixedDelay', 'rateLimitRandomMin', 'rateLimitRandomMax', 'rateLimitEnabled'],
+      (result: { [key: string]: any }) => {
+        resolve({
+          mode: result.rateLimitMode || DEFAULT_RATE_LIMIT_CONFIG.mode,
+          fixedDelay: result.rateLimitFixedDelay || DEFAULT_RATE_LIMIT_CONFIG.fixedDelay,
+          randomDelayMin: result.rateLimitRandomMin || DEFAULT_RATE_LIMIT_CONFIG.randomDelayMin,
+          randomDelayMax: result.rateLimitRandomMax || DEFAULT_RATE_LIMIT_CONFIG.randomDelayMax,
+          enabled: result.rateLimitEnabled !== undefined ? result.rateLimitEnabled : DEFAULT_RATE_LIMIT_CONFIG.enabled,
+        });
+      }
+    );
+  });
+}
+
+/**
+ * 保存OZON API频率限制配置
+ */
+export async function setRateLimitConfig(config: Partial<RateLimitConfig>): Promise<void> {
+  return new Promise((resolve) => {
+    const storageData: { [key: string]: any } = {};
+
+    if (config.mode !== undefined) storageData.rateLimitMode = config.mode;
+    if (config.fixedDelay !== undefined) storageData.rateLimitFixedDelay = config.fixedDelay;
+    if (config.randomDelayMin !== undefined) storageData.rateLimitRandomMin = config.randomDelayMin;
+    if (config.randomDelayMax !== undefined) storageData.rateLimitRandomMax = config.randomDelayMax;
+    if (config.enabled !== undefined) storageData.rateLimitEnabled = config.enabled;
 
     chrome.storage.sync.set(storageData, () => {
       resolve();

@@ -62,8 +62,8 @@ const CancelReturn: React.FC = () => {
   const { formatDateTime } = useDateTime();
   const { copyToClipboard } = useCopy();
 
-  // 状态管理（店铺必选，不允许null）
-  const [selectedShop, setSelectedShop] = useState<number | undefined>(undefined);
+  // 状态管理（允许null表示"全部店铺"）
+  const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>('cancellations');
 
   // 取消申请筛选
@@ -95,7 +95,7 @@ const CancelReturn: React.FC = () => {
     queryKey: ['cancellations', selectedShop, cancellationFilters],
     queryFn: async () => {
       const filter: ozonApi.CancellationFilter = {
-        shop_id: selectedShop ?? undefined,
+        shop_id: selectedShop,
         page: cancellationFilters.page,
         limit: cancellationFilters.limit,
         state: cancellationFilters.state,
@@ -110,7 +110,7 @@ const CancelReturn: React.FC = () => {
 
       return await ozonApi.getCancellations(filter);
     },
-    enabled: activeTab === 'cancellations' && selectedShop !== undefined,
+    enabled: activeTab === 'cancellations',
     staleTime: 30000,
   });
 
@@ -119,7 +119,7 @@ const CancelReturn: React.FC = () => {
     queryKey: ['returns', selectedShop, returnFilters],
     queryFn: async () => {
       const filter: ozonApi.ReturnFilter = {
-        shop_id: selectedShop ?? undefined,
+        shop_id: selectedShop,
         page: returnFilters.page,
         limit: returnFilters.limit,
         group_state: returnFilters.group_state,
@@ -134,14 +134,14 @@ const CancelReturn: React.FC = () => {
 
       return await ozonApi.getReturns(filter);
     },
-    enabled: activeTab === 'returns' && selectedShop !== undefined,
+    enabled: activeTab === 'returns',
     staleTime: 30000,
   });
 
   // 手动同步
   const handleSync = async () => {
-    if (!selectedShop) {
-      notifyError('请先选择店铺');
+    if (selectedShop === null) {
+      notifyError('请先选择具体店铺，不支持同步全部店铺');
       return;
     }
 
@@ -328,11 +328,11 @@ const CancelReturn: React.FC = () => {
                 <ShopSelector
                   value={selectedShop}
                   onChange={(value) => {
-                    // 只允许单选，不允许多选或null
+                    // 支持单选和"全部"（null）
                     const shopId = Array.isArray(value) ? value[0] : value;
-                    setSelectedShop(shopId ?? undefined);
+                    setSelectedShop(shopId);
                   }}
-                  showAllOption={false}
+                  showAllOption={true}
                   style={{ width: 200 }}
                   placeholder="请选择店铺"
                 />
@@ -343,7 +343,7 @@ const CancelReturn: React.FC = () => {
                 type="primary"
                 icon={<ReloadOutlined />}
                 onClick={handleSync}
-                disabled={!selectedShop}
+                disabled={selectedShop === null}
               >
                 同步数据
               </Button>

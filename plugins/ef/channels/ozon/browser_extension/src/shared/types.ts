@@ -463,6 +463,17 @@ export interface DataPanelConfig {
 }
 
 /**
+ * OZON API 频率限制配置
+ */
+export interface RateLimitConfig {
+  mode: 'fixed' | 'random';        // 频率模式：固定频率 | 随机频率
+  fixedDelay: number;              // 固定延迟时间（毫秒）
+  randomDelayMin: number;          // 随机延迟最小时间（毫秒）
+  randomDelayMax: number;          // 随机延迟最大时间（毫秒）
+  enabled: boolean;                // 是否启用频率限制
+}
+
+/**
  * 数据字段定义（用于配置界面）
  */
 export interface DataField {

@@ -48,13 +48,19 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
   try {
     const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(productUrl)}`;
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      credentials: 'include',
-    });
+    // 使用全局OZON API限流器（统一管理所有OZON API请求频率）
+    const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
+    const limiter = OzonApiRateLimiter.getInstance();
+
+    const response = await limiter.execute(() =>
+      fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      })
+    );
 
     if (!response.ok) {
       console.error(`[EuraFlow] OZON API 请求失败: ${response.status}`);

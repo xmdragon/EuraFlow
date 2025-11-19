@@ -277,10 +277,7 @@ export class ProductCollector {
                 console.warn(`[尺寸降级] SKU=${product.product_id} 失败:`, error.message);
               }
 
-              // 延迟50ms避免限流
-              if (product !== productsWithoutDimensions[productsWithoutDimensions.length - 1]) {
-                await new Promise(resolve => setTimeout(resolve, 50));
-              }
+              // ✅ 延迟由全局OZON API限流器统一管理，无需手动延迟
             }
 
             console.log(`%c[尺寸降级] 完成 ${dimensionSuccessCount}/${productsWithoutDimensions.length}`, 'color: #52c41a; font-weight: bold');
@@ -424,11 +421,7 @@ export class ProductCollector {
               this.onProgressCallback?.(this.progress);
             }
 
-            // 延迟150-200ms（防止限流）
-            if (i < products.length - 1) {
-              const delay = 150 + Math.random() * 50;
-              await new Promise(resolve => setTimeout(resolve, delay));
-            }
+            // ✅ 延迟由全局OZON API限流器统一管理，无需手动延迟
           }
 
           console.log(`%c[阶段4: 跟卖数据] 完成 成功=${successCount} 失败=${errorCount}`, 'color: #52c41a; font-weight: bold');

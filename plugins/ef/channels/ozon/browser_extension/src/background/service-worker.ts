@@ -1,3 +1,6 @@
+// 导入全局OZON API限流器
+import { OzonApiRateLimiter } from '../shared/ozon-rate-limiter';
+
 // 全局商品数据缓存（5分钟有效期）
 
 interface GlobalProductData {
@@ -792,24 +795,29 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
     // 3. 从合并后的 Cookie 字符串中提取 Seller ID
     const sellerId = await getOzonSellerId(mergedCookie);
 
-    // 4. 调用 OZON search-variant-model API（参考 spbang 的 headers）
-    const response = await fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': mergedCookie,
-        'x-o3-company-id': sellerId.toString(),
-        'x-o3-app-name': 'seller-ui',
-        'x-o3-language': 'zh-Hans',
-        'x-o3-page-type': 'products-other',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache'
-      },
-      body: JSON.stringify({
-        limit: '10',
-        name: productSku
+    // 4. 使用全局OZON API限流器（统一管理所有OZON API请求频率）
+    const limiter = OzonApiRateLimiter.getInstance();
+
+    // 5. 调用 OZON search-variant-model API（参考 spbang 的 headers）
+    const response = await limiter.execute(() =>
+      fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': mergedCookie,
+          'x-o3-company-id': sellerId.toString(),
+          'x-o3-app-name': 'seller-ui',
+          'x-o3-language': 'zh-Hans',
+          'x-o3-page-type': 'products-other',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify({
+          limit: '10',
+          name: productSku
+        })
       })
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1721,12 +1729,17 @@ async function handleFetchAllProductData(data: { url: string; productId: string 
  */
 async function handleGetOzonSellerDimensions(productId: string): Promise<any> {
   try {
-    const response = await fetch(`https://api.ozon.ru/composer-api.bx/page/json/v2?url=/product/${productId}/`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    // 使用全局OZON API限流器（统一管理所有OZON API请求频率）
+    const limiter = OzonApiRateLimiter.getInstance();
+
+    const response = await limiter.execute(() =>
+      fetch(`https://api.ozon.ru/composer-api.bx/page/json/v2?url=/product/${productId}/`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    );
 
     if (!response.ok) {
       return null;

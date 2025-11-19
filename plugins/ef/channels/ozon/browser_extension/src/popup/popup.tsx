@@ -8,15 +8,17 @@ import {
   testApiConnection,
   getShangpinbangConfig,
   getDataPanelConfig,
-  setDataPanelConfig
+  setDataPanelConfig,
+  getRateLimitConfig,
+  setRateLimitConfig
 } from '../shared/storage';
-import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig } from '../shared/types';
+import type { ApiConfig, CollectorConfig, ShangpinbangConfig, DataPanelConfig, RateLimitConfig } from '../shared/types';
 import { FIELD_GROUPS, DEFAULT_FIELDS } from '../shared/types';
 import './popup.scss';
 
 function Popup() {
   // 标签页状态
-  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'collector' | 'dataPanel'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'spb' | 'rateLimit' | 'dataPanel'>('api');
 
   // API配置
   const [apiConfig, setApiConfigState] = useState<ApiConfig>({
@@ -41,6 +43,15 @@ function Popup() {
     visibleFields: [...DEFAULT_FIELDS]
   });
 
+  // 频率限制配置
+  const [rateLimitConfig, setRateLimitConfigState] = useState<RateLimitConfig>({
+    mode: 'random',
+    fixedDelay: 1000,
+    randomDelayMin: 500,
+    randomDelayMax: 2000,
+    enabled: true
+  });
+
   // UI状态
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
@@ -59,10 +70,12 @@ function Popup() {
       const collector = await getCollectorConfig();
       const spb = await getShangpinbangConfig();
       const dataPanel = await getDataPanelConfig();
+      const rateLimit = await getRateLimitConfig();
       setApiConfigState(api);
       setCollectorConfigState(collector);
       setSpbConfig(spb);
       setDataPanelConfigState(dataPanel);
+      setRateLimitConfigState(rateLimit);
     };
     loadConfig();
   }, []);
@@ -175,6 +188,22 @@ function Popup() {
     }
   };
 
+  // 频率限制：保存配置
+  const handleSaveRateLimit = async () => {
+    setIsSaving(true);
+    setSaveMessage('');
+
+    try {
+      await setRateLimitConfig(rateLimitConfig);
+      setSaveMessage('配置已保存');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      setSaveMessage('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="popup-container">
       <header className="popup-header">
@@ -195,6 +224,12 @@ function Popup() {
           onClick={() => setActiveTab('spb')}
         >
           上品帮
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'rateLimit' ? 'active' : ''}`}
+          onClick={() => setActiveTab('rateLimit')}
+        >
+          频率限制
         </button>
         <button
           className={`tab-button ${activeTab === 'dataPanel' ? 'active' : ''}`}
@@ -310,6 +345,109 @@ function Popup() {
             )}
 
             <p className="hint">用于后续直接调用上品帮 API</p>
+          </div>
+        )}
+
+        {/* 频率限制配置 */}
+        {activeTab === 'rateLimit' && (
+          <div className="tab-panel">
+            <p className="hint">设置OZON API请求频率，避免触发限流（仅限制*.ozon.ru域名）</p>
+
+            {/* 启用/禁用 */}
+            <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={rateLimitConfig.enabled}
+                  onChange={(e) => setRateLimitConfigState({ ...rateLimitConfig, enabled: e.target.checked })}
+                />
+                <span>启用频率限制</span>
+              </label>
+            </div>
+
+            {/* 频率模式 */}
+            <div className="form-group">
+              <label className="form-label">频率模式:</label>
+              <select
+                className="form-input"
+                value={rateLimitConfig.mode}
+                onChange={(e) => setRateLimitConfigState({ ...rateLimitConfig, mode: e.target.value as 'fixed' | 'random' })}
+                disabled={!rateLimitConfig.enabled}
+              >
+                <option value="fixed">固定频率</option>
+                <option value="random">随机频率</option>
+              </select>
+            </div>
+
+            {/* 固定频率配置 */}
+            {rateLimitConfig.mode === 'fixed' && (
+              <div className="form-group">
+                <label className="form-label">固定延迟时间 (毫秒):</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  min="0"
+                  step="100"
+                  value={rateLimitConfig.fixedDelay}
+                  onChange={(e) => setRateLimitConfigState({ ...rateLimitConfig, fixedDelay: parseInt(e.target.value) || 0 })}
+                  disabled={!rateLimitConfig.enabled}
+                />
+                <p className="hint">每次请求间隔 {rateLimitConfig.fixedDelay}ms（{(rateLimitConfig.fixedDelay / 1000).toFixed(1)}秒）</p>
+              </div>
+            )}
+
+            {/* 随机频率配置 */}
+            {rateLimitConfig.mode === 'random' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">最小延迟时间 (毫秒):</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min="0"
+                    step="100"
+                    value={rateLimitConfig.randomDelayMin}
+                    onChange={(e) => setRateLimitConfigState({ ...rateLimitConfig, randomDelayMin: parseInt(e.target.value) || 0 })}
+                    disabled={!rateLimitConfig.enabled}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">最大延迟时间 (毫秒):</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min="0"
+                    step="100"
+                    value={rateLimitConfig.randomDelayMax}
+                    onChange={(e) => setRateLimitConfigState({ ...rateLimitConfig, randomDelayMax: parseInt(e.target.value) || 0 })}
+                    disabled={!rateLimitConfig.enabled}
+                  />
+                </div>
+
+                <p className="hint">
+                  随机延迟范围：{rateLimitConfig.randomDelayMin}ms - {rateLimitConfig.randomDelayMax}ms
+                  （{(rateLimitConfig.randomDelayMin / 1000).toFixed(1)}秒 - {(rateLimitConfig.randomDelayMax / 1000).toFixed(1)}秒）
+                </p>
+              </>
+            )}
+
+            {/* 保存按钮 */}
+            <div className="button-group">
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveRateLimit}
+                disabled={isSaving}
+              >
+                {isSaving ? '保存中...' : '保存配置'}
+              </button>
+            </div>
+
+            {saveMessage && (
+              <p className={`save-message ${saveMessage.includes('失败') ? 'error' : 'success'}`}>
+                {saveMessage}
+              </p>
+            )}
           </div>
         )}
 
