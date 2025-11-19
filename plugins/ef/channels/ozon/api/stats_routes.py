@@ -470,13 +470,19 @@ async def get_daily_posting_stats(
     global_timezone = await get_global_timezone(db)
 
     try:
-        # 使用统一的日期范围计算函数（基于用户时区）
+        # 使用统一的日期范围计算函数（基于系统全局时区）
         start_datetime_utc, end_datetime_utc = calculate_date_range(
             range_type=range_type or '7days',
             timezone_name=global_timezone,
             custom_start=start_date,
             custom_end=end_date
         )
+
+        # 后续代码需要使用时区对象和日期对象
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(global_timezone)
+        start_date_obj = start_datetime_utc.astimezone(tz).date()
+        end_date_obj = end_datetime_utc.astimezone(tz).date()
 
         # 构建查询条件（使用UTC时间戳范围）
         posting_filter = [
@@ -604,13 +610,19 @@ async def get_daily_revenue_stats(
     global_timezone = await get_global_timezone(db)
 
     try:
-        # 使用统一的日期范围计算函数（基于用户时区）
+        # 使用统一的日期范围计算函数（基于系统全局时区）
         start_datetime_utc, end_datetime_utc = calculate_date_range(
             range_type=range_type or '7days',
             timezone_name=global_timezone,
             custom_start=start_date,
             custom_end=end_date
         )
+
+        # 后续代码需要使用时区对象和日期对象
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(global_timezone)
+        start_date_obj = start_datetime_utc.astimezone(tz).date()
+        end_date_obj = end_datetime_utc.astimezone(tz).date()
 
         # 构建查询条件（使用UTC时间戳范围）
         posting_filter = [
