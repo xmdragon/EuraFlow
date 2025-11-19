@@ -916,7 +916,7 @@ const OrderReport: React.FC = () => {
                   <>
                     {/* 统计卡片行 */}
                     <Row gutter={16} className={styles.summaryCards}>
-                      <Col span={4}>
+                      <Col span={statusFilter === "delivered" ? 4 : 6}>
                         <Card className={styles.statSales}>
                           <Statistic
                             title="销售总额"
@@ -927,7 +927,7 @@ const OrderReport: React.FC = () => {
                           />
                         </Card>
                       </Col>
-                      <Col span={4}>
+                      <Col span={statusFilter === "delivered" ? 4 : 6}>
                         <Card className={styles.statPurchase}>
                           <Statistic
                             title="进货总额"
@@ -938,7 +938,7 @@ const OrderReport: React.FC = () => {
                           />
                         </Card>
                       </Col>
-                      <Col span={4}>
+                      <Col span={statusFilter === "delivered" ? 4 : 6}>
                         <Card className={styles.statCost}>
                           <Statistic
                             title="费用总额"
@@ -949,50 +949,55 @@ const OrderReport: React.FC = () => {
                           />
                         </Card>
                       </Col>
-                      <Col span={4}>
-                        <Card
-                          className={`${styles.statProfit} ${parseFloat(summaryData.statistics.total_profit) >= 0 ? styles.positive : styles.negative}`}
-                        >
-                          <Statistic
-                            title="利润总额"
-                            value={summaryData.statistics.total_profit}
-                            prefix="¥"
-                            precision={2}
-                            valueStyle={{
-                              color:
-                                parseFloat(
-                                  summaryData.statistics.total_profit,
-                                ) >= 0
-                                  ? "#52c41a"
-                                  : "#ff4d4f",
-                            }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col span={4}>
-                        <Card
-                          className={`${styles.statProfitRate} ${summaryData.statistics.profit_rate >= 0 ? styles.positive : styles.negative}`}
-                        >
-                          <Statistic
-                            title="利润率"
-                            value={summaryData.statistics.profit_rate}
-                            suffix="%"
-                            precision={2}
-                            prefix={
-                              summaryData.statistics.profit_rate >= 0 ? (
-                                <RiseOutlined />
-                              ) : null
-                            }
-                            valueStyle={{
-                              color:
-                                summaryData.statistics.profit_rate >= 0
-                                  ? "#52c41a"
-                                  : "#ff4d4f",
-                            }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col span={4}>
+                      {/* 已下订状态不显示利润数据 */}
+                      {statusFilter === "delivered" && (
+                        <>
+                          <Col span={4}>
+                            <Card
+                              className={`${styles.statProfit} ${parseFloat(summaryData.statistics.total_profit) >= 0 ? styles.positive : styles.negative}`}
+                            >
+                              <Statistic
+                                title="利润总额"
+                                value={summaryData.statistics.total_profit}
+                                prefix="¥"
+                                precision={2}
+                                valueStyle={{
+                                  color:
+                                    parseFloat(
+                                      summaryData.statistics.total_profit,
+                                    ) >= 0
+                                      ? "#52c41a"
+                                      : "#ff4d4f",
+                                }}
+                              />
+                            </Card>
+                          </Col>
+                          <Col span={4}>
+                            <Card
+                              className={`${styles.statProfitRate} ${summaryData.statistics.profit_rate >= 0 ? styles.positive : styles.negative}`}
+                            >
+                              <Statistic
+                                title="利润率"
+                                value={summaryData.statistics.profit_rate}
+                                suffix="%"
+                                precision={2}
+                                prefix={
+                                  summaryData.statistics.profit_rate >= 0 ? (
+                                    <RiseOutlined />
+                                  ) : null
+                                }
+                                valueStyle={{
+                                  color:
+                                    summaryData.statistics.profit_rate >= 0
+                                      ? "#52c41a"
+                                      : "#ff4d4f",
+                                }}
+                              />
+                            </Card>
+                          </Col>
+                        </>
+                      )}
+                      <Col span={statusFilter === "delivered" ? 4 : 6}>
                         <Card>
                           <Statistic
                             title="订单总数"
@@ -1012,7 +1017,7 @@ const OrderReport: React.FC = () => {
                         <Card
                           title={
                             selectedShop !== null
-                              ? "销售额分解"
+                              ? statusFilter === "delivered" ? "销售额分解" : "成本分解"
                               : "店铺销售占比"
                           }
                           className={styles.chartCard}
@@ -1141,18 +1146,22 @@ const OrderReport: React.FC = () => {
                                       sales: parseFloat(
                                         summaryData.previous_month.total_sales,
                                       ),
-                                      profit: parseFloat(
-                                        summaryData.previous_month.total_profit,
-                                      ),
+                                      ...(statusFilter === "delivered" && {
+                                        profit: parseFloat(
+                                          summaryData.previous_month.total_profit,
+                                        ),
+                                      }),
                                     },
                                     {
                                       month: "本月",
                                       sales: parseFloat(
                                         summaryData.statistics.total_sales,
                                       ),
-                                      profit: parseFloat(
-                                        summaryData.statistics.total_profit,
-                                      ),
+                                      ...(statusFilter === "delivered" && {
+                                        profit: parseFloat(
+                                          summaryData.statistics.total_profit,
+                                        ),
+                                      }),
                                     },
                                   ]}
                                 >
@@ -1170,11 +1179,13 @@ const OrderReport: React.FC = () => {
                                     fill="#1890ff"
                                     name="销售额"
                                   />
-                                  <Bar
-                                    dataKey="profit"
-                                    fill="#52c41a"
-                                    name="利润"
-                                  />
+                                  {statusFilter === "delivered" && (
+                                    <Bar
+                                      dataKey="profit"
+                                      fill="#52c41a"
+                                      name="利润"
+                                    />
+                                  )}
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
@@ -1194,9 +1205,37 @@ const OrderReport: React.FC = () => {
                                 <XAxis dataKey="date" />
                                 <YAxis />
                                 <RechartsTooltip
-                                  formatter={(value) =>
-                                    `¥${parseFloat(value).toFixed(2)}`
-                                  }
+                                  content={({ active, payload, label }) => {
+                                    if (!active || !payload || !payload.length) return null;
+
+                                    const sales = parseFloat(payload.find(p => p.dataKey === 'sales')?.value || '0');
+                                    const profit = parseFloat(payload.find(p => p.dataKey === 'profit')?.value || '0');
+                                    const profitRate = sales > 0 ? (profit / sales * 100) : 0;
+
+                                    return (
+                                      <div style={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                        border: '1px solid #ccc',
+                                        padding: '10px',
+                                        borderRadius: '4px'
+                                      }}>
+                                        <p style={{ margin: '0 0 5px 0', fontWeight: 500 }}>{label}</p>
+                                        <p style={{ margin: '3px 0', color: '#1890ff' }}>
+                                          销售额: ¥{sales.toFixed(2)}
+                                        </p>
+                                        {statusFilter === "delivered" && (
+                                          <>
+                                            <p style={{ margin: '3px 0', color: '#52c41a' }}>
+                                              利润: ¥{profit.toFixed(2)}
+                                            </p>
+                                            <p style={{ margin: '3px 0', color: profit >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                              利润率: {profitRate.toFixed(2)}%
+                                            </p>
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  }}
                                 />
                                 <Legend />
                                 <Line
@@ -1205,12 +1244,14 @@ const OrderReport: React.FC = () => {
                                   stroke="#1890ff"
                                   name="销售额"
                                 />
-                                <Line
-                                  type="monotone"
-                                  dataKey="profit"
-                                  stroke="#52c41a"
-                                  name="利润"
-                                />
+                                {statusFilter === "delivered" && (
+                                  <Line
+                                    type="monotone"
+                                    dataKey="profit"
+                                    stroke="#52c41a"
+                                    name="利润"
+                                  />
+                                )}
                               </LineChart>
                             </ResponsiveContainer>
                           </div>
@@ -1232,18 +1273,22 @@ const OrderReport: React.FC = () => {
                                       sales: parseFloat(
                                         summaryData.previous_month.total_sales,
                                       ),
-                                      profit: parseFloat(
-                                        summaryData.previous_month.total_profit,
-                                      ),
+                                      ...(statusFilter === "delivered" && {
+                                        profit: parseFloat(
+                                          summaryData.previous_month.total_profit,
+                                        ),
+                                      }),
                                     },
                                     {
                                       month: "本月",
                                       sales: parseFloat(
                                         summaryData.statistics.total_sales,
                                       ),
-                                      profit: parseFloat(
-                                        summaryData.statistics.total_profit,
-                                      ),
+                                      ...(statusFilter === "delivered" && {
+                                        profit: parseFloat(
+                                          summaryData.statistics.total_profit,
+                                        ),
+                                      }),
                                     },
                                   ]}
                                 >
@@ -1261,11 +1306,13 @@ const OrderReport: React.FC = () => {
                                     fill="#1890ff"
                                     name="销售额"
                                   />
-                                  <Bar
-                                    dataKey="profit"
-                                    fill="#52c41a"
-                                    name="利润"
-                                  />
+                                  {statusFilter === "delivered" && (
+                                    <Bar
+                                      dataKey="profit"
+                                      fill="#52c41a"
+                                      name="利润"
+                                    />
+                                  )}
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
@@ -1338,12 +1385,12 @@ const OrderReport: React.FC = () => {
                             width: 80,
                             align: "right",
                           },
-                          {
+                          ...(statusFilter === "delivered" ? [{
                             title: "利润",
                             dataIndex: "profit",
                             width: 120,
-                            align: "right",
-                            render: (value) => {
+                            align: "right" as const,
+                            render: (value: string) => {
                               const profit = parseFloat(value);
                               return (
                                 <span
@@ -1355,7 +1402,7 @@ const OrderReport: React.FC = () => {
                                 </span>
                               );
                             },
-                          },
+                          }] : []),
                         ]}
                       />
                     </Card>
@@ -1424,12 +1471,12 @@ const OrderReport: React.FC = () => {
                             width: 80,
                             align: "right",
                           },
-                          {
+                          ...(statusFilter === "delivered" ? [{
                             title: "利润",
                             dataIndex: "profit",
                             width: 120,
-                            align: "right",
-                            render: (value) => {
+                            align: "right" as const,
+                            render: (value: string) => {
                               const profit = parseFloat(value);
                               return (
                                 <span
@@ -1441,7 +1488,7 @@ const OrderReport: React.FC = () => {
                                 </span>
                               );
                             },
-                          },
+                          }] : []),
                         ]}
                       />
                     </Card>
