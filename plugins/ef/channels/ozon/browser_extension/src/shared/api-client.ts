@@ -191,12 +191,11 @@ export class ApiClient {
       ad_cost_share: product.ad_cost_share,
       product_created_date: product.product_created_date?.toISOString(),
 
-      competitor_count: product.competitor_count,
-      competitor_min_price: product.competitor_min_price != null ? Math.round(product.competitor_min_price * 100) : undefined,
-
-      // 跟卖数据字段（OZON API）
-      follow_seller_count: product.follow_seller_count,
-      follow_seller_min_price: product.follow_seller_min_price != null ? Math.round(product.follow_seller_min_price * 100) : undefined,
+      // 竞争对手/跟卖数据（映射到后端的 competitor_* 字段）
+      // 优先使用 follow_seller_* 数据（OZON官方API），如果没有则使用 competitor_* 数据（上品帮API）
+      competitor_count: product.follow_seller_count ?? product.competitor_count,
+      competitor_min_price: (product.follow_seller_min_price != null ? Math.round(product.follow_seller_min_price * 100) : undefined)
+        ?? (product.competitor_min_price != null ? Math.round(product.competitor_min_price * 100) : undefined),
 
       // 营销分析字段（上品帮）
       card_views: product.card_views,
