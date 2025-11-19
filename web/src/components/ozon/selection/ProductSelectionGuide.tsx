@@ -40,13 +40,11 @@ export const ProductSelectionGuide: React.FC = () => {
           <RocketOutlined /> Ozon选品助手
         </Title>
         <Paragraph>
-          智能采集Ozon商品数据的浏览器工具，集成
-          <Text strong>上品帮</Text>
-          数据源，自动滚动、虚拟列表适配、自动上传到EuraFlow平台。
+          在OZON商品详情页自动显示真实售价、跟卖价、利润分析，帮助您快速评估商品价值。
         </Paragraph>
         <Alert
           message="推荐使用浏览器扩展"
-          description="浏览器扩展版本更稳定、功能更强大，支持智能数据融合，推荐优先使用。"
+          description="浏览器扩展版本提供详情页增强功能，自动计算各项费用和利润，支持一键跟卖和采集。"
           type="success"
           showIcon
         />
@@ -60,7 +58,7 @@ export const ProductSelectionGuide: React.FC = () => {
         <Space direction="vertical" size="large" className={styles.fullWidthInput}>
           <Alert
             message="✨ 推荐使用"
-            description="集成上品帮数据源，自动提取42个字段，更稳定、功能更强大。"
+            description="商品详情页自动显示真实售价、跟卖价和利润分析，帮助您快速做出选品决策。"
             type="success"
             showIcon
           />
@@ -70,32 +68,32 @@ export const ProductSelectionGuide: React.FC = () => {
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Alert
-                  message="上品帮集成"
-                  description="自动从上品帮提取商品数据，包含价格、销量、佣金、物流等42个字段"
+                  message="真实售价计算"
+                  description="自动计算扣除各项费用后的真实售价，包括佣金、FBS费、物流费等"
                   type="info"
                   showIcon
                 />
               </Col>
               <Col span={12}>
                 <Alert
-                  message="商品详情页增强"
-                  description="商品详情页自动显示真实售价、各项费用和利润分析"
+                  message="跟卖数据显示"
+                  description="自动获取并显示跟卖数量和最低跟卖价，帮助评估竞争情况"
                   type="info"
                   showIcon
                 />
               </Col>
               <Col span={12}>
                 <Alert
-                  message="虚拟滚动支持"
-                  description="完全适配OZON的虚拟滚动机制，采集更稳定"
+                  message="销售数据展示"
+                  description="集成上品帮数据，显示月销量、浏览量、成交率等关键指标"
                   type="info"
                   showIcon
                 />
               </Col>
               <Col span={12}>
                 <Alert
-                  message="自动上传"
-                  description="采集完成后自动上传到EuraFlow，无需手动导出"
+                  message="一键操作"
+                  description="支持一键跟卖上架或采集商品信息，快速完成选品流程"
                   type="info"
                   showIcon
                 />
@@ -171,78 +169,29 @@ export const ProductSelectionGuide: React.FC = () => {
             <Timeline
               items={[
                 {
-                  children: '访问 https://www.ozon.ru 并搜索商品',
+                  children: '访问 OZON 商品详情页（例如：https://www.ozon.ru/product/xxx）',
                   color: 'blue',
                 },
                 {
-                  children: '确保上品帮插件已安装并工作',
+                  children: '页面右侧自动显示真实售价和数据面板',
                   color: 'blue',
                 },
                 {
-                  children: '页面右上角会出现控制面板',
-                  color: 'blue',
-                },
-                {
-                  children: '设置目标采集数量（默认100）',
+                  children: '查看真实售价、跟卖价、销售数据等关键信息',
                   color: 'green',
                 },
                 {
-                  children: '点击"开始采集"按钮',
+                  children: '点击"跟卖"按钮快速配置并上架商品',
                   color: 'green',
                 },
                 {
-                  children: '等待自动采集完成',
-                  color: 'green',
-                },
-                {
-                  children: '数据自动上传到EuraFlow',
+                  children: '或点击"采集"按钮保存商品信息到采集记录',
                   color: 'green',
                 },
               ]}
             />
           </Card>
         </Space>
-      </Card>
-
-      {/* 数据字段说明 */}
-      <Card title="📊 采集字段说明">
-        <Paragraph>
-          选品助手会采集以下<Text strong>42个字段</Text>的商品数据：
-        </Paragraph>
-        <Row gutter={[8, 8]}>
-          {[
-            '商品ID',
-            '商品名称',
-            '商品链接',
-            '商品图片',
-            '品牌',
-            '销售价格',
-            '原价',
-            '商品评分',
-            '评价次数',
-            'rFBS各档佣金',
-            'FBP各档佣金',
-            '月销量',
-            '月销售额',
-            '日销量',
-            '日销售额',
-            '包装重量',
-            '包装尺寸',
-            '商品体积',
-            '跟卖者数量',
-            '最低跟卖价',
-            '成交率',
-            '商品可用性',
-            '广告费用份额',
-            '配送时间',
-            '卖家类型',
-            '商品创建日期',
-          ].map((field) => (
-            <Col span={6} key={field}>
-              <Tag color="blue">{field}</Tag>
-            </Col>
-          ))}
-        </Row>
       </Card>
 
       {/* 常见问题 */}
@@ -266,29 +215,26 @@ export const ProductSelectionGuide: React.FC = () => {
             },
             {
               key: 'faq-2',
-              label: 'Q: 数据采集不完整或没有数据？',
+              label: 'Q: 真实售价或销售数据没有显示？',
               children: (
                 <div>
                   <Paragraph>请确认：</Paragraph>
                   <ul>
-                    <li>
-                      <Text strong>必须</Text>
-                      安装上品帮插件 - 扩展依赖上品帮提供的数据
-                    </li>
-                    <li>等待时间是否足够 - 默认滚动等待1秒，可在配置中调整</li>
+                    <li>确保在OZON商品详情页面（URL包含 /product/）</li>
+                    <li>页面加载完成后，数据面板会在右侧自动显示</li>
+                    <li>部分销售数据依赖上品帮数据源，如果没有数据会显示"---"</li>
                     <li>检查浏览器控制台是否有错误信息</li>
-                    <li>确保在OZON商品列表页面使用（搜索结果或分类页面）</li>
                   </ul>
                 </div>
               ),
             },
             {
               key: 'faq-3',
-              label: 'Q: 如何查看采集到的数据？',
+              label: 'Q: 如何查看采集的商品？',
               children: (
                 <Paragraph>
-                  数据上传成功后，切换到"商品搜索"标签页即可查看和筛选导入的商品。
-                  您也可以在"导入历史"标签页查看每次导入的详细记录。
+                  点击"采集"按钮后，商品信息会保存到"采集记录"。
+                  您可以在采集记录页面查看、编辑或批量转为草稿进行上架。
                 </Paragraph>
               ),
             },
@@ -319,7 +265,7 @@ export const ProductSelectionGuide: React.FC = () => {
             <div>
               <Paragraph>如果遇到问题或需要技术支持，请联系管理员或查看项目文档。</Paragraph>
               <Paragraph>
-                <Text type="secondary">版本：v1.2.6 | 更新时间：2025-10-29</Text>
+                <Text type="secondary">版本：v1.6.0 | 更新时间：2025-11-19</Text>
               </Paragraph>
             </div>
           }

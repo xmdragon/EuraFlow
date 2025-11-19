@@ -776,11 +776,13 @@ async def get_report_summary(
         prev_total_material = Decimal('0')
 
         for posting, order in prev_postings_data:
-            # 取消订单不计销售额
-            if posting.status == 'cancelled':
-                order_amount = Decimal('0')
-            else:
-                order_amount = Decimal(str(order.total_price or '0'))
+            # 订单金额（根据posting中的商品数据计算，与当月逻辑保持一致）
+            order_amount = Decimal('0')
+            if posting.status != 'cancelled' and posting.raw_payload and 'products' in posting.raw_payload:
+                for product_raw in posting.raw_payload['products']:
+                    product_price = Decimal(str(product_raw.get('price', '0')))
+                    product_quantity = int(product_raw.get('quantity', 0))
+                    order_amount += product_price * product_quantity
 
             # 费用仍然计入
             purchase = posting.purchase_price or Decimal('0')

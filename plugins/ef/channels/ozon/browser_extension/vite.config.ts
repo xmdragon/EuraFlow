@@ -9,10 +9,10 @@ export default defineConfig({
   plugins: [
     react(),
     crx({ manifest }),
-    // 开发版本：保留 console 输出
-    // removeConsole({
-    //   includes: ['log', 'warn', 'error', 'debug', 'info', 'table', 'dir', 'trace']
-    // })
+    // 生产版本：移除 console 输出
+    removeConsole({
+      includes: ['log', 'warn', 'error', 'debug', 'info', 'table', 'dir', 'trace']
+    })
   ],
   resolve: {
     alias: {

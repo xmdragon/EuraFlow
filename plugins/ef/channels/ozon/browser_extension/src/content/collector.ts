@@ -866,23 +866,32 @@ export class ProductCollector {
    */
   private getAllProductCards(): HTMLElement[] {
     const selectors = [
-      '[data-widget="searchResultsV2"] > div',
-      '[data-widget="megaPaginator"] > div',
+      '#contentScrollPaginator div[class*="tile"]',      // 主容器中所有tile（后代选择器）
+      '[data-widget="searchResultsV2"] div[class*="tile"]',
+      '[data-widget="megaPaginator"] div[class*="tile"]',
       '.tile-root',
       'div[class*="tile"]'
     ];
 
     let allCards: HTMLElement[] = [];
+    let usedSelector = '';
     for (const selector of selectors) {
       const elements = document.querySelectorAll<HTMLElement>(selector);
       if (elements.length > 0) {
         allCards = Array.from(elements);
+        usedSelector = selector;
         break;
       }
     }
 
     // 只返回有商品链接的卡片
-    return allCards.filter(card => !!card.querySelector('a[href*="/product/"]'));
+    const productCards = allCards.filter(card => !!card.querySelector('a[href*="/product/"]'));
+
+    if (window.EURAFLOW_DEBUG && productCards.length > 0) {
+      console.log(`[getAllProductCards] 选择器="${usedSelector}" 找到 ${productCards.length} 个商品`);
+    }
+
+    return productCards;
   }
 
   /**
@@ -1102,8 +1111,9 @@ export class ProductCollector {
   private getVisibleProductCards(): HTMLElement[] {
     // 获取所有可能的商品卡片
     const selectors = [
-      '[data-widget="searchResultsV2"] > div',
-      '[data-widget="megaPaginator"] > div',
+      '#contentScrollPaginator div[class*="tile"]',      // 主容器中所有tile（后代选择器）
+      '[data-widget="searchResultsV2"] div[class*="tile"]',
+      '[data-widget="megaPaginator"] div[class*="tile"]',
       '.tile-root',
       'div[class*="tile"]'
     ];

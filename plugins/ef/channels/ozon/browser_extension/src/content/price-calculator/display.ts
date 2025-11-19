@@ -273,17 +273,17 @@ function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any
   let value: string;
   switch (fieldKey) {
     case 'monthlySales':
-      value = spbSales ? formatValue(spbSales.monthlySales, ' 件') : '---';
+      value = spbSales ? formatValue(spbSales.monthly_sales_volume, ' 件') : '---';
       break;
     case 'monthlySalesAmount':
-      value = spbSales ? formatValue(spbSales.monthlySalesAmount, ' ₽') : '---';
+      value = spbSales ? formatValue(spbSales.monthly_sales_revenue, ' ₽') : '---';
       break;
     case 'cardViews':
-      value = spbSales ? formatValue(spbSales.cardViews) : '---';
+      value = spbSales ? formatValue(spbSales.card_views) : '---';
       break;
     case 'transactionRate':
-      if (spbSales && spbSales.transactionRate !== null) {
-        const rate = spbSales.transactionRate * 100;
+      if (spbSales && spbSales.conversion_rate !== null) {
+        const rate = spbSales.conversion_rate * 100;
         value = formatValue(rate, '%');
       } else {
         value = '---';
@@ -294,7 +294,7 @@ function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any
       if (dimensions?.weight !== undefined && dimensions.weight !== null) {
         value = formatValue(dimensions.weight, ' g');
       } else if (spbSales) {
-        value = formatValue(spbSales.packageWeight, ' g');
+        value = formatValue(spbSales.weight, ' g');
       } else {
         value = '---';
       }
@@ -307,7 +307,7 @@ function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any
         if (dimensions?.length !== undefined && dimensions.length !== null) {
           value = formatDimensions(dimensions.length, dimensions.width, dimensions.height);
         } else if (spbSales) {
-          value = formatDimensions(spbSales.packageLength, spbSales.packageWidth, spbSales.packageHeight);
+          value = formatDimensions(spbSales.depth, spbSales.width, spbSales.height);
         } else {
           value = '---';
         }
@@ -315,10 +315,10 @@ function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any
       }
       return null;  // 其他维度跳过
     case 'listingDate':
-      value = spbSales ? formatDate(spbSales.listingDate) : '---';
+      value = spbSales ? formatDate(spbSales.listing_date) : '---';
       break;
     case 'listingDays':
-      value = spbSales ? formatValue(spbSales.listingDays, ' 天') : '---';
+      value = spbSales ? formatValue(spbSales.listing_days, ' 天') : '---';
       break;
     default:
       value = '---';

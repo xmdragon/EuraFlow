@@ -251,16 +251,20 @@ class CollectionRecordService:
         Returns:
             草稿数据（符合ProductCreate页面的表单格式）
         """
+        # 提取嵌套的 dimensions 对象
+        dimensions = product_data.get("dimensions", {})
+
         # 简单映射（具体字段根据实际需求调整）
         draft_data = {
             "title": product_data.get("title"),
             "title_cn": product_data.get("title_cn"),
             "images": product_data.get("images", []),
             "price": product_data.get("price"),
-            "width": product_data.get("width"),
-            "height": product_data.get("height"),
-            "depth": product_data.get("depth"),
-            "weight": product_data.get("weight"),
+            # 从 dimensions 对象中读取尺寸数据
+            "width": dimensions.get("width"),
+            "height": dimensions.get("height"),
+            "depth": dimensions.get("length"),      # length → depth 字段名转换
+            "weight": dimensions.get("weight"),
             "attributes": product_data.get("attributes", {}),
             "variants": product_data.get("variants", []),
         }
