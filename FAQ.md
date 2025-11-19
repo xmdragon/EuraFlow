@@ -19,6 +19,7 @@
   - [N+1 查询问题导致 API 响应缓慢](#n1-查询问题导致-api-响应缓慢)
   - [Celery 定时任务报错 "got an unexpected keyword argument '_plugin'"](#celery-定时任务报错-got-an-unexpected-keyword-argument-_plugin)
   - [前端传日期范围导致时区理解错误](#前端传日期范围导致时区理解错误)
+  - [如何正确实现 OZON API 请求（新手必读）](#如何正确实现-ozon-api-请求新手必读)
 - [数据库问题](#数据库问题)
 - [部署问题](#部署问题)
 
@@ -1754,6 +1755,329 @@ grep "Calculating date range" logs/backend-*.log
 - [Python zoneinfo](https://docs.python.org/3/library/zoneinfo.html)
 - [dayjs Timezone](https://day.js.org/docs/en/timezone/timezone)
 - [时区最佳实践](https://stackoverflow.com/questions/2532729/daylight-saving-time-and-time-zone-best-practices)
+
+---
+
+### 如何正确实现 OZON API 请求（新手必读）
+
+**问题描述**：
+- 编写新的 OZON API 调用功能时容易踩坑
+- 常见错误：`'OzonShop' object has no attribute 'api_key'`
+- 分页处理不当导致数据遗漏或重复
+- API 客户端连接未正确关闭
+
+**核心要点速查**：
+
+| 问题 | 错误写法 ❌ | 正确写法 ✅ |
+|------|------------|------------|
+| API密钥字段 | `shop.api_key` | `shop.api_key_enc` |
+| 客户端创建 | `client = OzonAPIClient(...)` | `async with OzonAPIClient(...) as client:` |
+| 分页参数 | `page=1, offset=0` | `last_id=0` |
+| 日期解析 | `datetime.fromisoformat(dt)` | 处理 `Z` 后缀（见下文） |
+| 店铺查询 | 只查 `id` | 必须同时查 `status == 'active'` |
+
+**完整实现模板**：
+
+```python
+from typing import Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from ..models import OzonShop
+from ..api.client import OzonAPIClient
+import logging
+
+logger = logging.getLogger(__name__)
+
+async def sync_example_data(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    同步示例数据（定时任务处理函数）
+
+    Args:
+        config: 配置参数
+            - shop_id: 店铺ID（可选，默认所有活跃店铺）
+            - last_id: 上次同步的last_id（可选）
+
+    Returns:
+        同步结果
+    """
+    logger.info(f"开始同步示例数据，config={config}")
+
+    total_synced = 0
+    total_updated = 0
+
+    async with self.db_manager.get_session() as db:
+        # 1. 获取要同步的店铺列表
+        shop_id = config.get("shop_id")
+
+        if shop_id:
+            # ⚠️ 关键：必须同时检查 status == 'active'
+            result = await db.execute(
+                select(OzonShop).where(
+                    OzonShop.id == shop_id,
+                    OzonShop.status == "active"  # 必须检查状态！
+                )
+            )
+            shops = result.scalars().all()
+        else:
+            # 同步所有活跃店铺
+            result = await db.execute(
+                select(OzonShop).where(OzonShop.status == "active")
+            )
+            shops = result.scalars().all()
+
+        logger.info(f"找到 {len(shops)} 个活跃店铺")
+
+        # 2. 遍历店铺同步数据
+        for shop in shops:
+            try:
+                # ⚠️ 关键：使用 api_key_enc 而不是 api_key
+                # ⚠️ 关键：必须使用 async with 上下文管理器
+                async with OzonAPIClient(
+                    client_id=shop.client_id,
+                    api_key=shop.api_key_enc,  # 不是 api_key！
+                    shop_id=shop.id
+                ) as client:
+                    # 3. 分页获取数据（OZON 使用 last_id 而非 page/offset）
+                    current_last_id = config.get("last_id", 0)
+                    has_more = True
+
+                    while has_more:
+                        # 调用 OZON API
+                        response = await client.get_example_list(
+                            last_id=current_last_id,
+                            limit=1000
+                        )
+
+                        result = response.get("result", {})
+                        items = result.get("items", [])
+                        has_next = result.get("has_next", False)
+                        next_last_id = result.get("last_id", 0)
+
+                        # 处理数据
+                        for item_data in items:
+                            try:
+                                # 保存数据到数据库...
+                                total_synced += 1
+                            except Exception as e:
+                                logger.error(f"保存数据失败: {e}", exc_info=True)
+                                continue
+
+                        # 提交批次
+                        await db.commit()
+
+                        # 更新分页状态
+                        if has_next and next_last_id > current_last_id:
+                            current_last_id = next_last_id
+                        else:
+                            has_more = False
+
+                logger.info(f"店铺 {shop.shop_name} 同步完成，新增 {total_synced} 条")
+
+            except Exception as e:
+                logger.error(f"店铺 {shop.shop_name} 同步失败: {e}", exc_info=True)
+                continue
+
+    return {
+        "records_synced": total_synced,
+        "records_updated": total_updated,
+        "message": f"同步完成：{len(shops)}个店铺，新增{total_synced}条"
+    }
+```
+
+**常见错误详解**：
+
+#### 错误 1：使用 `shop.api_key` 而非 `shop.api_key_enc`
+
+**错误现象**：
+```python
+AttributeError: 'OzonShop' object has no attribute 'api_key'
+```
+
+**原因**：
+- `OzonShop` 模型中的 API 密钥字段是 `api_key_enc`（加密存储）
+- 历史原因：安全性考虑，所有凭证都加密存储
+
+**排查**：
+```bash
+# 检查代码中的错误用法
+grep -rn "shop\.api_key[^_]" plugins/ef/channels/ozon/services/
+```
+
+**修复**：
+```python
+# ❌ 错误
+async with OzonAPIClient(
+    client_id=shop.client_id,
+    api_key=shop.api_key,  # AttributeError!
+    shop_id=shop.id
+) as client:
+
+# ✅ 正确
+async with OzonAPIClient(
+    client_id=shop.client_id,
+    api_key=shop.api_key_enc,  # 使用加密字段
+    shop_id=shop.id
+) as client:
+```
+
+#### 错误 2：未使用 `async with` 上下文管理器
+
+**错误现象**：
+- API 连接未正确关闭
+- 资源泄漏，长期运行后性能下降
+
+**原因**：
+- `OzonAPIClient` 内部使用 `httpx.AsyncClient`
+- 必须正确关闭连接以释放资源
+
+**修复**：
+```python
+# ❌ 错误（连接未关闭）
+client = OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id)
+response = await client.get_example_list()
+
+# ✅ 正确（自动关闭）
+async with OzonAPIClient(shop.client_id, shop.api_key_enc, shop.id) as client:
+    response = await client.get_example_list()
+```
+
+#### 错误 3：使用传统分页参数（page/offset）
+
+**错误现象**：
+- API 返回错误或数据不完整
+- 无法正确遍历所有数据
+
+**原因**：
+- OZON API 使用**基于游标的分页**（cursor-based pagination）
+- 参数是 `last_id`，而不是 `page` 或 `offset`
+
+**正确的分页逻辑**：
+```python
+# ✅ OZON API 标准分页模式
+current_last_id = 0  # 从0开始
+has_more = True
+
+while has_more:
+    response = await client.get_example_list(
+        last_id=current_last_id,
+        limit=1000
+    )
+
+    result = response.get("result", {})
+    items = result.get("items", [])
+    has_next = result.get("has_next", False)
+    next_last_id = result.get("last_id", 0)
+
+    # 处理 items...
+
+    # 关键：必须检查 has_next 和 next_last_id 是否递增
+    if has_next and next_last_id > current_last_id:
+        current_last_id = next_last_id
+    else:
+        has_more = False
+```
+
+#### 错误 4：日期时间解析未处理 `Z` 后缀
+
+**错误现象**：
+```python
+ValueError: Invalid isoformat string: '2025-11-15T10:30:00Z'
+```
+
+**原因**：
+- OZON API 返回的时间格式：`2025-11-15T10:30:00Z`
+- Python `datetime.fromisoformat()` 在某些版本不支持 `Z` 后缀
+
+**解决方案**：
+```python
+from datetime import datetime
+from typing import Optional
+
+@staticmethod
+def _parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
+    """解析 OZON API 返回的日期时间"""
+    if not dt_str:
+        return None
+    try:
+        # 将 'Z' 替换为 '+00:00'
+        if dt_str.endswith('Z'):
+            dt_str = dt_str[:-1] + '+00:00'
+        return datetime.fromisoformat(dt_str)
+    except Exception as e:
+        logger.warning(f"解析日期时间失败: {dt_str}, {e}")
+        return None
+
+# 使用
+created_at = self._parse_datetime(data.get("created_at"))
+```
+
+#### 错误 5：未检查店铺状态
+
+**错误现象**：
+- 同步了已停用的店铺，导致 API 调用失败
+- 查询返回 0 个店铺（但数据库中存在该店铺）
+
+**原因**：
+- 店铺可能处于 `inactive`、`suspended` 等状态
+- 必须同时检查 `status == 'active'`
+
+**修复**：
+```python
+# ❌ 错误（可能查到停用店铺）
+result = await db.execute(
+    select(OzonShop).where(OzonShop.id == shop_id)
+)
+
+# ✅ 正确（只查活跃店铺）
+result = await db.execute(
+    select(OzonShop).where(
+        OzonShop.id == shop_id,
+        OzonShop.status == "active"
+    )
+)
+```
+
+**调试技巧**：
+
+```python
+# 1. 添加详细的调试日志
+logger.info(f"开始同步，config={config}")
+logger.info(f"shop_id from config: {shop_id}, type: {type(shop_id)}")
+logger.info(f"查询指定店铺 {shop_id}，找到 {len(shops)} 个活跃店铺")
+
+# 2. 记录 API 响应
+logger.debug(f"OZON API 响应: {response}")
+
+# 3. 捕获并记录详细错误
+try:
+    # ... 同步逻辑
+except Exception as e:
+    logger.error(f"店铺 {shop.shop_name} 同步失败: {e}", exc_info=True)
+    continue  # 不中断其他店铺的同步
+```
+
+**验证清单**：
+
+开发新的 OZON API 功能时，确保完成以下检查：
+
+- [ ] 使用 `shop.api_key_enc` 而非 `shop.api_key`
+- [ ] 使用 `async with OzonAPIClient(...) as client:` 上下文管理器
+- [ ] 使用 `last_id` 分页，正确处理 `has_next` 和 `next_last_id`
+- [ ] 日期解析函数处理 `Z` 后缀（`_parse_datetime()`）
+- [ ] 查询店铺时检查 `status == 'active'`
+- [ ] 添加详细的日志记录（info、error、debug）
+- [ ] 使用 `try-except` 包裹同步逻辑，避免单个店铺失败中断整体
+- [ ] 批量提交数据（每批 `await db.commit()`）
+- [ ] 返回标准格式：`{"records_synced": int, "records_updated": int, "message": str}`
+
+**参考代码**：
+- ✅ 正确示例：`plugins/ef/channels/ozon/services/cancel_return_service.py`
+- ✅ 正确示例：`plugins/ef/channels/ozon/services/ozon_sync.py`
+- ✅ API 客户端：`plugins/ef/channels/ozon/api/client.py`
+
+**相关问题**：
+- [Celery 异步任务报错](#celery-异步任务报错-future-attached-to-a-different-loop)
+- [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
 
 ---
 

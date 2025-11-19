@@ -1736,8 +1736,11 @@ async function handleGetOzonSellerDimensions(productId: string): Promise<any> {
       fetch(`https://api.ozon.ru/composer-api.bx/page/json/v2?url=/product/${productId}/`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8'
+        },
+        credentials: 'include' // 启用Cookie认证
       })
     );
 
