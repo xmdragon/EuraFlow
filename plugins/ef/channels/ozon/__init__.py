@@ -514,6 +514,41 @@ async def setup(hooks) -> None:
         import traceback
         traceback.print_exc()
 
+    # 注册OZON取消和退货申请同步服务（独立try块避免被其他错误影响）
+    try:
+        from plugins.ef.system.sync_service.services.handler_registry import get_registry
+        from .services.cancel_return_service import CancelReturnService
+
+        registry = get_registry()
+        cancel_return_service = CancelReturnService()
+
+        # 6. 注册OZON取消申请同步服务
+        registry.register(
+            service_key="ozon_cancellations_sync",
+            handler=cancel_return_service.sync_cancellations,
+            name="OZON取消申请同步",
+            description="同步所有店铺的取消申请数据（每小时执行）",
+            plugin="ef.channels.ozon",
+            config_schema={}
+        )
+        logger.info("✓ Registered ozon_cancellations_sync service handler")
+
+        # 7. 注册OZON退货申请同步服务
+        registry.register(
+            service_key="ozon_returns_sync",
+            handler=cancel_return_service.sync_returns,
+            name="OZON退货申请同步",
+            description="同步所有店铺的退货申请数据（每小时执行）",
+            plugin="ef.channels.ozon",
+            config_schema={}
+        )
+        logger.info("✓ Registered ozon_returns_sync service handler")
+
+    except Exception as e:
+        logger.warning(f"Warning: Failed to register cancel/return service handlers: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 注册促销相关定时任务
     try:
         from .tasks.promotion_sync_task import sync_all_promotions, promotion_health_check

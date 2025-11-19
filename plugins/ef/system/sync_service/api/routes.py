@@ -187,6 +187,8 @@ async def trigger_sync_service(
         "ozon_finance_sync": "ef.ozon.finance.sync",
         "ozon_sync_incremental": "ef.ozon.orders.pull",  # 统一使用订单拉取任务
         "ozon_finance_transactions_daily": "ef.ozon.finance.transactions",
+        "ozon_cancellations_sync": "ef.ozon.cancellations.sync",
+        "ozon_returns_sync": "ef.ozon.returns.sync",
         # 注意：ozon_scheduled_category_sync 和 ozon_scheduled_attributes_sync 已移除（未实现）
     }
 

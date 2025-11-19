@@ -10,7 +10,7 @@ from datetime import datetime
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
-from ef_core.api.permissions import filter_by_shop_permission
+from .permissions import filter_by_shop_permission
 from ..services.cancel_return_service import CancelReturnService
 
 router = APIRouter(prefix="/cancel-return", tags=["Cancel & Return"])
