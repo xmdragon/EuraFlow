@@ -112,6 +112,8 @@ const CancelReturn: React.FC = () => {
     },
     enabled: activeTab === 'cancellations',
     staleTime: 30000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // 查询退货申请列表
@@ -136,6 +138,8 @@ const CancelReturn: React.FC = () => {
     },
     enabled: activeTab === 'returns',
     staleTime: 30000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // 手动同步

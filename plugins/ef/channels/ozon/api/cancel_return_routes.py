@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, date
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
@@ -102,8 +102,8 @@ async def get_cancellations(
     state: Optional[str] = Query(None, description="状态筛选"),
     initiator: Optional[str] = Query(None, description="发起人筛选"),
     posting_number: Optional[str] = Query(None, description="货件编号搜索"),
-    date_from: Optional[datetime] = Query(None, description="开始日期"),
-    date_to: Optional[datetime] = Query(None, description="结束日期"),
+    date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
@@ -116,24 +116,13 @@ async def get_cancellations(
     - viewer: 只读权限
     """
     # 权限校验：过滤用户有权限的店铺
-    if shop_id:
-        allowed_shop_ids = await filter_by_shop_permission(
-            db=db,
-            user=current_user,
-            channel="ozon",
-            shop_ids=[shop_id]
-        )
-        if shop_id not in allowed_shop_ids:
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        if shop_id and shop_id not in allowed_shop_ids:
             problem(403, "SHOP_ACCESS_DENIED", "您没有权限查看该店铺的数据")
         filtered_shop_id = shop_id
-    else:
-        # 如果未指定店铺，返回所有有权限的店铺数据
-        allowed_shop_ids = await filter_by_shop_permission(
-            db=db,
-            user=current_user,
-            channel="ozon"
-        )
-        filtered_shop_id = None  # None表示查询所有有权限的店铺
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 构建筛选条件
     filters = {}
@@ -144,9 +133,11 @@ async def get_cancellations(
     if posting_number:
         filters["posting_number"] = posting_number
     if date_from:
-        filters["date_from"] = date_from
+        # 转换为 datetime (开始时间设为00:00:00)
+        filters["date_from"] = datetime.fromisoformat(f"{date_from}T00:00:00")
     if date_to:
-        filters["date_to"] = date_to
+        # 转换为 datetime (结束时间设为23:59:59)
+        filters["date_to"] = datetime.fromisoformat(f"{date_to}T23:59:59")
 
     # 调用服务层
     service = CancelReturnService()
@@ -168,8 +159,8 @@ async def get_returns(
     group_state: Optional[str] = Query(None, description="状态组筛选"),
     posting_number: Optional[str] = Query(None, description="货件编号搜索"),
     offer_id: Optional[str] = Query(None, description="Offer ID搜索"),
-    date_from: Optional[datetime] = Query(None, description="开始日期"),
-    date_to: Optional[datetime] = Query(None, description="结束日期"),
+    date_from: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
@@ -182,24 +173,13 @@ async def get_returns(
     - viewer: 只读权限
     """
     # 权限校验：过滤用户有权限的店铺
-    if shop_id:
-        allowed_shop_ids = await filter_by_shop_permission(
-            db=db,
-            user=current_user,
-            channel="ozon",
-            shop_ids=[shop_id]
-        )
-        if shop_id not in allowed_shop_ids:
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        if shop_id and shop_id not in allowed_shop_ids:
             problem(403, "SHOP_ACCESS_DENIED", "您没有权限查看该店铺的数据")
         filtered_shop_id = shop_id
-    else:
-        # 如果未指定店铺，返回所有有权限的店铺数据
-        allowed_shop_ids = await filter_by_shop_permission(
-            db=db,
-            user=current_user,
-            channel="ozon"
-        )
-        filtered_shop_id = None  # None表示查询所有有权限的店铺
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 构建筛选条件
     filters = {}
@@ -210,9 +190,11 @@ async def get_returns(
     if offer_id:
         filters["offer_id"] = offer_id
     if date_from:
-        filters["date_from"] = date_from
+        # 转换为 datetime (开始时间设为00:00:00)
+        filters["date_from"] = datetime.fromisoformat(f"{date_from}T00:00:00")
     if date_to:
-        filters["date_to"] = date_to
+        # 转换为 datetime (结束时间设为23:59:59)
+        filters["date_to"] = datetime.fromisoformat(f"{date_to}T23:59:59")
 
     # 调用服务层
     service = CancelReturnService()
@@ -244,14 +226,12 @@ async def sync_cancellations(
         problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
 
     # 校验店铺权限
-    allowed_shop_ids = await filter_by_shop_permission(
-        db=db,
-        user=current_user,
-        channel="ozon",
-        shop_ids=[request.shop_id]
-    )
-    if request.shop_id not in allowed_shop_ids:
-        problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+        if request.shop_id not in allowed_shop_ids:
+            problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 调用服务层同步
     service = CancelReturnService()
@@ -286,14 +266,12 @@ async def sync_returns(
         problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
 
     # 校验店铺权限
-    allowed_shop_ids = await filter_by_shop_permission(
-        db=db,
-        user=current_user,
-        channel="ozon",
-        shop_ids=[request.shop_id]
-    )
-    if request.shop_id not in allowed_shop_ids:
-        problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+        if request.shop_id not in allowed_shop_ids:
+            problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 调用服务层同步
     service = CancelReturnService()
