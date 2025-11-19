@@ -35,7 +35,7 @@ class CancelReturnService:
         Returns:
             同步结果
         """
-        logger.info("开始同步取消申请数据")
+        logger.info(f"开始同步取消申请数据，config={config}")
 
         total_synced = 0
         total_updated = 0
@@ -44,8 +44,11 @@ class CancelReturnService:
         async with self.db_manager.get_session() as db:
             # 获取要同步的店铺列表
             shop_id = config.get("shop_id")
+            logger.info(f"从config获取shop_id: {shop_id}, type: {type(shop_id)}")
+
             if shop_id:
                 # 同步指定店铺
+                logger.info(f"查询指定店铺 {shop_id}（必须status=active）")
                 result = await db.execute(
                     select(OzonShop).where(
                         OzonShop.id == shop_id,
@@ -53,12 +56,15 @@ class CancelReturnService:
                     )
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询到 {len(shops)} 个活跃店铺")
             else:
                 # 同步所有活跃店铺
+                logger.info("查询所有活跃店铺")
                 result = await db.execute(
                     select(OzonShop).where(OzonShop.status == "active")
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询到 {len(shops)} 个活跃店铺")
 
             for shop in shops:
                 try:
@@ -121,11 +127,15 @@ class CancelReturnService:
             has_more = True
 
             while has_more:
+                logger.info(f"调用 OZON API，参数：last_id={current_last_id}, limit=500, filters={{'state': 'ALL'}}")
+
                 response = await client.get_conditional_cancellation_list(
                     last_id=current_last_id,
                     limit=500,  # OZON API 最大值为500
                     filters={"state": "ALL"}  # 获取所有状态的取消申请
                 )
+
+                logger.info(f"OZON API 完整响应：{response}")
 
                 # OZON API 响应格式：{'result': [...], 'last_id': 0, 'counter': 0}
                 # result 字段直接就是数组，不是包含 items 的对象
@@ -245,7 +255,7 @@ class CancelReturnService:
         Returns:
             同步结果
         """
-        logger.info("开始同步退货申请数据")
+        logger.info(f"开始同步退货申请数据，config={config}")
 
         total_synced = 0
         total_updated = 0
@@ -254,8 +264,11 @@ class CancelReturnService:
         async with self.db_manager.get_session() as db:
             # 获取要同步的店铺列表
             shop_id = config.get("shop_id")
+            logger.info(f"从config获取shop_id: {shop_id}, type: {type(shop_id)}")
+
             if shop_id:
                 # 同步指定店铺
+                logger.info(f"查询指定店铺 {shop_id}（必须status=active）")
                 result = await db.execute(
                     select(OzonShop).where(
                         OzonShop.id == shop_id,
@@ -263,12 +276,15 @@ class CancelReturnService:
                     )
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询到 {len(shops)} 个活跃店铺")
             else:
                 # 同步所有活跃店铺
+                logger.info("查询所有活跃店铺")
                 result = await db.execute(
                     select(OzonShop).where(OzonShop.status == "active")
                 )
                 shops = result.scalars().all()
+                logger.info(f"查询到 {len(shops)} 个活跃店铺")
 
             for shop in shops:
                 try:
@@ -331,17 +347,23 @@ class CancelReturnService:
             has_more = True
 
             while has_more:
+                logger.info(f"调用 OZON 退货API，参数：last_id={current_last_id}, limit=500, filter=None（不传filter获取所有）")
+
                 response = await client.get_returns_rfbs_list(
                     last_id=current_last_id,
                     limit=500,  # OZON API 最大值为500
-                    filters={"state": "ALL"}  # 获取所有状态的退货申请
+                    filters=None  # 不传 filter 参数，获取所有状态
                 )
 
-                # OZON API 响应格式：{'result': [...], 'last_id': 0, 'counter': 0}
-                # result 字段直接就是数组，不是包含 items 的对象
-                returns = response.get("result", [])
-                next_last_id = response.get("last_id", 0)
-                counter = response.get("counter", 0)
+                logger.info(f"OZON 退货API 完整响应：{response}")
+
+                # ⚠️ 注意：退货API响应格式和取消API完全不同！
+                # 退货API：{'returns': [...], 'has_next': bool}
+                # 取消API：{'result': [...], 'last_id': int, 'counter': int}
+                returns = response.get("returns", [])
+                has_next = response.get("has_next", False)
+
+                logger.info(f"OZON 退货API 返回：{len(returns)} 条退货申请，has_next={has_next}")
 
                 for return_data in returns:
                     try:
@@ -357,11 +379,15 @@ class CancelReturnService:
                 # 提交批次
                 await db.commit()
 
-                # 更新分页状态：如果 result 为空或 last_id 没变化，说明没有更多数据
-                if len(returns) > 0 and next_last_id > current_last_id:
-                    current_last_id = next_last_id
+                # ⚠️ 退货API分页逻辑：使用 has_next 判断，从最后一条记录获取 id
+                if has_next and len(returns) > 0:
+                    # 获取最后一条记录的ID作为下次请求的 last_id
+                    last_return = returns[-1]
+                    current_last_id = int(last_return.get("id", 0))
+                    logger.info(f"继续分页，下次 last_id={current_last_id}")
                 else:
                     has_more = False
+                    logger.info("分页结束，无更多数据")
 
         return synced_count, updated_count
 
@@ -407,6 +433,10 @@ class CancelReturnService:
         )
         existing = result.scalar_one_or_none()
 
+        # 提取嵌套字段
+        state_obj = data.get("state", {}) if isinstance(data.get("state"), dict) else {}
+        product_obj = data.get("product", {}) if isinstance(data.get("product"), dict) else {}
+
         # 准备数据
         return_dict = {
             "shop_id": shop_id,
@@ -417,15 +447,17 @@ class CancelReturnService:
             "posting_number": posting_number,
             "order_number": data.get("order_number"),
             "client_name": data.get("client_name"),
-            "product_name": data.get("product_name"),
-            "offer_id": data.get("offer_id"),
-            "sku": data.get("sku"),
-            "price": Decimal(str(data.get("price", 0))) if data.get("price") else None,
-            "currency_code": data.get("currency_code"),
-            "group_state": data.get("group_state", ""),
-            "state": data.get("state", ""),
-            "state_name": data.get("state_name"),
-            "money_return_state_name": data.get("money_return_state_name"),
+            # 从 product 对象中提取商品信息
+            "product_name": product_obj.get("name"),
+            "offer_id": product_obj.get("offer_id"),
+            "sku": product_obj.get("sku"),
+            "price": Decimal(str(product_obj.get("price", 0))) if product_obj.get("price") else None,
+            "currency_code": product_obj.get("currency_code"),
+            # ⚠️ 所有状态字段都在 state 对象内部！
+            "group_state": state_obj.get("group_state", ""),
+            "state": state_obj.get("state", ""),
+            "state_name": state_obj.get("state_name"),
+            "money_return_state_name": state_obj.get("money_return_state_name"),
             "created_at_ozon": self._parse_datetime(data.get("created_at")),
             "raw_payload": data,
         }

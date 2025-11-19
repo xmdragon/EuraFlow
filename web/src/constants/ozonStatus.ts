@@ -57,3 +57,87 @@ export function getOrderStatusText(status: string, defaultText?: string): string
 export function getOperationStatusText(status: string, defaultText?: string): string {
   return OZON_OPERATION_STATUS_MAP[status] || defaultText || status;
 }
+
+/**
+ * 取消申请状态映射
+ */
+export const OZON_CANCELLATION_STATE_MAP: Record<string, string> = {
+  ALL: '全部',
+  ON_APPROVAL: '待审批',
+  APPROVED: '已批准',
+  REJECTED: '已拒绝',
+};
+
+/**
+ * 取消申请发起人映射
+ */
+export const OZON_CANCELLATION_INITIATOR_MAP: Record<string, string> = {
+  CLIENT: '买家',
+  SELLER: '卖家',
+  OZON: '平台',
+  SYSTEM: '系统',
+  DELIVERY: '配送方',
+};
+
+/**
+ * 退货申请状态组映射（group_state）
+ */
+export const OZON_RETURN_GROUP_STATE_MAP: Record<string, string> = {
+  approved: '已批准',
+  arbitration: '仲裁中',
+  delivering: '配送中',
+  rejected: '已拒绝',
+  utilization: '已处置',
+};
+
+/**
+ * 退货申请详细状态映射（state）
+ */
+export const OZON_RETURN_STATE_MAP: Record<string, string> = {
+  // 仲裁中
+  CheckingStatus: '核查状态中',
+
+  // 已拒绝
+  CanceledByBuyer: '买家取消',
+
+  // 已批准
+  MoneyReturned: '已退款',
+  PartialCompensationReturned: '已支付部分补偿',
+  PartialCompensationReturnedByOzon: 'OZON已支付补偿',
+
+  // 配送中
+  OnWay: '在途',
+  OnWayToOzon: '在途（返回OZON）',
+
+  // 已处置
+  UtilizedByOzon: '已由OZON销毁',
+  UtilizingByOzon: 'OZON销毁处理中',
+};
+
+/**
+ * 将取消申请状态转换为中文显示文本
+ */
+export function getCancellationStateText(state: string, defaultText?: string): string {
+  return OZON_CANCELLATION_STATE_MAP[state] || defaultText || state;
+}
+
+/**
+ * 将取消申请发起人转换为中文显示文本
+ */
+export function getCancellationInitiatorText(initiator: string, defaultText?: string): string {
+  return OZON_CANCELLATION_INITIATOR_MAP[initiator] || defaultText || initiator;
+}
+
+/**
+ * 将退货申请状态组转换为中文显示文本
+ */
+export function getReturnGroupStateText(groupState: string, defaultText?: string): string {
+  return OZON_RETURN_GROUP_STATE_MAP[groupState] || defaultText || groupState;
+}
+
+/**
+ * 将退货申请详细状态转换为中文显示文本
+ */
+export function getReturnStateText(state: string, defaultText?: string): string {
+  return OZON_RETURN_STATE_MAP[state] || defaultText || state;
+}

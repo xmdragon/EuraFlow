@@ -23,8 +23,16 @@ import React, { useState } from 'react';
 
 import styles from './CancelReturn.module.scss';
 
+import ColumnSetting from '@/components/ColumnSetting';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
+import {
+  getCancellationStateText,
+  getCancellationInitiatorText,
+  getReturnGroupStateText,
+  getReturnStateText,
+} from '@/constants/ozonStatus';
+import { useColumnSettings } from '@/hooks/useColumnSettings';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozonApi';
@@ -196,7 +204,7 @@ const CancelReturn: React.FC = () => {
       dataIndex: 'cancellation_initiator',
       key: 'cancellation_initiator',
       width: 100,
-      render: (text: string | null) => INITIATOR_CONFIG[text || ''] || text || '-',
+      render: (text: string | null) => getCancellationInitiatorText(text || '', text || '-'),
     },
     {
       title: '取消原因',
@@ -210,11 +218,12 @@ const CancelReturn: React.FC = () => {
       dataIndex: 'state',
       key: 'state',
       width: 100,
-      render: (state: string, record: ozonApi.Cancellation) => {
+      render: (state: string) => {
         const config = CANCELLATION_STATE_CONFIG[state];
+        const stateText = getCancellationStateText(state, state);
         return (
           <Tag color={config?.color || 'default'} className={styles.statusTag}>
-            {record.state_name || config?.label || state}
+            {stateText}
           </Tag>
         );
       },
@@ -228,6 +237,13 @@ const CancelReturn: React.FC = () => {
     },
   ];
 
+  // 取消申请列配置
+  const cancellationColumnSettings = useColumnSettings({
+    columns: cancellationColumns,
+    storageKey: 'ozon-cancellations-columns',
+    defaultHiddenKeys: [], // 默认显示所有列
+  });
+
   // 退货申请表格列
   const returnColumns: ColumnsType<ozonApi.Return> = [
     {
@@ -237,7 +253,7 @@ const CancelReturn: React.FC = () => {
       width: 150,
       render: (text: string) => (
         <span className={styles.postingNumber} onClick={() => copyToClipboard(text, '退货编号')}>
-          {text}
+          {text || '-'}
         </span>
       ),
     },
@@ -251,6 +267,13 @@ const CancelReturn: React.FC = () => {
           {text}
         </span>
       ),
+    },
+    {
+      title: '订单号',
+      dataIndex: 'order_number',
+      key: 'order_number',
+      width: 150,
+      render: (text: string | null) => text || '-',
     },
     {
       title: '客户姓名',
@@ -278,6 +301,13 @@ const CancelReturn: React.FC = () => {
       ) : '-'),
     },
     {
+      title: 'SKU',
+      dataIndex: 'sku',
+      key: 'sku',
+      width: 120,
+      render: (text: number | null) => text || '-',
+    },
+    {
       title: '退货金额',
       dataIndex: 'price',
       key: 'price',
@@ -285,21 +315,38 @@ const CancelReturn: React.FC = () => {
       align: 'right',
       render: (price: string | null, record: ozonApi.Return) => {
         if (!price) return '-';
-        return `${parseFloat(price).toFixed(2)} ${record.currency_code || 'RUB'}`;
+        return `${parseFloat(price).toFixed(2)} ${record.currency_code || 'CNY'}`;
       },
     },
     {
-      title: '状态',
+      title: '状态组',
       dataIndex: 'group_state',
       key: 'group_state',
       width: 100,
-      render: (state: string, record: ozonApi.Return) => {
-        const config = RETURN_STATE_CONFIG[state];
+      render: (state: string) => {
+        const stateText = getReturnGroupStateText(state, state);
+        const colorMap: Record<string, string> = {
+          approved: 'green',
+          arbitration: 'orange',
+          delivering: 'blue',
+          rejected: 'red',
+          utilization: 'purple',
+        };
         return (
-          <Tag color={config?.color || 'default'} className={styles.statusTag}>
-            {record.state_name || config?.label || state}
+          <Tag color={colorMap[state] || 'default'} className={styles.statusTag}>
+            {stateText}
           </Tag>
         );
+      },
+    },
+    {
+      title: '详细状态',
+      dataIndex: 'state',
+      key: 'state',
+      width: 120,
+      render: (state: string) => {
+        const stateText = getReturnStateText(state, state);
+        return <span>{stateText}</span>;
       },
     },
     {
@@ -317,6 +364,13 @@ const CancelReturn: React.FC = () => {
       render: (text: string | null) => (text ? formatDateTime(text) : '-'),
     },
   ];
+
+  // 退货申请列配置
+  const returnColumnSettings = useColumnSettings({
+    columns: returnColumns,
+    storageKey: 'ozon-returns-columns',
+    defaultHiddenKeys: ['return_number', 'order_number', 'client_name', 'sku'], // 默认隐藏部分列
+  });
 
   return (
     <div className={styles.cancelReturnPage}>
@@ -421,18 +475,18 @@ const CancelReturn: React.FC = () => {
               <Col>
                 <Select
                   style={{ width: 120 }}
-                  placeholder="状态"
+                  placeholder="状态组"
                   allowClear
                   value={returnFilters.group_state}
                   onChange={(value) =>
                     setReturnFilters({ ...returnFilters, group_state: value, page: 1 })
                   }
                 >
-                  <Option value="ON_APPROVAL">待审核</Option>
-                  <Option value="WAITING_FOR_RECEIVE">待收货</Option>
-                  <Option value="RECEIVED">已收货</Option>
-                  <Option value="REJECTED">已拒绝</Option>
-                  <Option value="REFUNDED">已退款</Option>
+                  <Option value="approved">已批准</Option>
+                  <Option value="arbitration">仲裁中</Option>
+                  <Option value="delivering">配送中</Option>
+                  <Option value="rejected">已拒绝</Option>
+                  <Option value="utilization">已处置</Option>
                 </Select>
               </Col>
               <Col>
@@ -475,14 +529,34 @@ const CancelReturn: React.FC = () => {
 
       {/* 双Tab列表 */}
       <Card className={styles.tabsCard}>
-        <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          tabBarExtraContent={
+            activeTab === 'cancellations' ? (
+              <ColumnSetting
+                columnConfig={cancellationColumnSettings.columnConfig}
+                onToggle={cancellationColumnSettings.toggleColumn}
+                onShowAll={cancellationColumnSettings.showAllColumns}
+                onReset={cancellationColumnSettings.resetColumns}
+              />
+            ) : (
+              <ColumnSetting
+                columnConfig={returnColumnSettings.columnConfig}
+                onToggle={returnColumnSettings.toggleColumn}
+                onShowAll={returnColumnSettings.showAllColumns}
+                onReset={returnColumnSettings.resetColumns}
+              />
+            )
+          }
+        >
           <TabPane
             tab={`取消申请 (${cancellationData?.total || 0})`}
             key="cancellations"
           >
             <Table
               className={styles.compactTable}
-              columns={cancellationColumns}
+              columns={cancellationColumnSettings.visibleColumns}
               dataSource={cancellationData?.items || []}
               rowKey="id"
               loading={loadingCancellations}
@@ -503,7 +577,7 @@ const CancelReturn: React.FC = () => {
           <TabPane tab={`退货申请 (${returnData?.total || 0})`} key="returns">
             <Table
               className={styles.compactTable}
-              columns={returnColumns}
+              columns={returnColumnSettings.visibleColumns}
               dataSource={returnData?.items || []}
               rowKey="id"
               loading={loadingReturns}

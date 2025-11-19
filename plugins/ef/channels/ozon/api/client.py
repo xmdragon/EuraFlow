@@ -2205,9 +2205,9 @@ class OzonAPIClient:
             "limit": limit
         }
 
-        # 添加过滤条件（OZON API要求必须传递filters才能返回数据）
+        # ⚠️ 注意：退货API使用 "filter"（单数），不是 "filters"（复数）
         if filters:
-            data["filters"] = filters
+            data["filter"] = filters
 
         return await self._request(
             "POST",

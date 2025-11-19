@@ -213,6 +213,12 @@ export function ControlPanel(props: ControlPanelProps) {
     try {
       await collector.startCollection(targetCount, async (progress) => {
         updateProgress(progress.collected, progress.target);
+
+        // 实时更新状态文本（显示各阶段进度）
+        if (progress.status) {
+          updateStatus(progress.status);
+        }
+
         if (!progress.isRunning) {
           stopCollection();
           updateStatus(`✅ 采集完成！共采集 ${progress.collected}`);

@@ -221,6 +221,10 @@ async def sync_cancellations(
     - admin/operator: 可触发同步
     - viewer: 无权限
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"收到取消申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
+
     # 权限校验：只有 admin 和 operator 可以触发同步
     if current_user.role == "viewer":
         problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
@@ -228,14 +232,17 @@ async def sync_cancellations(
     # 校验店铺权限
     try:
         allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+        logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
         if request.shop_id not in allowed_shop_ids:
             problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
     # 调用服务层同步
+    logger.info(f"开始调用 CancelReturnService.sync_cancellations，config={{'shop_id': {request.shop_id}}}")
     service = CancelReturnService()
     result = await service.sync_cancellations({"shop_id": request.shop_id})
+    logger.info(f"同步完成，result={result}")
 
     return {
         "ok": True,
@@ -261,6 +268,10 @@ async def sync_returns(
     - admin/operator: 可触发同步
     - viewer: 无权限
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"收到退货申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
+
     # 权限校验：只有 admin 和 operator 可以触发同步
     if current_user.role == "viewer":
         problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
@@ -268,14 +279,17 @@ async def sync_returns(
     # 校验店铺权限
     try:
         allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+        logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
         if request.shop_id not in allowed_shop_ids:
             problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
     # 调用服务层同步
+    logger.info(f"开始调用 CancelReturnService.sync_returns，config={{'shop_id': {request.shop_id}}}")
     service = CancelReturnService()
     result = await service.sync_returns({"shop_id": request.shop_id})
+    logger.info(f"退货申请同步完成，result={result}")
 
     return {
         "ok": True,

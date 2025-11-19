@@ -2095,26 +2095,52 @@ result = await db.execute(
 - 即使有历史数据，不传 `filters.state` 也可能返回 0 条
 
 **受影响的 API**：
-- `/v2/conditional-cancellation/list` - **必须传** `filters.state`
-- `/v2/returns/rfbs/list` - **必须传** `filters.state`
+- `/v2/conditional-cancellation/list` - **必须传** `filters.state`（复数，字符串）
+- `/v2/returns/rfbs/list` - **必须传** `filter.group_state`（单数，数组）
+
+**⚠️ 关键区别**：
+
+**请求参数**：
+- **取消申请**：`filters`（复数） + `state`（字符串）→ `{"filters": {"state": "ALL"}}`
+- **退货申请**：`filter`（单数） + `group_state`（数组）→ `{"filter": {"group_state": ["ALL"]}}`
+
+**响应格式**：
+- **取消申请**：`{'result': [...], 'last_id': int, 'counter': int}`
+- **退货申请**：`{'returns': [...], 'has_next': bool}`（**完全不同！**）
 
 **修复**：
 ```python
-# ❌ 错误（不传 filters，返回 0 条）
+# ❌ 错误（取消申请 - 不传 filters）
 response = await client.get_conditional_cancellation_list(
     last_id=current_last_id,
     limit=500
 )
 
-# ✅ 正确（传递 filters，正常返回数据）
+# ✅ 正确（取消申请 - filters 复数 + state 字符串）
 response = await client.get_conditional_cancellation_list(
     last_id=current_last_id,
     limit=500,
-    filters={"state": "ALL"}  # 关键：获取所有状态的记录
+    filters={"state": "ALL"}
+)
+
+# ❌ 错误（退货申请 - 用错了参数）
+response = await client.get_returns_rfbs_list(
+    last_id=current_last_id,
+    limit=500,
+    filters={"state": "ALL"}  # ❌ 错误：应该用 filter.group_state 数组
+)
+
+# ✅ 正确（退货申请 - filter 单数 + group_state 数组）
+response = await client.get_returns_rfbs_list(
+    last_id=current_last_id,
+    limit=500,
+    filters={"group_state": ["ALL"]}  # ✅ 注意：filter单数，group_state数组
 )
 ```
 
 **OZON API 文档示例**：
+
+取消申请：
 ```json
 {
   "filters": {
@@ -2125,11 +2151,20 @@ response = await client.get_conditional_cancellation_list(
 }
 ```
 
-**filters 可选值**（取消申请）：
-- `"ALL"` - 所有状态
-- `"APPROVED"` - 已批准
-- `"DECLINED"` - 已拒绝
-- `"WAITING_FOR_APPROVAL"` - 等待批准
+退货申请：
+```json
+{
+  "filter": {
+    "group_state": ["ALL"]
+  },
+  "limit": 500,
+  "last_id": 0
+}
+```
+
+**参数可选值**：
+- 取消申请 `filters.state`：`"ALL"` | `"APPROVED"` | `"DECLINED"` | `"WAITING_FOR_APPROVAL"`
+- 退货申请 `filter.group_state`：`["ALL"]` | `["RETURNED"]` | `["REFUNDED"]` 等
 
 **调试技巧**：
 

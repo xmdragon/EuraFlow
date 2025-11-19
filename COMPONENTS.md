@@ -505,6 +505,74 @@ loggers.product.info('商品同步完成', { count: 10 });
 
 ---
 
+### 表格列配置
+
+#### `useColumnSettings`
+**路径**：`web/src/hooks/useColumnSettings.ts`
+**用途**：管理表格列的显示/隐藏状态，支持 localStorage 持久化
+**特性**：
+- ✅ 列显示/隐藏切换
+- ✅ 显示所有列
+- ✅ 重置为默认配置
+- ✅ localStorage 自动保存用户偏好
+- ✅ 返回过滤后的可见列
+
+**使用示例**：
+```typescript
+import { useColumnSettings } from '@/hooks/useColumnSettings';
+
+const columns = [
+  { title: '姓名', dataIndex: 'name', key: 'name' },
+  { title: '年龄', dataIndex: 'age', key: 'age' },
+  { title: '地址', dataIndex: 'address', key: 'address' },
+];
+
+const columnSettings = useColumnSettings({
+  columns,
+  storageKey: 'my-table-columns', // localStorage 存储键名
+  defaultHiddenKeys: ['age'], // 默认隐藏的列
+});
+
+// 使用过滤后的列
+<Table columns={columnSettings.visibleColumns} ... />
+
+// 配合 ColumnSetting 组件使用
+<ColumnSetting
+  columnConfig={columnSettings.columnConfig}
+  onToggle={columnSettings.toggleColumn}
+  onShowAll={columnSettings.showAllColumns}
+  onReset={columnSettings.resetColumns}
+/>
+```
+
+#### `ColumnSetting`
+**路径**：`web/src/components/ColumnSetting/index.tsx`
+**用途**：表格列配置UI组件，显示列设置面板
+**特性**：
+- ✅ Popover 弹出面板
+- ✅ 复选框控制列显示
+- ✅ "显示全部"快捷操作
+- ✅ "重置"恢复默认配置
+- ✅ 固定列不可隐藏（通过 `fixed` 属性）
+
+**使用示例**：
+```typescript
+import ColumnSetting from '@/components/ColumnSetting';
+
+// 通常与 useColumnSettings Hook 配合使用
+<ColumnSetting
+  columnConfig={columnSettings.columnConfig}
+  onToggle={columnSettings.toggleColumn}
+  onShowAll={columnSettings.showAllColumns}
+  onReset={columnSettings.resetColumns}
+/>
+```
+
+**已应用场景**：
+- 取消和退货申请列表（CancelReturn.tsx）
+
+---
+
 ### 货币工具
 
 #### `formatPriceWithFallback`
@@ -514,6 +582,62 @@ loggers.product.info('商品同步完成', { count: 10 });
 #### `getCurrencySymbol`
 **路径**：`web/src/utils/currency.ts`
 **用途**：获取货币符号（￥/₽）
+
+---
+
+### OZON 状态映射
+
+#### 退货申请状态映射
+**路径**：`web/src/constants/ozonStatus.ts`
+**用途**：统一管理 OZON 退货申请和取消申请的状态翻译
+
+**可用常量**：
+- `OZON_RETURN_GROUP_STATE_MAP` - 退货状态组（approved/arbitration/delivering/rejected/utilization）
+- `OZON_RETURN_STATE_MAP` - 退货详细状态（CheckingStatus/CanceledByBuyer/MoneyReturned等）
+- `OZON_CANCELLATION_STATE_MAP` - 取消申请状态（ALL/ON_APPROVAL/APPROVED/REJECTED）
+- `OZON_CANCELLATION_INITIATOR_MAP` - 取消申请发起人（CLIENT/SELLER/OZON/SYSTEM/DELIVERY）
+
+**辅助函数**：
+```typescript
+import {
+  getReturnGroupStateText,
+  getReturnStateText,
+  getCancellationStateText,
+  getCancellationInitiatorText
+} from '@/constants/ozonStatus';
+
+// 退货状态组：arbitration → "仲裁中"
+const groupStateText = getReturnGroupStateText('arbitration');
+
+// 退货详细状态：MoneyReturned → "已退款"
+const stateText = getReturnStateText('MoneyReturned');
+
+// 取消申请状态：APPROVED → "已批准"
+const cancelStateText = getCancellationStateText('APPROVED');
+
+// 取消发起人：CLIENT → "买家"
+const initiatorText = getCancellationInitiatorText('CLIENT');
+```
+
+**状态枚举**：
+
+退货状态组（group_state）：
+- `approved` - 已批准（已退款/已赔偿）
+- `arbitration` - 仲裁中（核查状态）
+- `delivering` - 配送中（在途）
+- `rejected` - 已拒绝（买家取消）
+- `utilization` - 已处置（OZON销毁）
+
+退货详细状态（state）：
+- `CheckingStatus` - 核查状态中
+- `CanceledByBuyer` - 买家取消
+- `MoneyReturned` - 已退款
+- `PartialCompensationReturned` - 已支付部分补偿
+- `PartialCompensationReturnedByOzon` - OZON已支付补偿
+- `OnWay` - 在途
+- `OnWayToOzon` - 在途（返回OZON）
+- `UtilizedByOzon` - 已由OZON销毁
+- `UtilizingByOzon` - OZON销毁处理中
 
 ---
 
