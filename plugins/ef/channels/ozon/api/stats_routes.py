@@ -10,33 +10,12 @@ import logging
 
 from ef_core.database import get_async_session
 from ef_core.api.auth import get_current_user_flexible
-from ..utils.datetime_utils import utcnow
+from ..utils.datetime_utils import utcnow, get_global_timezone, calculate_date_range
 from ..models.global_settings import OzonGlobalSetting
 from sqlalchemy import select, or_
 
 router = APIRouter(tags=["ozon-stats"])
 logger = logging.getLogger(__name__)
-
-
-async def get_global_timezone(db: AsyncSession) -> str:
-    """
-    获取全局时区设置
-
-    Returns:
-        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
-    """
-    try:
-        result = await db.execute(
-            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
-        )
-        setting = result.scalar_one_or_none()
-        if setting and setting.setting_value:
-            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
-            return setting.setting_value.get("value", "UTC")
-        return "UTC"
-    except Exception as e:
-        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
-        return "UTC"
 
 
 @router.get("/sync-logs")
@@ -491,52 +470,13 @@ async def get_daily_posting_stats(
     global_timezone = await get_global_timezone(db)
 
     try:
-        # 根据 range_type 和用户时区计算日期范围
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-
-        tz = ZoneInfo(global_timezone)
-        now_in_tz = datetime.now(tz)
-
-        if range_type == '7days':
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=6)
-        elif range_type == '14days':
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=13)
-        elif range_type == 'thisMonth':
-            # 本月1日到今天（用户时区）
-            end_date_obj = now_in_tz.date()
-            start_date_obj = now_in_tz.replace(day=1).date()
-        elif range_type == 'lastMonth':
-            # 上月1日到上月最后一天（用户时区）
-            first_day_of_this_month = now_in_tz.replace(day=1)
-            last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
-            first_day_of_last_month = last_day_of_last_month.replace(day=1)
-            start_date_obj = first_day_of_last_month.date()
-            end_date_obj = last_day_of_last_month.date()
-        elif range_type == 'custom' and start_date and end_date:
-            # 自定义日期范围（前端传入的是日期字符串，后端按用户时区解析）
-            start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
-            end_date_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=tz)
-            start_date_obj = start_date_dt.date()
-            end_date_obj = end_date_dt.date()
-        else:
-            # 默认7天
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=6)
-
-        # 计算UTC时间范围（用于数据库查询）
-        # 将用户时区的日期范围转换为UTC时间戳
-        # 转换为用户时区的datetime（00:00:00）
-        start_datetime = datetime.combine(start_date_obj, datetime.min.time()).replace(tzinfo=tz)
-        # 转换为用户时区的datetime（23:59:59）
-        end_datetime = datetime.combine(end_date_obj, datetime.max.time()).replace(tzinfo=tz)
-
-        # 转换为UTC
-        from datetime import timezone as dt_timezone
-        start_datetime_utc = start_datetime.astimezone(dt_timezone.utc)
-        end_datetime_utc = end_datetime.astimezone(dt_timezone.utc)
+        # 使用统一的日期范围计算函数（基于用户时区）
+        start_datetime_utc, end_datetime_utc = calculate_date_range(
+            range_type=range_type or '7days',
+            timezone_name=global_timezone,
+            custom_start=start_date,
+            custom_end=end_date
+        )
 
         # 构建查询条件（使用UTC时间戳范围）
         posting_filter = [
@@ -664,52 +604,13 @@ async def get_daily_revenue_stats(
     global_timezone = await get_global_timezone(db)
 
     try:
-        # 根据 range_type 和用户时区计算日期范围
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-
-        tz = ZoneInfo(global_timezone)
-        now_in_tz = datetime.now(tz)
-
-        if range_type == '7days':
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=6)
-        elif range_type == '14days':
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=13)
-        elif range_type == 'thisMonth':
-            # 本月1日到今天（用户时区）
-            end_date_obj = now_in_tz.date()
-            start_date_obj = now_in_tz.replace(day=1).date()
-        elif range_type == 'lastMonth':
-            # 上月1日到上月最后一天（用户时区）
-            first_day_of_this_month = now_in_tz.replace(day=1)
-            last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
-            first_day_of_last_month = last_day_of_last_month.replace(day=1)
-            start_date_obj = first_day_of_last_month.date()
-            end_date_obj = last_day_of_last_month.date()
-        elif range_type == 'custom' and start_date and end_date:
-            # 自定义日期范围（前端传入的是日期字符串，后端按用户时区解析）
-            start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
-            end_date_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=tz)
-            start_date_obj = start_date_dt.date()
-            end_date_obj = end_date_dt.date()
-        else:
-            # 默认7天
-            end_date_obj = now_in_tz.date()
-            start_date_obj = end_date_obj - timedelta(days=6)
-
-        # 计算UTC时间范围（用于数据库查询）
-        # 将用户时区的日期范围转换为UTC时间戳
-        # 转换为用户时区的datetime（00:00:00）
-        start_datetime = datetime.combine(start_date_obj, datetime.min.time()).replace(tzinfo=tz)
-        # 转换为用户时区的datetime（23:59:59）
-        end_datetime = datetime.combine(end_date_obj, datetime.max.time()).replace(tzinfo=tz)
-
-        # 转换为UTC
-        from datetime import timezone as dt_timezone
-        start_datetime_utc = start_datetime.astimezone(dt_timezone.utc)
-        end_datetime_utc = end_datetime.astimezone(dt_timezone.utc)
+        # 使用统一的日期范围计算函数（基于用户时区）
+        start_datetime_utc, end_datetime_utc = calculate_date_range(
+            range_type=range_type or '7days',
+            timezone_name=global_timezone,
+            custom_start=start_date,
+            custom_end=end_date
+        )
 
         # 构建查询条件（使用UTC时间戳范围）
         posting_filter = [

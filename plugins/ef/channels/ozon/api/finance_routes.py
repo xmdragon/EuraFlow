@@ -12,33 +12,12 @@ from ef_core.database import get_async_session
 from ..models.finance import OzonFinanceTransaction
 from ..models.global_settings import OzonGlobalSetting
 from ..models.orders import OzonPosting, OzonOrder, OzonOrderItem
-from ..utils.datetime_utils import parse_date_with_timezone
+from ..utils.datetime_utils import parse_date_with_timezone, get_global_timezone
 from ..services.finance_translations import translate_operation_type_name
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["ozon-finance"])
 logger = logging.getLogger(__name__)
-
-
-async def get_global_timezone(db: AsyncSession) -> str:
-    """
-    获取全局时区设置
-
-    Returns:
-        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
-    """
-    try:
-        result = await db.execute(
-            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
-        )
-        setting = result.scalar_one_or_none()
-        if setting and setting.setting_value:
-            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
-            return setting.setting_value.get("value", "UTC")
-        return "UTC"
-    except Exception as e:
-        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
-        return "UTC"
 
 
 # DTO类定义

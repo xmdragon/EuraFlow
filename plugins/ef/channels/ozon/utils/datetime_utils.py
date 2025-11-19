@@ -2,9 +2,11 @@
 时间处理工具模块
 统一处理所有datetime操作，确保所有datetime都是timezone-aware (UTC)
 """
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Tuple
 from zoneinfo import ZoneInfo
+import logging
+import calendar
 
 
 def utcnow() -> datetime:
@@ -173,3 +175,150 @@ def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
 
     # 已经有时区，转换为UTC
     return dt.astimezone(timezone.utc)
+
+
+# ========== 新增：统一的时区处理工具函数 ==========
+
+async def get_global_timezone(db) -> str:
+    """
+    获取系统全局时区设置
+
+    从 ozon_global_settings 表读取 default_timezone 配置。
+
+    Args:
+        db: 数据库会话（AsyncSession）
+
+    Returns:
+        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
+
+    Note:
+        此函数需要数据库会话，通常在API路由中调用
+    """
+    from sqlalchemy import select
+    from ..models.global_settings import OzonGlobalSetting
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        result = await db.execute(
+            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
+        )
+        setting = result.scalar_one_or_none()
+        if setting and setting.setting_value:
+            return setting.setting_value.get("value", "UTC")
+        return "UTC"
+    except Exception as e:
+        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
+        return "UTC"
+
+
+def calculate_date_range(
+    range_type: str,
+    timezone_name: str,
+    custom_start: Optional[str] = None,
+    custom_end: Optional[str] = None
+) -> Tuple[datetime, datetime]:
+    """
+    根据range_type和用户时区计算UTC时间范围
+
+    此函数确保所有日期范围计算都基于用户配置的时区，避免时区边界问题。
+
+    Args:
+        range_type: 时间范围类型
+            - "7days": 最近7天（今天往前推6天）
+            - "14days": 最近14天（今天往前推13天）
+            - "thisMonth": 本月（本月1日到今天）
+            - "lastMonth": 上月（上月1日到上月最后一天）
+            - "custom": 自定义范围（需要提供 custom_start 和 custom_end）
+        timezone_name: 时区名称（如 "Europe/Moscow", "Asia/Shanghai"）
+        custom_start: 自定义开始日期（仅range_type="custom"时使用，格式："YYYY-MM-DD"）
+        custom_end: 自定义结束日期（仅range_type="custom"时使用，格式："YYYY-MM-DD"）
+
+    Returns:
+        Tuple[datetime, datetime]: (start_datetime_utc, end_datetime_utc)
+        - start_datetime_utc: 用户时区当天00:00:00转为UTC
+        - end_datetime_utc: 用户时区当天23:59:59.999999转为UTC
+
+    Raises:
+        ValueError: range_type不支持或custom模式缺少日期参数
+
+    Example:
+        >>> # 莫斯科时间2025-11-19计算最近7天
+        >>> start, end = calculate_date_range("7days", "Europe/Moscow")
+        >>> # start: 2025-11-12 21:00:00+00:00 (莫斯科11-13 00:00:00)
+        >>> # end:   2025-11-19 20:59:59.999999+00:00 (莫斯科11-19 23:59:59.999999)
+
+        >>> # 自定义范围
+        >>> start, end = calculate_date_range("custom", "Europe/Moscow", "2025-01-01", "2025-01-31")
+        >>> # start: 2024-12-31 21:00:00+00:00 (莫斯科01-01 00:00:00)
+        >>> # end:   2025-01-31 20:59:59.999999+00:00 (莫斯科01-31 23:59:59.999999)
+    """
+    tz = ZoneInfo(timezone_name)
+    now_in_tz = datetime.now(tz)
+
+    # 根据range_type计算日期范围（用户时区的date对象）
+    if range_type == '7days':
+        end_date_obj = now_in_tz.date()
+        start_date_obj = end_date_obj - timedelta(days=6)
+    elif range_type == '14days':
+        end_date_obj = now_in_tz.date()
+        start_date_obj = end_date_obj - timedelta(days=13)
+    elif range_type == 'thisMonth':
+        end_date_obj = now_in_tz.date()
+        start_date_obj = now_in_tz.replace(day=1).date()
+    elif range_type == 'lastMonth':
+        first_day_of_this_month = now_in_tz.replace(day=1)
+        last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
+        first_day_of_last_month = last_day_of_last_month.replace(day=1)
+        start_date_obj = first_day_of_last_month.date()
+        end_date_obj = last_day_of_last_month.date()
+    elif range_type == 'custom':
+        if not custom_start or not custom_end:
+            raise ValueError("custom range_type requires custom_start and custom_end parameters")
+        start_date_dt = datetime.strptime(custom_start, '%Y-%m-%d').replace(tzinfo=tz)
+        end_date_dt = datetime.strptime(custom_end, '%Y-%m-%d').replace(tzinfo=tz)
+        start_date_obj = start_date_dt.date()
+        end_date_obj = end_date_dt.date()
+    else:
+        raise ValueError(f"Unsupported range_type: {range_type}. Supported: 7days, 14days, thisMonth, lastMonth, custom")
+
+    # 转换为UTC时间范围
+    # start: 用户时区的00:00:00
+    # end: 用户时区的23:59:59.999999
+    start_datetime = datetime.combine(start_date_obj, datetime.min.time()).replace(tzinfo=tz)
+    end_datetime = datetime.combine(end_date_obj, datetime.max.time()).replace(tzinfo=tz)
+
+    return (
+        start_datetime.astimezone(timezone.utc),
+        end_datetime.astimezone(timezone.utc)
+    )
+
+
+def utc_to_local_date(
+    utc_datetime: Optional[datetime],
+    timezone_name: str
+) -> Optional[str]:
+    """
+    将UTC时间转换为指定时区的日期字符串
+
+    Args:
+        utc_datetime: UTC timezone-aware datetime
+        timezone_name: 时区名称（如 "Europe/Moscow"）
+
+    Returns:
+        str: 日期字符串（YYYY-MM-DD），如果输入为None则返回None
+
+    Example:
+        >>> dt = datetime(2025, 11, 2, 21, 0, tzinfo=timezone.utc)
+        >>> utc_to_local_date(dt, "Europe/Moscow")
+        '2025-11-03'  # 莫斯科时间已经是11月3日（UTC+3）
+
+        >>> utc_to_local_date(dt, "Asia/Shanghai")
+        '2025-11-03'  # 上海时间已经是11月3日（UTC+8）
+    """
+    if utc_datetime is None:
+        return None
+
+    tz = ZoneInfo(timezone_name)
+    local_dt = utc_datetime.astimezone(tz)
+    return local_dt.strftime("%Y-%m-%d")

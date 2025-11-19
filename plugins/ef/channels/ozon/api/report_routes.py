@@ -13,31 +13,10 @@ import calendar
 
 from ef_core.database import get_async_session
 from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop, OzonGlobalSetting
-from ..utils.datetime_utils import utcnow
+from ..utils.datetime_utils import utcnow, get_global_timezone
 
 router = APIRouter(tags=["ozon-reports"])
 logger = logging.getLogger(__name__)
-
-
-async def get_global_timezone(db: AsyncSession) -> str:
-    """
-    获取全局时区设置
-
-    Returns:
-        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
-    """
-    try:
-        result = await db.execute(
-            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
-        )
-        setting = result.scalar_one_or_none()
-        if setting and setting.setting_value:
-            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
-            return setting.setting_value.get("value", "UTC")
-        return "UTC"
-    except Exception as e:
-        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
-        return "UTC"
 
 
 @router.get("/reports/orders")
@@ -61,15 +40,26 @@ async def get_order_report(
     import calendar
 
     try:
+        # 获取全局时区设置
+        global_timezone = await get_global_timezone(db)
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(global_timezone)
+
         # 解析月份
         year, month_num = month.split("-")
         year = int(year)
         month_num = int(month_num)
 
-        # 计算月份的开始和结束日期（UTC timezone-aware）
-        start_date = datetime(year, month_num, 1, tzinfo=timezone.utc)
+        # 计算月份的开始和结束日期（基于用户时区）
+        # 月初：用户时区的1号00:00:00
+        start_date_tz = datetime(year, month_num, 1, 0, 0, 0, tzinfo=tz)
+        # 月末：用户时区的最后一天23:59:59
         last_day = calendar.monthrange(year, month_num)[1]
-        end_date = datetime(year, month_num, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        end_date_tz = datetime(year, month_num, last_day, 23, 59, 59, 999999, tzinfo=tz)
+
+        # 转换为UTC用于数据库查询
+        start_date = start_date_tz.astimezone(timezone.utc)
+        end_date = end_date_tz.astimezone(timezone.utc)
 
         # 构建查询条件
         conditions = [
@@ -333,15 +323,26 @@ async def get_posting_report(
     import calendar
 
     try:
+        # 获取全局时区设置
+        global_timezone = await get_global_timezone(db)
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(global_timezone)
+
         # 解析月份
         year, month_num = month.split("-")
         year = int(year)
         month_num = int(month_num)
 
-        # 计算月份的开始和结束日期（UTC timezone-aware）
-        start_date = datetime(year, month_num, 1, tzinfo=timezone.utc)
+        # 计算月份的开始和结束日期（基于用户时区）
+        # 月初：用户时区的1号00:00:00
+        start_date_tz = datetime(year, month_num, 1, 0, 0, 0, tzinfo=tz)
+        # 月末：用户时区的最后一天23:59:59
         last_day = calendar.monthrange(year, month_num)[1]
-        end_date = datetime(year, month_num, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        end_date_tz = datetime(year, month_num, last_day, 23, 59, 59, 999999, tzinfo=tz)
+
+        # 转换为UTC用于数据库查询
+        start_date = start_date_tz.astimezone(timezone.utc)
+        end_date = end_date_tz.astimezone(timezone.utc)
 
         # 构建查询条件（使用客户下单时间，与汇总报表保持一致）
         conditions = [
@@ -561,25 +562,31 @@ async def get_report_summary(
     try:
         # 获取全局时区设置（用于每日趋势统计）
         global_timezone = await get_global_timezone(db)
+        tz = ZoneInfo(global_timezone)
+
         # 解析月份
         year, month_num = month.split("-")
         year = int(year)
         month_num = int(month_num)
 
-        # 计算当月的开始和结束日期
-        start_date = datetime(year, month_num, 1, tzinfo=timezone.utc)
+        # 计算当月的开始和结束日期（基于用户时区）
+        start_date_tz = datetime(year, month_num, 1, 0, 0, 0, tzinfo=tz)
         last_day = calendar.monthrange(year, month_num)[1]
-        end_date = datetime(year, month_num, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        end_date_tz = datetime(year, month_num, last_day, 23, 59, 59, 999999, tzinfo=tz)
 
         # 如果结束日期超过今天，则截止到昨天，避免显示今天未完成的数据
         from datetime import timedelta
-        now = datetime.now(timezone.utc)
-        yesterday = now - timedelta(days=1)
-        yesterday_end = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59, tzinfo=timezone.utc)
-        if end_date > yesterday_end:
-            end_date = yesterday_end
+        now_tz = datetime.now(tz)
+        yesterday_tz = now_tz - timedelta(days=1)
+        yesterday_end_tz = datetime(yesterday_tz.year, yesterday_tz.month, yesterday_tz.day, 23, 59, 59, 999999, tzinfo=tz)
+        if end_date_tz > yesterday_end_tz:
+            end_date_tz = yesterday_end_tz
 
-        # 计算上月的开始和结束日期
+        # 转换为UTC用于数据库查询
+        start_date = start_date_tz.astimezone(timezone.utc)
+        end_date = end_date_tz.astimezone(timezone.utc)
+
+        # 计算上月的开始和结束日期（基于用户时区）
         if month_num == 1:
             prev_year = year - 1
             prev_month = 12
@@ -587,9 +594,13 @@ async def get_report_summary(
             prev_year = year
             prev_month = month_num - 1
 
-        prev_start_date = datetime(prev_year, prev_month, 1, tzinfo=timezone.utc)
+        prev_start_date_tz = datetime(prev_year, prev_month, 1, 0, 0, 0, tzinfo=tz)
         prev_last_day = calendar.monthrange(prev_year, prev_month)[1]
-        prev_end_date = datetime(prev_year, prev_month, prev_last_day, 23, 59, 59, tzinfo=timezone.utc)
+        prev_end_date_tz = datetime(prev_year, prev_month, prev_last_day, 23, 59, 59, 999999, tzinfo=tz)
+
+        # 转换为UTC用于数据库查询
+        prev_start_date = prev_start_date_tz.astimezone(timezone.utc)
+        prev_end_date = prev_end_date_tz.astimezone(timezone.utc)
 
         # 构建查询条件（当月，使用下单时间）
         conditions = [

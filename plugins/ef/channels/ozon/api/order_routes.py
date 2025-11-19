@@ -13,33 +13,12 @@ from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
 from ef_core.api.auth import get_current_user_flexible
 from ..models import OzonOrder, OzonPosting, OzonProduct, OzonDomesticTracking, OzonGlobalSetting
-from ..utils.datetime_utils import utcnow, parse_date, parse_date_with_timezone
+from ..utils.datetime_utils import utcnow, parse_date, parse_date_with_timezone, get_global_timezone
 from sqlalchemy import delete
 from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-orders"])
 logger = logging.getLogger(__name__)
-
-
-async def get_global_timezone(db: AsyncSession) -> str:
-    """
-    获取全局时区设置
-
-    Returns:
-        str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
-    """
-    try:
-        result = await db.execute(
-            select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
-        )
-        setting = result.scalar_one_or_none()
-        if setting and setting.setting_value:
-            # setting_value 是 JSONB: {"value": "Europe/Moscow"}
-            return setting.setting_value.get("value", "UTC")
-        return "UTC"
-    except Exception as e:
-        logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
-        return "UTC"
 
 
 @router.get("/orders")
