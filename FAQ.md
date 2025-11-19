@@ -18,6 +18,7 @@
   - [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
   - [N+1 查询问题导致 API 响应缓慢](#n1-查询问题导致-api-响应缓慢)
   - [Celery 定时任务报错 "got an unexpected keyword argument '_plugin'"](#celery-定时任务报错-got-an-unexpected-keyword-argument-_plugin)
+  - [前端传日期范围导致时区理解错误](#前端传日期范围导致时区理解错误)
 - [数据库问题](#数据库问题)
 - [部署问题](#部署问题)
 
@@ -1504,6 +1505,255 @@ PGPASSWORD=euraflow_dev psql -h localhost -U euraflow -d euraflow \
 - [Python **kwargs](https://realpython.com/python-kwargs-and-args/)
 
 ---
+
+---
+
+### 前端传日期范围导致时区理解错误
+
+**问题描述**：
+- 用户在系统设置中切换时区后，统计图表的数据没有变化
+- 前端基于浏览器时区计算日期，后端基于用户配置的时区解析日期
+- 当两者不一致时（如浏览器时区是 UTC+0，用户设置时区是 Asia/Shanghai），会导致日期理解错误
+- 用户选择"最近7天"，但实际查询的时间范围与预期不符
+
+**根本原因**：
+1. **前端计算日期** - 使用 `dayjs()` 基于浏览器当前时区计算日期范围（如 2025-11-12 到 2025-11-19）
+2. **后端解析日期** - 基于用户配置的时区（如 Asia/Shanghai）解析前端传来的日期字符串
+3. **时区不一致** - 前端和后端对同一个日期字符串的理解不一致，导致查询范围错误
+
+**技术细节**：
+
+```typescript
+// ❌ 错误方式：前端计算日期（基于浏览器时区）
+const startDate = dayjs().subtract(6, 'days').format('YYYY-MM-DD');  // 浏览器时区
+const endDate = dayjs().format('YYYY-MM-DD');
+
+// 发送给后端
+const params = { start_date: startDate, end_date: endDate };
+```
+
+```python
+# 后端解析（基于用户配置的时区）
+from zoneinfo import ZoneInfo
+tz = ZoneInfo('Asia/Shanghai')  # 用户配置的时区
+
+# 解析前端传来的日期
+start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
+# 问题：前端的 '2025-11-12' 是基于 UTC 的，后端理解为上海时区的 2025-11-12
+# 实际时间差了 8 小时
+```
+
+**排查步骤**：
+
+```bash
+# 1. 检查前端如何计算日期
+grep -rn "dayjs().*subtract\|dayjs().*add" web/src/pages/
+
+# 2. 检查后端如何解析日期
+grep -rn "datetime.strptime.*replace.*tzinfo" plugins/ef/
+
+# 3. 检查 API 日志，对比前端传的日期和后端查询的日期范围
+# 看日志中是否有时间偏差
+
+# 4. 检查系统设置的时区和浏览器时区是否一致
+# 浏览器控制台运行：
+# Intl.DateTimeFormat().resolvedOptions().timeZone
+```
+
+**标准解决方案**（✅ 推荐）：
+
+#### 架构原则：前端传 range_type，后端统一计算日期
+
+**优点**：
+- ✅ 前端逻辑简化，不需要关心时区
+- ✅ 时区计算集中在后端，保证一致性
+- ✅ 用户切换时区后立即生效（无需前端感知）
+- ✅ 避免前后端时区不一致导致的错误
+
+**实现步骤**：
+
+#### 步骤1：前端发送 range_type 而不是日期
+
+```typescript
+// ✅ 正确：发送 range_type
+// 文件：web/src/pages/ozon/OzonOverview.tsx
+
+const dateRangeParams = useMemo(() => {
+  switch (timeRangeType) {
+    case '7days':
+    case '14days':
+    case 'thisMonth':
+    case 'lastMonth':
+      return { rangeType: timeRangeType };
+    case 'custom':
+      if (customDateRange[0] && customDateRange[1]) {
+        return {
+          rangeType: 'custom',
+          startDate: customDateRange[0].format('YYYY-MM-DD'),
+          endDate: customDateRange[1].format('YYYY-MM-DD'),
+        };
+      }
+      return { rangeType: '7days' };
+    default:
+      return { rangeType: '7days' };
+  }
+}, [timeRangeType, customDateRange]);
+
+// API 调用
+const { data } = useQuery(['dailyPostingStats', shopId, dateRangeParams], () =>
+  getDailyPostingStats(shopId, dateRangeParams.rangeType, dateRangeParams.startDate, dateRangeParams.endDate)
+);
+```
+
+**API 函数定义**：
+
+```typescript
+// 文件：web/src/services/ozonApi.ts
+
+export const getDailyPostingStats = async (
+  shopId?: number | null,
+  rangeType?: string,
+  startDate?: string,
+  endDate?: string
+) => {
+  const params: { shop_id?: number; range_type?: string; start_date?: string; end_date?: string } = {};
+
+  if (shopId) params.shop_id = shopId;
+  if (rangeType) params.range_type = rangeType;
+  if (startDate && endDate) {
+    params.start_date = startDate;
+    params.end_date = endDate;
+  }
+
+  const response = await apiClient.get<DailyPostingStats>("/ozon/daily-posting-stats", { params });
+  return response.data;
+};
+```
+
+#### 步骤2：后端基于 range_type 和用户时区计算日期
+
+```python
+# 文件：plugins/ef/channels/ozon/api/stats_routes.py
+
+from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
+from ef_core.config import get_global_timezone
+
+@router.get("/daily-posting-stats")
+async def get_daily_posting_stats(
+    shop_id: Optional[int] = Query(None, description="店铺ID，为空时获取所有店铺统计"),
+    range_type: Optional[str] = Query(None, description="时间范围类型：7days/14days/thisMonth/lastMonth/custom"),
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user = Depends(get_current_user_flexible)
+):
+    """获取每日订单统计（基于 in_process_at 或 created_at）"""
+
+    # 1. 获取用户配置的时区
+    global_timezone = await get_global_timezone(db)
+    tz = ZoneInfo(global_timezone)
+    now_in_tz = datetime.now(tz)
+
+    # 2. 根据 range_type 计算日期范围
+    if range_type == '7days':
+        end_date_obj = now_in_tz.date()
+        start_date_obj = end_date_obj - timedelta(days=6)
+    elif range_type == '14days':
+        end_date_obj = now_in_tz.date()
+        start_date_obj = end_date_obj - timedelta(days=13)
+    elif range_type == 'thisMonth':
+        end_date_obj = now_in_tz.date()
+        start_date_obj = now_in_tz.replace(day=1).date()
+    elif range_type == 'lastMonth':
+        first_day_of_this_month = now_in_tz.replace(day=1)
+        last_day_of_last_month = first_day_of_this_month - timedelta(days=1)
+        first_day_of_last_month = last_day_of_last_month.replace(day=1)
+        start_date_obj = first_day_of_last_month.date()
+        end_date_obj = last_day_of_last_month.date()
+    elif range_type == 'custom' and start_date and end_date:
+        # 自定义范围：前端传来的日期字符串视为用户时区的日期
+        start_date_dt = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=tz)
+        end_date_dt = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=tz)
+        start_date_obj = start_date_dt.date()
+        end_date_obj = end_date_dt.date()
+    else:
+        # 默认：最近7天
+        end_date_obj = now_in_tz.date()
+        start_date_obj = end_date_obj - timedelta(days=6)
+
+    # 3. 转换为 UTC 时间戳用于查询
+    start_datetime_tz = datetime.combine(start_date_obj, datetime.min.time()).replace(tzinfo=tz)
+    end_datetime_tz = datetime.combine(end_date_obj, datetime.max.time()).replace(tzinfo=tz)
+
+    start_timestamp_utc = start_datetime_tz.astimezone(ZoneInfo('UTC'))
+    end_timestamp_utc = end_datetime_tz.astimezone(ZoneInfo('UTC'))
+
+    # 4. 执行查询（数据库中的时间戳是 UTC）
+    # ...
+```
+
+**关键点**：
+1. **获取用户时区**：`global_timezone = await get_global_timezone(db)`
+2. **基于用户时区计算"今天"**：`now_in_tz = datetime.now(tz)`
+3. **根据 range_type 计算日期范围**：避免前端计算
+4. **转换为 UTC 查询**：数据库存储的是 UTC 时间戳
+
+**range_type 枚举值**：
+
+| range_type   | 含义       | 计算方式                          |
+|--------------|----------|-------------------------------|
+| `7days`      | 最近7天    | 今天 - 6 天 到 今天                 |
+| `14days`     | 最近14天   | 今天 - 13 天 到 今天                |
+| `thisMonth`  | 本月      | 本月1号 到 今天                     |
+| `lastMonth`  | 上个月     | 上月1号 到 上月最后一天                 |
+| `custom`     | 自定义范围   | 使用前端传来的 start_date 和 end_date |
+
+**验证方法**：
+
+```bash
+# 1. 修改系统时区设置（在系统管理 → 全局配置中）
+# 选择不同时区（如 Asia/Shanghai、America/New_York、Europe/London）
+
+# 2. 刷新概览页面，检查统计数据是否相应变化
+# 例如：
+# - Asia/Shanghai (UTC+8): "最近7天" 应该是上海时间今天往前推6天
+# - America/New_York (UTC-5): "最近7天" 应该是纽约时间今天往前推6天
+
+# 3. 检查后端日志，确认日期计算正确
+grep "Calculating date range" logs/backend-*.log
+
+# 4. 检查 SQL 查询，确认时间戳转换正确
+# 在日志中查看实际执行的 SQL WHERE 条件
+
+# 5. 对比前端选择的时间范围和后端实际查询的范围
+# 应该完全一致（基于用户配置的时区）
+```
+
+**相关文件**：
+- 前端组件：`web/src/pages/ozon/OzonOverview.tsx:392-436` - 发送 range_type
+- API 函数：`web/src/services/ozonApi.ts:678-737` - API 客户端
+- 后端接口：`plugins/ef/channels/ozon/api/stats_routes.py:451-534,625-647` - 日期计算逻辑
+- 时区配置：`ef_core/config.py` - `get_global_timezone()` 函数
+
+**优缺点对比**：
+
+| 方案                | 优点 | 缺点 |
+|-------------------|------|------|
+| ❌ 前端计算日期 + 后端解析 | 前端可控，逻辑清晰 | 时区不一致导致错误，用户切换时区不生效，前端需要理解时区 |
+| ✅ 前端传 range_type + 后端计算 | 逻辑集中，时区统一，前端简化 | 后端逻辑稍复杂（但更可靠） |
+
+**防止复发**：
+- ✅ 所有涉及日期范围查询的接口统一使用 range_type 模式
+- ✅ 禁止前端基于浏览器时区计算日期后传给后端
+- ✅ 后端统一基于用户配置的时区计算日期范围
+- ✅ 在 `CLAUDE.md` 中补充时区处理规范
+- ✅ 代码审查：检查新增的日期查询接口是否符合此架构
+
+**参考资料**：
+- [Python zoneinfo](https://docs.python.org/3/library/zoneinfo.html)
+- [dayjs Timezone](https://day.js.org/docs/en/timezone/timezone)
+- [时区最佳实践](https://stackoverflow.com/questions/2532729/daylight-saving-time-and-time-zone-best-practices)
 
 ---
 
