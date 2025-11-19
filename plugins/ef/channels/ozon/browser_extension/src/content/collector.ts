@@ -227,6 +227,67 @@ export class ProductCollector {
           });
 
           console.log(`%c[阶段2: 销售数据] 成功 ${successCount}/${products.length}`, 'color: #52c41a; font-weight: bold');
+
+          // 【降级方案】检查哪些商品缺少尺寸数据，调用OZON Seller API补充
+          const productsWithoutDimensions = products.filter(p =>
+            !p.weight || !p.depth || !p.width || !p.height
+          );
+
+          if (productsWithoutDimensions.length > 0) {
+            console.log(`%c[尺寸降级] 发现 ${productsWithoutDimensions.length}/${products.length} 个商品缺少尺寸，调用OZON Seller API`, 'color: #faad14; font-weight: bold');
+
+            let dimensionSuccessCount = 0;
+            for (const product of productsWithoutDimensions) {
+              try {
+                // 调用OZON Seller API获取尺寸
+                const response = await chrome.runtime.sendMessage({
+                  type: 'GET_OZON_PRODUCT_DETAIL',
+                  data: {
+                    productSku: product.product_id,
+                    cookieString: document.cookie
+                  }
+                });
+
+                if (response.success && response.data?.dimensions) {
+                  const dim = response.data.dimensions;
+                  // 补充缺失的尺寸数据
+                  if (!product.weight && dim.weight) product.weight = parseFloat(dim.weight);
+                  if (!product.depth && dim.depth) product.depth = parseFloat(dim.depth);
+                  if (!product.width && dim.width) product.width = parseFloat(dim.width);
+                  if (!product.height && dim.height) product.height = parseFloat(dim.height);
+
+                  // 同步到 this.collected
+                  const collectedProduct = this.collected.get(product.product_id);
+                  if (collectedProduct) {
+                    if (!collectedProduct.weight && product.weight) collectedProduct.weight = product.weight;
+                    if (!collectedProduct.depth && product.depth) collectedProduct.depth = product.depth;
+                    if (!collectedProduct.width && product.width) collectedProduct.width = product.width;
+                    if (!collectedProduct.height && product.height) collectedProduct.height = product.height;
+                  }
+
+                  dimensionSuccessCount++;
+                  console.log(`[尺寸降级] SKU=${product.product_id} 成功获取尺寸:`, {
+                    weight: product.weight,
+                    depth: product.depth,
+                    width: product.width,
+                    height: product.height
+                  });
+                }
+              } catch (error: any) {
+                console.warn(`[尺寸降级] SKU=${product.product_id} 失败:`, error.message);
+              }
+
+              // 延迟50ms避免限流
+              if (product !== productsWithoutDimensions[productsWithoutDimensions.length - 1]) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+              }
+            }
+
+            console.log(`%c[尺寸降级] 完成 ${dimensionSuccessCount}/${productsWithoutDimensions.length}`, 'color: #52c41a; font-weight: bold');
+          } else {
+            console.log('%c[尺寸降级] 跳过，所有商品均有完整尺寸数据', 'color: #52c41a; font-weight: bold');
+          }
+
         } catch (error: any) {
           console.error('%c[阶段2: 销售数据] 失败:', 'color: #ff4d4f; font-weight: bold', error.message);
           // 容错：即使上品帮API失败，也返回OZON原生数据

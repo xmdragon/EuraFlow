@@ -26,7 +26,7 @@ export class ShangpinbangAPIClient {
         response.data.forEach((item: SpbSalesData) => {
           const sku = item.goodsId || item.sku;
           if (sku) {
-            dataMap.set(sku, this.transformSpbData(item));
+            dataMap.set(sku, this.transformSpbData(item, sku));
           }
         });
       }
@@ -78,7 +78,7 @@ export class ShangpinbangAPIClient {
   /**
    * 数据格式转换：SpbSalesData → ProductData
    */
-  private transformSpbData(spbData: SpbSalesData): Partial<ProductData> {
+  private transformSpbData(spbData: SpbSalesData, sku?: string): Partial<ProductData> {
     const result: Partial<ProductData> = {
       // 品牌和类目
       brand: spbData.brand || undefined,
@@ -131,9 +131,9 @@ export class ShangpinbangAPIClient {
       ad_cost_share: this.parseNumber(spbData.adShare),
     };
 
-    // 调试：输出原始数据中的关键字段
+    // 调试：输出原始数据中的关键字段（包含SKU）
     if (window.EURAFLOW_DEBUG) {
-      console.log('[SPB转换] 原始数据字段:', {
+      console.log(`[SPB转换] SKU=${sku} 原始数据:`, {
         weight: spbData.weight,
         depth: spbData.depth,
         width: spbData.width,
@@ -142,7 +142,7 @@ export class ShangpinbangAPIClient {
         fbpCommissionMid: spbData.fbpCommissionMid,
         monthlySales: spbData.monthlySales
       });
-      console.log('[SPB转换] 转换后:', {
+      console.log(`[SPB转换] SKU=${sku} 转换后:`, {
         weight: result.weight,
         depth: result.depth,
         width: result.width,
