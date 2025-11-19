@@ -50,17 +50,29 @@ export const formatWeight = (value: number | null | undefined): string => {
 };
 
 /**
- * 格式化货币（RUB → CNY）
- * @param rubAmount RUB金额
- * @param rate 汇率（CNY/RUB）
+ * 格式化货币（RUB分 → CNY元）
+ * @param rubAmountInFen RUB金额（分，数据库存储格式）
+ * @param cnyToRubRate 汇率（1 CNY = X RUB）
  * @returns 格式化后的CNY金额字符串
+ *
+ * 示例：
+ * - 上品帮返回：22.27万 ₽ = 222,700 RUB
+ * - 数据库存储：222,700 × 100 = 22,270,000 分
+ * - 汇率：1 CNY = 13.5 RUB
+ * - 转换：22,270,000 / 100 / 13.5 = 16,496 ¥
  */
 export const formatCurrency = (
-  rubAmount: number | null | undefined,
-  rate: number | null
+  rubAmountInFen: number | null | undefined,
+  cnyToRubRate: number | null
 ): string => {
-  if (!rubAmount || !rate) return '-';
-  const cny = rubAmount / rate;
+  if (!rubAmountInFen || !cnyToRubRate || cnyToRubRate <= 0) return '-';
+
+  // 1. 分→元（数据库存储的是分）
+  const rubYuan = rubAmountInFen / 100;
+
+  // 2. RUB→CNY（RUB / (CNY→RUB汇率) = CNY）
+  const cny = rubYuan / cnyToRubRate;
+
   if (cny >= 10000) {
     return `${formatNumberUtil(cny / 10000)}万¥`;
   }
