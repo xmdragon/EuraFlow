@@ -1774,6 +1774,7 @@ grep "Calculating date range" logs/backend-*.log
 | 客户端创建 | `client = OzonAPIClient(...)` | `async with OzonAPIClient(...) as client:` |
 | 分页参数 | `page=1, offset=0` | `last_id=0` |
 | **分页limit** | `limit=1000` | `limit=500`（OZON限制最大500） |
+| **filters参数** | 不传 `filters` | 必须传 `filters={"state": "ALL"}` |
 | 日期解析 | `datetime.fromisoformat(dt)` | 处理 `Z` 后缀（见下文） |
 | 店铺查询 | 只查 `id` | 必须同时查 `status == 'active'` |
 
@@ -1843,10 +1844,11 @@ async def sync_example_data(config: Dict[str, Any]) -> Dict[str, Any]:
                     has_more = True
 
                     while has_more:
-                        # 调用 OZON API（limit最大500）
+                        # 调用 OZON API（limit最大500，必须传filters）
                         response = await client.get_example_list(
                             last_id=current_last_id,
-                            limit=500
+                            limit=500,
+                            filters={"state": "ALL"}  # ⚠️ 关键：某些API必须传递filters才能返回数据
                         )
 
                         result = response.get("result", {})
@@ -2079,6 +2081,55 @@ result = await db.execute(
     )
 )
 ```
+
+#### 错误 7：未传递 `filters` 参数导致 API 返回 0 条记录
+
+**错误现象**：
+- API 调用成功，但返回 0 条记录：`{"result": [], "last_id": 0, "counter": 0}`
+- 日志显示：`OZON API 返回：0 条取消申请，last_id=0, counter=0`
+- 但在 OZON 官网后台可以看到有记录存在
+
+**原因**：
+- **某些 OZON API 接口要求必须传递 `filters` 参数才能返回数据**
+- 特别是取消/退货申请接口，不传 `filters` 会导致 API 返回空结果
+- 即使有历史数据，不传 `filters.state` 也可能返回 0 条
+
+**受影响的 API**：
+- `/v2/conditional-cancellation/list` - **必须传** `filters.state`
+- `/v2/returns/rfbs/list` - **必须传** `filters.state`
+
+**修复**：
+```python
+# ❌ 错误（不传 filters，返回 0 条）
+response = await client.get_conditional_cancellation_list(
+    last_id=current_last_id,
+    limit=500
+)
+
+# ✅ 正确（传递 filters，正常返回数据）
+response = await client.get_conditional_cancellation_list(
+    last_id=current_last_id,
+    limit=500,
+    filters={"state": "ALL"}  # 关键：获取所有状态的记录
+)
+```
+
+**OZON API 文档示例**：
+```json
+{
+  "filters": {
+    "state": "ALL"
+  },
+  "limit": 500,
+  "last_id": 0
+}
+```
+
+**filters 可选值**（取消申请）：
+- `"ALL"` - 所有状态
+- `"APPROVED"` - 已批准
+- `"DECLINED"` - 已拒绝
+- `"WAITING_FOR_APPROVAL"` - 等待批准
 
 **调试技巧**：
 

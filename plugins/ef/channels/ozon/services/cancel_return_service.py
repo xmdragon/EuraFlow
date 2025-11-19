@@ -123,7 +123,8 @@ class CancelReturnService:
             while has_more:
                 response = await client.get_conditional_cancellation_list(
                     last_id=current_last_id,
-                    limit=500  # OZON API 最大值为500
+                    limit=500,  # OZON API 最大值为500
+                    filters={"state": "ALL"}  # 获取所有状态的取消申请
                 )
 
                 # OZON API 响应格式：{'result': [...], 'last_id': 0, 'counter': 0}
@@ -131,6 +132,8 @@ class CancelReturnService:
                 cancellations = response.get("result", [])
                 next_last_id = response.get("last_id", 0)
                 counter = response.get("counter", 0)
+
+                logger.info(f"OZON API 返回：{len(cancellations)} 条取消申请，last_id={next_last_id}, counter={counter}")
 
                 for cancellation_data in cancellations:
                     try:
@@ -330,7 +333,8 @@ class CancelReturnService:
             while has_more:
                 response = await client.get_returns_rfbs_list(
                     last_id=current_last_id,
-                    limit=500  # OZON API 最大值为500
+                    limit=500,  # OZON API 最大值为500
+                    filters={"state": "ALL"}  # 获取所有状态的退货申请
                 )
 
                 # OZON API 响应格式：{'result': [...], 'last_id': 0, 'counter': 0}

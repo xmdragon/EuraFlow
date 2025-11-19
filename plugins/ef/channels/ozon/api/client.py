@@ -2151,7 +2151,8 @@ class OzonAPIClient:
     async def get_conditional_cancellation_list(
         self,
         last_id: int = 0,
-        limit: int = 1000
+        limit: int = 1000,
+        filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         获取取消申请列表
@@ -2159,7 +2160,8 @@ class OzonAPIClient:
 
         Args:
             last_id: 上次查询的最后一个ID（用于分页）
-            limit: 每页数量（默认1000，最大1000）
+            limit: 每页数量（默认1000，最大500）
+            filters: 过滤条件（例如：{"state": "ALL"} 获取所有状态）
 
         Returns:
             取消申请列表数据
@@ -2168,6 +2170,10 @@ class OzonAPIClient:
             "last_id": last_id,
             "limit": limit
         }
+
+        # 添加过滤条件（OZON API要求必须传递filters才能返回数据）
+        if filters:
+            data["filters"] = filters
 
         return await self._request(
             "POST",
@@ -2179,7 +2185,8 @@ class OzonAPIClient:
     async def get_returns_rfbs_list(
         self,
         last_id: int = 0,
-        limit: int = 1000
+        limit: int = 1000,
+        filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         获取退货申请列表（rFBS）
@@ -2187,7 +2194,8 @@ class OzonAPIClient:
 
         Args:
             last_id: 上次查询的最后一个ID（用于分页）
-            limit: 每页数量（默认1000，最大1000）
+            limit: 每页数量（默认1000，最大500）
+            filters: 过滤条件（例如：{"state": "ALL"} 获取所有状态）
 
         Returns:
             退货申请列表数据
@@ -2196,6 +2204,10 @@ class OzonAPIClient:
             "last_id": last_id,
             "limit": limit
         }
+
+        # 添加过滤条件（OZON API要求必须传递filters才能返回数据）
+        if filters:
+            data["filters"] = filters
 
         return await self._request(
             "POST",

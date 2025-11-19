@@ -1,7 +1,62 @@
-// 导入全局OZON API限流器
+// 导入全局OZON API限流器和标准headers生成器
 import { OzonApiRateLimiter } from '../shared/ozon-rate-limiter';
+import { getOzonStandardHeaders } from '../shared/ozon-headers';
 
+// ============================================================================
+// OZON 版本信息动态拦截器
+// ============================================================================
+// 监听OZON API请求，自动捕获真实的 x-o3-app-version 和 x-o3-manifest-version
+// 缓存到 chrome.storage.local（24小时有效期），供 ozon-headers.ts 使用
+// ============================================================================
+
+const OZON_VERSION_CACHE_KEY = 'ozon_intercepted_versions';
+
+chrome.webRequest.onBeforeSendHeaders.addListener(
+  (details) => {
+    const headers = details.requestHeaders || [];
+    const versionHeaders: Record<string, string> = {};
+
+    // 提取关键headers
+    headers.forEach((header) => {
+      const name = header.name.toLowerCase();
+      if (name === 'x-o3-app-version' || name === 'x-o3-manifest-version') {
+        versionHeaders[name] = header.value || '';
+      }
+    });
+
+    // 如果找到了完整的版本信息，缓存起来
+    if (versionHeaders['x-o3-app-version'] && versionHeaders['x-o3-manifest-version']) {
+      chrome.storage.local.set({
+        [OZON_VERSION_CACHE_KEY]: {
+          appVersion: versionHeaders['x-o3-app-version'],
+          manifestVersion: versionHeaders['x-o3-manifest-version'],
+          timestamp: Date.now()
+        }
+      });
+
+      console.log('[EuraFlow] ✅ 成功拦截OZON版本信息:', {
+        appVersion: versionHeaders['x-o3-app-version'],
+        manifestVersion: versionHeaders['x-o3-manifest-version'].substring(0, 50) + '...'
+      });
+    }
+
+    return { requestHeaders: details.requestHeaders };
+  },
+  {
+    urls: [
+      'https://www.ozon.ru/api/*',
+      'https://api.ozon.ru/*',
+      'https://seller.ozon.ru/api/*'
+    ]
+  },
+  ['requestHeaders']
+);
+
+console.log('[EuraFlow] 🔍 OZON版本拦截器已启动');
+
+// ============================================================================
 // 全局商品数据缓存（5分钟有效期）
+// ============================================================================
 
 interface GlobalProductData {
   url: string;
@@ -798,20 +853,27 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
     // 4. 使用全局OZON API限流器（统一管理所有OZON API请求频率）
     const limiter = OzonApiRateLimiter.getInstance();
 
-    // 5. 调用 OZON search-variant-model API（参考 spbang 的 headers）
+    // 5. 调用 OZON search-variant-model API（使用完整headers避免触发限流）
+    // 注意：seller.ozon.ru 需要特殊的 seller-ui headers，不能直接使用标准headers
+    const baseHeaders = await getOzonStandardHeaders({
+      referer: 'https://seller.ozon.ru/app/products'
+    });
+
+    // 覆盖/添加 seller-ui 专属headers
+    const sellerHeaders = {
+      ...baseHeaders,
+      'Cookie': mergedCookie,
+      'Origin': 'https://seller.ozon.ru',  // 覆盖为 seller 域名
+      'x-o3-company-id': sellerId.toString(),
+      'x-o3-app-name': 'seller-ui',  // 覆盖为 seller-ui
+      'x-o3-language': 'zh-Hans',
+      'x-o3-page-type': 'products-other'
+    };
+
     const response = await limiter.execute(() =>
       fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': mergedCookie,
-          'x-o3-company-id': sellerId.toString(),
-          'x-o3-app-name': 'seller-ui',
-          'x-o3-language': 'zh-Hans',
-          'x-o3-page-type': 'products-other',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache'
-        },
+        headers: sellerHeaders,
         body: JSON.stringify({
           limit: '10',
           name: productSku
@@ -1380,18 +1442,27 @@ async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): P
 
   const results: any[] = [];
 
+  // 使用全局OZON API限流器
+  const limiter = OzonApiRateLimiter.getInstance();
+
   for (const productId of productIds) {
     try {
       const origin = 'https://www.ozon.ru';
       const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
       const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
 
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      // 使用标准headers + 限流器（避免触发限流）
+      const headers = await getOzonStandardHeaders({
+        referer: `https://www.ozon.ru/product/${productId}/`
       });
+
+      const response = await limiter.execute(() =>
+        fetch(apiUrl, {
+          method: 'GET',
+          headers,
+          credentials: 'include'
+        })
+      );
 
       if (!response.ok) {
         console.warn(`[OZON跟卖数据] SKU=${productId} HTTP错误: ${response.status}`);
@@ -1732,14 +1803,15 @@ async function handleGetOzonSellerDimensions(productId: string): Promise<any> {
     // 使用全局OZON API限流器（统一管理所有OZON API请求频率）
     const limiter = OzonApiRateLimiter.getInstance();
 
+    // 使用标准headers（避免触发限流）
+    const headers = await getOzonStandardHeaders({
+      referer: `https://www.ozon.ru/product/${productId}/`
+    });
+
     const response = await limiter.execute(() =>
       fetch(`https://api.ozon.ru/composer-api.bx/page/json/v2?url=/product/${productId}/`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8'
-        },
+        headers,
         credentials: 'include' // 启用Cookie认证
       })
     );

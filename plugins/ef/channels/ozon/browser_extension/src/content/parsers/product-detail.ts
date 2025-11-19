@@ -48,17 +48,20 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
   try {
     const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(productUrl)}`;
 
-    // 使用全局OZON API限流器（统一管理所有OZON API请求频率）
+    // 使用全局OZON API限流器和标准headers（避免触发限流）
     const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
+    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
     const limiter = OzonApiRateLimiter.getInstance();
+
+    const headers = await getOzonStandardHeaders({
+      referer: window.location.href,
+      includeContentType: false
+    });
 
     const response = await limiter.execute(() =>
       fetch(apiUrl, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8'
-        },
+        headers,
         credentials: 'include',
       })
     );
@@ -95,11 +98,16 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
       console.log(`[EuraFlow] 正在调用 OZON Modal API 获取完整变体: ${apiUrl}`);
     }
 
+    // 使用标准headers（避免触发限流）
+    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
+    const headers = await getOzonStandardHeaders({
+      referer: window.location.href
+    });
+
     const response = await fetch(apiUrl, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
+      credentials: 'include'
     });
 
     if (!response.ok) {
@@ -380,11 +388,16 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       console.log(`[EuraFlow] 正在调用 OZON Page2 API 获取特征和描述: ${apiUrl}`);
     }
 
+    // 使用标准headers（避免触发限流）
+    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
+    const headers = await getOzonStandardHeaders({
+      referer: window.location.href
+    });
+
     const response = await fetch(apiUrl, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
+      credentials: 'include'
     });
 
     if (!response.ok) {
