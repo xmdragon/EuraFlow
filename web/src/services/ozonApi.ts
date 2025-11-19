@@ -2244,3 +2244,103 @@ export const getPromotionActions = async (shopId: number): Promise<PromotionActi
   const response = await apiClient.get(`/ozon/shops/${shopId}/promotions/actions`);
   return response.data?.data || [];
 };
+
+// ============ 取消和退货申请接口 ============
+
+export interface Cancellation {
+  id: number;
+  cancellation_id: number;
+  posting_number: string;
+  order_date: string | null;
+  cancelled_at: string | null;
+  cancellation_initiator: string | null;
+  cancellation_reason_name: string | null;
+  state: string;
+  state_name: string | null;
+  auto_approve_date: string | null;
+}
+
+export interface Return {
+  id: number;
+  return_id: number;
+  return_number: string;
+  posting_number: string;
+  client_name: string | null;
+  product_name: string | null;
+  offer_id: string | null;
+  sku: number | null;
+  price: string | null;
+  currency_code: string | null;
+  group_state: string;
+  state_name: string | null;
+  money_return_state_name: string | null;
+  created_at_ozon: string | null;
+}
+
+export interface CancellationListResponse {
+  items: Cancellation[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface ReturnListResponse {
+  items: Return[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CancellationFilter {
+  page?: number;
+  limit?: number;
+  shop_id?: number | null;
+  state?: string;
+  initiator?: string;
+  posting_number?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface ReturnFilter {
+  page?: number;
+  limit?: number;
+  shop_id?: number | null;
+  group_state?: string;
+  posting_number?: string;
+  offer_id?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+/**
+ * 获取取消申请列表
+ */
+export const getCancellations = async (filter: CancellationFilter): Promise<CancellationListResponse> => {
+  const response = await apiClient.get('/ozon/cancel-return/cancellations', { params: filter });
+  return response.data;
+};
+
+/**
+ * 获取退货申请列表
+ */
+export const getReturns = async (filter: ReturnFilter): Promise<ReturnListResponse> => {
+  const response = await apiClient.get('/ozon/cancel-return/returns', { params: filter });
+  return response.data;
+};
+
+/**
+ * 手动同步取消申请
+ */
+export const syncCancellations = async (shopId: number): Promise<any> => {
+  const response = await apiClient.post('/ozon/cancel-return/cancellations/sync', { shop_id: shopId });
+  return response.data;
+};
+
+/**
+ * 手动同步退货申请
+ */
+export const syncReturns = async (shopId: number): Promise<any> => {
+  const response = await apiClient.post('/ozon/cancel-return/returns/sync', { shop_id: shopId });
+  return response.data;
+};

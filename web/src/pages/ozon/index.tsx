@@ -21,6 +21,7 @@ const CollectionRecords = lazyWithRetry(() => import("./CollectionRecords"));
 const ChatList = lazyWithRetry(() => import("./ChatList"));
 const ChatDetail = lazyWithRetry(() => import("./ChatDetail"));
 const Promotions = lazyWithRetry(() => import("./Promotions"));
+const CancelReturn = lazyWithRetry(() => import("./CancelReturn"));
 
 // 加载中组件
 const PageLoading = () => (
@@ -51,6 +52,7 @@ const OzonManagement: React.FC = () => {
         <Route path="orders" element={<OrderList />} />
         <Route path="packing" element={<PackingShipment />} />
         <Route path="reports" element={<OrderReport />} />
+        <Route path="cancel-return" element={<CancelReturn />} />
         <Route path="finance-transactions" element={<FinanceTransactions />} />
         <Route path="chats" element={<ChatList />} />
         <Route path="chat/:chatId" element={<ChatDetail />} />

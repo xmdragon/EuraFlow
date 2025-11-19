@@ -2147,3 +2147,59 @@ class OzonAPIClient:
             data=data,
             resource_type="actions"
         )
+
+    async def get_conditional_cancellation_list(
+        self,
+        last_id: int = 0,
+        limit: int = 1000
+    ) -> Dict[str, Any]:
+        """
+        获取取消申请列表
+        使用 /v2/conditional-cancellation/list 接口
+
+        Args:
+            last_id: 上次查询的最后一个ID（用于分页）
+            limit: 每页数量（默认1000，最大1000）
+
+        Returns:
+            取消申请列表数据
+        """
+        data = {
+            "last_id": last_id,
+            "limit": limit
+        }
+
+        return await self._request(
+            "POST",
+            "/v2/conditional-cancellation/list",
+            data=data,
+            resource_type="orders"
+        )
+
+    async def get_returns_rfbs_list(
+        self,
+        last_id: int = 0,
+        limit: int = 1000
+    ) -> Dict[str, Any]:
+        """
+        获取退货申请列表（rFBS）
+        使用 /v2/returns/rfbs/list 接口
+
+        Args:
+            last_id: 上次查询的最后一个ID（用于分页）
+            limit: 每页数量（默认1000，最大1000）
+
+        Returns:
+            退货申请列表数据
+        """
+        data = {
+            "last_id": last_id,
+            "limit": limit
+        }
+
+        return await self._request(
+            "POST",
+            "/v2/returns/rfbs/list",
+            data=data,
+            resource_type="orders"
+        )

@@ -1,0 +1,62 @@
+.cancelReturnPage {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+.filterCard {
+  margin-bottom: 16px;
+}
+
+.filterRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filterItem {
+  flex: 0 0 auto;
+}
+
+.tabsCard {
+  background: #fff;
+}
+
+.compactTable {
+  :global {
+    .ant-table {
+      font-size: 13px;
+    }
+
+    .ant-table-thead > tr > th {
+      background: #fafafa;
+      font-weight: 600;
+      padding: 12px 8px;
+    }
+
+    .ant-table-tbody > tr > td {
+      padding: 8px;
+    }
+  }
+}
+
+.postingNumber {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-weight: 500;
+  cursor: pointer;
+  color: #1890ff;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.statusTag {
+  font-size: 12px;
+}
+
+.emptyState {
+  padding: 48px 0;
+  text-align: center;
+  color: #999;
+}

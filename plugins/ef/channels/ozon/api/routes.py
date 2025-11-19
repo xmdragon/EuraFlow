@@ -180,5 +180,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import collection record routes: {e}")
 
+try:
+    from .cancel_return_routes import router as cancel_return_router
+    router.include_router(cancel_return_router)
+    logger.info("✓ Loaded cancel_return_routes")
+except ImportError as e:
+    logger.warning(f"Could not import cancel return routes: {e}")
+
 
 logger.info("Ozon API routes initialized successfully")

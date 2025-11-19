@@ -19,6 +19,7 @@ import {
   PlusOutlined,
   CheckOutlined,
   CloseOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import {
   Layout,
@@ -258,6 +259,12 @@ const Dashboard: React.FC = () => {
           icon: <FileTextOutlined />,
           label: createMenuLabel("ozon-reports", "订单报表", "/dashboard/ozon/reports"),
           onClick: () => navigate("/dashboard/ozon/reports"),
+        },
+        {
+          key: "ozon-cancel-return",
+          icon: <CloseCircleOutlined />,
+          label: createMenuLabel("ozon-cancel-return", "取消和退货", "/dashboard/ozon/cancel-return"),
+          onClick: () => navigate("/dashboard/ozon/cancel-return"),
         },
         {
           key: "ozon-finance-transactions",

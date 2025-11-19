@@ -722,6 +722,56 @@ async def setup(hooks) -> None:
         import traceback
         traceback.print_exc()
 
+    # 注册取消和退货申请同步任务
+    try:
+        from .services.cancel_return_service import CancelReturnService
+
+        # 创建取消申请同步任务
+        async def cancellations_sync_task(**kwargs):
+            """取消申请同步定时任务"""
+            service = CancelReturnService()
+            try:
+                logger.info("Starting cancellations sync task")
+                result = await service.sync_cancellations({})
+                logger.info(f"Cancellations sync completed: {result.get('message', '')}")
+                return result
+            except Exception as e:
+                logger.error(f"Cancellations sync failed: {e}", exc_info=True)
+                return {"success": False, "error": str(e)}
+
+        # 创建退货申请同步任务
+        async def returns_sync_task(**kwargs):
+            """退货申请同步定时任务"""
+            service = CancelReturnService()
+            try:
+                logger.info("Starting returns sync task")
+                result = await service.sync_returns({})
+                logger.info(f"Returns sync completed: {result.get('message', '')}")
+                return result
+            except Exception as e:
+                logger.error(f"Returns sync failed: {e}", exc_info=True)
+                return {"success": False, "error": str(e)}
+
+        # 注册取消申请同步任务（每小时执行）
+        await hooks.register_cron(
+            name="ef.ozon.cancellations.sync",
+            cron="0 */1 * * *",
+            task=cancellations_sync_task
+        )
+
+        # 注册退货申请同步任务（每小时执行）
+        await hooks.register_cron(
+            name="ef.ozon.returns.sync",
+            cron="0 */1 * * *",
+            task=returns_sync_task
+        )
+
+        logger.info("✓ Registered cancel and return sync tasks successfully")
+    except Exception as e:
+        logger.warning(f"Warning: Failed to register cancel and return sync tasks: {e}")
+        import traceback
+        traceback.print_exc()
+
     # 配置信息已在上面打印
 
 
