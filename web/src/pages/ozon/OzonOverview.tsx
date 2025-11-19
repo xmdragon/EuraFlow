@@ -50,7 +50,6 @@ const CHART_COLORS = [
 const OzonOverview: React.FC = () => {
   // 获取系统默认货币和时区工具
   const { symbol: currencySymbol } = useCurrency();
-  const { timezone } = useDateTime();
 
   // 初始化为 null 表示"全部店铺"
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -94,51 +93,38 @@ const OzonOverview: React.FC = () => {
     staleTime: 1 * 60 * 1000, // 1分钟内不重新请求
   });
 
-  // 计算日期范围参数（使用用户设置的时区）
+  // 计算日期范围参数（后端会根据用户时区处理）
   const dateRangeParams = useMemo(() => {
-    // 使用用户设置的时区计算当前时间
-    const now = dayjs().tz(timezone);
-
     switch (timeRangeType) {
       case '7days':
-        return { days: 7 };
       case '14days':
-        return { days: 14 };
       case 'thisMonth':
-        // 从本月1日到今天（用户时区）
-        return {
-          startDate: now.startOf('month').format('YYYY-MM-DD'),
-          endDate: now.format('YYYY-MM-DD'),
-        };
       case 'lastMonth':
-        // 上个月1日到上个月最后一天（用户时区）
-        const lastMonth = now.subtract(1, 'month');
-        return {
-          startDate: lastMonth.startOf('month').format('YYYY-MM-DD'),
-          endDate: lastMonth.endOf('month').format('YYYY-MM-DD'),
-        };
+        // 传递 range_type，让后端根据用户时区计算
+        return { rangeType: timeRangeType };
       case 'custom':
-        // 自定义日期范围（用户时区）
+        // 自定义日期范围：前端传日期字符串，后端按用户时区解析
         if (customDateRange[0] && customDateRange[1]) {
           return {
+            rangeType: 'custom',
             startDate: customDateRange[0].format('YYYY-MM-DD'),
             endDate: customDateRange[1].format('YYYY-MM-DD'),
           };
         }
-        return { days: 7 }; // 默认7天
+        return { rangeType: '7days' }; // 默认7天
       default:
-        return { days: 7 };
+        return { rangeType: '7days' };
     }
-  }, [timeRangeType, customDateRange, timezone]);
+  }, [timeRangeType, customDateRange]);
 
   // 获取每日posting统计
   const { data: dailyStatsData, isLoading: isDailyStatsLoading } = useQuery({
     queryKey: ['ozon', 'daily-posting-stats', debouncedShop, dateRangeParams],
     queryFn: () => ozonApi.getDailyPostingStats(
       debouncedShop,
-      'days' in dateRangeParams ? dateRangeParams.days : undefined,
-      'startDate' in dateRangeParams ? dateRangeParams.startDate : undefined,
-      'endDate' in dateRangeParams ? dateRangeParams.endDate : undefined
+      dateRangeParams.rangeType,
+      dateRangeParams.startDate,
+      dateRangeParams.endDate
     ),
     enabled: shouldFetchData,
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
@@ -149,9 +135,9 @@ const OzonOverview: React.FC = () => {
     queryKey: ['ozon', 'daily-revenue-stats', debouncedShop, dateRangeParams],
     queryFn: () => ozonApi.getDailyRevenueStats(
       debouncedShop,
-      'days' in dateRangeParams ? dateRangeParams.days : undefined,
-      'startDate' in dateRangeParams ? dateRangeParams.startDate : undefined,
-      'endDate' in dateRangeParams ? dateRangeParams.endDate : undefined
+      dateRangeParams.rangeType,
+      dateRangeParams.startDate,
+      dateRangeParams.endDate
     ),
     enabled: shouldFetchData,
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
