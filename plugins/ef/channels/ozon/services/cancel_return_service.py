@@ -123,7 +123,7 @@ class CancelReturnService:
             while has_more:
                 response = await client.get_conditional_cancellation_list(
                     last_id=current_last_id,
-                    limit=1000
+                    limit=500  # OZON API 最大值为500
                 )
 
                 result = response.get("result", {})
@@ -329,7 +329,7 @@ class CancelReturnService:
             while has_more:
                 response = await client.get_returns_rfbs_list(
                     last_id=current_last_id,
-                    limit=1000
+                    limit=500  # OZON API 最大值为500
                 )
 
                 result = response.get("result", {})

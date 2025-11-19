@@ -1773,6 +1773,7 @@ grep "Calculating date range" logs/backend-*.log
 | API密钥字段 | `shop.api_key` | `shop.api_key_enc` |
 | 客户端创建 | `client = OzonAPIClient(...)` | `async with OzonAPIClient(...) as client:` |
 | 分页参数 | `page=1, offset=0` | `last_id=0` |
+| **分页limit** | `limit=1000` | `limit=500`（OZON限制最大500） |
 | 日期解析 | `datetime.fromisoformat(dt)` | 处理 `Z` 后缀（见下文） |
 | 店铺查询 | 只查 `id` | 必须同时查 `status == 'active'` |
 
@@ -1842,10 +1843,10 @@ async def sync_example_data(config: Dict[str, Any]) -> Dict[str, Any]:
                     has_more = True
 
                     while has_more:
-                        # 调用 OZON API
+                        # 调用 OZON API（limit最大500）
                         response = await client.get_example_list(
                             last_id=current_last_id,
-                            limit=1000
+                            limit=500
                         )
 
                         result = response.get("result", {})
@@ -1977,7 +1978,49 @@ while has_more:
         has_more = False
 ```
 
-#### 错误 4：日期时间解析未处理 `Z` 后缀
+#### 错误 4：分页 limit 超过 500
+
+**错误现象**：
+```json
+{
+  "code": 3,
+  "message": "Request validation error: invalid GetConditionalCancellationListV2Request.Limit: value must be inside range (0, 500]"
+}
+```
+
+**原因**：
+- OZON API 对不同接口的 `limit` 参数有严格限制
+- 取消/退货申请接口：**最大值为 500**
+- 其他接口可能有不同限制（如订单接口最大1000）
+
+**排查**：
+```bash
+# 查看日志中的API错误
+tail -100 logs/backend.log | grep "value must be inside range"
+```
+
+**修复**：
+```python
+# ❌ 错误（超过限制）
+response = await client.get_conditional_cancellation_list(
+    last_id=current_last_id,
+    limit=1000  # 超过500！
+)
+
+# ✅ 正确（遵守限制）
+response = await client.get_conditional_cancellation_list(
+    last_id=current_last_id,
+    limit=500  # OZON API 最大值
+)
+```
+
+**不同接口的 limit 限制**：
+- `/v2/conditional-cancellation/list` - 最大 **500**
+- `/v2/returns/rfbs/list` - 最大 **500**
+- `/v3/posting/fbs/list` - 最大 **1000**
+- `/v2/product/list` - 最大 **1000**
+
+#### 错误 5：日期时间解析未处理 `Z` 后缀
 
 **错误现象**：
 ```python
@@ -2011,7 +2054,7 @@ def _parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
 created_at = self._parse_datetime(data.get("created_at"))
 ```
 
-#### 错误 5：未检查店铺状态
+#### 错误 6：未检查店铺状态
 
 **错误现象**：
 - 同步了已停用的店铺，导致 API 调用失败
