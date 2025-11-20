@@ -92,7 +92,7 @@ class ReturnListResponse(BaseModel):
 
 class SyncRequest(BaseModel):
     """同步请求"""
-    shop_id: int = Field(..., description="店铺ID")
+    shop_id: Optional[int] = Field(None, description="店铺ID（不传则同步所有店铺）")
 
 
 class SyncResponse(BaseModel):
@@ -267,13 +267,19 @@ async def sync_cancellations(
         problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
 
     # 校验店铺权限
-    try:
-        allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
-        logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
-        if request.shop_id not in allowed_shop_ids:
-            problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    if request.shop_id is not None:
+        # 指定店铺：检查是否有权限操作该店铺
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+            logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
+            if request.shop_id not in allowed_shop_ids:
+                problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+    else:
+        # 全部店铺：非 admin 不允许
+        if current_user.role != "admin":
+            problem(403, "PERMISSION_DENIED", "只有管理员可以同步所有店铺")
 
     # 生成任务ID
     task_id = f"cancellation_sync_{uuid.uuid4().hex[:12]}"
@@ -376,13 +382,19 @@ async def sync_returns(
         problem(403, "PERMISSION_DENIED", "您没有权限执行此操作")
 
     # 校验店铺权限
-    try:
-        allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
-        logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
-        if request.shop_id not in allowed_shop_ids:
-            problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    if request.shop_id is not None:
+        # 指定店铺：检查是否有权限操作该店铺
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, request.shop_id)
+            logger.info(f"用户有权限的店铺: {allowed_shop_ids}")
+            if request.shop_id not in allowed_shop_ids:
+                problem(403, "SHOP_ACCESS_DENIED", "您没有权限操作该店铺")
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+    else:
+        # 全部店铺：非 admin 不允许
+        if current_user.role != "admin":
+            problem(403, "PERMISSION_DENIED", "只有管理员可以同步所有店铺")
 
     # 生成任务ID
     task_id = f"return_sync_{uuid.uuid4().hex[:12]}"

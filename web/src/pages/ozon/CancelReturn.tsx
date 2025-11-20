@@ -239,11 +239,6 @@ const CancelReturn: React.FC = () => {
 
   // 手动同步（异步）
   const handleSync = async () => {
-    if (selectedShop === null) {
-      notifyError('请先选择具体店铺，不支持同步全部店铺');
-      return;
-    }
-
     try {
       if (activeTab === 'cancellations') {
         // 启动取消申请同步

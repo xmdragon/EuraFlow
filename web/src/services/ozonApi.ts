@@ -2354,15 +2354,19 @@ export const getReturnDetail = async (returnId: number): Promise<Return> => {
 /**
  * 手动同步取消申请
  */
-export const syncCancellations = async (shopId: number): Promise<any> => {
-  const response = await apiClient.post('/ozon/cancel-return/cancellations/sync', { shop_id: shopId });
+export const syncCancellations = async (shopId: number | null): Promise<any> => {
+  const response = await apiClient.post('/ozon/cancel-return/cancellations/sync', {
+    shop_id: shopId
+  });
   return response.data;
 };
 
 /**
  * 手动同步退货申请
  */
-export const syncReturns = async (shopId: number): Promise<any> => {
-  const response = await apiClient.post('/ozon/cancel-return/returns/sync', { shop_id: shopId });
+export const syncReturns = async (shopId: number | null): Promise<any> => {
+  const response = await apiClient.post('/ozon/cancel-return/returns/sync', {
+    shop_id: shopId
+  });
   return response.data;
 };
