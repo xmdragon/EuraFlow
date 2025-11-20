@@ -219,6 +219,30 @@ async def get_returns(
     return result
 
 
+@router.get("/returns/{return_id}", response_model=ReturnItemResponse)
+async def get_return_detail(
+    return_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取退货申请详情
+
+    权限要求：
+    - admin: 可查看所有店铺
+    - operator: 只能查看已授权店铺
+    - viewer: 只读权限
+    """
+    # 调用服务层
+    service = CancelReturnService()
+    result = await service.get_return_detail(return_id=return_id, current_user=current_user, db=db)
+
+    if not result:
+        problem(404, "RETURN_NOT_FOUND", "退货申请不存在")
+
+    return result
+
+
 @router.post("/cancellations/sync")
 async def sync_cancellations(
     request: SyncRequest,

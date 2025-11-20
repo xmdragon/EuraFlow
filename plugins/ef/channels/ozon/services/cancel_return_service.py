@@ -372,6 +372,15 @@ class CancelReturnService:
                             updated_count += 1
                         else:
                             synced_count += 1
+
+                        # 获取并更新详情信息
+                        try:
+                            return_id = return_data.get("return_id")
+                            if return_id:
+                                await self._fetch_and_update_return_detail(db, shop, return_id)
+                        except Exception as detail_error:
+                            logger.warning(f"获取退货详情失败 (return_id={return_id}): {detail_error}")
+                            # 详情获取失败不影响主流程，继续处理
                     except Exception as e:
                         logger.error(f"保存退货申请失败: {e}", exc_info=True)
                         continue
@@ -606,8 +615,10 @@ class CancelReturnService:
 
             # 查询数据（JOIN 商品表获取图片）
             from ..models import OzonProduct
+            # 从 images JSON 字段中提取 primary 图片 URL（使用 ->> 操作符）
+            image_url_expr = OzonProduct.images['primary'].astext
             query = (
-                select(OzonReturn, OzonProduct.primary_image)
+                select(OzonReturn, image_url_expr)
                 .outerjoin(OzonProduct, OzonReturn.sku == OzonProduct.ozon_sku)
             )
             if conditions:
@@ -655,6 +666,134 @@ class CancelReturnService:
                 "page": page,
                 "limit": limit
             }
+
+    async def get_return_detail(
+        self,
+        return_id: int,
+        current_user: Any,
+        db: AsyncSession
+    ) -> Optional[Dict[str, Any]]:
+        """
+        获取退货申请详情
+
+        Args:
+            return_id: 退货申请ID
+            current_user: 当前用户
+            db: 数据库会话
+
+        Returns:
+            退货申请详情字典，如果不存在或无权限则返回None
+        """
+        from ..models import OzonProduct
+        from ..api.permissions import filter_by_shop_permission
+
+        # 查询退货申请（JOIN 商品表获取图片）
+        image_url_expr = OzonProduct.images['primary'].astext
+        query = (
+            select(OzonReturn, image_url_expr)
+            .outerjoin(OzonProduct, OzonReturn.sku == OzonProduct.ozon_sku)
+            .where(OzonReturn.return_id == return_id)
+        )
+
+        result = await db.execute(query)
+        row = result.first()
+
+        if not row:
+            return None
+
+        return_obj, primary_image = row
+
+        # 权限校验
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, return_obj.shop_id)
+            if return_obj.shop_id not in allowed_shop_ids:
+                return None
+        except Exception:
+            return None
+
+        # 返回详情
+        return {
+            "id": return_obj.id,
+            "return_id": return_obj.return_id,
+            "return_number": return_obj.return_number,
+            "posting_number": return_obj.posting_number,
+            "order_number": return_obj.order_number,
+            "client_name": self._mask_client_name(return_obj.client_name),
+            "product_name": return_obj.product_name,
+            "offer_id": return_obj.offer_id,
+            "sku": return_obj.sku,
+            "price": str(return_obj.price) if return_obj.price else None,
+            "currency_code": return_obj.currency_code,
+            "group_state": return_obj.group_state,
+            "state": return_obj.state,
+            "state_name": return_obj.state_name,
+            "money_return_state_name": return_obj.money_return_state_name,
+            "delivery_method_name": return_obj.delivery_method_name,
+            "return_reason_id": return_obj.return_reason_id,
+            "return_reason_name": return_obj.return_reason_name,
+            "rejection_reason_id": return_obj.rejection_reason_id,
+            "rejection_reason_name": return_obj.rejection_reason_name,
+            "return_method_description": return_obj.return_method_description,
+            "created_at_ozon": return_obj.created_at_ozon.isoformat() if return_obj.created_at_ozon else None,
+            "image_url": primary_image,
+        }
+
+    async def _fetch_and_update_return_detail(
+        self,
+        db: AsyncSession,
+        shop: Any,
+        return_id: int
+    ) -> None:
+        """
+        获取退货详情并更新数据库
+
+        Args:
+            db: 数据库会话
+            shop: 店铺对象
+            return_id: 退货申请ID
+        """
+        from ..api.client import OzonAPIClient
+
+        # 初始化API客户端
+        client = OzonAPIClient(
+            client_id=shop.client_id,
+            api_key=shop.api_key_enc  # 使用 api_key_enc 而不是 api_key
+        )
+
+        # 调用详情API
+        detail_response = await client.get_return_rfbs_info(return_id)
+
+        # 提取详情数据
+        detail_data = detail_response.get("result", {})
+        if not detail_data:
+            logger.warning(f"退货详情API返回空数据: return_id={return_id}")
+            return
+
+        # 查询数据库记录
+        result = await db.execute(
+            select(OzonReturn).where(
+                OzonReturn.shop_id == shop.id,
+                OzonReturn.return_id == return_id
+            )
+        )
+        return_obj = result.scalar_one_or_none()
+
+        if not return_obj:
+            logger.warning(f"未找到退货记录: return_id={return_id}")
+            return
+
+        # 更新详情字段
+        return_obj.money_return_state_name = detail_data.get("money_return_state_name")
+        return_obj.return_reason_id = detail_data.get("return_reason_id")
+        return_obj.return_reason_name = detail_data.get("return_reason_name")
+        return_obj.rejection_reason_id = detail_data.get("rejection_reason_id")
+        return_obj.rejection_reason_name = detail_data.get("rejection_reason_name")
+        return_obj.rejection_reasons = detail_data.get("rejection_reasons")
+        return_obj.return_method_description = detail_data.get("return_method_description")
+        return_obj.available_actions = detail_data.get("available_actions")
+        return_obj.updated_at = datetime.now(timezone.utc)
+
+        logger.debug(f"更新退货详情成功: return_id={return_id}")
 
     @staticmethod
     def _parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:

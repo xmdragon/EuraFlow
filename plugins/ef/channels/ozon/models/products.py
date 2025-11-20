@@ -68,7 +68,8 @@ class OzonProduct(Base):
     # 采购信息
     purchase_url = Column(String(1000), comment="采购地址")
     suggested_purchase_price = Column(Numeric(18, 4), comment="建议采购价")
-    
+    purchase_note = Column(String(500), comment="采购备注")
+
     # 库存信息
     stock = Column(Integer, default=0)
     reserved = Column(Integer, default=0)

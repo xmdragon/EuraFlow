@@ -1443,6 +1443,7 @@ export interface PurchasePriceHistoryResponse {
   offer_id: string | null;
   purchase_url: string | null;
   suggested_purchase_price: string | null;
+  purchase_note: string | null;
   history: PurchasePriceHistory[];
   total: number;
 }
@@ -2339,6 +2340,14 @@ export const getCancellations = async (filter: CancellationFilter): Promise<Canc
  */
 export const getReturns = async (filter: ReturnFilter): Promise<ReturnListResponse> => {
   const response = await apiClient.get('/ozon/cancel-return/returns', { params: filter });
+  return response.data;
+};
+
+/**
+ * 获取退货申请详情
+ */
+export const getReturnDetail = async (returnId: number): Promise<Return> => {
+  const response = await apiClient.get(`/ozon/cancel-return/returns/${returnId}`);
   return response.data;
 };
 

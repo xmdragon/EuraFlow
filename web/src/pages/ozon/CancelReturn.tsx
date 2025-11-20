@@ -17,6 +17,9 @@ import {
   Space,
   Typography,
   Tooltip,
+  Modal,
+  Descriptions,
+  Spin,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
@@ -94,6 +97,32 @@ const CancelReturn: React.FC = () => {
     posting_number: undefined as string | undefined,
     dateRange: [dayjs().subtract(30, 'days'), dayjs()] as [Dayjs | null, Dayjs | null] | null,
   });
+
+  // 详情 Modal 状态
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedReturnId, setSelectedReturnId] = useState<number | null>(null);
+
+  // 查询退货详情
+  const { data: returnDetail, isLoading: loadingDetail } = useQuery({
+    queryKey: ['returnDetail', selectedReturnId],
+    queryFn: async () => {
+      if (!selectedReturnId) return null;
+      return await ozonApi.getReturnDetail(selectedReturnId);
+    },
+    enabled: !!selectedReturnId && detailModalVisible,
+  });
+
+  // 打开详情 Modal
+  const handleOpenDetail = (returnId: number) => {
+    setSelectedReturnId(returnId);
+    setDetailModalVisible(true);
+  };
+
+  // 关闭详情 Modal
+  const handleCloseDetail = () => {
+    setDetailModalVisible(false);
+    setSelectedReturnId(null);
+  };
 
   // 查询取消申请列表
   const {
@@ -272,26 +301,18 @@ const CancelReturn: React.FC = () => {
       dataIndex: 'return_number',
       key: 'return_number',
       width: 150,
-      render: (text: string, record: ozonApi.Return) => (
-        <div>
+      render: (text: string, record: ozonApi.Return) => {
+        // 优先显示 return_number，如果为空则显示 return_id
+        const displayNumber = text || String(record.return_id);
+        return (
           <span
-            className={styles.postingNumber}
-            style={{ cursor: 'pointer' }}
-            onClick={() => {
-              // TODO: 打开申请详情Modal
-              console.log('查看申请详情:', record.return_id);
-            }}
+            style={{ cursor: 'pointer', color: '#1890ff' }}
+            onClick={() => handleOpenDetail(record.return_id)}
           >
-            {text || '-'}
+            {displayNumber}
           </span>
-          {text && (
-            <CopyOutlined
-              style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
-              onClick={() => copyToClipboard(text, '申请号')}
-            />
-          )}
-        </div>
-      ),
+        );
+      },
     },
     {
       title: '货件编号',
@@ -300,7 +321,7 @@ const CancelReturn: React.FC = () => {
       width: 160,
       render: (text: string) => (
         <div>
-          <span className={styles.postingNumber}>{text}</span>
+          <span>{text}</span>
           <CopyOutlined
             style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
             onClick={() => copyToClipboard(text, '货件编号')}
@@ -666,6 +687,97 @@ const CancelReturn: React.FC = () => {
           </TabPane>
         </Tabs>
       </Card>
+
+      {/* 退货详情 Modal */}
+      <Modal
+        title="退货申请详情"
+        open={detailModalVisible}
+        onCancel={handleCloseDetail}
+        footer={[
+          <Button key="close" onClick={handleCloseDetail}>
+            关闭
+          </Button>,
+        ]}
+        width={800}
+      >
+        {loadingDetail ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Spin />
+          </div>
+        ) : returnDetail ? (
+          <>
+            {/* 商品图片 */}
+            {returnDetail.image_url && (
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <ProductImage
+                  imageUrl={returnDetail.image_url}
+                  size="medium"
+                  name={returnDetail.product_name || ''}
+                  offerId={returnDetail.offer_id || undefined}
+                  sku={returnDetail.sku?.toString() || undefined}
+                />
+              </div>
+            )}
+
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="申请号" span={2}>
+                {returnDetail.return_number || returnDetail.return_id}
+              </Descriptions.Item>
+              <Descriptions.Item label="货件编号" span={2}>
+                {returnDetail.posting_number}
+              </Descriptions.Item>
+              <Descriptions.Item label="订单号">
+                {returnDetail.order_number || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="客户姓名">
+                {returnDetail.client_name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="商品名称" span={2}>
+                {returnDetail.product_name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Offer ID">
+                {returnDetail.offer_id || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="SKU">
+                {returnDetail.sku || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="价格">
+                {returnDetail.price ? `${returnDetail.price} ${returnDetail.currency_code}` : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="配送方式">
+                {returnDetail.delivery_method_name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="状态组">
+                <Tag color={RETURN_STATE_CONFIG[returnDetail.group_state]?.color || 'default'}>
+                  {getReturnGroupStateText(returnDetail.group_state)}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="详细状态">
+                {returnDetail.state_name || getReturnStateText(returnDetail.state) || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="退款状态" span={2}>
+                {returnDetail.money_return_state_name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="退货原因" span={2}>
+                {returnDetail.return_reason_name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="拒绝原因" span={2}>
+                {returnDetail.rejection_reason_name || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="退货方式" span={2}>
+                {returnDetail.return_method_description || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间" span={2}>
+                {returnDetail.created_at_ozon ? formatDateTime(returnDetail.created_at_ozon) : '-'}
+              </Descriptions.Item>
+            </Descriptions>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Text type="secondary">未找到详情数据</Text>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

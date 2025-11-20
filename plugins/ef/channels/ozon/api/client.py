@@ -2215,3 +2215,28 @@ class OzonAPIClient:
             data=data,
             resource_type="orders"
         )
+
+    async def get_return_rfbs_info(
+        self,
+        return_id: int
+    ) -> Dict[str, Any]:
+        """
+        获取退货申请详情（rFBS）
+        使用 /v2/returns/rfbs/info 接口
+
+        Args:
+            return_id: 退货申请ID
+
+        Returns:
+            退货申请详情数据
+        """
+        data = {
+            "return_id": return_id
+        }
+
+        return await self._request(
+            "POST",
+            "/v2/returns/rfbs/info",
+            data=data,
+            resource_type="orders"
+        )

@@ -502,6 +502,7 @@ const ProductList: React.FC = () => {
               depth: selectedProduct.depth,
               purchase_url: selectedProduct.purchase_url,
               suggested_purchase_price: selectedProduct.suggested_purchase_price,
+              purchase_note: selectedProduct.purchase_note,
             }}
             onFinish={async (values) => {
               try {
@@ -610,6 +611,10 @@ const ProductList: React.FC = () => {
                 </Form.Item>
               </Col>
             </Row>
+
+            <Form.Item name="purchase_note" label="采购备注">
+              <Input.TextArea rows={2} placeholder="请输入采购备注（可选）" />
+            </Form.Item>
 
             <Row gutter={16}>
               <Col span={6}>

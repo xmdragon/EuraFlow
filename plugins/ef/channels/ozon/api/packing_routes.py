@@ -1126,7 +1126,8 @@ async def get_product_purchase_price_history(
             OzonProduct.title,
             OzonProduct.offer_id,
             OzonProduct.purchase_url,
-            OzonProduct.suggested_purchase_price
+            OzonProduct.suggested_purchase_price,
+            OzonProduct.purchase_note
         )
         .where(OzonProduct.ozon_sku == int(sku))
         .limit(1)
@@ -1136,6 +1137,7 @@ async def get_product_purchase_price_history(
     offer_id = product[1] if product else None
     purchase_url = product[2] if product else None
     suggested_purchase_price = str(product[3]) if product and product[3] else None
+    purchase_note = product[4] if product else None
 
     # 2. 查询该SKU的进货价格历史（从postings表的raw_payload中匹配）
     # 使用JSONB查询：raw_payload->'products'数组中任意元素的sku字段匹配
@@ -1192,9 +1194,62 @@ async def get_product_purchase_price_history(
         "offer_id": offer_id,
         "purchase_url": purchase_url,
         "suggested_purchase_price": suggested_purchase_price,
+        "purchase_note": purchase_note,
         "history": history_records,
         "total": len(history_records)
     }
+
+
+@router.put("/products/{sku}/purchase-info")
+async def update_product_purchase_info(
+    sku: str,
+    purchase_url: str = Body(None, description="采购地址"),
+    suggested_purchase_price: str = Body(None, description="建议采购价"),
+    purchase_note: str = Body(None, description="采购备注"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """更新商品采购信息（采购地址、建议采购价、采购备注）"""
+    from decimal import Decimal
+
+    # 查询商品
+    result = await db.execute(
+        select(OzonProduct).where(OzonProduct.ozon_sku == int(sku))
+    )
+    product = result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        # 更新采购信息
+        if purchase_url is not None:
+            product.purchase_url = purchase_url
+        if suggested_purchase_price is not None:
+            product.suggested_purchase_price = Decimal(str(suggested_purchase_price)) if suggested_purchase_price else None
+        if purchase_note is not None:
+            product.purchase_note = purchase_note
+
+        product.updated_at = datetime.now()
+        await db.commit()
+
+        return {
+            "success": True,
+            "message": "采购信息更新成功",
+            "data": {
+                "sku": sku,
+                "purchase_url": product.purchase_url,
+                "suggested_purchase_price": str(product.suggested_purchase_price) if product.suggested_purchase_price else None,
+                "purchase_note": product.purchase_note
+            }
+        }
+
+    except Exception as e:
+        await db.rollback()
+        return {
+            "success": False,
+            "message": f"更新失败: {str(e)}"
+        }
 
 
 @router.post("/orders/prepare")
