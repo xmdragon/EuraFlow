@@ -298,11 +298,11 @@ const OzonOverview: React.FC = () => {
     return (
       <text
         x={x + width / 2}
-        y={y - 5}
-        fill="#666"
+        y={y + 15}
+        fill="#fff"
         textAnchor="middle"
         fontSize={11}
-        fontWeight="500"
+        fontWeight="bold"
       >
         {displayValue}
       </text>
