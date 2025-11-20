@@ -716,6 +716,7 @@ const CancelReturn: React.FC = () => {
                   name={returnDetail.product_name || ''}
                   offerId={returnDetail.offer_id || undefined}
                   sku={returnDetail.sku?.toString() || undefined}
+                  hoverBehavior="none"
                 />
               </div>
             )}
