@@ -63,7 +63,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   onUpdate,
 }) => {
   // 权限检查
-  const { canOperate, canSync } = usePermission();
+  const { canOperate, canSync, isAdmin } = usePermission();
   const { copyToClipboard } = useCopy();
   const { formatDateTime } = useDateTime();
 
@@ -710,7 +710,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         )}
                       </Descriptions.Item>
                       <Descriptions.Item label="进货金额">
-                        {canEdit && isEditingPurchasePrice && canOperate ? (
+                        {(canEdit || isAdmin) && isEditingPurchasePrice && canOperate ? (
                           <Space>
                             <InputNumber
                               value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
@@ -750,7 +750,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                   )
                                 : '-'}
                             </Text>
-                            {canEdit && canOperate && (
+                            {(canEdit || isAdmin) && canOperate && (
                               <Button
                                 type="link"
                                 size="small"
