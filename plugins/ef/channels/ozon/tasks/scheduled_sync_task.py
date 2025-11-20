@@ -74,18 +74,18 @@ async def _sync_all_shop_categories():
     async with db_manager.get_session() as db:
         # 获取第一家启用的店铺
         result = await db.execute(
-            select(OzonShop).where(OzonShop.enabled == True).limit(1)
+            select(OzonShop).where(OzonShop.status == "active").limit(1)
         )
         shop = result.scalar_one_or_none()
 
         if not shop:
-            logger.warning("No enabled shop found for category sync")
+            logger.warning("No active shop found for category sync")
             return {
                 "success": False,
                 "error": "No enabled shop available"
             }
 
-        logger.info(f"Using shop {shop.id} ({shop.name}) for category sync")
+        logger.info(f"Using shop {shop.id} ({shop.shop_name}) for category sync")
 
         try:
             # 创建 API 客户端
@@ -141,18 +141,18 @@ async def _sync_all_shop_attributes():
     async with db_manager.get_session() as db:
         # 获取第一家启用的店铺
         result = await db.execute(
-            select(OzonShop).where(OzonShop.enabled == True).limit(1)
+            select(OzonShop).where(OzonShop.status == "active").limit(1)
         )
         shop = result.scalar_one_or_none()
 
         if not shop:
-            logger.warning("No enabled shop found for attributes sync")
+            logger.warning("No active shop found for attributes sync")
             return {
                 "success": False,
                 "error": "No enabled shop available"
             }
 
-        logger.info(f"Using shop {shop.id} ({shop.name}) for attributes sync")
+        logger.info(f"Using shop {shop.id} ({shop.shop_name}) for attributes sync")
 
         try:
             # 创建 API 客户端
