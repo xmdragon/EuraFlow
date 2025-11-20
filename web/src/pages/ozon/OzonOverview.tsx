@@ -586,7 +586,7 @@ const OzonOverview: React.FC = () => {
             </div>
           ) : chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartData} margin={{ top: 30, right: 20, bottom: 20, left: 20 }}>
+              <LineChart data={chartData} margin={{ top: 30, right: 80, bottom: 20, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
@@ -650,7 +650,7 @@ const OzonOverview: React.FC = () => {
             </div>
           ) : revenueChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={revenueChartData} margin={{ top: 40, right: 20, bottom: 20, left: 20 }}>
+              <BarChart data={revenueChartData} margin={{ top: 40, right: 80, bottom: 20, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
