@@ -48,8 +48,7 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
   try {
     const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(productUrl)}`;
 
-    // ✅ 在 Content Script 中直接 fetch（显示在网络面板，不被识别为扩展爬虫）
-    // 使用全局 OZON API 限流器和标准 headers（避免触发限流）
+    // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
     const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
     const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
     const limiter = OzonApiRateLimiter.getInstance();
@@ -59,7 +58,7 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
       includeContentType: false
     });
 
-    const response = await limiter.execute(() =>
+    const response = await limiter.executeWithRetry(() =>
       fetch(apiUrl, {
         method: 'GET',
         headers,
@@ -80,7 +79,12 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
 
     // 返回完整的 API 响应（包含 layoutTrackingInfo 等字段）
     return data;
-  } catch (error) {
+  } catch (error: any) {
+    // CAPTCHA_PENDING 错误直接抛出，让上层处理
+    if (error.message?.startsWith('CAPTCHA_PENDING')) {
+      console.error('[EuraFlow] 🚫 触发反爬虫拦截');
+      throw error;
+    }
     console.error('[EuraFlow] 调用 OZON API 失败:', error);
     throw error;
   }
@@ -99,7 +103,7 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
       console.log(`[EuraFlow] 正在调用 OZON Modal API 获取完整变体: ${apiUrl}`);
     }
 
-    // ✅ 在 Content Script 中直接 fetch（显示在网络面板）
+    // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
     const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
     const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
     const limiter = OzonApiRateLimiter.getInstance();
@@ -108,7 +112,7 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
       referer: window.location.href
     });
 
-    const response = await limiter.execute(() =>
+    const response = await limiter.executeWithRetry(() =>
       fetch(apiUrl, {
         method: 'GET',
         headers,
@@ -144,7 +148,12 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
     }
 
     return aspects;
-  } catch (error) {
+  } catch (error: any) {
+    // CAPTCHA_PENDING 错误直接抛出，让上层处理
+    if (error.message?.startsWith('CAPTCHA_PENDING')) {
+      console.error('[EuraFlow] 🚫 触发反爬虫拦截');
+      throw error;
+    }
     console.error('[EuraFlow] 调用 Modal API 失败:', error);
     return null;
   }
@@ -394,7 +403,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       console.log(`[EuraFlow] 正在调用 OZON Page2 API 获取特征和描述: ${apiUrl}`);
     }
 
-    // ✅ 在 Content Script 中直接 fetch（显示在网络面板）
+    // ✅ 使用 executeWithRetry（包含反爬虫检查、智能重试、403/429 处理）
     const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
     const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
     const limiter = OzonApiRateLimiter.getInstance();
@@ -403,7 +412,7 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       referer: window.location.href
     });
 
-    const response = await limiter.execute(() =>
+    const response = await limiter.executeWithRetry(() =>
       fetch(apiUrl, {
         method: 'GET',
         headers,
@@ -474,7 +483,12 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
     }
 
     return Object.keys(extracted).length > 0 ? extracted : null;
-  } catch (error) {
+  } catch (error: any) {
+    // CAPTCHA_PENDING 错误直接抛出，让上层处理
+    if (error.message?.startsWith('CAPTCHA_PENDING')) {
+      console.error('[EuraFlow] 🚫 触发反爬虫拦截');
+      throw error;
+    }
     console.error('[EuraFlow] 调用 Page2 API 失败:', error);
     return null;
   }

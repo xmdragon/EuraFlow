@@ -100,11 +100,17 @@ export class RealPriceCalculator {
 
       // 4. 发送消息到 service worker，并发获取所有数据
       console.log('[EuraFlow] 并发获取所有商品数据...');
+
+      // 【关键修复】读取页面的 Cookie（包含 sc_company_id）
+      const pageCookie = document.cookie;
+      console.log('[EuraFlow] 页面 Cookie 长度:', pageCookie.length);
+
       const response = await chrome.runtime.sendMessage({
         type: 'FETCH_ALL_PRODUCT_DATA',
         data: {
           url: window.location.href,
-          productId: productId
+          productId: productId,
+          cookieString: pageCookie  // 传递页面 Cookie 给 Service Worker
         }
       });
 

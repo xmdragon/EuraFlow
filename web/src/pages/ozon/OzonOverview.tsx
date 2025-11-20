@@ -280,9 +280,9 @@ const OzonOverview: React.FC = () => {
     return null;
   };
 
-  // 自定义柱状图标签 - 显示销售额
+  // 自定义柱状图标签 - 显示销售额（外部显示，带引导线和背景色）
   const renderBarLabel = (props: any) => {
-    const { x, y, width, height, value } = props;
+    const { x, y, width, value, fill } = props;
 
     // 如果值为0或太小，不显示标签
     if (!value || value < 1) return null;
@@ -295,19 +295,166 @@ const OzonOverview: React.FC = () => {
       displayValue = Math.round(value).toString();
     }
 
+    const labelX = x + width / 2;
+    const labelY = y - 25; // 标签显示在柱子上方
+    const lineY = y - 5; // 引导线终点
+    const padding = 4;
+    const textWidth = displayValue.length * 6.5; // 估算文本宽度
+    const bgWidth = textWidth + padding * 2;
+    const bgHeight = 16;
+
     return (
-      <text
-        x={x + width / 2}
-        y={y + 15}
-        fill="#fff"
-        textAnchor="middle"
-        fontSize={11}
-        fontWeight="bold"
-      >
-        {displayValue}
-      </text>
+      <g>
+        {/* 引导线：从标签底部到柱子顶部 */}
+        <line
+          x1={labelX}
+          y1={labelY + bgHeight / 2}
+          x2={labelX}
+          y2={lineY}
+          stroke={fill}
+          strokeWidth={1}
+        />
+        {/* 背景矩形：与柱子同色 */}
+        <rect
+          x={labelX - bgWidth / 2}
+          y={labelY - bgHeight / 2}
+          width={bgWidth}
+          height={bgHeight}
+          fill={fill}
+          rx={3}
+          ry={3}
+        />
+        {/* 文本标签 */}
+        <text
+          x={labelX}
+          y={labelY}
+          fill="#fff"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={11}
+          fontWeight="bold"
+        >
+          {displayValue}
+        </text>
+      </g>
     );
   };
+
+  // 创建带颜色的折线图标签函数（同一X位置不同Y值的标签左右交替）
+  // 支持相同值的多个店铺显示不同标签，超过3个点时增加垂直偏移
+  const createLineLabel = useCallback(
+    (lineColor: string, shopKey: string) => {
+      return (props: any) => {
+        const { x, y, value, index } = props;
+
+        // 如果值为0，不显示标签
+        if (!value) return null;
+
+        const padding = 3;
+        const textWidth = value.toString().length * 6;
+        const bgWidth = textWidth + padding * 2;
+        const bgHeight = 14;
+
+        try {
+          // 从 chartData 获取当前日期的所有数据点
+          const currentDataPoint = chartData[index];
+          if (!currentDataPoint) {
+            return null;
+          }
+
+          // 收集当前日期所有店铺的值（带店铺名）
+          const valuesAtSameX: Array<{ shop: string; value: number }> = [];
+          Object.keys(currentDataPoint).forEach((key) => {
+            if (key !== 'date') {
+              const val = currentDataPoint[key];
+              if (val && typeof val === 'number' && val > 0) {
+                valuesAtSameX.push({ shop: key, value: val });
+              }
+            }
+          });
+
+          // 按值从小到大排序，值相同则按店铺名排序（保证一致性）
+          valuesAtSameX.sort((a, b) => {
+            if (a.value !== b.value) return a.value - b.value;
+            return a.shop.localeCompare(b.shop);
+          });
+
+          // 找到当前店铺在排序后的位置（精确匹配店铺+值）
+          const sortedIndex = valuesAtSameX.findIndex(
+            (item) => item.shop === shopKey && item.value === value
+          );
+
+          if (sortedIndex >= 0) {
+            // 根据排序后的位置交替左右：0左，1右，2左，3右...
+            const offsets = [-25, 25, -40, 40, -55, 55, -70, 70];
+            const offsetX = offsets[sortedIndex % offsets.length];
+
+            // 垂直偏移：超过3个点时开始垂直偏移，每4个标签向上移动20px
+            const verticalOffset = sortedIndex >= 3 ? Math.floor(sortedIndex / 4) * 20 : 0;
+
+            const labelY = y - 15 - verticalOffset;
+            const labelX = x + offsetX;
+
+            return (
+              <g>
+                {/* 连接线 */}
+                <line
+                  x1={x}
+                  y1={y - 5}
+                  x2={labelX}
+                  y2={labelY}
+                  stroke={lineColor}
+                  strokeWidth={0.5}
+                  strokeDasharray="2,2"
+                />
+                {/* 白色背景矩形 */}
+                <rect
+                  x={labelX - bgWidth / 2}
+                  y={labelY - bgHeight / 2}
+                  width={bgWidth}
+                  height={bgHeight}
+                  fill="white"
+                  stroke={lineColor}
+                  strokeWidth={1}
+                  rx={2}
+                  ry={2}
+                />
+                {/* 文本标签 */}
+                <text
+                  x={labelX}
+                  y={labelY}
+                  fill={lineColor}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={10}
+                  fontWeight="bold"
+                >
+                  {value}
+                </text>
+              </g>
+            );
+          }
+        } catch (error) {
+          console.error('Label render error:', error);
+        }
+
+        // 降级显示：如果排序逻辑失败，简单显示在上方
+        return (
+          <text
+            x={x}
+            y={y - 10}
+            fill={lineColor}
+            textAnchor="middle"
+            fontSize={10}
+            fontWeight="bold"
+          >
+            {value}
+          </text>
+        );
+      };
+    },
+    [chartData]
+  );
 
   return (
     <div>
@@ -439,7 +586,7 @@ const OzonOverview: React.FC = () => {
             </div>
           ) : chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={chartData}>
+              <LineChart data={chartData} margin={{ top: 30, right: 20, bottom: 20, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
@@ -448,7 +595,7 @@ const OzonOverview: React.FC = () => {
                   height={80}
                   tick={{ fontSize: 12 }}
                 />
-                <YAxis />
+                <YAxis domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.1)]} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
                 {displayMode === 'total' && !selectedShop ? (
@@ -461,9 +608,10 @@ const OzonOverview: React.FC = () => {
                     strokeWidth={2}
                     dot={{ r: 3 }}
                     activeDot={{ r: 5 }}
+                    label={createLineLabel(CHART_COLORS[0], dateRangeLabel)}
                   />
                 ) : (
-                  // 单店模式：显示各店铺的线
+                  // 单店模式：显示各店铺的线（带数值标签）
                   dailyStatsData?.shops.map((shop, index) => (
                     <Line
                       key={shop}
@@ -473,6 +621,7 @@ const OzonOverview: React.FC = () => {
                       strokeWidth={2}
                       dot={{ r: 3 }}
                       activeDot={{ r: 5 }}
+                      label={createLineLabel(CHART_COLORS[index % CHART_COLORS.length], shop)}
                     />
                   ))
                 )}
@@ -501,7 +650,7 @@ const OzonOverview: React.FC = () => {
             </div>
           ) : revenueChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={revenueChartData}>
+              <BarChart data={revenueChartData} margin={{ top: 40, right: 20, bottom: 20, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
@@ -510,7 +659,7 @@ const OzonOverview: React.FC = () => {
                   height={80}
                   tick={{ fontSize: 12 }}
                 />
-                <YAxis />
+                <YAxis domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} />
                 <Tooltip content={<RevenueTooltip />} />
                 <Legend />
                 {displayMode === 'total' && !selectedShop ? (

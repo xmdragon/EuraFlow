@@ -67,17 +67,23 @@ function renderField(label: string, value: string): HTMLElement {
   field.style.display = 'flex';
   field.style.justifyContent = 'space-between';
   field.style.alignItems = 'center';
-  field.style.padding = '6px 0';
+  field.style.padding = '6px';
   field.style.borderBottom = '1px solid #f0f0f0';
 
   const labelSpan = document.createElement('span');
-  labelSpan.className = 'tsBody400Medium';
+  // 移除 OZON 样式类，使用自己的样式
   labelSpan.style.color = '#757575';
+  labelSpan.style.fontSize = '14px';
+  labelSpan.style.fontWeight = '400';
+  labelSpan.style.lineHeight = '1.5';
   labelSpan.textContent = label;
 
   const valueSpan = document.createElement('span');
-  valueSpan.className = 'tsBody500Medium';
+  // 移除 OZON 样式类，使用自己的样式
   valueSpan.style.color = '#212121';
+  valueSpan.style.fontSize = '14px';
+  valueSpan.style.fontWeight = '500';
+  valueSpan.style.lineHeight = '1.5';
   valueSpan.textContent = value;
 
   field.appendChild(labelSpan);
@@ -130,9 +136,12 @@ export async function injectCompleteDisplay(data: {
   euraflowContainer.id = DISPLAY_CONFIG.injectedSectionId;
   euraflowContainer.setAttribute('data-euraflow-root', 'true');  // EuraFlow 根组件标识
   euraflowContainer.setAttribute('data-widget', 'webPdpGrid');
-  euraflowContainer.className = 'pdp_as2 pdp_sa8 pdp_sa5 pdp_as6';
-  euraflowContainer.style.padding = '8px 0px';
-  euraflowContainer.style.width = '388px';
+  // 移除 OZON 样式类，使用自己的样式
+  euraflowContainer.style.width = '100%';
+  euraflowContainer.style.backgroundColor = '#ffffff';
+  euraflowContainer.style.borderRadius = '8px';
+  euraflowContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+  euraflowContainer.style.marginBottom = '16px';
 
   // 添加三个部分
   euraflowContainer.appendChild(createPriceSection(message));
@@ -164,15 +173,20 @@ function createPriceSection(message: string): HTMLElement {
   priceDisplay.style.justifyContent = 'space-between';
 
   const label = document.createElement('span');
-  label.className = 'tsBody500Medium';
+  // 移除 OZON 样式类，使用自己的样式
   label.style.color = '#757575';
+  label.style.fontSize = '14px';
+  label.style.fontWeight = '500';
+  label.style.lineHeight = '1.5';
   label.textContent = '真实售价';
 
   const value = document.createElement('span');
   value.id = 'euraflow-real-price';
-  value.className = 'tsHeadline500Medium';
+  // 移除 OZON 样式类，使用自己的样式
   value.style.color = '#D84315';
-  value.style.fontSize = '20px';
+  value.style.fontSize = '24px';
+  value.style.fontWeight = '700';
+  value.style.lineHeight = '1.2';
   value.textContent = message.replace('真实售价：', '');
 
   priceDisplay.appendChild(label);
@@ -273,18 +287,18 @@ function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any
   let value: string;
   switch (fieldKey) {
     case 'monthlySales':
-      value = spbSales ? formatValue(spbSales.monthly_sales_volume, ' 件') : '---';
+      value = spbSales ? formatValue(spbSales.monthlySales, ' 件') : '---';
       break;
     case 'monthlySalesAmount':
-      value = spbSales ? formatValue(spbSales.monthly_sales_revenue, ' ₽') : '---';
+      value = spbSales ? formatValue(spbSales.monthlySalesAmount, ' ₽') : '---';
       break;
     case 'cardViews':
-      value = spbSales ? formatValue(spbSales.card_views) : '---';
+      value = spbSales ? formatValue(spbSales.cardViews) : '---';
       break;
     case 'transactionRate':
-      if (spbSales && spbSales.conversion_rate !== null) {
-        const rate = spbSales.conversion_rate * 100;
-        value = formatValue(rate, '%');
+      if (spbSales && spbSales.transactionRate !== null) {
+        const rate = (spbSales.transactionRate * 100).toFixed(1);
+        value = `${rate}%`;
       } else {
         value = '---';
       }
@@ -315,10 +329,10 @@ function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any
       }
       return null;  // 其他维度跳过
     case 'listingDate':
-      value = spbSales ? formatDate(spbSales.listing_date) : '---';
+      value = spbSales ? formatDate(spbSales.listingDate) : '---';
       break;
     case 'listingDays':
-      value = spbSales ? formatValue(spbSales.listing_days, ' 天') : '---';
+      value = spbSales ? formatValue(spbSales.listingDays, ' 天') : '---';
       break;
     default:
       value = '---';
@@ -365,38 +379,26 @@ function createFollowButton(
   const followButton = document.createElement('button');
   followButton.id = 'euraflow-follow-sell';
   followButton.setAttribute('type', 'button');
-  followButton.className = 'pdp_e9a pdp_fa3 b25_5_1-a0 b25_5_1-b3 b25_5_1-a5';
-  followButton.style.background = 'var(--bgActionPrimary)';
-  followButton.style.color = 'var(--textLightKey)';
+  // 移除 OZON 样式类，使用自己的样式
+  followButton.style.background = '#1890ff';
+  followButton.style.color = '#ffffff';
   followButton.style.flex = '1';
   followButton.style.height = '48px';
   followButton.style.borderRadius = '8px';
   followButton.style.border = 'none';
   followButton.style.cursor = 'pointer';
-  followButton.style.position = 'relative';
-  followButton.style.overflow = 'hidden';
+  followButton.style.fontSize = '16px';
+  followButton.style.fontWeight = '500';
+  followButton.style.transition = 'all 0.3s ease';
+  followButton.textContent = '跟卖';
 
-  // 按钮内容容器
-  const followContent = document.createElement('div');
-  followContent.className = 'b25_5_1-a2';
-  followContent.style.display = 'flex';
-  followContent.style.alignItems = 'center';
-  followContent.style.justifyContent = 'center';
-  followContent.style.gap = '4px';
-
-  const followText = document.createElement('div');
-  followText.className = 'b25_5_1-a9 tsBodyControl500Medium';
-  followText.textContent = '跟卖';
-
-  followContent.appendChild(followText);
-
-  // 按钮波纹效果层
-  const followRipple = document.createElement('div');
-  followRipple.className = 'b25_5_1-a';
-  followRipple.style.backgroundColor = 'var(--textLightKey)';
-
-  followButton.appendChild(followContent);
-  followButton.appendChild(followRipple);
+  // 悬停效果
+  followButton.addEventListener('mouseenter', () => {
+    followButton.style.background = '#40a9ff';
+  });
+  followButton.addEventListener('mouseleave', () => {
+    followButton.style.background = '#1890ff';
+  });
 
   // 事件处理
   followButton.addEventListener('click', async () => {
@@ -435,38 +437,26 @@ function createCollectButton(
   const collectButton = document.createElement('button');
   collectButton.id = 'euraflow-collect';
   collectButton.setAttribute('type', 'button');
-  collectButton.className = 'pdp_e9a pdp_fa3 b25_5_1-a0 b25_5_1-b3 b25_5_1-a5';
-  collectButton.style.background = 'var(--bgActionSecondary)';
-  collectButton.style.color = 'var(--textActionPrimary)';
+  // 移除 OZON 样式类，使用自己的样式
+  collectButton.style.background = '#52c41a';
+  collectButton.style.color = '#ffffff';
   collectButton.style.flex = '1';
   collectButton.style.height = '48px';
   collectButton.style.borderRadius = '8px';
   collectButton.style.border = 'none';
   collectButton.style.cursor = 'pointer';
-  collectButton.style.position = 'relative';
-  collectButton.style.overflow = 'hidden';
+  collectButton.style.fontSize = '16px';
+  collectButton.style.fontWeight = '500';
+  collectButton.style.transition = 'all 0.3s ease';
+  collectButton.textContent = '采集';
 
-  // 按钮内容容器
-  const collectContent = document.createElement('div');
-  collectContent.className = 'b25_5_1-a2';
-  collectContent.style.display = 'flex';
-  collectContent.style.alignItems = 'center';
-  collectContent.style.justifyContent = 'center';
-  collectContent.style.gap = '4px';
-
-  const collectText = document.createElement('div');
-  collectText.className = 'b25_5_1-a9 tsBodyControl500Medium';
-  collectText.textContent = '采集';
-
-  collectContent.appendChild(collectText);
-
-  // 按钮波纹效果层
-  const collectRipple = document.createElement('div');
-  collectRipple.className = 'b25_5_1-a';
-  collectRipple.style.backgroundColor = 'var(--graphicActionPrimary)';
-
-  collectButton.appendChild(collectContent);
-  collectButton.appendChild(collectRipple);
+  // 悬停效果
+  collectButton.addEventListener('mouseenter', () => {
+    collectButton.style.background = '#73d13d';
+  });
+  collectButton.addEventListener('mouseleave', () => {
+    collectButton.style.background = '#52c41a';
+  });
 
   // 事件处理
   collectButton.addEventListener('click', async () => {
@@ -490,7 +480,7 @@ function createCollectButton(
       // 直接发送采集请求，不打开弹窗
       collectButton.disabled = true;
       collectButton.style.opacity = '0.5';
-      collectText.textContent = '采集中...';
+      collectButton.textContent = '采集中...';
 
       // 通过 background service worker 发送请求（避免 CORS）
       const productData = { ...ozonProduct, dimensions };
@@ -515,7 +505,7 @@ function createCollectButton(
     } finally {
       collectButton.disabled = false;
       collectButton.style.opacity = '1';
-      collectText.textContent = '采集';
+      collectButton.textContent = '采集';
     }
   });
 
