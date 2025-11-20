@@ -37,6 +37,7 @@ import {
   getReturnGroupStateText,
   getReturnStateText,
 } from '@/constants/ozonStatus';
+import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useColumnSettings } from '@/hooks/useColumnSettings';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
@@ -75,6 +76,8 @@ const INITIATOR_CONFIG: Record<string, string> = {
 const CancelReturn: React.FC = () => {
   const { formatDateTime } = useDateTime();
   const { copyToClipboard } = useCopy();
+  const { startPolling: startCancellationSync } = useAsyncTaskPolling();
+  const { startPolling: startReturnSync } = useAsyncTaskPolling();
 
   // 状态管理（允许null表示"全部店铺"）
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -180,7 +183,7 @@ const CancelReturn: React.FC = () => {
     refetchOnWindowFocus: false,
   });
 
-  // 手动同步
+  // 手动同步（异步）
   const handleSync = async () => {
     if (selectedShop === null) {
       notifyError('请先选择具体店铺，不支持同步全部店铺');
@@ -189,16 +192,40 @@ const CancelReturn: React.FC = () => {
 
     try {
       if (activeTab === 'cancellations') {
-        await ozonApi.syncCancellations(selectedShop);
-        notifySuccess('取消申请同步成功');
-        refetchCancellations();
+        // 启动取消申请同步
+        const response = await ozonApi.syncCancellations(selectedShop);
+        const taskId = response.data.task_id;
+
+        // 开始轮询任务状态
+        startCancellationSync({
+          taskId,
+          onCompleted: (result) => {
+            notifySuccess(`取消申请同步完成：${result.result?.records_synced || 0} 条记录`);
+            refetchCancellations();
+          },
+          onFailed: (error) => {
+            notifyError(`取消申请同步失败：${error}`);
+          },
+        });
       } else {
-        await ozonApi.syncReturns(selectedShop);
-        notifySuccess('退货申请同步成功');
-        refetchReturns();
+        // 启动退货申请同步
+        const response = await ozonApi.syncReturns(selectedShop);
+        const taskId = response.data.task_id;
+
+        // 开始轮询任务状态
+        startReturnSync({
+          taskId,
+          onCompleted: (result) => {
+            notifySuccess(`退货申请同步完成：${result.result?.records_synced || 0} 条记录`);
+            refetchReturns();
+          },
+          onFailed: (error) => {
+            notifyError(`退货申请同步失败：${error}`);
+          },
+        });
       }
     } catch (error: any) {
-      notifyError(error.response?.data?.detail?.detail || '同步失败');
+      notifyError(error.response?.data?.detail?.detail || '同步启动失败');
     }
   };
 

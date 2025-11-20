@@ -250,13 +250,15 @@ async def sync_cancellations(
     current_user: User = Depends(get_current_user_flexible)
 ):
     """
-    手动同步取消申请
+    手动同步取消申请（异步）
 
     权限要求：
     - admin/operator: 可触发同步
     - viewer: 无权限
     """
     import logging
+    import uuid
+    import asyncio
     logger = logging.getLogger(__name__)
     logger.info(f"收到取消申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
 
@@ -273,19 +275,69 @@ async def sync_cancellations(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
-    # 调用服务层同步
-    logger.info(f"开始调用 CancelReturnService.sync_cancellations，config={{'shop_id': {request.shop_id}}}")
-    service = CancelReturnService()
-    result = await service.sync_cancellations({"shop_id": request.shop_id})
-    logger.info(f"同步完成，result={result}")
+    # 生成任务ID
+    task_id = f"cancellation_sync_{uuid.uuid4().hex[:12]}"
+
+    # 异步执行同步任务
+    async def run_sync():
+        """在后台执行同步任务"""
+        from ..services.ozon_sync import SYNC_TASKS
+        from ..utils.datetime_utils import utcnow
+
+        try:
+            # 初始化任务状态
+            SYNC_TASKS[task_id] = {
+                "status": "running",
+                "progress": 0,
+                "message": "正在同步取消申请...",
+                "started_at": utcnow().isoformat(),
+                "type": "cancellations",
+            }
+
+            # 创建新的数据库会话用于异步任务
+            from ef_core.database import get_db_manager
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as task_db:
+                # 调用服务层同步
+                service = CancelReturnService()
+                result = await service.sync_cancellations({"shop_id": request.shop_id})
+
+                # 更新任务为完成状态
+                SYNC_TASKS[task_id] = {
+                    "status": "completed",
+                    "progress": 100,
+                    "message": result.get("message", "同步完成"),
+                    "completed_at": utcnow().isoformat(),
+                    "type": "cancellations",
+                    "result": {
+                        "records_synced": result.get("records_synced", 0),
+                        "records_updated": result.get("records_updated", 0)
+                    }
+                }
+                logger.info(f"取消申请同步完成，task_id={task_id}")
+
+        except Exception as e:
+            # 更新任务为失败状态
+            SYNC_TASKS[task_id] = {
+                "status": "failed",
+                "progress": SYNC_TASKS.get(task_id, {}).get("progress", 0),
+                "message": f"同步失败: {str(e)}",
+                "error": str(e),
+                "failed_at": utcnow().isoformat(),
+                "type": "cancellations",
+            }
+            logger.error(f"取消申请同步失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    # 在后台启动同步任务
+    asyncio.create_task(run_sync())
 
     return {
         "ok": True,
         "data": {
-            "task_id": "manual_sync",
-            "message": result.get("message", "同步完成"),
-            "synced": result.get("records_synced", 0),
-            "updated": result.get("records_updated", 0)
+            "task_id": task_id,
+            "message": "取消申请同步已启动"
         }
     }
 
@@ -297,13 +349,15 @@ async def sync_returns(
     current_user: User = Depends(get_current_user_flexible)
 ):
     """
-    手动同步退货申请
+    手动同步退货申请（异步）
 
     权限要求：
     - admin/operator: 可触发同步
     - viewer: 无权限
     """
     import logging
+    import uuid
+    import asyncio
     logger = logging.getLogger(__name__)
     logger.info(f"收到退货申请同步请求，shop_id={request.shop_id}, user={current_user.username}")
 
@@ -320,18 +374,68 @@ async def sync_returns(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
-    # 调用服务层同步
-    logger.info(f"开始调用 CancelReturnService.sync_returns，config={{'shop_id': {request.shop_id}}}")
-    service = CancelReturnService()
-    result = await service.sync_returns({"shop_id": request.shop_id})
-    logger.info(f"退货申请同步完成，result={result}")
+    # 生成任务ID
+    task_id = f"return_sync_{uuid.uuid4().hex[:12]}"
+
+    # 异步执行同步任务
+    async def run_sync():
+        """在后台执行同步任务"""
+        from ..services.ozon_sync import SYNC_TASKS
+        from ..utils.datetime_utils import utcnow
+
+        try:
+            # 初始化任务状态
+            SYNC_TASKS[task_id] = {
+                "status": "running",
+                "progress": 0,
+                "message": "正在同步退货申请...",
+                "started_at": utcnow().isoformat(),
+                "type": "returns",
+            }
+
+            # 创建新的数据库会话用于异步任务
+            from ef_core.database import get_db_manager
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as task_db:
+                # 调用服务层同步
+                service = CancelReturnService()
+                result = await service.sync_returns({"shop_id": request.shop_id})
+
+                # 更新任务为完成状态
+                SYNC_TASKS[task_id] = {
+                    "status": "completed",
+                    "progress": 100,
+                    "message": result.get("message", "同步完成"),
+                    "completed_at": utcnow().isoformat(),
+                    "type": "returns",
+                    "result": {
+                        "records_synced": result.get("records_synced", 0),
+                        "records_updated": result.get("records_updated", 0)
+                    }
+                }
+                logger.info(f"退货申请同步完成，task_id={task_id}")
+
+        except Exception as e:
+            # 更新任务为失败状态
+            SYNC_TASKS[task_id] = {
+                "status": "failed",
+                "progress": SYNC_TASKS.get(task_id, {}).get("progress", 0),
+                "message": f"同步失败: {str(e)}",
+                "error": str(e),
+                "failed_at": utcnow().isoformat(),
+                "type": "returns",
+            }
+            logger.error(f"退货申请同步失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    # 在后台启动同步任务
+    asyncio.create_task(run_sync())
 
     return {
         "ok": True,
         "data": {
-            "task_id": "manual_sync",
-            "message": result.get("message", "同步完成"),
-            "synced": result.get("records_synced", 0),
-            "updated": result.get("records_updated", 0)
+            "task_id": task_id,
+            "message": "退货申请同步已启动"
         }
     }
