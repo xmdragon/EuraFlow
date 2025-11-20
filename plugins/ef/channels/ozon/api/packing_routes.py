@@ -1203,9 +1203,7 @@ async def get_product_purchase_price_history(
 @router.put("/products/{sku}/purchase-info")
 async def update_product_purchase_info(
     sku: str,
-    purchase_url: str = Body(None, description="采购地址"),
-    suggested_purchase_price: str = Body(None, description="建议采购价"),
-    purchase_note: str = Body(None, description="采购备注"),
+    request_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
@@ -1223,12 +1221,12 @@ async def update_product_purchase_info(
 
     try:
         # 更新采购信息
-        if purchase_url is not None:
-            product.purchase_url = purchase_url
-        if suggested_purchase_price is not None:
-            product.suggested_purchase_price = Decimal(str(suggested_purchase_price)) if suggested_purchase_price else None
-        if purchase_note is not None:
-            product.purchase_note = purchase_note
+        if "purchase_url" in request_data:
+            product.purchase_url = request_data["purchase_url"]
+        if "suggested_purchase_price" in request_data:
+            product.suggested_purchase_price = Decimal(str(request_data["suggested_purchase_price"])) if request_data["suggested_purchase_price"] else None
+        if "purchase_note" in request_data:
+            product.purchase_note = request_data["purchase_note"]
 
         product.updated_at = datetime.now()
         await db.commit()
