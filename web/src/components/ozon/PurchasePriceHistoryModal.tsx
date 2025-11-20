@@ -120,7 +120,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
                 <Text type="secondary">建议采购价: </Text>
                 <Text strong style={{ fontSize: 16, color: '#f5222d' }}>
                   {data.suggested_purchase_price
-                    ? `${getCurrencySymbol(userCurrency)} ${data.suggested_purchase_price}`
+                    ? `${getCurrencySymbol(userCurrency)} ${parseFloat(data.suggested_purchase_price).toFixed(2)}`
                     : '-'}
                 </Text>
               </div>
