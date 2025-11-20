@@ -76,8 +76,6 @@ const INITIATOR_CONFIG: Record<string, string> = {
 const CancelReturn: React.FC = () => {
   const { formatDateTime } = useDateTime();
   const { copyToClipboard } = useCopy();
-  const { startPolling: startCancellationSync } = useAsyncTaskPolling();
-  const { startPolling: startReturnSync } = useAsyncTaskPolling();
 
   // 状态管理（允许null表示"全部店铺"）
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
@@ -183,6 +181,62 @@ const CancelReturn: React.FC = () => {
     refetchOnWindowFocus: false,
   });
 
+  // 取消申请同步轮询
+  const { startPolling: startCancellationSync } = useAsyncTaskPolling({
+    getStatus: async (taskId) => {
+      const result = await ozonApi.getSyncStatus(taskId);
+      const status = result.data || result;
+
+      // 转换为统一格式
+      if (status.status === 'completed') {
+        return { state: 'SUCCESS', result: status };
+      } else if (status.status === 'failed') {
+        return { state: 'FAILURE', error: status.error || status.message || '未知错误' };
+      } else {
+        return { state: 'PROGRESS', info: status };
+      }
+    },
+    pollingInterval: 2000,
+    timeout: 30 * 60 * 1000,
+    notificationKey: 'cancellation-sync',
+    initialMessage: '取消申请同步进行中',
+    onSuccess: (result) => {
+      notifySuccess(`取消申请同步完成：${result.result?.records_synced || 0} 条记录`);
+      refetchCancellations();
+    },
+    onFailure: (error) => {
+      notifyError(`取消申请同步失败：${error}`);
+    },
+  });
+
+  // 退货申请同步轮询
+  const { startPolling: startReturnSync } = useAsyncTaskPolling({
+    getStatus: async (taskId) => {
+      const result = await ozonApi.getSyncStatus(taskId);
+      const status = result.data || result;
+
+      // 转换为统一格式
+      if (status.status === 'completed') {
+        return { state: 'SUCCESS', result: status };
+      } else if (status.status === 'failed') {
+        return { state: 'FAILURE', error: status.error || status.message || '未知错误' };
+      } else {
+        return { state: 'PROGRESS', info: status };
+      }
+    },
+    pollingInterval: 2000,
+    timeout: 30 * 60 * 1000,
+    notificationKey: 'return-sync',
+    initialMessage: '退货申请同步进行中',
+    onSuccess: (result) => {
+      notifySuccess(`退货申请同步完成：${result.result?.records_synced || 0} 条记录`);
+      refetchReturns();
+    },
+    onFailure: (error) => {
+      notifyError(`退货申请同步失败：${error}`);
+    },
+  });
+
   // 手动同步（异步）
   const handleSync = async () => {
     if (selectedShop === null) {
@@ -197,32 +251,14 @@ const CancelReturn: React.FC = () => {
         const taskId = response.data.task_id;
 
         // 开始轮询任务状态
-        startCancellationSync({
-          taskId,
-          onCompleted: (result) => {
-            notifySuccess(`取消申请同步完成：${result.result?.records_synced || 0} 条记录`);
-            refetchCancellations();
-          },
-          onFailed: (error) => {
-            notifyError(`取消申请同步失败：${error}`);
-          },
-        });
+        startCancellationSync(taskId);
       } else {
         // 启动退货申请同步
         const response = await ozonApi.syncReturns(selectedShop);
         const taskId = response.data.task_id;
 
         // 开始轮询任务状态
-        startReturnSync({
-          taskId,
-          onCompleted: (result) => {
-            notifySuccess(`退货申请同步完成：${result.result?.records_synced || 0} 条记录`);
-            refetchReturns();
-          },
-          onFailed: (error) => {
-            notifyError(`退货申请同步失败：${error}`);
-          },
-        });
+        startReturnSync(taskId);
       }
     } catch (error: any) {
       notifyError(error.response?.data?.detail?.detail || '同步启动失败');

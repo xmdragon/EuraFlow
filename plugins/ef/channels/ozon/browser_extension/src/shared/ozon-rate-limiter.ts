@@ -7,6 +7,7 @@
 
 import { getRateLimitConfig } from './storage';
 import type { RateLimitConfig } from './types';
+import { AntibotChecker } from './antibot-checker';
 
 interface QueueTask<T> {
   fn: () => Promise<T>;
@@ -29,8 +30,8 @@ export class OzonApiRateLimiter {
   private isProcessing = false;
   private lastExecuteTime = 0;
   private activeRequests = 0;               // ← 新增：当前正在执行的请求数
-  private readonly MAX_CONCURRENT = 3;      // ← 新增：最大并发数
-  private readonly JITTER_RANGE = 50;       // ← 新增：抖动范围 ±50ms
+  private readonly MAX_CONCURRENT = 2;      // ← 降低并发数到2，避免触发限流
+  private readonly JITTER_RANGE = 200;      // ← 增加抖动范围到 ±200ms，模拟人工操作
 
   // 配置缓存（每10秒刷新一次，避免频繁读取storage）
   private cachedConfig: RateLimitConfig | null = null;
@@ -52,7 +53,7 @@ export class OzonApiRateLimiter {
   }
 
   /**
-   * 执行OZON API请求（自动限流）
+   * 执行OZON API请求（自动限流 + 反爬虫检查）
    *
    * @param fn 要执行的异步函数
    * @returns 异步函数的返回值
@@ -64,6 +65,10 @@ export class OzonApiRateLimiter {
    * );
    */
   async execute<T>(fn: () => Promise<T>): Promise<T> {
+    // 反爬虫检查：如果有验证码待处理，立即抛出错误
+    const antibot = AntibotChecker.getInstance();
+    await antibot.preflightCheck();
+
     return new Promise<T>((resolve, reject) => {
       // 入队
       this.queue.push({ fn, resolve, reject });
@@ -71,6 +76,96 @@ export class OzonApiRateLimiter {
       // 触发处理循环（如果未在处理中）
       this.processQueue();
     });
+  }
+
+  /**
+   * 执行OZON API请求（自动限流 + 反爬虫检查 + 智能重试）
+   *
+   * 模拟 OZON 官方的错误处理机制：
+   * - 403 → 调用 antibot.handle403()，暂停采集，抛出 CAPTCHA_PENDING 错误
+   * - 429 → 指数退避重试（1s → 2s → 4s → 8s），最多重试 3 次
+   * - 其他错误 → 直接抛出
+   *
+   * @param fn 要执行的异步函数（返回 Response 对象）
+   * @param maxRetries 最大重试次数（默认 2 次，加上初次执行共 3 次）
+   * @returns 异步函数的返回值
+   *
+   * @example
+   * const limiter = OzonApiRateLimiter.getInstance();
+   * const response = await limiter.executeWithRetry(() =>
+   *   fetch('https://seller.ozon.ru/api/...')
+   * );
+   */
+  async executeWithRetry<T extends Response>(
+    fn: () => Promise<T>,
+    maxRetries: number = 2
+  ): Promise<T> {
+    const antibot = AntibotChecker.getInstance();
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // 执行请求（包含反爬虫检查和限流）
+        const response = await this.execute(fn);
+
+        // 检查 HTTP 状态码
+        if (response.status === 403) {
+          // 403: 反爬虫拦截
+          let responseData: any;
+          try {
+            responseData = await response.clone().json();
+          } catch {
+            responseData = { error: '403 Forbidden' };
+          }
+
+          const handled = await antibot.handle403(responseData);
+          if (handled) {
+            // 保存了 incidentId，抛出特殊错误，通知上层暂停采集
+            throw new Error('CAPTCHA_PENDING: 触发反爬虫拦截，采集已暂停，请完成人机验证');
+          } else {
+            // 没有 incidentId，可能是其他原因导致的 403
+            throw new Error(`403 Forbidden: ${JSON.stringify(responseData)}`);
+          }
+        }
+
+        if (response.status === 429) {
+          // 429: 限流，指数退避后重试
+          if (attempt < maxRetries) {
+            const backoffTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s, 8s
+            console.warn(
+              `[OzonApiRateLimiter] 触发 429 限流，${backoffTime}ms 后重试（第 ${attempt + 1}/${maxRetries + 1} 次）`
+            );
+            await this.sleep(backoffTime);
+            continue; // 重试
+          } else {
+            throw new Error('429 Too Many Requests: 超过最大重试次数');
+          }
+        }
+
+        // 其他状态码：正常返回
+        return response;
+      } catch (error: any) {
+        lastError = error;
+
+        // CAPTCHA_PENDING 错误不重试，直接抛出
+        if (error.message?.startsWith('CAPTCHA_PENDING')) {
+          throw error;
+        }
+
+        // 其他错误：如果还有重试机会，继续；否则抛出
+        if (attempt < maxRetries) {
+          const backoffTime = Math.pow(2, attempt) * 1000;
+          console.warn(
+            `[OzonApiRateLimiter] 请求失败（${error.message}），${backoffTime}ms 后重试（第 ${attempt + 1}/${maxRetries + 1} 次）`
+          );
+          await this.sleep(backoffTime);
+          continue;
+        }
+      }
+    }
+
+    // 所有重试都失败，抛出最后一个错误
+    throw lastError;
   }
 
   /**
@@ -184,5 +279,12 @@ export class OzonApiRateLimiter {
    */
   getQueueLength(): number {
     return this.queue.length;
+  }
+
+  /**
+   * 延迟函数（私有辅助方法）
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

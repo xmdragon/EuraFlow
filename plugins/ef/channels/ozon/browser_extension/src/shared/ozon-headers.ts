@@ -86,6 +86,23 @@ function generateUUID(): string {
 }
 
 /**
+ * 获取 OZON Auth Token（从 storage 读取）
+ *
+ * Token 由 collector.ts 的 injectTokenReader() 注入到 storage
+ *
+ * @returns Token 字符串或 null
+ */
+async function getOzonAuthToken(): Promise<string | null> {
+  try {
+    const result = await chrome.storage.local.get('ozon_auth_token');
+    return result.ozon_auth_token || null;
+  } catch (error) {
+    console.error('[EuraFlow] 读取 OZON Auth Token 失败:', error);
+    return null;
+  }
+}
+
+/**
  * 生成OZON标准headers
  *
  * @param options 配置选项
@@ -93,14 +110,16 @@ function generateUUID(): string {
  *
  * @example
  * const headers = await getOzonStandardHeaders({
- *   referer: 'https://www.ozon.ru/product/...'
+ *   referer: 'https://www.ozon.ru/product/...',
+ *   serviceName: 'composer'  // 用于 entrypoint-api.bx
  * });
  */
 export async function getOzonStandardHeaders(options: {
   referer?: string;
   includeContentType?: boolean;
+  serviceName?: string;  // ← Phase 4: 用于 entrypoint-api.bx 的服务标识
 } = {}): Promise<Record<string, string>> {
-  const { referer, includeContentType = true } = options;
+  const { referer, includeContentType = true, serviceName } = options;
 
   // 动态获取版本信息（优先拦截，回退硬编码）
   const { appVersion, manifestVersion } = await getOzonVersions();
@@ -124,6 +143,18 @@ export async function getOzonStandardHeaders(options: {
     'X-O3-Parent-Requestid': generateUUID(),
     'X-Page-View-Id': generateUUID()
   };
+
+  // 【Phase 3】优先使用 Token 认证（模拟 OZON 官方）
+  const token = await getOzonAuthToken();
+  if (token) {
+    headers['ozonid-auth-tokens'] = token;
+  }
+  // 如果没有 Token，调用方需要手动添加 Cookie（fallback）
+
+  // 【Phase 4】添加服务名称（用于 entrypoint-api.bx 等内部网关）
+  if (serviceName) {
+    headers['x-o3-service-name'] = serviceName;
+  }
 
   // 可选: Content-Type
   if (includeContentType) {
