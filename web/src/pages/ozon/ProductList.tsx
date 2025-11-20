@@ -477,7 +477,7 @@ const ProductList: React.FC = () => {
 
       {/* 商品编辑弹窗 */}
       <Modal
-        title={`编辑商品 - ${selectedProduct?.offer_id || selectedProduct?.ozon_sku || 'N/A'}`}
+        title={`编辑商品 - ${selectedProduct?.ozon_sku || selectedProduct?.offer_id || 'N/A'}`}
         open={editModalVisible}
         onCancel={() => setEditModalVisible(false)}
         footer={null}
