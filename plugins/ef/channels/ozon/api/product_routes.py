@@ -155,15 +155,16 @@ async def get_products(
     if sku:
         logger.info(f"[PRODUCT SEARCH] sku={sku}, shop_id={shop_id}")
         sku_term = f"%{sku}%"
-        sku_conditions = [OzonProduct.offer_id.ilike(sku_term)]
 
-        # 如果是纯数字，也搜索 ozon_sku
+        # 如果是纯数字，优先搜索 ozon_sku
         if sku.strip().isdigit():
             from sqlalchemy import Text
-            sku_conditions.append(cast(OzonProduct.ozon_sku, Text).ilike(sku_term))
-            logger.info("[PRODUCT SEARCH] Numeric SKU search, also searching ozon_sku")
-
-        query = query.where(or_(*sku_conditions))
+            query = query.where(cast(OzonProduct.ozon_sku, Text).ilike(sku_term))
+            logger.info("[PRODUCT SEARCH] Numeric SKU, searching ozon_sku")
+        else:
+            # 非纯数字，搜索 offer_id
+            query = query.where(OzonProduct.offer_id.ilike(sku_term))
+            logger.info("[PRODUCT SEARCH] Non-numeric SKU, searching offer_id")
     if title:
         query = query.where(OzonProduct.title.ilike(f"%{title}%"))
     if status:
