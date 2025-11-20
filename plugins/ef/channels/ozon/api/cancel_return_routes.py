@@ -59,6 +59,7 @@ class ReturnItemResponse(BaseModel):
     return_id: int
     return_number: str
     posting_number: str
+    order_number: Optional[str]
     client_name: Optional[str]
     product_name: Optional[str]
     offer_id: Optional[str]
@@ -66,9 +67,19 @@ class ReturnItemResponse(BaseModel):
     price: Optional[str]
     currency_code: Optional[str]
     group_state: str
+    state: str  # 详细状态标识（如 CanceledByBuyer）
     state_name: Optional[str]
     money_return_state_name: Optional[str]
+    delivery_method_name: Optional[str]  # 物流方式（从posting表join获取）
+    # 从详情API获取的字段
+    return_reason_id: Optional[int]
+    return_reason_name: Optional[str]
+    rejection_reason_id: Optional[int]
+    rejection_reason_name: Optional[str]
+    return_method_description: Optional[str]
     created_at_ozon: Optional[str]
+    # 商品图片（从商品表JOIN获取）
+    image_url: Optional[str]
 
 
 class ReturnListResponse(BaseModel):

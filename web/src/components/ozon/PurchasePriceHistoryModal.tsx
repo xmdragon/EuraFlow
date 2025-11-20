@@ -3,7 +3,8 @@
  * 显示指定SKU的最近10次进货价格记录
  */
 import { useQuery } from '@tanstack/react-query';
-import { Modal, Table, Typography, Empty, Spin, Tag } from 'antd';
+import { Modal, Table, Typography, Empty, Spin, Tag, Row, Col, Card } from 'antd';
+import { QRCodeSVG } from 'qrcode.react';
 import React from 'react';
 
 import { useCurrency } from '@/hooks/useCurrency';
@@ -90,11 +91,11 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
 
   return (
     <Modal
-      title="进货价格历史"
+      title="商品采购信息"
       open={visible}
       onCancel={onCancel}
       footer={null}
-      width={800}
+      width={900}
       destroyOnClose
     >
       <div style={{ marginBottom: 16 }}>
@@ -110,12 +111,59 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
         </div>
       </div>
 
+      {/* 采购信息卡片 */}
+      {data && (data.purchase_url || data.suggested_purchase_price) && (
+        <Card title="采购信息" size="small" style={{ marginBottom: 16 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <div style={{ marginBottom: 8 }}>
+                <Text type="secondary">建议采购价: </Text>
+                <Text strong style={{ fontSize: 16, color: '#f5222d' }}>
+                  {data.suggested_purchase_price
+                    ? `${getCurrencySymbol(userCurrency)} ${data.suggested_purchase_price}`
+                    : '-'}
+                </Text>
+              </div>
+              <div>
+                <Text type="secondary">采购地址: </Text>
+                {data.purchase_url ? (
+                  <a href={data.purchase_url} target="_blank" rel="noopener noreferrer">
+                    {data.purchase_url.length > 40
+                      ? `${data.purchase_url.substring(0, 40)}...`
+                      : data.purchase_url}
+                  </a>
+                ) : (
+                  <Text>-</Text>
+                )}
+              </div>
+            </Col>
+            <Col span={12}>
+              {data.purchase_url && (
+                <div style={{ textAlign: 'center' }}>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                    扫码打开采购链接
+                  </Text>
+                  <QRCodeSVG value={data.purchase_url} size={120} />
+                </div>
+              )}
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {/* 进货价格历史 */}
+      <div style={{ marginTop: 16 }}>
+        <Text strong style={{ fontSize: 14 }}>
+          进货价格历史
+        </Text>
+      </div>
+
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin tip="加载中..." />
         </div>
       ) : !data || data.history.length === 0 ? (
-        <Empty description="暂无进货价格记录" />
+        <Empty description="暂无进货价格记录" style={{ marginTop: 16 }} />
       ) : (
         <Table
           columns={columns}
@@ -123,7 +171,8 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
           rowKey="posting_number"
           pagination={false}
           size="small"
-          scroll={{ y: 600 }}
+          scroll={{ y: 400 }}
+          style={{ marginTop: 8 }}
         />
       )}
     </Modal>

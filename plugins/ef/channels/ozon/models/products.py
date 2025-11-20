@@ -64,6 +64,10 @@ class OzonProduct(Base):
     min_price = Column(Numeric(18, 4), comment="最低价")
     currency_code = Column(String(10), comment="货币代码(CNY/RUB/USD等)")
     vat = Column(String(10), comment="增值税率", default="0")
+
+    # 采购信息
+    purchase_url = Column(String(1000), comment="采购地址")
+    suggested_purchase_price = Column(Numeric(18, 4), comment="建议采购价")
     
     # 库存信息
     stock = Column(Integer, default=0)

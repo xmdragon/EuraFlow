@@ -2038,6 +2038,38 @@ const ProductCreate: React.FC = () => {
                   </Form.Item>
                 </Col>
               </Row>
+
+              {/* 采购信息 */}
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    label="建议采购价"
+                    name="suggested_purchase_price"
+                    tooltip="内部采购参考价格，用于打包发货时查看"
+                    style={{ marginBottom: 12 }}
+                  >
+                    <InputNumber
+                      min={0}
+                      placeholder="0"
+                      controls={false}
+                      formatter={getNumberFormatter(2)}
+                      parser={getNumberParser()}
+                      style={{ width: '150px' }}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item
+                    label="采购地址"
+                    name="purchase_url"
+                    tooltip="采购链接，在打包发货时可扫码打开"
+                    style={{ marginBottom: 12 }}
+                  >
+                    <Input placeholder="https://..." />
+                  </Form.Item>
+                </Col>
+              </Row>
             </div>
           )}
 

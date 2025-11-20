@@ -604,22 +604,29 @@ class CancelReturnService:
             total_result = await db.execute(count_query)
             total = total_result.scalar()
 
-            # 查询数据
-            query = select(OzonReturn).where(and_(*conditions)) if conditions else select(OzonReturn)
+            # 查询数据（JOIN 商品表获取图片）
+            from ..models import OzonProduct
+            query = (
+                select(OzonReturn, OzonProduct.primary_image)
+                .outerjoin(OzonProduct, OzonReturn.sku == OzonProduct.ozon_sku)
+            )
+            if conditions:
+                query = query.where(and_(*conditions))
             query = query.order_by(OzonReturn.created_at_ozon.desc())
             query = query.offset((page - 1) * limit).limit(limit)
 
             result = await db.execute(query)
-            returns = result.scalars().all()
+            rows = result.all()
 
             # 转换为字典列表
             items = []
-            for return_obj in returns:
+            for return_obj, primary_image in rows:
                 items.append({
                     "id": return_obj.id,
                     "return_id": return_obj.return_id,
                     "return_number": return_obj.return_number,
                     "posting_number": return_obj.posting_number,
+                    "order_number": return_obj.order_number,
                     "client_name": self._mask_client_name(return_obj.client_name),  # 脱敏
                     "product_name": return_obj.product_name,
                     "offer_id": return_obj.offer_id,
@@ -627,9 +634,19 @@ class CancelReturnService:
                     "price": str(return_obj.price) if return_obj.price else None,
                     "currency_code": return_obj.currency_code,
                     "group_state": return_obj.group_state,
+                    "state": return_obj.state,  # 详细状态标识
                     "state_name": return_obj.state_name,
                     "money_return_state_name": return_obj.money_return_state_name,
+                    "delivery_method_name": return_obj.delivery_method_name,
+                    # 从详情API获取的字段
+                    "return_reason_id": return_obj.return_reason_id,
+                    "return_reason_name": return_obj.return_reason_name,
+                    "rejection_reason_id": return_obj.rejection_reason_id,
+                    "rejection_reason_name": return_obj.rejection_reason_name,
+                    "return_method_description": return_obj.return_method_description,
                     "created_at_ozon": return_obj.created_at_ozon.isoformat() if return_obj.created_at_ozon else None,
+                    # 商品图片（从商品表JOIN获取）
+                    "image_url": primary_image,
                 })
 
             return {

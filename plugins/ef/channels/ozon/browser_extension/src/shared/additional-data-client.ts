@@ -136,6 +136,8 @@ export class AdditionalDataClient {
   /**
    * 单个获取跟卖数据
    *
+   * ✅ 在 Content Script 中直接 fetch（显示在网络面板，避免被识别为爬虫）
+   *
    * @param productId - SKU
    * @returns 跟卖数据对象
    */
@@ -145,25 +147,68 @@ export class AdditionalDataClient {
     }
 
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'GET_FOLLOW_SELLER_DATA_SINGLE',
-        data: { productId }
+      // 动态导入限流器和headers（避免循环依赖）
+      const { OzonApiRateLimiter } = await import('./ozon-rate-limiter');
+      const { getOzonStandardHeaders } = await import('./ozon-headers');
+      const limiter = OzonApiRateLimiter.getInstance();
+
+      const origin = 'https://www.ozon.ru';
+      const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
+      const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
+
+      const headers = await getOzonStandardHeaders({
+        referer: `https://www.ozon.ru/product/${productId}/`
       });
 
-      if (!response.success) {
+      const response = await limiter.execute(() =>
+        fetch(apiUrl, {
+          method: 'GET',
+          headers,
+          credentials: 'include'
+        })
+      );
+
+      if (!response.ok) {
+        console.warn(`[跟卖数据] SKU=${productId} HTTP错误: ${response.status}`);
         return null;
       }
 
-      const item = response.data;
-      if (!item || !item.goods_id) {
+      const data = await response.json();
+      const widgetStates = data.widgetStates || {};
+
+      // 查找包含 "webSellerList" 的 key
+      const sellerListKey = Object.keys(widgetStates).find(key => key.includes('webSellerList'));
+
+      if (!sellerListKey || !widgetStates[sellerListKey]) {
         return null;
       }
 
-      const prices = item.gmArr || [];
+      const sellerListData = JSON.parse(widgetStates[sellerListKey]);
+      const sellers = sellerListData.sellers || [];
+
+      if (sellers.length === 0) {
+        return null;
+      }
+
+      // 提取跟卖价格并解析（处理欧洲格式：2 189,50 → 2189.50）
+      const prices: number[] = [];
+      sellers.forEach((seller: any) => {
+        let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
+        // 移除空格和符号，逗号替换为点
+        priceStr = priceStr.replace(/\s/g, '').replace(/[₽]/g, '').replace(/,/g, '.');
+        const price = parseFloat(priceStr);
+        if (!isNaN(price) && price > 0) {
+          prices.push(price);
+        }
+      });
+
+      // 价格从低到高排序
+      prices.sort((a, b) => a - b);
+
       return {
-        follow_seller_count: item.gm || 0,
+        follow_seller_count: sellers.length,
         follow_seller_min_price: prices.length > 0 ? prices[0] : undefined,
-        follow_seller_skus: item.gmGoodsIds || [],
+        follow_seller_skus: sellers.map((s: any) => s.productId).filter(Boolean),
         follow_seller_prices: prices
       };
     } catch (error: any) {

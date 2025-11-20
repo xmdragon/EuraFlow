@@ -112,6 +112,20 @@ class OzonReturn(Base):
     state_name = Column(String(200), comment="状态名称")
     money_return_state_name = Column(String(200), comment="退款状态名称")
 
+    # 配送方式（从posting表join获取，或从详情API获取）
+    delivery_method_name = Column(String(200), comment="配送方式名称")
+
+    # 退货/拒绝原因（从详情API获取）
+    return_reason_id = Column(Integer, comment="退货原因ID")
+    return_reason_name = Column(String(500), comment="退货原因名称")
+    rejection_reason_id = Column(Integer, comment="拒绝原因ID")
+    rejection_reason_name = Column(String(500), comment="拒绝原因名称")
+    rejection_reasons = Column(JSONB, comment="拒绝原因列表（详情数据）")
+
+    # 额外信息（从详情API获取）
+    return_method_description = Column(Text, comment="退货方式描述")
+    available_actions = Column(JSONB, comment="可用操作列表")
+
     # 时间信息
     created_at_ozon = Column(DateTime(timezone=True), nullable=False, index=True, comment="OZON创建日期")
 

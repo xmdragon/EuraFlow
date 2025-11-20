@@ -837,6 +837,10 @@ async def update_product(
         if "visibility" in product_data:
             product.visibility = bool(product_data["visibility"])
             product.status = "active" if product.visibility else "inactive"
+        if "purchase_url" in product_data:
+            product.purchase_url = product_data["purchase_url"]
+        if "suggested_purchase_price" in product_data and product_data["suggested_purchase_price"] is not None:
+            product.suggested_purchase_price = Decimal(str(product_data["suggested_purchase_price"]))
 
         product.updated_at = datetime.now()
         await db.commit()

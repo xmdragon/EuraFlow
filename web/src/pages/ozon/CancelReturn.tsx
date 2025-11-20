@@ -1,7 +1,7 @@
 /**
  * OZON 取消和退货申请管理页面
  */
-import { CloseCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
@@ -16,6 +16,7 @@ import {
   Col,
   Space,
   Typography,
+  Tooltip,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
@@ -24,6 +25,7 @@ import React, { useState } from 'react';
 import styles from './CancelReturn.module.scss';
 
 import ColumnSetting from '@/components/ColumnSetting';
+import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
 import {
@@ -72,7 +74,7 @@ const CancelReturn: React.FC = () => {
 
   // 状态管理（允许null表示"全部店铺"）
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('cancellations');
+  const [activeTab, setActiveTab] = useState<string>('returns'); // 默认激活"退货申请"
 
   // 取消申请筛选
   const [cancellationFilters, setCancellationFilters] = useState({
@@ -90,7 +92,6 @@ const CancelReturn: React.FC = () => {
     limit: 50,
     group_state: undefined as string | undefined,
     posting_number: undefined as string | undefined,
-    offer_id: undefined as string | undefined,
     dateRange: [dayjs().subtract(30, 'days'), dayjs()] as [Dayjs | null, Dayjs | null] | null,
   });
 
@@ -134,7 +135,6 @@ const CancelReturn: React.FC = () => {
         limit: returnFilters.limit,
         group_state: returnFilters.group_state,
         posting_number: returnFilters.posting_number,
-        offer_id: returnFilters.offer_id,
       };
 
       if (returnFilters.dateRange && returnFilters.dateRange[0] && returnFilters.dateRange[1]) {
@@ -178,25 +178,29 @@ const CancelReturn: React.FC = () => {
       title: '货件编号',
       dataIndex: 'posting_number',
       key: 'posting_number',
-      width: 180,
+      width: 160,
       render: (text: string) => (
-        <span className={styles.postingNumber} onClick={() => copyToClipboard(text, '货件编号')}>
-          {text}
-        </span>
+        <div>
+          <span className={styles.postingNumber}>{text}</span>
+          <CopyOutlined
+            style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+            onClick={() => copyToClipboard(text, '货件编号')}
+          />
+        </div>
       ),
     },
     {
       title: '订单日期',
       dataIndex: 'order_date',
       key: 'order_date',
-      width: 160,
+      width: 80,
       render: (text: string | null) => (text ? formatDateTime(text) : '-'),
     },
     {
       title: '取消日期',
       dataIndex: 'cancelled_at',
       key: 'cancelled_at',
-      width: 160,
+      width: 80,
       render: (text: string | null) => (text ? formatDateTime(text) : '-'),
     },
     {
@@ -232,7 +236,7 @@ const CancelReturn: React.FC = () => {
       title: '自动确认日期',
       dataIndex: 'auto_approve_date',
       key: 'auto_approve_date',
-      width: 160,
+      width: 80,
       render: (text: string | null) => (text ? formatDateTime(text) : '-'),
     },
   ];
@@ -247,25 +251,61 @@ const CancelReturn: React.FC = () => {
   // 退货申请表格列
   const returnColumns: ColumnsType<ozonApi.Return> = [
     {
-      title: '退货编号',
+      title: '图片',
+      dataIndex: 'image_url',
+      key: 'product_image',
+      width: 100,
+      render: (_: string | null, record: ozonApi.Return) => (
+        <ProductImage
+          imageUrl={record.image_url || undefined}
+          size="small"
+          hoverBehavior="none"
+          name={record.product_name || ''}
+          offerId={record.offer_id || undefined}
+          sku={record.sku?.toString() || undefined}
+          disablePreview={false}
+        />
+      ),
+    },
+    {
+      title: '申请号',
       dataIndex: 'return_number',
       key: 'return_number',
       width: 150,
-      render: (text: string) => (
-        <span className={styles.postingNumber} onClick={() => copyToClipboard(text, '退货编号')}>
-          {text || '-'}
-        </span>
+      render: (text: string, record: ozonApi.Return) => (
+        <div>
+          <span
+            className={styles.postingNumber}
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              // TODO: 打开申请详情Modal
+              console.log('查看申请详情:', record.return_id);
+            }}
+          >
+            {text || '-'}
+          </span>
+          {text && (
+            <CopyOutlined
+              style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+              onClick={() => copyToClipboard(text, '申请号')}
+            />
+          )}
+        </div>
       ),
     },
     {
       title: '货件编号',
       dataIndex: 'posting_number',
       key: 'posting_number',
-      width: 180,
+      width: 160,
       render: (text: string) => (
-        <span className={styles.postingNumber} onClick={() => copyToClipboard(text, '货件编号')}>
-          {text}
-        </span>
+        <div>
+          <span className={styles.postingNumber}>{text}</span>
+          <CopyOutlined
+            style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+            onClick={() => copyToClipboard(text, '货件编号')}
+          />
+        </div>
       ),
     },
     {
@@ -294,11 +334,21 @@ const CancelReturn: React.FC = () => {
       dataIndex: 'offer_id',
       key: 'offer_id',
       width: 120,
-      render: (text: string | null) => (text ? (
-        <span className={styles.postingNumber} onClick={() => copyToClipboard(text, 'Offer ID')}>
-          {text}
-        </span>
-      ) : '-'),
+      render: (text: string | null) => (
+        <div>
+          {text ? (
+            <>
+              <span>{text}</span>
+              <CopyOutlined
+                style={{ marginLeft: 8, cursor: 'pointer', color: '#1890ff' }}
+                onClick={() => copyToClipboard(text, 'Offer ID')}
+              />
+            </>
+          ) : (
+            '-'
+          )}
+        </div>
+      ),
     },
     {
       title: 'SKU',
@@ -357,10 +407,42 @@ const CancelReturn: React.FC = () => {
       render: (text: string | null) => text || '-',
     },
     {
+      title: '退货原因',
+      dataIndex: 'return_reason_name',
+      key: 'return_reason_name',
+      width: 80,
+      ellipsis: true,
+      render: (text: string | null) => text || '-',
+    },
+    {
+      title: '配送',
+      dataIndex: 'delivery_method_name',
+      key: 'delivery_method_name',
+      width: 200,
+      ellipsis: true,
+      render: (text: string | null) => {
+        if (!text) return '-';
+
+        // 解析配送方式：提取主要部分和括号内容
+        const match = text.match(/^([^（(]+)[\s]*[（(](.+)[)）]$/);
+        if (match) {
+          const mainPart = match[1].trim();
+          const detailPart = `（${match[2]}）`;
+          return (
+            <Tooltip title={detailPart}>
+              <span>{mainPart}</span>
+            </Tooltip>
+          );
+        }
+
+        return text;
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'created_at_ozon',
       key: 'created_at_ozon',
-      width: 160,
+      width: 80,
       render: (text: string | null) => (text ? formatDateTime(text) : '-'),
     },
   ];
@@ -500,25 +582,13 @@ const CancelReturn: React.FC = () => {
               </Col>
               <Col>
                 <Input
-                  placeholder="搜索货件编号"
+                  placeholder="搜索货件编号或SKU"
                   prefix={<SearchOutlined />}
-                  style={{ width: 200 }}
+                  style={{ width: 250 }}
                   allowClear
                   value={returnFilters.posting_number}
                   onChange={(e) =>
                     setReturnFilters({ ...returnFilters, posting_number: e.target.value, page: 1 })
-                  }
-                />
-              </Col>
-              <Col>
-                <Input
-                  placeholder="搜索Offer ID"
-                  prefix={<SearchOutlined />}
-                  style={{ width: 200 }}
-                  allowClear
-                  value={returnFilters.offer_id}
-                  onChange={(e) =>
-                    setReturnFilters({ ...returnFilters, offer_id: e.target.value, page: 1 })
                   }
                 />
               </Col>

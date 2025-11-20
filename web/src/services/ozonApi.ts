@@ -1441,6 +1441,8 @@ export interface PurchasePriceHistoryResponse {
   sku: string;
   product_name: string | null;
   offer_id: string | null;
+  purchase_url: string | null;
+  suggested_purchase_price: string | null;
   history: PurchasePriceHistory[];
   total: number;
 }
@@ -2265,6 +2267,7 @@ export interface Return {
   return_id: number;
   return_number: string;
   posting_number: string;
+  order_number: string | null;
   client_name: string | null;
   product_name: string | null;
   offer_id: string | null;
@@ -2272,9 +2275,19 @@ export interface Return {
   price: string | null;
   currency_code: string | null;
   group_state: string;
+  state: string; // 详细状态标识
   state_name: string | null;
   money_return_state_name: string | null;
+  delivery_method_name: string | null; // 物流方式
+  // 从详情API获取的字段
+  return_reason_id: number | null;
+  return_reason_name: string | null;
+  rejection_reason_id: number | null;
+  rejection_reason_name: string | null;
+  return_method_description: string | null;
   created_at_ozon: string | null;
+  // 商品图片（从商品表JOIN获取）
+  image_url: string | null;
 }
 
 export interface CancellationListResponse {

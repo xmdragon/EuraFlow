@@ -187,12 +187,7 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
     return true;
   }
 
-  if (message.type === 'GET_FOLLOW_SELLER_DATA_SINGLE') {
-    handleGetFollowSellerDataSingle(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-    return true;
-  }
+  // ✅ GET_FOLLOW_SELLER_DATA_SINGLE 已移到 Content Script 直接调用（显示在网络面板）
 
   if (message.type === 'GET_SPB_COMMISSIONS') {
     handleGetSpbCommissions(message.data)
@@ -1526,79 +1521,8 @@ async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): P
   return results;
 }
 
-/**
- * 单个获取 OZON 跟卖数据（新增）
- *
- * @param data.productId - 单个SKU
- * @returns 跟卖数据 { goods_id, gm, gmGoodsIds, gmArr }
- */
-async function handleGetFollowSellerDataSingle(data: { productId: string }): Promise<any> {
-  const { productId } = data;
-
-  if (!productId) {
-    console.warn('[OZON跟卖数据] productId为空');
-    return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
-  }
-
-  try {
-    const origin = 'https://www.ozon.ru';
-    const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
-    const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
-
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      console.warn(`[OZON跟卖数据] SKU=${productId} HTTP错误: ${response.status}`);
-      return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
-    }
-
-    const data = await response.json();
-    const widgetStates = data.widgetStates || {};
-
-    // 查找包含 "webSellerList" 的 key
-    const sellerListKey = Object.keys(widgetStates).find(key => key.includes('webSellerList'));
-
-    if (!sellerListKey || !widgetStates[sellerListKey]) {
-      return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
-    }
-
-    const sellerListData = JSON.parse(widgetStates[sellerListKey]);
-    const sellers = sellerListData.sellers || [];
-
-    if (sellers.length === 0) {
-      return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
-    }
-
-    // 提取跟卖价格并解析（处理欧洲格式：2 189,50 → 2189.50）
-    sellers.forEach((seller: any) => {
-      let priceStr = seller.price?.cardPrice?.price || seller.price?.price || '';
-      // 1. 移除空格（千位分隔符）
-      // 2. 替换逗号为点（小数分隔符）
-      // 3. 移除其他非数字字符（₽等）
-      priceStr = priceStr.replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.]/g, '');
-      seller.priceNum = isNaN(parseFloat(priceStr)) ? 99999999 : parseFloat(priceStr);
-    });
-
-    // 按价格排序
-    sellers.sort((a: any, b: any) => a.priceNum - b.priceNum);
-
-    return {
-      goods_id: productId,
-      gm: sellers.length,
-      gmGoodsIds: sellers.map((s: any) => s.sku),
-      gmArr: sellers.map((s: any) => s.priceNum)
-    };
-
-  } catch (error: any) {
-    console.error(`[OZON跟卖数据] SKU=${productId} 获取失败:`, error.message);
-    return { goods_id: productId, gm: 0, gmGoodsIds: [], gmArr: [] };
-  }
-}
+// ✅ handleGetFollowSellerDataSingle 已移到 Content Script（additional-data-client.ts）
+// 原因：在 Content Script 中直接 fetch，请求会显示在网络面板，避免被识别为爬虫
 
 /**
  * 获取上品帮佣金数据
