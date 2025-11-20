@@ -477,7 +477,7 @@ const ProductList: React.FC = () => {
 
       {/* 商品编辑弹窗 */}
       <Modal
-        title={`编辑商品 - ${selectedProduct?.sku}`}
+        title={`编辑商品 - ${selectedProduct?.offer_id || selectedProduct?.ozon_sku || 'N/A'}`}
         open={editModalVisible}
         onCancel={() => setEditModalVisible(false)}
         footer={null}
@@ -499,6 +499,8 @@ const ProductList: React.FC = () => {
               width: selectedProduct.width,
               height: selectedProduct.height,
               depth: selectedProduct.depth,
+              purchase_url: selectedProduct.purchase_url,
+              suggested_purchase_price: selectedProduct.suggested_purchase_price,
             }}
             onFinish={async (values) => {
               try {
@@ -581,6 +583,27 @@ const ProductList: React.FC = () => {
                     prefix={currencySymbol}
                     placeholder="请输入原价"
                   />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            {/* 采购信息 */}
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="suggested_purchase_price" label="建议采购价">
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0}
+                    formatter={getNumberFormatter(2)}
+                    parser={getNumberParser()}
+                    prefix={currencySymbol}
+                    placeholder="请输入建议采购价"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="purchase_url" label="采购地址">
+                  <Input placeholder="https://..." />
                 </Form.Item>
               </Col>
             </Row>
