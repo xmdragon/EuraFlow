@@ -100,16 +100,21 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
     }
 
     // ✅ 在 Content Script 中直接 fetch（显示在网络面板）
+    const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
     const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
+    const limiter = OzonApiRateLimiter.getInstance();
+
     const headers = await getOzonStandardHeaders({
       referer: window.location.href
     });
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers,
-      credentials: 'include'
-    });
+    const response = await limiter.execute(() =>
+      fetch(apiUrl, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      })
+    );
 
     if (!response.ok) {
       console.warn(`[EuraFlow] Modal API 请求失败: ${response.status}`);
@@ -390,16 +395,21 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
     }
 
     // ✅ 在 Content Script 中直接 fetch（显示在网络面板）
+    const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
     const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
+    const limiter = OzonApiRateLimiter.getInstance();
+
     const headers = await getOzonStandardHeaders({
       referer: window.location.href
     });
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers,
-      credentials: 'include'
-    });
+    const response = await limiter.execute(() =>
+      fetch(apiUrl, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      })
+    );
 
     if (!response.ok) {
       console.warn(`[EuraFlow] Page2 API 请求失败: ${response.status}`);
