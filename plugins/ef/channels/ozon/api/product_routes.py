@@ -138,7 +138,6 @@ async def get_products(
         search_term = f"%{search}%"
         # 对于纯数字搜索，也搜索ozon_sku字段
         search_conditions = [
-            OzonProduct.sku.ilike(search_term),
             OzonProduct.title.ilike(search_term),
             OzonProduct.offer_id.ilike(search_term),
             OzonProduct.barcode.ilike(search_term)
@@ -155,7 +154,7 @@ async def get_products(
     # 特定字段搜索（优先级高于通用搜索）
     if sku:
         logger.info(f"[PRODUCT SEARCH] sku={sku}, shop_id={shop_id}")
-        query = query.where(OzonProduct.sku.ilike(f"%{sku}%"))
+        query = query.where(OzonProduct.offer_id.ilike(f"%{sku}%"))
     if title:
         query = query.where(OzonProduct.title.ilike(f"%{title}%"))
     if status:
