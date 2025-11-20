@@ -164,9 +164,9 @@ export async function setDataPanelConfig(config: Partial<DataPanelConfig>): Prom
 
 const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
   mode: 'random',           // 默认随机频率
-  fixedDelay: 3000,         // 默认固定延迟3秒（原1秒太快，易被限流）
-  randomDelayMin: 2000,     // 默认随机延迟最小2秒（原500ms，调整为更自然的间隔）
-  randomDelayMax: 5000,     // 默认随机延迟最大5秒（原2秒，模拟真实用户浏览速度）
+  fixedDelay: 100,          // 默认固定延迟100ms（快速响应 + 限流器内部有抖动）
+  randomDelayMin: 50,       // 默认随机延迟最小50ms（配合3并发，模拟快速切换商品）
+  randomDelayMax: 150,      // 默认随机延迟最大150ms（限流器会添加±50ms抖动）
   enabled: true,            // 默认启用频率限制
 };
 

@@ -105,14 +105,19 @@ export async function getOzonStandardHeaders(options: {
   // 动态获取版本信息（优先拦截，回退硬编码）
   const { appVersion, manifestVersion } = await getOzonVersions();
 
-  // 基础headers（模拟真实浏览器请求）
+  // 基础headers（完全模拟真实浏览器请求 + 上品帮headers）
   const headers: Record<string, string> = {
     'Accept': 'application/json',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
     'Origin': 'https://www.ozon.ru',
     'Pragma': 'no-cache',
     'Priority': 'u=1, i',
+    'sec-fetch-dest': 'empty',                  // ← 新增（上品帮有）
+    'sec-fetch-mode': 'cors',                   // ← 新增（上品帮有）
+    'sec-fetch-site': 'none',                   // ← 新增（上品帮有）
+    'sec-fetch-storage-access': 'active',       // ← 新增（上品帮有，关键header）
     'X-O3-App-Name': 'dweb_client',
     'X-O3-App-Version': appVersion,  // ← 动态版本号
     'X-O3-Manifest-Version': manifestVersion,  // ← 动态版本号

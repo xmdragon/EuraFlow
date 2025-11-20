@@ -16,6 +16,11 @@ interface QueueTask<T> {
 
 /**
  * OZON API 全局限流器（单例）
+ *
+ * 策略调整（2025-01-19）：
+ * - 支持最多 3 个并发请求（模拟真实用户快速切换商品）
+ * - 最小间隔 100ms + 随机抖动 ±50ms（避免规律性）
+ * - 更接近上品帮的请求模式（无限流器，直接并发）
  */
 export class OzonApiRateLimiter {
   private static instance: OzonApiRateLimiter;
@@ -23,6 +28,9 @@ export class OzonApiRateLimiter {
   private queue: QueueTask<any>[] = [];
   private isProcessing = false;
   private lastExecuteTime = 0;
+  private activeRequests = 0;               // ← 新增：当前正在执行的请求数
+  private readonly MAX_CONCURRENT = 3;      // ← 新增：最大并发数
+  private readonly JITTER_RANGE = 50;       // ← 新增：抖动范围 ±50ms
 
   // 配置缓存（每10秒刷新一次，避免频繁读取storage）
   private cachedConfig: RateLimitConfig | null = null;
@@ -66,7 +74,7 @@ export class OzonApiRateLimiter {
   }
 
   /**
-   * 处理队列（串行执行，严格控制间隔）
+   * 处理队列（支持并发，最多 3 个同时执行）
    */
   private async processQueue(): Promise<void> {
     // 如果已经在处理，直接返回（避免重复触发）
@@ -76,33 +84,51 @@ export class OzonApiRateLimiter {
 
     this.isProcessing = true;
 
-    while (this.queue.length > 0) {
-      const task = this.queue.shift()!;
+    while (this.queue.length > 0 || this.activeRequests > 0) {
+      // 检查是否可以启动新任务（并发控制）
+      if (this.queue.length > 0 && this.activeRequests < this.MAX_CONCURRENT) {
+        const task = this.queue.shift()!;
 
-      // 计算需要延迟的时间
-      const now = Date.now();
-      const configDelay = await this.getDelayTime();
-      const timeSinceLastExecute = now - this.lastExecuteTime;
-      const needDelay = Math.max(0, configDelay - timeSinceLastExecute);
+        // 计算需要延迟的时间（含随机抖动）
+        const now = Date.now();
+        const configDelay = await this.getDelayTime();
+        const jitter = Math.floor(Math.random() * (this.JITTER_RANGE * 2 + 1)) - this.JITTER_RANGE; // -50 ~ +50
+        const delayWithJitter = Math.max(0, configDelay + jitter);
+        const timeSinceLastExecute = now - this.lastExecuteTime;
+        const needDelay = Math.max(0, delayWithJitter - timeSinceLastExecute);
 
-      // 延迟（确保与上次执行的间隔 >= 配置值）
-      if (needDelay > 0) {
-        await new Promise(resolve => setTimeout(resolve, needDelay));
+        // 延迟（确保与上次执行的间隔 >= 配置值 + 抖动）
+        if (needDelay > 0) {
+          await new Promise(resolve => setTimeout(resolve, needDelay));
+        }
+
+        // 更新最后执行时间
+        this.lastExecuteTime = Date.now();
+
+        // 异步执行任务（不阻塞队列处理）
+        this.activeRequests++;
+        this.executeTask(task).finally(() => {
+          this.activeRequests--;
+        });
+      } else {
+        // 没有可执行的任务，等待一小段时间
+        await new Promise(resolve => setTimeout(resolve, 10));
       }
-
-      // 执行任务
-      try {
-        const result = await task.fn();
-        task.resolve(result);
-      } catch (error) {
-        task.reject(error);
-      }
-
-      // 更新最后执行时间
-      this.lastExecuteTime = Date.now();
     }
 
     this.isProcessing = false;
+  }
+
+  /**
+   * 执行单个任务（异步，不阻塞队列）
+   */
+  private async executeTask(task: QueueTask<any>): Promise<void> {
+    try {
+      const result = await task.fn();
+      task.resolve(result);
+    } catch (error) {
+      task.reject(error);
+    }
   }
 
   /**
