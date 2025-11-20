@@ -88,7 +88,7 @@ const CancelReturn: React.FC = () => {
     state: undefined as string | undefined,
     initiator: undefined as string | undefined,
     posting_number: undefined as string | undefined,
-    dateRange: [dayjs().subtract(30, 'days'), dayjs()] as [Dayjs | null, Dayjs | null] | null,
+    dateRange: null as [Dayjs | null, Dayjs | null] | null,
   });
 
   // 退货申请筛选
@@ -97,7 +97,7 @@ const CancelReturn: React.FC = () => {
     limit: 50,
     group_state: undefined as string | undefined,
     posting_number: undefined as string | undefined,
-    dateRange: [dayjs().subtract(30, 'days'), dayjs()] as [Dayjs | null, Dayjs | null] | null,
+    dateRange: null as [Dayjs | null, Dayjs | null] | null,
   });
 
   // 详情 Modal 状态
@@ -563,7 +563,6 @@ const CancelReturn: React.FC = () => {
                 type="primary"
                 icon={<ReloadOutlined />}
                 onClick={handleSync}
-                disabled={selectedShop === null}
               >
                 同步数据
               </Button>
