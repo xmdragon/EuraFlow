@@ -41,6 +41,7 @@ import { useWatermark } from '@/hooks/ozon/useWatermark';
 import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
+import authService from '@/services/authService';
 import * as ozonApi from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { loggers } from '@/utils/logger';
@@ -504,10 +505,12 @@ const ProductList: React.FC = () => {
             }}
             onFinish={async (values) => {
               try {
+                const authHeaders = authService.getAuthHeader();
                 const response = await fetch(`/api/ef/v1/ozon/products/${selectedProduct.id}`, {
                   method: 'PUT',
                   headers: {
                     'Content-Type': 'application/json',
+                    ...authHeaders,
                   },
                   body: JSON.stringify(values),
                 });
