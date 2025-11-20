@@ -805,6 +805,17 @@ class CancelReturnService:
         if state_data:
             return_obj.state_name = state_data.get("state_name")
 
+        # 从posting表获取配送方式（如果return_obj有posting_id）
+        if return_obj.posting_id:
+            posting_result = await db.execute(
+                select(OzonPosting.delivery_method_name).where(
+                    OzonPosting.id == return_obj.posting_id
+                )
+            )
+            delivery_method_name = posting_result.scalar_one_or_none()
+            if delivery_method_name:
+                return_obj.delivery_method_name = delivery_method_name
+
         return_obj.updated_at = datetime.now(timezone.utc)
 
         logger.debug(f"更新退货详情成功: return_id={return_id}")

@@ -376,7 +376,7 @@ const CancelReturn: React.FC = () => {
       title: 'SKU',
       dataIndex: 'sku',
       key: 'sku',
-      width: 120,
+      width: 90,
       render: (text: number | null) => text || '-',
     },
     {
@@ -464,7 +464,7 @@ const CancelReturn: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_at_ozon',
       key: 'created_at_ozon',
-      width: 80,
+      width: 100,
       render: (text: string | null) => (text ? formatDateTime(text) : '-'),
     },
   ];
@@ -744,7 +744,7 @@ const CancelReturn: React.FC = () => {
                 {returnDetail.sku || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="价格">
-                {returnDetail.price ? `${returnDetail.price} ${returnDetail.currency_code}` : '-'}
+                {returnDetail.price ? `${Number(returnDetail.price).toFixed(2)} ${returnDetail.currency_code}` : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="配送方式">
                 {returnDetail.delivery_method_name || '-'}
