@@ -1300,3 +1300,53 @@ async def import_products_by_sku(
                     "code": "IMPORT_FAILED"
                 }
             )
+
+
+@router.put("/{sku}/purchase-info")
+async def update_product_purchase_info(
+    sku: str,
+    request_data: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """更新商品采购信息（采购地址、建议采购价、采购备注）"""
+    from decimal import Decimal
+
+    # 查询商品
+    result = await db.execute(
+        select(OzonProduct).where(OzonProduct.ozon_sku == int(sku))
+    )
+    product = result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    try:
+        # 更新采购信息
+        if "purchase_url" in request_data:
+            product.purchase_url = request_data["purchase_url"]
+        if "suggested_purchase_price" in request_data:
+            product.suggested_purchase_price = Decimal(str(request_data["suggested_purchase_price"])) if request_data["suggested_purchase_price"] else None
+        if "purchase_note" in request_data:
+            product.purchase_note = request_data["purchase_note"]
+
+        product.updated_at = datetime.now()
+        await db.commit()
+
+        return {
+            "success": True,
+            "message": "采购信息更新成功",
+            "data": {
+                "sku": sku,
+                "purchase_url": product.purchase_url,
+                "suggested_purchase_price": str(product.suggested_purchase_price) if product.suggested_purchase_price else None,
+                "purchase_note": product.purchase_note
+            }
+        }
+
+    except Exception as e:
+        await db.rollback()
+        return {
+            "success": False,
+            "message": f"更新失败: {str(e)}"
+        }

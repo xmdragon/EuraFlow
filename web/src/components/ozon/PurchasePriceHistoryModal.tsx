@@ -85,7 +85,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       setIsSaving(true);
 
       const authHeaders = authService.getAuthHeader();
-      const response = await fetch(`/api/ef/v1/ozon/packing/products/${sku}/purchase-info`, {
+      const response = await fetch(`/api/ef/v1/ozon/products/${sku}/purchase-info`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
