@@ -48,23 +48,31 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
   try {
     const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(productUrl)}`;
 
-    // ⚠️ 通过 Service Worker 统一执行 OZON API 请求（避免 Content Script 直接调用触发限流）
-    // Service Worker 内部会使用 OzonApiRateLimiter 进行限流控制
-    const result = await chrome.runtime.sendMessage({
-      type: 'FETCH_OZON_API',
-      data: {
-        url: apiUrl,
-        options: { method: 'GET' },
-        referer: window.location.href
-      }
+    // ✅ 在 Content Script 中直接 fetch（显示在网络面板，不被识别为扩展爬虫）
+    // 使用全局 OZON API 限流器和标准 headers（避免触发限流）
+    const { OzonApiRateLimiter } = await import('../../shared/ozon-rate-limiter');
+    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
+    const limiter = OzonApiRateLimiter.getInstance();
+
+    const headers = await getOzonStandardHeaders({
+      referer: window.location.href,
+      includeContentType: false
     });
 
-    if (!result.success) {
-      console.error(`[EuraFlow] OZON API 请求失败: ${result.error}`);
-      throw new Error(`API请求失败: ${result.error}`);
+    const response = await limiter.execute(() =>
+      fetch(apiUrl, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      })
+    );
+
+    if (!response.ok) {
+      console.error(`[EuraFlow] OZON API 请求失败: ${response.status}`);
+      throw new Error(`API请求失败: ${response.status}`);
     }
 
-    const data = result.data;
+    const data = await response.json();
     if (!data.widgetStates) {
       console.error('[EuraFlow] OZON API 返回数据中没有 widgetStates');
       throw new Error('widgetStates 不存在');
@@ -91,22 +99,24 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
       console.log(`[EuraFlow] 正在调用 OZON Modal API 获取完整变体: ${apiUrl}`);
     }
 
-    // ⚠️ 通过 Service Worker 统一执行 OZON API 请求（避免 Content Script 直接调用触发限流）
-    const result = await chrome.runtime.sendMessage({
-      type: 'FETCH_OZON_API',
-      data: {
-        url: apiUrl,
-        options: { method: 'GET' },
-        referer: window.location.href
-      }
+    // ✅ 在 Content Script 中直接 fetch（显示在网络面板）
+    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
+    const headers = await getOzonStandardHeaders({
+      referer: window.location.href
     });
 
-    if (!result.success) {
-      console.warn(`[EuraFlow] Modal API 请求失败: ${result.error}`);
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers,
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      console.warn(`[EuraFlow] Modal API 请求失败: ${response.status}`);
       return null;
     }
 
-    const data = result.data;
+    const data = await response.json();
     const widgetStates = data.widgetStates || {};
     const keys = Object.keys(widgetStates);
 
@@ -379,22 +389,24 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       console.log(`[EuraFlow] 正在调用 OZON Page2 API 获取特征和描述: ${apiUrl}`);
     }
 
-    // ⚠️ 通过 Service Worker 统一执行 OZON API 请求（避免 Content Script 直接调用触发限流）
-    const result = await chrome.runtime.sendMessage({
-      type: 'FETCH_OZON_API',
-      data: {
-        url: apiUrl,
-        options: { method: 'GET' },
-        referer: window.location.href
-      }
+    // ✅ 在 Content Script 中直接 fetch（显示在网络面板）
+    const { getOzonStandardHeaders } = await import('../../shared/ozon-headers');
+    const headers = await getOzonStandardHeaders({
+      referer: window.location.href
     });
 
-    if (!result.success) {
-      console.warn(`[EuraFlow] Page2 API 请求失败: ${result.error}`);
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers,
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      console.warn(`[EuraFlow] Page2 API 请求失败: ${response.status}`);
       return null;
     }
 
-    const data = result.data;
+    const data = await response.json();
     const widgetStates = data.widgetStates || {};
     const keys = Object.keys(widgetStates);
 

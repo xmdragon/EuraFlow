@@ -210,22 +210,6 @@ chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.Mess
 
     return true;
   }
-
-  // ============================================================================
-  // 统一 OZON API 请求处理器
-  // ============================================================================
-  // 所有 OZON API 请求必须通过 Service Worker 执行，避免 Content Script 直接调用
-  // 优势：1) Background Script 的 fetch 不受页面 CSP 限制
-  //       2) sec-fetch-site: none（跨域请求，更自然，不易被限流）
-  //       3) 统一经过 OzonApiRateLimiter 限流（避免批量并发）
-  // ============================================================================
-  if (message.type === 'FETCH_OZON_API') {
-    handleFetchOzonAPI(message.data)
-      .then(response => sendResponse({ success: true, data: response }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
-
-    return true;
-  }
 });
 
 /**
@@ -1852,84 +1836,6 @@ async function handleGetOzonSellerDimensions(productId: string): Promise<any> {
   } catch (error) {
     console.error('[OZON Seller] 尺寸数据获取失败:', error);
     return null;
-  }
-}
-
-/**
- * ============================================================================
- * 统一 OZON API 请求处理函数
- * ============================================================================
- * 所有 OZON API 请求统一通过此函数执行，避免 Content Script 直接调用
- *
- * 优势：
- * 1. Background Script 的 fetch 不受页面 CSP 限制
- * 2. sec-fetch-site: none（跨域特征，更自然，不易被 OZON 反爬检测）
- * 3. 统一经过 OzonApiRateLimiter 限流（避免批量并发触发限流）
- * 4. 统一使用标准 OZON headers（动态版本号 + 完整特征）
- *
- * @param data.url - OZON API 完整 URL
- * @param data.options - fetch 配置项（method, body 等）
- * @param data.referer - 可选的 Referer 头（用于模拟真实请求）
- */
-async function handleFetchOzonAPI(data: {
-  url: string;
-  options?: RequestInit;
-  referer?: string;
-}): Promise<any> {
-  const { url, options = {}, referer } = data;
-
-  try {
-    // 使用全局 OZON API 限流器（统一管理所有 OZON API 请求频率）
-    const limiter = OzonApiRateLimiter.getInstance();
-
-    // 生成标准 OZON headers（包含动态版本号）
-    const headers = await getOzonStandardHeaders({
-      referer: referer || url
-    });
-
-    console.log('[OZON API] 统一请求:', {
-      url: url.substring(0, 100) + '...',
-      method: options.method || 'GET',
-      hasBody: !!options.body
-    });
-
-    // 通过限流器执行请求（保证串行执行 + 间隔控制）
-    const response = await limiter.execute(() =>
-      fetch(url, {
-        ...options,
-        headers: {
-          ...headers,
-          ...(options.headers || {})
-        },
-        credentials: 'include' // 启用 Cookie 认证
-      })
-    );
-
-    if (!response.ok) {
-      console.error('[OZON API] 请求失败:', {
-        url: url.substring(0, 100),
-        status: response.status,
-        statusText: response.statusText
-      });
-      throw new Error(`OZON API 请求失败: ${response.status} ${response.statusText}`);
-    }
-
-    // 解析 JSON 响应
-    const result = await response.json();
-
-    console.log('[OZON API] 请求成功:', {
-      url: url.substring(0, 100) + '...',
-      dataSize: JSON.stringify(result).length
-    });
-
-    return result;
-
-  } catch (error: any) {
-    console.error('[OZON API] 请求异常:', {
-      url: url.substring(0, 100),
-      error: error.message
-    });
-    throw error;
   }
 }
 
