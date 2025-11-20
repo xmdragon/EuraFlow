@@ -102,6 +102,129 @@ async def _get_task_schedule(db_session, service_key: str, default_cron: str) ->
         return default_cron, True
 
 
+async def category_sync_task(**kwargs):
+    """类目树同步定时任务"""
+    from .models.ozon_shops import OzonShop
+    from .api.client import OzonAPIClient
+    from .services.catalog_service import CatalogService
+    from ef_core.database import get_db_manager
+    from sqlalchemy import select
+
+    logger.info("Starting category tree sync task")
+
+    try:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
+            # 获取第一家启用的店铺
+            result = await db.execute(
+                select(OzonShop).where(OzonShop.status == "active").limit(1)
+            )
+            shop = result.scalar_one_or_none()
+
+            if not shop:
+                logger.warning("No active shop found for category sync")
+                return {"success": False, "error": "No active shop available"}
+
+            logger.info(f"Using shop {shop.id} ({shop.shop_name}) for category sync")
+
+            # 创建 API 客户端
+            client = OzonAPIClient(
+                client_id=shop.client_id,
+                api_key=shop.api_key_enc,
+                shop_id=shop.id
+            )
+
+            # 创建目录服务
+            catalog_service = CatalogService(client, db)
+
+            # 同步类目树（强制刷新）
+            sync_result = await catalog_service.sync_category_tree(force_refresh=True)
+
+            # 关闭客户端
+            await client.close()
+
+            if sync_result.get("success"):
+                logger.info(
+                    f"Category sync completed: "
+                    f"{sync_result.get('total_categories')} total, "
+                    f"{sync_result.get('new_categories')} new, "
+                    f"{sync_result.get('updated_categories')} updated"
+                )
+                return sync_result
+            else:
+                error = sync_result.get("error", "Unknown error")
+                logger.error(f"Category sync failed: {error}")
+                return {"success": False, "error": error}
+
+    except Exception as e:
+        logger.error(f"Category tree sync failed: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+async def attributes_sync_task(**kwargs):
+    """类目特征同步定时任务"""
+    from .models.ozon_shops import OzonShop
+    from .api.client import OzonAPIClient
+    from .services.catalog_service import CatalogService
+    from ef_core.database import get_db_manager
+    from sqlalchemy import select
+
+    logger.info("Starting category attributes sync task")
+
+    try:
+        db_manager = get_db_manager()
+        async with db_manager.get_session() as db:
+            # 获取第一家启用的店铺
+            result = await db.execute(
+                select(OzonShop).where(OzonShop.status == "active").limit(1)
+            )
+            shop = result.scalar_one_or_none()
+
+            if not shop:
+                logger.warning("No active shop found for attributes sync")
+                return {"success": False, "error": "No active shop available"}
+
+            logger.info(f"Using shop {shop.id} ({shop.shop_name}) for attributes sync")
+
+            # 创建 API 客户端
+            client = OzonAPIClient(
+                client_id=shop.client_id,
+                api_key=shop.api_key_enc,
+                shop_id=shop.id
+            )
+
+            # 创建目录服务
+            catalog_service = CatalogService(client, db)
+
+            # 同步所有叶子类目的特征（包括字典值）
+            sync_result = await catalog_service.batch_sync_category_attributes(
+                category_ids=None,
+                sync_all_leaf=True,
+                sync_dictionary_values=True,
+                language="ZH_HANS",
+                max_concurrent=5
+            )
+
+            # 关闭客户端
+            await client.close()
+
+            if sync_result.get("success"):
+                logger.info(
+                    f"Attributes sync completed: "
+                    f"{sync_result.get('synced_categories')} categories, "
+                    f"{sync_result.get('synced_attributes')} attributes"
+                )
+                return sync_result
+            else:
+                error = sync_result.get("error", "Unknown error")
+                logger.error(f"Attributes sync failed: {error}")
+                return {"success": False, "error": error}
+
+    except Exception as e:
+        logger.error(f"Category attributes sync failed: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
 async def setup(hooks) -> None:
     """插件初始化函数"""
     # 从数据库获取Ozon店铺配置和任务调度配置
@@ -656,127 +779,6 @@ async def setup(hooks) -> None:
     # 注册类目同步定时任务
     try:
         from ef_core.database import get_db_manager
-
-        # 1. 类目树同步
-        async def category_sync_task(**kwargs):
-            """类目树同步定时任务"""
-            from .models.ozon_shops import OzonShop
-            from .api.client import OzonAPIClient
-            from .services.catalog_service import CatalogService
-            from sqlalchemy import select
-
-            logger.info("Starting category tree sync task")
-
-            try:
-                db_manager = get_db_manager()
-                async with db_manager.get_session() as db:
-                    # 获取第一家启用的店铺
-                    result = await db.execute(
-                        select(OzonShop).where(OzonShop.status == "active").limit(1)
-                    )
-                    shop = result.scalar_one_or_none()
-
-                    if not shop:
-                        logger.warning("No active shop found for category sync")
-                        return {"success": False, "error": "No active shop available"}
-
-                    logger.info(f"Using shop {shop.id} ({shop.shop_name}) for category sync")
-
-                    # 创建 API 客户端
-                    client = OzonAPIClient(
-                        client_id=shop.client_id,
-                        api_key=shop.api_key_enc,
-                        shop_id=shop.id
-                    )
-
-                    # 创建目录服务
-                    catalog_service = CatalogService(client, db)
-
-                    # 同步类目树（强制刷新）
-                    sync_result = await catalog_service.sync_category_tree(force_refresh=True)
-
-                    # 关闭客户端
-                    await client.close()
-
-                    if sync_result.get("success"):
-                        logger.info(
-                            f"Category sync completed: "
-                            f"{sync_result.get('total_categories')} total, "
-                            f"{sync_result.get('new_categories')} new, "
-                            f"{sync_result.get('updated_categories')} updated"
-                        )
-                        return sync_result
-                    else:
-                        error = sync_result.get("error", "Unknown error")
-                        logger.error(f"Category sync failed: {error}")
-                        return {"success": False, "error": error}
-
-            except Exception as e:
-                logger.error(f"Category tree sync failed: {e}", exc_info=True)
-                return {"success": False, "error": str(e)}
-
-        # 2. 类目特征同步
-        async def attributes_sync_task(**kwargs):
-            """类目特征同步定时任务"""
-            from .models.ozon_shops import OzonShop
-            from .api.client import OzonAPIClient
-            from .services.catalog_service import CatalogService
-            from sqlalchemy import select
-
-            logger.info("Starting category attributes sync task")
-
-            try:
-                db_manager = get_db_manager()
-                async with db_manager.get_session() as db:
-                    # 获取第一家启用的店铺
-                    result = await db.execute(
-                        select(OzonShop).where(OzonShop.status == "active").limit(1)
-                    )
-                    shop = result.scalar_one_or_none()
-
-                    if not shop:
-                        logger.warning("No active shop found for attributes sync")
-                        return {"success": False, "error": "No active shop available"}
-
-                    logger.info(f"Using shop {shop.id} ({shop.shop_name}) for attributes sync")
-
-                    # 创建 API 客户端
-                    client = OzonAPIClient(
-                        client_id=shop.client_id,
-                        api_key=shop.api_key_enc,
-                        shop_id=shop.id
-                    )
-
-                    # 创建目录服务
-                    catalog_service = CatalogService(client, db)
-
-                    # 同步所有叶子类目的特征（包括字典值）
-                    sync_result = await catalog_service.batch_sync_category_attributes(
-                        category_ids=None,
-                        sync_all_leaf=True,
-                        sync_dictionary_values=True,
-                        language="ZH_HANS",
-                        max_concurrent=5
-                    )
-
-                    # 关闭客户端
-                    await client.close()
-
-                    if sync_result.get("success"):
-                        logger.info(
-                            f"Attributes sync completed: "
-                            f"{sync_result.get('synced_categories')} categories, "
-                            f"{sync_result.get('synced_attributes')} attributes"
-                        )
-                        return sync_result
-                    else:
-                        error = sync_result.get("error", "Unknown error")
-                        logger.error(f"Attributes sync failed: {error}")
-                        return {"success": False, "error": error}
-
-            except Exception as e:
-                logger.error(f"Category attributes sync failed: {e}", exc_info=True)
-                return {"success": False, "error": str(e)}
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as db:
