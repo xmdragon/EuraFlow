@@ -763,8 +763,8 @@ class CancelReturnService:
         # 调用详情API
         detail_response = await client.get_return_rfbs_info(return_id)
 
-        # 提取详情数据
-        detail_data = detail_response.get("result", {})
+        # 提取详情数据（从 returns 字段）
+        detail_data = detail_response.get("returns", {})
         if not detail_data:
             logger.warning(f"退货详情API返回空数据: return_id={return_id}")
             return
@@ -782,15 +782,29 @@ class CancelReturnService:
             logger.warning(f"未找到退货记录: return_id={return_id}")
             return
 
-        # 更新详情字段
-        return_obj.money_return_state_name = detail_data.get("money_return_state_name")
-        return_obj.return_reason_id = detail_data.get("return_reason_id")
-        return_obj.return_reason_name = detail_data.get("return_reason_name")
-        return_obj.rejection_reason_id = detail_data.get("rejection_reason_id")
-        return_obj.rejection_reason_name = detail_data.get("rejection_reason_name")
-        return_obj.rejection_reasons = detail_data.get("rejection_reasons")
+        # 更新详情字段（从嵌套对象中提取）
         return_obj.return_method_description = detail_data.get("return_method_description")
         return_obj.available_actions = detail_data.get("available_actions")
+
+        # 退货原因（嵌套对象）
+        return_reason = detail_data.get("return_reason", {})
+        if return_reason:
+            return_obj.return_reason_id = return_reason.get("id")
+            return_obj.return_reason_name = return_reason.get("name")
+
+        # 拒绝原因（数组）
+        rejection_reasons = detail_data.get("rejection_reason", [])
+        if rejection_reasons and len(rejection_reasons) > 0:
+            first_rejection = rejection_reasons[0]
+            return_obj.rejection_reason_id = first_rejection.get("id")
+            return_obj.rejection_reason_name = first_rejection.get("name")
+            return_obj.rejection_reasons = rejection_reasons
+
+        # 退款状态（从state中提取）
+        state_data = detail_data.get("state", {})
+        if state_data:
+            return_obj.state_name = state_data.get("state_name")
+
         return_obj.updated_at = datetime.now(timezone.utc)
 
         logger.debug(f"更新退货详情成功: return_id={return_id}")

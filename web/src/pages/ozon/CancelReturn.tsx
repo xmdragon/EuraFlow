@@ -1,7 +1,7 @@
 /**
  * OZON 取消和退货申请管理页面
  */
-import { CloseCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, ReloadOutlined, SearchOutlined, CopyOutlined, TranslationOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
@@ -41,6 +41,7 @@ import { useColumnSettings } from '@/hooks/useColumnSettings';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozonApi';
+import { translateText } from '@/services/translationApi';
 import { notifyError, notifySuccess } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
@@ -753,16 +754,84 @@ const CancelReturn: React.FC = () => {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="详细状态">
-                {returnDetail.state_name || getReturnStateText(returnDetail.state) || '-'}
+                {getReturnStateText(returnDetail.state) || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="退款状态" span={2}>
                 {returnDetail.money_return_state_name || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="退货原因" span={2}>
-                {returnDetail.return_reason_name || '-'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>{returnDetail.return_reason_name || '-'}</span>
+                  {returnDetail.return_reason_name && (
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<TranslationOutlined />}
+                      onClick={async () => {
+                        const russianText = returnDetail.return_reason_name;
+                        if (russianText) {
+                          try {
+                            const translation = await translateText(russianText, 'ru', 'zh');
+                            Modal.info({
+                              title: '翻译结果',
+                              content: (
+                                <div>
+                                  <p><strong>原文（俄语）：</strong></p>
+                                  <p>{russianText}</p>
+                                  <p style={{ marginTop: 16 }}><strong>译文（中文）：</strong></p>
+                                  <p>{translation}</p>
+                                </div>
+                              ),
+                              width: 500,
+                            });
+                          } catch (error) {
+                            notifyError('翻译失败，请稍后重试');
+                          }
+                        }
+                      }}
+                      style={{ padding: 0 }}
+                    >
+                      翻译
+                    </Button>
+                  )}
+                </div>
               </Descriptions.Item>
               <Descriptions.Item label="拒绝原因" span={2}>
-                {returnDetail.rejection_reason_name || '-'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>{returnDetail.rejection_reason_name || '-'}</span>
+                  {returnDetail.rejection_reason_name && (
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<TranslationOutlined />}
+                      onClick={async () => {
+                        const russianText = returnDetail.rejection_reason_name;
+                        if (russianText) {
+                          try {
+                            const translation = await translateText(russianText, 'ru', 'zh');
+                            Modal.info({
+                              title: '翻译结果',
+                              content: (
+                                <div>
+                                  <p><strong>原文（俄语）：</strong></p>
+                                  <p>{russianText}</p>
+                                  <p style={{ marginTop: 16 }}><strong>译文（中文）：</strong></p>
+                                  <p>{translation}</p>
+                                </div>
+                              ),
+                              width: 500,
+                            });
+                          } catch (error) {
+                            notifyError('翻译失败，请稍后重试');
+                          }
+                        }
+                      }}
+                      style={{ padding: 0 }}
+                    >
+                      翻译
+                    </Button>
+                  )}
+                </div>
               </Descriptions.Item>
               <Descriptions.Item label="退货方式" span={2}>
                 {returnDetail.return_method_description || '-'}

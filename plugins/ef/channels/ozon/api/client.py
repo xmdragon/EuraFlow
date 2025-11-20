@@ -2222,7 +2222,7 @@ class OzonAPIClient:
     ) -> Dict[str, Any]:
         """
         获取退货申请详情（rFBS）
-        使用 /v2/returns/rfbs/info 接口
+        使用 /v2/returns/rfbs/get 接口
 
         Args:
             return_id: 退货申请ID
@@ -2236,7 +2236,7 @@ class OzonAPIClient:
 
         return await self._request(
             "POST",
-            "/v2/returns/rfbs/info",
+            "/v2/returns/rfbs/get",
             data=data,
             resource_type="orders"
         )
