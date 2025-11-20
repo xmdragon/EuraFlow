@@ -865,6 +865,7 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
       'x-o3-page-type': 'products-other'
     };
 
+    // 【路径策略】seller.ozon.ru/api/* → 不经过网关，直接调用 Seller 后台 API
     const response = await limiter.execute(() =>
       fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
         method: 'POST',
@@ -1440,22 +1441,37 @@ async function handleGetFollowSellerDataBatch(data: { productIds: string[] }): P
   // 使用全局OZON API限流器
   const limiter = OzonApiRateLimiter.getInstance();
 
+  // 【关键修复】获取 www.ozon.ru 的所有 Cookie（Service Worker 中 credentials: 'include' 不起作用）
+  const ozonCookies = await chrome.cookies.getAll({ domain: '.ozon.ru' });
+  const cookieString = ozonCookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+  console.log(`[OZON跟卖数据] Cookie 长度: ${cookieString.length} 字符`);
+
   for (const productId of productIds) {
     try {
       const origin = 'https://www.ozon.ru';
       const encodedUrl = encodeURIComponent(`/modal/otherOffersFromSellers?product_id=${productId}&page_changed=true`);
+      // 【路径策略】www.ozon.ru/api/entrypoint-api.bx/* → 需要经过内部网关（模拟官方请求）
       const apiUrl = `${origin}/api/entrypoint-api.bx/page/json/v2?url=${encodedUrl}`;
 
-      // 使用标准headers + 限流器（避免触发限流）
-      const headers = await getOzonStandardHeaders({
-        referer: `https://www.ozon.ru/product/${productId}/`
+      // 使用标准headers + composer 服务标识 + 限流器（避免触发限流）
+      const baseHeaders = await getOzonStandardHeaders({
+        referer: `https://www.ozon.ru/product/${productId}/`,
+        serviceName: 'composer'  // 【Phase 4】添加服务名称，模拟 OZON 官方的内部网关调用
       });
+
+      // 【关键修复】显式添加 Cookie header
+      const headers = {
+        ...baseHeaders,
+        'Cookie': cookieString,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+      };
 
       const response = await limiter.execute(() =>
         fetch(apiUrl, {
           method: 'GET',
-          headers,
-          credentials: 'include'
+          headers
+          // 移除 credentials: 'include'，因为在 Service Worker 中不起作用
         })
       );
 

@@ -4,7 +4,7 @@ OZON 取消和退货申请同步服务
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable, Awaitable
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.exc import IntegrityError
@@ -23,7 +23,11 @@ class CancelReturnService:
     def __init__(self):
         self.db_manager = get_db_manager()
 
-    async def sync_cancellations(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    async def sync_cancellations(
+        self,
+        config: Dict[str, Any],
+        progress_callback: Optional[Callable[[int, str], Awaitable[None]]] = None
+    ) -> Dict[str, Any]:
         """
         同步取消申请数据（定时任务处理函数）
 
@@ -31,6 +35,7 @@ class CancelReturnService:
             config: 配置参数
                 - shop_id: 店铺ID（可选，默认所有活跃店铺）
                 - last_id: 上次同步的last_id（可选）
+            progress_callback: 进度回调函数 callback(progress: int, message: str)
 
         Returns:
             同步结果
@@ -66,8 +71,14 @@ class CancelReturnService:
                 shops = result.scalars().all()
                 logger.info(f"查询到 {len(shops)} 个活跃店铺")
 
-            for shop in shops:
+            total_shops = len(shops)
+            for idx, shop in enumerate(shops, 1):
                 try:
+                    # 更新进度
+                    if progress_callback:
+                        progress = int((idx - 1) / total_shops * 100)
+                        await progress_callback(progress, f"正在同步店铺 {shop.shop_name} ({idx}/{total_shops})...")
+
                     synced_count, updated_count = await self._sync_shop_cancellations(
                         db=db,
                         shop=shop,
@@ -84,6 +95,11 @@ class CancelReturnService:
                     })
 
                     logger.info(f"店铺 {shop.shop_name} 取消申请同步完成，新增 {synced_count} 条，更新 {updated_count} 条")
+
+                    # 更新进度
+                    if progress_callback:
+                        progress = int(idx / total_shops * 100)
+                        await progress_callback(progress, f"已完成 {idx}/{total_shops} 个店铺")
 
                 except Exception as e:
                     logger.error(f"店铺 {shop.shop_name} 取消申请同步失败: {e}", exc_info=True)
@@ -243,7 +259,11 @@ class CancelReturnService:
             db.add(cancellation)
             return False
 
-    async def sync_returns(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    async def sync_returns(
+        self,
+        config: Dict[str, Any],
+        progress_callback: Optional[Callable[[int, str], Awaitable[None]]] = None
+    ) -> Dict[str, Any]:
         """
         同步退货申请数据（定时任务处理函数）
 
@@ -251,6 +271,7 @@ class CancelReturnService:
             config: 配置参数
                 - shop_id: 店铺ID（可选，默认所有活跃店铺）
                 - last_id: 上次同步的last_id（可选）
+            progress_callback: 进度回调函数 callback(progress: int, message: str)
 
         Returns:
             同步结果
@@ -286,8 +307,14 @@ class CancelReturnService:
                 shops = result.scalars().all()
                 logger.info(f"查询到 {len(shops)} 个活跃店铺")
 
-            for shop in shops:
+            total_shops = len(shops)
+            for idx, shop in enumerate(shops, 1):
                 try:
+                    # 更新进度
+                    if progress_callback:
+                        progress = int((idx - 1) / total_shops * 100)
+                        await progress_callback(progress, f"正在同步店铺 {shop.shop_name} ({idx}/{total_shops})...")
+
                     synced_count, updated_count = await self._sync_shop_returns(
                         db=db,
                         shop=shop,
@@ -304,6 +331,11 @@ class CancelReturnService:
                     })
 
                     logger.info(f"店铺 {shop.shop_name} 退货申请同步完成，新增 {synced_count} 条，更新 {updated_count} 条")
+
+                    # 更新进度
+                    if progress_callback:
+                        progress = int(idx / total_shops * 100)
+                        await progress_callback(progress, f"已完成 {idx}/{total_shops} 个店铺")
 
                 except Exception as e:
                     logger.error(f"店铺 {shop.shop_name} 退货申请同步失败: {e}", exc_info=True)

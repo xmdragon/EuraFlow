@@ -128,15 +128,19 @@ export async function getOzonStandardHeaders(options: {
   const headers: Record<string, string> = {
     'Accept': 'application/json',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Encoding': 'gzip, deflate, br, zstd',
     'Cache-Control': 'no-cache',
     'Origin': 'https://www.ozon.ru',
     'Pragma': 'no-cache',
     'Priority': 'u=1, i',
-    'sec-fetch-dest': 'empty',                  // ← 新增（上品帮有）
-    'sec-fetch-mode': 'cors',                   // ← 新增（上品帮有）
-    'sec-fetch-site': 'none',                   // ← 新增（上品帮有）
-    'sec-fetch-storage-access': 'active',       // ← 新增（上品帮有，关键header）
+    // 【关键修复】Chrome 浏览器特征 headers
+    'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-origin',  // ← 修正为 same-origin（www.ozon.ru 调用自己的 API）
+    'Sec-Fetch-Storage-Access': 'active',  // ← 修正大小写（Sec 大写）
     'X-O3-App-Name': 'dweb_client',
     'X-O3-App-Version': appVersion,  // ← 动态版本号
     'X-O3-Manifest-Version': manifestVersion,  // ← 动态版本号

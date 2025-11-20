@@ -289,10 +289,17 @@ async def sync_cancellations(
             SYNC_TASKS[task_id] = {
                 "status": "running",
                 "progress": 0,
-                "message": "正在同步取消申请...",
+                "message": "正在同步取消申请，请稍候...",
                 "started_at": utcnow().isoformat(),
                 "type": "cancellations",
             }
+
+            # 进度更新回调函数
+            async def update_progress(progress: int, message: str):
+                SYNC_TASKS[task_id].update({
+                    "progress": progress,
+                    "message": message
+                })
 
             # 创建新的数据库会话用于异步任务
             from ef_core.database import get_db_manager
@@ -300,7 +307,10 @@ async def sync_cancellations(
             async with db_manager.get_session() as task_db:
                 # 调用服务层同步
                 service = CancelReturnService()
-                result = await service.sync_cancellations({"shop_id": request.shop_id})
+                result = await service.sync_cancellations(
+                    config={"shop_id": request.shop_id},
+                    progress_callback=update_progress
+                )
 
                 # 更新任务为完成状态
                 SYNC_TASKS[task_id] = {
@@ -388,10 +398,17 @@ async def sync_returns(
             SYNC_TASKS[task_id] = {
                 "status": "running",
                 "progress": 0,
-                "message": "正在同步退货申请...",
+                "message": "正在同步退货申请，请稍候...",
                 "started_at": utcnow().isoformat(),
                 "type": "returns",
             }
+
+            # 进度更新回调函数
+            async def update_progress(progress: int, message: str):
+                SYNC_TASKS[task_id].update({
+                    "progress": progress,
+                    "message": message
+                })
 
             # 创建新的数据库会话用于异步任务
             from ef_core.database import get_db_manager
@@ -399,7 +416,10 @@ async def sync_returns(
             async with db_manager.get_session() as task_db:
                 # 调用服务层同步
                 service = CancelReturnService()
-                result = await service.sync_returns({"shop_id": request.shop_id})
+                result = await service.sync_returns(
+                    config={"shop_id": request.shop_id},
+                    progress_callback=update_progress
+                )
 
                 # 更新任务为完成状态
                 SYNC_TASKS[task_id] = {
