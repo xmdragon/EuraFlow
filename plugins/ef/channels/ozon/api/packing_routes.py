@@ -17,6 +17,7 @@ from ef_core.middleware.auth import require_role
 from ef_core.api.auth import get_current_user_flexible
 from ..models import OzonOrder, OzonPosting, OzonProduct, OzonShop, OzonDomesticTracking, OzonShipmentPackage
 from ..utils.datetime_utils import utcnow
+from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-packing"])
 logger = logging.getLogger(__name__)
@@ -675,7 +676,8 @@ async def get_packing_orders(
     days_within: Optional[int] = Query(None, description="运输中状态的天数筛选（仅在operation_status=shipping时有效，默认7天）"),
     source_platform: Optional[str] = Query(None, description="按采购平台筛选（1688/拼多多/咸鱼/淘宝/库存）"),
     delivery_method: Optional[str] = Query(None, description="按配送方式筛选（左匹配）"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取打包发货页面的订单列表
@@ -691,8 +693,18 @@ async def get_packing_orders(
     - 如果都不指定，返回所有订单
 
     注意：返回以Posting为粒度的数据，一个订单拆分成多个posting时会显示为多条记录
+
+    权限控制：
+    - admin: 可以访问所有店铺的订单
+    - operator/viewer: 只能访问已授权店铺的订单
     """
     from datetime import datetime, timedelta
+
+    # 权限过滤：根据用户角色过滤店铺
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 构建查询：以Posting为主体，JOIN Order获取订单信息
     from sqlalchemy.orm import selectinload
@@ -703,6 +715,11 @@ async def get_packing_orders(
         selectinload(OzonPosting.order).selectinload(OzonOrder.postings),  # 预加载order及其所有postings
         selectinload(OzonPosting.domestic_trackings)
     )
+
+    # 应用权限过滤条件
+    shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
+    if shop_filter is not True:
+        query = query.where(shop_filter)
 
     # 核心过滤：基于 ozon_status + 追踪号码/国内单号
     # 优先使用 operation_status，如果有 ozon_status 参数则转换为 operation_status
@@ -808,10 +825,6 @@ async def get_packing_orders(
             )
         )
 
-    # 应用其他过滤条件
-    if shop_id:
-        query = query.where(OzonPosting.shop_id == shop_id)
-
     # 搜索条件：货件编号（支持通配符）
     if posting_number:
         posting_number_value = posting_number.strip()
@@ -893,6 +906,10 @@ async def get_packing_orders(
         OzonOrder, OzonPosting.order_id == OzonOrder.id
     )
 
+    # 应用权限过滤条件到count查询
+    if shop_filter is not True:
+        count_query = count_query.where(shop_filter)
+
     # 应用相同的状态筛选逻辑
     if operation_status == 'awaiting_stock':
         count_query = count_query.where(
@@ -972,8 +989,6 @@ async def get_packing_orders(
             )
         )
 
-    if shop_id:
-        count_query = count_query.where(OzonPosting.shop_id == shop_id)
     if posting_number:
         posting_number_value = posting_number.strip()
         if '%' in posting_number_value:
@@ -1044,8 +1059,10 @@ async def get_packing_orders(
         product_query = select(OzonProduct.offer_id, OzonProduct.images).where(
             OzonProduct.offer_id.in_(list(all_offer_ids))
         )
-        if shop_id:
-            product_query = product_query.where(OzonProduct.shop_id == shop_id)
+        # 应用权限过滤条件到商品查询
+        product_shop_filter = build_shop_filter_condition(OzonProduct, allowed_shop_ids)
+        if product_shop_filter is not True:
+            product_query = product_query.where(product_shop_filter)
         products_result = await db.execute(product_query)
         for offer_id, images in products_result:
             if offer_id and images:
@@ -2429,7 +2446,8 @@ async def get_packing_stats(
     sku: Optional[str] = Query(None, description="按商品SKU搜索"),
     tracking_number: Optional[str] = Query(None, description="按OZON追踪号码搜索"),
     domestic_tracking_number: Optional[str] = Query(None, description="按国内单号搜索"),
-    db: AsyncSession = Depends(get_async_session)
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
 ):
     """
     获取打包发货各状态的统计数据（合并请求）
@@ -2448,14 +2466,28 @@ async def get_packing_stats(
                 "shipping": 6
             }
         }
+
+    权限控制：
+    - admin: 可以访问所有店铺的订单统计
+    - operator/viewer: 只能访问已授权店铺的订单统计
     """
     try:
+        # 权限过滤：根据用户角色过滤店铺
+        try:
+            allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
+        # 构建权限过滤条件
+        shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
+
         # 构建基础查询条件（应用于所有状态统计）
         def build_base_conditions():
             """构建公共筛选条件"""
             conditions = []
-            if shop_id:
-                conditions.append(OzonPosting.shop_id == shop_id)
+            # 应用权限过滤
+            if shop_filter is not True:
+                conditions.append(shop_filter)
             if posting_number:
                 posting_number_value = posting_number.strip()
                 if '%' in posting_number_value:

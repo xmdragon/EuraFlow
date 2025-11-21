@@ -6,7 +6,7 @@
   width: 100%;
   max-width: 100vw;
   box-sizing: border-box;
-  // 移除 overflow-x: hidden 以支持 sticky 定位
+  overflow-x: hidden; // 防止横向滚动条
 
   * {
     box-sizing: border-box;
@@ -21,6 +21,9 @@
   background: #f0f2f5;
   padding-bottom: 0; // Tabs自带下边距
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); // 添加阴影增强层次感
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden; // 防止子元素溢出
 }
 
 // ===== 顶部筛选区域 =====
