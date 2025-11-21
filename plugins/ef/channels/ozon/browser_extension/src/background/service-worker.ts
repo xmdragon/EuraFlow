@@ -10,9 +10,18 @@ import { getOzonStandardHeaders } from '../shared/ozon-headers';
 // ============================================================================
 
 const OZON_VERSION_CACHE_KEY = 'ozon_intercepted_versions';
+const OZON_VERSION_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时
+
+// 用于标记是否已经拦截过（避免重复日志）
+let hasInterceptedVersion = false;
 
 chrome.webRequest.onBeforeSendHeaders.addListener(
   (details) => {
+    // 如果已经拦截过且在24小时内，跳过
+    if (hasInterceptedVersion) {
+      return { requestHeaders: details.requestHeaders };
+    }
+
     const headers = details.requestHeaders || [];
     const versionHeaders: Record<string, string> = {};
 
@@ -38,6 +47,9 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
         appVersion: versionHeaders['x-o3-app-version'],
         manifestVersion: versionHeaders['x-o3-manifest-version'].substring(0, 50) + '...'
       });
+
+      // 标记已拦截（Service Worker 生命周期内不再重复拦截）
+      hasInterceptedVersion = true;
     }
 
     return { requestHeaders: details.requestHeaders };
@@ -51,6 +63,15 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
   },
   ['requestHeaders']
 );
+
+// Service Worker 启动时，检查缓存是否有效
+chrome.storage.local.get([OZON_VERSION_CACHE_KEY], (result) => {
+  const cached = result[OZON_VERSION_CACHE_KEY];
+  if (cached && (Date.now() - cached.timestamp < OZON_VERSION_CACHE_DURATION)) {
+    hasInterceptedVersion = true;
+    console.log('[EuraFlow] 🔍 OZON版本信息已缓存，有效期至:', new Date(cached.timestamp + OZON_VERSION_CACHE_DURATION).toLocaleString());
+  }
+});
 
 console.log('[EuraFlow] 🔍 OZON版本拦截器已启动');
 
@@ -710,111 +731,6 @@ async function callShangpinbangAPIWithAutoRefresh(
 
 // ========== OZON API 集成 ==========
 
-/**
- * 获取 OZON Seller 的所有 Cookie
- * 参考 spbang 插件的实现：使用 .ozon.ru 域名 + partitionKey
- */
-async function getOzonSellerCookies(): Promise<string> {
-  console.log('[OZON API] ========== 开始读取 OZON Cookie ==========');
-
-  try {
-    // 1. 尝试多种方式获取 Cookie
-    let allCookies: chrome.cookies.Cookie[] = [];
-
-    // 方式1：通过 URL 获取（最可靠）
-    const urls = [
-      'https://www.ozon.ru',
-      'https://seller.ozon.ru',
-      'https://ozon.ru'
-    ];
-
-    for (const url of urls) {
-      const cookies = await chrome.cookies.getAll({ url });
-      console.log(`[OZON API] 从 URL ${url} 获取到 ${cookies.length} 个 Cookie`);
-      if (cookies.length > 0) {
-        console.log(`[OZON API] Cookie 名称:`, cookies.map(c => c.name).slice(0, 20).join(', '));
-        allCookies = allCookies.concat(cookies);
-      }
-    }
-
-    // 方式2：通过域名获取（兼容性补充）
-    const domains = ['.ozon.ru', 'ozon.ru', '.seller.ozon.ru', 'seller.ozon.ru'];
-    for (const domain of domains) {
-      const cookies = await chrome.cookies.getAll({ domain });
-      console.log(`[OZON API] 从 domain ${domain} 获取到 ${cookies.length} 个 Cookie`);
-      if (cookies.length > 0) {
-        allCookies = allCookies.concat(cookies);
-      }
-    }
-
-    // 2. 等待 2 秒（让 Cookie 加载完成）
-    console.log('[OZON API] 等待 2 秒...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // 3. 尝试获取分区 Cookie（带 partitionKey）
-    console.log('[OZON API] 尝试获取分区 Cookie...');
-    const partitionKey: any = { topLevelSite: 'https://www.ozon.ru' };
-    try {
-      const partitionedCookies = await chrome.cookies.getAll({
-        domain: '.ozon.ru',
-        partitionKey
-      } as any);
-      console.log(`[OZON API] 从 .ozon.ru (partitionKey) 获取到 ${partitionedCookies.length} 个分区 Cookie`);
-
-      const validPartitionedCookie = partitionedCookies.find(
-        (cookie: any) => cookie.partitionKey && cookie.partitionKey.hasCrossSiteAncestor === false
-      );
-
-      if (validPartitionedCookie) {
-        console.log(`[OZON API] 找到有效的分区 Cookie: ${validPartitionedCookie.name}`);
-        allCookies.push(validPartitionedCookie);
-      }
-    } catch (error) {
-      console.log('[OZON API] 不支持 partitionKey 或获取失败:', error);
-    }
-
-    // 4. 检查是否获取到 Cookie
-    console.log(`[OZON API] 总共获取到 ${allCookies.length} 个 Cookie`);
-
-    if (allCookies.length === 0) {
-      console.error('[OZON API] ========== 错误：未找到任何 OZON Cookie ==========');
-      console.error('[OZON API] 请按以下步骤排查：');
-      console.error('[OZON API] 1. 在新标签页打开 https://seller.ozon.ru 并登录');
-      console.error('[OZON API] 2. 按 F12 打开控制台，输入 document.cookie 查看是否有 Cookie');
-      console.error('[OZON API] 3. 在 chrome://extensions/ 页面点击扩展的刷新按钮');
-      console.error('[OZON API] 4. 重新访问商品页面');
-      throw new Error('未找到 OZON Cookie，请先登录 OZON Seller 后台并重新加载扩展');
-    }
-
-    // 5. 去重并拼接 Cookie 字符串
-    const uniqueCookies = Array.from(
-      new Map(allCookies.map(c => [c.name, c])).values()
-    );
-
-    const cookieString = uniqueCookies
-      .map(cookie => `${cookie.name}=${cookie.value}`)
-      .join('; ');
-
-    console.log(`[OZON API] ========== 成功获取 ${uniqueCookies.length} 个有效 Cookie ==========`);
-    console.log(`[OZON API] 所有 Cookie 名称:`, uniqueCookies.map(c => c.name).join(', '));
-
-    // 检查是否包含 seller 相关的 cookie
-    const sellerCookies = uniqueCookies.filter(c =>
-      c.name.includes('company') || c.name.includes('seller') || c.name.includes('contentId')
-    );
-    if (sellerCookies.length > 0) {
-      console.log(`[OZON API] 找到 Seller 相关 Cookie:`, sellerCookies.map(c => `${c.name}=${c.value}`).join(', '));
-    } else {
-      console.warn(`[OZON API] ⚠️ 未找到 Seller 相关 Cookie (包含 company/seller/contentId 的)`);
-    }
-
-    return cookieString;
-
-  } catch (error: any) {
-    console.error('[OZON API] Cookie 读取失败:', error);
-    throw error;
-  }
-}
 
 /**
  * 从 Cookie 字符串中提取 sellerId
@@ -883,20 +799,27 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
   console.log('[OZON API] 获取商品详情, SKU:', productSku);
 
   try {
-    // 1. 获取 background 的 Cookie（可能包含 HttpOnly Cookie）
-    const backgroundCookie = await getOzonSellerCookies();
+    // 【简化】直接使用 document.cookie（Content Script 从页面传来）
+    // 原因：document.cookie 包含所有必需的 cookies（如 sc_company_id），
+    //      而 Background Cookie API 无法读取某些重要 cookies
+    if (!documentCookie || documentCookie.length === 0) {
+      console.error('[OZON API] ❌ 未接收到页面 Cookie，无法调用 Seller API');
+      throw new Error('缺少必需的页面 Cookie');
+    }
 
-    // 2. 合并 background Cookie 和 content script 传来的 document.cookie
-    // 参考 spbang：backgroundCookie + documentCookie
-    const mergedCookie = documentCookie ? (backgroundCookie + documentCookie) : backgroundCookie;
+    console.log('[OZON API] 使用页面 Cookie');
+    console.log(`  - Cookie 长度: ${documentCookie.length}`);
 
-    console.log('[OZON API] Cookie 来源统计:');
-    console.log(`  - Background Cookie 长度: ${backgroundCookie.length}`);
-    console.log(`  - Document Cookie 长度: ${documentCookie?.length || 0}`);
-    console.log(`  - 合并后 Cookie 长度: ${mergedCookie.length}`);
+    // 检查关键 Cookie
+    const sellerIdMatch = documentCookie.match(/sc_company_id=(\d+)/);
+    if (sellerIdMatch) {
+      console.log(`  - ✅ sc_company_id: ${sellerIdMatch[1]}`);
+    } else {
+      console.log(`  - ⚠️ 未找到 sc_company_id`);
+    }
 
-    // 3. 从合并后的 Cookie 字符串中提取 Seller ID
-    const sellerId = await getOzonSellerId(mergedCookie);
+    // 从 Cookie 字符串中提取 Seller ID
+    const sellerId = await getOzonSellerId(documentCookie);
 
     // 4. 使用全局OZON API限流器（统一管理所有OZON API请求频率）
     const limiter = OzonApiRateLimiter.getInstance();
@@ -910,10 +833,10 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
     // 覆盖/添加 seller-ui 专属headers
     const sellerHeaders = {
       ...baseHeaders,
-      'Cookie': mergedCookie,
-      'Origin': 'https://seller.ozon.ru',  // 覆盖为 seller 域名
+      'Cookie': documentCookie,  // 直接使用页面 Cookie
+      'Origin': 'https://seller.ozon.ru',
       'x-o3-company-id': sellerId.toString(),
-      'x-o3-app-name': 'seller-ui',  // 覆盖为 seller-ui
+      'x-o3-app-name': 'seller-ui',
       'x-o3-language': 'zh-Hans',
       'x-o3-page-type': 'products-other'
     };
@@ -935,33 +858,35 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
     }
 
     const result = await response.json();
-    console.log('[OZON API] 获取商品详情成功, 商品数:', result.items?.length || 0);
 
-    // 4. 提取尺寸和重量（如果存在）
-    if (result.items && result.items.length > 0) {
-      const attrs = result.items[0].attributes || [];
-      const findAttr = (key: string) => {
-        const attr = attrs.find((a: any) => a.key == key);
-        return attr ? attr.value : null;
-      };
-
-      const dimensions = {
-        weight: findAttr('4497'),   // 重量（克）
-        depth: findAttr('9454'),    // 深度（毫米）
-        width: findAttr('9455'),    // 宽度（毫米）
-        height: findAttr('9456')    // 高度（毫米）
-      };
-
-      console.log('[OZON API] 尺寸和重量:', dimensions);
-
-      // 将尺寸信息附加到结果中
-      return {
-        ...result,
-        dimensions: dimensions
-      };
+    if (!result.items || result.items.length === 0) {
+      throw new Error('商品不存在或已下架');
     }
 
-    return result;
+    const product = result.items[0];
+
+    const attrs = product.attributes || [];
+    const findAttr = (key: string) => {
+      const attr = attrs.find((a: any) => a.key == key);
+      return attr ? attr.value : null;
+    };
+
+    const dimensions = {
+      weight: findAttr('4497'),   // 重量（克）
+      depth: findAttr('9454'),    // 深度（毫米）
+      width: findAttr('9455'),    // 宽度（毫米）
+      height: findAttr('9456')    // 高度（毫米）
+    };
+
+    // 返回单个商品对象 + dimensions
+    const finalData = {
+      ...product,
+      title: product.name,  // OZON Seller API 字段是 name，统一为 title
+      dimensions: dimensions
+    };
+
+    console.log('[OZON API] 商品详情:', finalData);
+    return finalData;
   } catch (error: any) {
     console.error('[OZON API] 获取商品详情失败:', error);
 
@@ -1775,10 +1700,10 @@ async function handleFetchAllProductData(data: { url: string; productId: string;
   });
 
   console.log('[商品数据] 最终数据:', {
-    ozonProduct: ozonProduct ? '✓' : '✗',
-    spbSales: spbSales ? '✓' : '✗',
-    dimensions: dimensions ? '✓' : '✗',
-    euraflowConfig: euraflowConfig ? '✓' : '✗'
+    ozonProduct,
+    spbSales,
+    dimensions,
+    euraflowConfig
   });
 
   // 5. 返回数据

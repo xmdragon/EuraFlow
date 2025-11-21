@@ -6,6 +6,8 @@
 
 import { findPrices, calculateRealPrice } from './calculator';
 import { injectCompleteDisplay } from './display';
+import { configCache } from '../../shared/config-cache';
+import { ApiClient } from '../../shared/api-client';
 
 /**
  * 提取商品ID从URL
@@ -21,48 +23,111 @@ function extractProductId(): string | null {
  */
 export class RealPriceCalculator {
   /**
-   * 等待目标容器出现且稳定（Vue渲染完成）
-   * 使用轮询+稳定性检查
+   * 后台预加载配置数据（不阻塞主流程）
+   * 在页面加载的第一时间就开始，与数据采集并行
+   */
+  private preloadConfigInBackground(): void {
+    chrome.storage.sync.get(['apiUrl', 'apiKey'], (result) => {
+      if (result.apiUrl && result.apiKey) {
+        console.log('[EuraFlow] 第一时间开始预加载配置数据（并行）...');
+        const apiClient = new ApiClient(result.apiUrl, result.apiKey);
+        configCache.preload(apiClient)
+          .then(() => {
+            console.log('[EuraFlow] ✓ 配置数据预加载完成（店铺、仓库、水印已缓存）');
+          })
+          .catch((error) => {
+            console.warn('[EuraFlow] ⚠ 配置数据预加载失败:', error.message);
+            // 预加载失败不影响功能，用户点击时会重新加载
+          });
+      } else {
+        console.log('[EuraFlow] 跳过配置预加载（未配置 API）');
+      }
+    });
+  }
+
+  /**
+   * 等待 OZON 右侧容器 DOM 稳定（Vue hydration 完成）
+   * 监听 <div data-widget="webStickyColumn"> 内的 DOM 变化
+   * 只有在指定时间内无任何变化才认为稳定
    */
   private async waitForContainerReady(): Promise<boolean> {
-    const MAX_ATTEMPTS = 50; // 最多等待5秒（50 * 100ms）
-    const STABLE_CHECK_COUNT = 3; // 连续3次检查都存在才认为稳定
+    const MAX_WAIT_TIME = 20000; // 最多等待20秒
+    const STABLE_DURATION = 3000; // 3秒内无变化才认为稳定（Vue hydration 需要更长时间）
 
-    let stableCount = 0;
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+      let stableTimer: number | null = null;
+      let changeCount = 0;
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const container = document.querySelector('.container') as HTMLElement | null;
+      // 查找 OZON 右侧粘性容器（这是我们要注入的位置）
+      const findStickyColumn = (): HTMLElement | null => {
+        return document.querySelector('div[data-widget="webStickyColumn"]') as HTMLElement | null;
+      };
 
-      if (container?.lastChild) {
-        const rightSide = (container.lastChild as HTMLElement).lastChild as HTMLElement | null;
+      const checkStability = () => {
+        const stickyColumn = findStickyColumn();
 
-        if (rightSide && rightSide.children && rightSide.children.length > 0) {
-          const targetContainer = (rightSide.children[0] as HTMLElement)?.firstChild as HTMLElement ||
-                                  (rightSide.children[1] as HTMLElement)?.firstChild as HTMLElement;
-
-          if (targetContainer) {
-            stableCount++;
-
-            // 连续3次都检测到容器，认为已稳定
-            if (stableCount >= STABLE_CHECK_COUNT) {
-              return true;
-            }
+        if (!stickyColumn) {
+          // 容器不存在，继续等待
+          if (Date.now() - startTime > MAX_WAIT_TIME) {
+            console.warn('[EuraFlow] 等待 webStickyColumn 容器超时');
+            resolve(false);
           } else {
-            stableCount = 0;
+            setTimeout(checkStability, 100);
           }
-        } else {
-          stableCount = 0;
+          return;
         }
-      } else {
-        stableCount = 0;
-      }
 
-      // 等待100ms后重试
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+        console.log('[EuraFlow] 找到 webStickyColumn 容器，开始监听 DOM 变化...');
 
-    console.warn('[EuraFlow] 等待目标容器超时');
-    return false;
+        // 容器存在，开始监听其内部 DOM 变化
+        const observer = new MutationObserver(() => {
+          changeCount++;
+          console.log(`[EuraFlow] 检测到第 ${changeCount} 次 DOM 变化`);
+
+          // 清除之前的稳定计时器
+          if (stableTimer) {
+            clearTimeout(stableTimer);
+          }
+
+          // 设置新的稳定计时器：2秒内无变化才认为稳定
+          stableTimer = window.setTimeout(() => {
+            observer.disconnect();
+            console.log(`[EuraFlow] DOM 已稳定（${STABLE_DURATION}ms 内无变化，共检测到 ${changeCount} 次变化）`);
+            // 额外延迟500ms，确保Vue的hydration完全完成
+            setTimeout(() => resolve(true), 500);
+          }, STABLE_DURATION);
+        });
+
+        // 监听 webStickyColumn 容器及其所有子节点的变化
+        observer.observe(stickyColumn, {
+          childList: true,     // 子节点增删
+          subtree: true,       // 所有后代节点
+          attributes: true,    // 属性变化
+          characterData: true  // 文本内容变化
+        });
+
+        // 立即启动稳定计时器（如果容器已经稳定，3秒后直接注入）
+        stableTimer = window.setTimeout(() => {
+          observer.disconnect();
+          console.log(`[EuraFlow] DOM 已稳定（${STABLE_DURATION}ms 内无变化，共检测到 ${changeCount} 次变化）`);
+          // 额外延迟500ms，确保Vue的hydration完全完成
+          setTimeout(() => resolve(true), 500);
+        }, STABLE_DURATION);
+
+        // 超时保护
+        setTimeout(() => {
+          if (stableTimer) {
+            clearTimeout(stableTimer);
+            observer.disconnect();
+            console.warn(`[EuraFlow] 等待 DOM 稳定超时（${MAX_WAIT_TIME}ms），强制继续`);
+            resolve(true);
+          }
+        }, MAX_WAIT_TIME);
+      };
+
+      checkStability();
+    });
   }
 
   /**
@@ -70,7 +135,10 @@ export class RealPriceCalculator {
    */
   public async init(): Promise<void> {
     try {
-      // 1. 等待容器稳定
+      // 1. 第一时间预加载配置数据（与后续操作并行）
+      this.preloadConfigInBackground();
+
+      // 2. 等待容器稳定
       console.log('[EuraFlow] 等待容器稳定...');
       const isReady = await this.waitForContainerReady();
       if (!isReady) {
@@ -78,7 +146,7 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 2. 计算真实售价
+      // 3. 计算真实售价
       const { greenPrice, blackPrice, currency } = findPrices();
       if (blackPrice === null && greenPrice === null) {
         console.warn('[EuraFlow] 未找到价格');
@@ -91,14 +159,14 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 3. 提取商品ID
+      // 4. 提取商品ID
       const productId = extractProductId();
       if (!productId) {
         console.error('[EuraFlow] 无法提取商品ID');
         return;
       }
 
-      // 4. 发送消息到 service worker，并发获取所有数据
+      // 5. 并发获取所有商品数据（与步骤1的配置预加载并行）
       console.log('[EuraFlow] 并发获取所有商品数据...');
 
       // 【关键修复】读取页面的 Cookie（包含 sc_company_id）
@@ -129,7 +197,7 @@ export class RealPriceCalculator {
         euraflowConfig: euraflowConfig ? '✓' : '✗'
       });
 
-      // 5. 一次性注入完整组件
+      // 6. 一次性注入完整组件
       await injectCompleteDisplay({
         message,
         price,
@@ -140,6 +208,7 @@ export class RealPriceCalculator {
       });
 
       console.log('[EuraFlow] 组件注入完成');
+      // 配置数据已在 init() 第一时间预加载，这里无需重复
     } catch (error) {
       console.error('[EuraFlow] 初始化失败:', error);
     }

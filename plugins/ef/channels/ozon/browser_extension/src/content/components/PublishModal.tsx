@@ -204,10 +204,9 @@ async function loadConfigData(): Promise<void> {
 
   // 尝试从缓存获取
   const cached = configCache.getCached();
-  if (isDebugEnabled()) console.log('[PublishModal] configCache.getCached() 返回值:', cached);
 
   if (cached) {
-    if (isDebugEnabled()) console.log('[PublishModal] 使用缓存配置');
+    console.log('[PublishModal] ✓ 使用预加载的配置数据（缓存命中）');
     if (isDebugEnabled()) console.log('[PublishModal] cached.shops:', cached.shops);
     if (isDebugEnabled()) console.log('[PublishModal] cached.shops 类型:', typeof cached.shops);
     if (isDebugEnabled()) console.log('[PublishModal] cached.shops 长度:', Array.isArray(cached.shops) ? cached.shops.length : 'NOT AN ARRAY');
@@ -232,8 +231,8 @@ async function loadConfigData(): Promise<void> {
     return;
   }
 
-  // 缓存未命中，手动加载
-  if (isDebugEnabled()) console.log('[PublishModal] 缓存未命中，重新加载配置');
+  // 缓存未命中，手动加载（预加载可能失败或超时）
+  console.log('[PublishModal] ⚠ 缓存未命中，实时加载配置数据...');
   shops = await configCache.getShops(apiClient);
   if (isDebugEnabled()) console.log('[PublishModal] 从API加载的shops:', shops);
 
@@ -324,19 +323,31 @@ function initializeVariants(pageRealPrice: number | null = null): void {
         discountPercent
       });
 
-      // 调试：输出原始变体图片
-      console.log(`[PublishModal] 初始化变体 ${index + 1}:`, {
-        variant_id: variant.variant_id,
-        specifications: variant.specifications,
-        image_url: variant.image_url,
-        '是否有图片': !!variant.image_url
-      });
+      // 提取变体图片URL（可能是对象或字符串）
+      let variantImageUrl = '';
+      if (variant.image_url) {
+        if (typeof variant.image_url === 'string') {
+          variantImageUrl = variant.image_url;
+        } else {
+          const imgObj = variant.image_url as any;
+          variantImageUrl = imgObj.url || imgObj.link || imgObj.src || '';
+        }
+      }
+
+      if (isDebugEnabled()) {
+        console.log(`[PublishModal] 初始化变体 ${index + 1}:`, {
+          variant_id: variant.variant_id,
+          specifications: variant.specifications,
+          原始image_url: variant.image_url,
+          提取的URL: variantImageUrl
+        });
+      }
 
       variants.push({
         variant_id: variant.variant_id,
         specifications: variant.specifications || `变体 ${index + 1}`,
         spec_details: variant.spec_details,
-        image_url: variant.image_url || '',  // 保留原始值，不回退到商品主图
+        image_url: variantImageUrl,
         original_price: realPrice, // 原价格显示真实售价
         original_old_price: blackPrice,
         custom_price: customPrice, // 改后售价应用降价策略
@@ -383,11 +394,23 @@ function initializeVariants(pageRealPrice: number | null = null): void {
       discountPercent
     });
 
+    // 提取单品图片URL（可能是对象或字符串）
+    let singleImageUrl = '';
+    if (product.images && product.images.length > 0) {
+      const firstImage = product.images[0];
+      if (typeof firstImage === 'string') {
+        singleImageUrl = firstImage;
+      } else {
+        const imgObj = firstImage as any;
+        singleImageUrl = imgObj.url || imgObj.link || imgObj.src || '';
+      }
+    }
+
     variants.push({
       variant_id: product.ozon_product_id || 'single',
       specifications: '单品',
       spec_details: undefined,
-      image_url: (product.images && product.images[0]) || '',
+      image_url: singleImageUrl,
       original_price: realPrice, // 原价格显示真实售价
       original_old_price: blackPrice,
       custom_price: customPrice, // 改后售价应用降价策略
@@ -533,7 +556,26 @@ function renderMainModal(): void {
 function renderProductPreview(): string {
   if (!productData) return '';
 
-  const imageUrl = productData.images && productData.images.length > 0 ? productData.images[0] : '';
+  // 提取图片URL（OZON API 返回的 images 可能是对象数组）
+  let imageUrl = '';
+  if (productData.images && productData.images.length > 0) {
+    const firstImage = productData.images[0];
+    // 如果是对象，提取 url 或 link 字段；如果是字符串，直接使用
+    if (typeof firstImage === 'string') {
+      imageUrl = firstImage;
+    } else {
+      const imgObj = firstImage as any;
+      imageUrl = imgObj.url || imgObj.link || imgObj.src || '';
+    }
+
+    if (isDebugEnabled()) {
+      console.log('[PublishModal] 图片数据:', {
+        原始数据: firstImage,
+        提取的URL: imageUrl
+      });
+    }
+  }
+
   const title = productData.title || '未知商品';
   const variantCount = variants.length;
 

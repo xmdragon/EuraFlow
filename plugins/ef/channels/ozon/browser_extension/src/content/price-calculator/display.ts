@@ -135,7 +135,14 @@ export async function injectCompleteDisplay(data: {
   const euraflowContainer = document.createElement('div');
   euraflowContainer.id = DISPLAY_CONFIG.injectedSectionId;
   euraflowContainer.setAttribute('data-euraflow-root', 'true');  // EuraFlow 根组件标识
-  euraflowContainer.setAttribute('data-widget', 'webPdpGrid');
+
+  // 【关键】让 Vue 忽略这个节点的 hydration 检查
+  // v-pre: Vue 会跳过这个元素及其子元素的编译
+  // data-server-rendered: false 告诉 Vue 这不是服务端渲染的内容
+  euraflowContainer.setAttribute('v-pre', '');
+  euraflowContainer.setAttribute('data-server-rendered', 'false');
+  euraflowContainer.setAttribute('data-v-skip-hydration', 'true');
+
   // 移除 OZON 样式类，使用自己的样式
   euraflowContainer.style.width = '100%';
   euraflowContainer.style.backgroundColor = '#ffffff';
@@ -155,6 +162,36 @@ export async function injectCompleteDisplay(data: {
   targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
 
   console.log('[EuraFlow] 组件注入完成');
+
+  // 监听组件是否被移除，如果被移除则重新注入（最多重试3次）
+  let retryCount = 0;
+  const MAX_RETRY = 3;
+
+  const observer = new MutationObserver(() => {
+    const componentExists = document.getElementById(DISPLAY_CONFIG.injectedSectionId);
+
+    if (!componentExists && retryCount < MAX_RETRY) {
+      retryCount++;
+      console.warn(`[EuraFlow] 组件被移除，${500}ms后重新注入 (第${retryCount}次重试)`);
+
+      // 延迟500ms重新注入（避免与OZON的渲染冲突）
+      setTimeout(() => {
+        if (!document.getElementById(DISPLAY_CONFIG.injectedSectionId)) {
+          console.log(`[EuraFlow] 执行第${retryCount}次重新注入`);
+          targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
+        }
+      }, 500);
+    } else if (!componentExists && retryCount >= MAX_RETRY) {
+      console.error('[EuraFlow] 组件被反复移除，停止重试');
+      observer.disconnect();
+    }
+  });
+
+  // 监听父容器的子节点变化
+  observer.observe(targetContainer, {
+    childList: true,
+    subtree: false
+  });
 }
 
 /**

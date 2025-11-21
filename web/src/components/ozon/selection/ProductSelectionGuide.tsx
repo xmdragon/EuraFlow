@@ -265,7 +265,7 @@ export const ProductSelectionGuide: React.FC = () => {
             <div>
               <Paragraph>如果遇到问题或需要技术支持，请联系管理员或查看项目文档。</Paragraph>
               <Paragraph>
-                <Text type="secondary">版本：v1.6.0 | 更新时间：2025-11-19</Text>
+                <Text type="secondary">版本：v1.9.0 | 更新时间：2025-11-21</Text>
               </Paragraph>
             </div>
           }
