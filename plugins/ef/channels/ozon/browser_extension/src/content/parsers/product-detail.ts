@@ -646,103 +646,6 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
 }
 
 /**
- * 第一阶段：从 webAspects 提取变体列表
- */
-function extractVariantsStage1(widgetStates: any): any[] {
-  try {
-    const keys = Object.keys(widgetStates);
-    const aspectsKey = keys.find(k => k.includes('webAspects'));
-
-    if (!aspectsKey) {
-      return [];
-    }
-
-    const aspectsData = JSON.parse(widgetStates[aspectsKey]);
-    const aspects = aspectsData?.aspects;
-
-    if (!aspects || !Array.isArray(aspects)) {
-      return [];
-    }
-
-    // 扁平化提取所有变体
-    const allVariants = aspects
-      .map(aspect => aspect.variants || [])
-      .flat(3);
-
-    // 过滤"Уцененные"并清理链接
-    const filteredVariants = allVariants
-      .filter((variant: any) => {
-        const searchableText = variant.data?.searchableText || '';
-        return searchableText !== 'Уцененные';
-      })
-      .map((variant: any) => ({
-        ...variant,
-        link: variant.link ? variant.link.split('?')[0] : '',
-      }));
-
-    return filteredVariants;
-  } catch (error) {
-    console.error('[EuraFlow] 第一阶段变体提取失败:', error);
-    return [];
-  }
-}
-
-/**
- * 分批并发采集变体详情（性能优化方案）
- * @param variantLinks 变体链接列表
- * @param batchSize 每批并发数（默认 3）
- * @param batchDelayMs 批次间延迟毫秒数（默认 500）
- * @returns 所有变体数据
- */
-async function fetchVariantsInBatches(
-  variantLinks: any[],
-  batchSize = 3,
-  batchDelayMs = 500
-): Promise<any[]> {
-  const results: any[] = [];
-
-  for (let i = 0; i < variantLinks.length; i += batchSize) {
-    const batch = variantLinks.slice(i, i + batchSize);
-    const batchNumber = Math.floor(i / batchSize) + 1;
-    const totalBatches = Math.ceil(variantLinks.length / batchSize);
-
-    if (window.EURAFLOW_DEBUG) {
-      console.log(`[EuraFlow] 正在采集第 ${batchNumber}/${totalBatches} 批（${batch.length} 个变体）`);
-    }
-
-    // 并发采集当前批次
-    const batchResults = await Promise.all(
-      batch.map(async (variant) => {
-        try {
-          const fullUrl = `https://www.ozon.ru${variant.link}`;
-          const apiResponse = await fetchProductDataFromOzonAPI(fullUrl);
-
-          if (apiResponse?.widgetStates) {
-            return extractVariantsStage1(apiResponse.widgetStates);
-          }
-          return [];
-        } catch (error) {
-          if (window.EURAFLOW_DEBUG) {
-            console.warn(`[EuraFlow] 变体采集失败:`, error);
-          }
-          return [];
-        }
-      })
-    );
-
-    // 收集结果
-    batchResults.forEach(variants => results.push(...variants));
-
-    // 批次之间延迟（最后一批不延迟）
-    if (i + batchSize < variantLinks.length) {
-      await new Promise(resolve => setTimeout(resolve, batchDelayMs));
-    }
-  }
-
-  return results;
-}
-
-/**
  * 合并并去重变体数据
  */
 function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[]): Array<any> {
@@ -1027,7 +930,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
     // 提取商品ID（用于 Modal API）
     const productId = baseData.ozon_product_id;
 
-    // 统一使用 Modal API + 小批量并发采集所有变体（又快又全）
+    // 直接从 Modal API 的 aspects 中提取所有变体数据（无需访问详情页）
     let allVariants: any[] = [];
 
     if (productId) {
@@ -1037,45 +940,89 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
       const modalAspects = await fetchFullVariantsFromModal(productId);
       if (modalAspects && modalAspects.length > 0) {
-        // 从 Modal API 提取所有变体链接
-        let allVariantLinks: any[] = [];
-
-        for (const aspect of modalAspects) {
-          const variants = (aspect?.variants || [])
-            .flat(3)
-            .filter((variant: any) => {
-              const searchableText = variant.data?.searchableText || '';
-              return searchableText !== 'Уцененные';
-            })
-            .map((variant: any) => ({
-              ...variant,
-              link: variant.link ? variant.link.split('?')[0] : '',
-            }));
-
-          allVariantLinks.push(...variants);
+        if (window.EURAFLOW_DEBUG) {
+          console.log(`[EuraFlow] Modal API 返回 ${modalAspects.length} 个 aspect`);
         }
 
+        // 构建规格文本的辅助函数（遍历所有 aspects，提取对应 SKU 的 searchableText）
+        const buildSpecText = (aspects: any[], targetSku: string): string => {
+          const specs: string[] = [];
+          aspects.forEach((aspect: any) => {
+            const variant = aspect.variants.find((v: any) => v.sku === targetSku)
+                         || aspect.variants.find((v: any) => v.active);
+            if (variant?.data?.searchableText) {
+              specs.push(variant.data.searchableText);
+            }
+          });
+          return specs.join(' / ');
+        };
+
+        // 从最后一个 aspect 的 variants 中提取所有变体（上品帮方案）
+        const lastAspect = modalAspects[modalAspects.length - 1];
+        const rawVariants = lastAspect?.variants || [];
+
         if (window.EURAFLOW_DEBUG) {
-          console.log(`[EuraFlow] Modal API 返回 ${modalAspects.length} 个 aspect，共提取 ${allVariantLinks.length} 个变体链接`);
+          console.log(`[EuraFlow] 最后一个 aspect 包含 ${rawVariants.length} 个变体`);
         }
 
-        // 小批量并发采集变体详情（性能优化：50 个变体从 25 秒降至 13 秒）
-        // batchSize=3（每批 3 个并发），batchDelayMs=500（批次间延迟 500ms）
-        if (window.EURAFLOW_DEBUG) {
-          console.log(`[EuraFlow] 开始批量并发采集 ${allVariantLinks.length} 个变体详情...`);
-        }
+        // 遍历并提取变体数据
+        rawVariants.forEach((variant: any) => {
+          const { sku, active, link } = variant;
+          const { title, price, originalPrice, searchableText, coverImage } = variant.data || {};
 
-        allVariants = await fetchVariantsInBatches(allVariantLinks, 3, 500);
+          // 过滤"瑕疵品"
+          if (searchableText === 'Уцененные') {
+            return;
+          }
+
+          // 只在单规格时检查 active（多规格时全部提取）
+          if (modalAspects.length === 1 && !active) {
+            return;
+          }
+
+          // 构建规格文本
+          const specText = buildSpecText(modalAspects, sku);
+
+          // 解析价格
+          let priceNum = 0;
+          if (typeof price === 'string') {
+            priceNum = parseFloat(price.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
+          } else {
+            priceNum = parseFloat(price) || 0;
+          }
+
+          let originalPriceNum = undefined;
+          if (originalPrice) {
+            if (typeof originalPrice === 'string') {
+              originalPriceNum = parseFloat(originalPrice.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || undefined;
+            } else {
+              originalPriceNum = parseFloat(originalPrice) || undefined;
+            }
+          }
+
+          allVariants.push({
+            variant_id: sku,
+            name: title || '',
+            specifications: specText,
+            spec_details: undefined,
+            image_url: coverImage || '',
+            link: link ? link.split('?')[0] : '',
+            price: priceNum,
+            original_price: originalPriceNum,
+            stock: undefined,
+            sku: sku
+          });
+        });
 
         if (window.EURAFLOW_DEBUG) {
-          console.log(`[EuraFlow] 批量并发采集完成，共提取 ${allVariants.length} 个变体`);
+          console.log(`[EuraFlow] 直接从 Modal API 提取 ${allVariants.length} 个变体（无需访问详情页）`);
         }
       } else {
         console.warn('[EuraFlow] Modal API 未返回变体');
       }
     }
 
-    // 去重（不再需要合并两阶段，直接对 Modal API 结果去重）
+    // 去重
     const finalVariants = mergeAndDeduplicateVariants([], allVariants);
 
     if (window.EURAFLOW_DEBUG) {
