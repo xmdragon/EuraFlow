@@ -1121,7 +1121,8 @@ const PackingShipment: React.FC = () => {
             onShopChange={(shopId) => {
               const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
               setSelectedShop(normalized);
-              // 切换店铺时会自动重新加载（queryKey改变）
+              // 强制刷新数据
+              resetAndRefresh();
             }}
             onSearchParamsChange={setSearchParams}
           />

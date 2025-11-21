@@ -50,7 +50,9 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   if (!record) return null;
 
   const { product_data } = record;
-  const images = product_data?.images || [];
+  // 提取图片URL：images 是对象数组 [{url: "...", is_primary: true}, ...]
+  const imageObjects = product_data?.images || [];
+  const images = imageObjects.map((img: any) => img?.url).filter(Boolean);
   const mainImage = images[0] || '';
 
   return (
