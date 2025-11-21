@@ -168,7 +168,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
                 ref={searchInputRef}
                 placeholder="输入SKU/货件编号/追踪号码/国内单号"
                 prefix={<SearchOutlined />}
-                style={{ width: 320 }}
+                style={{ width: '100%', maxWidth: 320, minWidth: 200 }}
                 onFocus={handleSearchInputFocus}
                 onChange={handleInputChange}
                 suffix={
@@ -182,7 +182,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
               />
             </Form.Item>
             <Form.Item name="delivery_method">
-              <Input placeholder="配送方式" style={{ width: 100 }} />
+              <Input placeholder="配送方式" style={{ width: '100%', maxWidth: 100, minWidth: 80 }} />
             </Form.Item>
             <Form.Item>
               <Space>
