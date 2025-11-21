@@ -69,8 +69,8 @@
   top: 0; // 紧贴在视口顶部（标题和搜索栏会滚动上去）
   z-index: 99;
   background: white;
-  padding: 16px 16px 0 16px;
-  margin: -24px -24px 0 -24px; // 抵消Card的padding，让Tabs区域占满宽度
+  padding: 16px 0 0 0; // 只保留顶部padding
+  margin: 0; // 移除负margin，避免超出容器
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); // 添加阴影增强层次感
 }
 
