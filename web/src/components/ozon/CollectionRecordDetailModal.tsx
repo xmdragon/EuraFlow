@@ -145,24 +145,20 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
           )}
 
           {/* 尺寸信息 */}
-          {(product_data?.dimensions || product_data?.size || product_data?.length || product_data?.width || product_data?.height) && (
+          {product_data?.dimensions && (
             <Descriptions.Item label="尺寸">
-              {product_data.dimensions
-                ? String(product_data.dimensions)
-                : product_data.size
-                  ? String(product_data.size)
-                  : [product_data.length, product_data.width, product_data.height]
-                      .filter(Boolean)
-                      .join(' × ') + ' mm'}
+              {[
+                product_data.dimensions.length,
+                product_data.dimensions.width,
+                product_data.dimensions.height
+              ].filter(Boolean).join(' × ')} mm
             </Descriptions.Item>
           )}
 
           {/* 重量信息 */}
-          {product_data?.weight && (
+          {product_data?.dimensions?.weight && (
             <Descriptions.Item label="重量">
-              {typeof product_data.weight === 'number'
-                ? `${product_data.weight} g`
-                : String(product_data.weight)}
+              {product_data.dimensions.weight} g
             </Descriptions.Item>
           )}
 
