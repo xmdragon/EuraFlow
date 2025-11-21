@@ -383,6 +383,7 @@ const PackingShipment: React.FC = () => {
       return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
+    refetchOnMount: 'always', // 每次切换标签页都重新请求API，避免缓存导致数据不一致
     // 禁用自动刷新，避免与无限滚动冲突
     // refetchInterval: 60000,
     retry: 1, // 减少重试次数
