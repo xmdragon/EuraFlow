@@ -69,7 +69,6 @@
 
   // 防止内容溢出
   :global(.ant-card-body) {
-    overflow-x: hidden; // 隐藏横向滚动条（不影响外部的sticky）
     padding-left: 16px;
     padding-right: 16px;
   }

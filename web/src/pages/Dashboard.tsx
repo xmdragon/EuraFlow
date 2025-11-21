@@ -439,7 +439,7 @@ const Dashboard: React.FC = () => {
       </Sider>
 
       <Layout style={{ marginLeft: collapsed ? 80 : 240 }}>
-        <Content style={{ margin: 0, padding: 0, background: "#f5f5f5" }}>
+        <Content style={{ margin: "0 8px 0 0", padding: 0, background: "#f5f5f5" }}>
           {/* 路由级错误边界：隔离各页面错误，防止单个页面崩溃影响整体导航 */}
           <ErrorBoundary name="页面路由">
             <Suspense fallback={<PageLoading />}>
