@@ -988,13 +988,13 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
           // 过滤"瑕疵品"
           if (searchableText === 'Уцененные') {
+            console.log(`[EuraFlow] 跳过瑕疵品变体: ${sku}`);
             return;
           }
 
-          // 只在单规格时检查 active（多规格时全部提取）
-          if (modalAspects.length === 1 && !active) {
-            return;
-          }
+          // ✅ 删除 active 过滤：即使只有1个 aspect，也可能有多个变体（比如4个颜色）
+          // 上品帮的逻辑 (w.length == 1 ? active : true) 是错误的
+          // 我们全部提取，由用户在 UI 中选择
 
           // 构建规格文本
           const specText = buildSpecText(modalAspects, sku);
