@@ -452,7 +452,12 @@ function createFollowButton(
         return;
       }
 
-      const productData = { ...ozonProduct, dimensions };
+      // 使用计算出的真实售价，而不是 OZON 的绿色价格
+      const productData = {
+        ...ozonProduct,
+        dimensions,
+        price: realPrice  // 使用真实售价
+      };
       showPublishModal(productData, realPrice);
     } catch (error) {
       console.error('[EuraFlow] 打开跟卖弹窗失败:', error);
@@ -521,7 +526,12 @@ function createCollectButton(
       collectButton.textContent = '采集中...';
 
       // 通过 background service worker 发送请求（避免 CORS）
-      const productData = { ...ozonProduct, dimensions };
+      // 使用计算出的真实售价，而不是 OZON 的绿色价格
+      const productData = {
+        ...ozonProduct,
+        dimensions,
+        price: realPrice  // 使用真实售价
+      };
       const response = await chrome.runtime.sendMessage({
         type: 'COLLECT_PRODUCT',
         data: {

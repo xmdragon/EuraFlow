@@ -151,7 +151,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
                   ? String(product_data.size)
                   : [product_data.length, product_data.width, product_data.height]
                       .filter(Boolean)
-                      .join(' × ') + ' cm'}
+                      .join(' × ') + ' mm'}
             </Descriptions.Item>
           )}
 
