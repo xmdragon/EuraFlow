@@ -812,10 +812,10 @@ async function getOzonSellerId(cookieString: string): Promise<number> {
 /**
  * 处理获取 OZON 商品详情请求
  */
-async function handleGetOzonProductDetail(data: { productSku: string; cookieString?: string }) {
-  const { productSku, cookieString: documentCookie } = data;
+async function handleGetOzonProductDetail(data: { productId: string; cookieString?: string }) {
+  const { productId, cookieString: documentCookie } = data;
 
-  console.log('[OZON API] 获取商品详情, SKU:', productSku);
+  console.log('[OZON API] 获取商品详情, ID:', productId);
 
   try {
     // 【简化】直接使用 document.cookie（Content Script 从页面传来）
@@ -861,14 +861,23 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
     };
 
     // 【路径策略】seller.ozon.ru/api/* → 不经过网关，直接调用 Seller 后台 API
+    const requestUrl = 'https://seller.ozon.ru/api/v1/search-variant-model';
+    const requestBody = {
+      limit: '10',
+      name: productId
+    };
+
+    console.log('[OZON API] 请求信息:', {
+      url: requestUrl,
+      method: 'POST',
+      body: requestBody
+    });
+
     const response = await limiter.execute(() =>
-      fetch('https://seller.ozon.ru/api/v1/search-variant-model', {
+      fetch(requestUrl, {
         method: 'POST',
         headers: sellerHeaders,
-        body: JSON.stringify({
-          limit: '10',
-          name: productSku
-        })
+        body: JSON.stringify(requestBody)
       })
     );
 
@@ -883,6 +892,16 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
     }
 
     const product = result.items[0];
+
+    // 输出原始数据结构（用于调试图片字段）
+    console.log('[OZON API] 原始商品数据:', JSON.stringify(product, null, 2));
+    console.log('[OZON API] 图片字段检查:', {
+      images: product.images,
+      primary_image: product.primary_image,
+      image: product.image,
+      pictures: product.pictures,
+      photos: product.photos
+    });
 
     const attrs = product.attributes || [];
     const findAttr = (key: string) => {
@@ -975,6 +994,7 @@ function transformSpbData(rawData: any): any {
     // 额外信息
     category: rawData.category3 ?? rawData.category1 ?? null,  // 类目
     brand: rawData.brand ?? null,  // 品牌
+    photo: rawData.photo ?? null,  // 主图 URL
   };
 
   console.log('[上品帮数据转换] 转换完成:', transformed);
@@ -1691,7 +1711,7 @@ async function handleFetchAllProductData(data: { url: string; productId: string;
 
   // 2. 并发获取4类数据
   const [ozonProduct, spbSales, euraflowConfig] = await Promise.all([
-    handleGetOzonProductDetail({ productSku: productId, cookieString }).catch(err => {
+    handleGetOzonProductDetail({ productId, cookieString }).catch(err => {
       console.error('[商品数据] OZON产品数据获取失败:', err);
       return null;
     }),

@@ -556,24 +556,11 @@ function renderMainModal(): void {
 function renderProductPreview(): string {
   if (!productData) return '';
 
-  // 提取图片URL（OZON API 返回的 images 可能是对象数组）
-  let imageUrl = '';
-  if (productData.images && productData.images.length > 0) {
-    const firstImage = productData.images[0];
-    // 如果是对象，提取 url 或 link 字段；如果是字符串，直接使用
-    if (typeof firstImage === 'string') {
-      imageUrl = firstImage;
-    } else {
-      const imgObj = firstImage as any;
-      imageUrl = imgObj.url || imgObj.link || imgObj.src || '';
-    }
+  // 直接使用上品帮的主图（photo 字段）
+  const imageUrl = productData.primary_image || '';
 
-    if (isDebugEnabled()) {
-      console.log('[PublishModal] 图片数据:', {
-        原始数据: firstImage,
-        提取的URL: imageUrl
-      });
-    }
+  if (isDebugEnabled()) {
+    console.log('[PublishModal] 使用主图 (primary_image):', imageUrl);
   }
 
   const title = productData.title || '未知商品';

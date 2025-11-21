@@ -45,7 +45,7 @@ export const useNotifications = (shopId: number | null) => {
         onClick: () => {
           notification.destroy(key);
           if (shopId && chatId) {
-            navigate(`/ozon/chat/${chatId}?shopId=${shopId}`);
+            navigate(`/dashboard/ozon/chat/${chatId}?shopId=${shopId}`);
           }
         },
       });
@@ -117,7 +117,7 @@ export const useNotifications = (shopId: number | null) => {
         onClick: () => {
           notification.destroy(key);
           if (shopId) {
-            navigate(`/ozon/packing?shopId=${shopId}&tab=awaiting_stock&posting_number=${data.posting_number}`);
+            navigate(`/dashboard/ozon/packing?shopId=${shopId}&tab=awaiting_stock&posting_number=${data.posting_number}`);
           }
         },
       });

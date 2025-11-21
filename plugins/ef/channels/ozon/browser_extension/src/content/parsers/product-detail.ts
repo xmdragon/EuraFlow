@@ -19,6 +19,7 @@ export interface ProductDetailData {
   brand?: string;
   barcode?: string;
   images: string[];
+  primary_image?: string;  // 主图 URL（来自上品帮的 photo 字段）
   videos?: string[];
   dimensions?: {
     weight: number;

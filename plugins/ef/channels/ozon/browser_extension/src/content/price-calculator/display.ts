@@ -154,7 +154,7 @@ export async function injectCompleteDisplay(data: {
   // 添加三个部分
   euraflowContainer.appendChild(createPriceSection(message));
   euraflowContainer.appendChild(await createDataSection(spbSales, dimensions));
-  euraflowContainer.appendChild(createButtonRow(price, ozonProduct, dimensions, euraflowConfig));
+  euraflowContainer.appendChild(createButtonRow(price, ozonProduct, spbSales, dimensions, euraflowConfig));
 
   // 设置高度并注入
   if (rightSide.children[0]?.firstChild) {
@@ -385,6 +385,7 @@ function renderDataField(fieldKey: string, spbSales: any | null, dimensions: any
 function createButtonRow(
   realPrice: number | null,
   ozonProduct: any,
+  spbSales: any | null,
   dimensions: any | null,
   euraflowConfig: any | null
 ): HTMLElement {
@@ -396,7 +397,7 @@ function createButtonRow(
   buttonRow.style.marginTop = '12px';
 
   // 创建"跟卖"按钮
-  const followButton = createFollowButton(realPrice, ozonProduct, dimensions);
+  const followButton = createFollowButton(realPrice, ozonProduct, spbSales, dimensions);
   buttonRow.appendChild(followButton);
 
   // 创建"采集"按钮
@@ -412,6 +413,7 @@ function createButtonRow(
 function createFollowButton(
   realPrice: number | null,
   ozonProduct: any,
+  spbSales: any | null,
   dimensions: any | null
 ): HTMLButtonElement {
   const followButton = document.createElement('button');
@@ -456,7 +458,8 @@ function createFollowButton(
       const productData = {
         ...ozonProduct,
         dimensions,
-        price: realPrice  // 使用真实售价
+        price: realPrice,  // 使用真实售价
+        primary_image: spbSales?.photo || null  // 使用上品帮的主图（photo 字段）
       };
       showPublishModal(productData, realPrice);
     } catch (error) {
