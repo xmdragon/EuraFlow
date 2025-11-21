@@ -35,6 +35,36 @@
   flex-shrink: 0;
 }
 
+.imageWrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.sourceLink {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: #1976d2;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  z-index: 10;
+
+  &:hover {
+    background: #1976d2;
+    color: white;
+    box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
+    transform: scale(1.1);
+  }
+}
+
 .noImage {
   width: 160px;
   height: 160px;

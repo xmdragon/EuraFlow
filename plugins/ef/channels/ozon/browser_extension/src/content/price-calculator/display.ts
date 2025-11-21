@@ -400,7 +400,7 @@ function createButtonRow(
   buttonRow.appendChild(followButton);
 
   // 创建"采集"按钮
-  const collectButton = createCollectButton(ozonProduct, dimensions, euraflowConfig);
+  const collectButton = createCollectButton(realPrice, ozonProduct, dimensions, euraflowConfig);
   buttonRow.appendChild(collectButton);
 
   return buttonRow;
@@ -467,6 +467,7 @@ function createFollowButton(
  * 创建"采集"按钮
  */
 function createCollectButton(
+  realPrice: number | null,
   ozonProduct: any,
   dimensions: any | null,
   euraflowConfig: any | null

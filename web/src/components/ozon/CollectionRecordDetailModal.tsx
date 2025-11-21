@@ -2,6 +2,7 @@
  * 采集记录详情弹窗
  * UI风格参考浏览器扩展的"跟卖"弹窗
  */
+import { LinkOutlined } from '@ant-design/icons';
 import { Modal, Descriptions, Image, Tag } from 'antd';
 import dayjs from 'dayjs';
 import React from 'react';
@@ -70,12 +71,24 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
       <div className={styles.productPreview}>
         <div className={styles.imageSection}>
           {mainImage ? (
-            <ProductImage
-              imageUrl={mainImage}
-              size="medium"
-              hoverBehavior="none"
-              name={product_data?.title}
-            />
+            <div className={styles.imageWrapper}>
+              <ProductImage
+                imageUrl={mainImage}
+                size="medium"
+                hoverBehavior="none"
+                name={product_data?.title}
+              />
+              {/* 右上角来源链接 */}
+              <a
+                href={record.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.sourceLink}
+                title="在OZON上查看"
+              >
+                <LinkOutlined />
+              </a>
+            </div>
           ) : (
             <div className={styles.noImage}>暂无图片</div>
           )}
@@ -101,12 +114,6 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
       {/* 商品信息表格 */}
       <div className={styles.detailSection}>
         <Descriptions bordered size="small" column={2}>
-          <Descriptions.Item label="来源链接" span={2}>
-            <a href={record.source_url} target="_blank" rel="noopener noreferrer">
-              {record.source_url}
-            </a>
-          </Descriptions.Item>
-
           {product_data?.product_id && (
             <Descriptions.Item label="商品ID">
               {product_data.product_id}
@@ -132,6 +139,28 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
           {product_data?.currency && (
             <Descriptions.Item label="货币">
               {product_data.currency}
+            </Descriptions.Item>
+          )}
+
+          {/* 尺寸信息 */}
+          {(product_data?.dimensions || product_data?.size || product_data?.length || product_data?.width || product_data?.height) && (
+            <Descriptions.Item label="尺寸">
+              {product_data.dimensions
+                ? String(product_data.dimensions)
+                : product_data.size
+                  ? String(product_data.size)
+                  : [product_data.length, product_data.width, product_data.height]
+                      .filter(Boolean)
+                      .join(' × ') + ' cm'}
+            </Descriptions.Item>
+          )}
+
+          {/* 重量信息 */}
+          {product_data?.weight && (
+            <Descriptions.Item label="重量">
+              {typeof product_data.weight === 'number'
+                ? `${product_data.weight} g`
+                : String(product_data.weight)}
             </Descriptions.Item>
           )}
 
