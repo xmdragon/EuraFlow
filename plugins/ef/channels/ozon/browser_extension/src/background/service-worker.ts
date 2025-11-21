@@ -892,7 +892,7 @@ async function handleGetOzonProductDetail(data: { productSku: string; cookieStri
 
     const dimensions = {
       weight: findAttr('4497'),   // 重量（克）
-      depth: findAttr('9454'),    // 深度（毫米）
+      length: findAttr('9454'),   // 长度（毫米）- 对应后端的 length 字段
       width: findAttr('9455'),    // 宽度（毫米）
       height: findAttr('9456')    // 高度（毫米）
     };

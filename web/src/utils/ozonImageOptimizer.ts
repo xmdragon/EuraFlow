@@ -19,7 +19,8 @@
  * // 返回：'https://cdn1.ozone.ru/s3/multimedia-1-m/wc160/6943754938.jpg'
  */
 export function optimizeOzonImageUrl(url: string | undefined, targetWidth: number): string {
-  if (!url) return '';
+  // 严格检查参数类型：必须是非空字符串
+  if (!url || typeof url !== 'string') return '';
 
   // 检查是否为OZON图片URL（支持 ozon.ru 和 ozone.ru）
   const isOzonUrl = url.includes('ozon.ru') || url.includes('ozone.ru');
