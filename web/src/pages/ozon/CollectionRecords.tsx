@@ -163,7 +163,7 @@ const CollectionRecords: React.FC = () => {
       key: 'image',
       width: 100,
       render: (product_data: CollectionRecord['product_data']) => {
-        const imageUrl = product_data?.images?.[0];
+        const imageUrl = product_data?.images?.[0]?.url;
         return (
           <ProductImage
             imageUrl={imageUrl}
