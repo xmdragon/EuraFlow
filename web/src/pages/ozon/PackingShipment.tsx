@@ -1128,7 +1128,7 @@ const PackingShipment: React.FC = () => {
         {/* 扫描输入框（扫描单号标签时显示） */}
         {operationStatus === 'scan' && (
           <div className={styles.scanInputContainer}>
-            <Space.Compact style={{ width: '600px' }}>
+            <Space.Compact style={{ width: '100%', maxWidth: '600px' }}>
               <Input
                 ref={scanInputRef}
                 placeholder="请输入或扫描追踪号码"

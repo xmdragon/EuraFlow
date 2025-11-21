@@ -23,7 +23,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); // 添加阴影增强层次感
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden; // 防止子元素溢出
+  box-sizing: border-box;
 }
 
 // ===== 顶部筛选区域 =====
@@ -58,6 +58,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 // ===== 列表卡片 =====
