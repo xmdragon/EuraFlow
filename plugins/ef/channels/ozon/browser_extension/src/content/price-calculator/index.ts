@@ -65,19 +65,12 @@ export class RealPriceCalculator {
 
       // 检查关键元素是否已加载（Vue hydration 完成的标志）
       const checkKeyElements = (container: HTMLElement): boolean => {
-        // 关键元素1：配送日期（包含俄语月份文本，如 "7 декабря"）
-        // 这是 Vue hydration 最后才渲染的元素之一
-        const deliveryDateElements = container.querySelectorAll('span');
-        for (const span of deliveryDateElements) {
-          const text = span.textContent || '';
-          // 检查是否包含俄语月份关键词
-          if (text.includes('января') || text.includes('февраля') || text.includes('марта') ||
-              text.includes('апреля') || text.includes('мая') || text.includes('июня') ||
-              text.includes('июля') || text.includes('августа') || text.includes('сентября') ||
-              text.includes('октября') || text.includes('ноября') || text.includes('декабря')) {
-            console.log('[EuraFlow] ✓ 检测到配送日期元素:', text.trim());
-            return true;
-          }
+        // 关键元素1：配送日期（检测结构，而非具体值）
+        // 查找包含 "q6b3_0_4-a1" 类名的元素（这是配送日期的样式类）
+        const deliveryDateElement = container.querySelector('span[class*="q6b3_0_4-a1"]');
+        if (deliveryDateElement && deliveryDateElement.textContent && deliveryDateElement.textContent.trim().length > 0) {
+          console.log('[EuraFlow] ✓ 检测到配送日期元素:', deliveryDateElement.textContent.trim());
+          return true;
         }
 
         // 关键元素2："Добавить в корзину" 按钮
@@ -133,18 +126,10 @@ export class RealPriceCalculator {
    */
   public async init(): Promise<void> {
     try {
-      // 1. 第一时间预加载配置数据（与后续操作并行）
+      // 1. 第一时间预加载配置数据（后台并行）
       this.preloadConfigInBackground();
 
-      // 2. 等待容器稳定
-      console.log('[EuraFlow] 等待容器稳定...');
-      const isReady = await this.waitForContainerReady();
-      if (!isReady) {
-        console.error('[EuraFlow] 容器未就绪');
-        return;
-      }
-
-      // 3. 计算真实售价
+      // 2. 计算真实售价
       const { greenPrice, blackPrice, currency } = findPrices();
       if (blackPrice === null && greenPrice === null) {
         console.warn('[EuraFlow] 未找到价格');
@@ -157,32 +142,40 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 4. 提取商品ID
+      // 3. 提取商品ID
       const productId = extractProductId();
       if (!productId) {
         console.error('[EuraFlow] 无法提取商品ID');
         return;
       }
 
-      // 5. 并发获取所有商品数据（与步骤1的配置预加载并行）
-      console.log('[EuraFlow] 并发获取所有商品数据...');
+      // 4. 【先采集数据】（耗时操作，不等待 DOM）
+      console.log('[EuraFlow] 开始采集商品数据...');
 
-      // 【关键修复】读取页面的 Cookie（包含 sc_company_id）
       const pageCookie = document.cookie;
-      console.log('[EuraFlow] 页面 Cookie 长度:', pageCookie.length);
 
       const response = await chrome.runtime.sendMessage({
         type: 'FETCH_ALL_PRODUCT_DATA',
         data: {
           url: window.location.href,
           productId: productId,
-          cookieString: pageCookie  // 传递页面 Cookie 给 Service Worker
+          cookieString: pageCookie
         }
       });
 
       if (!response.success) {
         console.error('[EuraFlow] 数据获取失败:', response.error);
         return;
+      }
+
+      console.log('[EuraFlow] ✓ 数据采集完成');
+
+      // 5. 【再等待 DOM 稳定】（此时配送日期应该已经加载好了）
+      console.log('[EuraFlow] 等待 DOM 稳定...');
+      const isReady = await this.waitForContainerReady();
+
+      if (!isReady) {
+        console.warn('[EuraFlow] ⚠️ DOM 未完全稳定，但数据已准备好，继续注入');
       }
 
       const { ozonProduct, spbSales, dimensions, euraflowConfig } = response.data;
@@ -205,8 +198,7 @@ export class RealPriceCalculator {
         euraflowConfig
       });
 
-      console.log('[EuraFlow] 组件注入完成');
-      // 配置数据已在 init() 第一时间预加载，这里无需重复
+      console.log('[EuraFlow] ✓ 组件注入完成');
     } catch (error) {
       console.error('[EuraFlow] 初始化失败:', error);
     }
