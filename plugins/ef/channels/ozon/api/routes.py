@@ -98,7 +98,7 @@ except ImportError as e:
 
 try:
     from .product_routes import router as product_router
-    router.include_router(product_router, prefix="/products")
+    router.include_router(product_router)
     logger.info("✓ Loaded product_routes")
 except ImportError as e:
     logger.warning(f"Could not import product routes: {e}")
