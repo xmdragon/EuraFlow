@@ -904,6 +904,7 @@ const PackingShipment: React.FC = () => {
       // 刷新计数和列表
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingStats'] });
       // 从当前列表中移除该posting
       setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
     } catch (error) {
@@ -952,6 +953,7 @@ const PackingShipment: React.FC = () => {
       // 刷新计数和列表
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['packingStats'] });
 
       // 从当前列表中移除这些posting
       setAllPostings((prev) => prev.filter((p) => !postingsToMark.includes(p.posting_number)));
@@ -1500,6 +1502,9 @@ const PackingShipment: React.FC = () => {
             setAllPostings((prev) =>
               prev.filter((p) => p.posting_number !== currentPosting.posting_number)
             );
+            // 刷新查询缓存，确保重置后不会重新出现
+            queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+            queryClient.invalidateQueries({ queryKey: ['packingStats'] });
             setPrepareStockModalVisible(false);
           }}
         />
@@ -1559,6 +1564,9 @@ const PackingShipment: React.FC = () => {
                 prev.filter((p) => p.posting_number !== currentPosting.posting_number)
               );
             }
+            // 刷新查询缓存，确保重置后不会重新出现
+            queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+            queryClient.invalidateQueries({ queryKey: ['packingStats'] });
             setDomesticTrackingModalVisible(false);
             // 重新聚焦输入框
             setTimeout(() => {
@@ -1579,6 +1587,9 @@ const PackingShipment: React.FC = () => {
             setAllPostings((prev) =>
               prev.filter((p) => p.posting_number !== currentPosting.posting_number)
             );
+            // 刷新查询缓存，确保重置后不会重新出现
+            queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
+            queryClient.invalidateQueries({ queryKey: ['packingStats'] });
             setDiscardOrderModalVisible(false);
           }}
         />
