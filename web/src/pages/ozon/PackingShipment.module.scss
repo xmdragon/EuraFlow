@@ -13,6 +13,15 @@
   }
 }
 
+// ===== Sticky头部区域 =====
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #f0f2f5;
+  padding-bottom: 8px;
+}
+
 // ===== 顶部筛选区域 =====
 .filterCard {
   margin-bottom: $spacing-xs;
@@ -51,6 +60,18 @@
     overflow-x: hidden;
     padding-left: 16px;
     padding-right: 16px;
+  }
+}
+
+// ===== Sticky Tabs导航栏 =====
+.stickyTabs {
+  :global(.ant-tabs-nav) {
+    position: sticky;
+    top: 130px; // 标题(约50px) + 搜索栏(约80px) 的估计高度
+    z-index: 99;
+    background: white;
+    padding-top: 8px;
+    margin-bottom: $spacing-xs;
   }
 }
 

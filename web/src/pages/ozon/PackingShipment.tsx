@@ -1093,23 +1093,25 @@ const PackingShipment: React.FC = () => {
   // 错误展示Modal
   return (
     <div className={styles.pageContainer}>
-      {/* 页面标题 */}
-      <PageTitle icon={<TruckOutlined />} title="打包发货" />
+      {/* Sticky头部区域：标题 + 搜索栏 */}
+      <div className={styles.stickyHeader}>
+        {/* 页面标题 */}
+        <PageTitle icon={<TruckOutlined />} title="打包发货" />
 
-
-      {/* 搜索过滤（扫描单号标签时隐藏） */}
-      {operationStatus !== 'scan' && (
-        <PackingSearchBar
-          form={filterForm}
-          selectedShop={selectedShop}
-          onShopChange={(shopId) => {
-            const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
-            setSelectedShop(normalized);
-            // 切换店铺时会自动重新加载（queryKey改变）
-          }}
-          onSearchParamsChange={setSearchParams}
-        />
-      )}
+        {/* 搜索过滤（扫描单号标签时隐藏） */}
+        {operationStatus !== 'scan' && (
+          <PackingSearchBar
+            form={filterForm}
+            selectedShop={selectedShop}
+            onShopChange={(shopId) => {
+              const normalized = Array.isArray(shopId) ? (shopId[0] ?? null) : (shopId ?? null);
+              setSelectedShop(normalized);
+              // 切换店铺时会自动重新加载（queryKey改变）
+            }}
+            onSearchParamsChange={setSearchParams}
+          />
+        )}
+      </div>
 
       {/* 打包发货列表 */}
       <Card className={styles.listCard}>
@@ -1197,6 +1199,7 @@ const PackingShipment: React.FC = () => {
                   label: createTabLabel('scan', <SearchOutlined />, '扫描单号', 0),
                 },
               ]}
+              className={styles.stickyTabs}
               style={{ marginTop: 16 }}
             />
           );
