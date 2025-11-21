@@ -47,86 +47,84 @@ export class RealPriceCalculator {
 
   /**
    * 等待 OZON 右侧容器 DOM 稳定（Vue hydration 完成）
-   * 监听 <div data-widget="webStickyColumn"> 内的 DOM 变化
-   * 只有在指定时间内无任何变化才认为稳定
+   * 监听关键元素的出现，而不是依赖时间
+   * 关键元素：配送日期 或 "Добавить в корзину" 按钮
    */
   private async waitForContainerReady(): Promise<boolean> {
     const MAX_WAIT_TIME = 20000; // 最多等待20秒
-    const STABLE_DURATION = 3000; // 3秒内无变化才认为稳定（Vue hydration 需要更长时间）
+    const CHECK_INTERVAL = 200;  // 每200ms检查一次
 
     return new Promise((resolve) => {
       const startTime = Date.now();
-      let stableTimer: number | null = null;
-      let changeCount = 0;
+      let checkCount = 0;
 
       // 查找 OZON 右侧粘性容器（这是我们要注入的位置）
       const findStickyColumn = (): HTMLElement | null => {
         return document.querySelector('div[data-widget="webStickyColumn"]') as HTMLElement | null;
       };
 
-      const checkStability = () => {
-        const stickyColumn = findStickyColumn();
-
-        if (!stickyColumn) {
-          // 容器不存在，继续等待
-          if (Date.now() - startTime > MAX_WAIT_TIME) {
-            console.warn('[EuraFlow] 等待 webStickyColumn 容器超时');
-            resolve(false);
-          } else {
-            setTimeout(checkStability, 100);
+      // 检查关键元素是否已加载（Vue hydration 完成的标志）
+      const checkKeyElements = (container: HTMLElement): boolean => {
+        // 关键元素1：配送日期（包含俄语月份文本，如 "7 декабря"）
+        // 这是 Vue hydration 最后才渲染的元素之一
+        const deliveryDateElements = container.querySelectorAll('span');
+        for (const span of deliveryDateElements) {
+          const text = span.textContent || '';
+          // 检查是否包含俄语月份关键词
+          if (text.includes('января') || text.includes('февраля') || text.includes('марта') ||
+              text.includes('апреля') || text.includes('мая') || text.includes('июня') ||
+              text.includes('июля') || text.includes('августа') || text.includes('сентября') ||
+              text.includes('октября') || text.includes('ноября') || text.includes('декабря')) {
+            console.log('[EuraFlow] ✓ 检测到配送日期元素:', text.trim());
+            return true;
           }
+        }
+
+        // 关键元素2："Добавить в корзину" 按钮
+        const addToCartButton = container.querySelector('button');
+        if (addToCartButton) {
+          const buttonText = addToCartButton.textContent || '';
+          if (buttonText.includes('Добавить в корзину')) {
+            console.log('[EuraFlow] ✓ 检测到"添加到购物车"按钮');
+            return true;
+          }
+        }
+
+        return false;
+      };
+
+      const checkReady = () => {
+        checkCount++;
+        const elapsed = Date.now() - startTime;
+
+        // 超时检查
+        if (elapsed > MAX_WAIT_TIME) {
+          console.warn('[EuraFlow] ⚠️ 等待关键元素超时，强制继续');
+          resolve(true);
           return;
         }
 
-        console.log('[EuraFlow] 找到 webStickyColumn 容器，开始监听 DOM 变化...');
+        // 查找容器
+        const stickyColumn = findStickyColumn();
+        if (!stickyColumn) {
+          // 容器不存在，继续等待
+          setTimeout(checkReady, CHECK_INTERVAL);
+          return;
+        }
 
-        // 容器存在，开始监听其内部 DOM 变化
-        const observer = new MutationObserver(() => {
-          changeCount++;
-          console.log(`[EuraFlow] 检测到第 ${changeCount} 次 DOM 变化`);
-
-          // 清除之前的稳定计时器
-          if (stableTimer) {
-            clearTimeout(stableTimer);
-          }
-
-          // 设置新的稳定计时器：2秒内无变化才认为稳定
-          stableTimer = window.setTimeout(() => {
-            observer.disconnect();
-            console.log(`[EuraFlow] DOM 已稳定（${STABLE_DURATION}ms 内无变化，共检测到 ${changeCount} 次变化）`);
-            // 额外延迟500ms，确保Vue的hydration完全完成
-            setTimeout(() => resolve(true), 500);
-          }, STABLE_DURATION);
-        });
-
-        // 监听 webStickyColumn 容器及其所有子节点的变化
-        observer.observe(stickyColumn, {
-          childList: true,     // 子节点增删
-          subtree: true,       // 所有后代节点
-          attributes: true,    // 属性变化
-          characterData: true  // 文本内容变化
-        });
-
-        // 立即启动稳定计时器（如果容器已经稳定，3秒后直接注入）
-        stableTimer = window.setTimeout(() => {
-          observer.disconnect();
-          console.log(`[EuraFlow] DOM 已稳定（${STABLE_DURATION}ms 内无变化，共检测到 ${changeCount} 次变化）`);
-          // 额外延迟500ms，确保Vue的hydration完全完成
-          setTimeout(() => resolve(true), 500);
-        }, STABLE_DURATION);
-
-        // 超时保护
-        setTimeout(() => {
-          if (stableTimer) {
-            clearTimeout(stableTimer);
-            observer.disconnect();
-            console.warn(`[EuraFlow] 等待 DOM 稳定超时（${MAX_WAIT_TIME}ms），强制继续`);
-            resolve(true);
-          }
-        }, MAX_WAIT_TIME);
+        // 容器存在，检查关键元素
+        if (checkKeyElements(stickyColumn)) {
+          console.log(`[EuraFlow] ✓ DOM 已稳定（用时 ${elapsed}ms，检查了 ${checkCount} 次）`);
+          // 额外延迟300ms，确保 Vue 完全完成
+          setTimeout(() => resolve(true), 300);
+        } else {
+          // 关键元素未出现，继续等待
+          setTimeout(checkReady, CHECK_INTERVAL);
+        }
       };
 
-      checkStability();
+      console.log('[EuraFlow] 开始等待关键元素加载...');
+      checkReady();
     });
   }
 
