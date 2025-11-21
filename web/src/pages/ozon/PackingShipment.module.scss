@@ -48,6 +48,15 @@
   padding: 0;
 }
 
+// ===== 扫描输入框容器（Sticky区域内） =====
+.scanInputContainer {
+  background: white;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 // ===== 列表卡片 =====
 .listCard {
   width: 100%;

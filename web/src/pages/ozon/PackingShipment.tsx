@@ -1112,6 +1112,46 @@ const PackingShipment: React.FC = () => {
           />
         )}
 
+        {/* 扫描输入框（扫描单号标签时显示） */}
+        {operationStatus === 'scan' && (
+          <div className={styles.scanInputContainer}>
+            <Space.Compact style={{ width: '600px' }}>
+              <Input
+                ref={scanInputRef}
+                placeholder="请输入或扫描追踪号码"
+                value={scanTrackingNumber}
+                onChange={(e) => {
+                  setScanTrackingNumber(e.target.value);
+                  setIsScanAutoFilled(false);
+                }}
+                onPressEnter={handleScanSearch}
+                onFocus={handleScanInputFocus}
+                disabled={isScanning}
+                autoFocus
+                size="large"
+                prefix={<SearchOutlined />}
+                suffix={
+                  scanTrackingNumber ? (
+                    <CloseCircleOutlined
+                      onClick={handleClearScanInput}
+                      style={{ color: '#999', cursor: 'pointer' }}
+                    />
+                  ) : null
+                }
+              />
+              <Button
+                type="primary"
+                size="large"
+                loading={isScanning}
+                disabled={isScanning}
+                onClick={handleScanSearch}
+              >
+                查询
+              </Button>
+            </Space.Compact>
+          </div>
+        )}
+
         {/* 操作状态 Tabs */}
         {/* 创建带快捷菜单按钮的标签label */}
         {React.useMemo(() => {
@@ -1209,46 +1249,6 @@ const PackingShipment: React.FC = () => {
           // 扫描单号界面
           <div style={{ marginTop: 16 }}>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {/* 扫描输入框 */}
-              <Card>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <Space.Compact style={{ width: '600px' }}>
-                    <Input
-                      ref={scanInputRef}
-                      placeholder="请输入或扫描追踪号码"
-                      value={scanTrackingNumber}
-                      onChange={(e) => {
-                        setScanTrackingNumber(e.target.value);
-                        setIsScanAutoFilled(false);
-                      }}
-                      onPressEnter={handleScanSearch}
-                      onFocus={handleScanInputFocus}
-                      disabled={isScanning}
-                      autoFocus
-                      size="large"
-                      prefix={<SearchOutlined />}
-                      suffix={
-                        scanTrackingNumber ? (
-                          <CloseCircleOutlined
-                            onClick={handleClearScanInput}
-                            style={{ color: '#999', cursor: 'pointer' }}
-                          />
-                        ) : null
-                      }
-                    />
-                    <Button
-                      type="primary"
-                      size="large"
-                      loading={isScanning}
-                      disabled={isScanning}
-                      onClick={handleScanSearch}
-                    >
-                      查询
-                    </Button>
-                  </Space.Compact>
-                </div>
-              </Card>
-
               {/* 错误提示 */}
               {scanError && (
                 <Alert
