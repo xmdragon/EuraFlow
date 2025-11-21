@@ -956,14 +956,22 @@ export async function extractProductData(): Promise<ProductDetailData> {
         // 构建规格文本的辅助函数（遍历所有 aspects，提取对应 SKU 的 searchableText）
         const buildSpecText = (aspects: any[], targetSku: string): string => {
           const specs: string[] = [];
-          aspects.forEach((aspect: any) => {
+          aspects.forEach((aspect: any, index: number) => {
+            console.log(`[EuraFlow] aspect[${index}] - type: ${aspect.type}, aspectKey: ${aspect.aspectKey}`);
+
             const variant = aspect.variants.find((v: any) => v.sku === targetSku)
                          || aspect.variants.find((v: any) => v.active);
+
             if (variant?.data?.searchableText) {
+              console.log(`[EuraFlow]   → 找到规格值: ${variant.data.searchableText}`);
               specs.push(variant.data.searchableText);
+            } else {
+              console.log(`[EuraFlow]   → 未找到规格值`);
             }
           });
-          return specs.join(' / ');
+          const result = specs.join(' / ');
+          console.log(`[EuraFlow] 最终规格文本: "${result}"`);
+          return result;
         };
 
         // 从最后一个 aspect 的 variants 中提取所有变体（上品帮方案）

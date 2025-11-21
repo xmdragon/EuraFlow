@@ -34,6 +34,11 @@ export interface UseDraftTemplateProps {
    * 可选：当前选中的类目ID（用于模板过滤）
    */
   selectedCategory?: number;
+
+  /**
+   * 可选：跳过草稿加载（例如从采集记录进入时）
+   */
+  skipDraftLoading?: boolean;
 }
 
 export interface UseDraftTemplateReturn {
@@ -87,6 +92,7 @@ export const useDraftTemplate = ({
   deserializeFormData,
   selectedShop,
   selectedCategory,
+  skipDraftLoading = false,
 }: UseDraftTemplateProps): UseDraftTemplateReturn => {
   const queryClient = useQueryClient();
   const { modal } = App.useApp();
@@ -94,7 +100,7 @@ export const useDraftTemplate = ({
   // ==================== 状态管理 ====================
 
   // 草稿加载状态
-  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(skipDraftLoading);
 
   // 模板UI状态
   const [templateModalVisible, setTemplateModalVisible] = useState(false);

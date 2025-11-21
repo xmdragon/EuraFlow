@@ -907,6 +907,16 @@ const ProductCreate: React.FC = () => {
   ]);
 
   /**
+   * 检测是否从采集记录进入（如果是，则跳过草稿加载提示）
+   */
+  const isFromCollectionRecord = useMemo(() => {
+    const state = location.state as {
+      source?: string;
+    };
+    return state?.source === 'collection_record';
+  }, [location.state]);
+
+  /**
    * 草稿模板管理 Hook
    */
   const draftTemplate = useDraftTemplate({
@@ -914,6 +924,7 @@ const ProductCreate: React.FC = () => {
     deserializeFormData,
     selectedShop,
     selectedCategory,
+    skipDraftLoading: isFromCollectionRecord,
   });
 
   /**
