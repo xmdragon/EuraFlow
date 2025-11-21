@@ -135,7 +135,7 @@ const ListingRecords: React.FC = () => {
     queryFn: async () => {
       if (!selectedShop) return null;
 
-      const response = await axios.get('/api/ef/v1/ozon/listing-records/daily-stats', {
+      const response = await axios.get('/api/ef/v1/ozon/collection-records/daily-stats', {
         params: {
           shop_id: selectedShop,
           range_type: dateRangeParams.rangeType,
