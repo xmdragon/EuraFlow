@@ -1115,95 +1115,97 @@ const PackingShipment: React.FC = () => {
 
       {/* 打包发货列表 */}
       <Card className={styles.listCard}>
-        {/* 操作状态 Tabs */}
-        {/* 创建带快捷菜单按钮的标签label */}
-        {React.useMemo(() => {
-          const createTabLabel = (key: string, icon: React.ReactNode, label: string, count: number) => {
-            const isAdded = isInQuickMenu(`packing-${key}`);
-            const path = `/dashboard/ozon/packing?tab=${key}`;
+        {/* Sticky Tabs容器 */}
+        <div className={styles.stickyTabsContainer}>
+          {/* 操作状态 Tabs */}
+          {/* 创建带快捷菜单按钮的标签label */}
+          {React.useMemo(() => {
+            const createTabLabel = (key: string, icon: React.ReactNode, label: string, count: number) => {
+              const isAdded = isInQuickMenu(`packing-${key}`);
+              const path = `/dashboard/ozon/packing?tab=${key}`;
+
+              return (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  {icon}
+                  {label}{key !== 'scan' && `(${count})`}
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={isAdded ? <CheckCircleOutlined /> : <PlusOutlined />}
+                    style={{
+                      marginLeft: '4px',
+                      fontSize: '12px',
+                      color: isAdded ? '#52c41a' : '#1890ff',
+                      padding: '0 4px',
+                      height: '20px',
+                      lineHeight: '20px'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isAdded) {
+                        addQuickMenu({
+                          key: `packing-${key}`,
+                          label: label,
+                          path: path
+                        });
+                      }
+                    }}
+                  />
+                </span>
+              );
+            };
 
             return (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                {icon}
-                {label}{key !== 'scan' && `(${count})`}
-                <Button
-                  type="text"
-                  size="small"
-                  icon={isAdded ? <CheckCircleOutlined /> : <PlusOutlined />}
-                  style={{
-                    marginLeft: '4px',
-                    fontSize: '12px',
-                    color: isAdded ? '#52c41a' : '#1890ff',
-                    padding: '0 4px',
-                    height: '20px',
-                    lineHeight: '20px'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isAdded) {
-                      addQuickMenu({
-                        key: `packing-${key}`,
-                        label: label,
-                        path: path
-                      });
-                    }
-                  }}
-                />
-              </span>
+              <Tabs
+                activeKey={operationStatus}
+                onChange={(key) => {
+              setOperationStatus(key);
+              // 记录访问过的标签（用于按需加载统计数据）
+              setVisitedTabs((prev) => new Set(prev).add(key));
+              // 切换tab时会自动重新加载（queryKey改变）
+              // 切换到扫描标签时清空之前的扫描结果
+              if (key === 'scan') {
+                setScanTrackingNumber('');
+                setScanResults([]);
+                setScanError('');
+                setScanSelectedPostings([]);
+              }
+            }}
+                items={[
+                  {
+                    key: 'awaiting_stock',
+                    label: createTabLabel('awaiting_stock', <ClockCircleOutlined />, '等待备货', statusCounts.awaiting_stock),
+                  },
+                  {
+                    key: 'allocating',
+                    label: createTabLabel('allocating', <SyncOutlined spin />, '分配中', statusCounts.allocating),
+                  },
+                  {
+                    key: 'allocated',
+                    label: createTabLabel('allocated', <CheckCircleOutlined />, '已分配', statusCounts.allocated),
+                  },
+                  {
+                    key: 'tracking_confirmed',
+                    label: createTabLabel('tracking_confirmed', <CheckCircleOutlined />, '单号确认', statusCounts.tracking_confirmed),
+                  },
+                  {
+                    key: 'shipping',
+                    label: createTabLabel('shipping', <RocketOutlined />, '运输中', statusCounts.shipping),
+                  },
+                  {
+                    key: 'printed',
+                    label: createTabLabel('printed', <PrinterOutlined />, '已打印', statusCounts.printed),
+                  },
+                  {
+                    key: 'scan',
+                    label: createTabLabel('scan', <SearchOutlined />, '扫描单号', 0),
+                  },
+                ]}
+                className={styles.stickyTabs}
+              />
             );
-          };
-
-          return (
-            <Tabs
-              activeKey={operationStatus}
-              onChange={(key) => {
-            setOperationStatus(key);
-            // 记录访问过的标签（用于按需加载统计数据）
-            setVisitedTabs((prev) => new Set(prev).add(key));
-            // 切换tab时会自动重新加载（queryKey改变）
-            // 切换到扫描标签时清空之前的扫描结果
-            if (key === 'scan') {
-              setScanTrackingNumber('');
-              setScanResults([]);
-              setScanError('');
-              setScanSelectedPostings([]);
-            }
-          }}
-              items={[
-                {
-                  key: 'awaiting_stock',
-                  label: createTabLabel('awaiting_stock', <ClockCircleOutlined />, '等待备货', statusCounts.awaiting_stock),
-                },
-                {
-                  key: 'allocating',
-                  label: createTabLabel('allocating', <SyncOutlined spin />, '分配中', statusCounts.allocating),
-                },
-                {
-                  key: 'allocated',
-                  label: createTabLabel('allocated', <CheckCircleOutlined />, '已分配', statusCounts.allocated),
-                },
-                {
-                  key: 'tracking_confirmed',
-                  label: createTabLabel('tracking_confirmed', <CheckCircleOutlined />, '单号确认', statusCounts.tracking_confirmed),
-                },
-                {
-                  key: 'shipping',
-                  label: createTabLabel('shipping', <RocketOutlined />, '运输中', statusCounts.shipping),
-                },
-                {
-                  key: 'printed',
-                  label: createTabLabel('printed', <PrinterOutlined />, '已打印', statusCounts.printed),
-                },
-                {
-                  key: 'scan',
-                  label: createTabLabel('scan', <SearchOutlined />, '扫描单号', 0),
-                },
-              ]}
-              className={styles.stickyTabs}
-              style={{ marginTop: 16 }}
-            />
-          );
-        }, [operationStatus, statusCounts, addQuickMenu, isInQuickMenu])}
+          }, [operationStatus, statusCounts, addQuickMenu, isInQuickMenu])}
+        </div>
 
 
         {/* 根据不同标签显示不同内容 */}

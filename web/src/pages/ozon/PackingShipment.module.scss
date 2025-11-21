@@ -5,8 +5,8 @@
 .pageContainer {
   width: 100%;
   max-width: 100vw;
-  overflow-x: hidden;
   box-sizing: border-box;
+  // 移除 overflow-x: hidden 以支持 sticky 定位
 
   * {
     box-sizing: border-box;
@@ -57,22 +57,26 @@
 
   // 防止内容溢出
   :global(.ant-card-body) {
-    overflow-x: hidden;
+    // 移除 overflow-x: hidden 以支持 sticky 定位
     padding-left: 16px;
     padding-right: 16px;
   }
 }
 
+// ===== Sticky Tabs导航栏容器 =====
+.stickyTabsContainer {
+  position: sticky;
+  top: 0; // 紧贴在视口顶部（标题和搜索栏会滚动上去）
+  z-index: 99;
+  background: white;
+  padding: 16px 16px 0 16px;
+  margin: -24px -24px 0 -24px; // 抵消Card的padding，让Tabs区域占满宽度
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); // 添加阴影增强层次感
+}
+
 // ===== Sticky Tabs导航栏 =====
 .stickyTabs {
-  :global(.ant-tabs-nav) {
-    position: sticky;
-    top: 130px; // 标题(约50px) + 搜索栏(约80px) 的估计高度
-    z-index: 99;
-    background: white;
-    padding-top: 8px;
-    margin-bottom: $spacing-xs;
-  }
+  // Tabs本身不需要额外样式，由容器控制sticky
 }
 
 // ===== 订单网格布局 =====
