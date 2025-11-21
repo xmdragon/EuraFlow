@@ -334,6 +334,19 @@ const PackingShipment: React.FC = () => {
     }
   }, []); // 仅在组件挂载时执行一次
 
+  // 标签切换时滚动到页面顶部
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    // 跳过初始挂载
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    // 标签切换时，平滑滚动到顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [operationStatus]);
+
   // 查询店铺列表（用于显示店铺名称）
   const { data: shopsData } = useQuery({
     queryKey: ['ozonShops'],
