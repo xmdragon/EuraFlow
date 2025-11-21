@@ -61,3 +61,27 @@ export function onExecute() {
     init();
   }
 }
+
+// ========== 消息监听器：响应 background 的变体提取请求 ==========
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'EXTRACT_PRODUCT_DATA') {
+    console.log('[Content] 收到变体提取请求');
+
+    // 动态导入并执行
+    import('./parsers/product-detail').then(async (module) => {
+      try {
+        const productData = await module.extractProductData();
+        console.log('[Content] 变体提取成功:', productData.variants?.length || 0, '个变体');
+        sendResponse({ success: true, data: productData });
+      } catch (error: any) {
+        console.error('[Content] 变体提取失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    }).catch(error => {
+      console.error('[Content] 模块加载失败:', error);
+      sendResponse({ success: false, error: error.message });
+    });
+
+    return true; // 异步响应
+  }
+});

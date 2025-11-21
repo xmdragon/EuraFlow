@@ -917,14 +917,43 @@ async function handleGetOzonProductDetail(data: { productId: string; cookieStrin
     };
 
     // 返回单个商品对象 + dimensions
-    const finalData = {
+    const baseData = {
       ...product,
       title: product.name,  // OZON Seller API 字段是 name，统一为 title
       dimensions: dimensions
     };
 
-    console.log('[OZON API] 商品详情:', finalData);
-    return finalData;
+    console.log('[OZON API] Seller API 基础数据:', baseData);
+
+    // 获取变体数据（从 content script）
+    try {
+      console.log('[OZON API] 开始获取变体数据...');
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+
+      if (tabs.length === 0 || !tabs[0].id) {
+        console.warn('[OZON API] ⚠️ 未找到活动标签页，跳过变体提取');
+        return baseData;
+      }
+
+      const response = await chrome.tabs.sendMessage(tabs[0].id, {
+        type: 'EXTRACT_PRODUCT_DATA'
+      });
+
+      if (response.success && response.data?.variants) {
+        console.log('[OZON API] ✅ 变体数据获取成功:', response.data.variants.length, '个变体');
+        return {
+          ...baseData,
+          variants: response.data.variants,
+          has_variants: response.data.has_variants
+        };
+      } else {
+        console.warn('[OZON API] ⚠️ 变体提取失败或无变体:', response.error || '未知原因');
+        return baseData;
+      }
+    } catch (error: any) {
+      console.warn('[OZON API] ⚠️ 调用 content script 失败:', error.message);
+      return baseData;
+    }
   } catch (error: any) {
     console.error('[OZON API] 获取商品详情失败:', error);
 
