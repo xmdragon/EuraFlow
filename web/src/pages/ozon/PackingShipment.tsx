@@ -1093,7 +1093,7 @@ const PackingShipment: React.FC = () => {
   // 错误展示Modal
   return (
     <div className={styles.pageContainer}>
-      {/* Sticky头部区域：标题 + 搜索栏 */}
+      {/* Sticky头部区域：标题 + 搜索栏 + 标签页 */}
       <div className={styles.stickyHeader}>
         {/* 页面标题 */}
         <PageTitle icon={<TruckOutlined />} title="打包发货" />
@@ -1111,15 +1111,10 @@ const PackingShipment: React.FC = () => {
             onSearchParamsChange={setSearchParams}
           />
         )}
-      </div>
 
-      {/* 打包发货列表 */}
-      <Card className={styles.listCard}>
-        {/* Sticky Tabs容器 */}
-        <div className={styles.stickyTabsContainer}>
-          {/* 操作状态 Tabs */}
-          {/* 创建带快捷菜单按钮的标签label */}
-          {React.useMemo(() => {
+        {/* 操作状态 Tabs */}
+        {/* 创建带快捷菜单按钮的标签label */}
+        {React.useMemo(() => {
             const createTabLabel = (key: string, icon: React.ReactNode, label: string, count: number) => {
               const isAdded = isInQuickMenu(`packing-${key}`);
               const path = `/dashboard/ozon/packing?tab=${key}`;
@@ -1205,9 +1200,10 @@ const PackingShipment: React.FC = () => {
               />
             );
           }, [operationStatus, statusCounts, addQuickMenu, isInQuickMenu])}
-        </div>
+      </div>
 
-
+      {/* 打包发货列表 */}
+      <Card className={styles.listCard}>
         {/* 根据不同标签显示不同内容 */}
         {operationStatus === 'scan' ? (
           // 扫描单号界面

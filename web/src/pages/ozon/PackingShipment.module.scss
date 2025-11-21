@@ -19,7 +19,8 @@
   top: 0;
   z-index: 100;
   background: #f0f2f5;
-  padding-bottom: 8px;
+  padding-bottom: 0; // Tabs自带下边距
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); // 添加阴影增强层次感
 }
 
 // ===== 顶部筛选区域 =====
@@ -40,20 +41,17 @@
   width: 200px;
 }
 
+// ===== Sticky Tabs导航栏 =====
+.stickyTabs {
+  background: white;
+  margin: 0;
+  padding: 0;
+}
+
 // ===== 列表卡片 =====
 .listCard {
   width: 100%;
   max-width: 100%;
-
-  // 移除Tabs默认的margin-top
-  :global(.ant-tabs) {
-    margin-top: 0;
-  }
-
-  // Tabs头部间距调整
-  :global(.ant-tabs-nav) {
-    margin-bottom: $spacing-xs;
-  }
 
   // 防止内容溢出
   :global(.ant-card-body) {
@@ -61,22 +59,6 @@
     padding-left: 16px;
     padding-right: 16px;
   }
-}
-
-// ===== Sticky Tabs导航栏容器 =====
-.stickyTabsContainer {
-  position: sticky;
-  top: 0; // 紧贴在视口顶部（标题和搜索栏会滚动上去）
-  z-index: 99;
-  background: white;
-  padding: 16px 0 0 0; // 只保留顶部padding
-  margin: 0; // 移除负margin，避免超出容器
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); // 添加阴影增强层次感
-}
-
-// ===== Sticky Tabs导航栏 =====
-.stickyTabs {
-  // Tabs本身不需要额外样式，由容器控制sticky
 }
 
 // ===== 订单网格布局 =====
