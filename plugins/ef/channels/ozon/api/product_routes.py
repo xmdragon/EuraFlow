@@ -1302,7 +1302,7 @@ async def import_products_by_sku(
             )
 
 
-@router.put("/{sku}/purchase-info")
+@router.put("/products/{sku}/purchase-info")
 async def update_product_purchase_info(
     sku: str,
     request_data: Dict[str, Any],

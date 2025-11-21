@@ -5,6 +5,7 @@
  */
 
 import { getDataPanelConfig } from '../../shared/storage';
+import { showPublishModal } from '../components/PublishModal';
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
@@ -451,7 +452,6 @@ function createFollowButton(
         return;
       }
 
-      const { showPublishModal } = await import('../components/PublishModal');
       const productData = { ...ozonProduct, dimensions };
       showPublishModal(productData, realPrice);
     } catch (error) {

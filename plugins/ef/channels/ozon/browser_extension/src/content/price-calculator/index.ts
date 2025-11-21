@@ -46,9 +46,9 @@ export class RealPriceCalculator {
   }
 
   /**
-   * 等待 OZON 右侧容器 DOM 稳定（Vue hydration 完成）
-   * 监听关键元素的出现，而不是依赖时间
-   * 关键元素：配送日期 或 "Добавить в корзину" 按钮
+   * 等待 OZON 页面 DOM 稳定（Vue hydration 完成）
+   * 检测 webSale 组件内的配送信息是否加载完成
+   * 检测逻辑：pdp_fa 容器内容不是 SVG 图标时，说明内容已加载
    */
   private async waitForContainerReady(): Promise<boolean> {
     const MAX_WAIT_TIME = 20000; // 最多等待20秒
@@ -58,29 +58,36 @@ export class RealPriceCalculator {
       const startTime = Date.now();
       let checkCount = 0;
 
-      // 查找 OZON 右侧粘性容器（这是我们要注入的位置）
-      const findStickyColumn = (): HTMLElement | null => {
-        return document.querySelector('div[data-widget="webStickyColumn"]') as HTMLElement | null;
-      };
-
       // 检查关键元素是否已加载（Vue hydration 完成的标志）
-      const checkKeyElements = (container: HTMLElement): boolean => {
-        // 关键元素1：配送日期（检测结构，而非具体值）
-        // 查找包含 "q6b3_0_4-a1" 类名的元素（这是配送日期的样式类）
-        const deliveryDateElement = container.querySelector('span[class*="q6b3_0_4-a1"]');
-        if (deliveryDateElement && deliveryDateElement.textContent && deliveryDateElement.textContent.trim().length > 0) {
-          console.log('[EuraFlow] ✓ 检测到配送日期元素:', deliveryDateElement.textContent.trim());
+      const checkKeyElements = (): boolean => {
+        // 查找 webSale 组件（商品销售信息区域）
+        const webSaleWidget = document.querySelector('div[data-widget="webSale"]');
+        if (!webSaleWidget) {
+          if (checkCount === 1) {
+            console.log('[EuraFlow] 未找到 webSale 组件');
+          }
+          return false;
+        }
+
+        // 在 webSale 内查找配送信息容器（使用宽松选择器）
+        const deliveryContainer = webSaleWidget.querySelector('div[class*="pdp_fa"]');
+        if (!deliveryContainer) {
+          if (checkCount === 1) {
+            console.log('[EuraFlow] 在 webSale 内未找到 pdp_fa 容器');
+          }
+          return false;
+        }
+
+        // 检查内容是否不是 SVG（如果不是 SVG，说明内容已加载完成）
+        const hasSvg = deliveryContainer.querySelector('svg');
+        if (!hasSvg) {
+          const content = deliveryContainer.textContent?.trim() || '';
+          console.log('[EuraFlow] ✓ 检测到配送信息已加载:', content);
           return true;
         }
 
-        // 关键元素2："Добавить в корзину" 按钮
-        const addToCartButton = container.querySelector('button');
-        if (addToCartButton) {
-          const buttonText = addToCartButton.textContent || '';
-          if (buttonText.includes('Добавить в корзину')) {
-            console.log('[EuraFlow] ✓ 检测到"添加到购物车"按钮');
-            return true;
-          }
+        if (checkCount === 1) {
+          console.log('[EuraFlow] pdp_fa 容器内仍然是 SVG，继续等待...');
         }
 
         return false;
@@ -97,19 +104,11 @@ export class RealPriceCalculator {
           return;
         }
 
-        // 查找容器
-        const stickyColumn = findStickyColumn();
-        if (!stickyColumn) {
-          // 容器不存在，继续等待
-          setTimeout(checkReady, CHECK_INTERVAL);
-          return;
-        }
-
-        // 容器存在，检查关键元素
-        if (checkKeyElements(stickyColumn)) {
+        // 检查关键元素是否已加载
+        if (checkKeyElements()) {
           console.log(`[EuraFlow] ✓ DOM 已稳定（用时 ${elapsed}ms，检查了 ${checkCount} 次）`);
-          // 额外延迟300ms，确保 Vue 完全完成
-          setTimeout(() => resolve(true), 300);
+          // 额外延迟200ms，确保 Vue 完全完成
+          setTimeout(() => resolve(true), 200);
         } else {
           // 关键元素未出现，继续等待
           setTimeout(checkReady, CHECK_INTERVAL);

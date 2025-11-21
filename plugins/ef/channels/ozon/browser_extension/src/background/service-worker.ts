@@ -471,39 +471,56 @@ async function handleGetTaskStatus(data: { apiUrl: string; apiKey: string; taskI
 async function handleCollectProduct(data: { apiUrl: string; apiKey: string; source_url: string; product_data: any }) {
   const { apiUrl, apiKey, source_url, product_data } = data;
 
-  const response = await fetch(`${apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey
-    },
-    body: JSON.stringify({
-      source_url,
-      product_data
-    })
-  });
+  try {
+    const response = await fetch(`${apiUrl}/api/ef/v1/ozon/collection-records/collect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey
+      },
+      body: JSON.stringify({
+        source_url,
+        product_data
+      })
+    });
 
-  if (!response.ok) {
-    let errorMessage = '采集失败';
-    try {
-      const errorData = await response.json();
-      // 多层级解析错误信息
-      if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.detail) {
-        errorMessage = errorData.detail.detail;
-      } else if (errorData.detail && typeof errorData.detail === 'string') {
-        errorMessage = errorData.detail;
-      } else if (errorData.message) {
-        errorMessage = errorData.message;
-      } else if (errorData.error && errorData.error.message) {
-        errorMessage = errorData.error.message;
+    if (!response.ok) {
+      let errorMessage = '采集失败';
+      try {
+        const errorData = await response.json();
+        console.error('[采集] 服务器错误响应:', JSON.stringify(errorData, null, 2));
+
+        // 多层级解析错误信息
+        if (errorData.detail && typeof errorData.detail === 'object' && errorData.detail.detail) {
+          errorMessage = errorData.detail.detail;
+        } else if (errorData.detail && typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        } else {
+          // 如果都没解析到，使用完整的错误对象
+          errorMessage = `采集失败 (HTTP ${response.status}): ${JSON.stringify(errorData)}`;
+        }
+      } catch (parseError) {
+        errorMessage = `服务器错误 (HTTP ${response.status})`;
       }
-    } catch {
-      errorMessage = `服务器错误 (HTTP ${response.status})`;
+      throw new Error(errorMessage);
     }
-    throw new Error(errorMessage);
-  }
 
-  return await response.json();
+    return await response.json();
+  } catch (error: any) {
+    // 捕获网络错误、超时等异常
+    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      throw new Error('网络连接失败，请检查网络');
+    } else if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+      throw new Error('请求超时，请稍后重试');
+    } else {
+      // 如果是已经包装过的错误，直接抛出
+      throw error;
+    }
+  }
 }
 
 // ========== 上品帮登录功能 ==========
@@ -603,10 +620,12 @@ async function getShangpinbangCredentials(): Promise<{ phone: string; password: 
  * 检测是否为 Token 过期错误
  */
 function isTokenExpiredError(responseData: any): boolean {
-  if (responseData.code !== -1) {
+  // 上品帮 API：code = 0 表示成功，code != 0 表示失败
+  if (responseData.code === 0) {
     return false;
   }
 
+  // code != 0 时，检查是否为 Token 相关错误
   const message = (responseData.message || '').toLowerCase();
   const tokenRelatedKeywords = [
     'token',
