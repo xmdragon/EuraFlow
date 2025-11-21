@@ -16,6 +16,7 @@ import dayjs from 'dayjs';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import CollectionRecordDetailModal from '@/components/ozon/CollectionRecordDetailModal';
 import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
 import PageTitle from '@/components/PageTitle';
@@ -45,7 +46,7 @@ interface CollectionRecord {
 }
 
 const CollectionRecords: React.FC = () => {
-  const { modal } = App.useApp();
+  const { modal } = App.useApp(); // 用于删除确认
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canOperate, canDelete } = usePermission();
@@ -60,6 +61,10 @@ const CollectionRecords: React.FC = () => {
     initialValue: null,
   });
   const [filterForm] = Form.useForm();
+
+  // 详情弹窗状态
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [currentRecord, setCurrentRecord] = useState<CollectionRecord | null>(null);
 
   // 查询采集记录列表
   const { data, isLoading, refetch } = useQuery({
@@ -106,22 +111,8 @@ const CollectionRecords: React.FC = () => {
 
   // 查看记录详情
   const handleView = (record: CollectionRecord) => {
-    modal.info({
-      title: '商品详情',
-      width: 800,
-      content: (
-        <div>
-          <p><strong>来源链接：</strong><a href={record.source_url} target="_blank" rel="noopener noreferrer">{record.source_url}</a></p>
-          <p><strong>商品标题：</strong>{record.product_data?.title || '-'}</p>
-          <p><strong>中文标题：</strong>{record.product_data?.title_cn || '-'}</p>
-          <p><strong>创建时间：</strong>{dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}</p>
-          <p><strong>商品数据：</strong></p>
-          <pre style={{ maxHeight: 400, overflow: 'auto', background: '#f5f5f5', padding: 12, borderRadius: 4 }}>
-            {JSON.stringify(record.product_data, null, 2)}
-          </pre>
-        </div>
-      ),
-    });
+    setCurrentRecord(record);
+    setDetailModalVisible(true);
   };
 
   // 编辑记录（跳转到新建商品页并填充数据）
@@ -335,6 +326,16 @@ const CollectionRecords: React.FC = () => {
           className="compact-table"
         />
       </Card>
+
+      {/* 详情弹窗 */}
+      <CollectionRecordDetailModal
+        visible={detailModalVisible}
+        record={currentRecord}
+        onClose={() => {
+          setDetailModalVisible(false);
+          setCurrentRecord(null);
+        }}
+      />
     </div>
   );
 };

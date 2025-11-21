@@ -1,17 +1,21 @@
 """
 商品采集记录管理路由
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Any
 from pydantic import BaseModel, Field
+from datetime import timedelta
+import logging
 
 from ef_core.database import get_async_session
 from ef_core.models.users import User
 from ef_core.api.auth import get_current_user_flexible
 from ..services.collection_record_service import CollectionRecordService
+from ..utils.datetime_utils import get_global_timezone, calculate_date_range
 
 router = APIRouter(prefix="/collection-records", tags=["Collection Records"])
+logger = logging.getLogger(__name__)
 
 
 def problem(status: int, code: str, title: str, detail: str | None = None):
@@ -381,3 +385,104 @@ async def delete_record(
             "message": "记录已删除"
         }
     }
+
+
+@router.get("/daily-stats")
+async def get_listing_daily_stats(
+    shop_id: int = Query(..., description="店铺ID"),
+    range_type: Optional[str] = Query(None, description="时间范围类型：7days/14days/thisMonth/lastMonth/custom"),
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD（仅 range_type=custom 时使用）"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """
+    获取每日上架统计数据（按商品在OZON创建的时间统计）
+
+    Args:
+        shop_id: 店铺ID（必填）
+        range_type: 时间范围类型（后端根据用户时区计算日期）
+        start_date: 开始日期（仅 custom 模式）
+        end_date: 结束日期（仅 custom 模式）
+        db: 数据库会话
+        current_user: 当前用户
+
+    Returns:
+        每日上架数量统计
+    """
+    from ..models.collection_record import OzonCollectionRecord
+    from sqlalchemy import select, and_
+    from zoneinfo import ZoneInfo
+
+    # 获取全局时区设置
+    global_timezone = await get_global_timezone(db)
+
+    try:
+        # 使用统一的日期范围计算函数（基于系统全局时区）
+        start_datetime_utc, end_datetime_utc = calculate_date_range(
+            range_type=range_type or '14days',
+            timezone_name=global_timezone,
+            custom_start=start_date,
+            custom_end=end_date
+        )
+
+        # 后续代码需要使用时区对象和日期对象
+        tz = ZoneInfo(global_timezone)
+        start_date_obj = start_datetime_utc.astimezone(tz).date()
+        end_date_obj = end_datetime_utc.astimezone(tz).date()
+
+        # 构建查询条件（使用UTC时间戳范围）
+        record_filter = [
+            OzonCollectionRecord.collection_type == 'follow_pdp',  # 只统计跟卖上架记录
+            OzonCollectionRecord.shop_id == shop_id,
+            OzonCollectionRecord.created_at >= start_datetime_utc,
+            OzonCollectionRecord.created_at <= end_datetime_utc,
+            OzonCollectionRecord.user_id == current_user.id  # 只查看当前用户的记录
+        ]
+
+        # 查询记录数据（不在数据库层面按日期分组，而是查询完整时间戳）
+        stats_result = await db.execute(
+            select(OzonCollectionRecord.created_at)
+            .where(and_(*record_filter))
+            .order_by(OzonCollectionRecord.created_at)
+        )
+        stats_rows = stats_result.scalars().all()
+
+        # 组织数据结构
+        # 1. 按日期分组（在Python中转换时区后分组）
+        daily_stats = {}
+        for created_at in stats_rows:
+            # 将UTC时间转换为全局时区
+            created_at_tz = created_at.astimezone(tz)
+            # 提取日期
+            date_str = created_at_tz.date().isoformat()
+
+            if date_str not in daily_stats:
+                daily_stats[date_str] = 0
+            daily_stats[date_str] += 1
+
+        # 2. 生成完整的日期序列（填充缺失日期）
+        all_dates = []
+        current_date = start_date_obj
+        while current_date <= end_date_obj:
+            date_str = current_date.isoformat()
+            all_dates.append(date_str)
+            if date_str not in daily_stats:
+                daily_stats[date_str] = 0
+            current_date += timedelta(days=1)
+
+        # 计算实际天数
+        actual_days = (end_date_obj - start_date_obj).days + 1
+
+        return {
+            "ok": True,
+            "data": {
+                "dates": all_dates,
+                "data": daily_stats,
+                "total_days": actual_days
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get listing daily stats: {e}")
+        raise HTTPException(status_code=500, detail=f"获取每日上架统计失败: {str(e)}")

@@ -30,7 +30,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["src/content/ui/*"],
+      "resources": ["src/content/ui/*", "src/content/injected/*.js"],
       "matches": ["https://www.ozon.ru/*"]
     }
   ]

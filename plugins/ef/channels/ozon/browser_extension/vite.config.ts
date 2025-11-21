@@ -24,10 +24,17 @@ export default defineConfig({
     sourcemap: isDev,  // 开发模式生成 sourcemap
     rollupOptions: {
       input: {
-        popup: 'src/popup/popup.html'
+        popup: 'src/popup/popup.html',
+        'token-reader': 'src/content/injected/token-reader.js'
       },
       output: {
-        entryFileNames: 'assets/[name].js',
+        entryFileNames: (chunkInfo) => {
+          // token-reader 保持原路径结构
+          if (chunkInfo.name === 'token-reader') {
+            return 'src/content/injected/token-reader.js';
+          }
+          return 'assets/[name].js';
+        },
         chunkFileNames: 'assets/[name].js',
         assetFileNames: 'assets/[name].[ext]'
       }

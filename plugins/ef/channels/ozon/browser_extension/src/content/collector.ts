@@ -1176,27 +1176,11 @@ export class ProductCollector {
 
       window.addEventListener('message', messageHandler);
 
-      // 2. 注入脚本到页面上下文
+      // 2. 注入脚本到页面上下文（使用外部文件，避免 CSP 违规）
       const script = document.createElement('script');
-      script.textContent = `
-        (function() {
-          try {
-            const token = localStorage.getItem('ozonid-auth-tokens');
-            window.postMessage({
-              type: 'EURAFLOW_OZON_TOKEN',
-              token: token
-            }, '*');
-          } catch (error) {
-            console.error('[EuraFlow] 读取 ozonid-auth-tokens 失败:', error);
-            window.postMessage({
-              type: 'EURAFLOW_OZON_TOKEN',
-              token: null
-            }, '*');
-          }
-        })();
-      `;
+      script.src = chrome.runtime.getURL('src/content/injected/token-reader.js');
+      script.onload = () => script.remove(); // 加载后立即移除
       document.documentElement.appendChild(script);
-      script.remove(); // 执行后立即移除
 
       // 3. 设置超时（1秒内如果没有收到消息，就认为失败）
       setTimeout(() => {

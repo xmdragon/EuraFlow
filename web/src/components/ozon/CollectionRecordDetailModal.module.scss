@@ -1,0 +1,200 @@
+// 采集记录详情弹窗样式
+.detailModal {
+  :global(.ant-modal-header) {
+    padding: 16px 24px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  :global(.ant-modal-body) {
+    padding: 20px 24px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+
+.modalTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+// 商品预览区
+.productPreview {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.imageSection {
+  flex-shrink: 0;
+}
+
+.noImage {
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  border-radius: 8px;
+  color: #999;
+  font-size: 14px;
+}
+
+.infoSection {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.4;
+}
+
+.titleCn {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.metadata {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #999;
+  margin-top: auto;
+
+  span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+// 详情区
+.detailSection {
+  margin-bottom: 20px;
+
+  :global(.ant-descriptions-item-label) {
+    font-weight: 500;
+    background: #fafafa;
+  }
+}
+
+.price {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1976d2;
+}
+
+.oldPrice {
+  font-size: 14px;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.description {
+  max-height: 150px;
+  overflow-y: auto;
+  line-height: 1.6;
+  color: #555;
+}
+
+.specifications {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.specItem {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.specKey {
+  font-weight: 500;
+  color: #666;
+  white-space: nowrap;
+}
+
+.specValue {
+  color: #333;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// 图片轮播区
+.imageGallery {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.galleryTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.galleryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.galleryItem {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+  background: white;
+}
+
+// 原始数据
+.rawData {
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+
+  summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+    user-select: none;
+
+    &:hover {
+      color: #1976d2;
+    }
+  }
+
+  pre {
+    margin-top: 12px;
+    padding: 12px;
+    background: white;
+    border-radius: 4px;
+    font-size: 12px;
+    max-height: 300px;
+    overflow: auto;
+  }
+}
