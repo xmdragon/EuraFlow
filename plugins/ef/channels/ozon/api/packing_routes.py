@@ -676,6 +676,7 @@ async def get_packing_orders(
     days_within: Optional[int] = Query(None, description="运输中状态的天数筛选（仅在operation_status=shipping时有效，默认7天）"),
     source_platform: Optional[str] = Query(None, description="按采购平台筛选（1688/拼多多/咸鱼/淘宝/库存）"),
     delivery_method: Optional[str] = Query(None, description="按配送方式筛选（左匹配）"),
+    has_purchase_info: Optional[str] = Query(None, description="按采购信息筛选：all(全部)/yes(有采购信息)/no(无采购信息)"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
@@ -893,6 +894,29 @@ async def get_packing_orders(
             OzonPosting.delivery_method_name.like(f"{delivery_method_value}%")
         )
 
+    # 搜索条件：采购信息筛选（purchase_price + source_platform）
+    if has_purchase_info and has_purchase_info != 'all':
+        if has_purchase_info == 'yes':
+            # 有采购信息：purchase_price 不为NULL且不为0，且 source_platform 不为NULL且不为空数组
+            query = query.where(
+                and_(
+                    OzonPosting.purchase_price.isnot(None),
+                    OzonPosting.purchase_price != 0,
+                    OzonPosting.source_platform.isnot(None),
+                    func.jsonb_array_length(OzonPosting.source_platform) > 0
+                )
+            )
+        elif has_purchase_info == 'no':
+            # 无采购信息：purchase_price 为NULL或为0，或 source_platform 为NULL或为空数组
+            query = query.where(
+                or_(
+                    OzonPosting.purchase_price.is_(None),
+                    OzonPosting.purchase_price == 0,
+                    OzonPosting.source_platform.is_(None),
+                    func.jsonb_array_length(OzonPosting.source_platform) == 0
+                )
+            )
+
     # 排序：已打印状态按操作时间倒序，其他状态按订单创建时间倒序
     if operation_status == 'printed':
         # 已打印：按标记已打印的时间（operation_time）降序排列
@@ -1034,6 +1058,27 @@ async def get_packing_orders(
         count_query = count_query.where(
             OzonPosting.source_platform.contains([source_platform])
         )
+
+    # 采购信息筛选（count查询也需要应用）
+    if has_purchase_info and has_purchase_info != 'all':
+        if has_purchase_info == 'yes':
+            count_query = count_query.where(
+                and_(
+                    OzonPosting.purchase_price.isnot(None),
+                    OzonPosting.purchase_price != 0,
+                    OzonPosting.source_platform.isnot(None),
+                    func.jsonb_array_length(OzonPosting.source_platform) > 0
+                )
+            )
+        elif has_purchase_info == 'no':
+            count_query = count_query.where(
+                or_(
+                    OzonPosting.purchase_price.is_(None),
+                    OzonPosting.purchase_price == 0,
+                    OzonPosting.source_platform.is_(None),
+                    func.jsonb_array_length(OzonPosting.source_platform) == 0
+                )
+            )
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()
