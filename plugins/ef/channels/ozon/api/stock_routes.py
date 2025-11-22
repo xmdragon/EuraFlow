@@ -93,7 +93,7 @@ async def get_stock_list(
         filters.append(Inventory.sku.ilike(f"%{sku}%"))
 
     # 店铺权限过滤（仅返回用户有权限的店铺库存）
-    shop_ids = await filter_by_shop_permission(db, current_user)
+    shop_ids = await filter_by_shop_permission(current_user, db)
     if shop_ids is not None:  # None = admin（所有店铺），list = 授权店铺
         filters.append(Inventory.shop_id.in_(shop_ids))
 
@@ -165,7 +165,7 @@ async def add_stock(
     3. 记录审计日志
     """
     # 验证店铺权限
-    shop_ids = await filter_by_shop_permission(db, current_user)
+    shop_ids = await filter_by_shop_permission(current_user, db)
     if shop_ids is not None and data.shop_id not in shop_ids:
         raise HTTPException(status_code=403, detail="无权限操作该店铺")
 
@@ -277,7 +277,7 @@ async def update_stock(
         raise HTTPException(status_code=404, detail="库存记录不存在")
 
     # 验证店铺权限
-    shop_ids = await filter_by_shop_permission(db, current_user)
+    shop_ids = await filter_by_shop_permission(current_user, db)
     if shop_ids is not None and inventory.shop_id not in shop_ids:
         raise HTTPException(status_code=403, detail="无权限操作该店铺库存")
 
@@ -380,7 +380,7 @@ async def delete_stock(
         raise HTTPException(status_code=404, detail="库存记录不存在")
 
     # 验证店铺权限
-    shop_ids = await filter_by_shop_permission(db, current_user)
+    shop_ids = await filter_by_shop_permission(current_user, db)
     if shop_ids is not None and inventory.shop_id not in shop_ids:
         raise HTTPException(status_code=403, detail="无权限操作该店铺库存")
 
@@ -445,7 +445,7 @@ async def check_stock_for_posting(
         raise HTTPException(status_code=404, detail=f"订单不存在: {posting_number}")
 
     # 验证店铺权限
-    shop_ids = await filter_by_shop_permission(db, current_user)
+    shop_ids = await filter_by_shop_permission(current_user, db)
     if shop_ids is not None and posting.shop_id not in shop_ids:
         raise HTTPException(status_code=403, detail="无权限查看该订单")
 

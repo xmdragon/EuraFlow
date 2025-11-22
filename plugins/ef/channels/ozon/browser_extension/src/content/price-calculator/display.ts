@@ -6,6 +6,7 @@
 
 import { getDataPanelConfig } from '../../shared/storage';
 import { showPublishModal } from '../components/PublishModal';
+import { injectEuraflowStyles } from '../styles/injector';
 
 // ========== 配置常量 ==========
 const DISPLAY_CONFIG = {
@@ -65,26 +66,14 @@ function formatDimensions(
  */
 function renderField(label: string, value: string): HTMLElement {
   const field = document.createElement('div');
-  field.style.display = 'flex';
-  field.style.justifyContent = 'space-between';
-  field.style.alignItems = 'center';
-  field.style.padding = '6px';
-  field.style.borderBottom = '1px solid #f0f0f0';
+  field.className = 'ef-price-field';
 
   const labelSpan = document.createElement('span');
-  // 移除 OZON 样式类，使用自己的样式
-  labelSpan.style.color = '#757575';
-  labelSpan.style.fontSize = '14px';
-  labelSpan.style.fontWeight = '400';
-  labelSpan.style.lineHeight = '1.5';
+  labelSpan.className = 'ef-price-field__label';
   labelSpan.textContent = label;
 
   const valueSpan = document.createElement('span');
-  // 移除 OZON 样式类，使用自己的样式
-  valueSpan.style.color = '#212121';
-  valueSpan.style.fontSize = '14px';
-  valueSpan.style.fontWeight = '500';
-  valueSpan.style.lineHeight = '1.5';
+  valueSpan.className = 'ef-price-field__value';
   valueSpan.textContent = value;
 
   field.appendChild(labelSpan);
@@ -104,6 +93,9 @@ export async function injectCompleteDisplay(data: {
   dimensions: any | null;
   euraflowConfig: any | null;
 }): Promise<void> {
+  // 注入 EuraFlow 样式（仅注入一次）
+  injectEuraflowStyles();
+
   const { message, price, ozonProduct, spbSales, dimensions, euraflowConfig } = data;
 
   // 获取目标容器
@@ -144,12 +136,8 @@ export async function injectCompleteDisplay(data: {
   euraflowContainer.setAttribute('data-server-rendered', 'false');
   euraflowContainer.setAttribute('data-v-skip-hydration', 'true');
 
-  // 移除 OZON 样式类，使用自己的样式
-  euraflowContainer.style.width = '100%';
-  euraflowContainer.style.backgroundColor = '#ffffff';
-  euraflowContainer.style.borderRadius = '8px';
-  euraflowContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-  euraflowContainer.style.marginBottom = '16px';
+  // 使用 CSS 类
+  euraflowContainer.className = 'ef-price-container';
 
   // 添加三个部分
   euraflowContainer.appendChild(createPriceSection(message));
@@ -158,7 +146,7 @@ export async function injectCompleteDisplay(data: {
 
   // 设置高度并注入
   if (rightSide.children[0]?.firstChild) {
-    (rightSide.children[0].firstChild as HTMLElement).style.height = 'auto';
+    (rightSide.children[0].firstChild as HTMLElement).classList.add('ef-ozon-right-side-fix');
   }
   targetContainer.insertBefore(euraflowContainer, targetContainer.firstElementChild);
 
@@ -201,30 +189,18 @@ export async function injectCompleteDisplay(data: {
 function createPriceSection(message: string): HTMLElement {
   const section = document.createElement('div');
   section.setAttribute('data-euraflow-component', 'price-section');
-  section.style.padding = '8px 0';
-  section.style.marginBottom = '12px';
-  section.style.borderBottom = '2px solid #D84315';
+  section.className = 'ef-price-section';
 
   const priceDisplay = document.createElement('div');
-  priceDisplay.style.display = 'flex';
-  priceDisplay.style.alignItems = 'center';
-  priceDisplay.style.justifyContent = 'space-between';
+  priceDisplay.className = 'ef-price-display';
 
   const label = document.createElement('span');
-  // 移除 OZON 样式类，使用自己的样式
-  label.style.color = '#757575';
-  label.style.fontSize = '14px';
-  label.style.fontWeight = '500';
-  label.style.lineHeight = '1.5';
+  label.className = 'ef-price-display__label';
   label.textContent = '真实售价';
 
   const value = document.createElement('span');
   value.id = 'euraflow-real-price';
-  // 移除 OZON 样式类，使用自己的样式
-  value.style.color = '#D84315';
-  value.style.fontSize = '24px';
-  value.style.fontWeight = '700';
-  value.style.lineHeight = '1.2';
+  value.className = 'ef-price-display__value';
   value.textContent = message.replace('真实售价：', '');
 
   priceDisplay.appendChild(label);
@@ -262,8 +238,7 @@ async function createDataSection(spbSales: any | null, dimensions: any | null): 
   const section = document.createElement('div');
   section.id = 'euraflow-data-section';
   section.setAttribute('data-euraflow-component', 'data-section');
-  section.style.padding = '8px 0';
-  section.style.marginBottom = '12px';
+  section.className = 'ef-data-panel-section';
 
   // 获取配置的可见字段
   const config = await getDataPanelConfig();
@@ -291,10 +266,7 @@ async function createDataSection(spbSales: any | null, dimensions: any | null): 
   // 如果没有渲染任何字段，显示提示
   if (section.children.length === 0) {
     const hint = document.createElement('div');
-    hint.style.padding = '12px';
-    hint.style.textAlign = 'center';
-    hint.style.color = '#9e9e9e';
-    hint.style.fontSize = '14px';
+    hint.className = 'ef-data-panel-hint';
     hint.textContent = spbSales || dimensions ? '暂无可显示的数据' : '数据获取中...';
     section.appendChild(hint);
   }
@@ -392,9 +364,7 @@ function createButtonRow(
   const buttonRow = document.createElement('div');
   buttonRow.id = 'euraflow-button-row';
   buttonRow.setAttribute('data-euraflow-component', 'button-row');
-  buttonRow.style.display = 'flex';
-  buttonRow.style.gap = '8px';
-  buttonRow.style.marginTop = '12px';
+  buttonRow.className = 'ef-button-row';
 
   // 创建"跟卖"按钮
   const followButton = createFollowButton(realPrice, ozonProduct, spbSales, dimensions);
@@ -419,26 +389,8 @@ function createFollowButton(
   const followButton = document.createElement('button');
   followButton.id = 'euraflow-follow-sell';
   followButton.setAttribute('type', 'button');
-  // 移除 OZON 样式类，使用自己的样式
-  followButton.style.background = '#1890ff';
-  followButton.style.color = '#ffffff';
-  followButton.style.flex = '1';
-  followButton.style.height = '48px';
-  followButton.style.borderRadius = '8px';
-  followButton.style.border = 'none';
-  followButton.style.cursor = 'pointer';
-  followButton.style.fontSize = '16px';
-  followButton.style.fontWeight = '500';
-  followButton.style.transition = 'all 0.3s ease';
+  followButton.className = 'ef-follow-button';
   followButton.textContent = '跟卖';
-
-  // 悬停效果
-  followButton.addEventListener('mouseenter', () => {
-    followButton.style.background = '#40a9ff';
-  });
-  followButton.addEventListener('mouseleave', () => {
-    followButton.style.background = '#1890ff';
-  });
 
   // 事件处理
   followButton.addEventListener('click', async () => {
@@ -483,26 +435,8 @@ function createCollectButton(
   const collectButton = document.createElement('button');
   collectButton.id = 'euraflow-collect';
   collectButton.setAttribute('type', 'button');
-  // 移除 OZON 样式类，使用自己的样式
-  collectButton.style.background = '#52c41a';
-  collectButton.style.color = '#ffffff';
-  collectButton.style.flex = '1';
-  collectButton.style.height = '48px';
-  collectButton.style.borderRadius = '8px';
-  collectButton.style.border = 'none';
-  collectButton.style.cursor = 'pointer';
-  collectButton.style.fontSize = '16px';
-  collectButton.style.fontWeight = '500';
-  collectButton.style.transition = 'all 0.3s ease';
+  collectButton.className = 'ef-collect-button';
   collectButton.textContent = '采集';
-
-  // 悬停效果
-  collectButton.addEventListener('mouseenter', () => {
-    collectButton.style.background = '#73d13d';
-  });
-  collectButton.addEventListener('mouseleave', () => {
-    collectButton.style.background = '#52c41a';
-  });
 
   // 事件处理
   collectButton.addEventListener('click', async () => {
@@ -525,7 +459,7 @@ function createCollectButton(
 
       // 直接发送采集请求，不打开弹窗
       collectButton.disabled = true;
-      collectButton.style.opacity = '0.5';
+      collectButton.classList.add('ef-collect-button--disabled');
       collectButton.textContent = '采集中...';
 
       // 通过 background service worker 发送请求（避免 CORS）
@@ -555,7 +489,8 @@ function createCollectButton(
       alert('采集失败：' + (error as Error).message);
     } finally {
       collectButton.disabled = false;
-      collectButton.style.opacity = '1';
+      collectButton.classList.remove('ef-collect-button--disabled');
+      collectButton.classList.add('ef-collect-button--enabled');
       collectButton.textContent = '采集';
     }
   });

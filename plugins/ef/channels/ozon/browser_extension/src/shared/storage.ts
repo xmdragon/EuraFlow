@@ -17,43 +17,29 @@ const DEFAULT_COLLECTOR_CONFIG: CollectorConfig = {
 };
 
 export async function getApiConfig(): Promise<ApiConfig> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['apiUrl', 'apiKey'], (result: { [key: string]: any }) => {
-      resolve({
-        apiUrl: result.apiUrl || DEFAULT_API_CONFIG.apiUrl,
-        apiKey: result.apiKey || DEFAULT_API_CONFIG.apiKey
-      });
-    });
-  });
+  const result = await chrome.storage.sync.get(['apiUrl', 'apiKey']);
+  return {
+    apiUrl: result.apiUrl || DEFAULT_API_CONFIG.apiUrl,
+    apiKey: result.apiKey || DEFAULT_API_CONFIG.apiKey
+  };
 }
 
 /**
  * 保存API配置
  */
 export async function setApiConfig(config: Partial<ApiConfig>): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.set(config, () => {
-      resolve();
-    });
-  });
+  await chrome.storage.sync.set(config);
 }
 
 export async function getCollectorConfig(): Promise<CollectorConfig> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['targetCount'], (result: { [key: string]: any }) => {
-      resolve({
-        targetCount: result.targetCount || DEFAULT_COLLECTOR_CONFIG.targetCount
-      });
-    });
-  });
+  const result = await chrome.storage.sync.get(['targetCount']);
+  return {
+    targetCount: result.targetCount || DEFAULT_COLLECTOR_CONFIG.targetCount
+  };
 }
 
 export async function setCollectorConfig(config: Partial<CollectorConfig>): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.set(config, () => {
-      resolve();
-    });
-  });
+  await chrome.storage.sync.set(config);
 }
 
 /**
@@ -86,34 +72,27 @@ const DEFAULT_SHANGPINBANG_CONFIG: ShangpinbangConfig = {
  * 获取上品帮配置
  */
 export async function getShangpinbangConfig(): Promise<ShangpinbangConfig> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['spbPhone', 'spbPassword', 'spbToken', 'spbTokenExpiry'], (result: { [key: string]: any }) => {
-      resolve({
-        phone: result.spbPhone || DEFAULT_SHANGPINBANG_CONFIG.phone,
-        password: result.spbPassword || DEFAULT_SHANGPINBANG_CONFIG.password,
-        token: result.spbToken || DEFAULT_SHANGPINBANG_CONFIG.token,
-        tokenExpiry: result.spbTokenExpiry || DEFAULT_SHANGPINBANG_CONFIG.tokenExpiry
-      });
-    });
-  });
+  const result = await chrome.storage.sync.get(['spbPhone', 'spbPassword', 'spbToken', 'spbTokenExpiry']);
+  return {
+    phone: result.spbPhone || DEFAULT_SHANGPINBANG_CONFIG.phone,
+    password: result.spbPassword || DEFAULT_SHANGPINBANG_CONFIG.password,
+    token: result.spbToken || DEFAULT_SHANGPINBANG_CONFIG.token,
+    tokenExpiry: result.spbTokenExpiry || DEFAULT_SHANGPINBANG_CONFIG.tokenExpiry
+  };
 }
 
 /**
  * 保存上品帮配置
  */
 export async function setShangpinbangConfig(config: Partial<ShangpinbangConfig>): Promise<void> {
-  return new Promise((resolve) => {
-    const storageData: { [key: string]: any } = {};
+  const storageData: { [key: string]: any } = {};
 
-    if (config.phone !== undefined) storageData.spbPhone = config.phone;
-    if (config.password !== undefined) storageData.spbPassword = config.password;
-    if (config.token !== undefined) storageData.spbToken = config.token;
-    if (config.tokenExpiry !== undefined) storageData.spbTokenExpiry = config.tokenExpiry;
+  if (config.phone !== undefined) storageData.spbPhone = config.phone;
+  if (config.password !== undefined) storageData.spbPassword = config.password;
+  if (config.token !== undefined) storageData.spbToken = config.token;
+  if (config.tokenExpiry !== undefined) storageData.spbTokenExpiry = config.tokenExpiry;
 
-    chrome.storage.sync.set(storageData, () => {
-      resolve();
-    });
-  });
+  await chrome.storage.sync.set(storageData);
 }
 
 /**
@@ -134,30 +113,23 @@ const DEFAULT_DATA_PANEL_CONFIG: DataPanelConfig = {
  * 获取数据面板配置
  */
 export async function getDataPanelConfig(): Promise<DataPanelConfig> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['dataPanelVisibleFields'], (result: { [key: string]: any }) => {
-      resolve({
-        visibleFields: result.dataPanelVisibleFields || DEFAULT_DATA_PANEL_CONFIG.visibleFields
-      });
-    });
-  });
+  const result = await chrome.storage.sync.get(['dataPanelVisibleFields']);
+  return {
+    visibleFields: result.dataPanelVisibleFields || DEFAULT_DATA_PANEL_CONFIG.visibleFields
+  };
 }
 
 /**
  * 保存数据面板配置
  */
 export async function setDataPanelConfig(config: Partial<DataPanelConfig>): Promise<void> {
-  return new Promise((resolve) => {
-    const storageData: { [key: string]: any } = {};
+  const storageData: { [key: string]: any } = {};
 
-    if (config.visibleFields !== undefined) {
-      storageData.dataPanelVisibleFields = config.visibleFields;
-    }
+  if (config.visibleFields !== undefined) {
+    storageData.dataPanelVisibleFields = config.visibleFields;
+  }
 
-    chrome.storage.sync.set(storageData, () => {
-      resolve();
-    });
-  });
+  await chrome.storage.sync.set(storageData);
 }
 
 // ========== OZON API 频率限制配置存储 ==========
@@ -174,37 +146,29 @@ const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
  * 获取OZON API频率限制配置
  */
 export async function getRateLimitConfig(): Promise<RateLimitConfig> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(
-      ['rateLimitMode', 'rateLimitFixedDelay', 'rateLimitRandomMin', 'rateLimitRandomMax', 'rateLimitEnabled'],
-      (result: { [key: string]: any }) => {
-        resolve({
-          mode: result.rateLimitMode || DEFAULT_RATE_LIMIT_CONFIG.mode,
-          fixedDelay: result.rateLimitFixedDelay || DEFAULT_RATE_LIMIT_CONFIG.fixedDelay,
-          randomDelayMin: result.rateLimitRandomMin || DEFAULT_RATE_LIMIT_CONFIG.randomDelayMin,
-          randomDelayMax: result.rateLimitRandomMax || DEFAULT_RATE_LIMIT_CONFIG.randomDelayMax,
-          enabled: result.rateLimitEnabled !== undefined ? result.rateLimitEnabled : DEFAULT_RATE_LIMIT_CONFIG.enabled,
-        });
-      }
-    );
-  });
+  const result = await chrome.storage.sync.get(
+    ['rateLimitMode', 'rateLimitFixedDelay', 'rateLimitRandomMin', 'rateLimitRandomMax', 'rateLimitEnabled']
+  );
+  return {
+    mode: result.rateLimitMode || DEFAULT_RATE_LIMIT_CONFIG.mode,
+    fixedDelay: result.rateLimitFixedDelay || DEFAULT_RATE_LIMIT_CONFIG.fixedDelay,
+    randomDelayMin: result.rateLimitRandomMin || DEFAULT_RATE_LIMIT_CONFIG.randomDelayMin,
+    randomDelayMax: result.rateLimitRandomMax || DEFAULT_RATE_LIMIT_CONFIG.randomDelayMax,
+    enabled: result.rateLimitEnabled !== undefined ? result.rateLimitEnabled : DEFAULT_RATE_LIMIT_CONFIG.enabled,
+  };
 }
 
 /**
  * 保存OZON API频率限制配置
  */
 export async function setRateLimitConfig(config: Partial<RateLimitConfig>): Promise<void> {
-  return new Promise((resolve) => {
-    const storageData: { [key: string]: any } = {};
+  const storageData: { [key: string]: any } = {};
 
-    if (config.mode !== undefined) storageData.rateLimitMode = config.mode;
-    if (config.fixedDelay !== undefined) storageData.rateLimitFixedDelay = config.fixedDelay;
-    if (config.randomDelayMin !== undefined) storageData.rateLimitRandomMin = config.randomDelayMin;
-    if (config.randomDelayMax !== undefined) storageData.rateLimitRandomMax = config.randomDelayMax;
-    if (config.enabled !== undefined) storageData.rateLimitEnabled = config.enabled;
+  if (config.mode !== undefined) storageData.rateLimitMode = config.mode;
+  if (config.fixedDelay !== undefined) storageData.rateLimitFixedDelay = config.fixedDelay;
+  if (config.randomDelayMin !== undefined) storageData.rateLimitRandomMin = config.randomDelayMin;
+  if (config.randomDelayMax !== undefined) storageData.rateLimitRandomMax = config.randomDelayMax;
+  if (config.enabled !== undefined) storageData.rateLimitEnabled = config.enabled;
 
-    chrome.storage.sync.set(storageData, () => {
-      resolve();
-    });
-  });
+  await chrome.storage.sync.set(storageData);
 }

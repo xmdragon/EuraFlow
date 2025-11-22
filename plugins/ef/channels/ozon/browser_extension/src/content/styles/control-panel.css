@@ -25,6 +25,10 @@
   transform: scale(1.1);
 }
 
+.ef-control-panel-minimized--hidden {
+  display: none !important;
+}
+
 /* ========== 控制面板主容器 ========== */
 .ef-control-panel {
   position: fixed;

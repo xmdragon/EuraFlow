@@ -267,6 +267,12 @@ const Dashboard: React.FC = () => {
           onClick: () => navigate("/dashboard/ozon/cancel-return"),
         },
         {
+          key: "ozon-stock",
+          icon: <DatabaseOutlined />,
+          label: createMenuLabel("ozon-stock", "库存管理", "/dashboard/ozon/stock"),
+          onClick: () => navigate("/dashboard/ozon/stock"),
+        },
+        {
           key: "ozon-finance-transactions",
           icon: <DollarOutlined />,
           label: createMenuLabel("ozon-finance-transactions", "财务交易", "/dashboard/ozon/finance-transactions"),

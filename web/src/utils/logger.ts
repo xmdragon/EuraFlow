@@ -116,6 +116,7 @@ export const loggers = {
   promotion: createLogger('promotion'),
   ozon: createLogger('ozon'),
   storage: createLogger('storage'),
+  stock: createLogger('stock'),
 } as const;
 
 /**

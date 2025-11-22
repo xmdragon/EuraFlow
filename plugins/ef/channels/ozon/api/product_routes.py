@@ -93,6 +93,7 @@ async def get_products(
     created_to: Optional[str] = Query(None, description="创建日期结束（YYYY-MM-DD）"),
     sort_by: Optional[str] = Query("updated_at", description="排序字段：price,stock,created_at,updated_at,title"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc,desc"),
+    include_stats: bool = Query(False, description="是否包含统计信息（影响性能）"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user_flexible)
 ):
@@ -253,34 +254,37 @@ async def get_products(
     # 调试日志：打印查询结果
     logger.info(f"[PRODUCT SEARCH RESULT] Found {len(products)} products, total={total}, search={search}, sku={sku}, shop_id={shop_id}")
 
-    # 计算统计信息 - 支持5种状态
-    stats_query = select(
-        func.count().filter(OzonProduct.status == 'on_sale').label('on_sale'),
-        func.count().filter(OzonProduct.status == 'ready_to_sell').label('ready_to_sell'),
-        func.count().filter(OzonProduct.status == 'error').label('error'),
-        func.count().filter(OzonProduct.status == 'pending_modification').label('pending_modification'),
-        func.count().filter(OzonProduct.status == 'inactive').label('inactive'),
-        func.count().filter(OzonProduct.status == 'archived').label('archived'),
-        # 保留旧字段以便前端过渡
-        func.count().filter(OzonProduct.status == 'on_sale').label('active'),
-        func.count().filter(OzonProduct.stock == 0).label('out_of_stock'),
-        func.count().filter(OzonProduct.sync_status == 'failed').label('sync_failed')
-    ).select_from(OzonProduct)
-
-    # 应用与主查询相同的权限过滤
-    if shop_filter is not True:
-        stats_query = stats_query.where(shop_filter)
-
-    stats_result = await db.execute(stats_query)
-    stats = stats_result.first()
-
     # 构建响应，包含搜索信息
     response = {
         "data": [product.to_dict() for product in products],
         "total": total,
         "page": page if page else (offset // limit + 1) if limit else 1,
         "page_size": limit,
-        "stats": {
+    }
+
+    # 仅在请求时计算统计信息（性能优化）
+    if include_stats:
+        stats_query = select(
+            func.count().filter(OzonProduct.status == 'on_sale').label('on_sale'),
+            func.count().filter(OzonProduct.status == 'ready_to_sell').label('ready_to_sell'),
+            func.count().filter(OzonProduct.status == 'error').label('error'),
+            func.count().filter(OzonProduct.status == 'pending_modification').label('pending_modification'),
+            func.count().filter(OzonProduct.status == 'inactive').label('inactive'),
+            func.count().filter(OzonProduct.status == 'archived').label('archived'),
+            # 保留旧字段以便前端过渡
+            func.count().filter(OzonProduct.status == 'on_sale').label('active'),
+            func.count().filter(OzonProduct.stock == 0).label('out_of_stock'),
+            func.count().filter(OzonProduct.sync_status == 'failed').label('sync_failed')
+        ).select_from(OzonProduct)
+
+        # 应用与主查询相同的权限过滤
+        if shop_filter is not True:
+            stats_query = stats_query.where(shop_filter)
+
+        stats_result = await db.execute(stats_query)
+        stats = stats_result.first()
+
+        response["stats"] = {
             "on_sale": stats.on_sale if stats else 0,
             "ready_to_sell": stats.ready_to_sell if stats else 0,
             "error": stats.error if stats else 0,
@@ -292,7 +296,6 @@ async def get_products(
             "out_of_stock": stats.out_of_stock if stats else 0,
             "sync_failed": stats.sync_failed if stats else 0
         }
-    }
 
     # 如果有搜索，添加搜索信息
     if search or sku or title or brand or any([

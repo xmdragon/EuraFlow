@@ -12,6 +12,7 @@ import { calculateRealPriceCore } from '../price-calculator/calculator';
 import { configCache } from '../../shared/config-cache';
 import { yuanToCents, formatYuan } from '../../shared/price-utils';
 import type { Shop, Warehouse, Watermark, QuickPublishVariant } from '../../shared/types';
+import { injectEuraflowStyles } from '../styles/injector';
 
 // ========== 工具函数 ==========
 
@@ -146,6 +147,9 @@ let variants: VariantEditData[] = [];
  * @param product 商品详情数据（包括变体价格信息）
  */
 export async function showPublishModal(product: any = null, currentRealPrice: number | null = null): Promise<void> {
+  // 注入 EuraFlow 样式（仅注入一次）
+  injectEuraflowStyles();
+
   if (isDebugEnabled()) console.log('[PublishModal] 显示弹窗，商品数据:', product, '当前真实售价:', currentRealPrice);
 
   // 关闭已有弹窗
@@ -477,54 +481,54 @@ function renderMainModal(): void {
 
   // 弹窗内容
   modal.innerHTML = `
-    <div style="margin-bottom: 20px;">
-      <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #333;">商品跟卖</h2>
+    <div class="ef-modal-header">
+      <h2 class="ef-modal-header__title">商品跟卖</h2>
     </div>
 
     <!-- 商品预览 -->
     ${renderProductPreview()}
 
     <!-- 操作栏：店铺/仓库/水印/库存/批量定价 -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto auto; gap: 12px; align-items: flex-end; margin-bottom: 16px; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-      <div>
-        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">店铺 <span style="color: red;">*</span></label>
+    <div class="ef-operations-bar">
+      <div class="ef-operations-bar__field">
+        <label class="ef-operations-bar__label ef-operations-bar__label--required">店铺</label>
         ${renderShopSelect()}
       </div>
-      <div>
-        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">仓库 <span style="color: red;">*</span></label>
+      <div class="ef-operations-bar__field">
+        <label class="ef-operations-bar__label ef-operations-bar__label--required">仓库</label>
         ${renderWarehouseSelect()}
       </div>
-      <div>
-        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">水印</label>
+      <div class="ef-operations-bar__field">
+        <label class="ef-operations-bar__label">水印</label>
         ${renderWatermarkSelect()}
       </div>
-      <div style="width: 100px;">
-        <label style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #555;">默认库存</label>
-        <input type="number" id="default-stock" value="9" min="1" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+      <div class="ef-operations-bar__field ef-operations-bar__field--narrow">
+        <label class="ef-operations-bar__label">默认库存</label>
+        <input type="number" id="default-stock" value="9" min="1" class="ef-operations-bar__input">
       </div>
-      <div>
-        <button id="batch-pricing-btn" style="padding: 8px 16px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 14px; font-weight: 500; white-space: nowrap;">批量定价</button>
+      <div class="ef-operations-bar__field">
+        <button id="batch-pricing-btn" class="ef-operations-bar__button">批量定价</button>
       </div>
     </div>
 
     <!-- 变体列表表格 -->
-    <div style="margin-bottom: 16px; max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-      <table style="width: 100%; border-collapse: collapse; background: white;">
-        <thead style="position: sticky; top: 0; background: #fafafa; z-index: 1; border-bottom: 2px solid #e0e0e0;">
+    <div class="ef-variants-table-container">
+      <table class="ef-variants-table">
+        <thead class="ef-variants-table__head">
           <tr>
-            <th style="padding: 12px 8px; text-align: center; font-size: 13px; font-weight: 600; color: #555; width: 40px;">
-              <input type="checkbox" id="select-all" checked style="cursor: pointer;">
+            <th class="ef-variants-table__th ef-variants-table__th--center ef-variants-table__th--checkbox">
+              <input type="checkbox" id="select-all" checked class="ef-variants-table__checkbox">
             </th>
-            <th style="padding: 12px 8px; text-align: left; font-size: 13px; font-weight: 600; color: #555; width: 60px;">图片</th>
-            <th style="padding: 12px 8px; text-align: left; font-size: 13px; font-weight: 600; color: #555;">规格</th>
-            <th style="padding: 12px 8px; text-align: left; font-size: 13px; font-weight: 600; color: #555; width: 200px;">
+            <th class="ef-variants-table__th ef-variants-table__th--left ef-variants-table__th--image">图片</th>
+            <th class="ef-variants-table__th ef-variants-table__th--left">规格</th>
+            <th class="ef-variants-table__th ef-variants-table__th--left ef-variants-table__th--offerid">
               货号
-              <button id="batch-generate-offerid-btn" style="margin-left: 8px; padding: 2px 8px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 12px;">批量生成</button>
+              <button id="batch-generate-offerid-btn" class="ef-operations-bar__button" style="margin-left: 8px; padding: 2px 8px; font-size: 12px;">批量生成</button>
             </th>
-            <th style="padding: 12px 8px; text-align: right; font-size: 13px; font-weight: 600; color: #555; width: 90px;">原价格</th>
-            <th style="padding: 12px 8px; text-align: right; font-size: 13px; font-weight: 600; color: #555; width: 110px;">自定义价格</th>
-            <th style="padding: 12px 8px; text-align: right; font-size: 13px; font-weight: 600; color: #555; width: 90px;">划线价</th>
-            <th style="padding: 12px 8px; text-align: right; font-size: 13px; font-weight: 600; color: #555; width: 80px;">库存</th>
+            <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--price">原价格</th>
+            <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--custom-price">自定义价格</th>
+            <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--old-price">划线价</th>
+            <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--stock">库存</th>
           </tr>
         </thead>
         <tbody>
@@ -534,10 +538,10 @@ function renderMainModal(): void {
     </div>
 
     <!-- 底部按钮 -->
-    <div style="display: flex; gap: 12px; justify-content: flex-end; align-items: center;">
-      <div id="selected-count" style="flex: 1; color: #666; font-size: 14px;">已选择 ${variants.filter(v => v.enabled).length} 个变体</div>
-      <button id="cancel-btn" style="padding: 10px 20px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">取消</button>
-      <button id="follow-pdp-btn" style="padding: 10px 20px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">跟卖</button>
+    <div class="ef-modal-footer">
+      <div id="selected-count" class="ef-modal-footer__count">已选择 ${variants.filter(v => v.enabled).length} 个变体</div>
+      <button id="cancel-btn" class="ef-modal-footer__button ef-modal-footer__button--cancel">取消</button>
+      <button id="follow-pdp-btn" class="ef-modal-footer__button ef-modal-footer__button--primary">跟卖</button>
     </div>
   `;
 

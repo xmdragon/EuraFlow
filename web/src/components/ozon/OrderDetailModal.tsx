@@ -709,63 +709,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                           userCurrency
                         )}
                       </Descriptions.Item>
-                      <Descriptions.Item label="进货金额">
-                        {(canEdit || isAdmin) && isEditingPurchasePrice && canOperate ? (
-                          <Space>
-                            <InputNumber
-                              value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
-                              onChange={(value) => setEditPurchasePrice(value?.toString() || '')}
-                              placeholder="请输入进货金额"
-                              min={0}
-                              formatter={getNumberFormatter(2)}
-                              parser={getNumberParser()}
-                              style={{ width: 150 }}
-                              controls={false}
-                            />
-                            <Button
-                              type="primary"
-                              size="small"
-                              icon={<SaveOutlined />}
-                              loading={saving}
-                              onClick={handleSavePurchasePrice}
-                            >
-                              保存
-                            </Button>
-                            <Button
-                              size="small"
-                              icon={<CloseOutlined />}
-                              onClick={() => setIsEditingPurchasePrice(false)}
-                            >
-                              取消
-                            </Button>
-                          </Space>
-                        ) : (
-                          <Space>
-                            <Text>
-                              {localPosting?.purchase_price
-                                ? formatPriceWithFallback(
-                                    localPosting.purchase_price,
-                                    localOrder.currency_code,
-                                    userCurrency
-                                  )
-                                : '-'}
-                            </Text>
-                            {(canEdit || isAdmin) && canOperate && (
-                              <Button
-                                type="link"
-                                size="small"
-                                icon={<EditOutlined />}
-                                onClick={() => {
-                                  setEditPurchasePrice(localPosting?.purchase_price || '');
-                                  setIsEditingPurchasePrice(true);
-                                }}
-                              >
-                                编辑
-                              </Button>
-                            )}
-                          </Space>
-                        )}
-                      </Descriptions.Item>
                       <Descriptions.Item label="采购平台">
                         {canEdit && isEditingSourcePlatform && canOperate ? (
                           <Space>
@@ -818,6 +761,63 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                                   const sourcePlatform = localPosting?.source_platform || [];
                                   setEditSourcePlatform(sourcePlatform);
                                   setIsEditingSourcePlatform(true);
+                                }}
+                              >
+                                编辑
+                              </Button>
+                            )}
+                          </Space>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="进货价格">
+                        {canEdit && isEditingPurchasePrice && canOperate ? (
+                          <Space>
+                            <InputNumber
+                              value={editPurchasePrice ? parseFloat(editPurchasePrice) : undefined}
+                              onChange={(value) => setEditPurchasePrice(value?.toString() || '')}
+                              placeholder="请输入进货价格"
+                              min={0}
+                              formatter={getNumberFormatter(2)}
+                              parser={getNumberParser()}
+                              style={{ width: 150 }}
+                              controls={false}
+                            />
+                            <Button
+                              type="primary"
+                              size="small"
+                              icon={<SaveOutlined />}
+                              loading={saving}
+                              onClick={handleSavePurchasePrice}
+                            >
+                              保存
+                            </Button>
+                            <Button
+                              size="small"
+                              icon={<CloseOutlined />}
+                              onClick={() => setIsEditingPurchasePrice(false)}
+                            >
+                              取消
+                            </Button>
+                          </Space>
+                        ) : (
+                          <Space>
+                            <Text>
+                              {localPosting?.purchase_price
+                                ? formatPriceWithFallback(
+                                    localPosting.purchase_price,
+                                    localOrder.currency_code,
+                                    userCurrency
+                                  )
+                                : '-'}
+                            </Text>
+                            {canEdit && canOperate && (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => {
+                                  setEditPurchasePrice(localPosting?.purchase_price || '');
+                                  setIsEditingPurchasePrice(true);
                                 }}
                               >
                                 编辑

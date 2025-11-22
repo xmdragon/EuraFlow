@@ -238,6 +238,7 @@ export interface ProductFilter {
   created_to?: string; // 创建日期结束（YYYY-MM-DD）
   sort_by?: string; // 排序字段
   sort_order?: "asc" | "desc"; // 排序方向
+  include_stats?: boolean; // 是否包含统计信息（影响性能）
 }
 
 export interface PriceUpdate {

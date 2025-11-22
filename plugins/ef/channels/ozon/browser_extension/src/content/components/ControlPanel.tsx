@@ -1,6 +1,6 @@
 /**
- * 控制面板组件（原生样式版本）
- *
+ * 控制面板组件（CSS 类版本）
+ * 样式使用 CSS 类，避免内联样式冗余
  */
 
 import type { DataFusionEngine } from '../fusion/engine';
@@ -8,6 +8,7 @@ import type { ProductCollector } from '../collector';
 import type { CollectorConfig } from '../../shared/types';
 import { getApiConfig } from '../../shared/storage';
 import { ApiClient } from '../../shared/api-client';
+import { injectEuraflowStyles } from '../styles/injector';
 
 interface ControlPanelProps {
   fusionEngine: DataFusionEngine;
@@ -18,68 +19,35 @@ interface ControlPanelProps {
 export function ControlPanel(props: ControlPanelProps) {
   const { collector, config } = props;
 
+  // 注入 EuraFlow 样式（仅注入一次）
+  injectEuraflowStyles();
+
   // 创建最小化图标
   const minimizedIcon = document.createElement('div');
   minimizedIcon.id = 'ef-minimized-icon';
-  minimizedIcon.style.cssText = `
-    position: fixed;
-    bottom: 260px;
-    right: 45px;
-    width: 50px;
-    height: 50px;
-    background: #5b9bd5;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    z-index: 2147483647;
-    font-size: 24px;
-    transition: transform 0.3s;
-  `;
+  minimizedIcon.className = 'ef-control-panel-minimized';
   minimizedIcon.innerHTML = '🎯';
-  minimizedIcon.onmouseover = () => {
-    minimizedIcon.style.transform = 'scale(1.1)';
-  };
-  minimizedIcon.onmouseout = () => {
-    minimizedIcon.style.transform = 'scale(1)';
-  };
 
   // 创建控制面板
   const panel = document.createElement('div');
   panel.id = 'ef-control-panel';
-  panel.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #5b9bd5;
-    color: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    z-index: 2147483647;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 14px;
-    width: 350px;
-    display: none;
-  `;
+  panel.className = 'ef-control-panel ef-control-panel--hidden';
 
   // 获取版本号
   const manifest = chrome.runtime.getManifest();
   const version = manifest.version;
 
   panel.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <div style="font-weight: bold; font-size: 16px;">🎯 Ozon选品助手 v${version}</div>
-      <div style="display: flex; gap: 8px;">
-        <button id="ef-minimize-btn" style="background: rgba(255,255,255,0.3); border: none; color: white; width: 30px; height: 30px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: all 0.2s;">➖</button>
+    <div class="ef-control-panel__header">
+      <div class="ef-control-panel__title">🎯 Ozon选品助手 v${version}</div>
+      <div class="ef-control-panel__actions">
+        <button id="ef-minimize-btn" class="ef-control-panel__minimize-btn">➖</button>
       </div>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; justify-content: space-between;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <label style="font-size: 13px; white-space: nowrap;">数量:</label>
+    <div class="ef-control-panel__controls">
+      <div class="ef-control-panel__input-group">
+        <label class="ef-control-panel__label">数量:</label>
         <input
           id="ef-target-count"
           type="number"
@@ -87,19 +55,19 @@ export function ControlPanel(props: ControlPanelProps) {
           min="1"
           max="1000"
           step="1"
-          style="width: 4.5em; padding: 6px 8px; border: none; border-radius: 6px; font-size: 14px; box-sizing: border-box; color: #333 !important; -webkit-text-fill-color: #333 !important; background: white !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;"
+          class="ef-control-panel__input"
         />
       </div>
-      <button id="ef-toggle-btn" style="width: 120px; padding: 10px; background: #48bb78; border: none; color: white; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
+      <button id="ef-toggle-btn" class="ef-control-panel__toggle-btn">
         🚀 开始
       </button>
     </div>
 
-    <div style="position: relative; background: rgba(255,255,255,0.2); border-radius: 6px; overflow: hidden;">
-      <div id="ef-progress-bg" style="position: absolute; top: 0; left: 0; width: 0%; height: 100%; background: linear-gradient(90deg, #48bb78 0%, #38a169 100%); transition: width 0.3s;"></div>
-      <div style="position: relative; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; font-size: 13px;">
-        <span id="ef-status-text">✨ 就绪，点击开始采集</span>
-        <span id="ef-progress-numbers" style="font-weight: 600;">0 [0%]</span>
+    <div class="ef-control-panel__progress">
+      <div id="ef-progress-bg" class="ef-control-panel__progress-bg"></div>
+      <div class="ef-control-panel__progress-content">
+        <span id="ef-status-text" class="ef-control-panel__status-text">✨ 就绪，点击开始采集</span>
+        <span id="ef-progress-numbers" class="ef-control-panel__progress-numbers">0 [0%]</span>
       </div>
     </div>
   `;
@@ -112,24 +80,16 @@ export function ControlPanel(props: ControlPanelProps) {
   function bindEvents() {
     // 最小化图标点击
     minimizedIcon.onclick = () => {
-      panel.style.display = 'block';
-      minimizedIcon.style.display = 'none';
+      panel.classList.remove('ef-control-panel--hidden');
+      minimizedIcon.classList.add('ef-control-panel-minimized--hidden');
     };
 
     // 最小化按钮
     const minimizeBtn = document.getElementById('ef-minimize-btn');
     if (minimizeBtn) {
       minimizeBtn.onclick = () => {
-        panel.style.display = 'none';
-        minimizedIcon.style.display = 'flex';
-      };
-      minimizeBtn.onmouseover = () => {
-        minimizeBtn.style.background = 'rgba(255,255,255,0.5)';
-        minimizeBtn.style.transform = 'scale(1.1)';
-      };
-      minimizeBtn.onmouseout = () => {
-        minimizeBtn.style.background = 'rgba(255,255,255,0.3)';
-        minimizeBtn.style.transform = 'scale(1)';
+        panel.classList.add('ef-control-panel--hidden');
+        minimizedIcon.classList.remove('ef-control-panel-minimized--hidden');
       };
     }
 
@@ -172,14 +132,6 @@ export function ControlPanel(props: ControlPanelProps) {
           startCollection();
         }
       };
-      toggleBtn.onmouseover = () => {
-        toggleBtn.style.transform = 'scale(1.05)';
-        toggleBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-      };
-      toggleBtn.onmouseout = () => {
-        toggleBtn.style.transform = 'scale(1)';
-        toggleBtn.style.boxShadow = 'none';
-      };
     }
   }
 
@@ -195,7 +147,7 @@ export function ControlPanel(props: ControlPanelProps) {
     isCollecting = true;
     const toggleBtn = document.getElementById('ef-toggle-btn');
     if (toggleBtn) {
-      toggleBtn.style.background = '#f56565';
+      toggleBtn.classList.add('ef-control-panel__toggle-btn--stop');
       toggleBtn.innerHTML = '⏸️ 停止';
     }
 
@@ -247,7 +199,7 @@ export function ControlPanel(props: ControlPanelProps) {
 
     const toggleBtn = document.getElementById('ef-toggle-btn');
     if (toggleBtn) {
-      toggleBtn.style.background = '#48bb78';
+      toggleBtn.classList.remove('ef-control-panel__toggle-btn--stop');
 
       // 根据累计统计更新按钮文字
       const stats = collector.getCumulativeStats();
