@@ -1303,10 +1303,12 @@ export const getPackingOrders = async (
     operation_status?: string; // awaiting_stock/allocating/allocated/tracking_confirmed
     ozon_status?: string; // OZON原生状态，支持逗号分隔（如：awaiting_packaging,awaiting_deliver）
     source_platform?: string; // 采购平台筛选
+    offset?: number; // 直接指定offset（用于无限滚动，优先级高于page计算）
   },
 ) => {
   const requestParams = {
-    offset: (page - 1) * pageSize,
+    // 如果params中有offset，直接使用；否则根据page计算
+    offset: params?.offset !== undefined ? params.offset : (page - 1) * pageSize,
     limit: pageSize,
     ...params,
   };

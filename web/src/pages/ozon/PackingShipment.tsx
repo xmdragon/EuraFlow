@@ -246,6 +246,8 @@ const PackingShipment: React.FC = () => {
 
   // 采购平台筛选状态（单选）
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
+  // 采购信息筛选状态（用于待备货标签页）
+  const [selectedPurchaseInfo, setSelectedPurchaseInfo] = useState<string>('all');
 
   // 打印标签弹窗状态（保留用于其他tab）
   const [showPrintLabelModal, setShowPrintLabelModal] = useState(false);
@@ -372,10 +374,10 @@ const PackingShipment: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, pageSize, selectedPlatform],
+    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, pageSize, selectedPlatform, selectedPurchaseInfo],
     queryFn: () => {
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
-      const queryParams = {
+      const queryParams: any = {
         shop_id: selectedShop,
         ...searchParams, // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
       };
@@ -393,6 +395,14 @@ const PackingShipment: React.FC = () => {
         queryParams.source_platform = selectedPlatform;
       }
 
+      // 待备货页面的采购信息筛选
+      if (operationStatus === 'awaiting_stock' && selectedPurchaseInfo !== 'all') {
+        queryParams.has_purchase_info = selectedPurchaseInfo;
+      }
+
+      // 使用累积的数据量作为offset（用于无限滚动）
+      queryParams.offset = allPostings.length;
+
       return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
@@ -404,7 +414,7 @@ const PackingShipment: React.FC = () => {
     staleTime: 30000, // 数据30秒内不会被认为是过期的
   });
 
-  // 当店铺、状态、搜索参数或平台筛选变化时，重置分页
+  // 当店铺、状态、搜索参数、平台筛选或采购信息筛选变化时，重置分页
   useEffect(() => {
     setCurrentPage(1);
     currentPageRef.current = 1; // 同步更新 ref
@@ -412,7 +422,7 @@ const PackingShipment: React.FC = () => {
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
     setPageSize(initialPageSize); // 重置为初始pageSize
-  }, [selectedShop, operationStatus, searchParams, initialPageSize, selectedPlatform]);
+  }, [selectedShop, operationStatus, searchParams, initialPageSize, selectedPlatform, selectedPurchaseInfo]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
@@ -1368,6 +1378,23 @@ const PackingShipment: React.FC = () => {
                 </Space>
               )}
 
+              {/* 采购信息筛选下拉框 - 只在"待备货"标签显示 */}
+              {operationStatus === 'awaiting_stock' && (
+                <Space>
+                  <Text>采购信息</Text>
+                  <Select
+                    className={styles.platformSelect}
+                    value={selectedPurchaseInfo}
+                    onChange={setSelectedPurchaseInfo}
+                    suffixIcon={<FileTextOutlined />}
+                  >
+                    <Option value="all">全部</Option>
+                    <Option value="yes">有采购信息</Option>
+                    <Option value="no">无采购信息</Option>
+                  </Select>
+                </Space>
+              )}
+
               {/* 批量打印按钮 - 在其他标签页显示（除了已分配和前两个状态） */}
               {canOperate &&
                 operationStatus !== 'awaiting_stock' &&
@@ -1397,19 +1424,7 @@ const PackingShipment: React.FC = () => {
             ) : (
               <>
                 <div className={styles.orderGrid}>
-                  {orderCards
-                    .filter((card) => {
-                      // 如果在"已分配"标签页且设置了平台筛选，则应用筛选
-                      if (operationStatus === 'allocated' && selectedPlatform !== 'all') {
-                        const sourcePlatform = card.posting.source_platform;
-                        if (!sourcePlatform) return false;
-
-                        // 检查是否包含所选平台
-                        return sourcePlatform.includes(selectedPlatform);
-                      }
-                      return true;
-                    })
-                    .map((card) => (
+                  {orderCards.map((card) => (
                     <OrderCardComponent
                       key={card.key}
                       card={card}
