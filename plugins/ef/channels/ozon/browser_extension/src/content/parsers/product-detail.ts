@@ -990,9 +990,14 @@ export async function extractProductData(): Promise<ProductDetailData> {
           console.log(`[EuraFlow] 处理第 ${index + 1} 个变体:`, variant); // ✅ 强制输出
 
           const { sku, active, link } = variant;
+
+          // ✅ 详细检查 variant.data 的结构
+          console.log(`[EuraFlow] variant.data 是否存在:`, !!variant.data);
+          console.log(`[EuraFlow] variant.data 内容:`, variant.data);
+
           const { title, price, originalPrice, searchableText, coverImage } = variant.data || {};
 
-          console.log(`[EuraFlow] 变体数据 - SKU: ${sku}, title: ${title}, price: ${price}, active: ${active}`); // ✅ 强制输出
+          console.log(`[EuraFlow] 变体数据 - SKU: ${sku}, title: ${title}, price: ${price}, coverImage: ${coverImage}, active: ${active}`); // ✅ 强制输出
 
           // 过滤"瑕疵品"
           if (searchableText === 'Уцененные') {
@@ -1065,11 +1070,15 @@ export async function extractProductData(): Promise<ProductDetailData> {
       console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体`);
     }
 
-    return {
+    const result = {
       ...baseData,
       has_variants: finalVariants.length > 0,
       variants: finalVariants,
     };
+
+    console.log('[EuraFlow] 准备返回的完整数据:', result); // ✅ 查看返回数据结构
+
+    return result;
   } catch (error) {
     console.error('[EuraFlow] 商品数据采集失败:', error);
 

@@ -70,9 +70,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     // 动态导入并执行
     import('./parsers/product-detail').then(async (module) => {
       try {
+        console.log('[Content] 开始调用 extractProductData()');
         const productData = await module.extractProductData();
+        console.log('[Content] extractProductData() 返回结果:', productData);
         console.log('[Content] 变体提取成功:', productData.variants?.length || 0, '个变体');
+        console.log('[Content] 准备发送响应给 background');
         sendResponse({ success: true, data: productData });
+        console.log('[Content] 响应已发送');
       } catch (error: any) {
         console.error('[Content] 变体提取失败:', error);
         sendResponse({ success: false, error: error.message });

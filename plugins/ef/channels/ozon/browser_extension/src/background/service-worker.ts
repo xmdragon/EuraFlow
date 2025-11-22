@@ -935,12 +935,18 @@ async function handleGetOzonProductDetail(data: { productId: string; cookieStrin
         return baseData;
       }
 
+      console.log('[OZON API] 向 content script 发送消息...');
       const response = await chrome.tabs.sendMessage(tabs[0].id, {
         type: 'EXTRACT_PRODUCT_DATA'
       });
 
+      console.log('[OZON API] 收到 content script 响应:', response);
+      console.log('[OZON API] response.success:', response.success);
+      console.log('[OZON API] response.data?.variants:', response.data?.variants);
+
       if (response.success && response.data?.variants) {
         console.log('[OZON API] ✅ 变体数据获取成功:', response.data.variants.length, '个变体');
+        console.log('[OZON API] 第一个变体数据:', response.data.variants[0]);
         return {
           ...baseData,
           variants: response.data.variants,
