@@ -44,22 +44,7 @@ class Inventory(Base):
         comment="安全库存阈值"
     )
 
-    # 商品信息（快照，便于查询和展示）
-    product_title: Mapped[Optional[str]] = mapped_column(
-        String(500),
-        nullable=True,
-        comment="商品名称"
-    )
-    product_image: Mapped[Optional[str]] = mapped_column(
-        String(1000),
-        nullable=True,
-        comment="商品图片URL"
-    )
-    product_price: Mapped[Optional[Decimal]] = mapped_column(
-        Numeric(18, 4),
-        nullable=True,
-        comment="商品价格"
-    )
+    # 备注信息
     notes: Mapped[Optional[str]] = mapped_column(
         String(500),
         nullable=True,

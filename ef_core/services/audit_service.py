@@ -117,8 +117,8 @@ class AuditService:
                 extra={
                     "audit_log_id": audit_log.id,
                     "user_id": user_id,
-                    "module": module,
-                    "action": action,
+                    "audit_module": module,  # 重命名避免与 logging.LogRecord.module 冲突
+                    "audit_action": action,  # 重命名保持一致性
                     "table_name": table_name,
                     "record_id": record_id,
                 }

@@ -185,87 +185,107 @@ async def add_stock(
     2. 创建库存记录
     3. 记录审计日志
     """
-    # 验证店铺权限
-    shop_ids = await filter_by_shop_permission(current_user, db)
-    if shop_ids is not None and data.shop_id not in shop_ids:
-        raise HTTPException(status_code=403, detail="无权限操作该店铺")
+    try:
+        # 验证店铺权限
+        shop_ids = await filter_by_shop_permission(current_user, db)
+        if shop_ids is not None and data.shop_id not in shop_ids:
+            raise HTTPException(status_code=403, detail="无权限操作该店铺")
 
-    # 1. 查询商品信息（通过 ozon_sku 查询）
-    product_query = select(OzonProduct).where(
-        and_(
-            OzonProduct.shop_id == data.shop_id,
-            OzonProduct.ozon_sku == int(data.sku)
+        # 验证 SKU 是否为有效的整数
+        try:
+            sku_int = int(data.sku)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"SKU格式错误，必须是整数: {data.sku}"
+            )
+
+        # 1. 查询商品信息（通过 ozon_sku 查询）
+        product_query = select(OzonProduct).where(
+            and_(
+                OzonProduct.shop_id == data.shop_id,
+                OzonProduct.ozon_sku == sku_int
+            )
         )
-    )
-    product_result = await db.execute(product_query)
-    product = product_result.scalar_one_or_none()
+        product_result = await db.execute(product_query)
+        product = product_result.scalar_one_or_none()
 
-    if not product:
-        raise HTTPException(
-            status_code=404,
-            detail=f"商品不存在，请核对SKU: {data.sku}"
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail=f"商品不存在，请核对SKU: {data.sku}"
+            )
+
+        # 2. 检查是否已存在库存记录（统一使用 ozon_sku）
+        existing_query = select(Inventory).where(
+            and_(
+                Inventory.shop_id == data.shop_id,
+                Inventory.sku == data.sku  # 直接用 ozon_sku
+            )
+        )
+        existing_result = await db.execute(existing_query)
+        existing = existing_result.scalar_one_or_none()
+
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"该商品库存记录已存在，请使用编辑功能"
+            )
+
+        # 3. 创建库存记录（只存储核心字段）
+        inventory = Inventory(
+            shop_id=data.shop_id,
+            sku=data.sku,  # 使用 ozon_sku
+            qty_available=data.quantity,
+            threshold=0,
+            notes=data.notes
+        )
+        db.add(inventory)
+        await db.flush()
+
+        # 4. 记录审计日志
+        request_ip = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        request_id = request.headers.get("x-request-id")
+
+        await AuditService.log_action(
+            db=db,
+            user_id=current_user.id,
+            username=current_user.username,
+            module="ozon",
+            action="create",
+            action_display="添加库存",
+            table_name="inventories",
+            record_id=f"{data.shop_id}:{data.sku}",
+            changes={
+                "qty_available": {"new": data.quantity},
+                "sku": data.sku
+            },
+            ip_address=request_ip,
+            user_agent=user_agent,
+            request_id=request_id,
+            notes=data.notes
         )
 
-    # 2. 检查是否已存在库存记录（统一使用 ozon_sku）
-    existing_query = select(Inventory).where(
-        and_(
-            Inventory.shop_id == data.shop_id,
-            Inventory.sku == data.sku  # 直接用 ozon_sku
-        )
-    )
-    existing_result = await db.execute(existing_query)
-    existing = existing_result.scalar_one_or_none()
+        await db.commit()
 
-    if existing:
-        raise HTTPException(
-            status_code=409,
-            detail=f"该商品库存记录已存在，请使用编辑功能"
-        )
-
-    # 3. 创建库存记录（只存储核心字段）
-    inventory = Inventory(
-        shop_id=data.shop_id,
-        sku=data.sku,  # 使用 ozon_sku
-        qty_available=data.quantity,
-        threshold=0,
-        notes=data.notes
-    )
-    db.add(inventory)
-    await db.flush()
-
-    # 4. 记录审计日志
-    request_ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-    request_id = request.headers.get("x-request-id")
-
-    await AuditService.log_action(
-        db=db,
-        user_id=current_user.id,
-        username=current_user.username,
-        module="ozon",
-        action="create",
-        action_display="添加库存",
-        table_name="inventories",
-        record_id=f"{data.shop_id}:{data.sku}",
-        changes={
-            "qty_available": {"new": data.quantity},
-            "sku": data.sku
-        },
-        ip_address=request_ip,
-        user_agent=user_agent,
-        request_id=request_id,
-        notes=data.notes
-    )
-
-    await db.commit()
-
-    return {
-        "ok": True,
-        "data": {
-            "id": inventory.id,
-            "message": "库存添加成功"
+        return {
+            "ok": True,
+            "data": {
+                "id": inventory.id,
+                "message": "库存添加成功"
+            }
         }
-    }
+    except HTTPException:
+        # 重新抛出 HTTP 异常
+        raise
+    except Exception as e:
+        logger.error(f"添加库存失败: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"添加库存失败: {str(e)}"
+        )
 
 
 @router.put("/stock/{stock_id}")
@@ -476,22 +496,41 @@ async def check_stock_for_posting(
     # 3. 检查每个商品的库存
     stock_info = []
     for item in items:
-        # 查询库存
-        inventory_query = select(Inventory).where(
+        # 查询商品信息（获取 ozon_sku 和图片）
+        product_query = select(OzonProduct).where(
             and_(
-                Inventory.shop_id == posting.shop_id,
-                Inventory.sku == item.offer_id
+                OzonProduct.shop_id == posting.shop_id,
+                OzonProduct.offer_id == item.offer_id
             )
         )
-        inventory_result = await db.execute(inventory_query)
-        inventory = inventory_result.scalar_one_or_none()
+        product_result = await db.execute(product_query)
+        product = product_result.scalar_one_or_none()
 
-        stock_available = inventory.qty_available if inventory else 0
+        # 获取商品图片和 ozon_sku
+        product_image = None
+        ozon_sku = None
+        if product:
+            ozon_sku = str(product.ozon_sku) if product.ozon_sku else None
+            if product.images and isinstance(product.images, dict):
+                product_image = product.images.get("primary")
+
+        # 查询库存（使用 ozon_sku）
+        stock_available = 0
+        if ozon_sku:
+            inventory_query = select(Inventory).where(
+                and_(
+                    Inventory.shop_id == posting.shop_id,
+                    Inventory.sku == ozon_sku
+                )
+            )
+            inventory_result = await db.execute(inventory_query)
+            inventory = inventory_result.scalar_one_or_none()
+            stock_available = inventory.qty_available if inventory else 0
 
         stock_info.append(StockCheckResponse(
-            sku=item.offer_id,
+            sku=ozon_sku or item.offer_id,  # 优先显示 ozon_sku，否则降级到 offer_id
             product_title=item.name,
-            product_image=None,  # 可以从 OzonProduct 查询
+            product_image=product_image,
             stock_available=stock_available,
             order_quantity=item.quantity,
             is_sufficient=stock_available >= item.quantity

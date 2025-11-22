@@ -205,8 +205,8 @@ const Stock: React.FC = () => {
       dataIndex: 'product_price',
       key: 'product_price',
       width: 100,
-      render: (price: number) => (
-        <Text>{price ? `${currencySymbol}${price.toFixed(2)}` : '-'}</Text>
+      render: (price: string | number) => (
+        <Text>{price ? `${currencySymbol}${parseFloat(String(price)).toFixed(2)}` : '-'}</Text>
       ),
     },
     // 库存数量（可编辑）

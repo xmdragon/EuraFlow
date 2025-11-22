@@ -1,7 +1,7 @@
 /**
  * 配置缓存服务
  *
- * 在页面加载时预加载店铺、仓库、水印配置，缓存5分钟
+ * 在页面加载时预加载店铺、仓库、水印配置，缓存1小时
  * 避免弹窗时临时加载，提升用户体验
  */
 
@@ -17,7 +17,7 @@ interface ConfigCache {
 
 class ConfigCacheService {
   private cache: ConfigCache | null = null;
-  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5分钟
+  private readonly CACHE_DURATION = 60 * 60 * 1000; // 1小时
   private loading: boolean = false;
   private loadPromise: Promise<ConfigCache> | null = null;
 

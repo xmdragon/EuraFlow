@@ -21,9 +21,10 @@
   gap: 16px;
   padding: 16px;
   background: #fafafa;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
   margin-bottom: 16px;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .ef-product-preview__image {
@@ -65,6 +66,12 @@
   font-size: 18px;
   font-weight: 700;
   color: #d84315;
+}
+
+.ef-product-preview__variant-count {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
 }
 
 /* ========== 操作栏 ========== */
@@ -119,6 +126,16 @@
   cursor: pointer;
 }
 
+.ef-operations-bar__hint {
+  color: #999;
+  font-size: 13px;
+}
+
+.ef-operations-bar__error {
+  color: #f44336;
+  font-size: 13px;
+}
+
 .ef-operations-bar__button {
   padding: var(--ef-spacing-sm) var(--ef-spacing-lg);
   background: var(--ef-primary);
@@ -133,6 +150,12 @@
 
 .ef-operations-bar__button:hover {
   background: var(--ef-primary-hover);
+}
+
+.ef-operations-bar__button--small {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 /* ========== 变体列表表格 ========== */
@@ -210,9 +233,20 @@
   background: #fafafa;
 }
 
+.ef-variants-table__tr--unavailable {
+  background: #fafafa;
+  opacity: 0.6;
+}
+
 .ef-variants-table__td {
-  padding: var(--ef-spacing-sm);
+  padding: 12px 8px;
   font-size: 13px;
+}
+
+.ef-variants-table__td--empty {
+  padding: 40px;
+  text-align: center;
+  color: #999;
 }
 
 .ef-variants-table__td--center {
@@ -232,16 +266,34 @@
 }
 
 .ef-variants-table__image {
-  width: 48px;
-  height: 48px;
+  width: 50px;
+  height: 50px;
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid #e0e0e0;
 }
 
+.ef-variants-table__image-placeholder {
+  width: 50px;
+  height: 50px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #999;
+}
+
 .ef-variants-table__spec {
-  color: #666;
+  color: #333;
   line-height: 1.4;
+}
+
+.ef-variants-table__unavailable-label {
+  color: #f44336;
+  font-size: 12px;
+  margin-left: 4px;
 }
 
 .ef-variants-table__input {
@@ -369,4 +421,116 @@
   color: #666;
   font-size: 13px;
   line-height: 1.6;
+}
+
+/* ========== 批量定价弹窗 ========== */
+.ef-batch-pricing-header {
+  margin-bottom: 20px;
+}
+
+.ef-batch-pricing-header__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+.ef-batch-pricing-header__desc {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.ef-batch-pricing-options {
+  margin-bottom: 20px;
+}
+
+.ef-batch-pricing-option {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.ef-batch-pricing-option:hover {
+  border-color: #d0d0d0;
+}
+
+.ef-batch-pricing-option--selected {
+  border-color: var(--ef-primary);
+  background: #f0f7ff;
+}
+
+.ef-batch-pricing-option__radio {
+  margin-right: 12px;
+  cursor: pointer;
+}
+
+.ef-batch-pricing-option__content {
+  flex: 1;
+}
+
+.ef-batch-pricing-option__title {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.ef-batch-pricing-option__desc {
+  font-size: 13px;
+  color: #666;
+}
+
+.ef-batch-pricing-discount {
+  margin-bottom: 12px;
+  padding-left: 28px;
+}
+
+.ef-batch-pricing-discount__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ef-batch-pricing-discount__text {
+  font-size: 14px;
+}
+
+.ef-batch-pricing-discount__input {
+  width: 80px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: right;
+}
+
+.ef-batch-pricing-discount__hint {
+  font-size: 13px;
+  color: #666;
+  margin-left: 8px;
+}
+
+/* ========== 加载中模态框 ========== */
+.ef-loading-modal {
+  text-align: center;
+  padding: 40px;
+}
+
+.ef-loading-modal__message {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #1976D2;
+  font-weight: 500;
+}
+
+.ef-loading-modal__hint {
+  color: #666;
+}
+
+/* ========== 输入框右对齐变体 ========== */
+.ef-variants-table__input--right {
+  text-align: right;
 }

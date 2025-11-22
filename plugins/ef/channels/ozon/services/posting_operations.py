@@ -952,8 +952,13 @@ class PostingOperationsService:
             new_quantity = max(0, old_quantity - item.quantity)
             actual_deduct = old_quantity - new_quantity
 
-            # 更新库存
-            inventory.qty_available = new_quantity
+            # 如果库存扣减到0，删除记录；否则更新数量
+            if new_quantity == 0:
+                await self.db.delete(inventory)
+                action_display = "使用库存备货（库存清零，已删除记录）"
+            else:
+                inventory.qty_available = new_quantity
+                action_display = "使用库存备货"
 
             # 记录审计日志
             await AuditService.log_action(
@@ -961,8 +966,8 @@ class PostingOperationsService:
                 user_id=user_id,
                 username=username,
                 module="ozon",
-                action="update",
-                action_display="使用库存备货",
+                action="delete" if new_quantity == 0 else "update",
+                action_display=action_display,
                 table_name="inventories",
                 record_id=f"{posting.shop_id}:{product.ozon_sku}",
                 changes={
@@ -974,7 +979,8 @@ class PostingOperationsService:
                     "reason": "订单备货",
                     "posting_number": posting.posting_number,
                     "deduct_requested": item.quantity,
-                    "deduct_actual": actual_deduct
+                    "deduct_actual": actual_deduct,
+                    "deleted": new_quantity == 0
                 },
                 ip_address=ip_address,
                 user_agent=user_agent,

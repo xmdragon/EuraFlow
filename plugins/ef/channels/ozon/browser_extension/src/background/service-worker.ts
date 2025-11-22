@@ -871,8 +871,9 @@ async function handleGetOzonProductDetail(data: { productSku?: string; productId
     // 【路径策略】seller.ozon.ru/api/* → 不经过网关，直接调用 Seller 后台 API
     const requestUrl = 'https://seller.ozon.ru/api/v1/search-variant-model';
     const requestBody = {
-      limit: '10',
-      name: productId
+      limit: 50,
+      name: productId,
+      sellerId: sellerId
     };
 
     console.log('[OZON API] 请求信息:', {

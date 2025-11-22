@@ -438,9 +438,9 @@ function showLoadingModal(message: string): void {
   const modal = createModalContainer('480px');
 
   modal.innerHTML = `
-    <div style="text-align: center; padding: 40px;">
-      <div id="loading-message" style="font-size: 16px; margin-bottom: 16px; color: #1976D2; font-weight: 500;">${message}</div>
-      <div style="color: #666;">请稍候...</div>
+    <div class="ef-loading-modal">
+      <div id="loading-message" class="ef-loading-modal__message">${message}</div>
+      <div class="ef-loading-modal__hint">请稍候...</div>
     </div>
   `;
 
@@ -523,7 +523,7 @@ function renderMainModal(): void {
             <th class="ef-variants-table__th ef-variants-table__th--left">规格</th>
             <th class="ef-variants-table__th ef-variants-table__th--left ef-variants-table__th--offerid">
               货号
-              <button id="batch-generate-offerid-btn" class="ef-operations-bar__button" style="margin-left: 8px; padding: 2px 8px; font-size: 12px;">批量生成</button>
+              <button id="batch-generate-offerid-btn" class="ef-operations-bar__button ef-operations-bar__button--small">批量生成</button>
             </th>
             <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--price">原价格</th>
             <th class="ef-variants-table__th ef-variants-table__th--right ef-variants-table__th--custom-price">自定义价格</th>
@@ -574,14 +574,12 @@ function renderProductPreview(): string {
   const priceText = realPrice > 0 ? ` (真实售价：${formatYuan(realPrice)})` : '';
 
   return `
-    <div style="border: 1px solid #e0e0e0; padding: 12px; border-radius: 8px; background: #f9f9f9; margin-bottom: 16px;">
-      <div style="display: flex; gap: 12px; align-items: center;">
-        ${imageUrl ? `<img src="${imageUrl}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">` : ''}
-        <div style="flex: 1; min-width: 0;">
-          <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${title}${priceText}</div>
-          <div style="font-size: 13px; color: #666;">
-            ${variantCount > 1 ? `${variantCount} 个变体` : '单品（无变体）'}
-          </div>
+    <div class="ef-product-preview">
+      ${imageUrl ? `<img src="${imageUrl}" class="ef-product-preview__image">` : ''}
+      <div class="ef-product-preview__info">
+        <div class="ef-product-preview__name">${title}${priceText}</div>
+        <div class="ef-product-preview__variant-count">
+          ${variantCount > 1 ? `${variantCount} 个变体` : '单品（无变体）'}
         </div>
       </div>
     </div>
@@ -593,14 +591,14 @@ function renderProductPreview(): string {
  */
 function renderShopSelect(): string {
   if (shops.length === 0) {
-    return '<div style="color: #f44336; font-size: 13px;">未找到店铺配置</div>';
+    return '<div class="ef-operations-bar__error">未找到店铺配置</div>';
   }
 
   const options = shops
     .map(shop => `<option value="${shop.id}" ${shop.id === selectedShopId ? 'selected' : ''}>${shop.display_name}</option>`)
     .join('');
 
-  return `<select id="shop-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer;">${options}</select>`;
+  return `<select id="shop-select" class="ef-operations-bar__select">${options}</select>`;
 }
 
 /**
@@ -608,14 +606,14 @@ function renderShopSelect(): string {
  */
 function renderWarehouseSelect(): string {
   if (warehouses.length === 0) {
-    return '<div style="color: #999; font-size: 13px;">请选择店铺</div>';
+    return '<div class="ef-operations-bar__hint">请选择店铺</div>';
   }
 
   const options = warehouses
     .map(wh => `<option value="${wh.id}" ${selectedWarehouseIds.includes(wh.id) ? 'selected' : ''}>${wh.name}</option>`)
     .join('');
 
-  return `<select id="warehouse-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer;">${options}</select>`;
+  return `<select id="warehouse-select" class="ef-operations-bar__select">${options}</select>`;
 }
 
 /**
@@ -623,14 +621,14 @@ function renderWarehouseSelect(): string {
  */
 function renderWatermarkSelect(): string {
   if (watermarks.length === 0) {
-    return '<div style="color: #999; font-size: 13px;">无可用水印</div>';
+    return '<div class="ef-operations-bar__hint">无可用水印</div>';
   }
 
   const options = watermarks
     .map(wm => `<option value="${wm.id}" ${wm.id === selectedWatermarkId ? 'selected' : ''}>${wm.name}</option>`)
     .join('');
 
-  return `<select id="watermark-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer;">
+  return `<select id="watermark-select" class="ef-operations-bar__select">
     <option value="">不使用水印</option>
     ${options}
   </select>`;
@@ -641,35 +639,35 @@ function renderWatermarkSelect(): string {
  */
 function renderVariantRows(): string {
   if (variants.length === 0) {
-    return '<tr><td colspan="8" style="padding: 40px; text-align: center; color: #999;">未检测到变体数据</td></tr>';
+    return '<tr><td colspan="8" class="ef-variants-table__td--empty">未检测到变体数据</td></tr>';
   }
 
   return variants.map((variant, index) => `
-    <tr data-index="${index}" style="border-bottom: 1px solid #f0f0f0; ${!variant.available ? 'background: #fafafa; opacity: 0.6;' : ''}">
-      <td style="padding: 12px 8px; text-align: center;">
-        <input type="checkbox" class="variant-checkbox" data-index="${index}" ${variant.enabled ? 'checked' : ''} ${!variant.available ? 'disabled' : ''} style="cursor: pointer;">
+    <tr data-index="${index}" class="ef-variants-table__tr ${!variant.available ? 'ef-variants-table__tr--unavailable' : ''}">
+      <td class="ef-variants-table__td ef-variants-table__td--center">
+        <input type="checkbox" class="variant-checkbox ef-variants-table__checkbox" data-index="${index}" ${variant.enabled ? 'checked' : ''} ${!variant.available ? 'disabled' : ''}>
       </td>
-      <td style="padding: 12px 8px;">
-        ${variant.image_url ? `<img src="${variant.image_url}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #e0e0e0;">` : '<div style="width: 50px; height: 50px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #999;">无图</div>'}
+      <td class="ef-variants-table__td">
+        ${variant.image_url ? `<img src="${variant.image_url}" class="ef-variants-table__image">` : '<div class="ef-variants-table__image-placeholder">无图</div>'}
       </td>
-      <td style="padding: 12px 8px; font-size: 13px; color: #333;">
-        ${variant.specifications}
-        ${!variant.available ? '<span style="color: #f44336; font-size: 12px; margin-left: 4px;">(不可用)</span>' : ''}
+      <td class="ef-variants-table__td">
+        <span class="ef-variants-table__spec">${variant.specifications}</span>
+        ${!variant.available ? '<span class="ef-variants-table__unavailable-label">(不可用)</span>' : ''}
       </td>
-      <td style="padding: 12px 8px;">
-        <input type="text" class="offer-id-input" data-index="${index}" value="${variant.offer_id}" ${!variant.enabled ? 'disabled' : ''} style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+      <td class="ef-variants-table__td">
+        <input type="text" class="offer-id-input ef-variants-table__input" data-index="${index}" value="${variant.offer_id}" ${!variant.enabled ? 'disabled' : ''}>
       </td>
-      <td style="padding: 12px 8px; text-align: right; font-size: 13px; color: #666;">
+      <td class="ef-variants-table__td ef-variants-table__td--right">
         ${formatYuan(variant.original_price)}
       </td>
-      <td style="padding: 12px 8px;">
-        <input type="number" class="custom-price-input" data-index="${index}" value="${variant.custom_price.toFixed(2)}" step="0.01" min="0" ${!variant.enabled ? 'disabled' : ''} style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; text-align: right;">
+      <td class="ef-variants-table__td">
+        <input type="number" class="custom-price-input ef-variants-table__input ef-variants-table__input--right" data-index="${index}" value="${variant.custom_price.toFixed(2)}" step="0.01" min="0" ${!variant.enabled ? 'disabled' : ''}>
       </td>
-      <td style="padding: 12px 8px;">
-        <input type="number" class="custom-old-price-input" data-index="${index}" value="${variant.custom_old_price?.toFixed(2) || ''}" step="0.01" min="0" placeholder="可选" ${!variant.enabled ? 'disabled' : ''} style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; text-align: right;">
+      <td class="ef-variants-table__td">
+        <input type="number" class="custom-old-price-input ef-variants-table__input ef-variants-table__input--right" data-index="${index}" value="${variant.custom_old_price?.toFixed(2) || ''}" step="0.01" min="0" placeholder="可选" ${!variant.enabled ? 'disabled' : ''}>
       </td>
-      <td style="padding: 12px 8px;">
-        <input type="number" class="stock-input" data-index="${index}" value="${variant.stock}" min="1" ${!variant.enabled ? 'disabled' : ''} style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; text-align: right;">
+      <td class="ef-variants-table__td">
+        <input type="number" class="stock-input ef-variants-table__input ef-variants-table__input--right" data-index="${index}" value="${variant.stock}" min="1" ${!variant.enabled ? 'disabled' : ''}>
       </td>
     </tr>
   `).join('');
@@ -862,41 +860,41 @@ function showBatchPricingModal(): void {
   const modal = createModalContainer('500px');
 
   modal.innerHTML = `
-    <div style="margin-bottom: 20px;">
-      <h3 style="margin: 0; font-size: 18px; font-weight: bold; color: #333;">批量定价</h3>
-      <div style="font-size: 13px; color: #666; margin-top: 4px;">将应用到已选择的 ${enabledCount} 个变体</div>
+    <div class="ef-batch-pricing-header">
+      <h3 class="ef-batch-pricing-header__title">批量定价</h3>
+      <div class="ef-batch-pricing-header__desc">将应用到已选择的 ${enabledCount} 个变体</div>
     </div>
 
-    <div style="margin-bottom: 20px;">
-      <label style="display: flex; align-items: center; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; margin-bottom: 12px;" id="strategy-discount-label">
-        <input type="radio" name="batch-strategy" value="discount" checked style="margin-right: 12px;">
-        <div style="flex: 1;">
-          <div style="font-weight: 500; margin-bottom: 4px;">降价策略</div>
-          <div style="font-size: 13px; color: #666;">在原价基础上降价指定百分比</div>
+    <div class="ef-batch-pricing-options">
+      <label class="ef-batch-pricing-option ef-batch-pricing-option--selected" id="strategy-discount-label">
+        <input type="radio" name="batch-strategy" value="discount" checked class="ef-batch-pricing-option__radio">
+        <div class="ef-batch-pricing-option__content">
+          <div class="ef-batch-pricing-option__title">降价策略</div>
+          <div class="ef-batch-pricing-option__desc">在原价基础上降价指定百分比</div>
         </div>
       </label>
 
-      <div id="discount-input-container" style="margin-bottom: 12px; padding-left: 28px;">
-        <label style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 14px;">降价</span>
-          <input type="number" id="discount-percent" value="${cachedDiscountPercent}" min="1" max="99" step="1" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; text-align: right;">
-          <span style="font-size: 14px;">%</span>
-          <span style="font-size: 13px; color: #666; margin-left: 8px;">（例：原价 ¥100，降价 ${cachedDiscountPercent}% = ¥${(100 * (1 - cachedDiscountPercent / 100)).toFixed(0)}）</span>
+      <div id="discount-input-container" class="ef-batch-pricing-discount">
+        <label class="ef-batch-pricing-discount__label">
+          <span class="ef-batch-pricing-discount__text">降价</span>
+          <input type="number" id="discount-percent" value="${cachedDiscountPercent}" min="1" max="99" step="1" class="ef-batch-pricing-discount__input">
+          <span class="ef-batch-pricing-discount__text">%</span>
+          <span class="ef-batch-pricing-discount__hint">（例：原价 ¥100，降价 ${cachedDiscountPercent}% = ¥${(100 * (1 - cachedDiscountPercent / 100)).toFixed(0)}）</span>
         </label>
       </div>
 
-      <label style="display: flex; align-items: center; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer;" id="strategy-manual-label">
-        <input type="radio" name="batch-strategy" value="manual" style="margin-right: 12px;">
-        <div style="flex: 1;">
-          <div style="font-weight: 500; margin-bottom: 4px;">真实价格</div>
-          <div style="font-size: 13px; color: #666;">使用 OZON 真实售价</div>
+      <label class="ef-batch-pricing-option" id="strategy-manual-label">
+        <input type="radio" name="batch-strategy" value="manual" class="ef-batch-pricing-option__radio">
+        <div class="ef-batch-pricing-option__content">
+          <div class="ef-batch-pricing-option__title">真实售价</div>
+          <div class="ef-batch-pricing-option__desc">使用 OZON 真实售价</div>
         </div>
       </label>
     </div>
 
-    <div style="display: flex; gap: 12px; justify-content: flex-end;">
-      <button id="batch-cancel-btn" style="padding: 10px 20px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">取消</button>
-      <button id="batch-apply-btn" style="padding: 10px 20px; background: #1976D2; color: white; border: none; cursor: pointer; border-radius: 6px; font-size: 14px; font-weight: 500;">应用</button>
+    <div class="ef-modal-footer">
+      <button id="batch-cancel-btn" class="ef-modal-footer__button ef-modal-footer__button--cancel">取消</button>
+      <button id="batch-apply-btn" class="ef-modal-footer__button ef-modal-footer__button--primary">应用</button>
     </div>
   `;
 
@@ -951,8 +949,9 @@ function bindBatchPricingEvents(batchOverlay: HTMLElement): void {
         return;
       }
       applyBatchPricing({ strategy: 'discount', discountPercent });
-    } else {
-      // manual - 不做任何修改
+    } else if (strategy === 'manual') {
+      // 真实售价策略
+      applyBatchPricing({ strategy: 'manual' });
     }
 
     batchOverlay.remove();
@@ -1097,10 +1096,12 @@ async function handleFollowPdp(): Promise<void> {
         .map(url => url.replace(/\/wc\d+\//, '/'))
     );
 
-    const filteredImages = productData.images.filter(img => {
-      const normalizedImg = img.replace(/\/wc\d+\//, '/');
-      return !variantImageUrls.has(normalizedImg);
-    });
+    const filteredImages = productData.images
+      .filter((img): img is string => typeof img === 'string' && !!img)
+      .filter(img => {
+        const normalizedImg = img.replace(/\/wc\d+\//, '/');
+        return !variantImageUrls.has(normalizedImg);
+      });
 
     // 构建请求数据
     const requestData = {
