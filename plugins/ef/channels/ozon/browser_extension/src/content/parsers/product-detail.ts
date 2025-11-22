@@ -97,8 +97,11 @@ async function fetchProductDataFromOzonAPI(productUrl: string): Promise<any | nu
  */
 async function fetchFullVariantsFromModal(productId: string): Promise<any[] | null> {
   try {
+    console.log(`[EuraFlow] Modal API - 商品ID: ${productId}`); // ✅ 强制输出
     const modalUrl = `/modal/aspectsNew?product_id=${productId}`;
+    console.log(`[EuraFlow] Modal API - Modal URL: ${modalUrl}`); // ✅ 强制输出
     const apiUrl = `${window.location.origin}/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(modalUrl)}`;
+    console.log(`[EuraFlow] Modal API - 完整请求 URL: ${apiUrl}`); // ✅ 强制输出
 
     if (window.EURAFLOW_DEBUG) {
       console.log(`[EuraFlow] 正在调用 OZON Modal API 获取完整变体: ${apiUrl}`);
@@ -122,7 +125,10 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
     );
 
     if (!response.ok) {
-      console.warn(`[EuraFlow] Modal API 请求失败: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[EuraFlow] ❌ Modal API 请求失败: ${response.status}`);
+      console.error(`[EuraFlow] 请求 URL: ${apiUrl}`);
+      console.error(`[EuraFlow] 响应内容:`, errorText.substring(0, 500));
       return null;
     }
 
@@ -944,7 +950,8 @@ export async function extractProductData(): Promise<ProductDetailData> {
             price: priceNum,
             original_price: originalPriceNum,
             stock: undefined,
-            sku: sku
+            sku: sku,
+            available: true  // ✅ Modal API 返回的变体都是可用的
           };
 
           console.log(`[EuraFlow] 添加变体到数组:`, variantData); // ✅ 强制输出
