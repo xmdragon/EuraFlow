@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from ef_core.db.session import get_sync_db_session
+from ef_core.database import get_sync_session
 from ef_core.tasks.celery_app import celery_app
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,7 +29,7 @@ def process_follow_pdp_listing(record_id: int) -> dict:
     """
     logger.info(f"[CollectionListing] 开始处理跟卖上架任务 record_id={record_id}")
 
-    with get_sync_db_session() as db:
+    with get_sync_session() as db:
         # 查询记录
         record = db.query(OzonProductCollectionRecord).filter(
             OzonProductCollectionRecord.id == record_id,
@@ -102,7 +102,7 @@ def poll_listing_status() -> dict:
     success_count = 0
     failed_count = 0
 
-    with get_sync_db_session() as db:
+    with get_sync_session() as db:
         # 查询所有待处理的记录（24小时内创建）
         cutoff_time = datetime.utcnow() - timedelta(hours=24)
 
