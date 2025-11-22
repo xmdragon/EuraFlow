@@ -10,7 +10,6 @@ import {
   DownOutlined,
   UpOutlined,
   ThunderboltOutlined,
-  MinusCircleOutlined,
   QuestionCircleOutlined,
   TranslationOutlined,
 } from '@ant-design/icons';
@@ -24,7 +23,6 @@ import {
   Cascader,
   Modal,
   App,
-  Switch,
   Select,
   Spin,
   List,
@@ -35,7 +33,6 @@ import {
   Col,
   Dropdown,
 } from 'antd';
-import type { MenuProps } from 'antd';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -49,14 +46,12 @@ import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification'
 import { VariantImageManagerModal } from '@/components/ozon/VariantImageManagerModal';
 import VideoManagerModal from './components/VideoManagerModal';
 import { useVideoManager } from '@/hooks/useVideoManager';
-import type { VideoInfo } from '@/services/ozonApi';
 import * as draftTemplateApi from '@/services/draftTemplateApi';
 import { useFormAutosave } from '@/hooks/useFormAutosave';
 import { loggers } from '@/utils/logger';
-import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
 import * as translationApi from '@/services/translationApi';
 import { useVariantManager } from '@/hooks/useVariantManager';
-import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager';
+import type { ProductVariant } from '@/hooks/useVariantManager';
 import { VariantTable } from './components/VariantTable';
 import { AttributeField } from './components/AttributeField';
 import { useDraftTemplate } from '@/hooks/useDraftTemplate';
@@ -677,9 +672,10 @@ const ProductCreate: React.FC = () => {
       form.setFieldsValue({ title: translatedText });
       setShowingTranslation(true);
       notifySuccess('翻译成功', '标题已翻译为俄文');
-    } catch (error: any) {
-      loggers.product.error('标题翻译失败', { error: error.message });
-      notifyError('翻译失败', error.response?.data?.detail?.detail || '翻译服务暂时不可用');
+    } catch (error) {
+      const err = error as { message?: string; response?: { data?: { detail?: { detail?: string } } } };
+      loggers.product.error('标题翻译失败', { error: err.message });
+      notifyError('翻译失败', err.response?.data?.detail?.detail || '翻译服务暂时不可用');
     } finally {
       setIsTranslating(false);
     }
@@ -902,8 +898,6 @@ const ProductCreate: React.FC = () => {
     loadCategoryAttributes,
     videoManager.clearVideos,
     videoManager.addVideo,
-    // form 是稳定引用，不需要加入依赖
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   /**
@@ -1107,7 +1101,7 @@ const ProductCreate: React.FC = () => {
           } else {
             notifyWarning('无草稿', '当前没有可删除的草稿');
           }
-        } catch (error) {
+        } catch {
           notifyError('删除失败', '删除草稿失败，请重试');
         }
       },
@@ -1136,7 +1130,7 @@ const ProductCreate: React.FC = () => {
       };
 
       // 构建待更新的字段
-      const fieldsToUpdate: Record<string, any> = {};
+      const fieldsToUpdate: Record<string, number | string | number[] | string[]> = {};
 
       // 1. 同步重量（克）
       if (changedFields.includes('weight') && weight) {
@@ -1286,7 +1280,11 @@ const ProductCreate: React.FC = () => {
           const value = allFormValues[fieldName];
 
           // 构建OZON API格式的attribute对象
-          const attrValue: any = {
+          const attrValue: {
+            complex_id: number;
+            id: number;
+            values: Array<{ dictionary_value_id?: number; value: string }>;
+          } = {
             complex_id: 0,
             id: attr.attribute_id,
             values: []
@@ -1328,7 +1326,11 @@ const ProductCreate: React.FC = () => {
           // 从categoryAttributes中查找对应的属性定义
           const attrDef = categoryAttributes.find(a => a.attribute_id === attrId);
 
-          const attr: any = {
+          const attr: {
+            complex_id: number;
+            id: number;
+            values: Array<{ dictionary_value_id?: number; value: string }>;
+          } = {
             complex_id: 0,
             id: attrId,
             values: []

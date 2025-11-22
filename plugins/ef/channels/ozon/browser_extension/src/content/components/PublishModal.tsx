@@ -299,28 +299,25 @@ function initializeVariants(pageRealPrice: number | null = null): void {
   if (product.has_variants && product.variants && product.variants.length > 0) {
     if (isDebugEnabled()) console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个');
 
-    product.variants.forEach((variant, index) => {
-      // ✅ 直接读取 variant.data.price（Modal API 返回的人民币价格）
-      const variantAny = variant as any;
-      let realPrice = variantAny.data?.price || 0;
-      let blackPrice = variantAny.data?.originalPrice || realPrice;
+    product.variants.forEach((variant: any, index: number) => {
+      // ✅ 直接读取 variant.price（人民币价格）
+      const rawPrice: any = variant.price;
+      let price: number = 0;
 
       // ✅ 价格可能是字符串，需要解析
-      if (typeof realPrice === 'string') {
-        realPrice = parseFloat(realPrice.replace(/\s/g, '').replace(',', '.')) || 0;
-      }
-      if (typeof blackPrice === 'string') {
-        blackPrice = parseFloat(blackPrice.replace(/\s/g, '').replace(',', '.')) || 0;
+      if (typeof rawPrice === 'string') {
+        price = parseFloat((rawPrice as string).replace(/\s/g, '').replace(',', '.')) || 0;
+      } else if (typeof rawPrice === 'number') {
+        price = rawPrice as number;
       }
 
       // 应用降价策略
-      const customPrice = Math.max(0.01, realPrice * discountMultiplier);
+      const customPrice = Math.max(0.01, price * discountMultiplier);
 
       if (isDebugEnabled()) console.log(`[PublishModal] 初始化变体 ${index}:`, {
         variant_id: variant.variant_id,
         specifications: variant.specifications,
-        realPrice,
-        blackPrice,
+        price,
         customPrice,
         discountPercent
       });
@@ -350,8 +347,8 @@ function initializeVariants(pageRealPrice: number | null = null): void {
         specifications: variant.specifications || `变体 ${index + 1}`,
         spec_details: variant.spec_details,
         image_url: variantImageUrl,
-        original_price: realPrice, // 原价格显示真实售价
-        original_old_price: blackPrice,
+        original_price: price, // 原价格
+        original_old_price: price, // 原划线价（与原价格相同）
         custom_price: customPrice, // 改后售价应用降价策略
         custom_old_price: customPrice * 1.6, // 划线价 = 改后售价 × 1.6（比例 0.625:1）
         offer_id: generateOfferId(), // 使用生成函数
