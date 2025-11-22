@@ -186,9 +186,7 @@ const PackingShipment: React.FC = () => {
   // 状态管理 - 分页和滚动加载
   const [currentPage, setCurrentPage] = useState(1);
   const currentPageRef = React.useRef(1); // 使用 ref 跟踪当前页，避免 useEffect 依赖
-  const [pageSize, setPageSize] = useState(24); // 会根据容器宽度动态调整
   const [itemsPerRow, setItemsPerRow] = useState(6); // 每行显示数量
-  const [initialPageSize, setInitialPageSize] = useState(24); // 初始pageSize
   const [allPostings, setAllPostings] = useState<ozonApi.PostingWithOrder[]>([]); // 累积所有已加载的posting
   const [isLoadingMore, setIsLoadingMore] = useState(false); // 是否正在加载更多
   const [hasMoreData, setHasMoreData] = useState(true); // 是否还有更多数据
@@ -288,17 +286,16 @@ const PackingShipment: React.FC = () => {
     });
   }, [scanResults, scanPrintStatusFilter]);
 
+  // 固定的行数配置
+  const INITIAL_ROWS = 4; // 第一次加载4行
+  const LOAD_MORE_ROWS = 2; // 后续每次加载2行
+
   // 计算每行显示数量（根据屏幕宽度预估）
   const calculateItemsPerRow = React.useCallback(() => {
     const screenWidth = window.innerWidth;
     const menuWidth = 250; // 左边菜单宽度（估计值）
     const columns = Math.max(1, Math.floor((screenWidth - menuWidth - 10) / 170));
     setItemsPerRow(columns);
-
-    // 动态设置初始pageSize：列数 × 3行，但不超过后端限制100
-    const calculatedPageSize = Math.min(columns * 3, 100);
-    setInitialPageSize(calculatedPageSize);
-    setPageSize(calculatedPageSize);
   }, []);
 
   // 组件挂载时立即计算，并监听窗口大小变化
@@ -374,12 +371,22 @@ const PackingShipment: React.FC = () => {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, pageSize, selectedPlatform, selectedPurchaseInfo],
+    queryKey: ['packingOrders', selectedShop, operationStatus, searchParams, currentPage, itemsPerRow, selectedPlatform, selectedPurchaseInfo],
     queryFn: () => {
+      // 计算当前请求的pageSize和offset
+      const isFirstPage = currentPageRef.current === 1;
+      const pageSize = isFirstPage ? itemsPerRow * INITIAL_ROWS : itemsPerRow * LOAD_MORE_ROWS;
+
+      // 计算offset：第一页为0，后续页为 初始行数 + (当前页-2) × 加载行数
+      const offset = isFirstPage
+        ? 0
+        : itemsPerRow * INITIAL_ROWS + (currentPageRef.current - 2) * itemsPerRow * LOAD_MORE_ROWS;
+
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
       const queryParams: any = {
         shop_id: selectedShop,
         ...searchParams, // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
+        offset, // 传递计算好的offset
       };
 
       if (operationStatus === 'awaiting_stock') {
@@ -400,10 +407,7 @@ const PackingShipment: React.FC = () => {
         queryParams.has_purchase_info = selectedPurchaseInfo;
       }
 
-      // 使用累积的数据量作为offset（用于无限滚动）
-      queryParams.offset = allPostings.length;
-
-      return ozonApi.getPackingOrders(currentPage, pageSize, queryParams);
+      return ozonApi.getPackingOrders(1, pageSize, queryParams);
     },
     enabled: true, // 支持查询全部店铺（selectedShop=null）
     refetchOnMount: 'always', // 每次切换标签页都重新请求API，避免缓存导致数据不一致
@@ -421,8 +425,7 @@ const PackingShipment: React.FC = () => {
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({}); // 重置图片映射
-    setPageSize(initialPageSize); // 重置为初始pageSize
-  }, [selectedShop, operationStatus, searchParams, initialPageSize, selectedPlatform, selectedPurchaseInfo]);
+  }, [selectedShop, operationStatus, searchParams, selectedPlatform, selectedPurchaseInfo]);
 
   // 当收到新数据时，累积到 allPostings
   useEffect(() => {
@@ -503,15 +506,12 @@ const PackingShipment: React.FC = () => {
       });
 
       // 这些 setState 会和上面的 setAllPostings 批处理，只触发一次渲染
-      // 判断是否还有更多数据：
-      // 1. 累积的数据量小于总数 AND
-      // 2. 本次返回的数据量等于请求的limit（如果小于limit说明已经是最后一页）
-      const hasMore =
-        newPostingsLength < (ordersData.total || 0) && ordersData.data.length >= pageSize;
+      // 判断是否还有更多数据：累积的数据量小于总数
+      const hasMore = newPostingsLength < (ordersData.total || 0);
       setHasMoreData(hasMore);
       setIsLoadingMore(false);
     }
-  }, [ordersData, pageSize]); // 依赖 ordersData 对象和 pageSize
+  }, [ordersData]); // 仅依赖 ordersData 对象
 
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
@@ -526,9 +526,6 @@ const PackingShipment: React.FC = () => {
       // 滚动到80%时触发加载
       if (scrollPercent > 0.8) {
         setIsLoadingMore(true);
-        // 加载更多时使用较小的pageSize（初始值的一半，但至少一行）
-        const loadMoreSize = Math.min(Math.max(Math.floor(initialPageSize / 2), itemsPerRow), 100);
-        setPageSize(loadMoreSize);
         setCurrentPage((prev) => {
           const next = prev + 1;
           currentPageRef.current = next; // 同步更新 ref
@@ -539,7 +536,7 @@ const PackingShipment: React.FC = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [isLoadingMore, hasMoreData, initialPageSize, itemsPerRow]);
+  }, [isLoadingMore, hasMoreData]);
 
   // 展开订单数据为货件维度（PostingWithOrder 数组）- 使用累积的数据
   const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
@@ -553,10 +550,9 @@ const PackingShipment: React.FC = () => {
     setAllPostings([]);
     setHasMoreData(true);
     setAccumulatedImageMap({});
-    setPageSize(initialPageSize);
     // 延迟执行 refetch，确保状态已更新
     setTimeout(() => refetch(), 0);
-  }, [initialPageSize, refetch]);
+  }, [refetch]);
 
   // 查询各操作状态的数量统计（合并为单个请求）
   const { data: statsData } = useQuery({
