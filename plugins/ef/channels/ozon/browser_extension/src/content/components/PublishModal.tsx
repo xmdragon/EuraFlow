@@ -297,18 +297,21 @@ function initializeVariants(pageRealPrice: number | null = null): void {
 
   // 情况1: 商品有变体
   if (product.has_variants && product.variants && product.variants.length > 0) {
-    if (isDebugEnabled()) console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个', '页面真实售价:', pageRealPrice);
-
-    // 只有一个变体且提供了页面真实售价时，使用页面价格（确保一致性）
-    const usePageRealPrice = product.variants.length === 1 && pageRealPrice !== null;
+    if (isDebugEnabled()) console.log('[PublishModal] 检测到商品变体:', product.variants.length, '个');
 
     product.variants.forEach((variant, index) => {
-      // 注意：product-detail.ts 返回的价格已经是人民币元
-      const greenPrice = variant.price || 0; // 绿色价格（Ozon Card价格）
-      const blackPrice = variant.original_price || greenPrice; // 黑色价格（原价），没有则用绿价
+      // ✅ 直接读取 variant.data.price（Modal API 返回的人民币价格）
+      const variantAny = variant as any;
+      let realPrice = variantAny.data?.price || 0;
+      let blackPrice = variantAny.data?.originalPrice || realPrice;
 
-      // 使用页面真实售价（单变体）或计算售价（多变体）
-      const realPrice = usePageRealPrice ? pageRealPrice! : calculateRealPriceCore(greenPrice, blackPrice);
+      // ✅ 价格可能是字符串，需要解析
+      if (typeof realPrice === 'string') {
+        realPrice = parseFloat(realPrice.replace(/\s/g, '').replace(',', '.')) || 0;
+      }
+      if (typeof blackPrice === 'string') {
+        blackPrice = parseFloat(blackPrice.replace(/\s/g, '').replace(',', '.')) || 0;
+      }
 
       // 应用降价策略
       const customPrice = Math.max(0.01, realPrice * discountMultiplier);
@@ -316,9 +319,8 @@ function initializeVariants(pageRealPrice: number | null = null): void {
       if (isDebugEnabled()) console.log(`[PublishModal] 初始化变体 ${index}:`, {
         variant_id: variant.variant_id,
         specifications: variant.specifications,
-        greenPrice,
-        blackPrice,
         realPrice,
+        blackPrice,
         customPrice,
         discountPercent
       });

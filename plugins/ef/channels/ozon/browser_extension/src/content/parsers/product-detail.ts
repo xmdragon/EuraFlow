@@ -116,13 +116,17 @@ async function fetchFullVariantsFromModal(productId: string): Promise<any[] | nu
       referer: window.location.href
     });
 
-    const response = await limiter.executeWithRetry(() =>
-      fetch(apiUrl, {
+    console.log('[EuraFlow] 开始调用 API（带重试）...');
+    const response = await limiter.executeWithRetry(async () => {
+      console.log('[EuraFlow] 执行 fetch 请求...');
+      const res = await fetch(apiUrl, {
         method: 'GET',
         headers,
         credentials: 'include'
-      })
-    );
+      });
+      console.log(`[EuraFlow] fetch 响应状态: ${res.status}`);
+      return res;
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -419,13 +423,17 @@ async function fetchCharacteristicsAndDescription(productSlug: string): Promise<
       referer: window.location.href
     });
 
-    const response = await limiter.executeWithRetry(() =>
-      fetch(apiUrl, {
+    console.log('[EuraFlow] 开始调用 API（带重试）...');
+    const response = await limiter.executeWithRetry(async () => {
+      console.log('[EuraFlow] 执行 fetch 请求...');
+      const res = await fetch(apiUrl, {
         method: 'GET',
         headers,
         credentials: 'include'
-      })
-    );
+      });
+      console.log(`[EuraFlow] fetch 响应状态: ${res.status}`);
+      return res;
+    });
 
     if (!response.ok) {
       console.warn(`[EuraFlow] Page2 API 请求失败: ${response.status}`);
@@ -909,6 +917,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
           const { title, price, originalPrice, searchableText, coverImage } = variant.data || {};
 
           console.log(`[EuraFlow] 变体数据 - SKU: ${sku}, title: ${title}, price: ${price}, coverImage: ${coverImage}, active: ${active}`); // ✅ 强制输出
+          console.log(`[EuraFlow] 原始价格类型: ${typeof price}, 原始价格值: "${price}"`); // ✅ 查看原始价格格式
 
           // 过滤"瑕疵品"
           if (searchableText === 'Уцененные') {
@@ -926,9 +935,14 @@ export async function extractProductData(): Promise<ProductDetailData> {
           // 解析价格
           let priceNum = 0;
           if (typeof price === 'string') {
-            priceNum = parseFloat(price.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
+            const step1 = price.replace(/\s/g, '');
+            const step2 = step1.replace(',', '.');
+            const step3 = step2.replace(/[^\d.]/g, '');
+            priceNum = parseFloat(step3) || 0;
+            console.log(`[EuraFlow] 价格解析过程: "${price}" -> 移除空格: "${step1}" -> 逗号转点: "${step2}" -> 移除非数字: "${step3}" -> 最终: ${priceNum}`);
           } else {
             priceNum = parseFloat(price) || 0;
+            console.log(`[EuraFlow] 价格解析（数字类型）: ${price} -> ${priceNum}`);
           }
 
           let originalPriceNum = undefined;
