@@ -761,6 +761,23 @@ function bindMainModalEvents(): void {
     });
   });
 
+  // 默认库存同步到所有变体
+  const defaultStockInput = document.getElementById('default-stock') as HTMLInputElement;
+  defaultStockInput?.addEventListener('input', (e) => {
+    const defaultStock = parseInt((e.target as HTMLInputElement).value) || 1;
+
+    // 同步到所有变体数据
+    variants.forEach((variant, index) => {
+      variant.stock = defaultStock;
+
+      // 同步更新UI中的库存输入框
+      const stockInput = document.querySelector(`.stock-input[data-index="${index}"]`) as HTMLInputElement;
+      if (stockInput) {
+        stockInput.value = defaultStock.toString();
+      }
+    });
+  });
+
   // 批量生成Offer ID按钮
   const batchGenerateBtn = document.getElementById('batch-generate-offerid-btn');
   batchGenerateBtn?.addEventListener('click', () => {
