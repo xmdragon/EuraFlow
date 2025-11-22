@@ -1,27 +1,51 @@
 /**
- * 备货弹窗组件（集成库存功能）
- * 用于填写采购平台、进货价格和订单备注
- * 支持使用库存备货
+ * 备货弹窗组件（表格形式）
+ * 每个商品一行，独立填写库存、价格、平台、备注
+ * 提交时汇总：价格相加，平台合并，备注合并
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Modal, Form, Input, Select, InputNumber, Checkbox, Alert, Space, Card, Typography, Spin, Row, Col } from 'antd';
+import {
+  Modal,
+  Table,
+  InputNumber,
+  Select,
+  Input,
+  Checkbox,
+  Spin,
+  Typography,
+  Space,
+  Form,
+} from 'antd';
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
 
 import * as ozonApi from '@/services/ozonApi';
-import { logger } from '@/utils/logger';
-import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { useCurrency } from '@/hooks/useCurrency';
+import { loggers } from '@/utils/logger';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
-const { Option } = Select;
-const { TextArea } = Input;
 const { Text } = Typography;
+const { TextArea } = Input;
 
 interface PrepareStockModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
-  posting?: ozonApi.Posting; // 传入完整的posting对象，用于加载原有值
-  onSuccess?: () => void; // 操作成功后的回调
+  posting?: ozonApi.Posting;
+  onSuccess?: () => void;
+}
+
+// 商品备货数据
+interface ItemPrepareData {
+  sku: string;
+  productTitle: string;
+  productImage: string | null;
+  stockAvailable: number;
+  orderQuantity: number;
+  useStock: boolean; // 是否使用库存
+  purchasePrice: number; // 进货价格
+  sourcePlatform: string[]; // 采购平台
+  notes: string; // 备注
 }
 
 const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
@@ -33,75 +57,85 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
-  const [useStock, setUseStock] = useState(false); // 是否使用库存
+  const { symbol: currencySymbol } = useCurrency();
+
+  // 商品备货数据
+  const [itemsData, setItemsData] = useState<ItemPrepareData[]>([]);
 
   // 查询订单商品的库存情况
   const { data: stockCheckData, isLoading: stockLoading } = useQuery({
     queryKey: ['stockCheck', postingNumber],
     queryFn: () => ozonApi.checkStockForPosting(postingNumber),
-    enabled: visible, // 仅在弹窗打开时查询
-    staleTime: 30000, // 30秒缓存
+    enabled: visible,
+    staleTime: 30000,
   });
 
-  // 判断是否有库存
-  const hasStock = stockCheckData && stockCheckData.items && stockCheckData.items.length > 0;
-  const stockItems = stockCheckData?.items || [];
-
-  // 判断库存是否充足（所有商品库存都充足）
-  const allStockSufficient = stockItems.every((item) => item.is_sufficient);
-
-  // 当弹窗打开时，如果有原有数据，加载到表单
+  // 初始化商品数据
   useEffect(() => {
-    if (visible && posting) {
-      form.setFieldsValue({
-        // 兼容旧数据（字符串）和新数据（数组）
-        source_platform: Array.isArray(posting.source_platform)
-          ? posting.source_platform
-          : posting.source_platform
-            ? [posting.source_platform]
-            : undefined,
-        purchase_price: posting.purchase_price ? parseFloat(posting.purchase_price) : undefined,
-        order_notes: posting.order_notes || undefined,
-        sync_to_ozon: true, // 默认勾选
-      });
+    if (visible && stockCheckData?.items) {
+      const items: ItemPrepareData[] = stockCheckData.items.map((item) => ({
+        sku: item.sku,
+        productTitle: item.product_title || item.sku,
+        productImage: item.product_image,
+        stockAvailable: item.stock_available,
+        orderQuantity: item.order_quantity,
+        useStock: item.is_sufficient, // 库存充足时默认使用库存
+        purchasePrice: item.is_sufficient ? 0 : 0, // 默认0，用户手动填写
+        sourcePlatform: item.is_sufficient ? ['库存'] : [],
+        notes: '',
+      }));
+      setItemsData(items);
+    }
 
-      // 如果已选择"库存"，自动勾选"使用库存"
-      if (posting.source_platform && posting.source_platform.includes('库存')) {
-        setUseStock(true);
-      }
-    } else if (visible) {
-      // 新建时也设置默认值
+    // 设置同步选项默认值
+    if (visible) {
       form.setFieldsValue({
         sync_to_ozon: true,
       });
-      setUseStock(false);
     }
-  }, [visible, posting, form]);
+  }, [visible, stockCheckData, form]);
 
-  // 当勾选/取消"使用库存"时
-  useEffect(() => {
-    if (useStock && allStockSufficient) {
-      // 库存充足：自动填0
-      form.setFieldsValue({
-        purchase_price: 0,
-        source_platform: ['库存'],
-      });
-    } else if (!useStock) {
-      // 取消使用库存：清空自动填充的值（如果原来是0）
-      const currentPrice = form.getFieldValue('purchase_price');
-      if (currentPrice === 0) {
-        form.setFieldsValue({
-          purchase_price: undefined,
-        });
-      }
+  // 更新商品数据
+  const updateItemData = (sku: string, field: keyof ItemPrepareData, value: any) => {
+    setItemsData((prev) =>
+      prev.map((item) => {
+        if (item.sku === sku) {
+          const updated = { ...item, [field]: value };
 
-      // 移除"库存"选项
-      const currentPlatforms = form.getFieldValue('source_platform') || [];
-      form.setFieldsValue({
-        source_platform: currentPlatforms.filter((p: string) => p !== '库存'),
-      });
-    }
-  }, [useStock, allStockSufficient, form]);
+          // 如果勾选使用库存且库存充足，自动设置价格为0，平台为库存
+          if (field === 'useStock' && value && item.stockAvailable >= item.orderQuantity) {
+            updated.purchasePrice = 0;
+            updated.sourcePlatform = ['库存'];
+          }
+
+          // 如果取消使用库存，清空库存平台
+          if (field === 'useStock' && !value) {
+            updated.sourcePlatform = updated.sourcePlatform.filter((p) => p !== '库存');
+          }
+
+          return updated;
+        }
+        return item;
+      })
+    );
+  };
+
+  // 计算汇总数据
+  const getSummaryData = () => {
+    const totalPrice = itemsData.reduce((sum, item) => sum + (item.purchasePrice || 0), 0);
+
+    const allPlatforms = itemsData.flatMap((item) => item.sourcePlatform);
+    const uniquePlatforms = Array.from(new Set(allPlatforms));
+
+    const allNotes = itemsData.map((item) => item.notes).filter((n) => n.trim());
+    const mergedNotes = allNotes.join('; ');
+
+    return {
+      totalPrice,
+      platforms: uniquePlatforms,
+      notes: mergedNotes,
+    };
+  };
 
   // 备货操作 mutation
   const prepareStockMutation = useMutation({
@@ -110,17 +144,12 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
     },
     onSuccess: () => {
       notifySuccess('操作成功', '备货操作成功');
-      // 刷新计数查询
       queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
-      // 刷新订单列表查询（确保切换标签页时数据正确）
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      // 刷新库存查询
       queryClient.invalidateQueries({ queryKey: ['stock'] });
-      // 调用父组件回调（用于从列表中移除）
       if (onSuccess) {
         onSuccess();
       }
-      // 关闭弹窗并重置表单
       handleClose();
     },
     onError: (error: unknown) => {
@@ -135,40 +164,165 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
 
   const handleClose = () => {
     form.resetFields();
-    setUseStock(false);
+    setItemsData([]);
     onCancel();
   };
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      const summary = getSummaryData();
 
-      // 如果使用库存但库存不足，显示警告
-      if (useStock && !allStockSufficient) {
-        const insufficientItems = stockItems.filter((item) => !item.is_sufficient);
-        const message = insufficientItems
-          .map(
-            (item) =>
-              `${item.sku}: 库存${item.stock_available}，需要${item.order_quantity}`
-          )
-          .join('; ');
-        notifyWarning('库存不足', message);
-
-        // 但仍然允许提交（部分扣减）
-      }
-
-      // 将 purchase_price 转换为字符串（Decimal 类型）
       const data: ozonApi.PrepareStockRequest = {
-        source_platform: values.source_platform,
-        purchase_price: String(values.purchase_price),
-        order_notes: values.order_notes,
-        sync_to_ozon: values.sync_to_ozon !== false, // 默认为true
+        source_platform: summary.platforms,
+        purchase_price: String(summary.totalPrice),
+        order_notes: summary.notes || undefined,
+        sync_to_ozon: values.sync_to_ozon !== false,
       };
+
+      loggers.stock.info('提交备货数据', { data, itemsData });
       prepareStockMutation.mutate(data);
     } catch (error) {
-      logger.error('Form validation failed:', error);
+      loggers.stock.error('表单验证失败', error);
     }
   };
+
+  // 表格列定义
+  const columns = [
+    {
+      title: '商品',
+      dataIndex: 'productTitle',
+      key: 'productTitle',
+      width: 250,
+      render: (_: any, record: ItemPrepareData) => (
+        <Space>
+          {record.productImage ? (
+            <img
+              src={record.productImage}
+              alt={record.productTitle}
+              style={{
+                width: 50,
+                height: 50,
+                objectFit: 'cover',
+                borderRadius: 4,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 50,
+                height: 50,
+                background: '#f0f0f0',
+                borderRadius: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+              }}
+            >
+              无图
+            </div>
+          )}
+          <div>
+            <Text strong style={{ fontSize: 12 }}>
+              {record.productTitle.length > 30
+                ? record.productTitle.substring(0, 30) + '...'
+                : record.productTitle}
+            </Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              SKU: {record.sku}
+            </Text>
+          </div>
+        </Space>
+      ),
+    },
+    {
+      title: '库存',
+      dataIndex: 'stockAvailable',
+      key: 'stockAvailable',
+      width: 100,
+      render: (_: any, record: ItemPrepareData) => (
+        <div>
+          <Text
+            type={record.stockAvailable >= record.orderQuantity ? 'success' : 'danger'}
+            style={{ fontSize: 12 }}
+          >
+            {record.stockAvailable} / {record.orderQuantity}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: '使用库存',
+      dataIndex: 'useStock',
+      key: 'useStock',
+      width: 80,
+      render: (_: any, record: ItemPrepareData) => (
+        <Checkbox
+          checked={record.useStock}
+          onChange={(e) => updateItemData(record.sku, 'useStock', e.target.checked)}
+          disabled={record.stockAvailable === 0}
+        />
+      ),
+    },
+    {
+      title: '进货价格',
+      dataIndex: 'purchasePrice',
+      key: 'purchasePrice',
+      width: 120,
+      render: (_: any, record: ItemPrepareData) => (
+        <InputNumber
+          value={record.purchasePrice}
+          onChange={(value) => updateItemData(record.sku, 'purchasePrice', value || 0)}
+          min={0}
+          precision={2}
+          style={{ width: '100%' }}
+          addonBefore={currencySymbol}
+          controls={false}
+          disabled={record.useStock && record.stockAvailable >= record.orderQuantity}
+        />
+      ),
+    },
+    {
+      title: '采购平台',
+      dataIndex: 'sourcePlatform',
+      key: 'sourcePlatform',
+      width: 150,
+      render: (_: any, record: ItemPrepareData) => (
+        <Select
+          mode="multiple"
+          value={record.sourcePlatform}
+          onChange={(value) => updateItemData(record.sku, 'sourcePlatform', value)}
+          style={{ width: '100%' }}
+          placeholder="选择平台"
+          disabled={record.useStock && record.stockAvailable >= record.orderQuantity}
+        >
+          <Select.Option value="1688">1688</Select.Option>
+          <Select.Option value="拼多多">拼多多</Select.Option>
+          <Select.Option value="咸鱼">咸鱼</Select.Option>
+          <Select.Option value="淘宝">淘宝</Select.Option>
+          <Select.Option value="库存">库存</Select.Option>
+        </Select>
+      ),
+    },
+    {
+      title: '备注',
+      dataIndex: 'notes',
+      key: 'notes',
+      width: 150,
+      render: (_: any, record: ItemPrepareData) => (
+        <Input
+          value={record.notes}
+          onChange={(e) => updateItemData(record.sku, 'notes', e.target.value)}
+          placeholder="备注"
+          maxLength={200}
+        />
+      ),
+    },
+  ];
+
+  const summary = getSummaryData();
 
   return (
     <Modal
@@ -179,165 +333,64 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       confirmLoading={prepareStockMutation.isPending}
       okText="确认备货"
       cancelText="取消"
-      width={700}
+      width={1200}
     >
-      <Form form={form} layout="vertical" autoComplete="off">
-        {/* 库存信息展示（如果有库存） */}
-        {stockLoading && (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <Spin tip="正在查询库存..." />
+      {stockLoading ? (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Spin tip="正在查询库存..." />
+        </div>
+      ) : (
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          {/* 商品列表 */}
+          <Table
+            columns={columns}
+            dataSource={itemsData}
+            rowKey="sku"
+            pagination={false}
+            size="small"
+            scroll={{ x: 900 }}
+          />
+
+          {/* 汇总信息 */}
+          <div
+            style={{
+              padding: '12px',
+              background: '#f5f5f5',
+              borderRadius: 4,
+            }}
+          >
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <div>
+                <Text strong>汇总信息：</Text>
+              </div>
+              <div>
+                <Text>总进货价格：</Text>
+                <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
+                  {currencySymbol}
+                  {summary.totalPrice.toFixed(2)}
+                </Text>
+              </div>
+              <div>
+                <Text>采购平台：</Text>
+                <Text strong>{summary.platforms.join(', ') || '无'}</Text>
+              </div>
+              {summary.notes && (
+                <div>
+                  <Text>备注：</Text>
+                  <Text>{summary.notes}</Text>
+                </div>
+              )}
+            </Space>
           </div>
-        )}
 
-        {!stockLoading && hasStock && (
-          <Alert
-            message="检测到库存商品"
-            description={
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                {stockItems.map((item, index) => (
-                  <Card key={index} size="small" style={{ marginTop: 8 }}>
-                    <Space>
-                      {/* 商品图片 */}
-                      {item.product_image ? (
-                        <img
-                          src={item.product_image}
-                          alt={item.product_title || item.sku}
-                          style={{
-                            width: 80,
-                            height: 80,
-                            objectFit: 'cover',
-                            borderRadius: 4,
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: 80,
-                            height: 80,
-                            background: '#f0f0f0',
-                            borderRadius: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 12,
-                          }}
-                        >
-                          无图片
-                        </div>
-                      )}
-
-                      {/* 商品信息 */}
-                      <div>
-                        <Text strong>{item.product_title || item.sku}</Text>
-                        <br />
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          SKU: {item.sku}
-                        </Text>
-                        <br />
-                        <Text
-                          type={item.is_sufficient ? 'success' : 'danger'}
-                          style={{ fontSize: 12 }}
-                        >
-                          库存数量: {item.stock_available} / 订单需要: {item.order_quantity}
-                        </Text>
-                        {!item.is_sufficient && (
-                          <>
-                            <br />
-                            <Text type="danger" style={{ fontSize: 12 }}>
-                              ⚠️ 库存不足
-                            </Text>
-                          </>
-                        )}
-                      </div>
-                    </Space>
-                  </Card>
-                ))}
-
-                {/* 使用库存复选框 */}
-                <Checkbox checked={useStock} onChange={(e) => setUseStock(e.target.checked)}>
-                  使用库存
-                </Checkbox>
-
-                {/* 库存不足警告 */}
-                {useStock && !allStockSufficient && (
-                  <Alert
-                    message="库存不足，请补充采购信息"
-                    description="当前库存无法满足订单需求，系统将尽可能扣减库存，剩余部分请填写进货价格和采购平台。"
-                    type="warning"
-                    showIcon
-                  />
-                )}
-              </Space>
-            }
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        )}
-
-        {/* 进货价格和采购平台（同一行） */}
-        <Row gutter={16}>
-          {/* 进货价格（左侧） */}
-          <Col span={10}>
-            <Form.Item
-              name="purchase_price"
-              label="进货价格"
-              rules={[
-                { required: true, message: '请输入进货价格' },
-                { type: 'number', min: 0, message: '价格必须大于等于0' },
-              ]}
-              tooltip="商品的采购成本"
-            >
-              <InputNumber
-                placeholder={useStock && allStockSufficient ? '使用库存，价格为0' : '请输入进货价格'}
-                precision={2}
-                min={0}
-                style={{ width: '100%' }}
-                addonBefore="¥"
-                controls={false}
-                disabled={useStock && allStockSufficient}
-              />
+          {/* 同步到 Ozon */}
+          <Form form={form} layout="horizontal">
+            <Form.Item name="sync_to_ozon" valuePropName="checked" style={{ marginBottom: 0 }}>
+              <Checkbox>同步到 Ozon</Checkbox>
             </Form.Item>
-          </Col>
-
-          {/* 采购平台（右侧） */}
-          <Col span={14}>
-            <Form.Item name="source_platform" label="采购平台" tooltip="商品采购来源平台（可多选）">
-              <Select
-                mode="multiple"
-                placeholder="请选择采购平台（可多选）"
-                allowClear
-                disabled={useStock && allStockSufficient}
-              >
-                <Option value="1688">1688</Option>
-                <Option value="拼多多">拼多多</Option>
-                <Option value="咸鱼">咸鱼</Option>
-                <Option value="淘宝">淘宝</Option>
-                <Option value="库存">库存</Option>
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
-
-        {/* 订单备注 */}
-        <Form.Item name="order_notes" label="订单备注" tooltip="订单相关的备注信息（可选）">
-          <TextArea
-            placeholder="请输入订单备注"
-            autoSize={{ minRows: 3, maxRows: 6 }}
-            maxLength={500}
-            showCount
-          />
-        </Form.Item>
-
-        {/* 同步到 Ozon */}
-        <Form.Item
-          name="sync_to_ozon"
-          valuePropName="checked"
-          tooltip="勾选后会将组装完成状态同步到OZON平台"
-        >
-          <Checkbox>同步到 Ozon</Checkbox>
-        </Form.Item>
-      </Form>
+          </Form>
+        </Space>
+      )}
     </Modal>
   );
 };
