@@ -478,7 +478,7 @@ function renderMainModal(): void {
   // 弹窗内容
   modal.innerHTML = `
     <div style="margin-bottom: 20px;">
-      <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #333;">商品上架选项</h2>
+      <h2 style="margin: 0; font-size: 20px; font-weight: bold; color: #333;">商品跟卖</h2>
     </div>
 
     <!-- 商品预览 -->
@@ -565,12 +565,16 @@ function renderProductPreview(): string {
   const title = productData.title || '未知商品';
   const variantCount = variants.length;
 
+  // 获取真实售价（从第一个变体的 original_price）
+  const realPrice = variants.length > 0 ? variants[0].original_price : 0;
+  const priceText = realPrice > 0 ? ` (真实售价：${formatYuan(realPrice)})` : '';
+
   return `
     <div style="border: 1px solid #e0e0e0; padding: 12px; border-radius: 8px; background: #f9f9f9; margin-bottom: 16px;">
       <div style="display: flex; gap: 12px; align-items: center;">
         ${imageUrl ? `<img src="${imageUrl}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">` : ''}
         <div style="flex: 1; min-width: 0;">
-          <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${title}</div>
+          <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${title}${priceText}</div>
           <div style="font-size: 13px; color: #666;">
             ${variantCount > 1 ? `${variantCount} 个变体` : '单品（无变体）'}
           </div>
@@ -880,8 +884,8 @@ function showBatchPricingModal(): void {
       <label style="display: flex; align-items: center; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer;" id="strategy-manual-label">
         <input type="radio" name="batch-strategy" value="manual" style="margin-right: 12px;">
         <div style="flex: 1;">
-          <div style="font-weight: 500; margin-bottom: 4px;">保持手动输入</div>
-          <div style="font-size: 13px; color: #666;">不修改已输入的价格</div>
+          <div style="font-weight: 500; margin-bottom: 4px;">真实价格</div>
+          <div style="font-size: 13px; color: #666;">使用 OZON 真实售价</div>
         </div>
       </label>
     </div>
@@ -958,7 +962,18 @@ function applyBatchPricing(config: BatchPricingConfig): void {
   variants.forEach((variant, index) => {
     if (!variant.enabled) return;
 
-    if (config.strategy === 'discount' && config.discountPercent) {
+    if (config.strategy === 'manual') {
+      // 真实价格策略：使用 OZON 真实售价（original_price）
+      variant.custom_price = variant.original_price;
+      variant.custom_old_price = variant.original_price * 1.6;
+
+      // 更新输入框
+      const priceInput = document.querySelector(`.custom-price-input[data-index="${index}"]`) as HTMLInputElement;
+      if (priceInput) priceInput.value = variant.custom_price.toFixed(2);
+
+      const oldPriceInput = document.querySelector(`.custom-old-price-input[data-index="${index}"]`) as HTMLInputElement;
+      if (oldPriceInput) oldPriceInput.value = variant.custom_old_price.toFixed(2);
+    } else if (config.strategy === 'discount' && config.discountPercent) {
       // 降价策略：价格 = 原价 * (1 - 百分比/100)
       const newPrice = variant.original_price * (1 - config.discountPercent / 100);
       variant.custom_price = Math.max(0.01, newPrice); // 最低 0.01 元
