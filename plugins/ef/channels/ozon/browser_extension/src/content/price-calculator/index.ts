@@ -157,7 +157,7 @@ export class RealPriceCalculator {
         type: 'FETCH_ALL_PRODUCT_DATA',
         data: {
           url: window.location.href,
-          productId: productId,
+          productSku: productId,
           cookieString: pageCookie
         }
       });

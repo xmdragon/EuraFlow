@@ -812,12 +812,20 @@ async function getOzonSellerId(cookieString: string): Promise<number> {
 /**
  * 处理获取 OZON 商品详情请求
  */
-async function handleGetOzonProductDetail(data: { productId: string; cookieString?: string }) {
-  const { productId, cookieString: documentCookie } = data;
+async function handleGetOzonProductDetail(data: { productSku?: string; productId?: string; cookieString?: string }) {
+  // 兼容两种字段名：productSku（新）和 productId（旧）
+  const productId = data.productSku || data.productId;
+  const documentCookie = data.cookieString;
 
-  console.log('[OZON API] 获取商品详情, ID:', productId);
+  console.log('[OZON API] 获取商品详情, SKU:', productId);
 
   try {
+    // 验证必需参数
+    if (!productId) {
+      console.error('[OZON API] ❌ 缺少商品 SKU 参数');
+      throw new Error('缺少商品 SKU 参数');
+    }
+
     // 【简化】直接使用 document.cookie（Content Script 从页面传来）
     // 原因：document.cookie 包含所有必需的 cookies（如 sc_company_id），
     //      而 Background Cookie API 无法读取某些重要 cookies
@@ -882,6 +890,19 @@ async function handleGetOzonProductDetail(data: { productId: string; cookieStrin
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[OZON API] ❌ Seller API 请求失败:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: requestUrl,
+        body: requestBody,
+        headers: {
+          'x-o3-company-id': sellerHeaders['x-o3-company-id'],
+          'x-o3-app-name': sellerHeaders['x-o3-app-name'],
+          'Cookie长度': sellerHeaders['Cookie']?.length || 0
+        },
+        responseBody: errorText.substring(0, 500)
+      });
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -1039,10 +1060,10 @@ function transformSpbData(rawData: any): any {
 /**
  * 获取上品帮销售数据
  */
-async function handleGetSpbSalesData(data: { productId: string }): Promise<any> {
-  const { productId } = data;
+async function handleGetSpbSalesData(data: { productSku: string }): Promise<any> {
+  const { productSku } = data;
 
-  console.log('[上品帮销售数据] 获取商品销售数据, ID:', productId);
+  console.log('[上品帮销售数据] 获取商品销售数据, SKU:', productSku);
 
   try {
     // 获取配置（包括 token 和账号密码）
@@ -1071,7 +1092,7 @@ async function handleGetSpbSalesData(data: { productId: string }): Promise<any> 
     }
 
     const requestBody = {
-      goodsIds: [productId],
+      goodsIds: [productSku],
       token: credentials.token,
       apiType: 'getGoodsInfoByIds',
       is_new: true,
@@ -1117,7 +1138,7 @@ async function handleGetSpbSalesData(data: { productId: string }): Promise<any> 
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            goodsIds: [productId],
+            goodsIds: [productSku],
             token: loginResult.token,
             apiType: 'getGoodsInfoByIds',
             is_new: true,
@@ -1724,10 +1745,10 @@ async function handleGetSpbCommissions(data: { price: number; categoryId: string
 /**
  * 并发获取所有商品数据（OZON + 上品帮 + OZON Seller + EuraFlow配置）
  */
-async function handleFetchAllProductData(data: { url: string; productId: string; cookieString?: string }): Promise<any> {
-  const { url, productId, cookieString } = data;
+async function handleFetchAllProductData(data: { url: string; productSku: string; cookieString?: string }): Promise<any> {
+  const { url, productSku, cookieString } = data;
 
-  console.log('[商品数据] 开始并发获取所有数据, URL:', url, 'ProductID:', productId);
+  console.log('[商品数据] 开始并发获取所有数据, URL:', url, 'ProductSKU:', productSku);
   if (cookieString) {
     console.log('[商品数据] 接收到页面 Cookie, 长度:', cookieString.length);
   }
@@ -1746,11 +1767,11 @@ async function handleFetchAllProductData(data: { url: string; productId: string;
 
   // 2. 并发获取4类数据
   const [ozonProduct, spbSales, euraflowConfig] = await Promise.all([
-    handleGetOzonProductDetail({ productId, cookieString }).catch(err => {
+    handleGetOzonProductDetail({ productSku, cookieString }).catch(err => {
       console.error('[商品数据] OZON产品数据获取失败:', err);
       return null;
     }),
-    handleGetSpbSalesData({ productId }).catch(err => {
+    handleGetSpbSalesData({ productSku }).catch(err => {
       console.error('[商品数据] 上品帮销售数据获取失败:', err);
       return null;
     }),
