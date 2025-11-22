@@ -645,101 +645,6 @@ function parseFromWidgetStates(apiResponse: any): Omit<ProductDetailData, 'varia
   }
 }
 
-/**
- * 合并并去重变体数据
- */
-function mergeAndDeduplicateVariants(stage1Variants: any[], stage2Variants: any[]): Array<any> {
-  const variantMap = new Map<string, any>();
-
-  // 合并两阶段的变体
-  const allVariants = [...stage1Variants, ...stage2Variants];
-
-  allVariants.forEach((variant: any, index: number) => {
-    const sku = variant.sku?.toString() || `variant_${index}`;
-
-    // 跳过已存在的 SKU
-    if (variantMap.has(sku)) {
-      return;
-    }
-
-    // 提取规格信息
-    const specifications = variant.data?.searchableText || variant.data?.title || '';
-
-    // 清理链接
-    let link = variant.link || '';
-    if (link) {
-      link = link.split('?')[0];
-    }
-
-    // 提取价格（与webPrice格式相同，直接解析即可）
-    let priceStr = variant.data?.price || '';
-    let price = 0;
-    if (typeof priceStr === 'string') {
-      price = parseFloat(priceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || 0;
-    } else {
-      price = parseFloat(priceStr) || 0;
-    }
-
-    let originalPriceStr = variant.data?.originalPrice || '';
-    let original_price = undefined;
-    if (originalPriceStr) {
-      if (typeof originalPriceStr === 'string') {
-        original_price = parseFloat(originalPriceStr.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '')) || undefined;
-      } else {
-        original_price = parseFloat(originalPriceStr) || undefined;
-      }
-    }
-
-    // 提取图片（优先级：data.coverImage > coverImage > image > imageUrl > data.image）
-    let imageUrl = variant.data?.coverImage || variant.coverImage || variant.image || variant.imageUrl || variant.data?.image || '';
-
-    // 调试：输出原始变体数据中的图片字段
-    if (window.EURAFLOW_DEBUG) {
-      console.log(`[EuraFlow] 变体 [${sku}] 图片提取:`, {
-        'variant.data?.coverImage': variant.data?.coverImage,
-        'variant.coverImage': variant.coverImage,
-        'variant.image': variant.image,
-        'variant.imageUrl': variant.imageUrl,
-        'variant.data?.image': variant.data?.image,
-        '最终图片URL': imageUrl
-      });
-    }
-
-    // 调试：输出原始变体数据中的所有 title 相关字段
-    if (window.EURAFLOW_DEBUG) {
-      console.log(`[EuraFlow] 变体 [${sku}] title字段提取:`, {
-        'variant.data?.title': variant.data?.title,
-        'variant.data?.searchableText': variant.data?.searchableText,
-        '原始variant对象': variant
-      });
-    }
-
-    // 直接使用 variant.data?.title，不做降级（避免掩盖问题）
-    const variantName = variant.data?.title || '';
-
-    const variantData = {
-      variant_id: sku,
-      name: variantName,  // 使用变体的 data.title
-      specifications,
-      spec_details: undefined,
-      image_url: imageUrl,
-      link,
-      price,
-      original_price,
-      available: variant.active !== false,
-    };
-
-    variantMap.set(sku, variantData);
-
-    // 输出每个变体的完整数据（仅调试模式）
-    if (window.EURAFLOW_DEBUG) {
-      console.log(`[EuraFlow] 变体 [${sku}] 最终数据（完整）:`, variantData);
-    }
-  });
-
-  return Array.from(variantMap.values());
-}
-
 export async function extractProductData(): Promise<ProductDetailData> {
   let baseData: any = null;  // 提升到外部，确保 catch 块能访问
 
@@ -1061,8 +966,9 @@ export async function extractProductData(): Promise<ProductDetailData> {
 
     console.log(`[EuraFlow] 去重前变体数: ${allVariants.length}`); // ✅ 强制输出
 
-    // 去重
-    const finalVariants = mergeAndDeduplicateVariants([], allVariants);
+    // ✅ 直接使用 allVariants，无需去重
+    // 因为 Modal API 返回的就是完整的所有变体，不存在重复
+    const finalVariants = allVariants;
 
     console.log(`[EuraFlow] 最终提取到 ${finalVariants.length} 个变体`, finalVariants); // ✅ 强制输出完整数据
 
