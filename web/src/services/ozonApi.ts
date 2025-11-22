@@ -2372,3 +2372,93 @@ export const syncReturns = async (shopId: number | null): Promise<any> => {
   });
   return response.data;
 };
+
+// ==================== 库存管理 API ====================
+
+export interface StockItem {
+  id: number;
+  shop_id: number;
+  shop_name?: string;
+  sku: string;
+  product_title?: string;
+  product_image?: string;
+  product_price?: number;
+  qty_available: number;
+  threshold: number;
+  notes?: string;
+  updated_at: string;
+}
+
+export interface AddStockRequest {
+  shop_id: number;
+  sku: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface UpdateStockRequest {
+  quantity: number;
+  notes?: string;
+}
+
+export interface StockCheckItem {
+  sku: string;
+  product_title?: string;
+  product_image?: string;
+  stock_available: number;
+  order_quantity: number;
+  is_sufficient: boolean;
+}
+
+/**
+ * 获取库存列表
+ */
+export const getStockList = async (params?: {
+  shop_id?: number;
+  sku?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<{
+  items: StockItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}> => {
+  const response = await apiClient.get('/ozon/stock', { params });
+  return response.data.data;
+};
+
+/**
+ * 添加库存
+ */
+export const addStock = async (data: AddStockRequest): Promise<{ id: number; message: string }> => {
+  const response = await apiClient.post('/ozon/stock', data);
+  return response.data.data;
+};
+
+/**
+ * 更新库存
+ */
+export const updateStock = async (stockId: number, data: UpdateStockRequest): Promise<{ message: string }> => {
+  const response = await apiClient.put(`/ozon/stock/${stockId}`, data);
+  return response.data.data;
+};
+
+/**
+ * 删除库存
+ */
+export const deleteStock = async (stockId: number): Promise<{ message: string }> => {
+  const response = await apiClient.delete(`/ozon/stock/${stockId}`);
+  return response.data.data;
+};
+
+/**
+ * 检查订单商品的库存情况（备货时使用）
+ */
+export const checkStockForPosting = async (postingNumber: string): Promise<{
+  posting_number: string;
+  items: StockCheckItem[];
+}> => {
+  const response = await apiClient.get(`/ozon/stock/check/${postingNumber}`);
+  return response.data.data;
+};
