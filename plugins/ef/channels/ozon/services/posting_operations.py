@@ -910,11 +910,29 @@ class PostingOperationsService:
 
         # 2. 对每个商品扣减库存
         for item in items:
-            # 查询库存记录
+            # 先查询商品获取 ozon_sku
+            from ..models.products import OzonProduct
+            product_query = select(OzonProduct).where(
+                and_(
+                    OzonProduct.shop_id == posting.shop_id,
+                    OzonProduct.offer_id == item.offer_id
+                )
+            )
+            product_result = await self.db.execute(product_query)
+            product = product_result.scalar_one_or_none()
+
+            if not product or not product.ozon_sku:
+                logger.warning(
+                    f"商品不存在或无ozon_sku，跳过扣减: posting_number={posting.posting_number}, "
+                    f"offer_id={item.offer_id}"
+                )
+                continue
+
+            # 查询库存记录（使用 ozon_sku）
             inventory_query = select(Inventory).where(
                 and_(
                     Inventory.shop_id == posting.shop_id,
-                    Inventory.sku == item.offer_id
+                    Inventory.sku == str(product.ozon_sku)
                 )
             )
             inventory_result = await self.db.execute(inventory_query)
@@ -923,7 +941,7 @@ class PostingOperationsService:
             if not inventory:
                 logger.warning(
                     f"商品无库存记录，跳过扣减: posting_number={posting.posting_number}, "
-                    f"sku={item.offer_id}"
+                    f"ozon_sku={product.ozon_sku}"
                 )
                 continue
 
@@ -946,7 +964,7 @@ class PostingOperationsService:
                 action="update",
                 action_display="使用库存备货",
                 table_name="inventories",
-                record_id=f"{posting.shop_id}:{item.offer_id}",
+                record_id=f"{posting.shop_id}:{product.ozon_sku}",
                 changes={
                     "qty_available": {
                         "old": old_quantity,
@@ -968,13 +986,13 @@ class PostingOperationsService:
             if actual_deduct < item.quantity:
                 logger.warning(
                     f"库存不足：posting_number={posting.posting_number}, "
-                    f"sku={item.offer_id}, 需要={item.quantity}, "
+                    f"ozon_sku={product.ozon_sku}, 需要={item.quantity}, "
                     f"实际扣减={actual_deduct}, 剩余库存=0"
                 )
 
             logger.info(
                 f"库存扣减成功：posting_number={posting.posting_number}, "
-                f"sku={item.offer_id}, 旧库存={old_quantity}, 新库存={new_quantity}"
+                f"ozon_sku={product.ozon_sku}, 旧库存={old_quantity}, 新库存={new_quantity}"
             )
 
     def _has_tracking_number(self, posting: OzonPosting) -> bool:

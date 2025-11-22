@@ -59,7 +59,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
         search: skuInput,
       });
 
-      // 查找匹配的商品（精确匹配 offer_id 或 sku）
+      // 查找匹配的商品（精确匹配 offer_id 或 sku，统一转为字符串比较）
       const searchSku = skuInput.trim();
       const products = response.data || [];
 
@@ -69,16 +69,28 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
         loggers.stock.debug('返回的商品列表:', products.map((p: ozonApi.Product) => ({
           offer_id: p.offer_id,
           sku: p.sku,
+          ozon_sku: p.ozon_sku,
           title: p.title
         })));
       }
 
+      // 只匹配 ozon_sku 字段
       const matchedProduct = products.find(
-        (p: ozonApi.Product) => p.offer_id === searchSku || p.sku === searchSku
+        (p: ozonApi.Product) => p.ozon_sku && String(p.ozon_sku) === searchSku
       );
 
       if (!matchedProduct && products.length > 0) {
-        loggers.stock.warn('未找到精确匹配！可能原因：SKU字段不匹配');
+        loggers.stock.warn('未找到精确匹配！', {
+          searchSku,
+          firstProduct: {
+            offer_id: products[0].offer_id,
+            sku: products[0].sku,
+            ozon_sku: products[0].ozon_sku,
+            offer_id_string: String(products[0].offer_id),
+            sku_string: products[0].sku ? String(products[0].sku) : null,
+            ozon_sku_string: products[0].ozon_sku ? String(products[0].ozon_sku) : null
+          }
+        });
       }
 
       if (matchedProduct) {
@@ -87,7 +99,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
         setStep('input');
         form.setFieldsValue({
           shop_id: matchedProduct.shop_id,
-          sku: matchedProduct.offer_id,
+          sku: searchSku,  // 传用户输入的 SKU（ozon_sku）
         });
       } else {
         setSearchError('所有店铺没有该商品，请核对SKU');
@@ -234,7 +246,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
                   <Text strong>{product.title_cn || product.title}</Text>
                   <br />
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    SKU: {product.offer_id}
+                    SKU: {product.ozon_sku}
                   </Text>
                   <br />
                   <Text type="secondary" style={{ fontSize: 12 }}>

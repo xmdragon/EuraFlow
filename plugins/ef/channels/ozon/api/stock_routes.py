@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc, func
+from sqlalchemy import select, and_, or_, desc, func, String
 from decimal import Decimal
 from datetime import datetime
 import logging
@@ -104,13 +104,26 @@ async def get_stock_list(
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
 
-    # 查询列表（关联店铺表获取店铺名称）
+    # 查询列表（JOIN 店铺表和商品表获取信息）
+    from ..models.products import OzonProduct
+
     query = (
         select(
             Inventory,
-            OzonShop.shop_name_cn.label("shop_name")
+            OzonShop.shop_name_cn.label("shop_name"),
+            OzonProduct.title_cn,
+            OzonProduct.title,
+            OzonProduct.images,
+            OzonProduct.price
         )
         .outerjoin(OzonShop, Inventory.shop_id == OzonShop.id)
+        .outerjoin(
+            OzonProduct,
+            and_(
+                OzonProduct.shop_id == Inventory.shop_id,
+                func.cast(OzonProduct.ozon_sku, String) == Inventory.sku
+            )
+        )
         .order_by(desc(Inventory.updated_at))
         .offset((page - 1) * page_size)
         .limit(page_size)
@@ -123,15 +136,23 @@ async def get_stock_list(
 
     # 构造响应
     items = []
-    for inventory, shop_name in rows:
+    for inventory, shop_name, title_cn, title, images, price in rows:
+        # 获取商品图片
+        product_image = None
+        if images and isinstance(images, dict):
+            product_image = images.get("primary")
+
+        # 商品名称优先用中文
+        product_title = title_cn or title
+
         items.append(StockItemResponse(
             id=inventory.id,
             shop_id=inventory.shop_id,
             shop_name=shop_name,
             sku=inventory.sku,
-            product_title=inventory.product_title,
-            product_image=inventory.product_image,
-            product_price=inventory.product_price,
+            product_title=product_title,
+            product_image=product_image,
+            product_price=price,
             qty_available=inventory.qty_available,
             threshold=inventory.threshold,
             notes=inventory.notes,
@@ -169,11 +190,11 @@ async def add_stock(
     if shop_ids is not None and data.shop_id not in shop_ids:
         raise HTTPException(status_code=403, detail="无权限操作该店铺")
 
-    # 1. 查询商品信息
+    # 1. 查询商品信息（通过 ozon_sku 查询）
     product_query = select(OzonProduct).where(
         and_(
             OzonProduct.shop_id == data.shop_id,
-            OzonProduct.offer_id == data.sku
+            OzonProduct.ozon_sku == int(data.sku)
         )
     )
     product_result = await db.execute(product_query)
@@ -182,14 +203,14 @@ async def add_stock(
     if not product:
         raise HTTPException(
             status_code=404,
-            detail=f"所有店铺没有该商品，请核对SKU: {data.sku}"
+            detail=f"商品不存在，请核对SKU: {data.sku}"
         )
 
-    # 2. 检查是否已存在库存记录
+    # 2. 检查是否已存在库存记录（统一使用 ozon_sku）
     existing_query = select(Inventory).where(
         and_(
             Inventory.shop_id == data.shop_id,
-            Inventory.sku == data.sku
+            Inventory.sku == data.sku  # 直接用 ozon_sku
         )
     )
     existing_result = await db.execute(existing_query)
@@ -201,15 +222,12 @@ async def add_stock(
             detail=f"该商品库存记录已存在，请使用编辑功能"
         )
 
-    # 3. 创建库存记录
+    # 3. 创建库存记录（只存储核心字段）
     inventory = Inventory(
         shop_id=data.shop_id,
-        sku=data.sku,
+        sku=data.sku,  # 使用 ozon_sku
         qty_available=data.quantity,
         threshold=0,
-        product_title=product.title_cn or product.title,
-        product_image=product.images[0] if product.images else None,
-        product_price=product.price,
         notes=data.notes
     )
     db.add(inventory)
@@ -231,7 +249,6 @@ async def add_stock(
         record_id=f"{data.shop_id}:{data.sku}",
         changes={
             "qty_available": {"new": data.quantity},
-            "product_title": product.title_cn or product.title,
             "sku": data.sku
         },
         ip_address=request_ip,

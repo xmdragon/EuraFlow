@@ -181,7 +181,7 @@ const ProductList: React.FC = () => {
       // 调试：打印请求参数
       loggers.product.info('商品列表查询参数：', params);
 
-      const result = await ozonApi.getProducts(currentPage, pageSize, params);
+      const result = await ozonApi.getProducts(currentPage, pageSize, { ...params, include_stats: true });
 
       // 调试：检查SKU 3001670275的数据
       const targetProduct = result.data?.find((p) => p.sku === '3001670275');
