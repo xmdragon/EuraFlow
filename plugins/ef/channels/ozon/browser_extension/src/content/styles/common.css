@@ -1,0 +1,271 @@
+/**
+ * EuraFlow 浏览器扩展 - 通用组件样式
+ * 可复用的基础组件样式（按钮、输入框、表格等）
+ */
+
+/* ========== 按钮组件 ========== */
+.ef-btn {
+  padding: var(--ef-spacing-sm) var(--ef-spacing-lg);
+  border-radius: var(--ef-border-radius-sm);
+  font-size: var(--ef-font-size-base);
+  font-weight: var(--ef-font-weight-medium);
+  cursor: pointer;
+  border: none;
+  transition: all var(--ef-transition-base);
+  white-space: nowrap;
+  display: inline-block;
+  text-align: center;
+}
+
+.ef-btn--primary {
+  background: var(--ef-primary);
+  color: white;
+}
+
+.ef-btn--primary:hover {
+  background: var(--ef-primary-hover);
+}
+
+.ef-btn--secondary {
+  background: white;
+  border: 1px solid var(--ef-border);
+  color: var(--ef-text-primary);
+}
+
+.ef-btn--secondary:hover {
+  background: var(--ef-bg-light);
+}
+
+.ef-btn--danger {
+  background: var(--ef-danger);
+  color: white;
+}
+
+.ef-btn--danger:hover {
+  background: #d32f2f;
+}
+
+.ef-btn--sm {
+  padding: 2px var(--ef-spacing-sm);
+  font-size: var(--ef-font-size-xs);
+}
+
+.ef-btn--lg {
+  padding: 10px var(--ef-spacing-xl);
+}
+
+.ef-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ========== 输入框组件 ========== */
+.ef-input {
+  width: 100%;
+  padding: var(--ef-spacing-sm);
+  border: 1px solid var(--ef-border);
+  border-radius: var(--ef-border-radius-sm);
+  font-size: var(--ef-font-size-base);
+  transition: border-color var(--ef-transition-base);
+}
+
+.ef-input:focus {
+  outline: none;
+  border-color: var(--ef-primary);
+}
+
+.ef-input:disabled {
+  background: var(--ef-bg-light);
+  color: var(--ef-text-disabled);
+  cursor: not-allowed;
+}
+
+.ef-input--error {
+  border-color: var(--ef-danger);
+}
+
+/* ========== 选择框组件 ========== */
+.ef-select {
+  width: 100%;
+  padding: var(--ef-spacing-sm);
+  border: 1px solid var(--ef-border);
+  border-radius: var(--ef-border-radius-sm);
+  font-size: var(--ef-font-size-base);
+  cursor: pointer;
+  background: white;
+}
+
+.ef-select:focus {
+  outline: none;
+  border-color: var(--ef-primary);
+}
+
+/* ========== 复选框组件 ========== */
+.ef-checkbox {
+  cursor: pointer;
+}
+
+/* ========== 表格组件 ========== */
+.ef-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.ef-table__header {
+  position: sticky;
+  top: 0;
+  background: var(--ef-bg-light);
+  z-index: var(--ef-z-sticky);
+  border-bottom: 2px solid var(--ef-border);
+}
+
+.ef-table__header th {
+  padding: var(--ef-spacing-md) var(--ef-spacing-sm);
+  text-align: left;
+  font-size: var(--ef-font-size-sm);
+  font-weight: var(--ef-font-weight-bold);
+  color: var(--ef-text-secondary);
+}
+
+.ef-table__body tr {
+  border-bottom: 1px solid var(--ef-border);
+}
+
+.ef-table__body tr:hover {
+  background: var(--ef-bg-light);
+}
+
+.ef-table__body td {
+  padding: var(--ef-spacing-md) var(--ef-spacing-sm);
+  font-size: var(--ef-font-size-sm);
+}
+
+/* ========== 卡片组件 ========== */
+.ef-card {
+  border: 1px solid var(--ef-border);
+  padding: var(--ef-spacing-md);
+  border-radius: var(--ef-border-radius);
+  background: var(--ef-bg-light);
+}
+
+/* ========== 覆盖层组件 ========== */
+.ef-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--ef-bg-overlay);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: var(--ef-z-overlay);
+}
+
+/* ========== 模态框组件 ========== */
+.ef-modal {
+  background: white;
+  border-radius: var(--ef-border-radius-lg);
+  padding: var(--ef-spacing-2xl);
+  box-shadow: var(--ef-shadow-lg);
+  max-height: 90vh;
+  overflow-y: auto;
+  z-index: var(--ef-z-modal);
+}
+
+.ef-modal__title {
+  margin: 0;
+  font-size: var(--ef-font-size-2xl);
+  font-weight: var(--ef-font-weight-bold);
+  color: var(--ef-text-primary);
+}
+
+.ef-modal__subtitle {
+  font-size: var(--ef-font-size-sm);
+  color: var(--ef-text-secondary);
+  margin-top: var(--ef-spacing-xs);
+}
+
+/* ========== 标签组件 ========== */
+.ef-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--ef-font-size-sm);
+  font-weight: var(--ef-font-weight-medium);
+  color: var(--ef-text-secondary);
+}
+
+.ef-label--required::after {
+  content: ' *';
+  color: var(--ef-danger);
+}
+
+/* ========== 网格布局 ========== */
+.ef-grid {
+  display: grid;
+  gap: var(--ef-spacing-md);
+}
+
+.ef-grid--2col {
+  grid-template-columns: 1fr 1fr;
+}
+
+.ef-grid--3col {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.ef-grid--4col {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+}
+
+/* ========== 弹性布局 ========== */
+.ef-flex {
+  display: flex;
+}
+
+.ef-flex--center {
+  justify-content: center;
+  align-items: center;
+}
+
+.ef-flex--between {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ef-flex--gap-sm {
+  gap: var(--ef-spacing-sm);
+}
+
+.ef-flex--gap-md {
+  gap: var(--ef-spacing-md);
+}
+
+/* ========== 文本工具类 ========== */
+.ef-text-primary {
+  color: var(--ef-text-primary);
+}
+
+.ef-text-secondary {
+  color: var(--ef-text-secondary);
+}
+
+.ef-text-disabled {
+  color: var(--ef-text-disabled);
+}
+
+.ef-text-center {
+  text-align: center;
+}
+
+.ef-text-right {
+  text-align: right;
+}
+
+/* ========== 间距工具类 ========== */
+.ef-mb-xs { margin-bottom: var(--ef-spacing-xs); }
+.ef-mb-sm { margin-bottom: var(--ef-spacing-sm); }
+.ef-mb-md { margin-bottom: var(--ef-spacing-md); }
+.ef-mb-lg { margin-bottom: var(--ef-spacing-lg); }
+.ef-mb-xl { margin-bottom: var(--ef-spacing-xl); }

@@ -96,30 +96,36 @@ async def prepare_stock(
     old_operation_status = old_posting.operation_status
     old_order_notes = old_posting.order_notes
 
-    # 2. 执行业务逻辑
+    # 2. 获取请求上下文（用于审计日志）
+    request_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    request_id = request.headers.get("x-request-id")
+
+    # 3. 执行业务逻辑（传递审计参数）
     service = PostingOperationsService(db)
     result = await service.prepare_stock(
         posting_number=posting_number,
         purchase_price=dto.purchase_price,
         source_platform=dto.source_platform,
         order_notes=dto.order_notes,
-        sync_to_ozon=dto.sync_to_ozon
+        sync_to_ozon=dto.sync_to_ozon,
+        user_id=current_user.id,
+        username=current_user.username,
+        ip_address=request_ip,
+        user_agent=user_agent,
+        request_id=request_id
     )
 
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
 
-    # 3. 查询新值
+    # 4. 查询新值
     new_posting_result = await db.execute(
         select(OzonPosting).where(OzonPosting.posting_number == posting_number)
     )
     new_posting = new_posting_result.scalar_one_or_none()
 
-    # 4. 记录审计日志（字段级）
-    request_ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-    request_id = request.headers.get("x-request-id")
-
+    # 5. 记录审计日志（字段级，备货操作的其他变更）
     try:
         # 4.1 记录进货价格变更
         if new_posting.purchase_price != old_purchase_price:

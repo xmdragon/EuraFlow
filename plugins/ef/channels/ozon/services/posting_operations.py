@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List
 import logging
 import asyncio
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.orders import OzonPosting, OzonOrder, OzonDomesticTracking
@@ -36,10 +36,15 @@ class PostingOperationsService:
         purchase_price: Decimal,
         source_platform: Optional[List[str]] = None,
         order_notes: Optional[str] = None,
-        sync_to_ozon: Optional[bool] = True
+        sync_to_ozon: Optional[bool] = True,
+        user_id: Optional[int] = None,
+        username: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        备货操作：保存业务信息 + 可选同步到 OZON
+        备货操作：保存业务信息 + 可选同步到 OZON + 库存扣减
 
         Args:
             posting_number: 货件编号
@@ -47,6 +52,11 @@ class PostingOperationsService:
             source_platform: 采购平台列表（可选：1688/拼多多/咸鱼/淘宝/库存）
             order_notes: 订单备注（可选）
             sync_to_ozon: 是否同步到Ozon（默认True）
+            user_id: 用户ID（用于审计日志）
+            username: 用户名（用于审计日志）
+            ip_address: 客户端IP（用于审计日志）
+            user_agent: User Agent（用于审计日志）
+            request_id: 请求ID（用于审计日志）
 
         Returns:
             操作结果
@@ -81,6 +91,17 @@ class PostingOperationsService:
         if order_notes:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
+
+        # 2.5. 如果选择了"库存"，扣减库存并记录审计日志
+        if source_platform and "库存" in source_platform and user_id and username:
+            await self._deduct_inventory_for_posting(
+                posting=posting,
+                user_id=user_id,
+                username=username,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                request_id=request_id
+            )
 
         # 立即更新操作状态为"分配中"（在 API 调用前）
         posting.operation_status = "allocating"
@@ -855,6 +876,106 @@ class PostingOperationsService:
                     "operation_status": posting.operation_status
                 }
             }
+
+    async def _deduct_inventory_for_posting(
+        self,
+        posting: OzonPosting,
+        user_id: int,
+        username: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None
+    ) -> None:
+        """
+        扣减订单商品的库存（备货使用库存时调用）
+
+        Args:
+            posting: 货件对象
+            user_id: 用户ID（审计日志）
+            username: 用户名（审计日志）
+            ip_address: 客户端IP（审计日志）
+            user_agent: User Agent（审计日志）
+            request_id: 请求ID（审计日志）
+        """
+        from ef_core.models.inventory import Inventory
+        from ef_core.services.audit_service import AuditService
+        from ..models.orders import OzonOrderItem
+
+        # 1. 查询订单商品
+        items_query = select(OzonOrderItem).where(
+            OzonOrderItem.order_id == posting.order_id
+        )
+        items_result = await self.db.execute(items_query)
+        items = items_result.scalars().all()
+
+        # 2. 对每个商品扣减库存
+        for item in items:
+            # 查询库存记录
+            inventory_query = select(Inventory).where(
+                and_(
+                    Inventory.shop_id == posting.shop_id,
+                    Inventory.sku == item.offer_id
+                )
+            )
+            inventory_result = await self.db.execute(inventory_query)
+            inventory = inventory_result.scalar_one_or_none()
+
+            if not inventory:
+                logger.warning(
+                    f"商品无库存记录，跳过扣减: posting_number={posting.posting_number}, "
+                    f"sku={item.offer_id}"
+                )
+                continue
+
+            # 保存旧值
+            old_quantity = inventory.qty_available
+
+            # 扣减库存（允许扣减到0，不允许负数）
+            new_quantity = max(0, old_quantity - item.quantity)
+            actual_deduct = old_quantity - new_quantity
+
+            # 更新库存
+            inventory.qty_available = new_quantity
+
+            # 记录审计日志
+            await AuditService.log_action(
+                db=self.db,
+                user_id=user_id,
+                username=username,
+                module="ozon",
+                action="update",
+                action_display="使用库存备货",
+                table_name="inventories",
+                record_id=f"{posting.shop_id}:{item.offer_id}",
+                changes={
+                    "qty_available": {
+                        "old": old_quantity,
+                        "new": new_quantity,
+                        "change": -actual_deduct
+                    },
+                    "reason": "订单备货",
+                    "posting_number": posting.posting_number,
+                    "deduct_requested": item.quantity,
+                    "deduct_actual": actual_deduct
+                },
+                ip_address=ip_address,
+                user_agent=user_agent,
+                request_id=request_id,
+                notes=f"订单 {posting.posting_number} 使用库存备货（商品：{item.name}）"
+            )
+
+            # 如果库存不足，记录警告
+            if actual_deduct < item.quantity:
+                logger.warning(
+                    f"库存不足：posting_number={posting.posting_number}, "
+                    f"sku={item.offer_id}, 需要={item.quantity}, "
+                    f"实际扣减={actual_deduct}, 剩余库存=0"
+                )
+
+            logger.info(
+                f"库存扣减成功：posting_number={posting.posting_number}, "
+                f"sku={item.offer_id}, 旧库存={old_quantity}, 新库存={new_quantity}"
+            )
 
     def _has_tracking_number(self, posting: OzonPosting) -> bool:
         """

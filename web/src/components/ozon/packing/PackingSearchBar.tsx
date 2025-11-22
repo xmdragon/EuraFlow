@@ -18,13 +18,11 @@ export interface SearchParams {
   tracking_number?: string;
   domestic_tracking_number?: string;
   delivery_method?: string;
-  has_purchase_info?: string;
 }
 
 interface PackingSearchFormValues {
   search_text?: string;
   delivery_method?: string;
-  has_purchase_info?: string;
 }
 
 export interface PackingSearchBarProps {
@@ -91,10 +89,9 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
   const handleSearch = (values: PackingSearchFormValues) => {
     const searchText = values.search_text?.trim();
     const deliveryMethod = values.delivery_method?.trim();
-    const hasPurchaseInfo = values.has_purchase_info;
 
     // 如果没有任何搜索条件，清空搜索
-    if (!searchText && !deliveryMethod && !hasPurchaseInfo) {
+    if (!searchText && !deliveryMethod) {
       onSearchParamsChange({});
       return;
     }
@@ -107,12 +104,7 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
       params.delivery_method = deliveryMethod;
     }
 
-    // 处理采购信息筛选（如果有选择）
-    if (hasPurchaseInfo && hasPurchaseInfo !== 'all') {
-      params.has_purchase_info = hasPurchaseInfo;
-    }
-
-    // 如果没有搜索文本，只有配送方式或采购信息
+    // 如果没有搜索文本，只有配送方式
     if (!searchText) {
       onSearchParamsChange(params);
       return;
@@ -191,13 +183,6 @@ export const PackingSearchBar: React.FC<PackingSearchBarProps> = ({
             </Form.Item>
             <Form.Item name="delivery_method">
               <Input placeholder="配送方式" style={{ width: '100%', maxWidth: 100, minWidth: 80 }} />
-            </Form.Item>
-            <Form.Item name="has_purchase_info" initialValue="all">
-              <Select style={{ width: 120 }}>
-                <Select.Option value="all">全部</Select.Option>
-                <Select.Option value="yes">有采购信息</Select.Option>
-                <Select.Option value="no">无采购信息</Select.Option>
-              </Select>
             </Form.Item>
             <Form.Item>
               <Space>

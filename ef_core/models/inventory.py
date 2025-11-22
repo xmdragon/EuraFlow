@@ -3,9 +3,11 @@
 严格按照 PRD § 3.4 定义
 """
 from datetime import datetime
+from typing import Optional
+from decimal import Decimal
 
 from sqlalchemy import (
-    BigInteger, Text, Integer, DateTime, 
+    BigInteger, Text, Integer, DateTime, String, Numeric,
     CheckConstraint, UniqueConstraint, Index
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -41,7 +43,29 @@ class Inventory(Base):
         default=0,
         comment="安全库存阈值"
     )
-    
+
+    # 商品信息（快照，便于查询和展示）
+    product_title: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="商品名称"
+    )
+    product_image: Mapped[Optional[str]] = mapped_column(
+        String(1000),
+        nullable=True,
+        comment="商品图片URL"
+    )
+    product_price: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(18, 4),
+        nullable=True,
+        comment="商品价格"
+    )
+    notes: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="备注"
+    )
+
     # 时间戳
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

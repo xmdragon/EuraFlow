@@ -1,0 +1,76 @@
+/**
+ * EuraFlow 浏览器扩展 - CSS 变量
+ * 统一的设计系统变量定义
+ */
+
+:root {
+  /* ========== 颜色系统 ========== */
+  /* 主色调 */
+  --ef-primary: #1976D2;
+  --ef-primary-hover: #1565C0;
+  --ef-primary-light: #BBDEFB;
+
+  /* 功能色 */
+  --ef-success: #4CAF50;
+  --ef-warning: #FF9800;
+  --ef-danger: #f44336;
+  --ef-info: #2196F3;
+
+  /* 中性色 */
+  --ef-border: #e0e0e0;
+  --ef-border-dark: #ccc;
+  --ef-bg-light: #f9f9f9;
+  --ef-bg-gray: #f5f5f5;
+  --ef-bg-white: #ffffff;
+  --ef-bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* 文本颜色 */
+  --ef-text-primary: #333;
+  --ef-text-secondary: #666;
+  --ef-text-disabled: #999;
+  --ef-text-placeholder: #aaa;
+
+  /* ========== 间距系统 ========== */
+  --ef-spacing-xs: 4px;
+  --ef-spacing-sm: 8px;
+  --ef-spacing-md: 12px;
+  --ef-spacing-lg: 16px;
+  --ef-spacing-xl: 20px;
+  --ef-spacing-2xl: 24px;
+
+  /* ========== 圆角 ========== */
+  --ef-border-radius: 8px;
+  --ef-border-radius-sm: 4px;
+  --ef-border-radius-lg: 12px;
+  --ef-border-radius-circle: 50%;
+
+  /* ========== 字体 ========== */
+  --ef-font-size-xs: 12px;
+  --ef-font-size-sm: 13px;
+  --ef-font-size-base: 14px;
+  --ef-font-size-lg: 16px;
+  --ef-font-size-xl: 18px;
+  --ef-font-size-2xl: 20px;
+
+  --ef-font-weight-normal: 400;
+  --ef-font-weight-medium: 500;
+  --ef-font-weight-bold: 600;
+
+  /* ========== 阴影 ========== */
+  --ef-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --ef-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+  --ef-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  /* ========== z-index 层级 ========== */
+  --ef-z-base: 1;
+  --ef-z-dropdown: 1000;
+  --ef-z-sticky: 1020;
+  --ef-z-fixed: 1030;
+  --ef-z-overlay: 999998;
+  --ef-z-modal: 999999;
+
+  /* ========== 过渡动画 ========== */
+  --ef-transition-fast: 0.15s;
+  --ef-transition-base: 0.2s;
+  --ef-transition-slow: 0.3s;
+}
