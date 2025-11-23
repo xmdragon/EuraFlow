@@ -1097,9 +1097,9 @@ async function handleFollowPdp(): Promise<void> {
     );
 
     const filteredImages = productData.images
-      .filter((img): img is string => typeof img === 'string' && !!img)
+      .filter(img => img && img.url)
       .filter(img => {
-        const normalizedImg = img.replace(/\/wc\d+\//, '/');
+        const normalizedImg = img.url.replace(/\/wc\d+\//, '/');
         return !variantImageUrls.has(normalizedImg);
       });
 

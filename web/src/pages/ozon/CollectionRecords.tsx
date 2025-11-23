@@ -38,7 +38,7 @@ interface CollectionRecord {
     product_id?: string;
     title?: string;
     title_cn?: string;
-    images?: string[];
+    images?: { url: string; is_primary?: boolean }[];
     price?: number;
   };
   created_at: string;
