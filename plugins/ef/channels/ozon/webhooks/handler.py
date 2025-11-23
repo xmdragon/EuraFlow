@@ -447,6 +447,10 @@ class OzonWebhookHandler:
                 logger.error("Webhook payload missing posting_number, cannot create posting")
                 return None
 
+            # 提取真实的 order_id（如果 webhook 包含）
+            order_id = payload.get("order_id")
+            order_number = payload.get("order_number")
+
             in_process_at = payload.get("in_process_at")
             shipment_date = payload.get("shipment_date")
             warehouse_id = payload.get("warehouse_id")
@@ -468,12 +472,16 @@ class OzonWebhookHandler:
                     logger.info(f"Posting {posting_number} already exists, skipping creation")
                     return existing_posting
 
-                # 创建或获取Order（使用posting_number作为临时order_id）
+                # 创建或获取Order（要求 webhook 必须包含 order_id）
+                if not order_id:
+                    logger.error(f"Webhook payload missing order_id for posting {posting_number}, cannot create order")
+                    return None
+
                 order = await session.scalar(
                     select(OzonOrder).where(
                         and_(
                             OzonOrder.shop_id == self.shop_id,
-                            OzonOrder.order_id == f"webhook_{posting_number}"
+                            OzonOrder.ozon_order_id == str(order_id)
                         )
                     )
                 )
@@ -481,15 +489,17 @@ class OzonWebhookHandler:
                 if not order:
                     order = OzonOrder(
                         shop_id=self.shop_id,
-                        order_id=f"webhook_{posting_number}",  # 临时ID，后续API更新
-                        ozon_order_id=f"webhook_{posting_number}",
+                        order_id=f"OZ-{order_id}",
+                        ozon_order_id=str(order_id),
+                        ozon_order_number=order_number,
                         status="awaiting_packaging",
                         total_price=Decimal("0.00"),  # 待API更新
                         ordered_at=parse_datetime(in_process_at) if in_process_at else utcnow(),
                         raw_payload=payload
                     )
                     session.add(order)
-                    await session.flush()  # 获取order.id
+                    await session.flush()
+                    logger.info(f"Created order from webhook with order_id: {order_id}")
 
                 # 创建Posting
                 posting = OzonPosting(
