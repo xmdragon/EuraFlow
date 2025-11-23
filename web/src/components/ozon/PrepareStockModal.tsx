@@ -32,7 +32,7 @@ interface PrepareStockModalProps {
   visible: boolean;
   onCancel: () => void;
   postingNumber: string;
-  posting?: ozonApi.Posting;
+  posting?: ozonApi.PostingWithOrder;
   onSuccess?: () => void;
 }
 
