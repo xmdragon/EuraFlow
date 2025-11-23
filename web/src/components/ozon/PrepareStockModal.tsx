@@ -63,11 +63,34 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   const [itemsData, setItemsData] = useState<ItemPrepareData[]>([]);
 
   // 查询订单商品的库存情况
-  const { data: stockCheckData, isLoading: stockLoading } = useQuery({
+  const { data: stockCheckData, isLoading: stockLoading, refetch: refetchStock } = useQuery({
     queryKey: ['stockCheck', postingNumber],
     queryFn: () => ozonApi.checkStockForPosting(postingNumber),
     enabled: visible,
     staleTime: 30000,
+  });
+
+  // 同步订单 Mutation
+  const syncOrderMutation = useMutation({
+    mutationFn: () => {
+      if (!posting?.shop_id) {
+        throw new Error('缺少店铺ID');
+      }
+      return ozonApi.syncSingleOrder(postingNumber, posting.shop_id);
+    },
+    onSuccess: () => {
+      notifySuccess('同步成功', '订单数据已同步，正在重新加载...');
+      // 重新查询库存数据
+      refetchStock();
+    },
+    onError: (error: unknown) => {
+      const errorMsg = axios.isAxiosError(error)
+        ? error.response?.data?.message || error.message || '同步失败'
+        : error instanceof Error
+          ? error.message
+          : '同步失败';
+      notifyError('同步失败', errorMsg);
+    },
   });
 
   // 初始化商品数据
@@ -338,6 +361,21 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       {stockLoading ? (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin tip="正在查询库存..." />
+        </div>
+      ) : itemsData.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Space direction="vertical" size="middle">
+            <Typography.Text type="secondary">
+              ⚠️ 订单数据不完整，无法进行备货操作
+            </Typography.Text>
+            <Button
+              type="primary"
+              loading={syncOrderMutation.isPending}
+              onClick={() => syncOrderMutation.mutate()}
+            >
+              同步该订单数据
+            </Button>
+          </Space>
         </div>
       ) : (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
