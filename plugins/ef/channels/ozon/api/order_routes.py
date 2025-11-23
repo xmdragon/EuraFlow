@@ -878,9 +878,12 @@ async def sync_single_order(
         posting_data = detail_response["result"]
 
         # 4. 使用订单同步服务处理数据
+        logger.info(f"[同步调试] 开始处理posting数据: posting_number={posting_number}, products_count={len(posting_data.get('products', []))}")
         sync_service = OrderSyncService(shop_id=shop_id, api_client=api_client)
         await sync_service._process_single_posting(db, posting_data)
+        logger.info(f"[同步调试] _process_single_posting完成，准备commit")
         await db.commit()
+        logger.info(f"[同步调试] commit完成")
 
         # 5. 关闭API客户端
         await api_client.close()

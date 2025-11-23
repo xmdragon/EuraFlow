@@ -473,13 +473,19 @@ class OrderSyncService:
         products: List[Dict]
     ):
         """处理订单商品明细"""
+        logger.info(f"[同步调试] _process_order_items: order_id={order.id}, products_count={len(products)}")
+
         # 删除旧商品（用于更新场景）- 使用异步查询而不是懒加载
         stmt = select(OzonOrderItem).where(OzonOrderItem.order_id == order.id)
         existing_items = await session.scalars(stmt)
+        deleted_count = 0
         for item in existing_items:
             await session.delete(item)
+            deleted_count += 1
+        logger.info(f"[同步调试] 删除了 {deleted_count} 条旧商品记录")
 
         # 添加商品明细
+        added_count = 0
         for product_data in products:
             quantity = product_data.get("quantity", 0)
             price = Decimal(str(product_data.get("price", "0")))
@@ -493,6 +499,10 @@ class OrderSyncService:
                 total_amount=price * quantity  # 使用 total_amount 而不是 total_price
             )
             session.add(item)
+            added_count += 1
+            logger.info(f"[同步调试] 添加商品: offer_id={item.offer_id}, sku={item.ozon_sku}, name={item.name}")
+
+        logger.info(f"[同步调试] _process_order_items完成: 添加了 {added_count} 条商品记录")
     
     async def _process_packages(
         self,
