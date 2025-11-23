@@ -81,9 +81,8 @@ console.log('[EuraFlow] 🔍 OZON版本拦截器已启动');
 
 interface GlobalProductData {
   url: string;
-  ozonProduct: any;           // OZON API数据（包括变体）
+  ozonProduct: any;           // 完整商品数据（由 Content Script 提取，包含 variants + dimensions）
   spbSales: any | null;       // 上品帮销售数据
-  dimensions: any | null;     // OZON Seller API 尺寸数据
   euraflowConfig: any | null; // EuraFlow配置（店铺、仓库、水印）
   timestamp: number;
 }
@@ -812,16 +811,14 @@ async function getOzonSellerId(cookieString: string): Promise<number> {
 /**
  * 处理获取 OZON 商品详情请求
  */
-async function handleGetOzonProductDetail(data: { productSku?: string; productId?: string; cookieString?: string }) {
-  // 兼容两种字段名：productSku（新）和 productId（旧）
-  const productId = data.productSku || data.productId;
-  const documentCookie = data.cookieString;
+async function handleGetOzonProductDetail(data: { productSku: string; cookieString?: string }) {
+  const { productSku, cookieString: documentCookie } = data;
 
-  console.log('[OZON API] 获取商品详情, SKU:', productId);
+  console.log('[OZON API] 获取商品详情, SKU:', productSku);
 
   try {
     // 验证必需参数
-    if (!productId) {
+    if (!productSku) {
       console.error('[OZON API] ❌ 缺少商品 SKU 参数');
       throw new Error('缺少商品 SKU 参数');
     }
@@ -872,7 +869,7 @@ async function handleGetOzonProductDetail(data: { productSku?: string; productId
     const requestUrl = 'https://seller.ozon.ru/api/v1/search-variant-model';
     const requestBody = {
       limit: 50,
-      name: productId,
+      name: productSku,
       sellerId: sellerId
     };
 
@@ -913,19 +910,15 @@ async function handleGetOzonProductDetail(data: { productSku?: string; productId
       throw new Error('商品不存在或已下架');
     }
 
-    const product = result.items[0];
+    console.log('[OZON API] Seller API 返回', result.items.length, '个变体');
 
-    // 输出原始数据结构（用于调试图片字段）
-    console.log('[OZON API] 原始商品数据:', JSON.stringify(product, null, 2));
-    console.log('[OZON API] 图片字段检查:', {
-      images: product.images,
-      primary_image: product.primary_image,
-      image: product.image,
-      pictures: product.pictures,
-      photos: product.photos
-    });
+    // ✅ 关键修复：result.items 本身就是变体数组！
+    // OZON Seller API 的 search-variant-model 接口返回的就是该商品的所有变体
+    const variants = result.items;
+    const firstVariant = variants[0];
 
-    const attrs = product.attributes || [];
+    // 从第一个变体提取尺寸信息（作为商品基础信息）
+    const attrs = firstVariant.attributes || [];
     const findAttr = (key: string) => {
       const attr = attrs.find((a: any) => a.key == key);
       return attr ? attr.value : null;
@@ -933,55 +926,27 @@ async function handleGetOzonProductDetail(data: { productSku?: string; productId
 
     const dimensions = {
       weight: findAttr('4497'),   // 重量（克）
-      length: findAttr('9454'),   // 长度（毫米）- 对应后端的 length 字段
+      length: findAttr('9454'),   // 长度（毫米）
       width: findAttr('9455'),    // 宽度（毫米）
       height: findAttr('9456')    // 高度（毫米）
     };
 
-    // 返回单个商品对象 + dimensions
+    // 返回商品基础数据 + 变体数组
     const baseData = {
-      ...product,
-      title: product.name,  // OZON Seller API 字段是 name，统一为 title
-      dimensions: dimensions
+      ...firstVariant,
+      title: firstVariant.name,  // OZON Seller API 字段是 name，统一为 title
+      dimensions: dimensions,
+      variants: variants,         // ✅ 直接使用 Seller API 返回的变体数组
+      has_variants: variants.length > 1  // 多于1个才算有变体
     };
 
-    console.log('[OZON API] Seller API 基础数据:', baseData);
+    console.log('[OZON API] ✅ 商品基础数据 + 变体:', {
+      title: baseData.title,
+      variantCount: variants.length,
+      hasVariants: baseData.has_variants
+    });
 
-    // 获取变体数据（从 content script）
-    try {
-      console.log('[OZON API] 开始获取变体数据...');
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-
-      if (tabs.length === 0 || !tabs[0].id) {
-        console.warn('[OZON API] ⚠️ 未找到活动标签页，跳过变体提取');
-        return baseData;
-      }
-
-      console.log('[OZON API] 向 content script 发送消息...');
-      const response = await chrome.tabs.sendMessage(tabs[0].id, {
-        type: 'EXTRACT_PRODUCT_DATA'
-      });
-
-      console.log('[OZON API] 收到 content script 响应:', response);
-      console.log('[OZON API] response.success:', response.success);
-      console.log('[OZON API] response.data?.variants:', response.data?.variants);
-
-      if (response.success && response.data?.variants) {
-        console.log('[OZON API] ✅ 变体数据获取成功:', response.data.variants.length, '个变体');
-        console.log('[OZON API] 第一个变体数据:', response.data.variants[0]);
-        return {
-          ...baseData,
-          variants: response.data.variants,
-          has_variants: response.data.has_variants
-        };
-      } else {
-        console.warn('[OZON API] ⚠️ 变体提取失败或无变体:', response.error || '未知原因');
-        return baseData;
-      }
-    } catch (error: any) {
-      console.warn('[OZON API] ⚠️ 调用 content script 失败:', error.message);
-      return baseData;
-    }
+    return baseData;
   } catch (error: any) {
     console.error('[OZON API] 获取商品详情失败:', error);
 
@@ -1744,14 +1709,23 @@ async function handleGetSpbCommissions(data: { price: number; categoryId: string
 // ========== 并发获取所有商品数据 ==========
 
 /**
- * 并发获取所有商品数据（OZON + 上品帮 + OZON Seller + EuraFlow配置）
+ * 并发获取所有商品数据
+ * Content Script 负责：商品详情（Modal API + Seller API）→ productDetail
+ * Background 负责：上品帮销售数据 + EuraFlow配置
  */
-async function handleFetchAllProductData(data: { url: string; productSku: string; cookieString?: string }): Promise<any> {
-  const { url, productSku, cookieString } = data;
+async function handleFetchAllProductData(data: { url: string; productSku: string; productDetail: any }): Promise<any> {
+  const { url, productSku, productDetail } = data;
 
-  console.log('[商品数据] 开始并发获取所有数据, URL:', url, 'ProductSKU:', productSku);
-  if (cookieString) {
-    console.log('[商品数据] 接收到页面 Cookie, 长度:', cookieString.length);
+  console.log('[商品数据] 开始并发获取辅助数据, URL:', url, 'ProductSKU:', productSku);
+  console.log('[商品数据] Content Script 传来的 productDetail:', {
+    存在: productDetail ? '✅' : '❌',
+    变体数量: productDetail?.variants?.length || 0,
+    有尺寸: productDetail?.dimensions ? '✅' : '❌'
+  });
+
+  // 数据完整性检查
+  if (!productDetail) {
+    throw new Error('Content Script 未传递 productDetail，数据采集失败');
   }
 
   // 1. 检查缓存
@@ -1761,17 +1735,12 @@ async function handleFetchAllProductData(data: { url: string; productSku: string
     return {
       ozonProduct: cached.ozonProduct,
       spbSales: cached.spbSales,
-      dimensions: cached.dimensions,
       euraflowConfig: cached.euraflowConfig
     };
   }
 
-  // 2. 并发获取4类数据
-  const [ozonProduct, spbSales, euraflowConfig] = await Promise.all([
-    handleGetOzonProductDetail({ productSku, cookieString }).catch(err => {
-      console.error('[商品数据] OZON产品数据获取失败:', err);
-      return null;
-    }),
+  // 2. 并发获取辅助数据（上品帮 + EuraFlow配置）
+  const [spbSales, euraflowConfig] = await Promise.all([
     handleGetSpbSalesData({ productSku }).catch(err => {
       console.error('[商品数据] 上品帮销售数据获取失败:', err);
       return null;
@@ -1782,31 +1751,27 @@ async function handleFetchAllProductData(data: { url: string; productSku: string
     })
   ]);
 
-  // 3. 从 ozonProduct 中提取 dimensions（与列表页保持一致）
-  const dimensions = ozonProduct?.dimensions || null;
-
-  // 4. 存储到缓存
+  // 3. 存储到缓存
   productDataCache.set(url, {
     url,
-    ozonProduct,
+    ozonProduct: productDetail,
     spbSales,
-    dimensions,
     euraflowConfig,
     timestamp: Date.now()
   });
 
   console.log('[商品数据] 最终数据:', {
-    ozonProduct,
-    spbSales,
-    dimensions,
-    euraflowConfig
+    productDetail: '✅ Content Script 提供',
+    变体数量: productDetail.variants?.length || 0,
+    尺寸数据: productDetail.dimensions ? '✅' : '❌',
+    spbSales: spbSales ? '✅' : '❌',
+    euraflowConfig: euraflowConfig ? '✅' : '❌'
   });
 
-  // 5. 返回数据
+  // 4. 返回数据（不再单独返回 dimensions，全部在 ozonProduct 中）
   return {
-    ozonProduct,
+    ozonProduct: productDetail,
     spbSales,
-    dimensions,
     euraflowConfig
   };
 }

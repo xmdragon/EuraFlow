@@ -90,13 +90,15 @@ export async function injectCompleteDisplay(data: {
   price: number | null;
   ozonProduct: any;
   spbSales: any | null;
-  dimensions: any | null;
   euraflowConfig: any | null;
 }): Promise<void> {
   // 注入 EuraFlow 样式（仅注入一次）
   injectEuraflowStyles();
 
-  const { message, price, ozonProduct, spbSales, dimensions, euraflowConfig } = data;
+  const { message, price, ozonProduct, spbSales, euraflowConfig } = data;
+
+  // dimensions 直接从 ozonProduct 中获取
+  const dimensions = ozonProduct?.dimensions || null;
 
   // 获取目标容器
   const container = document.querySelector('.container') as HTMLElement | null;
@@ -407,9 +409,9 @@ function createFollowButton(
       }
 
       // 使用计算出的真实售价，而不是 OZON 的绿色价格
+      // ozonProduct 已经包含 dimensions，不需要单独传递
       const productData = {
         ...ozonProduct,
-        dimensions,
         price: realPrice,  // 使用真实售价
         primary_image: spbSales?.photo || null  // 使用上品帮的主图（photo 字段）
       };

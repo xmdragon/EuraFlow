@@ -266,7 +266,6 @@ class OrderSyncService:
         posting_number = posting_data.get("posting_number")
 
         # 先尝试通过 ozon_order_id 查找订单
-        print(f"[查找调试-PRINT] 查找订单: ozon_order_id={order_id}, shop_id={self.shop_id}, posting_number={posting_number}")
         stmt = select(OzonOrder).where(
             and_(
                 OzonOrder.shop_id == self.shop_id,
@@ -274,11 +273,9 @@ class OrderSyncService:
             )
         )
         order = await session.scalar(stmt)
-        print(f"[查找调试-PRINT] 通过ozon_order_id查找结果: {order.id if order else 'None'}")
 
         # 如果没找到，尝试通过 posting_number 查找关联的临时订单（webhook创建的）
         if not order:
-            print(f"[查找调试-PRINT] 通过posting_number查找: posting_number={posting_number}, shop_id={self.shop_id}")
             posting_stmt = select(OzonPosting).where(
                 and_(
                     OzonPosting.shop_id == self.shop_id,
@@ -286,18 +283,14 @@ class OrderSyncService:
                 )
             )
             existing_posting = await session.scalar(posting_stmt)
-            print(f"[查找调试-PRINT] 找到posting: {existing_posting.id if existing_posting else 'None'}, order_id={existing_posting.order_id if existing_posting else 'None'}")
             if existing_posting and existing_posting.order_id:
                 order = await session.get(OzonOrder, existing_posting.order_id)
-                print(f"[查找调试-PRINT] 通过posting找到order: {order.id if order else 'None'}, ozon_order_id={order.ozon_order_id if order else 'None'}")
                 # 更新临时订单的 ozon_order_id 为真实值
                 if order and order.ozon_order_id.startswith("webhook_"):
-                    print(f"[查找调试-PRINT] 更新webhook订单: {order.id} -> ozon_order_id={order_id}")
                     order.ozon_order_id = str(order_id)
                     order.order_id = f"OZ-{order_id}"
 
         if not order:
-            print(f"[查找调试-PRINT] 未找到订单，创建新订单")
             # 创建新订单
             # ordered_at: 优先使用created_at，其次in_process_at，最后使用当前时间
             ordered_at = (
@@ -480,12 +473,6 @@ class OrderSyncService:
         products: List[Dict]
     ):
         """处理订单商品明细"""
-        print(f"[测试-PRINT] _process_order_items被调用: order_id={order.id}, products={products}")
-        logger.info(f"[同步调试] _process_order_items: order_id={order.id}, products_count={len(products)}")
-
-        # 强制抛出异常进行测试
-        if order.id == 5380:
-            raise Exception(f"[测试异常] 订单5380的商品处理被调用，products数量={len(products)}")
 
         # 删除旧商品（用于更新场景）- 使用异步查询而不是懒加载
         stmt = select(OzonOrderItem).where(OzonOrderItem.order_id == order.id)

@@ -8,6 +8,7 @@ import { findPrices, calculateRealPrice } from './calculator';
 import { injectCompleteDisplay } from './display';
 import { configCache } from '../../shared/config-cache';
 import { ApiClient } from '../../shared/api-client';
+import { extractProductData } from '../parsers/product-detail';
 
 /**
  * 提取商品ID从URL
@@ -148,17 +149,31 @@ export class RealPriceCalculator {
         return;
       }
 
-      // 4. 【先采集数据】（耗时操作，不等待 DOM）
-      console.log('[EuraFlow] 开始采集商品数据...');
+      // 4. 【先提取变体数据】（必须在 content script 中调用 Modal API）
+      console.log('[EuraFlow] 开始提取商品详情数据（包括变体）...');
 
+      let productDetail = null;
+      try {
+        productDetail = await extractProductData();
+        console.log('[EuraFlow] ✅ 商品详情提取完成:', {
+          标题: productDetail.title,
+          变体数量: productDetail.variants?.length || 0,
+          有变体: productDetail.has_variants
+        });
+      } catch (error: any) {
+        console.error('[EuraFlow] ❌ 商品详情提取失败:', error);
+        console.error('[EuraFlow] 错误堆栈:', error?.stack);
+      }
+
+      // 5. 【发送数据到 background】（包含已提取的变体数据）
       const pageCookie = document.cookie;
-
       const response = await chrome.runtime.sendMessage({
         type: 'FETCH_ALL_PRODUCT_DATA',
         data: {
           url: window.location.href,
           productSku: productId,
-          cookieString: pageCookie
+          cookieString: pageCookie,
+          productDetail: productDetail  // 传递已提取的完整商品数据
         }
       });
 
@@ -177,13 +192,14 @@ export class RealPriceCalculator {
         console.warn('[EuraFlow] ⚠️ DOM 未完全稳定，但数据已准备好，继续注入');
       }
 
-      const { ozonProduct, spbSales, dimensions, euraflowConfig } = response.data;
+      const { ozonProduct, spbSales, euraflowConfig } = response.data;
 
       console.log('[EuraFlow] 最终数据:', {
         realPrice: { message, price },
         ozonProduct: ozonProduct ? '✓' : '✗',
+        变体数量: ozonProduct?.variants?.length || 0,
+        尺寸数据: ozonProduct?.dimensions ? '✓' : '✗',
         spbSales: spbSales ? '✓' : '✗',
-        dimensions: dimensions ? '✓' : '✗',
         euraflowConfig: euraflowConfig ? '✓' : '✗'
       });
 
@@ -193,7 +209,6 @@ export class RealPriceCalculator {
         price,
         ozonProduct,
         spbSales,
-        dimensions,
         euraflowConfig
       });
 
