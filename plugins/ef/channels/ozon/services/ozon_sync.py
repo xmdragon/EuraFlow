@@ -1678,7 +1678,8 @@ class OzonSyncService:
 
             # OZON平台SKU
             ozon_sku = product.get("sku")
-            name = product.get("name", "")
+            # 商品名称限制为500字符，防止数据库错误
+            name = (product.get("name", "") or "")[:500]
 
             # 计算总价
             total_amount = price * quantity

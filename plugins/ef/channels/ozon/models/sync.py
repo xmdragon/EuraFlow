@@ -35,7 +35,7 @@ class OzonSyncCheckpoint(Base):
     
     # 同步状态
     status = Column(String(50), default="idle")  # idle/running/failed
-    error_message = Column(String(1000))
+    error_message = Column(String(5000))  # 增加长度，防止错误消息被截断
     retry_count = Column(Integer, default=0)
     
     # 统计
