@@ -74,10 +74,10 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   // 同步订单 Mutation
   const syncOrderMutation = useMutation({
     mutationFn: () => {
-      if (!posting?.shop_id) {
+      if (!posting?.order?.shop_id) {
         throw new Error('缺少店铺ID');
       }
-      return ozonApi.syncSingleOrder(postingNumber, posting.shop_id);
+      return ozonApi.syncSingleOrder(postingNumber, posting.order.shop_id);
     },
     onSuccess: () => {
       notifySuccess('同步成功', '订单数据已同步，正在重新加载...');
