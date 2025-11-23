@@ -473,7 +473,12 @@ class OrderSyncService:
         products: List[Dict]
     ):
         """处理订单商品明细"""
+        print(f"[测试-PRINT] _process_order_items被调用: order_id={order.id}, products={products}")
         logger.info(f"[同步调试] _process_order_items: order_id={order.id}, products_count={len(products)}")
+
+        # 强制抛出异常进行测试
+        if order.id == 5380:
+            raise Exception(f"[测试异常] 订单5380的商品处理被调用，products数量={len(products)}")
 
         # 删除旧商品（用于更新场景）- 使用异步查询而不是懒加载
         stmt = select(OzonOrderItem).where(OzonOrderItem.order_id == order.id)
