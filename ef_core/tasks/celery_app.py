@@ -446,6 +446,8 @@ def _initialize_plugins_for_celery():
                     task_registry = loop.run_until_complete(async_init())
                 finally:
                     loop.close()
+                    # 重要：清理事件循环引用，避免后续冲突
+                    asyncio.set_event_loop(None)
             else:
                 raise
 

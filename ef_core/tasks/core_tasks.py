@@ -5,7 +5,6 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from ef_core.database import get_db_manager
 from ef_core.event_bus import get_event_bus
 from ef_core.utils.logger import get_logger
 from .base import task_with_context, retry_task
@@ -24,13 +23,33 @@ async def system_health_check() -> Dict[str, Any]:
         "checks": {}
     }
     
-    # 检查数据库连接
+    # 检查数据库连接（使用独立引擎避免事件循环冲突）
     try:
-        db_manager = get_db_manager()
-        db_healthy = await db_manager.check_connection()
+        from sqlalchemy.ext.asyncio import create_async_engine
+        from ef_core.config import get_settings
+
+        settings = get_settings()
+        start_time = datetime.utcnow()
+
+        # 创建独立的引擎实例（不使用单例，避免事件循环绑定问题）
+        temp_engine = create_async_engine(
+            settings.database_url,
+            pool_pre_ping=True,
+            pool_size=1,
+            max_overflow=0,
+        )
+        try:
+            async with temp_engine.begin() as conn:
+                from sqlalchemy import text
+                await conn.execute(text("SELECT 1"))
+            db_healthy = True
+        finally:
+            await temp_engine.dispose()
+
+        latency_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         health_status["checks"]["database"] = {
             "status": "healthy" if db_healthy else "unhealthy",
-            "latency_ms": 0  # TODO: 测量延迟
+            "latency_ms": latency_ms
         }
     except Exception as e:
         logger.error("Database health check failed", exc_info=True)
@@ -90,36 +109,29 @@ async def system_health_check() -> Dict[str, Any]:
 async def cleanup_expired_data(older_than_days: int = 7) -> Dict[str, Any]:
     """清理过期数据"""
     logger.info(f"Starting cleanup of data older than {older_than_days} days")
-    
+
     cutoff_date = datetime.utcnow() - timedelta(days=older_than_days)
     cleanup_results = {
         "cutoff_date": cutoff_date.isoformat() + "Z",
         "cleaned": {}
     }
-    
-    db_manager = get_db_manager()
-    
-    try:
-        async with db_manager.get_transaction() as session:
-            # TODO: 清理过期的任务结果
-            # TODO: 清理过期的日志记录  
-            # TODO: 清理过期的事件记录
-            
-            # 示例：清理过期的订单快照（如果有）
-            # result = await session.execute(
-            #     text("DELETE FROM order_snapshots WHERE created_at < :cutoff"),
-            #     {"cutoff": cutoff_date}
-            # )
-            # cleanup_results["cleaned"]["order_snapshots"] = result.rowcount
-            
-            await session.commit()
-            
-        logger.info("Data cleanup completed", results=cleanup_results)
-        return cleanup_results
-        
-    except Exception as e:
-        logger.error("Data cleanup failed", exc_info=True)
-        raise
+
+    # TODO: 实现清理逻辑
+    # 当需要执行数据库操作时，使用独立引擎避免事件循环冲突：
+    # from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    # from ef_core.config import get_settings
+    # settings = get_settings()
+    # temp_engine = create_async_engine(settings.database_url, pool_size=1, max_overflow=0)
+    # try:
+    #     async_session = async_sessionmaker(temp_engine, expire_on_commit=False)
+    #     async with async_session() as session:
+    #         # 执行清理操作
+    #         pass
+    # finally:
+    #     await temp_engine.dispose()
+
+    logger.info("Data cleanup completed (no-op)", results=cleanup_results)
+    return cleanup_results
 
 
 @task_with_context(bind=False, name="ef.core.metrics_collection")
@@ -135,10 +147,9 @@ async def collect_system_metrics() -> Dict[str, Any]:
     }
     
     try:
-        # 收集数据库指标
-        db_manager = get_db_manager()
-        # TODO: 收集连接池状态、慢查询等
-        
+        # TODO: 收集数据库指标（连接池状态、慢查询等）
+        # 如需数据库操作，使用独立引擎避免事件循环冲突
+
         # 收集插件指标
         from ef_core.plugin_host import get_plugin_host
         plugin_host = get_plugin_host()
