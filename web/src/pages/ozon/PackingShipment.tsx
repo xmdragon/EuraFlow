@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any */
 /**
  * Ozon 打包发货页面 - 只显示等待备货的订单
  */
@@ -11,11 +10,7 @@ import {
   CheckCircleOutlined,
   ShoppingCartOutlined,
   FileTextOutlined,
-  CopyOutlined,
-  EditOutlined,
-  DeleteOutlined,
   PlusOutlined,
-  SaveOutlined,
   RocketOutlined,
   CloseCircleOutlined,
 } from '@ant-design/icons';
@@ -26,24 +21,16 @@ import {
   Card,
   Input,
   Select,
-  Tag,
-  Tooltip,
-  Descriptions,
   Tabs,
   Form,
   Alert,
   Typography,
-  Progress,
-  Avatar,
-  Table,
   App,
 } from 'antd';
-import moment from 'moment';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { useCurrency } from '../../hooks/useCurrency';
-import { getCurrencySymbol } from '../../utils/currency';
 import {
   statusConfig,
   operationStatusConfig,
@@ -62,25 +49,22 @@ import PackingSearchBar from '@/components/ozon/packing/PackingSearchBar';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
-import PrintErrorModal, { type FailedPosting } from '@/components/ozon/packing/PrintErrorModal';
+import PrintErrorModal from '@/components/ozon/packing/PrintErrorModal';
 import EditNotesModal from '@/components/ozon/packing/EditNotesModal';
 import ImagePreview from '@/components/ImagePreview';
 import PrintLabelModal from '@/components/ozon/packing/PrintLabelModal';
 import ShipOrderModal from '@/components/ozon/packing/ShipOrderModal';
 import ScanResultTable from '@/components/ozon/packing/ScanResultTable';
 import PageTitle from '@/components/PageTitle';
-import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
-import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import { useQuickMenu } from '@/hooks/useQuickMenu';
 import { useBatchPrint } from '@/hooks/useBatchPrint';
 import { useBatchSync } from '@/hooks/useBatchSync';
 import { readAndValidateClipboard, markClipboardRejected } from '@/hooks/useClipboard';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 const { Option } = Select;
 const { Text } = Typography;
@@ -119,64 +103,8 @@ const PackingShipment: React.FC = () => {
 
   // 批量同步Hook
   const { isSyncing: isBatchSyncing, syncProgress, batchSync } = useBatchSync({
-    onComplete: (successCount, failedCount) => {
+    onComplete: (_successCount, _failedCount) => {
       // 刷新数据
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['packingStats'] });
-      resetAndRefresh();
-    },
-  });
-
-  // 订单同步轮询 Hook（与 OrderList.tsx 相同）
-  const { startPolling: startOrderSyncPolling } = useAsyncTaskPolling({
-    getStatus: async (taskId) => {
-      const result = await ozonApi.getSyncStatus(taskId);
-      const status = result.data || result;
-
-      if (status.status === 'completed') {
-        return { state: 'SUCCESS', result: status };
-      } else if (status.status === 'failed') {
-        return { state: 'FAILURE', error: status.error || '未知错误' };
-      } else {
-        return { state: 'PROGRESS', info: status };
-      }
-    },
-    pollingInterval: 2000,
-    timeout: 30 * 60 * 1000,
-    notificationKey: 'packing-order-sync',
-    initialMessage: '订单同步进行中',
-    formatProgressContent: (info) => {
-      const percent = Math.round(info.progress || 0);
-      let displayMessage = info.message || '同步中...';
-
-      // 匹配 "正在同步 awaiting_deliver 订单 56210030-0227-1..." 格式
-      const matchWithStatus = displayMessage.match(/正在同步\s+(\w+)\s+订单\s+([0-9-]+)/);
-      if (matchWithStatus) {
-        const status = matchWithStatus[1];
-        const postingNumber = matchWithStatus[2];
-        const statusText = OZON_ORDER_STATUS_MAP[status] || status;
-        displayMessage = `正在同步【${statusText}】订单：${postingNumber}`;
-      } else {
-        // 简单匹配订单号
-        const match = displayMessage.match(/订单\s+([0-9-]+)/);
-        if (match) {
-          displayMessage = `同步订单：${match[1]}`;
-        }
-      }
-
-      return (
-        <div>
-          <Progress percent={percent} size="small" status="active" />
-          <div style={{ marginTop: 8 }}>{displayMessage}</div>
-        </div>
-      );
-    },
-    formatSuccessMessage: () => ({
-      title: '同步完成',
-      description: '订单同步已完成！',
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
       queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
       queryClient.invalidateQueries({ queryKey: ['packingStats'] });
       resetAndRefresh();
@@ -219,14 +147,14 @@ const PackingShipment: React.FC = () => {
   const [selectedProductName, setSelectedProductName] = useState<string>('');
 
   // 搜索参数状态（只支持 posting_number 搜索）
-  const [searchParams, setSearchParams] = useState<any>({});
+  const [searchParams, setSearchParams] = useState<Record<string, string | number | undefined>>({});
 
   // 批量打印标签状态
   const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
 
   // 扫描单号状态
   const [scanTrackingNumber, setScanTrackingNumber] = useState<string>('');
-  const [scanResults, setScanResults] = useState<any[]>([]); // 改为数组，支持多个结果
+  const [scanResults, setScanResults] = useState<ozonApi.PostingWithOrder[]>([]); // 改为数组，支持多个结果
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
   // 扫描结果的批量打印状态
@@ -240,7 +168,7 @@ const PackingShipment: React.FC = () => {
   const [lastAutoFilledContent, setLastAutoFilledContent] = useState<string>('');
   // 编辑备注弹窗状态
   const [editNotesModalVisible, setEditNotesModalVisible] = useState(false);
-  const [editingPosting, setEditingPosting] = useState<any>(null);
+  const [editingPosting, setEditingPosting] = useState<ozonApi.PostingWithOrder | null>(null);
 
   // 采购平台筛选状态（单选）
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
@@ -254,7 +182,7 @@ const PackingShipment: React.FC = () => {
   const [currentPrintingPostings, setCurrentPrintingPostings] = useState<string[]>([]); // 批量打印的postings
 
   // 扫描输入框的 ref，用于重新聚焦
-  const scanInputRef = React.useRef<any>(null);
+  const scanInputRef = React.useRef<HTMLInputElement>(null);
 
   // 图片预览状态
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
@@ -383,7 +311,7 @@ const PackingShipment: React.FC = () => {
         : itemsPerRow * INITIAL_ROWS + (currentPageRef.current - 2) * itemsPerRow * LOAD_MORE_ROWS;
 
       // 第一个标签使用OZON原生状态，其他标签使用operation_status
-      const queryParams: any = {
+      const queryParams: Record<string, string | number | undefined | null> = {
         shop_id: selectedShop,
         ...searchParams, // 展开所有搜索参数（posting_number/sku/tracking_number/domestic_tracking_number）
         offset, // 传递计算好的offset
@@ -619,27 +547,6 @@ const PackingShipment: React.FC = () => {
     return formatPackingPrice(price, userCurrency);
   };
 
-  // 同步订单
-  const syncOrdersMutation = useMutation({
-    mutationFn: (fullSync: boolean) => {
-      if (!selectedShop) {
-        throw new Error('请先选择店铺');
-      }
-      return ozonApi.syncOrdersDirect(selectedShop, fullSync ? 'full' : 'incremental');
-    },
-    onSuccess: (data) => {
-      const taskId = data?.task_id || data?.data?.task_id;
-      if (taskId) {
-        startOrderSyncPolling(taskId);
-      } else {
-        notifyError('同步失败', '未获取到任务ID，请稍后重试');
-      }
-    },
-    onError: (error: Error) => {
-      notifyError('同步失败', `同步失败: ${error.message}`);
-    },
-  });
-
   // 发货
   const shipOrderMutation = useMutation({
     mutationFn: ozonApi.shipOrder,
@@ -751,7 +658,7 @@ const PackingShipment: React.FC = () => {
   };
 
   // 检查是否需要打印确认（国内单号≥2 或 商品数量>1 或 多个商品）
-  const checkNeedsConfirmation = (postings: (ozonApi.Posting | ozonApi.PostingWithOrder | any)[]): boolean => {
+  const checkNeedsConfirmation = (postings: (ozonApi.Posting | ozonApi.PostingWithOrder)[]): boolean => {
     return postings.some((posting) => {
       // 检查国内单号数量
       const trackingCount = posting.domestic_tracking_numbers?.length || 0;
@@ -770,7 +677,7 @@ const PackingShipment: React.FC = () => {
       }
 
       // 检查单个商品的数量是否>1
-      const hasHighQuantity = items.some((product: any) => product.quantity > 1);
+      const hasHighQuantity = items.some((product: ozonApi.OrderItem) => product.quantity > 1);
       if (hasHighQuantity) {
         logger.info('触发打印确认：商品数量>1', { posting_number: posting.posting_number });
         return true;
@@ -884,9 +791,9 @@ const PackingShipment: React.FC = () => {
         setScanResults([]);
         setScanError('未找到对应的订单');
       }
-    } catch (error) {
+    } catch (_error: unknown) {
       setScanResults([]);
-      setScanError(`查询失败: ${error.response?.data?.error?.title || error.message}`);
+      setScanError(`查询失败: ${(_error as { response?: { data?: { error?: { title?: string } } }; message?: string })?.response?.data?.error?.title || (_error as { message?: string })?.message}`);
     } finally {
       // 无论成功失败都清空输入框
       setScanTrackingNumber('');
@@ -895,26 +802,6 @@ const PackingShipment: React.FC = () => {
       setTimeout(() => {
         scanInputRef.current?.focus();
       }, 100);
-    }
-  };
-
-  // 标记为已打印
-  const handleMarkPrinted = async (postingNumber: string) => {
-    try {
-      await ozonApi.markPostingPrinted(postingNumber);
-      notifySuccess('标记成功', '已标记为已打印');
-      // 刷新扫描结果
-      if (scanTrackingNumber.trim()) {
-        handleScanSearch();
-      }
-      // 刷新计数和列表
-      queryClient.invalidateQueries({ queryKey: ['packingOrdersCount'] });
-      queryClient.invalidateQueries({ queryKey: ['packingOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['packingStats'] });
-      // 从当前列表中移除该posting
-      setAllPostings((prev) => prev.filter((p) => p.posting_number !== postingNumber));
-    } catch (error) {
-      notifyError('标记失败', `标记失败: ${error.response?.data?.error?.title || error.message}`);
     }
   };
 
@@ -1078,7 +965,7 @@ const PackingShipment: React.FC = () => {
   };
 
   // 打开编辑备注弹窗
-  const handleOpenEditNotes = (posting: any) => {
+  const handleOpenEditNotes = (posting: ozonApi.PostingWithOrder) => {
     setEditingPosting(posting);
     setEditNotesModalVisible(true);
   };
@@ -1326,6 +1213,7 @@ const PackingShipment: React.FC = () => {
                       setDomesticTrackingModalVisible(true);
                     }}
                     onShowDetail={showOrderDetail}
+                    onOpenPriceHistory={handleOpenPriceHistoryCallback}
                     shopNameMap={shopNameMap}
                     canOperate={canOperate}
                     isPrinting={isPrinting}
@@ -1562,7 +1450,7 @@ const PackingShipment: React.FC = () => {
                     prev.filter((p) => p.posting_number !== currentPosting.posting_number)
                   );
                 }
-              } catch (error) {
+              } catch {
                 // 查询失败，从列表移除
                 setScanResults((prev) =>
                   prev.filter((p) => p.posting_number !== currentPosting.posting_number)

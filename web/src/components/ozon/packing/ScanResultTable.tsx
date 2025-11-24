@@ -37,6 +37,7 @@ interface ScanResultTableProps {
   onOpenEditNotes: (posting: ozonApi.PostingWithOrder) => void;
   onOpenDomesticTracking: (posting: ozonApi.PostingWithOrder) => void;
   onShowDetail?: (order: ozonApi.Order, posting: ozonApi.Posting) => void;
+  onOpenPriceHistory?: (sku: string, productName: string) => void;
   shopNameMap: Record<number, string>;
   canOperate: boolean;
   isPrinting: boolean;
@@ -51,6 +52,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
   onOpenEditNotes,
   onOpenDomesticTracking,
   onShowDetail,
+  onOpenPriceHistory,
   shopNameMap,
   canOperate,
   isPrinting,
@@ -188,10 +190,10 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
               >
                 <div>
                   <Text type="secondary">SKU: </Text>
-                  {onShowDetail && item.sku ? (
+                  {onOpenPriceHistory && item.sku ? (
                     <>
                       <a
-                        onClick={() => onShowDetail(row.posting.order || row.posting, row.posting)}
+                        onClick={() => onOpenPriceHistory(item.sku, item.name || item.sku)}
                         style={{
                           color: "#1890ff",
                           cursor: "pointer",
