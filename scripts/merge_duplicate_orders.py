@@ -65,9 +65,7 @@ async def merge_duplicate_orders():
                 ).values(order_id=real_order.id)
                 await session.execute(stmt)
 
-                # 迁移 returns
-                from plugins.ef.channels.ozon.models.orders import OzonReturn
-                # 首先更新 returns 的 order_id
+                # 迁移 returns（直接使用 SQL）
                 from sqlalchemy import text
                 await session.execute(
                     text("UPDATE ozon_returns SET order_id = :new_id WHERE order_id = :old_id"),
