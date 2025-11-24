@@ -1,16 +1,29 @@
 /**
  * 采集记录详情弹窗
  * UI风格参考浏览器扩展的"跟卖"弹窗
+ * 支持变体切换和图片预览
  */
 import { LinkOutlined } from '@ant-design/icons';
 import { Modal, Descriptions, Image, Tag } from 'antd';
 import dayjs from 'dayjs';
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 
 import styles from './CollectionRecordDetailModal.module.scss';
 
 import ProductImage from '@/components/ozon/ProductImage';
 import { useCurrency } from '@/hooks/useCurrency';
+
+interface Variant {
+  variant_id: string;
+  specifications: string;
+  spec_details?: Record<string, string>;
+  image_url: string;
+  images?: { url: string; is_primary?: boolean }[];
+  price: number;
+  original_price?: number;
+  available: boolean;
+  link?: string;
+}
 
 interface CollectionRecordData {
   id: number;
@@ -22,12 +35,14 @@ interface CollectionRecordData {
     product_id?: string;
     title?: string;
     title_cn?: string;
-    images?: string[];
+    images?: { url: string; is_primary?: boolean }[];
     price?: number;
     old_price?: number;
     currency?: string;
     description?: string;
     specifications?: Record<string, any>;
+    variants?: Variant[];
+    has_variants?: boolean;
     [key: string]: any;
   };
   created_at: string;
@@ -46,19 +61,47 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
   onClose,
 }) => {
   const { formatPrice } = useCurrency();
+  const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
+
+  // 当弹窗关闭时重置选中的变体
+  const handleClose = () => {
+    setSelectedVariantIndex(0);
+    onClose();
+  };
 
   if (!record) return null;
 
   const { product_data } = record;
-  // 提取图片URL：images 是对象数组 [{url: "...", is_primary: true}, ...]
-  const imageObjects = product_data?.images || [];
-  const images = imageObjects.map((img: any) => img?.url).filter(Boolean);
-  const mainImage = images[0] || '';
+  const variants = product_data?.variants || [];
+  const hasVariants = variants.length > 0;
+
+  // 获取当前选中的变体或使用商品基础数据
+  const currentVariant = hasVariants ? variants[selectedVariantIndex] : null;
+
+  // 提取当前变体的图片
+  const currentImages = useMemo(() => {
+    if (currentVariant?.images && currentVariant.images.length > 0) {
+      return currentVariant.images.map(img => img.url).filter(Boolean);
+    }
+    if (product_data?.images && product_data.images.length > 0) {
+      return product_data.images.map((img: any) => img?.url || img).filter(Boolean);
+    }
+    return [];
+  }, [currentVariant, product_data?.images]);
+
+  const mainImage = currentVariant?.image_url || currentImages[0] || '';
+
+  // 获取当前价格
+  const currentPrice = currentVariant?.price || product_data?.price || 0;
+  const currentOriginalPrice = currentVariant?.original_price || product_data?.old_price;
+
+  // 获取当前规格
+  const currentSpecifications = currentVariant?.specifications || '';
 
   return (
     <Modal
       open={visible}
-      onCancel={onClose}
+      onCancel={handleClose}
       footer={null}
       width={920}
       className={styles.detailModal}
@@ -74,15 +117,26 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
         <div className={styles.imageSection}>
           {mainImage ? (
             <div className={styles.imageWrapper}>
-              <ProductImage
-                imageUrl={mainImage}
-                size="medium"
-                hoverBehavior="none"
-                name={product_data?.title}
-              />
+              <Image.PreviewGroup>
+                <Image
+                  src={mainImage}
+                  alt={product_data?.title}
+                  width={200}
+                  height={200}
+                  style={{ objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }}
+                />
+                {currentImages.slice(1).map((img, idx) => (
+                  <Image
+                    key={idx}
+                    src={img}
+                    alt={`图片 ${idx + 2}`}
+                    style={{ display: 'none' }}
+                  />
+                ))}
+              </Image.PreviewGroup>
               {/* 右上角来源链接 */}
               <a
-                href={record.source_url}
+                href={currentVariant?.link || record.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.sourceLink}
@@ -104,14 +158,47 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
               {product_data.title_cn}
             </div>
           )}
+          {/* 显示当前变体规格 */}
+          {currentSpecifications && (
+            <div className={styles.currentSpec}>
+              <Tag color="blue">{currentSpecifications}</Tag>
+            </div>
+          )}
           <div className={styles.metadata}>
             <span>采集时间：{dayjs(record.created_at).format('YYYY-MM-DD HH:mm:ss')}</span>
-            {images.length > 1 && (
-              <span>{images.length} 张图片</span>
+            {currentImages.length > 1 && (
+              <span>{currentImages.length} 张图片</span>
+            )}
+            {hasVariants && (
+              <span>{variants.length} 个变体</span>
             )}
           </div>
         </div>
       </div>
+
+      {/* 变体缩略图列表 */}
+      {hasVariants && (
+        <div className={styles.variantSelector}>
+          <div className={styles.variantTitle}>选择变体：</div>
+          <div className={styles.variantGrid}>
+            {variants.map((variant, index) => (
+              <div
+                key={variant.variant_id}
+                className={`${styles.variantItem} ${index === selectedVariantIndex ? styles.variantItemActive : ''}`}
+                onClick={() => setSelectedVariantIndex(index)}
+                title={variant.specifications}
+              >
+                <img
+                  src={variant.image_url}
+                  alt={variant.specifications}
+                  className={styles.variantImage}
+                />
+                <div className={styles.variantSpec}>{variant.specifications}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 商品信息表格 */}
       <div className={styles.detailSection}>
@@ -122,18 +209,24 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
             </Descriptions.Item>
           )}
 
-          {product_data?.price !== undefined && (
+          {currentVariant?.variant_id && (
+            <Descriptions.Item label="变体ID">
+              {currentVariant.variant_id}
+            </Descriptions.Item>
+          )}
+
+          {currentPrice !== undefined && (
             <Descriptions.Item label="价格">
               <span className={styles.price}>
-                {formatPrice(product_data.price)}
+                {formatPrice(currentPrice)}
               </span>
             </Descriptions.Item>
           )}
 
-          {product_data?.old_price && (
+          {currentOriginalPrice && (
             <Descriptions.Item label="划线价">
               <span className={styles.oldPrice}>
-                {formatPrice(product_data.old_price)}
+                {formatPrice(currentOriginalPrice)}
               </span>
             </Descriptions.Item>
           )}
@@ -186,16 +279,18 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
       </div>
 
       {/* 图片轮播区 */}
-      {images.length > 1 && (
+      {currentImages.length > 1 && (
         <div className={styles.imageGallery}>
-          <div className={styles.galleryTitle}>商品图片 ({images.length})</div>
+          <div className={styles.galleryTitle}>
+            {hasVariants ? '当前变体图片' : '商品图片'} ({currentImages.length})
+          </div>
           <div className={styles.galleryGrid}>
             <Image.PreviewGroup>
-              {images.map((img, index) => (
+              {currentImages.map((img, index) => (
                 <div key={index} className={styles.galleryItem}>
                   <Image
                     src={img}
-                    alt={`商品图片 ${index + 1}`}
+                    alt={`图片 ${index + 1}`}
                     width={100}
                     height={100}
                     style={{ objectFit: 'cover', borderRadius: '4px' }}

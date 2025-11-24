@@ -56,25 +56,39 @@ export const ProductToolbar: React.FC<ProductToolbarProps> = ({
     <div className={styles.actionWrapper}>
       <Space>
         {canSync && (
-          <Button
-            type="primary"
-            icon={<SyncOutlined />}
-            onClick={onIncrementalSync}
-            loading={syncLoading}
-            disabled={!hasSelectedShop}
+          <Tooltip
+            title={
+              hasSelectedShop
+                ? '同步当前店铺的商品'
+                : '同步所有有管理权限的店铺'
+            }
           >
-            增量同步
-          </Button>
+            <Button
+              type="primary"
+              icon={<SyncOutlined />}
+              onClick={onIncrementalSync}
+              loading={syncLoading}
+            >
+              增量同步
+            </Button>
+          </Tooltip>
         )}
         {canSync && (
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={onFullSync}
-            loading={syncLoading}
-            disabled={!hasSelectedShop}
+          <Tooltip
+            title={
+              hasSelectedShop
+                ? '全量同步当前店铺的商品'
+                : '全量同步所有有管理权限的店铺'
+            }
           >
-            全量同步
-          </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={onFullSync}
+              loading={syncLoading}
+            >
+              全量同步
+            </Button>
+          </Tooltip>
         )}
         {canOperate && (
           <Tooltip

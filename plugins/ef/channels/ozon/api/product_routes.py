@@ -21,6 +21,140 @@ router = APIRouter(tags=["ozon-products"])
 logger = logging.getLogger(__name__)
 
 
+async def _sync_all_shops(
+    db: AsyncSession,
+    current_user: User,
+    full_sync: bool
+) -> Dict[str, Any]:
+    """
+    同步用户有权限的所有店铺
+
+    Args:
+        db: 数据库会话
+        current_user: 当前用户
+        full_sync: 是否全量同步
+
+    Returns:
+        包含父任务ID的响应
+    """
+    import asyncio
+    import uuid
+    from ..services import OzonSyncService
+    from ..services.ozon_sync import SYNC_TASKS
+    from ef_core.database import get_db_manager
+
+    # 获取用户有权限的店铺列表
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, None)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    # 如果用户没有任何店铺权限
+    if not allowed_shop_ids:
+        return {
+            "success": False,
+            "message": "您没有任何店铺的管理权限",
+            "error": "No shops authorized"
+        }
+
+    # 查询店铺详情
+    query = select(OzonShop)
+    if allowed_shop_ids is not None:
+        query = query.where(OzonShop.id.in_(allowed_shop_ids))
+
+    result = await db.execute(query)
+    shops = result.scalars().all()
+
+    if not shops:
+        return {
+            "success": False,
+            "message": "未找到可同步的店铺",
+            "error": "No shops found"
+        }
+
+    # 创建父任务ID
+    parent_task_id = f"batch_sync_{uuid.uuid4().hex[:12]}"
+
+    # 初始化父任务状态
+    SYNC_TASKS[parent_task_id] = {
+        "status": "running",
+        "progress": 0,
+        "message": f"准备同步 {len(shops)} 个店铺...",
+        "started_at": datetime.now().isoformat(),
+        "type": "batch_products",
+        "shops": [{"shop_id": shop.id, "shop_name": shop.shop_name, "status": "pending"} for shop in shops],
+        "total_shops": len(shops),
+        "completed_shops": 0,
+        "mode": "full" if full_sync else "incremental"
+    }
+
+    # 在后台启动批量同步任务
+    async def _batch_sync_task():
+        """后台批量同步任务"""
+        db_manager = get_db_manager()
+        completed = 0
+        failed = 0
+
+        for idx, shop in enumerate(shops):
+            try:
+                # 更新父任务进度
+                progress = int((idx / len(shops)) * 100)
+                SYNC_TASKS[parent_task_id]["progress"] = progress
+                SYNC_TASKS[parent_task_id]["message"] = f"正在同步店铺 {shop.shop_name} ({idx + 1}/{len(shops)})"
+                SYNC_TASKS[parent_task_id]["shops"][idx]["status"] = "running"
+
+                # 创建子任务ID
+                child_task_id = f"{parent_task_id}_shop_{shop.id}"
+
+                # 使用新的数据库会话同步店铺
+                async with db_manager.get_session() as shop_db:
+                    mode = "full" if full_sync else "incremental"
+                    result = await OzonSyncService.sync_products(
+                        shop_id=shop.id,
+                        db=shop_db,
+                        task_id=child_task_id,
+                        mode=mode
+                    )
+
+                    if result.get("status") == "completed":
+                        completed += 1
+                        SYNC_TASKS[parent_task_id]["shops"][idx]["status"] = "completed"
+                        SYNC_TASKS[parent_task_id]["shops"][idx]["result"] = result.get("result", {})
+                    else:
+                        failed += 1
+                        SYNC_TASKS[parent_task_id]["shops"][idx]["status"] = "failed"
+                        SYNC_TASKS[parent_task_id]["shops"][idx]["error"] = result.get("error", "未知错误")
+
+            except Exception as e:
+                logger.error(f"批量同步店铺 {shop.id} 失败: {e}", exc_info=True)
+                failed += 1
+                SYNC_TASKS[parent_task_id]["shops"][idx]["status"] = "failed"
+                SYNC_TASKS[parent_task_id]["shops"][idx]["error"] = str(e)
+
+            SYNC_TASKS[parent_task_id]["completed_shops"] = completed + failed
+
+        # 更新父任务最终状态
+        SYNC_TASKS[parent_task_id]["status"] = "completed"
+        SYNC_TASKS[parent_task_id]["progress"] = 100
+        SYNC_TASKS[parent_task_id]["message"] = f"批量同步完成：{completed} 个成功，{failed} 个失败"
+        SYNC_TASKS[parent_task_id]["completed_at"] = datetime.now().isoformat()
+        SYNC_TASKS[parent_task_id]["result"] = {
+            "total_shops": len(shops),
+            "completed": completed,
+            "failed": failed
+        }
+
+    # 启动后台任务（不等待完成）
+    asyncio.create_task(_batch_sync_task())
+
+    return {
+        "success": True,
+        "message": f"已启动批量同步任务，共 {len(shops)} 个店铺",
+        "task_id": parent_task_id,
+        "shops": [{"id": shop.id, "name": shop.shop_name} for shop in shops]
+    }
+
+
 # ========== Pydantic Schemas ==========
 
 class ImportBySkuItem(BaseModel):
@@ -327,11 +461,19 @@ async def sync_products(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_role("operator"))
 ):
-    """同步商品数据（需要操作员权限）"""
+    """
+    同步商品数据（需要操作员权限）
+
+    支持两种模式：
+    1. 指定 shop_id：同步单个店铺
+    2. 不指定 shop_id：同步用户有权限的所有店铺
+    """
     full_sync = request.get("full_sync", False)
-    shop_id = request.get("shop_id")  # 必须明确指定店铺ID
+    shop_id = request.get("shop_id")  # 可选，为空时同步所有店铺
+
+    # 如果未指定店铺，则同步用户有权限的所有店铺
     if not shop_id:
-        raise HTTPException(status_code=400, detail="shop_id is required")
+        return await _sync_all_shops(db, current_user, full_sync)
 
     # 从数据库获取店铺信息
     result = await db.execute(

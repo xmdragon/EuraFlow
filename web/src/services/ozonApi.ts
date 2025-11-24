@@ -291,16 +291,15 @@ export const syncProducts = async (
   shopId?: number | null,
   fullSync: boolean = false,
 ) => {
-  // 如果没有指定店铺，获取第一个店铺
+  // 如果没有指定店铺，调用批量同步端点（同步所有有权限的店铺）
   if (!shopId) {
-    const shopsResponse = await apiClient.get("/ozon/shops");
-    const shops = shopsResponse.data.data;
-    if (!shops || shops.length === 0) {
-      throw new Error("没有找到可用的店铺");
-    }
-    shopId = shops[0].id;
+    const response = await apiClient.post("/ozon/products/sync", {
+      full_sync: fullSync,
+    });
+    return response.data;
   }
 
+  // 指定店铺时，调用单店铺同步端点
   const response = await apiClient.post(`/ozon/shops/${shopId}/sync`, null, {
     params: {
       sync_type: "products",

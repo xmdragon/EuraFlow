@@ -43,6 +43,9 @@ import * as ozonApi from '@/services/ozonApi';
 import type { CategoryAttribute, DictionaryValue } from '@/services/ozonApi';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import * as productTitleService from '@/services/ozon/productTitleService';
+import * as categoryService from '@/services/ozon/categoryService';
+import * as productSubmitService from '@/services/ozon/productSubmitService';
 import { VariantImageManagerModal } from '@/components/ozon/VariantImageManagerModal';
 import VideoManagerModal from './components/VideoManagerModal';
 import { useVideoManager } from '@/hooks/useVideoManager';
@@ -242,20 +245,13 @@ const ProductCreate: React.FC = () => {
 
   // 店铺变化时动态加载类目（从 public 目录）
   useEffect(() => {
-    const loadCategoryTree = async () => {
+    const loadTree = async () => {
       if (selectedShop) {
         try {
-          const timestamp = Date.now();
-          const response = await fetch(`/data/categoryTree.json?t=${timestamp}`);
-          if (!response.ok) {
-            throw new Error('加载类目树失败');
-          }
-          const json = await response.json();
-          setCategoryTree(json.data || []);
-          setHasCategoryData(json.data?.length > 0);
+          const tree = await categoryService.loadCategoryTree();
+          setCategoryTree(tree);
+          setHasCategoryData(tree.length > 0);
         } catch (error) {
-          console.error('加载类目树失败:', error);
-          notifyError('加载失败', '无法加载类目树数据，请刷新页面重试');
           setCategoryTree([]);
           setHasCategoryData(false);
         }
@@ -265,30 +261,18 @@ const ProductCreate: React.FC = () => {
       }
     };
 
-    loadCategoryTree();
+    loadTree();
   }, [selectedShop]);
 
   /**
    * 根据类目ID获取完整路径（用于Cascader）
+   * 已迁移到 categoryService
    */
-  const getCategoryPath = (categoryId: number, tree: CategoryOption[], path: number[] = []): number[] | null => {
-    for (const node of tree) {
-      const currentPath = [...path, node.value];
-      if (node.value === categoryId) {
-        return currentPath;
-      }
-      if (node.children) {
-        const found = getCategoryPath(categoryId, node.children, currentPath);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
 
   // 监听类目树加载完成，恢复待处理的类目（草稿/模板恢复）
   useEffect(() => {
     if (categoryTree.length > 0 && pendingCategoryId) {
-      const foundPath = getCategoryPath(pendingCategoryId, categoryTree);
+      const foundPath = categoryService.getCategoryPath(pendingCategoryId, categoryTree);
 
       if (foundPath) {
         // 设置Cascader的值（需要完整路径）
@@ -312,46 +296,41 @@ const ProductCreate: React.FC = () => {
 
     setLoadingAttributes(true);
     try {
-      const result = await ozonApi.getCategoryAttributes(selectedShop, categoryId);
+      const result = await categoryService.loadCategoryAttributes({
+        shopId: selectedShop,
+        categoryId
+      });
+
       if (result.success && result.data) {
         setCategoryAttributes(result.data);
 
-        // 保存type_id（如果后端返回了的话）
+        // 保存 type_id（如果后端返回了的话）
         if (result.type_id !== undefined) {
           setTypeId(result.type_id);
-          loggers.ozon.info('类目type_id已获取', { categoryId, type_id: result.type_id });
         }
 
-        // 提取特殊字段的说明（用于更新默认字段的tooltip/help）
-        const specialDescriptions: Record<string, string> = {};
-        result.data.forEach((attr) => {
-          if (attr.attribute_id === 4180 || attr.attribute_id === 4191 || attr.attribute_id === 8790) {
-            specialDescriptions[attr.attribute_id.toString()] = attr.description || '';
-          }
-        });
+        // 提取特殊字段的说明（用于更新默认字段的 tooltip/help）
+        const specialDescriptions = categoryService.extractSpecialFieldDescriptions(result.data);
         setSpecialFieldDescriptions(specialDescriptions);
 
         // 自动添加 is_aspect=true 的属性到变体维度
-        const aspectAttributes = result.data.filter((attr) => attr.is_aspect);
+        const aspectAttributes = categoryService.extractAspectAttributes(result.data);
         if (aspectAttributes.length > 0) {
           variantManager.autoAddVariantDimensions(aspectAttributes);
         }
       } else {
         setCategoryAttributes([]);
         setTypeId(null);
-        notifyWarning('提示', '该类目暂无属性数据');
       }
     } catch (error) {
-      console.error('Failed to load category attributes:', error);
       setCategoryAttributes([]);
       setTypeId(null);
-      notifyError('加载失败', '加载类目属性失败');
     } finally {
       setLoadingAttributes(false);
     }
-  }, [selectedShop]);
+  }, [selectedShop, variantManager]);
 
-  // 加载字典值（直接调用OZON搜索API）
+  // 加载字典值（直接调用 OZON 搜索 API）
   const loadDictionaryValues = async (
     categoryId: number,
     attributeId: number,
@@ -361,62 +340,32 @@ const ProductCreate: React.FC = () => {
       return [];
     }
 
-    // 直接调用OZON搜索API（不再使用本地缓存）
-    try {
-      const result = await ozonApi.searchAttributeValues(
-        selectedShop,
-        categoryId,
-        attributeId,
-        query,
-        100
-      );
-      return result.data || [];
-    } catch (error) {
-      console.error('Failed to search attribute values:', error);
-      return [];
-    }
+    return categoryService.loadDictionaryValues(
+      selectedShop,
+      categoryId,
+      attributeId,
+      query,
+      100
+    );
   };
 
   // ========== 标题生成和翻译功能 ==========
+  // 已迁移到 productTitleService 和 categoryService
 
   /**
-   * 从类目树中查找类目名称
-   */
-  const getCategoryNameById = (categoryId: number, tree: CategoryOption[]): string | null => {
-    for (const node of tree) {
-      if (node.value === categoryId) {
-        return node.label;
-      }
-      if (node.children) {
-        const found = getCategoryNameById(categoryId, node.children);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-
-  /**
-   * OZON自动生成标题的类目列表（一级类目）
-   */
-  const OZON_AUTO_TITLE_CATEGORIES = [
-    '汽车用品', '医药保健', '家用电器', '电子游戏', '服饰用品和配饰',
-    '居家生活', '印刷书籍', '美容与健康', '家具', '音乐',
-    '鞋子', '服装', '维修与施工', '运动与休闲', '珠宝饰品', '电子产品'
-  ];
-
-  /**
-   * 生成商品标题（根据OZON官方命名规范）
+   * 生成商品标题（根据 OZON 官方命名规范）
    * 格式：类型 + 品牌 + 型号（系列 + 说明）+ 制造商货号 + ，（逗号）+ 属性
    */
   const handleGenerateTitle = () => {
-    // 1. 获取当前选择的类目名称
-    const categoryName = selectedCategory ? getCategoryNameById(selectedCategory, categoryTree) : null;
+    // 检查是否为 OZON 自动生成标题的类目
+    const categoryName = selectedCategory
+      ? productTitleService.getCategoryNameById(selectedCategory, categoryTree)
+      : null;
 
-    // 2. 检查是否为OZON自动生成标题的类目
-    if (categoryName && OZON_AUTO_TITLE_CATEGORIES.includes(categoryName)) {
+    if (categoryName && productTitleService.isAutoTitleCategory(categoryName)) {
       Modal.info({
         title: '提示',
-        content: `"${categoryName}"类目的商品标题由OZON平台自动生成，无需手动填写。`,
+        content: `"${categoryName}"类目的商品标题由 OZON 平台自动生成，无需手动填写。`,
         okText: '知道了',
       });
       return;

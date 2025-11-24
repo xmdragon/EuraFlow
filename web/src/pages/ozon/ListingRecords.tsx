@@ -47,6 +47,8 @@ import * as ozonApi from '@/services/ozonApi';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import axios from '@/services/axios';
+import { useNavigate } from 'react-router-dom';
+import { convertCollectionRecordToFormData } from '@/utils/collectionRecordConverter';
 
 const { Text } = Typography;
 
@@ -73,6 +75,7 @@ const ListingRecords: React.FC = () => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const { canOperate, canDelete } = usePermission();
+  const navigate = useNavigate();
 
   // 状态管理
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,6 +111,20 @@ const ListingRecords: React.FC = () => {
         return { rangeType: '7days' };
     }
   }, [timeRangeType, customDateRange]);
+
+  // 查询店铺列表（用于获取店铺名称）
+  const { data: shopsData } = useQuery({
+    queryKey: ['ozon', 'shops'],
+    queryFn: () => ozonApi.getShops(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const shops = shopsData?.data || [];
+
+  // 获取当前选中店铺的名称
+  const selectedShopName = selectedShop
+    ? shops.find((s) => s.id === selectedShop)?.shop_name || '未知店铺'
+    : '';
 
   // 查询上架记录列表
   const { data, isLoading } = useQuery({
@@ -178,6 +195,38 @@ const ListingRecords: React.FC = () => {
         }
       },
     });
+  };
+
+  // 编辑记录（跳转到商品创建页面）
+  const handleEdit = (record: ListingRecord) => {
+    if (!selectedShop) {
+      notifyError('错误', '请先选择店铺');
+      return;
+    }
+
+    try {
+      // 将采集记录转换为商品表单数据
+      const formData = convertCollectionRecordToFormData(record, selectedShop);
+
+      loggers.ozon.info('[ListingRecords] 编辑采集记录', {
+        recordId: record.id,
+        shopId: selectedShop,
+        hasVariants: formData.variants && formData.variants.length > 0,
+        imagesCount: formData.images?.length || 0,
+      });
+
+      // 跳转到商品创建页面，传递表单数据
+      navigate('/dashboard/ozon/product-create', {
+        state: {
+          draftData: formData,
+          source: 'collection_record',
+          sourceRecordId: record.id,
+        },
+      });
+    } catch (error) {
+      loggers.ozon.error('[ListingRecords] 转换采集记录失败', error);
+      notifyError('转换失败', '采集记录数据转换失败，请重试');
+    }
   };
 
   // 状态标签渲染
@@ -253,7 +302,12 @@ const ListingRecords: React.FC = () => {
             查看
           </Button>
           {canOperate && (
-            <Button type="link" size="small" icon={<EditOutlined />}>
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            >
               编辑
             </Button>
           )}
@@ -332,7 +386,7 @@ const ListingRecords: React.FC = () => {
         title={
           <Space>
             <LineChartOutlined />
-            <span>商品上架统计</span>
+            <span>{selectedShopName} - 商品上架统计</span>
           </Space>
         }
         open={statsModalVisible}
