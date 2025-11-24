@@ -55,7 +55,7 @@ import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
 import * as ozonApi from '@/services/ozonApi';
-import { logger } from '@/utils/logger';
+import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
@@ -148,6 +148,8 @@ const OrderList: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
   const [activeTab, setActiveTab] = useState('awaiting_packaging');
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+  const [batchSyncProgress, setBatchSyncProgress] = useState({ current: 0, total: 0, shopName: '' });
 
   // 进货价格历史弹窗状态
   const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
@@ -783,18 +785,64 @@ const OrderList: React.FC = () => {
   };
 
   const handleSync = (fullSync: boolean) => {
-    if (!selectedShop) {
-      notifyWarning('操作失败', '请先选择店铺');
-      return;
-    }
-
     setSyncFullMode(fullSync);
     setSyncConfirmVisible(true);
   };
 
-  const handleSyncConfirm = () => {
+  const handleSyncConfirm = async () => {
     setSyncConfirmVisible(false);
-    syncOrdersMutation.mutate(syncFullMode);
+
+    // 如果选择了特定店铺，使用原有逻辑
+    if (selectedShop) {
+      syncOrdersMutation.mutate(syncFullMode);
+      return;
+    }
+
+    // 全部店铺模式：依次同步所有店铺
+    setIsBatchSyncing(true);
+
+    try {
+      // 获取所有店铺
+      const shopsResponse = await ozonApi.getShops();
+      const shops = shopsResponse.data || [];
+
+      if (shops.length === 0) {
+        notifyWarning('操作失败', '没有可用的店铺');
+        setIsBatchSyncing(false);
+        return;
+      }
+
+      setBatchSyncProgress({ current: 0, total: shops.length, shopName: '' });
+
+      // 依次同步每个店铺
+      for (let i = 0; i < shops.length; i++) {
+        const shop = shops[i];
+        setBatchSyncProgress({ current: i + 1, total: shops.length, shopName: shop.shop_name });
+
+        try {
+          const result = await ozonApi.syncOrdersDirect(shop.id, syncFullMode ? 'full' : 'incremental');
+          const taskId = result?.task_id || result?.data?.task_id;
+
+          if (taskId) {
+            // 启动轮询任务
+            startOrderSyncPolling(taskId);
+            // 等待当前店铺同步完成再继续下一个
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        } catch (error: any) {
+          loggers.ozon.error(`店铺 ${shop.shop_name} 同步失败`, error);
+          notifyWarning('同步失败', `店铺 ${shop.shop_name} 同步失败: ${error.message}`);
+        }
+      }
+
+      notifySuccess('批量同步完成', `已启动 ${shops.length} 个店铺的订单同步任务`);
+    } catch (error: any) {
+      loggers.ozon.error('批量同步失败', error);
+      notifyError('批量同步失败', error.message);
+    } finally {
+      setIsBatchSyncing(false);
+      setBatchSyncProgress({ current: 0, total: 0, shopName: '' });
+    }
   };
 
   const handleBatchPrint = async () => {
@@ -982,8 +1030,7 @@ const OrderList: React.FC = () => {
               type="primary"
               icon={<SyncOutlined />}
               onClick={() => handleSync(false)}
-              loading={syncOrdersMutation.isPending}
-              disabled={!selectedShop}
+              loading={syncOrdersMutation.isPending || isBatchSyncing}
             >
               增量同步
             </Button>
@@ -992,8 +1039,7 @@ const OrderList: React.FC = () => {
             <Button
               icon={<SyncOutlined />}
               onClick={() => handleSync(true)}
-              loading={syncOrdersMutation.isPending}
-              disabled={!selectedShop}
+              loading={syncOrdersMutation.isPending || isBatchSyncing}
             >
               全量同步
             </Button>
@@ -1126,9 +1172,47 @@ const OrderList: React.FC = () => {
         zIndex={10000}
       >
         <p>
-          {syncFullMode ? '全量同步将拉取所有历史订单数据，耗时较长' : '增量同步将只拉取最近7天的订单'}
+          {selectedShop ? (
+            syncFullMode
+              ? '全量同步将拉取所有历史订单数据，耗时较长'
+              : '增量同步将只拉取最近7天的订单'
+          ) : (
+            <>
+              {syncFullMode
+                ? '将对所有店铺执行全量同步，拉取所有历史订单数据，耗时较长'
+                : '将对所有店铺执行增量同步，拉取最近7天的订单'}
+              <br />
+              <Text type="secondary">将依次同步每个店铺，请耐心等待</Text>
+            </>
+          )}
         </p>
       </Modal>
+
+      {/* 批量同步进度提示 */}
+      {isBatchSyncing && (
+        <Modal
+          title="批量同步进行中"
+          open={true}
+          footer={null}
+          closable={false}
+          zIndex={10001}
+        >
+          <div>
+            <Progress
+              percent={Math.round((batchSyncProgress.current / batchSyncProgress.total) * 100)}
+              status="active"
+            />
+            <p style={{ marginTop: 16 }}>
+              正在同步第 {batchSyncProgress.current} / {batchSyncProgress.total} 个店铺
+            </p>
+            {batchSyncProgress.shopName && (
+              <p>
+                <Text type="secondary">当前店铺：{batchSyncProgress.shopName}</Text>
+              </p>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
