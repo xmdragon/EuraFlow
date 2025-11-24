@@ -707,7 +707,7 @@ async def search_posting_by_tracking(
     返回：posting 列表（当国内单号匹配多个posting时，返回所有匹配结果）
     """
     from sqlalchemy.orm import selectinload
-    from ..models import OzonShipmentPackage
+    from ...models import OzonShipmentPackage
 
     try:
         # 统一转大写，兼容OZON单号和国内单号（Posting Number包含数字和连字符，不受影响）

@@ -41,7 +41,7 @@ async def prepare_order(
         备货结果，包含状态信息
     """
     from datetime import datetime, timezone
-    from ..models import OzonPosting
+    from ...models import OzonPosting
     from sqlalchemy import select, update
 
     try:
@@ -76,7 +76,7 @@ async def prepare_order(
         await db.commit()
 
         # 4. 获取店铺API凭证
-        from ..models import OzonShop
+        from ...models import OzonShop
         shop_result = await db.execute(
             select(OzonShop).where(OzonShop.id == posting.shop_id)
         )
@@ -90,7 +90,7 @@ async def prepare_order(
             }
 
         # 5. 调用OZON API进行备货
-        from ..api.client import OzonAPIClient
+        from ..client import OzonAPIClient
 
         async with OzonAPIClient(shop.client_id, shop.api_key, shop.id) as client:
             # 从raw_payload中提取商品信息
@@ -348,8 +348,8 @@ async def batch_print_labels(
                 posting.label_print_count = (posting.label_print_count or 0) + 1
 
         # 5.2 获取未缓存的标签（逐个调用，避免一个失败影响全部）
-        from ..api.client import OzonAPIClient
-        from ..services.label_service import LabelService
+        from ..client import OzonAPIClient
+        from ...services.label_service import LabelService
 
         label_service = LabelService(db)
 
@@ -476,14 +476,14 @@ async def batch_print_labels(
         if pdf_files:
             if len(pdf_files) == 1:
                 # 单个 posting，直接返回单文件 URL（避免冗余的 batch 文件）
-                from ..services.label_service import LabelService
+                from ...services.label_service import LabelService
                 pdf_url = LabelService.get_label_url(success_postings[0])
                 logger.info(f"单个标签打印: {pdf_url}")
             else:
                 # 多个 posting，合并成 batch（但每个单独的 PDF 已保存在 labels/ 目录）
                 try:
                     from PyPDF2 import PdfMerger
-                    from ..services.label_service import LabelService
+                    from ...services.label_service import LabelService
 
                     merger = PdfMerger()
                     for pdf_file in pdf_files:

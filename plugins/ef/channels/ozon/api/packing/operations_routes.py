@@ -84,7 +84,7 @@ async def prepare_stock(
     3. 更新操作状态为"分配中"
     4. 更新操作时间
     """
-    from ..services.posting_operations import PostingOperationsService
+    from ...services.posting_operations import PostingOperationsService
     from ef_core.services.audit_service import AuditService
 
     # 1. 查询旧值（用于日志对比）
@@ -240,7 +240,7 @@ async def update_posting_business_info(
 
     用于"分配中"状态下修改进货价格、采购平台、备注等字段
     """
-    from ..services.posting_operations import PostingOperationsService
+    from ...services.posting_operations import PostingOperationsService
     from ef_core.services.audit_service import AuditService
 
     # 1. 查询旧值
@@ -395,7 +395,7 @@ async def submit_domestic_tracking(
 
     幂等性：如果状态已是 tracking_confirmed，返回错误
     """
-    from ..services.posting_operations import PostingOperationsService
+    from ...services.posting_operations import PostingOperationsService
     from ef_core.services.audit_service import AuditService
     from sqlalchemy.orm import selectinload
 
@@ -692,7 +692,7 @@ async def discard_posting(
     Returns:
         废弃结果，如果同步跨境巴士则包含 sync_log_id 用于轮询
     """
-    from ..services.posting_operations import PostingOperationsService
+    from ...services.posting_operations import PostingOperationsService
     from ef_core.services.audit_service import AuditService
 
     try:
