@@ -15,6 +15,7 @@
   - [Ant Design Table 页面出现横向滚动条](#ant-design-table-页面出现横向滚动条)
 - [后端问题](#后端问题)
   - [Celery 异步任务报错 "Future attached to a different loop"](#celery-异步任务报错-future-attached-to-a-different-loop)
+  - [Celery 插件初始化时的事件循环冲突导致数据库连接失败](#celery-插件初始化时的事件循环冲突导致数据库连接失败)
   - [如何添加新的后台定时任务服务](#如何添加新的后台定时任务服务)
   - [N+1 查询问题导致 API 响应缓慢](#n1-查询问题导致-api-响应缓慢)
   - [Celery 定时任务报错 "got an unexpected keyword argument '_plugin'"](#celery-定时任务报错-got-an-unexpected-keyword-argument-_plugin)
@@ -880,6 +881,235 @@ async def _batch_sync_async(...):
 **参考资料**：
 - [Celery Pool Types](https://docs.celeryq.dev/en/stable/userguide/workers.html#pool)
 - [Gevent vs Asyncio](https://stackoverflow.com/questions/48622514/gevent-vs-asyncio)
+
+---
+
+### Celery 插件初始化时的事件循环冲突导致数据库连接失败
+
+**问题描述**：
+- Celery Worker 导入 `celery_app.py` 时，报 `RuntimeError: asyncio.run() cannot be called from a running event loop`
+- 尝试使用线程隔离初始化后，FastAPI 应用启动失败：`RuntimeError: Database connection failed`
+- 数据库连接检查 `db_manager.check_connection()` 失败，但数据库本身运行正常
+
+**发生场景**：
+1. Celery Worker 使用 uvloop 作为事件循环
+2. 导入 `ef_core.tasks.celery_app` 时，模块级代码执行插件初始化
+3. 插件初始化需要执行异步操作（`asyncio.run()`）
+4. 但此时 Celery Worker 的 uvloop 已经在运行中
+
+**根本原因**：
+
+#### 第一层问题：事件循环冲突
+- Celery Worker（特别是 Beat）在导入模块时已有运行中的事件循环（uvloop）
+- 模块级代码调用 `asyncio.run()` 时，检测到已有运行中的事件循环，抛出错误
+
+#### 第二层问题：线程隔离导致数据库管理器单例失效
+当使用线程隔离方案（在新线程中创建独立事件循环）时：
+
+1. **插件初始化访问数据库**：
+   - OZON 插件的 `setup()` 函数会从数据库读取店铺配置
+   - 调用 `get_db_manager()` 创建数据库管理器单例
+   - 数据库引擎绑定到**子线程的事件循环**
+
+2. **子线程结束后，数据库引擎失效**：
+   - 子线程关闭事件循环后退出
+   - 数据库管理器单例仍然存在，但其 `_async_engine` 绑定到已关闭的事件循环
+
+3. **主进程无法使用数据库**：
+   - FastAPI 应用启动，调用 `db_manager.check_connection()`
+   - 尝试使用已有的数据库管理器单例
+   - 但其异步引擎绑定到已关闭的事件循环
+   - 数据库连接检查失败
+
+**错误示例**：
+
+```
+# Celery Worker 启动时
+RuntimeError: asyncio.run() cannot be called from a running event loop
+
+# 使用线程隔离后，FastAPI 启动时
+ERROR:    Database connection check failed
+RuntimeError: Database connection failed
+```
+
+**排查步骤**：
+
+```bash
+# 1. 确认 Celery Worker 使用的事件循环类型
+supervisorctl tail -100 euraflow:celery_worker stdout | grep -i "uvloop\|eventloop"
+
+# 2. 检查插件初始化是否访问数据库
+grep -A 20 "async def setup" plugins/ef/channels/ozon/__init__.py | grep "get_db_manager"
+
+# 3. 检查数据库管理器何时被创建
+grep -rn "get_db_manager()" ef_core/tasks/celery_app.py plugins/ef/channels/ozon/__init__.py
+
+# 4. 验证数据库本身是否正常（排除数据库问题）
+psql -h localhost -U <user> -d <database> -c "SELECT 1;"
+```
+
+**解决方案对比**：
+
+| 方案 | 优点 | 缺点 | 是否采用 |
+|-----|------|------|---------|
+| **简单新建事件循环** | 实现简单，远程已验证可行 | 理论上可能与 uvloop 冲突 | ✅ 当前使用 |
+| **线程隔离** | 完全隔离事件循环 | 数据库管理器单例失效 | ❌ 失败 |
+| **延迟初始化** | 避免模块级异步操作 | 需重构初始化流程 | 🔄 长期方案 |
+| **分离 Beat/Worker** | Beat 不需要初始化插件 | 架构调整较大 | 🔄 长期方案 |
+
+**当前采用方案**（简单新建事件循环 ✅）：
+
+```python
+# ef_core/tasks/celery_app.py
+
+try:
+    task_registry = asyncio.run(async_init())
+except RuntimeError as e:
+    if "cannot be called from a running event loop" in str(e):
+        # Celery worker 环境中已有运行中的事件循环
+        # 创建新的事件循环来执行初始化
+        logger.warning("Detected running event loop, creating new event loop for plugin initialization")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            task_registry = loop.run_until_complete(async_init())
+        finally:
+            loop.close()
+    else:
+        raise
+```
+
+**优点**：
+- ✅ 实现简单，代码改动最小
+- ✅ 远程生产环境已验证稳定运行（40+ 分钟无错误）
+- ✅ 不影响现有架构
+
+**理论风险**：
+- ⚠️ 在 uvloop 环境中创建 asyncio 原生事件循环，理论上可能有兼容性问题
+- ⚠️ 但实际部署中未出现问题
+
+**长期优化方案**（避免问题根源）：
+
+#### 方案 1：延迟初始化（推荐 ✅）
+
+不在模块级别执行插件初始化，而是在 Celery Worker 完全启动后初始化：
+
+```python
+# ef_core/tasks/celery_app.py
+
+# 模块级别：不执行初始化，只定义函数
+task_registry = None
+
+@signals.worker_ready.connect
+def initialize_plugins_on_worker_ready(**kwargs):
+    """Worker 启动完成后初始化插件"""
+    global task_registry
+
+    # 此时 Celery Worker 已完全启动，可以安全地执行异步操作
+    task_registry = asyncio.run(async_init())
+    logger.info(f"Initialized {len(task_registry.registered_tasks)} tasks")
+```
+
+**优点**：
+- ✅ 避免模块导入时执行异步操作
+- ✅ Worker 启动完成后，事件循环状态稳定
+- ✅ 符合 Celery 最佳实践
+
+**需要调整**：
+- 确保 Beat 调度器能访问任务注册表
+- 可能需要分离 Beat 和 Worker 的初始化逻辑
+
+#### 方案 2：插件初始化不访问数据库（推荐 ✅）
+
+插件的 `setup()` 函数应该只注册任务，不应该从数据库读取配置：
+
+```python
+# 当前实现（不推荐 ❌）
+async def setup(hooks) -> None:
+    """插件初始化函数"""
+    from ef_core.database import get_db_manager  # ❌ 访问数据库
+    db_manager = get_db_manager()
+
+    async with db_manager.get_session() as db:
+        shops = await db.execute(select(OzonShop))  # ❌ 查询数据库
+        for shop in shops:
+            await hooks.register_cron(...)  # 为每个店铺注册任务
+
+# 改进实现（推荐 ✅）
+async def setup(hooks) -> None:
+    """插件初始化函数"""
+    # ✅ 只注册任务函数，不访问数据库
+    await hooks.register_cron(
+        name="ef.ozon.orders.pull",
+        cron="*/5 * * * *",
+        task=pull_orders_for_all_shops  # 任务内部再查询店铺列表
+    )
+
+async def pull_orders_for_all_shops():
+    """拉取所有店铺的订单（任务执行时查询店铺列表）"""
+    from ef_core.database import get_db_manager
+    db_manager = get_db_manager()
+
+    async with db_manager.get_session() as db:
+        shops = await db.execute(select(OzonShop))
+        for shop in shops:
+            await pull_orders_for_shop(shop.id)
+```
+
+**优点**：
+- ✅ 插件初始化不访问数据库，避免单例绑定问题
+- ✅ 任务执行时才访问数据库，事件循环状态稳定
+- ✅ 符合"延迟初始化"原则
+
+#### 方案 3：分离 Beat 和 Worker 初始化
+
+Celery Beat 只需要调度配置，不需要初始化完整的插件系统：
+
+```python
+# ef_core/tasks/celery_app.py
+
+import sys
+
+if "celery" in sys.argv and "beat" in sys.argv:
+    # Celery Beat 进程：只加载调度配置，不初始化插件
+    logger.info("Celery Beat: Loading schedule from database")
+    # 加载调度配置的逻辑
+else:
+    # Celery Worker 进程：完整初始化插件
+    logger.info("Celery Worker: Initializing plugins")
+    _initialize_plugins_for_celery()
+```
+
+**优点**：
+- ✅ Beat 进程更轻量，启动更快
+- ✅ 减少 Beat 进程的依赖和潜在错误
+
+**防止复发**：
+
+1. **短期**（已完成 ✅）：
+   - ✅ 使用简单的新建事件循环方案
+   - ✅ 记录到 FAQ.md（本章节）
+
+2. **中期**（建议实施 🔄）：
+   - 🔄 重构插件 `setup()` 函数，不访问数据库
+   - 🔄 任务执行时动态查询配置
+
+3. **长期**（可选 ⚠️）：
+   - ⚠️ 使用 `worker_ready` 信号延迟初始化
+   - ⚠️ 分离 Beat 和 Worker 的初始化逻辑
+
+**相关文件**：
+- `ef_core/tasks/celery_app.py:433-450` - 事件循环冲突处理
+- `plugins/ef/channels/ozon/__init__.py:setup()` - 插件初始化（访问数据库）
+- `ef_core/database.py:145-153` - 数据库管理器单例
+
+**相关问题**：
+- [Celery 异步任务报错 "Future attached to a different loop"](#celery-异步任务报错-future-attached-to-a-different-loop) - 类似的事件循环问题
+
+**参考资料**：
+- [Celery Signals](https://docs.celeryq.dev/en/stable/userguide/signals.html#worker-ready)
+- [Asyncio Event Loop](https://docs.python.org/3/library/asyncio-eventloop.html)
+- [SQLAlchemy Async Engine](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#binding-metadata-to-an-engine)
 
 ---
 
