@@ -472,10 +472,12 @@ class OzonWebhookHandler:
                     logger.info(f"Posting {posting_number} already exists, skipping creation")
                     return existing_posting
 
-                # 创建或获取Order（要求 webhook 必须包含 order_id）
+                # 创建或获取Order
+                # 注意：OZON的TYPE_NEW_POSTING webhook可能不包含order_id，使用posting_number作为临时标识
                 if not order_id:
-                    logger.error(f"Webhook payload missing order_id for posting {posting_number}, cannot create order")
-                    return None
+                    logger.warning(f"Webhook payload missing order_id for posting {posting_number}, using posting_number as temporary order_id")
+                    # 使用posting_number作为临时order_id，后续API会更新为真实的order_id
+                    order_id = f"webhook_{posting_number}"
 
                 order = await session.scalar(
                     select(OzonOrder).where(
