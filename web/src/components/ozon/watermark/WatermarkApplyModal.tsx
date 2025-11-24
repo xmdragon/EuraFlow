@@ -1,7 +1,7 @@
 /**
  * 水印应用Modal组件
  */
-import { Alert, Divider, Modal, Select, Space, Tag } from 'antd';
+import { Alert, Modal, Select, Space, Tag } from 'antd';
 import React, { useState } from 'react';
 
 import {
@@ -36,6 +36,12 @@ export interface WatermarkPreview {
   images?: WatermarkPreviewImage[];
 }
 
+// 图片水印配置接口
+export interface ImageWatermarkConfig {
+  watermark_config_id?: number;
+  position?: string;
+}
+
 export interface WatermarkApplyModalProps {
   visible: boolean;
   onCancel: () => void;
@@ -43,7 +49,7 @@ export interface WatermarkApplyModalProps {
     productIds: number[];
     configId: number;
     analyzeMode: 'individual' | 'fast';
-    positionOverrides?: Record<string, Record<string, any>>;
+    positionOverrides?: Record<string, Record<string, ImageWatermarkConfig>>;
   }) => void;
   selectedRows: ozonApi.Product[];
   watermarkConfigs: watermarkApi.WatermarkConfig[];
@@ -70,8 +76,8 @@ export const WatermarkApplyModal: React.FC<WatermarkApplyModalProps> = ({
   onOk,
   selectedRows,
   watermarkConfigs,
-  watermarkStep,
-  setWatermarkStep,
+  watermarkStep: _watermarkStep,
+  setWatermarkStep: _setWatermarkStep,
   watermarkPreviews,
   setWatermarkPreviews,
   confirmLoading,
@@ -165,7 +171,7 @@ export const WatermarkApplyModal: React.FC<WatermarkApplyModalProps> = ({
     const productIds = selectedRows.map((p) => p.id);
 
     // 构建每张图片的独立配置映射
-    const imageOverrides: Record<string, Record<string, any>> = {};
+    const imageOverrides: Record<string, Record<string, ImageWatermarkConfig>> = {};
     imageWatermarkSettings.forEach((settings, key) => {
       const [productId, imageIndex] = key.split('_');
       if (!imageOverrides[productId]) {
