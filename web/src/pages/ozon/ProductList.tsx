@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Ozon 商品列表页面
  */
@@ -90,7 +89,7 @@ const ProductList: React.FC = () => {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
-  const [currentPreviewProduct, setCurrentPreviewProduct] = useState<any>(null);
+  const [currentPreviewProduct, setCurrentPreviewProduct] = useState<ozonApi.Product | null>(null);
 
   // 处理排序
   const handleSort = (field: string) => {
@@ -459,9 +458,9 @@ const ProductList: React.FC = () => {
       <PriceEditModal
         visible={priceModalVisible}
         onCancel={() => setPriceModalVisible(false)}
-        onSubmit={(updates) => updatePricesMutation.mutate(updates as any)}
-        selectedProduct={selectedProduct as any}
-        selectedRows={selectedRows as any}
+        onSubmit={(updates) => updatePricesMutation.mutate(updates)}
+        selectedProduct={selectedProduct}
+        selectedRows={selectedRows}
         loading={updatePricesMutation.isPending}
       />
 
@@ -469,9 +468,9 @@ const ProductList: React.FC = () => {
       <StockEditModal
         visible={stockModalVisible}
         onCancel={() => setStockModalVisible(false)}
-        onSubmit={(updates) => updateStocksMutation.mutate(updates as any)}
-        selectedProduct={selectedProduct as any}
-        selectedRows={selectedRows as any}
+        onSubmit={(updates) => updateStocksMutation.mutate(updates)}
+        selectedProduct={selectedProduct}
+        selectedRows={selectedRows}
         loading={updateStocksMutation.isPending}
         shopId={selectedShop}
       />
