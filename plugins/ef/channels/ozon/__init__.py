@@ -676,17 +676,17 @@ async def setup(hooks) -> None:
 
     # 注册类目同步定时任务
     try:
-        # 注册类目树同步（每天凌晨4点）
+        # 注册类目树同步（每周二凌晨5:00北京时间 = 每周一晚上21:00 UTC）
         await hooks.register_cron(
             name="ef.ozon.category.sync",
-            cron="0 4 * * *",
+            cron="0 21 * * 1",
             task=category_sync_task
         )
 
-        # 注册类目特征同步（每周二凌晨4:10）
+        # 注册类目特征同步（每周二凌晨5:30北京时间 = 每周一晚上21:30 UTC）
         await hooks.register_cron(
             name="ef.ozon.attributes.sync",
-            cron="10 4 * * 2",
+            cron="30 21 * * 1",
             task=attributes_sync_task
         )
 
