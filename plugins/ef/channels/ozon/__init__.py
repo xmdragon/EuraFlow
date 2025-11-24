@@ -52,56 +52,6 @@ def get_router() -> Optional[APIRouter]:
         return None
 
 
-async def _get_task_schedule(db_session, service_key: str, default_cron: str) -> tuple[str | None, bool]:
-    """
-    从数据库获取任务调度配置
-
-    Args:
-        db_session: 数据库会话
-        service_key: 服务标识
-        default_cron: 默认cron表达式（如果数据库没有配置）
-
-    Returns:
-        (cron表达式, 是否启用) 如果任务未启用则返回(None, False)
-    """
-    try:
-        from plugins.ef.system.sync_service.models.sync_service import SyncService
-        from sqlalchemy import select
-
-        result = await db_session.execute(
-            select(SyncService).where(SyncService.service_key == service_key)
-        )
-        service = result.scalar_one_or_none()
-
-        if not service:
-            logger.info(f"Task {service_key} not found in sync_services, using default: {default_cron}")
-            return default_cron, True
-
-        if not service.is_enabled:
-            logger.info(f"Task {service_key} is disabled in database, skipping registration")
-            return None, False
-
-        # 转换interval类型为cron表达式
-        if service.service_type == "interval":
-            interval_seconds = int(service.schedule_config)
-            interval_minutes = interval_seconds // 60
-            if interval_minutes < 60:
-                cron = f"*/{interval_minutes} * * * *"
-            else:
-                interval_hours = interval_minutes // 60
-                cron = f"0 */{interval_hours} * * *"
-            logger.info(f"Task {service_key}: converted interval {interval_seconds}s to cron '{cron}'")
-            return cron, True
-        else:
-            # cron类型直接使用
-            logger.info(f"Task {service_key}: using cron from database '{service.schedule_config}'")
-            return service.schedule_config, True
-
-    except Exception as e:
-        logger.warning(f"Failed to load schedule for {service_key} from database: {e}, using default")
-        return default_cron, True
-
-
 async def category_sync_task(**kwargs):
     """类目树同步定时任务"""
     from .models.ozon_shops import OzonShop
@@ -227,58 +177,21 @@ async def attributes_sync_task(**kwargs):
 
 async def setup(hooks) -> None:
     """插件初始化函数"""
-    # 从数据库获取Ozon店铺配置和任务调度配置
-    try:
-        from ef_core.database import get_db_manager
-        from .models import OzonShop
-        from sqlalchemy import select
 
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as db:
-            # 获取第一个激活的Ozon店铺
-            result = await db.execute(
-                select(OzonShop).where(OzonShop.status == "active").limit(1)
-            )
-            shop = result.scalar_one_or_none()
+    # 注册定时任务：拉取订单（每30分钟）
+    await hooks.register_cron(
+        name="ef.ozon.orders.pull",
+        cron="*/30 * * * *",
+        task=pull_orders_task
+    )
 
-            if not shop:
-                logger.info("Warning: No active Ozon shop found, plugin running in standby mode")
-                # 仍然注册任务，但会在执行时检查配置
-                api_key = client_id = None
-            else:
-                # 从数据库字段获取API凭据
-                api_key = shop.api_key_enc  # 注意：这里需要解密处理
-                client_id = shop.client_id
+    # 注册定时任务：同步库存（每30分钟）
+    await hooks.register_cron(
+        name="ef.ozon.inventory.sync",
+        cron="*/30 * * * *",
+        task=sync_inventory_task
+    )
 
-                if not api_key or not client_id:
-                    logger.info(f"Warning: Shop {shop.shop_name} missing API credentials, plugin running in standby mode")
-                    api_key = client_id = None
-                else:
-                    logger.info(f"Ozon plugin initialized with shop: {shop.shop_name} (client_id: {client_id})")
-
-            # 注册定时任务：拉取订单（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "ozon_sync_incremental", "*/30 * * * *")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.orders.pull",
-                    cron=cron,
-                    task=pull_orders_task
-                )
-
-            # 注册定时任务：同步库存（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "ozon_inventory_sync", "*/30 * * * *")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.inventory.sync",
-                    cron=cron,
-                    task=sync_inventory_task
-                )
-
-    except Exception as e:
-        logger.info(f"Error loading Ozon shop configuration: {e}")
-        logger.info("Plugin running in standby mode")
-        api_key = client_id = None
-    
     # 订阅事件：发货请求
     await hooks.consume(
         topic="ef.shipments.request",
@@ -675,36 +588,29 @@ async def setup(hooks) -> None:
     # 注册促销相关定时任务
     try:
         from .tasks.promotion_sync_task import sync_all_promotions, promotion_health_check
-        from ef_core.database import get_db_manager
 
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as db:
-            # 注册促销同步任务（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "ozon_promotion_sync", "*/30 * * * *")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.promotions.sync",
-                    cron=cron,
-                    task=sync_all_promotions
-                )
+        # 注册促销同步任务（每30分钟）
+        await hooks.register_cron(
+            name="ef.ozon.promotions.sync",
+            cron="*/30 * * * *",
+            task=sync_all_promotions
+        )
 
-            # 注册健康检查任务（暂无数据库配置，使用默认值）
-            await hooks.register_cron(
-                name="ef.ozon.promotions.health_check",
-                cron="0 * * * *",  # 每小时执行
-                task=promotion_health_check
-            )
+        # 注册健康检查任务（每小时）
+        await hooks.register_cron(
+            name="ef.ozon.promotions.health_check",
+            cron="0 * * * *",
+            task=promotion_health_check
+        )
 
         logger.info("✓ Registered promotion tasks successfully")
     except Exception as e:
-        logger.info(f"Warning: Failed to register promotion tasks: {e}")
+        logger.warning(f"Warning: Failed to register promotion tasks: {e}")
         import traceback
         traceback.print_exc()
 
     # 注册其他同步服务的定时任务（统一使用 Celery Beat）
     try:
-        from ef_core.database import get_db_manager
-
         # 1. 跨境巴士物料成本同步
         async def kuajing84_material_cost_task(**kwargs):
             """跨境巴士物料成本同步定时任务"""
@@ -741,34 +647,26 @@ async def setup(hooks) -> None:
                 logger.warning("ozon_finance_transactions_daily handler not found")
                 return {}
 
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as db:
-            # 注册跨境巴士任务（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "kuajing84_material_cost", "15 * * * *")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.kuajing84.material_cost",
-                    cron=cron,
-                    task=kuajing84_material_cost_task
-                )
+        # 注册跨境巴士任务（每小时第15分钟执行）
+        await hooks.register_cron(
+            name="ef.ozon.kuajing84.material_cost",
+            cron="15 * * * *",
+            task=kuajing84_material_cost_task
+        )
 
-            # 注册财务费用同步（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "ozon_finance_sync", "0 3 * * *")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.finance.sync",
-                    cron=cron,
-                    task=ozon_finance_sync_task
-                )
+        # 注册财务费用同步（每天凌晨3点）
+        await hooks.register_cron(
+            name="ef.ozon.finance.sync",
+            cron="0 3 * * *",
+            task=ozon_finance_sync_task
+        )
 
-            # 注册财务交易同步（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "ozon_finance_transactions_daily", "0 22 * * *")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.finance.transactions",
-                    cron=cron,
-                    task=ozon_finance_transactions_task
-                )
+        # 注册财务交易同步（每天UTC 22:00 = 北京时间06:00）
+        await hooks.register_cron(
+            name="ef.ozon.finance.transactions",
+            cron="0 22 * * *",
+            task=ozon_finance_transactions_task
+        )
 
         logger.info("✓ Registered sync service tasks successfully")
     except Exception as e:
@@ -778,27 +676,19 @@ async def setup(hooks) -> None:
 
     # 注册类目同步定时任务
     try:
-        from ef_core.database import get_db_manager
+        # 注册类目树同步（每天凌晨4点）
+        await hooks.register_cron(
+            name="ef.ozon.category.sync",
+            cron="0 4 * * *",
+            task=category_sync_task
+        )
 
-        db_manager = get_db_manager()
-        async with db_manager.get_session() as db:
-            # 注册类目树同步（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "ozon_scheduled_category_sync", "0 5 * * 2")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.category.sync",
-                    cron=cron,
-                    task=category_sync_task
-                )
-
-            # 注册类目特征同步（使用数据库配置）
-            cron, enabled = await _get_task_schedule(db, "ozon_scheduled_attributes_sync", "30 5 * * 2")
-            if enabled and cron:
-                await hooks.register_cron(
-                    name="ef.ozon.attributes.sync",
-                    cron=cron,
-                    task=attributes_sync_task
-                )
+        # 注册类目特征同步（每周二凌晨4:10）
+        await hooks.register_cron(
+            name="ef.ozon.attributes.sync",
+            cron="10 4 * * 2",
+            task=attributes_sync_task
+        )
 
         logger.info("✓ Registered category sync tasks successfully")
     except Exception as e:
