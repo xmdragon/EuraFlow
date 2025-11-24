@@ -397,8 +397,8 @@ const PackingShipment: React.FC = () => {
         queryParams.operation_status = operationStatus;
       }
 
-      // 已分配页面的采购平台筛选
-      if (operationStatus === 'allocated' && selectedPlatform !== 'all') {
+      // 已分配和单号确认页面的采购平台筛选
+      if ((operationStatus === 'allocated' || operationStatus === 'tracking_confirmed') && selectedPlatform !== 'all') {
         queryParams.source_platform = selectedPlatform;
       }
 
@@ -1354,8 +1354,8 @@ const PackingShipment: React.FC = () => {
                 </Button>
               )}
 
-              {/* 采购平台筛选下拉框 - 只在"已分配"标签显示 */}
-              {operationStatus === 'allocated' && (
+              {/* 采购平台筛选下拉框 - 在"已分配"和"单号确认"标签显示 */}
+              {(operationStatus === 'allocated' || operationStatus === 'tracking_confirmed') && (
                 <Space>
                   <Text>采购平台</Text>
                   <Select
@@ -1391,11 +1391,9 @@ const PackingShipment: React.FC = () => {
                 </Space>
               )}
 
-              {/* 批量打印按钮 - 在其他标签页显示（除了已分配和前两个状态） */}
+              {/* 批量打印按钮 - 只在"已打印"标签页显示 */}
               {canOperate &&
-                operationStatus !== 'awaiting_stock' &&
-                operationStatus !== 'allocating' &&
-                operationStatus !== 'allocated' && (
+                operationStatus === 'printed' && (
                   <Button
                     type="primary"
                     icon={<PrinterOutlined />}
