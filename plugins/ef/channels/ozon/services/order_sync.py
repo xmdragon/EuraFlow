@@ -373,7 +373,10 @@ class OrderSyncService:
             await session.flush()
 
         # 更新Posting信息
-        posting.status = posting_data.get("status")
+        # 如果 API 没返回状态，保持原状态（避免覆盖为 None）
+        new_status = posting_data.get("status")
+        if new_status:
+            posting.status = new_status
         posting.substatus = posting_data.get("substatus")
         
         posting.shipment_date = self._parse_date(posting_data.get("shipment_date"))
