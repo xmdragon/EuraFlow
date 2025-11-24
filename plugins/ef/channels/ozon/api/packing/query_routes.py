@@ -548,7 +548,7 @@ async def get_packing_orders(
                     offer_id_images[offer_id] = images[0]
 
     # 构建返回数据：每个posting作为独立记录
-    from ..services.posting_status_manager import PostingStatusManager
+    from ...services.posting_status_manager import PostingStatusManager
 
     orders_data = []
     for posting in postings:
