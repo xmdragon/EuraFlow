@@ -14,7 +14,7 @@ import { Typography } from "antd";
 import ProductImage from "@/components/ozon/ProductImage";
 import { useDateTime } from "@/hooks/useDateTime";
 import { statusConfig, operationStatusConfig } from "@/utils/packingHelpers";
-import * as ozonApi from "@/services/ozonApi";
+import * as ozonApi from "@/services/ozon";
 import styles from "../../../pages/ozon/PackingShipment.module.scss";
 
 const { Text } = Typography;
@@ -22,21 +22,21 @@ const { Text } = Typography;
 // 扫描结果商品行数据结构
 interface ScanResultItemRow {
   key: string;
-  item: any;
+  item: ozonApi.OrderItem;
   itemIndex: number;
-  posting: any; // PostingWithOrder 但类型定义不完整，使用 any
+  posting: ozonApi.PostingWithOrder;
   isFirstItem: boolean;
   itemCount: number;
 }
 
 interface ScanResultTableProps {
-  scanResults: any[]; // PostingWithOrder 但类型定义不完整，使用 any
+  scanResults: ozonApi.PostingWithOrder[];
   scanSelectedPostings: string[];
   onSelectedPostingsChange: (postings: string[]) => void;
   onPrintSingle: (postingNumber: string) => void;
-  onOpenEditNotes: (posting: any) => void;
-  onOpenDomesticTracking: (posting: any) => void;
-  onShowDetail?: (order: any, posting: any) => void;
+  onOpenEditNotes: (posting: ozonApi.PostingWithOrder) => void;
+  onOpenDomesticTracking: (posting: ozonApi.PostingWithOrder) => void;
+  onShowDetail?: (order: ozonApi.Order, posting: ozonApi.Posting) => void;
   shopNameMap: Record<number, string>;
   canOperate: boolean;
   isPrinting: boolean;
@@ -69,7 +69,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
         // 如果没有商品，创建一行空数据
         rows.push({
           key: `${posting.posting_number}_0`,
-          item: {} as any,
+          item: {} as ozonApi.OrderItem,
           itemIndex: 0,
           posting: posting,
           isFirstItem: true,
@@ -77,7 +77,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
         });
       } else {
         // 为每个商品创建一行
-        items.forEach((item: any, index: number) => {
+        items.forEach((item: ozonApi.OrderItem, index: number) => {
           rows.push({
             key: `${posting.posting_number}_${index}`,
             item: item,
@@ -153,7 +153,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
           title: "商品图片",
           key: "product_image",
           width: 180,
-          render: (_: any, row: ScanResultItemRow) => {
+          render: (_: unknown, row: ScanResultItemRow) => {
             const item = row.item;
 
             return (
@@ -176,7 +176,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
           onCell: () => ({
             className: styles.productInfoCell,
           }),
-          render: (_: any, row: ScanResultItemRow) => {
+          render: (_: unknown, row: ScanResultItemRow) => {
             const item = row.item;
             const price = item.price ? parseFloat(item.price) : 0;
             const quantity = item.quantity || 0;
@@ -188,7 +188,29 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
               >
                 <div>
                   <Text type="secondary">SKU: </Text>
-                  <span>{item.sku || "-"}</span>
+                  {onShowDetail && item.sku ? (
+                    <>
+                      <a
+                        onClick={() => onShowDetail(row.posting.order || row.posting, row.posting)}
+                        style={{
+                          color: "#1890ff",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {item.sku}
+                      </a>
+                      <CopyOutlined
+                        style={{
+                          marginLeft: 8,
+                          cursor: "pointer",
+                          color: "#1890ff",
+                        }}
+                        onClick={() => onCopy(item.sku, "SKU")}
+                      />
+                    </>
+                  ) : (
+                    <span>{item.sku || "-"}</span>
+                  )}
                 </div>
                 <div>
                   <Text type="secondary">名称: </Text>
@@ -233,7 +255,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
         {
           title: "货件信息",
           key: "posting_info",
-          render: (_: any, row: ScanResultItemRow) => {
+          render: (_: unknown, row: ScanResultItemRow) => {
             if (!row.isFirstItem) {
               return {
                 props: { rowSpan: 0 },
@@ -379,7 +401,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
         {
           title: "订单信息",
           key: "order_info",
-          render: (_: any, row: ScanResultItemRow) => {
+          render: (_: unknown, row: ScanResultItemRow) => {
             if (!row.isFirstItem) {
               return {
                 props: { rowSpan: 0 },
@@ -454,7 +476,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
           title: "备注",
           key: "notes",
           width: 150,
-          render: (_: any, row: ScanResultItemRow) => {
+          render: (_: unknown, row: ScanResultItemRow) => {
             if (!row.isFirstItem) {
               return {
                 props: { rowSpan: 0 },
@@ -490,7 +512,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
           key: "action",
           width: 80,
           fixed: "right" as const,
-          render: (_: any, row: ScanResultItemRow) => {
+          render: (_: unknown, row: ScanResultItemRow) => {
             if (!row.isFirstItem) {
               return {
                 props: { rowSpan: 0 },
