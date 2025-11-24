@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 带标签的店铺选择器组件
  * 封装 ShopSelector + 标签显示，统一所有页面的使用方式

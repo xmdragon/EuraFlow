@@ -3,9 +3,9 @@
  * 基于图片URL的通用水印应用组件，可用于任意图片编辑场景
  */
 import React, { useState } from 'react';
-import { Modal, Space, Button, Alert, notification, Select, Tag, Divider } from 'antd';
+import { Modal, Space, Button, notification, Select, Tag } from 'antd';
 import type { WatermarkConfig } from '@/services/watermarkApi';
-import { previewWatermark, applyWatermarkToUrl } from '@/services/watermarkApi';
+import { applyWatermarkToUrl } from '@/services/watermarkApi';
 import {
   getPreviewWatermarkStyle,
   POSITION_LABELS,
@@ -58,7 +58,7 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
   const [applyLoading, setApplyLoading] = useState(false);
 
   // 使用水印配置 Hook
-  const { configs: watermarkConfigs, loading: configsLoading, getDefaultConfig } = useWatermarkConfig({
+  const { configs: watermarkConfigs, getDefaultConfig } = useWatermarkConfig({
     enabled: visible,
     initialConfigs: propWatermarkConfigs,
     onlyActive: true,
@@ -66,7 +66,6 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
 
   // 使用水印设置 Hook
   const {
-    settings: watermarkSettings,
     setPosition,
     setConfigId,
     getSetting,
@@ -210,11 +209,12 @@ const ImageWatermarkModal: React.FC<ImageWatermarkModalProps> = ({
 
       onApply(allResults);
       handleReset();
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('应用水印失败', error);
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
       notification.error({
         message: '应用失败',
-        description: error.message,
+        description: errorMsg,
         placement: 'bottomRight',
       });
     } finally {

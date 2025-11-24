@@ -97,8 +97,9 @@ const TranslationEngineModal: React.FC<TranslationEngineModalProps> = ({
       } else {
         setError(result.error || '翻译失败');
       }
-    } catch (err: any) {
-      setError(err.message || '翻译请求失败');
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setError(error.message || '翻译请求失败');
     } finally {
       setLoading(false);
     }

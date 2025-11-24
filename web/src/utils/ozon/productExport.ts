@@ -1,7 +1,7 @@
 /**
  * 商品导出工具函数
  */
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 

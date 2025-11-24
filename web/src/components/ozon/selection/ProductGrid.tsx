@@ -63,7 +63,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   loading,
   isLoadingMore,
   hasMoreData,
-  totalCount,
+  totalCount: _totalCount,
   fieldConfig,
   enableCostEstimation,
   targetProfitRate,

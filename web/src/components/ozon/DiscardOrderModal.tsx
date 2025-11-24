@@ -8,7 +8,7 @@ import { Modal, Form, Checkbox, Alert, Space } from 'antd';
 import axios from 'axios';
 import React from 'react';
 
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 

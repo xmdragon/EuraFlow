@@ -1,10 +1,10 @@
-/* eslint-disable no-unused-vars */
+ 
 import { ShopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Select, Space, Spin } from 'antd';
 import React, { useEffect, useState, useMemo } from 'react';
 
-import * as ozonApi from '../../services/ozonApi';
+import { getShops } from '@/services/ozon';
 
 import styles from './ShopSelector.module.scss';
 
@@ -39,7 +39,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
   // 获取店铺列表（仅基本信息，用于下拉选择）
   const { data: shopsData, isLoading } = useQuery({
     queryKey: ['ozon', 'shops'],
-    queryFn: () => ozonApi.getShops(),  // 默认 include_stats=false，仅返回基本信息
+    queryFn: () => getShops(),  // 默认 include_stats=false，仅返回基本信息
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });

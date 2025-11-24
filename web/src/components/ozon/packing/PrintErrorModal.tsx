@@ -28,7 +28,7 @@ const PrintErrorModal: React.FC<PrintErrorModalProps> = ({
   onClose,
   printSuccessPostings,
   printErrors,
-  selectedPostingNumbers,
+  selectedPostingNumbers: _selectedPostingNumbers,
   onRemoveFailedPostings,
 }) => {
   const handleRemoveFailed = () => {

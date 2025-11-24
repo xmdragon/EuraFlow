@@ -1,14 +1,13 @@
 /**
  * OZON 财务交易页面
  */
-import { DollarOutlined, SearchOutlined } from '@ant-design/icons';
+import { DollarOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
   Table,
   Select,
   DatePicker,
-  Input,
   Statistic,
   Row,
   Col,
@@ -17,7 +16,7 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 
 import styles from './FinanceTransactions.module.scss';
 
@@ -27,7 +26,7 @@ import PageTitle from '@/components/PageTitle';
 import { ORDER_STATUS_CONFIG } from '@/config/ozon/orderStatusConfig';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { notifyError } from '@/utils/notification';
 
 const { RangePicker } = DatePicker;
@@ -96,7 +95,6 @@ const FinanceTransactions: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // 货币和状态配置
   const { currency: userCurrency } = useCurrency();
@@ -197,10 +195,8 @@ const FinanceTransactions: React.FC = () => {
 
         setDetailModalVisible(true);
       }
-    } catch (error) {
+    } catch {
       notifyError('加载失败', '无法加载订单详情');
-    } finally {
-      setLoadingDetail(false);
     }
   };
 
@@ -216,7 +212,7 @@ const FinanceTransactions: React.FC = () => {
     if (!text) return '-';
 
     // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    const match = text.match(/^(.+?)[(（](.+?)[)）]$/);
     if (!match) return text;
 
     const mainText = match[1];

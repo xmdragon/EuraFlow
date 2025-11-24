@@ -20,7 +20,7 @@ export interface ColumnVisibility {
   [key: string]: boolean | undefined;
 }
 
-/* eslint-disable no-unused-vars */
+ 
 export interface ColumnConfigModalProps {
   visible: boolean;
   onCancel: () => void;
@@ -28,7 +28,7 @@ export interface ColumnConfigModalProps {
   visibleColumns: ColumnVisibility;
   onColumnVisibilityChange: (columnKey: string, visible: boolean) => void;
 }
-/* eslint-enable no-unused-vars */
+ 
 
 /**
  * 列显示配置Modal组件

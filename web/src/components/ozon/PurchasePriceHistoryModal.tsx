@@ -25,7 +25,7 @@ import React, { useState } from 'react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
 import authService from '@/services/authService';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { getCurrencySymbol } from '@/utils/currency';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -110,8 +110,9 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       } else {
         notifyError('更新失败', result.message || '采购信息更新失败');
       }
-    } catch (error: any) {
-      notifyError('更新失败', `更新失败: ${error.message}`);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      notifyError('更新失败', `更新失败: ${err.message}`);
     } finally {
       setIsSaving(false);
     }

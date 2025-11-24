@@ -7,7 +7,7 @@ import { App } from 'antd';
 import { useState } from 'react';
 
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 export const useProductOperations = (selectedShop: number | null) => {
@@ -122,9 +122,10 @@ export const useProductOperations = (selectedShop: number | null) => {
         queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       // 提取后端返回的详细错误信息
-      const errorMessage = error?.response?.data?.detail || error?.message || '未知错误';
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.detail || err?.message || '未知错误';
       notifyError('更新失败', `价格更新失败: ${errorMessage}`);
     },
   });
@@ -146,9 +147,10 @@ export const useProductOperations = (selectedShop: number | null) => {
         queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       // 提取后端返回的详细错误信息
-      const errorMessage = error?.response?.data?.detail || error?.message || '未知错误';
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.detail || err?.message || '未知错误';
       notifyError('更新失败', `库存更新失败: ${errorMessage}`);
     },
   });

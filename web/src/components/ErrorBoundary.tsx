@@ -84,7 +84,7 @@ class ErrorBoundary extends Component<Props, State> {
 
     // 在开发环境下，也输出到控制台以便调试
     if (import.meta.env.MODE === 'development') {
-      // eslint-disable-next-line no-console -- 开发环境允许使用 console.error
+       
       console.error('ErrorBoundary 捕获错误:', error, errorInfo);
     }
   }

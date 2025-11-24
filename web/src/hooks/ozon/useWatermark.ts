@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import * as watermarkApi from '@/services/watermarkApi';
 import { loggers } from '@/utils/logger';
-import { notifySuccess, notifyError, notifyInfo } from '@/utils/notification';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 export const useWatermark = (selectedShop: number | null) => {
   const queryClient = useQueryClient();

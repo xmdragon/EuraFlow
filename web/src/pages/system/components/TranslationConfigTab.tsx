@@ -7,7 +7,6 @@ import {
   Card,
   Form,
   Input,
-  InputNumber,
   Button,
   Space,
   Alert,
@@ -40,7 +39,7 @@ const TranslationConfigTab: React.FC = () => {
     queryFn: async () => {
       try {
         return await translationApi.getAliyunTranslationConfig();
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to load Aliyun Translation config:', error);
         return null;
       }
@@ -57,7 +56,7 @@ const TranslationConfigTab: React.FC = () => {
     queryFn: async () => {
       try {
         return await translationApi.getChatGPTTranslationConfig();
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to load ChatGPT Translation config:', error);
         return null;
       }
@@ -93,8 +92,9 @@ const TranslationConfigTab: React.FC = () => {
       notifySuccess('阿里云翻译连接测试成功');
       queryClient.invalidateQueries({ queryKey: ['aliyunTranslationConfig'] });
     },
-    onError: (error: any) => {
-      notifyError(`测试失败: ${error.response?.data?.detail || error.message}`);
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      notifyError(`测试失败: ${err.response?.data?.detail || err.message}`);
     },
   });
 
@@ -133,8 +133,9 @@ const TranslationConfigTab: React.FC = () => {
       notifySuccess('ChatGPT 翻译连接测试成功');
       queryClient.invalidateQueries({ queryKey: ['chatgptTranslationConfig'] });
     },
-    onError: (error: any) => {
-      notifyError(`测试失败: ${error.response?.data?.detail || error.message}`);
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      notifyError(`测试失败: ${err.response?.data?.detail || err.message}`);
     },
   });
 

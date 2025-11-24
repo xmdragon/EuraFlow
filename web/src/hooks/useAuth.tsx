@@ -27,7 +27,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (error) {
       setUser(null);
       // Clear tokens on 401
-      if ((error as any)?.response?.status === 401) {
+      const err = error as { response?: { status?: number } };
+      if (err?.response?.status === 401) {
         authService.clearTokens();
       }
     }

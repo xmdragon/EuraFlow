@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 /**
  * 水印管理页面
  */
@@ -6,18 +5,12 @@ import {
   UploadOutlined,
   DeleteOutlined,
   EyeOutlined,
-  ReloadOutlined,
   SettingOutlined,
   PictureOutlined,
-  SyncOutlined,
-  CloudOutlined,
-  FileImageOutlined,
-  VideoCameraOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
-  Tabs,
   Button,
   Form,
   Input,
@@ -31,10 +24,8 @@ import {
   Row,
   Col,
   Divider,
-  Spin,
   Image,
   App,
-  Collapse,
 } from 'antd';
 import React, { useState } from 'react';
 
@@ -290,8 +281,8 @@ const WatermarkManagement: React.FC = () => {
       : []),
   ];
 
-  // 任务表格列
-  const taskColumns = [
+  // 任务表格列（预留功能）
+  const _taskColumns = [
     {
       title: '任务ID',
       dataIndex: 'id',

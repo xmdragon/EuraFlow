@@ -65,7 +65,7 @@ const ImageResizeModal: React.FC<ImageResizeModalProps> = ({
   images,
   shopId,
 }) => {
-  const isBatch = images.length > 1;
+  const _isBatch = images.length > 1;
 
   // 批量模式：每张图片独立状态
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
@@ -300,7 +300,7 @@ const ImageResizeModal: React.FC<ImageResizeModalProps> = ({
   };
 
   // 打开预览
-  const handlePreview = (imageUrl: string, index: number = 0) => {
+  const handlePreview = (imageUrl: string, _index: number = 0) => {
     setPreviewImages([imageUrl]);
     setPreviewIndex(0);
     setPreviewVisible(true);
@@ -316,7 +316,7 @@ const ImageResizeModal: React.FC<ImageResizeModalProps> = ({
   };
 
   // 渲染单张模式
-  const renderSingleMode = () => {
+  const _renderSingleMode = () => {
     if (images.length === 0) return null;
     const img = images[0];
     const state = imageStates[img.id];

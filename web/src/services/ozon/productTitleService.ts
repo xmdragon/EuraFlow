@@ -8,9 +8,10 @@
  */
 
 import type { FormInstance } from 'antd';
-import type { CategoryAttribute, DictionaryValue } from '@/services/ozonApi';
+import type { CategoryAttribute, DictionaryValue } from '@/services/ozon';
+import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager';
 import * as translationApi from '@/services/translationApi';
-import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { notifyWarning } from '@/utils/notification';
 import { loggers } from '@/utils/logger';
 
 /**
@@ -32,31 +33,6 @@ interface CategoryOption {
   children?: CategoryOption[];
   isLeaf?: boolean;
   disabled?: boolean;
-}
-
-/**
- * 变体维度接口
- */
-interface VariantDimension {
-  attribute_id: number;
-  name?: string;
-  dictionary_id?: number;
-}
-
-/**
- * 变体接口
- */
-interface ProductVariant {
-  dimension_values: Record<number, number | string>;
-  [key: string]: unknown;
-}
-
-/**
- * 变体管理器接口
- */
-interface VariantManager {
-  variantDimensions: VariantDimension[];
-  variants: ProductVariant[];
 }
 
 /**
@@ -115,7 +91,8 @@ export interface GenerateTitleParams {
   categoryTree: CategoryOption[];
   categoryAttributes: CategoryAttribute[];
   dictionaryValuesCache: DictionaryValuesCache;
-  variantManager: VariantManager;
+  variantDimensions: VariantDimension[];
+  variants: ProductVariant[];
 }
 
 /**
@@ -132,7 +109,8 @@ export function generateProductTitle(params: GenerateTitleParams): string | null
     categoryTree,
     categoryAttributes,
     dictionaryValuesCache,
-    variantManager
+    variantDimensions,
+    variants
   } = params;
 
   // 1. 获取当前选择的类目名称
@@ -227,17 +205,17 @@ export function generateProductTitle(params: GenerateTitleParams): string | null
   const attrParts: string[] = [];
 
   // 1. 颜色（从变体维度或属性中查找）
-  const colorDim = variantManager.variantDimensions.find(d =>
+  const colorDim = variantDimensions.find(d =>
     d.name?.toLowerCase().includes('颜色') ||
     d.name?.toLowerCase().includes('цвет') ||
     d.name?.toLowerCase().includes('color')
   );
   if (colorDim) {
     // 如果有多个变体，取第一个变体的颜色值
-    if (variantManager.variants.length > 0) {
-      const firstVariant = variantManager.variants[0];
+    if (variants.length > 0) {
+      const firstVariant = variants[0];
       const colorValue = firstVariant.dimension_values[colorDim.attribute_id];
-      if (colorValue) {
+      if (colorValue && (typeof colorValue === 'string' || typeof colorValue === 'number')) {
         const colorText = getDictionaryValueText(
           colorValue,
           colorDim.dictionary_id,

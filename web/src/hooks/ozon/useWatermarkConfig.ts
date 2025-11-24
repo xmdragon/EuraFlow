@@ -54,7 +54,7 @@ export const useWatermarkConfig = (
         : fetchedConfigs;
       setConfigs(filteredConfigs);
       loggers.ozon.debug('水印配置加载成功', { count: filteredConfigs.length });
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorObj = err instanceof Error ? err : new Error(String(err));
       setError(errorObj);
       loggers.ozon.error('加载水印配置失败', err);

@@ -66,7 +66,7 @@ export const ImportHistoryTable: React.FC<ImportHistoryTableProps> = ({
       title: '批次链接',
       dataIndex: 'id',
       key: 'batch_link',
-      render: (id: number, record: ImportHistory) => (
+      render: (id: number, _record: ImportHistory) => (
         <Button
           type="link"
           size="small"

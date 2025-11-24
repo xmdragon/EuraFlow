@@ -5,10 +5,8 @@
 import React from 'react';
 import {
   WATERMARK_POSITIONS_GRID,
-  getWatermarkThumbnailStyle,
   type WatermarkPosition,
 } from '@/utils/ozon/watermarkUtils';
-import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 
 export interface WatermarkPositionGridProps {
   /** 当前选中的位置 */
@@ -26,7 +24,7 @@ export interface WatermarkPositionGridProps {
  */
 export const WatermarkPositionGrid: React.FC<WatermarkPositionGridProps> = ({
   selectedPosition,
-  watermarkImageUrl,
+  watermarkImageUrl: _watermarkImageUrl,
   onPositionSelect,
   disabled = false,
 }) => {

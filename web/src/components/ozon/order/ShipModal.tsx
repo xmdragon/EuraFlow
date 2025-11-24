@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 订单发货Modal
  * 用于填写物流单号和选择物流公司
@@ -8,7 +8,7 @@ import React from 'react';
 
 import styles from '../../../pages/ozon/OrderList.module.scss';
 
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 
 const { Option } = Select;
 

@@ -23,13 +23,12 @@ import {
 } from 'recharts';
 
 import ShopSelectorWithLabel from '../../components/ozon/ShopSelectorWithLabel';
-import * as ozonApi from '../../services/ozonApi';
+import { getShops, getStatistics, getDailyPostingStats, getDailyRevenueStats } from '@/services/ozon';
 
 import styles from './OzonOverview.module.scss';
 
 import PageTitle from '@/components/PageTitle';
 import { useCurrency } from '@/hooks/useCurrency';
-import { useDateTime } from '@/hooks/useDateTime';
 
 const { Text } = Typography;
 
@@ -76,7 +75,7 @@ const OzonOverview: React.FC = () => {
   // 获取店铺列表（与ShopSelector共享查询）
   const { data: shops } = useQuery({
     queryKey: ['ozon', 'shops'],
-    queryFn: () => ozonApi.getShops(),
+    queryFn: () => getShops(),
     staleTime: 5 * 60 * 1000, // 5分钟内不重新请求
     gcTime: 10 * 60 * 1000, // 10分钟后清理缓存
   });
@@ -88,7 +87,7 @@ const OzonOverview: React.FC = () => {
   // 获取统计数据（使用防抖后的店铺ID）
   const { data: statisticsData } = useQuery({
     queryKey: ['ozon', 'statistics', debouncedShop],
-    queryFn: () => ozonApi.getStatistics(debouncedShop),
+    queryFn: () => getStatistics(debouncedShop),
     enabled: shouldFetchData,
     staleTime: 1 * 60 * 1000, // 1分钟内不重新请求
   });
@@ -120,7 +119,7 @@ const OzonOverview: React.FC = () => {
   // 获取每日posting统计
   const { data: dailyStatsData, isLoading: isDailyStatsLoading } = useQuery({
     queryKey: ['ozon', 'daily-posting-stats', debouncedShop, dateRangeParams],
-    queryFn: () => ozonApi.getDailyPostingStats(
+    queryFn: () => getDailyPostingStats(
       debouncedShop,
       dateRangeParams.rangeType,
       dateRangeParams.startDate,
@@ -133,7 +132,7 @@ const OzonOverview: React.FC = () => {
   // 获取每日销售额统计
   const { data: dailyRevenueData, isLoading: isDailyRevenueLoading } = useQuery({
     queryKey: ['ozon', 'daily-revenue-stats', debouncedShop, dateRangeParams],
-    queryFn: () => ozonApi.getDailyRevenueStats(
+    queryFn: () => getDailyRevenueStats(
       debouncedShop,
       dateRangeParams.rangeType,
       dateRangeParams.startDate,
@@ -235,10 +234,10 @@ const OzonOverview: React.FC = () => {
   }, [dailyRevenueData, displayMode, selectedShop, dateRangeLabel]);
 
   // 自定义tooltip内容 - 订单数量
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) => {
     if (active && payload && payload.length) {
       // 计算总数量
-      const total = payload.reduce((sum: number, item: any) => sum + (item.value || 0), 0);
+      const total = payload.reduce((sum: number, item: { value?: number }) => sum + (item.value || 0), 0);
 
       return (
         <div style={{
@@ -257,10 +256,10 @@ const OzonOverview: React.FC = () => {
   };
 
   // 自定义tooltip内容 - 销售额
-  const RevenueTooltip = ({ active, payload, label }: any) => {
+  const RevenueTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value?: number; name?: string; color?: string }>; label?: string }) => {
     if (active && payload && payload.length) {
       // 计算总销售额
-      const total = payload.reduce((sum: number, item: any) => sum + (item.value || 0), 0);
+      const total = payload.reduce((sum: number, item: { value?: number }) => sum + (item.value || 0), 0);
 
       return (
         <div style={{
@@ -281,7 +280,7 @@ const OzonOverview: React.FC = () => {
   };
 
   // 自定义柱状图标签 - 显示销售额（外部显示，带引导线和背景色）
-  const renderBarLabel = (props: any) => {
+  const renderBarLabel = (props: { x: number; y: number; width: number; value: number; fill: string }) => {
     const { x, y, width, value, fill } = props;
 
     // 如果值为0或太小，不显示标签
@@ -344,7 +343,7 @@ const OzonOverview: React.FC = () => {
   // 支持相同值的多个店铺显示不同标签，超过3个点时增加垂直偏移
   const createLineLabel = useCallback(
     (lineColor: string, shopKey: string) => {
-      return (props: any) => {
+      return (props: { x: number; y: number; value: number; index: number }) => {
         const { x, y, value, index } = props;
 
         // 如果值为0，不显示标签
@@ -477,10 +476,10 @@ const OzonOverview: React.FC = () => {
           <Col flex="auto">
             <Card>
               <Statistic
-                title={selectedShop ? shops?.data?.find((s: any) => s.id === selectedShop)?.shop_name : '店铺数'}
+                title={selectedShop ? shops?.data?.find((s: { id: number; shop_name: string }) => s.id === selectedShop)?.shop_name : '店铺数'}
                 value={
                   selectedShop
-                    ? shops?.data?.find((s: any) => s.id === selectedShop)?.shop_name || '-'
+                    ? shops?.data?.find((s: { id: number; shop_name: string }) => s.id === selectedShop)?.shop_name || '-'
                     : shops?.data?.length || 0
                 }
                 prefix={selectedShop ? null : <ShoppingOutlined />}

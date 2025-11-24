@@ -148,7 +148,7 @@ const WebhookLogsTable: React.FC = () => {
       } else {
         notifyError('查询失败', response.data.error?.detail || '未知错误');
       }
-    } catch (error) {
+    } catch {
       notifyError('查询失败', '获取Webhook日志失败');
     } finally {
       setLoading(false);
@@ -168,7 +168,7 @@ const WebhookLogsTable: React.FC = () => {
       } else {
         notifyError('获取详情失败', response.data.error?.detail || '未知错误');
       }
-    } catch (error) {
+    } catch {
       notifyError('获取详情失败', '无法获取Webhook日志详情');
     } finally {
       setDetailLoading(false);

@@ -13,7 +13,6 @@ import {
   Tag,
   Modal,
   Typography,
-  Spin,
   Empty,
   Input,
 } from 'antd';
@@ -119,7 +118,7 @@ const AuditLogsTable: React.FC = () => {
       } else {
         notifyError('查询失败', response.data.error?.detail || '未知错误');
       }
-    } catch (error) {
+    } catch {
       notifyError('查询失败', '获取操作日志失败');
     } finally {
       setLoading(false);

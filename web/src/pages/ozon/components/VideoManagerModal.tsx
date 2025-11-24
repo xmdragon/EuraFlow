@@ -32,8 +32,8 @@ import {
 import type { UploadFile } from 'antd';
 import React, { useState } from 'react';
 
-import type { VideoInfo } from '@/services/ozonApi';
-import { uploadMediaFile } from '@/services/ozonApi';
+import type { VideoInfo } from '@/services/ozon';
+import { uploadMediaFile } from '@/services/ozon';
 import { notifyError, notifySuccess } from '@/utils/notification';
 
 const { Text } = Typography;

@@ -93,7 +93,7 @@ export const useDateTime = () => {
    * @returns UTC 时间字符串（如："2025-11-02"）
    */
   const toUTC = useCallback(
-    (localTime: any, format: string = 'YYYY-MM-DD'): string => {
+    (localTime: unknown, format: string = 'YYYY-MM-DD'): string => {
       if (!localTime) return '';
       // 将用户时区的时间转换为 UTC
       return dayjs.tz(localTime, timezone).utc().format(format);
@@ -108,7 +108,7 @@ export const useDateTime = () => {
    * @returns UTC 时间字符串（如："2025-11-02T00:00:00Z" 或 "2025-11-02T23:59:59Z"）
    */
   const toUTCRange = useCallback(
-    (localDate: any, isEndDate: boolean = false): string => {
+    (localDate: unknown, isEndDate: boolean = false): string => {
       if (!localDate) return '';
 
       // 在用户时区设置时间为 00:00:00 或 23:59:59

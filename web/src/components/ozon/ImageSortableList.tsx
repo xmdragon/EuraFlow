@@ -24,7 +24,6 @@ import {
   EyeOutlined,
   EditOutlined,
   HighlightOutlined,
-  BgColorsOutlined,
   FormatPainterOutlined,
 } from '@ant-design/icons';
 import ImagePreview from '@/components/ImagePreview';
@@ -78,7 +77,7 @@ const SortableImageItem: React.FC<SortableImageItemProps> = ({
   index,
   isFirst,
   onSetAsMain,
-  onEdit,
+  onEdit: _onEdit,
   onDelete,
   onPreview,
   onTranslate,
@@ -397,13 +396,14 @@ export const ImageSortableList: React.FC<ImageSortableListProps> = ({
         });
         return { success: false, error: result?.error || '未知错误' };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       notification.error({
         message: '翻译失败',
-        description: error.message || '网络错误',
+        description: err.message || '网络错误',
         placement: 'bottomRight',
       });
-      return { success: false, error: error.message };
+      return { success: false, error: err.message };
     }
   };
 

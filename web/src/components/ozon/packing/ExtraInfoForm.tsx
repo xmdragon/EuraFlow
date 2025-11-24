@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 订单额外信息表单组件
  * 用于编辑订单的进货价格、物料成本、采购平台、国内物流单号和订单备注
@@ -10,7 +10,7 @@ import { Form, Input, Select, Button, Space, Row, Col } from 'antd';
 import React, { useEffect } from 'react';
 
 import { useCurrency } from '@/hooks/useCurrency';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { getCurrencySymbol } from '@/utils/currency';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
@@ -33,7 +33,7 @@ export interface ExtraInfoFormProps {
   /** 设置更新加载状态 */
   setIsUpdatingExtraInfo: (_isLoading: boolean) => void;
   /** 同步到跨境巴士的 mutation */
-  syncToKuajing84Mutation: UseMutationResult<any, Error, SyncKuajing84Params, unknown>;
+  syncToKuajing84Mutation: UseMutationResult<unknown, Error, SyncKuajing84Params, unknown>;
   /** 是否有操作权限 */
   canOperate: boolean;
 }

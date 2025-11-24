@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any */
+ 
 /**
  * 订单详情弹窗组件 - 供 OrderList 和 PackingShipment 共用
  */
@@ -31,10 +31,10 @@ import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
 import { usePermission } from '@/hooks/usePermission';
 import styles from '@/pages/ozon/OrderList.module.scss';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { formatPriceWithFallback } from '@/utils/currency';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
-import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
+import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -63,7 +63,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   onUpdate,
 }) => {
   // 权限检查
-  const { canOperate, canSync, isAdmin } = usePermission();
+  const { canOperate, canSync, isAdmin: _isAdmin } = usePermission();
   const { copyToClipboard } = useCopy();
   const { formatDateTime } = useDateTime();
 

@@ -54,7 +54,7 @@ const ImageMattingModal: React.FC<ImageMattingModalProps> = ({
 
       // 获取token和配置
       const tokenData = await getMattingToken();
-      const { token, user_key, aigc_key, img_matting_key } = tokenData;
+      const { token, aigc_key } = tokenData;
 
       // 生成签名
       const timestamp = Math.floor(Date.now() / 1000);
@@ -73,11 +73,12 @@ const ImageMattingModal: React.FC<ImageMattingModalProps> = ({
       const url = `https://www.xiangjifanyi.com/fusion/tools/iframe-matting?${params.toString()}`;
       setIframeUrl(url);
       setLoading(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setLoading(false);
+      const err = error as { response?: { data?: { detail?: { detail?: string } } }; message?: string };
       notifyError(
         '加载抠图工具失败',
-        error.response?.data?.detail?.detail || error.message || '请检查象寄配置'
+        err.response?.data?.detail?.detail || err.message || '请检查象寄配置'
       );
       onCancel();
     }
@@ -93,7 +94,7 @@ const ImageMattingModal: React.FC<ImageMattingModalProps> = ({
         return;
       }
 
-      const { name, res, requestId, all, points } = e.data;
+      const { name, res, requestId, all } = e.data;
 
       // XJ_ASK_QUOTA: 询问额度
       if (name === 'XJ_ASK_QUOTA') {

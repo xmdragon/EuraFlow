@@ -2,7 +2,7 @@
  * 商品图片通用组件
  * 支持多种尺寸、悬浮效果、角标配置
  */
-import { ShoppingCartOutlined, LinkOutlined, CheckOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, LinkOutlined } from '@ant-design/icons';
 import { Avatar, Tooltip, Popover, Checkbox } from 'antd';
 import React, { useState } from 'react';
 

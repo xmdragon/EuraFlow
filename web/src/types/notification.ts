@@ -47,7 +47,7 @@ export interface WebSocketNotification {
     | 'posting.delivered';
   shop_id?: number;
   chat_id?: string;
-  data?: ChatNotificationData | Kuajing84SyncNotificationData | PostingNotificationData | any;
+  data?: ChatNotificationData | Kuajing84SyncNotificationData | PostingNotificationData | unknown;
   timestamp?: string;
 }
 

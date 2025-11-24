@@ -105,7 +105,7 @@ export async function resizeImage(
     // 左右裁剪：先缩放使高度等于目标高度，然后裁剪宽度
     const scale = targetHeight / sourceHeight;
     const scaledWidth = sourceWidth * scale;
-    const offsetX = (scaledWidth - targetWidth) / 2;
+    const _offsetX = (scaledWidth - targetWidth) / 2;
 
     // 绘制时：从原图居中裁剪，缩放到目标尺寸
     ctx.drawImage(
@@ -123,7 +123,7 @@ export async function resizeImage(
     // 上下裁剪：先缩放使宽度等于目标宽度，然后裁剪高度
     const scale = targetWidth / sourceWidth;
     const scaledHeight = sourceHeight * scale;
-    const offsetY = (scaledHeight - targetHeight) / 2;
+    const _offsetY = (scaledHeight - targetHeight) / 2;
 
     // 绘制时：从原图居中裁剪，缩放到目标尺寸
     ctx.drawImage(

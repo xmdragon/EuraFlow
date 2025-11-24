@@ -13,8 +13,8 @@ const { Option } = Select;
 interface ShipOrderModalProps {
   visible: boolean;
   form: FormInstance;
-  order: any | null;
-  posting: any | null;
+  order: unknown | null;
+  posting: unknown | null;
   onClose: () => void;
   onSubmit: (values: { tracking_number: string; carrier_code: string }) => void;
   loading: boolean;

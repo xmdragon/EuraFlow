@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 import authService from './authService';
@@ -93,7 +93,7 @@ const handlePermissionDenied = (error: unknown) => {
     .then(({ message: antdMessage }) => {
       let errorDetail = '您没有执行此操作的权限';
       if (isAxiosError(error) && error.response?.data) {
-        const data = error.response.data as any;
+        const data = error.response.data as { error?: { detail?: string }; detail?: string };
         errorDetail = data?.error?.detail || data?.detail || errorDetail;
       }
       antdMessage.error(`权限不足: ${errorDetail}`);

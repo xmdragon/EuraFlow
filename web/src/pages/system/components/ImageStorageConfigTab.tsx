@@ -39,7 +39,7 @@ const ImageStorageConfigTab: React.FC = () => {
     queryFn: async () => {
       try {
         return await watermarkApi.getCloudinaryConfig();
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 404 或其他错误，返回 null（未配置）
         console.error('Failed to load Cloudinary config:', error);
         return null;
@@ -57,7 +57,7 @@ const ImageStorageConfigTab: React.FC = () => {
     queryFn: async () => {
       try {
         return await watermarkApi.getAliyunOssConfig();
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 404 或其他错误，返回 null（未配置）
         console.error('Failed to load Aliyun OSS config:', error);
         return null;
@@ -141,7 +141,7 @@ const ImageStorageConfigTab: React.FC = () => {
   // ============ 阿里云 OSS 存储统计查询 ============
   const {
     data: ossUsageData,
-    isLoading: ossUsageLoading,
+    isLoading: _ossUsageLoading,
   } = useQuery({
     queryKey: ['aliyunOssUsage'],
     queryFn: () => watermarkApi.testAliyunOssConnection(),

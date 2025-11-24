@@ -7,7 +7,7 @@ import { Modal, Form, Input, Select, InputNumber } from 'antd';
 import axios from 'axios';
 import React, { useEffect } from 'react';
 
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 

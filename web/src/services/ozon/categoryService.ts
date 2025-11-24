@@ -8,8 +8,8 @@
  * 4. 类目路径查询与转换
  */
 
-import * as ozonApi from '@/services/ozonApi';
-import type { CategoryAttribute, DictionaryValue } from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
+import type { CategoryAttribute, DictionaryValue } from '@/services/ozon';
 import { notifyError, notifyWarning } from '@/utils/notification';
 import { loggers } from '@/utils/logger';
 

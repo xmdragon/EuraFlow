@@ -51,7 +51,7 @@ export interface ProductSearchFormProps {
   /** 记住选择变化 */
   onRememberChange: (val: boolean) => void;
   /** 搜索提交 */
-  onSearch: (values: any) => void;
+  onSearch: (values: unknown) => void;
   /** 重置表单 */
   onReset: () => void;
 }

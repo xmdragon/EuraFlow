@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import axios from 'axios';
 
 import type { LoginRequest, LoginResponse, User } from '@/types/auth';

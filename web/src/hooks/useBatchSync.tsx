@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { notification, Progress } from 'antd';
 import { SyncOutlined } from '@ant-design/icons';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { logger } from '@/utils/logger';
 import { notifySuccess, notifyWarning, notifyInfo } from '@/utils/notification';
 
@@ -17,13 +17,13 @@ interface SyncProgress {
 
 interface UseBatchSyncOptions {
   onComplete?: (successCount: number, failedCount: number) => void;
-  onError?: (error: any) => void;
+  onError?: (error: unknown) => void;
 }
 
 interface UseBatchSyncReturn {
   isSyncing: boolean;
   syncProgress: SyncProgress;
-  batchSync: (postings: any[]) => Promise<void>;
+  batchSync: (postings: Array<{ posting_number: string; order: { shop_id: number } }>) => Promise<void>;
 }
 
 export const useBatchSync = (options: UseBatchSyncOptions = {}): UseBatchSyncReturn => {
@@ -36,7 +36,7 @@ export const useBatchSync = (options: UseBatchSyncOptions = {}): UseBatchSyncRet
     total: 0,
   });
 
-  const batchSync = async (postings: any[]): Promise<void> => {
+  const batchSync = async (postings: Array<{ posting_number: string; order: { shop_id: number } }>): Promise<void> => {
     if (postings.length === 0) {
       logger.warn('没有可同步的订单');
       notifyWarning('操作失败', '当前页面没有可同步的订单');
@@ -117,7 +117,7 @@ export const useBatchSync = (options: UseBatchSyncOptions = {}): UseBatchSyncRet
 
       // 触发完成回调
       onComplete?.(successCount, failedCount);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('批量同步错误', error);
       notification.destroy(notificationKey);
       onError?.(error);

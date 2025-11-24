@@ -64,7 +64,7 @@ const ImageRefineModal: React.FC<ImageRefineModalProps> = ({
       );
 
       setIframeLoaded(true);
-    } catch (error) {
+    } catch {
       // 忽略错误
     }
   };

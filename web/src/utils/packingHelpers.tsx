@@ -36,7 +36,7 @@ export const formatDeliveryMethodText = (text: string | undefined): React.ReactN
   if (!text) return '-';
 
   // 如果包含括号，提取括号内的内容
-  const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+  const match = text.match(/^(.+?)[(（](.+?)[)）]$/);
   if (!match) return text;
 
   const mainPart = match[1].trim();
@@ -83,7 +83,7 @@ export const formatDeliveryMethodTextWhite = (text: string | undefined): React.R
   if (!text) return '-';
 
   // 如果包含括号，提取括号内的内容
-  const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+  const match = text.match(/^(.+?)[(（](.+?)[)）]$/);
   if (!match) return text;
 
   const mainPart = match[1].trim();

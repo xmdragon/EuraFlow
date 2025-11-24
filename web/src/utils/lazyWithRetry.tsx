@@ -28,7 +28,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * @example
  * const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
  */
-export function lazyWithRetry<T extends ComponentType<any>>(
+export function lazyWithRetry<T extends ComponentType<unknown>>(
   importFunc: () => Promise<{ default: T }>,
   options: RetryOptions = {}
 ): React.LazyExoticComponent<T> {

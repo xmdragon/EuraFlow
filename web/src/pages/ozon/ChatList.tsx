@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * OZON 聊天列表页面
  */
@@ -39,7 +39,7 @@ import ShopSelectorWithLabel from "@/components/ozon/ShopSelectorWithLabel";
 import PageTitle from "@/components/PageTitle";
 import { useDateTime } from "@/hooks/useDateTime";
 import { usePermission } from "@/hooks/usePermission";
-import * as ozonApi from "@/services/ozonApi";
+import * as ozonApi from "@/services/ozon";
 import { notifySuccess, notifyError } from "@/utils/notification";
 import { getGlobalNotification } from "@/utils/globalNotification";
 
@@ -175,11 +175,11 @@ const ChatList: React.FC = () => {
               });
             }
           }
-        } catch (error) {
+        } catch {
           // 静默处理轮询错误，继续重试
         }
       }
-    } catch (error) {
+    } catch {
       // 轮询本身失败
       const notificationInstance = getGlobalNotification();
       if (notificationInstance) {
@@ -327,7 +327,7 @@ const ChatList: React.FC = () => {
               );
             }
             // 状态为 running 时继续轮询
-          } catch (error) {
+          } catch {
             // 轮询错误，继续重试
           }
         }

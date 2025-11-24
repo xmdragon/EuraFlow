@@ -60,7 +60,7 @@ export const CloudinaryImageGrid: React.FC<CloudinaryImageGridProps> = ({
 
   useEffect(() => {
     loadResources();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [folder]);
 
   const handleImageClick = (url: string) => {

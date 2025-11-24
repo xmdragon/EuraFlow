@@ -635,19 +635,21 @@ export async function uploadBase64Image(
       }
 
       return data;
-    } catch (axiosError: any) {
+    } catch (axiosError: unknown) {
       // 捕获axios异常
-      const errorMessage = axiosError?.response?.data?.detail || axiosError?.message || '网络错误';
+      const err = axiosError as { response?: { data?: { detail?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.detail || err?.message || '网络错误';
       return {
         success: false,
         error: errorMessage,
       };
     }
-  } catch (outerError: any) {
+  } catch (outerError: unknown) {
     // 最外层异常捕获 - 确保永远返回有效对象
+    const err = outerError as { message?: string };
     return {
       success: false,
-      error: outerError?.message || '未知错误',
+      error: err?.message || '未知错误',
     };
   }
 }

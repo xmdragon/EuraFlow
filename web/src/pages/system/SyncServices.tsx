@@ -42,7 +42,7 @@ interface SyncService {
   run_count: number;
   success_count: number;
   error_count: number;
-  config_json: Record<string, any>;
+  config_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -58,7 +58,7 @@ interface SyncServiceLog {
   records_updated: number;
   execution_time_ms: number | null;
   error_message: string | null;
-  extra_data?: Record<string, any>;
+  extra_data?: Record<string, unknown>;
 }
 
 interface SyncServiceStats {
@@ -276,7 +276,7 @@ const SyncServices = () => {
       ellipsis: true,
       width: 250,
       render: (_, record) => {
-        const extraData = record.extra_data as any;
+        const extraData = record.extra_data as { posting_number?: string } | undefined;
         return extraData?.posting_number || record.run_id;
       },
     },

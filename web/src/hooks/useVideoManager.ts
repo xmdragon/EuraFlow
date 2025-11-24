@@ -10,7 +10,7 @@
 import { useState, useCallback } from "react";
 import { notifyError, notifyWarning } from "@/utils/notification";
 import { loggers } from "@/utils/logger";
-import type { VideoInfo } from "@/services/ozonApi";
+import type { VideoInfo } from "@/services/ozon";
 
 interface UseVideoManagerOptions {
   /**

@@ -15,7 +15,6 @@ import {
   Card,
   Form,
   Input,
-  InputNumber,
   Button,
   Space,
   Alert,
@@ -44,7 +43,7 @@ import ImageStorageConfigTab from "./ImageStorageConfigTab";
 import TranslationConfigTab from "./TranslationConfigTab";
 import { usePermission } from "@/hooks/usePermission";
 import * as exchangeRateApi from "@/services/exchangeRateApi";
-import * as ozonApi from "@/services/ozonApi";
+import * as ozonApi from "@/services/ozon";
 import * as xiangjifanyiApi from "@/services/xiangjifanyiApi";
 import type { FormValues } from "@/types/common";
 import { notifySuccess, notifyError, notifyInfo } from "@/utils/notification";
@@ -148,10 +147,11 @@ const ThirdPartyServicesTab: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["exchange-rate"] });
       exchangeRateForm.resetFields();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: { detail?: string } } }; message?: string };
       notifyError(
         "配置失败",
-        `配置失败: ${error.response?.data?.error?.detail || error.message}`,
+        `配置失败: ${err.response?.data?.error?.detail || err.message}`,
       );
     },
   });
@@ -166,10 +166,11 @@ const ThirdPartyServicesTab: React.FC = () => {
         notifyInfo("刷新提示", data.message);
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: { detail?: string } } }; message?: string };
       notifyError(
         "刷新失败",
-        `刷新失败: ${error.response?.data?.error?.detail || error.message}`,
+        `刷新失败: ${err.response?.data?.error?.detail || err.message}`,
       );
     },
   });

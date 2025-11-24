@@ -9,23 +9,14 @@
  */
 
 import type { FormInstance } from 'antd';
-import type { CategoryAttribute } from '@/services/ozonApi';
+import type { CategoryAttribute } from '@/services/ozon';
+import type { ProductVariant as VariantType } from '@/hooks/useVariantManager';
 import { loggers } from '@/utils/logger';
 
 /**
- * 变体接口
+ * 变体接口（兼容 useVariantManager 返回的类型）
  */
-export interface ProductVariant {
-  id: string;
-  offer_id: string;
-  title?: string;
-  price?: number;
-  old_price?: number;
-  barcode?: string;
-  images?: string[];
-  videos?: string[];
-  dimension_values: Record<number, number | string>;
-}
+export type ProductVariant = VariantType;
 
 /**
  * 属性字段名称映射（支持多语言）
@@ -284,6 +275,13 @@ export function formatVariantForAPI(
     return attr;
   });
 
+  // 处理 videos：VideoInfo[] → string[]
+  let videoUrls: string[] = [];
+  if (variant.videos && Array.isArray(variant.videos)) {
+    // useVariantManager 的 ProductVariant.videos 类型是 VideoInfo[]
+    videoUrls = variant.videos.map((v: { url: string }) => v.url);
+  }
+
   return {
     offer_id: variant.offer_id,
     title: variant.title,
@@ -291,7 +289,7 @@ export function formatVariantForAPI(
     old_price: variant.old_price?.toString(),
     barcode: variant.barcode,
     images: variant.images || [],
-    videos: variant.videos || [],
+    videos: videoUrls,
     attributes: variantAttributes
   };
 }

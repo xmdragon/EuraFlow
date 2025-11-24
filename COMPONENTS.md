@@ -714,5 +714,197 @@ const initiatorText = getCancellationInitiatorText('CLIENT');
 
 ---
 
-**最后更新**：2025-10-31（新增 ProductImage 组件、优化 OrderDetailModal）
+## ⚙️ Services（业务逻辑层）
+
+### 商品标题管理
+
+#### `productTitleService`
+**路径**：`web/src/services/ozon/productTitleService.ts`
+**用途**：OZON 商品标题生成与翻译服务
+**职责**：
+- 按 OZON 官方命名规范生成商品标题
+- 提供标题翻译功能（中文 ↔ 俄文）
+- 检查类目是否支持自动生成标题
+
+**主要 API**：
+```typescript
+// 生成商品标题
+const title = generateProductTitle({
+  form,                    // Form 实例
+  selectedCategory,        // 选中的类目 ID
+  categoryTree,            // 类目树
+  categoryAttributes,      // 类目属性列表
+  dictionaryValuesCache,   // 字典值缓存
+  variantManager           // 变体管理器
+});
+
+// 翻译标题
+const translated = await translateTitle({
+  text: '原文',
+  sourceLang: 'zh',
+  targetLang: 'ru'
+});
+
+// 检查类目
+const isAuto = isAutoTitleCategory('服装'); // false
+```
+
+**已应用场景**：
+- ProductCreate.tsx（商品创建）
+- ProductEdit.tsx（商品编辑，待迁移）
+
+---
+
+### 类目管理
+
+#### `categoryService`
+**路径**：`web/src/services/ozon/categoryService.ts`
+**用途**：OZON 类目树数据加载与管理服务
+**职责**：
+- 类目树数据加载
+- 类目属性加载
+- 字典值搜索
+- 类目路径查询与转换
+
+**主要 API**：
+```typescript
+// 加载类目树
+const tree = await loadCategoryTree();
+
+// 加载类目属性
+const result = await loadCategoryAttributes({
+  shopId: 123,
+  categoryId: 456
+});
+
+// 加载字典值
+const values = await loadDictionaryValues(
+  shopId,
+  categoryId,
+  attributeId,
+  query,      // 可选：搜索关键词
+  100         // 限制返回数量
+);
+
+// 获取类目路径
+const path = getCategoryPath(categoryId, tree);
+// 返回: [parent1, parent2, categoryId]
+
+// 获取类目名称
+const name = getCategoryNameById(categoryId, tree);
+
+// 提取特殊字段说明
+const descriptions = extractSpecialFieldDescriptions(attributes);
+
+// 提取变体维度属性
+const aspectAttrs = extractAspectAttributes(attributes);
+```
+
+**已应用场景**：
+- ProductCreate.tsx（商品创建）
+- ProductEdit.tsx（商品编辑，待迁移）
+
+---
+
+### 商品提交管理
+
+#### `productSubmitService`
+**路径**：`web/src/services/ozon/productSubmitService.ts`
+**用途**：商品提交数据转换与处理服务
+**职责**：
+- 包装尺寸同步到类目属性
+- 表单数据转换为 OZON API 格式
+- 属性与变体的格式转换
+- 商品提交参数组装
+
+**主要 API**：
+```typescript
+// 同步包装尺寸到类目属性
+syncDimensionsToAttributes({
+  form,
+  categoryAttributes,
+  changedFields: ['width', 'height', 'depth', 'weight']
+});
+
+// 转换属性为 API 格式
+const attributes = formatAttributesForAPI(form, categoryAttributes);
+
+// 转换变体为 API 格式
+const variants = formatVariantsForAPI(
+  variantManager.variants,
+  categoryAttributes
+);
+
+// 解析 TextArea 多行文本
+const urls = parseTextAreaToArray(textAreaValue);
+// 输入: "url1\nurl2\n\nurl3"
+// 输出: ["url1", "url2", "url3"]
+
+// 获取父类目 ID
+const parentId = getDescriptionCategoryId(categoryPath);
+// 输入: [parent1, parent2, categoryId]
+// 输出: parent2
+```
+
+**已应用场景**：
+- ProductCreate.tsx（商品创建）
+- ProductEdit.tsx（商品编辑，待迁移）
+
+---
+
+## 🔍 快速查找
+
+### 按功能查找
+
+- **异步任务轮询** → `useAsyncTaskPolling`
+- **权限判断** → `usePermission`
+- **复制文本** → `useCopy`
+- **货币转换** → `useCurrency`
+- **状态映射** → `OZON_ORDER_STATUS_MAP`
+- **通知提示** → `notification` 工具
+- **日志记录** → `loggers`
+- **商品标题生成** → `productTitleService`
+- **类目管理** → `categoryService`
+- **商品提交转换** → `productSubmitService`
+
+### 按场景查找
+
+- **订单同步** → `useAsyncTaskPolling` + `ozonApi.syncOrders`
+- **商品操作** → `useProductOperations`
+- **水印处理** → `useWatermark`
+- **批量打印** → `useBatchPrint`
+- **商品标题生成** → `productTitleService.generateProductTitle`
+- **商品数据转换** → `productSubmitService`
+
+---
+
+## 📚 相关文档
+
+- **异步轮询详细文档**：`web/src/hooks/useAsyncTaskPolling.example.md`
+- **ProductCreate 拆分指南**：`docs/ProductCreate-Migration-Guide.md`
+- **开发规范**：`CLAUDE.md`
+- **FAQ**：`FAQ.md`
+
+---
+
+## 📝 页面功能说明
+
+### Posting Number 链接
+
+所有显示 `posting_number`（货件编号）的页面都支持点击查看订单详情：
+
+| 页面 | 点击行为 | 说明 |
+|------|----------|------|
+| **订单管理** (OrderList.tsx) | 弹出 `OrderDetailModal` | 完整订单详情，支持编辑 |
+| **打包发货** (PackingShipment.tsx) | 弹出 `OrderDetailModal` | 完整订单详情，支持编辑 |
+| **订单报表** (OrderReport.tsx) | 弹出简化 Modal | 统计数据展示，不支持编辑 |
+| **财务交易** (FinanceTransactions.tsx) | 跳转到订单管理页面 | 自动搜索该 posting_number |
+
+**实现原则**：
+- 有完整订单数据的页面：使用 `OrderDetailModal`
+- 仅有统计数据的页面：使用简化 Modal 或跳转
+
+---
+
+**最后更新**：2025-11-24（新增 3 个 OZON Service 模块：productTitleService、categoryService、productSubmitService）
 **维护者**：开发团队

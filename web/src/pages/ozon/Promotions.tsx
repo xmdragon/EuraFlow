@@ -27,7 +27,7 @@ import {
   Image,
 } from 'antd';
 import { ColumnsType } from 'antd/es/table';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelector from '@/components/ozon/ShopSelector';
@@ -79,7 +79,7 @@ const formatDescription = (html: string): string => {
 
   // 在句子结束符（。！？.!?）后面添加换行，但要避免影响HTML标签
   // 使用正则表达式匹配句子结束符，后面不是HTML标签的情况
-  let formatted = html
+  const formatted = html
     // 在中文句号、感叹号、问号后添加换行
     .replace(/([。！？])(?!<)/g, '$1<br/>')
     // 在英文句号、感叹号、问号后添加换行（但要避免数字中的点和HTML实体）

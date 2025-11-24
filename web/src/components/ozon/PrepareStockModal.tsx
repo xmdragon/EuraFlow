@@ -119,7 +119,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
   }, [visible, stockCheckData, form]);
 
   // 更新商品数据
-  const updateItemData = (sku: string, field: keyof ItemPrepareData, value: any) => {
+  const updateItemData = (sku: string, field: keyof ItemPrepareData, value: unknown) => {
     setItemsData((prev) =>
       prev.map((item) => {
         if (item.sku === sku) {

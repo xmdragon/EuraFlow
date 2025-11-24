@@ -10,8 +10,6 @@ import {
   SaveOutlined,
   ReloadOutlined,
   PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
   TruckOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons';
@@ -43,7 +41,7 @@ import styles from './OzonShopTab.module.scss';
 
 import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
 // OZON店铺表单值接口
@@ -55,7 +53,7 @@ interface OzonShopFormValues {
   webhook_url?: string;
 }
 
-const { Text, Paragraph, Title } = Typography;
+const { Text, Title } = Typography;
 
 interface Shop {
   id: number;

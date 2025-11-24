@@ -2,9 +2,9 @@ import React from 'react';
 import { Modal, Alert, Empty, Spin, Typography, List, Tag } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 // 错误代码中文映射
 const ERROR_CODE_MAP: Record<string, string> = {
@@ -48,7 +48,7 @@ interface SyncError {
     code?: string;
     message?: string;
     field?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }>;
   created_at: string | null;
   updated_at: string | null;
@@ -74,24 +74,25 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
     enabled: visible && productId !== null,
   });
 
-  const renderErrorItem = (error: any, index: number) => {
+  const renderErrorItem = (error: unknown, index: number) => {
+    const err = error as { texts?: { description?: string; attribute_name?: string }; description?: string; attribute_name?: string; code?: string; level?: string };
     // 获取错误描述（优先使用 texts.description，其次使用 description）
-    const description = error.texts?.description || error.description;
-    const attributeName = error.texts?.attribute_name || error.attribute_name;
+    const description = err.texts?.description || err.description;
+    const attributeName = err.texts?.attribute_name || err.attribute_name;
 
     return (
       <List.Item key={index}>
         <div style={{ width: '100%' }}>
           {/* 错误代码和级别 */}
           <div style={{ marginBottom: 8 }}>
-            {error.code && (
-              <Tag color="red">{ERROR_CODE_MAP[error.code] || error.code}</Tag>
+            {err.code && (
+              <Tag color="red">{ERROR_CODE_MAP[err.code] || err.code}</Tag>
             )}
-            {error.level && (
-              <Tag color="orange">{ERROR_LEVEL_MAP[error.level] || error.level}</Tag>
+            {err.level && (
+              <Tag color="orange">{ERROR_LEVEL_MAP[err.level] || err.level}</Tag>
             )}
-            {error.state && (
-              <Tag color="blue">{ERROR_STATE_MAP[error.state] || error.state}</Tag>
+            {(err as { state?: string }).state && (
+              <Tag color="blue">{ERROR_STATE_MAP[(err as { state?: string }).state!] || (err as { state?: string }).state}</Tag>
             )}
           </div>
 

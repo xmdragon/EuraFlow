@@ -3,7 +3,7 @@
  * 独立的选择器组件，可用于任意需要选择水印配置的场景
  */
 import React from 'react';
-import { Select, Space, Tag } from 'antd';
+import { Select, Space } from 'antd';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import type { WatermarkConfig } from '@/services/watermarkApi';
 

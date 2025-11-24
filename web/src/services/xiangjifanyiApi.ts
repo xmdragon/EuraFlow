@@ -125,12 +125,13 @@ export const translateSingleImage = async (
     };
 
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 返回错误信息
+    const err = error as { response?: { data?: { detail?: { detail?: string } } }; message?: string };
     return {
       url: imageUrl,
       success: false,
-      error: error.response?.data?.detail?.detail || error.message || '翻译失败',
+      error: err.response?.data?.detail?.detail || err.message || '翻译失败',
     };
   }
 };
@@ -205,13 +206,14 @@ export const mattingSingleImage = async (
     };
 
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 返回错误信息
+    const err = error as { response?: { data?: { detail?: { detail?: string } } }; message?: string };
     return {
       url: '',
       original_url: imageUrl,
       success: false,
-      error: error.response?.data?.detail?.detail || error.message || '抠图失败',
+      error: err.response?.data?.detail?.detail || err.message || '抠图失败',
     };
   }
 };

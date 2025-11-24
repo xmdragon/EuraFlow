@@ -17,11 +17,11 @@ import { ColumnsType } from 'antd/es/table';
 import React from 'react';
 
 import ProductImage from '@/components/ozon/ProductImage';
-import type * as ozonApi from '@/services/ozonApi';
+import type * as ozonApi from '@/services/ozon';
 import { formatPriceWithCurrency } from '@/utils/currency';
 
 // 列配置工厂函数的参数接口
-/* eslint-disable no-unused-vars */
+ 
 export interface ProductTableColumnsParams {
   handleEdit: (product: ozonApi.Product) => void;
   handlePriceUpdate: (product: ozonApi.Product) => void;
@@ -39,7 +39,7 @@ export interface ProductTableColumnsParams {
   SortableColumnTitle: React.FC<{ title: string; field: string }>;
   onErrorClick?: (productId: number) => void;
 }
-/* eslint-enable no-unused-vars */
+ 
 
 // 状态映射配置
 export const statusMap: Record<string, { text: string; color: string }> = {

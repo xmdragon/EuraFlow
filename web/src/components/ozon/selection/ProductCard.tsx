@@ -75,7 +75,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onShowImages,
 }) => {
   // 计算折扣
-  const discount = product.original_price
+  const _discount = product.original_price
     ? Math.round((1 - product.current_price / product.original_price) * 100)
     : 0;
 

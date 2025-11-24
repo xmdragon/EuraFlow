@@ -17,7 +17,7 @@ import {
 import { Table, Input, InputNumber, Button, Select, Space, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager';
-import type { DictionaryValue } from '@/services/ozonApi';
+import type { DictionaryValue } from '@/services/ozon';
 import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
 import styles from './VariantTable.module.scss';
 
@@ -277,7 +277,7 @@ export const VariantTable: React.FC<VariantTableProps> = ({
                   onSearch={async (value) => {
                     // 搜索时动态加载（至少2个字符）
                     if (value && value.length >= 2) {
-                      const values = await loadDictionaryValues(dim.category_id, dim.attribute_id, value);
+                      const _values = await loadDictionaryValues(dim.category_id, dim.attribute_id, value);
                       // 更新缓存以触发重新渲染
                       // 注意：这里仍然使用 dictionary_id 作为缓存key，因为它可能被多个变体维度共享
                       // 实际上我们应该更新 ProductCreate.tsx 中的缓存管理逻辑

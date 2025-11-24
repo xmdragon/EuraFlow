@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * Webhook 配置组件
  */
@@ -22,7 +22,7 @@ import React, { useState } from 'react';
 
 import styles from '../../../pages/ozon/ShopSettings.module.scss';
 
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text } = Typography;
@@ -45,8 +45,8 @@ export interface WebhookConfigurationProps {
 
 export const WebhookConfiguration: React.FC<WebhookConfigurationProps> = ({ selectedShop }) => {
   const { modal } = App.useApp();
-  const [_webhookConfig, _setWebhookConfig] = useState<any>(null);
-  const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
+  const [_webhookConfig, _setWebhookConfig] = useState<unknown>(null);
+  const [webhookEvents, setWebhookEvents] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(false);
   const [configModalVisible, setConfigModalVisible] = useState(false);
   const [eventsModalVisible, setEventsModalVisible] = useState(false);

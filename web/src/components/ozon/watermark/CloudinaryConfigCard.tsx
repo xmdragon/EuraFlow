@@ -14,7 +14,6 @@ import {
   Statistic,
   Divider,
   Spin,
-  Modal,
   App,
   FormInstance,
 } from 'antd';

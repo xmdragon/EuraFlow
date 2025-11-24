@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars, @typescript-eslint/no-explicit-any */
 /**
  * Ozon 订单列表页面
  */
@@ -7,11 +6,7 @@ import {
   PrinterOutlined,
   TruckOutlined,
   SearchOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
   ShoppingCartOutlined,
-  FileTextOutlined,
   CopyOutlined,
   DownloadOutlined,
 } from '@ant-design/icons';
@@ -31,9 +26,7 @@ import {
   Progress,
   Table,
   Pagination,
-  notification,
 } from 'antd';
-import moment from 'moment';
 import React, { useState } from 'react';
 
 import { useCurrency } from '../../hooks/useCurrency';
@@ -54,7 +47,7 @@ import { OZON_ORDER_STATUS_MAP } from '@/constants/ozonStatus';
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 
@@ -157,7 +150,7 @@ const OrderList: React.FC = () => {
   const [selectedProductName, setSelectedProductName] = useState<string>('');
 
   // 搜索参数状态
-  const [searchParams, setSearchParams] = useState<any>({});
+  const [searchParams, setSearchParams] = useState<Record<string, unknown>>({});
 
   // 批量打印标签状态
   const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
@@ -829,14 +822,14 @@ const OrderList: React.FC = () => {
             // 等待当前店铺同步完成再继续下一个
             await new Promise((resolve) => setTimeout(resolve, 2000));
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           loggers.ozon.error(`店铺 ${shop.shop_name} 同步失败`, error);
           notifyWarning('同步失败', `店铺 ${shop.shop_name} 同步失败: ${error.message}`);
         }
       }
 
       notifySuccess('批量同步完成', `已启动 ${shops.length} 个店铺的订单同步任务`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       loggers.ozon.error('批量同步失败', error);
       notifyError('批量同步失败', error.message);
     } finally {

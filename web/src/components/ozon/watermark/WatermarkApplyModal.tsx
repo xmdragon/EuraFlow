@@ -11,7 +11,7 @@ import {
 } from '@/utils/ozon/watermarkUtils';
 import { useWatermarkConfig } from '@/hooks/ozon/useWatermarkConfig';
 import { WatermarkPositionGrid } from './WatermarkPositionGrid';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import * as watermarkApi from '@/services/watermarkApi';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 import { loggers } from '@/utils/logger';

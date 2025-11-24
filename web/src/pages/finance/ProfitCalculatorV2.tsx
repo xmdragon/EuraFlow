@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 import { CalculatorOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -16,7 +16,7 @@ import {
 } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 
-import { matchScenario, matchAllScenarios } from '../ozon/profitCalculator';
+import { matchAllScenarios } from '../ozon/profitCalculator';
 
 import { SCENARIOS } from './constants';
 import styles from './ProfitCalculatorV2.module.scss';
@@ -52,7 +52,7 @@ const ProfitCalculatorV2: React.FC = () => {
     staleTime: 30 * 60 * 1000, // 30分钟
     gcTime: 60 * 60 * 1000, // 1小时
   });
-  const exchangeRate = exchangeRateData ? parseFloat((exchangeRateData as any).rate) : null;
+  const exchangeRate = exchangeRateData ? parseFloat((exchangeRateData as { rate: string }).rate) : null;
 
   // 自动匹配所有符合条件的场景
   const matchedScenarios = useMemo(() => {

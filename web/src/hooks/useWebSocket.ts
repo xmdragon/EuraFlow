@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * WebSocket Hook - 管理WebSocket连接和消息
  */
@@ -208,7 +208,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         }, 100);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [enabled, token]);
 
   return {

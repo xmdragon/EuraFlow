@@ -24,7 +24,7 @@ import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -72,9 +72,10 @@ const Stock: React.FC = () => {
       setEditingKey(null);
       form.resetFields();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       loggers.stock.error('更新库存失败', error);
-      notifyError('更新失败', error?.response?.data?.detail || '请稍后重试');
+      const err = error as { response?: { data?: { detail?: string } } };
+      notifyError('更新失败', err?.response?.data?.detail || '请稍后重试');
     },
   });
 
@@ -85,9 +86,10 @@ const Stock: React.FC = () => {
       notifySuccess('库存删除成功', '库存记录已删除');
       queryClient.invalidateQueries({ queryKey: ['stock'] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       loggers.stock.error('删除库存失败', error);
-      notifyError('删除失败', error?.response?.data?.detail || '请稍后重试');
+      const err = error as { response?: { data?: { detail?: string } } };
+      notifyError('删除失败', err?.response?.data?.detail || '请稍后重试');
     },
   });
 
@@ -263,7 +265,7 @@ const Stock: React.FC = () => {
       key: 'action',
       width: 180,
       fixed: 'right',
-      render: (_: any, record: ozonApi.StockItem) => {
+      render: (_: unknown, record: ozonApi.StockItem) => {
         const isEditing = editingKey === record.id;
 
         if (!canOperate) {

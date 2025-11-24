@@ -10,7 +10,6 @@ import React, { useState, useMemo } from 'react';
 
 import styles from './CollectionRecordDetailModal.module.scss';
 
-import ProductImage from '@/components/ozon/ProductImage';
 import { useCurrency } from '@/hooks/useCurrency';
 
 interface Variant {
@@ -40,10 +39,10 @@ interface CollectionRecordData {
     old_price?: number;
     currency?: string;
     description?: string;
-    specifications?: Record<string, any>;
+    specifications?: Record<string, unknown>;
     variants?: Variant[];
     has_variants?: boolean;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   created_at: string;
   updated_at: string;
@@ -84,7 +83,7 @@ const CollectionRecordDetailModal: React.FC<CollectionRecordDetailModalProps> = 
       return currentVariant.images.map(img => img.url).filter(Boolean);
     }
     if (product_data?.images && product_data.images.length > 0) {
-      return product_data.images.map((img: any) => img?.url || img).filter(Boolean);
+      return product_data.images.map((img: unknown) => (typeof img === 'string' ? img : (img as { url?: string })?.url || '')).filter(Boolean);
     }
     return [];
   }, [currentVariant, product_data?.images]);

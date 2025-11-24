@@ -60,7 +60,7 @@ import { ORDER_STATUS_CONFIG } from "@/config/ozon/orderStatusConfig";
 import { useCopy } from "@/hooks/useCopy";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useDateTime } from "@/hooks/useDateTime";
-import * as ozonApi from "@/services/ozonApi";
+import * as ozonApi from "@/services/ozon";
 import { notifySuccess, notifyError } from "@/utils/notification";
 
 const { Text } = Typography;
@@ -187,7 +187,7 @@ const OrderReport: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [_loadingDetail, _setLoadingDetail] = useState(false);
 
   // 批量同步状态
   const [batchSyncTaskId, setBatchSyncTaskId] = useState<string | null>(null);
@@ -206,7 +206,7 @@ const OrderReport: React.FC = () => {
     if (!text) return '-';
 
     // 如果包含括号，提取括号内的内容
-    const match = text.match(/^(.+?)[\(（](.+?)[\)）]$/);
+    const match = text.match(/^(.+?)[(（](.+?)[)）]$/);
     if (!match) return text;
 
     const mainPart = match[1].trim();
@@ -386,7 +386,7 @@ const OrderReport: React.FC = () => {
   // 打开货件详情Modal - 调用 API 获取完整订单数据
   const showPostingDetail = async (postingNumber: string, shopId?: number) => {
     try {
-      setLoadingDetail(true);
+      _setLoadingDetail(true);
       const response = await ozonApi.getOrderDetail(postingNumber, shopId);
 
       // response.data 应该包含完整的订单信息
@@ -399,10 +399,10 @@ const OrderReport: React.FC = () => {
         setSelectedPosting(posting || null);
         setDetailModalVisible(true);
       }
-    } catch (error) {
+    } catch {
       notifyError('加载失败', '无法加载订单详情');
     } finally {
-      setLoadingDetail(false);
+      _setLoadingDetail(false);
     }
   };
 

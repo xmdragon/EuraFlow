@@ -35,7 +35,7 @@ export const useCopy = () => {
           notifyError('复制失败', '请手动复制');
           return false;
         }
-      } catch (err) {
+      } catch {
         notifyError('复制失败', '请手动复制');
         return false;
       }

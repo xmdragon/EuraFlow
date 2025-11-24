@@ -3,7 +3,6 @@
  * 组合组件，整合水印配置选择、位置选择和预览功能
  */
 import React, { useState } from 'react';
-import { Space } from 'antd';
 import type { WatermarkConfig } from '@/services/watermarkApi';
 import WatermarkConfigSelector from './WatermarkConfigSelector';
 import PositionGrid, { type WatermarkPosition } from './PositionGrid';

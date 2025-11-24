@@ -41,7 +41,7 @@ import { useCopy } from '@/hooks/useCopy';
 import { useCurrency } from '@/hooks/useCurrency';
 import { usePermission } from '@/hooks/usePermission';
 import authService from '@/services/authService';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { getNumberFormatter, getNumberParser } from '@/utils/formatNumber';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';

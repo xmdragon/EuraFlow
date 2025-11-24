@@ -7,7 +7,7 @@ import { Progress } from 'antd';
 import { useState } from 'react';
 
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { notifyError } from '@/utils/notification';
 
 export const useProductSync = (selectedShop: number | null, refetch: () => void) => {

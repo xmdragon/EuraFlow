@@ -14,7 +14,7 @@ import type { TranslationResult as EngineTranslationResult } from './Translation
 import styles from './VariantImageManagerModal.module.scss';
 import ImageWatermarkModal from './watermark/ImageWatermarkModal';
 
-import { uploadMedia } from '@/services/ozonApi';
+import { uploadMedia } from '@/services/ozon';
 import { getCloudinaryConfig, uploadRefinedImages } from '@/services/watermarkApi';
 import {
   translateBatchImages,

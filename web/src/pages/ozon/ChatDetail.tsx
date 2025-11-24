@@ -38,7 +38,7 @@ import styles from './ChatDetail.module.scss';
 
 import PageTitle from '@/components/PageTitle';
 import { useDateTime } from '@/hooks/useDateTime';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import * as translationApi from '@/services/translationApi';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 

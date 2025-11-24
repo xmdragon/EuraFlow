@@ -3,7 +3,7 @@
  * 两步流程：1. 输入SKU查询商品 2. 填写库存数量
  */
 import { SearchOutlined } from '@ant-design/icons';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import {
   Modal,
   Form,
@@ -19,7 +19,7 @@ import {
 import React, { useState } from 'react';
 
 import { useCurrency } from '@/hooks/useCurrency';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
@@ -41,7 +41,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
   const [product, setProduct] = useState<ozonApi.Product | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [matchedShopId, setMatchedShopId] = useState<number | null>(null);
+  const [_matchedShopId, _setMatchedShopId] = useState<number | null>(null);
 
   // 查询商品（全店铺搜索）
   const handleSearchProduct = async () => {
@@ -95,7 +95,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
 
       if (matchedProduct) {
         setProduct(matchedProduct);
-        setMatchedShopId(matchedProduct.shop_id);
+        _setMatchedShopId(matchedProduct.shop_id);
         setStep('input');
         form.setFieldsValue({
           shop_id: matchedProduct.shop_id,
@@ -104,13 +104,14 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
       } else {
         setSearchError('所有店铺没有该商品，请核对SKU');
         setProduct(null);
-        setMatchedShopId(null);
+        _setMatchedShopId(null);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       loggers.stock.error('查询商品失败', error);
-      setSearchError(error?.response?.data?.detail || '查询商品失败，请稍后重试');
+      const err = error as { response?: { data?: { detail?: string } } };
+      setSearchError(err?.response?.data?.detail || '查询商品失败，请稍后重试');
       setProduct(null);
-      setMatchedShopId(null);
+      _setMatchedShopId(null);
     } finally {
       setSearching(false);
     }
@@ -124,9 +125,10 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
       handleClose();
       onSuccess();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       loggers.stock.error('添加库存失败', error);
-      notifyError('添加失败', error?.response?.data?.detail || '请稍后重试');
+      const err = error as { response?: { data?: { detail?: string } } };
+      notifyError('添加失败', err?.response?.data?.detail || '请稍后重试');
     },
   });
 
@@ -145,7 +147,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
     setStep('search');
     setSkuInput('');
     setProduct(null);
-    setMatchedShopId(null);
+    _setMatchedShopId(null);
     setSearchError(null);
     form.resetFields();
     onClose();
@@ -155,7 +157,7 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ visible, onClose, onSucce
   const handleBack = () => {
     setStep('search');
     setProduct(null);
-    setMatchedShopId(null);
+    _setMatchedShopId(null);
     setSearchError(null);
   };
 

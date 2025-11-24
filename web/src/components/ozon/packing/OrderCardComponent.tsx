@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 打包发货订单卡片组件
  */
@@ -9,7 +9,7 @@ import React from 'react';
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
 import { useDateTime } from '@/hooks/useDateTime';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { getCurrencySymbol } from '@/utils/currency';
 import { optimizeOzonImageUrl } from '@/utils/ozonImageOptimizer';
 

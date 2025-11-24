@@ -18,12 +18,9 @@ import {
   Tag,
   Modal,
   Form,
-  Input,
-  Select,
   Steps,
   Alert,
   Tooltip,
-  Badge,
   Row,
   Col,
   Statistic,
@@ -36,10 +33,8 @@ import styles from './ProductListing.module.scss';
 import ProductImage from '@/components/ozon/ProductImage';
 import ShopSelectorWithLabel from '@/components/ozon/ShopSelectorWithLabel';
 import PageTitle from '@/components/PageTitle';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError } from '@/utils/notification';
-
-const { Option } = Select;
 
 // 状态映射
 const STATUS_STEPS = [
@@ -69,7 +64,7 @@ const ProductListing: React.FC = () => {
   const [listingModalVisible, setListingModalVisible] = useState(false);
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<ozonApi.ListingStatus | null>(null);
-  const [form] = Form.useForm();
+  const [_form] = Form.useForm();
 
   // 获取已下架商品列表（可重新上架）
   const {
@@ -109,8 +104,8 @@ const ProductListing: React.FC = () => {
     },
   });
 
-  // 查询上架状态
-  const checkStatusMutation = useMutation({
+  // 查询上架状态（预留功能）
+  const _checkStatusMutation = useMutation({
     mutationFn: async (offerId: string) => {
       if (!selectedShop) throw new Error('请先选择店铺');
       return await ozonApi.getListingStatus(selectedShop, offerId);

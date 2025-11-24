@@ -1,7 +1,7 @@
 import React from 'react';
 import { Form, Input, InputNumber, Select, Switch, Button, Space, Tag } from 'antd';
 import { PlusOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import type { CategoryAttribute, DictionaryValue } from '@/services/ozonApi';
+import type { CategoryAttribute, DictionaryValue } from '@/services/ozon';
 import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
 
 /**
@@ -456,7 +456,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
 
       case 'String':
       case 'URL':
-      default:
+      default: {
         // 判断是否为多行文本字段（JSON富内容等）
         const isMultilineField = attr.name.includes('JSON') || attr.name.includes('富内容');
 
@@ -472,6 +472,7 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
           inputControl = <Input placeholder={`请输入${fullLabel}`} style={{ width: '250px' }} />;
         }
         break;
+      }
     }
   }
 
@@ -525,9 +526,9 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
           noStyle
         >
           {/* 动态设置输入框样式：flex自适应 + 移除右侧圆角 */}
-          {React.cloneElement(inputControl as React.ReactElement<any>, {
+          {React.cloneElement(inputControl as React.ReactElement<unknown>, {
             style: {
-              ...((inputControl as React.ReactElement<any>).props?.style || {}),
+              ...((inputControl as React.ReactElement<unknown>).props?.style || {}),
               // Switch 不需要 flex 拉伸，其他控件使用 flex: 1
               ...(attr.attribute_type !== 'Boolean'
                 ? {

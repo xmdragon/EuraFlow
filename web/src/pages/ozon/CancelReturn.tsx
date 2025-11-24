@@ -22,7 +22,7 @@ import {
   Spin,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import React, { useState } from 'react';
 
 import styles from './CancelReturn.module.scss';
@@ -41,7 +41,7 @@ import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useColumnSettings } from '@/hooks/useColumnSettings';
 import { useCopy } from '@/hooks/useCopy';
 import { useDateTime } from '@/hooks/useDateTime';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { translateText } from '@/services/translationApi';
 import { notifyError, notifySuccess } from '@/utils/notification';
 
@@ -65,7 +65,7 @@ const RETURN_STATE_CONFIG: Record<string, { label: string; color: string }> = {
   REFUNDED: { label: '已退款', color: 'green' },
 };
 
-const INITIATOR_CONFIG: Record<string, string> = {
+const _INITIATOR_CONFIG: Record<string, string> = {
   CLIENT: '客户',
   SELLER: '卖家',
   OZON: 'OZON',
@@ -255,8 +255,9 @@ const CancelReturn: React.FC = () => {
         // 开始轮询任务状态
         startReturnSync(taskId);
       }
-    } catch (error: any) {
-      notifyError(error.response?.data?.detail?.detail || '同步启动失败');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { detail?: { detail?: string } } } };
+      notifyError(err.response?.data?.detail?.detail || '同步启动失败');
     }
   };
 
@@ -842,7 +843,7 @@ const CancelReturn: React.FC = () => {
                               ),
                               width: 500,
                             });
-                          } catch (error) {
+                          } catch {
                             notifyError('翻译失败，请稍后重试');
                           }
                         }
@@ -879,7 +880,7 @@ const CancelReturn: React.FC = () => {
                               ),
                               width: 500,
                             });
-                          } catch (error) {
+                          } catch {
                             notifyError('翻译失败，请稍后重试');
                           }
                         }

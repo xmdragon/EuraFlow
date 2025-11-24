@@ -15,7 +15,6 @@ import * as api from '@/services/productSelectionApi';
 import { getExchangeRate, type ExchangeRate } from '@/services/exchangeRateApi';
 import type { FieldConfig } from '@/components/ozon/selection/FieldConfigModal';
 import { defaultFieldConfig, FIELD_CONFIG_VERSION } from '@/components/ozon/selection/FieldConfigModal';
-import { useDateTime } from '@/hooks/useDateTime';
 import { notifySuccess, notifyError, notifyWarning, notifyInfo } from '@/utils/notification';
 import { logger } from '@/utils/logger';
 
@@ -114,7 +113,7 @@ export interface UseProductSelectionReturn {
   setRememberFilters: (val: boolean) => void;
 
   // 事件处理
-  handleSearch: (values: any) => void;
+  handleSearch: (values: Record<string, unknown>) => void;
   handleReset: () => void;
   handleClearData: () => void;
   showCompetitorsList: (product: api.ProductSelectionItem) => void;
@@ -137,7 +136,6 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   const { modal } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
-  const { toUTC } = useDateTime();
 
   // ==================== 状态管理 ====================
 
@@ -286,7 +284,6 @@ export const useProductSelection = (): UseProductSelectionReturn => {
         setSearchParams((prev) => ({ ...prev, ...restoredParams }));
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ==================== useEffect - 动态计算布局 ====================
@@ -359,7 +356,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   useEffect(() => {
     if (!productsData?.data) return;
 
-    const { items = [], next_cursor, has_more } = productsData.data;
+    const { items = [], has_more } = productsData.data;
 
     if (currentPage === 1) {
       setAllProducts(items);
@@ -377,7 +374,6 @@ export const useProductSelection = (): UseProductSelectionReturn => {
 
     loadingLockRef.current = false;
     setIsLoadingMore(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productsData?.data]);
 
   // ==================== useEffect - 无限滚动监听 ====================
@@ -539,7 +535,7 @@ export const useProductSelection = (): UseProductSelectionReturn => {
     });
   };
 
-  const handleSearch = (values: any) => {
+  const handleSearch = (values: Record<string, unknown>) => {
     const params: api.ProductSearchParams = {};
 
     if (values.brand) params.brand = values.brand;
@@ -623,8 +619,9 @@ export const useProductSelection = (): UseProductSelectionReturn => {
       } else {
         notifyError('标记失败', '标记失败');
       }
-    } catch (error: any) {
-      notifyError('标记失败', '标记失败: ' + error.message);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      notifyError('标记失败', '标记失败: ' + errorMsg);
     } finally {
       setMarkingAsRead(false);
     }

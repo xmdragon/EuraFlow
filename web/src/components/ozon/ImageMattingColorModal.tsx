@@ -75,8 +75,9 @@ const ImageMattingColorModal: React.FC<ImageMattingColorModalProps> = ({
       } else {
         notifyError('抠图失败', result.error || '未知错误');
       }
-    } catch (error: any) {
-      notifyError('抠图失败', error.message || '网络错误');
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      notifyError('抠图失败', err.message || '网络错误');
     } finally {
       setLoading(false);
     }

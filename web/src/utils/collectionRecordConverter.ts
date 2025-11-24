@@ -13,7 +13,7 @@ import { loggers } from '@/utils/logger';
  * 2. {url: string, is_primary?: boolean}[] - 提取 url
  * 3. 单个 string - 转换为数组
  */
-export function normalizeImages(images: any): string[] {
+export function normalizeImages(images: unknown): string[] {
   if (!images) {
     return [];
   }
@@ -26,7 +26,7 @@ export function normalizeImages(images: any): string[] {
   // 如果是对象数组，提取 url 字段
   if (Array.isArray(images)) {
     return images
-      .map((img: any) => {
+      .map((img: unknown) => {
         if (typeof img === 'string') {
           return img;
         }
@@ -52,13 +52,13 @@ export function normalizeImages(images: any): string[] {
  * 1. {url: string, cover?: string, is_cover?: boolean}[] - 标准格式
  * 2. string[] - 转换为标准格式
  */
-export function normalizeVideos(videos: any): Array<{url: string; cover?: string; is_cover?: boolean}> {
+export function normalizeVideos(videos: unknown): Array<{url: string; cover?: string; is_cover?: boolean}> {
   if (!videos || !Array.isArray(videos)) {
     return [];
   }
 
   return videos
-    .map((video: any) => {
+    .map((video: unknown) => {
       if (typeof video === 'string') {
         return { url: video, is_cover: false };
       }
@@ -100,10 +100,10 @@ function parseSpecifications(specifications: string): Record<string, string> {
  * 将采集记录数据转换为商品表单数据
  */
 export function convertCollectionRecordToFormData(
-  record: any,
+  record: Record<string, unknown>,
   shopId: number
 ): FormData {
-  const productData = record.product_data || {};
+  const productData = (record.product_data as Record<string, unknown>) || {};
 
   loggers.ozon.info('[CollectionRecord] 转换采集记录数据', {
     recordId: record.id,
@@ -120,13 +120,13 @@ export function convertCollectionRecordToFormData(
   const mainVideos = normalizeVideos(productData.videos);
 
   // 处理变体数据
-  let variantDimensions: any[] = [];
+  let variantDimensions: unknown[] = [];
   let variants: ProductVariant[] = [];
 
-  if (productData.variants && productData.variants.length > 0) {
+  if (productData.variants && Array.isArray(productData.variants) && productData.variants.length > 0) {
     // 从第一个变体提取维度信息（假设所有变体的维度相同）
-    const firstVariant = productData.variants[0];
-    const specDetails = firstVariant.spec_details || parseSpecifications(firstVariant.specifications || '');
+    const firstVariant = productData.variants[0] as Record<string, unknown>;
+    const specDetails = (firstVariant.spec_details as Record<string, unknown>) || parseSpecifications((firstVariant.specifications as string) || '');
 
     // 提取变体维度
     const dimensionKeys = Object.keys(specDetails);
@@ -140,23 +140,24 @@ export function convertCollectionRecordToFormData(
     }));
 
     // 转换变体列表
-    variants = productData.variants.map((variant: any, index: number) => {
-      const variantImages = normalizeImages(variant.images);
-      const variantVideos = normalizeVideos(variant.videos);
-      const specDetails = variant.spec_details || parseSpecifications(variant.specifications || '');
+    variants = productData.variants.map((variant: unknown, index: number) => {
+      const v = variant as Record<string, unknown>;
+      const variantImages = normalizeImages(v.images);
+      const variantVideos = normalizeVideos(v.videos);
+      const specDetails = (v.spec_details as Record<string, unknown>) || parseSpecifications((v.specifications as string) || '');
 
       // 构建维度值映射
-      const dimensionValues: Record<number, any> = {};
+      const dimensionValues: Record<number, unknown> = {};
       dimensionKeys.forEach((key, idx) => {
         dimensionValues[90000 + idx] = specDetails[key];
       });
 
       return {
         id: `variant_${index + 1}`,
-        offer_id: variant.variant_id || `${record.id}_variant_${index + 1}`,
-        barcode: variant.barcode || '',
-        price: variant.price || productData.price || 0,
-        old_price: variant.original_price || productData.old_price,
+        offer_id: (v.variant_id as string) || `${record.id}_variant_${index + 1}`,
+        barcode: (v.barcode as string) || '',
+        price: (v.price as number) || (productData.price as number) || 0,
+        old_price: (v.original_price as number) || (productData.old_price as number),
         images: variantImages.length > 0 ? variantImages : mainImages, // 如果变体没有图片，使用主商品图片
         videos: variantVideos,
         dimension_values: dimensionValues,

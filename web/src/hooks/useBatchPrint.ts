@@ -3,7 +3,7 @@
  * 封装批量打印标签的核心逻辑和错误处理
  */
 import { useState } from 'react';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import type { FailedPosting } from '@/components/ozon/packing/PrintErrorModal';
 
@@ -22,7 +22,7 @@ interface UseBatchPrintOptions {
   maxPostings?: number;
   onSuccess?: (result: BatchPrintResult, postingNumbers: string[]) => void;
   onPartialSuccess?: (result: BatchPrintResult) => void;
-  onError?: (error: any) => void;
+  onError?: (error: unknown) => void;
 }
 
 interface UseBatchPrintReturn {
@@ -48,20 +48,24 @@ export const useBatchPrint = (options: UseBatchPrintOptions = {}): UseBatchPrint
     setPrintErrorModalVisible(false);
   };
 
-  const extractErrorMessage = (error: any): string => {
-    if (error.response?.data?.error) {
-      const err = error.response.data.error;
-      if (typeof err.title === 'object' && err.title?.message) {
-        return err.title.message;
-      } else if (typeof err.title === 'string') {
-        return err.title;
-      } else if (err.detail?.message) {
-        return err.detail.message;
-      } else if (err.detail) {
-        return typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+  const extractErrorMessage = (error: unknown): string => {
+    const err = error as { response?: { data?: { error?: unknown } }; message?: string };
+    if (err.response?.data?.error) {
+      const errorData = err.response.data.error as { title?: unknown; detail?: unknown };
+      const title = errorData.title as { message?: string } | string | undefined;
+      const detail = errorData.detail as { message?: string } | string | undefined;
+
+      if (typeof title === 'object' && title?.message) {
+        return title.message;
+      } else if (typeof title === 'string') {
+        return title;
+      } else if (typeof detail === 'object' && detail?.message) {
+        return detail.message;
+      } else if (detail) {
+        return typeof detail === 'string' ? detail : JSON.stringify(detail);
       }
     }
-    return error.message || '打印失败';
+    return err.message || '打印失败';
   };
 
   const batchPrint = async (postingNumbers: string[]): Promise<BatchPrintResult | null> => {
@@ -101,25 +105,27 @@ export const useBatchPrint = (options: UseBatchPrintOptions = {}): UseBatchPrint
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('批量打印错误:', error);
+      const err = error as { response?: { status?: number; data?: { error?: { detail?: unknown }; detail?: unknown } } };
 
       // 处理422错误（业务逻辑错误）
-      if (error.response?.status === 422) {
-        const errorData = error.response.data?.error?.detail || error.response.data?.detail;
+      if (err.response?.status === 422) {
+        const errorData = err.response.data?.error?.detail || err.response.data?.detail;
+        const errorObj = errorData as { error?: string; failed_postings?: FailedPosting[]; invalid_postings?: FailedPosting[] } | undefined;
 
-        if (errorData && typeof errorData === 'object' && errorData.error === 'ALL_FAILED') {
+        if (errorObj && typeof errorObj === 'object' && errorObj.error === 'ALL_FAILED') {
           // 全部失败 - 显示详细错误信息
-          setPrintErrors(errorData.failed_postings || []);
+          setPrintErrors(errorObj.failed_postings || []);
           setPrintSuccessPostings([]);
           setPrintErrorModalVisible(true);
         } else if (
-          errorData &&
-          typeof errorData === 'object' &&
-          errorData.error === 'INVALID_STATUS'
+          errorObj &&
+          typeof errorObj === 'object' &&
+          errorObj.error === 'INVALID_STATUS'
         ) {
           // 状态错误
-          setPrintErrors(errorData.invalid_postings || []);
+          setPrintErrors(errorObj.invalid_postings || []);
           setPrintSuccessPostings([]);
           setPrintErrorModalVisible(true);
         } else {

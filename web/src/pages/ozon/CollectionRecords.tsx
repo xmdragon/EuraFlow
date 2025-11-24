@@ -23,7 +23,6 @@ import PageTitle from '@/components/PageTitle';
 import { useShopSelection } from '@/hooks/ozon/useShopSelection';
 import { usePermission } from '@/hooks/usePermission';
 import { useCurrency } from '@/hooks/useCurrency';
-import * as ozonApi from '@/services/ozonApi';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 import axios from '@/services/axios';
@@ -48,7 +47,7 @@ interface CollectionRecord {
 const CollectionRecords: React.FC = () => {
   const { modal } = App.useApp(); // 用于删除确认
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const { canOperate, canDelete } = usePermission();
   const { formatPrice } = useCurrency();
 

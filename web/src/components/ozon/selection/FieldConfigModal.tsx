@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 字段配置Modal组件
  */
@@ -86,7 +86,7 @@ export interface FieldConfigModalProps {
 export const FieldConfigModal: React.FC<FieldConfigModalProps> = ({
   visible,
   fieldConfig,
-  onFieldConfigChange,
+  onFieldConfigChange: _onFieldConfigChange,
   onSave,
   onReset,
   onCancel,

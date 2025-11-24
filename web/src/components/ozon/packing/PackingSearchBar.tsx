@@ -1,10 +1,10 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 打包发货搜索栏组件
  * 支持智能识别SKU/货件编号/追踪号码/国内单号
  */
 import { SearchOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import { Card, Row, Col, Space, Form, Input, Button, Select, FormInstance, InputRef } from 'antd';
+import { Card, Row, Col, Space, Form, Input, Button, FormInstance, InputRef } from 'antd';
 import React, { useState, useRef } from 'react';
 
 import styles from '../../../pages/ozon/PackingShipment.module.scss';

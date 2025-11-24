@@ -7,8 +7,8 @@
  * - 批量操作（生成Offer ID、批量设价）
  */
 import { useState, useCallback } from 'react';
-import type { CategoryAttribute } from '@/services/ozonApi';
-import type { VideoInfo } from '@/services/ozonApi';
+import type { CategoryAttribute } from '@/services/ozon';
+import type { VideoInfo } from '@/services/ozon';
 import { notifySuccess, notifyWarning } from '@/utils/notification';
 
 // 变体维度（用户选择的属性作为变体维度）

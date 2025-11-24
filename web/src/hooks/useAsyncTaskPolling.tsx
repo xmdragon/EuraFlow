@@ -9,15 +9,15 @@ import { getGlobalNotification } from '@/utils/globalNotification';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import { logger } from '@/utils/logger';
 
-export interface TaskStatus {
+export interface TaskStatus<T = unknown> {
   state: 'PENDING' | 'SUCCESS' | 'FAILURE' | 'PROGRESS';
-  result?: any;
+  result?: T;
   error?: string;
   info?: {
     status?: string;
     progress?: number;
     message?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -34,13 +34,13 @@ export interface UseAsyncTaskPollingOptions {
   initialMessage?: string; // 初始消息，默认 '任务进行中'
 
   // 进度格式化函数
-  formatProgressContent?: (info: any) => React.ReactNode;
+  formatProgressContent?: (info: TaskStatus['info']) => React.ReactNode;
 
   // 成功消息格式化函数
-  formatSuccessMessage?: (result: any) => { title: string; description: string };
+  formatSuccessMessage?: (result: unknown) => { title: string; description: string };
 
   // 回调函数
-  onSuccess?: (result: any) => void;
+  onSuccess?: (result: unknown) => void;
   onFailure?: (error: string) => void;
   onTimeout?: () => void;
   onCancel?: () => void;
@@ -206,9 +206,10 @@ export const useAsyncTaskPolling = (options: UseAsyncTaskPollingOptions) => {
             description: progressContent,
           }, taskId);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 检查是否是 404 错误（任务不存在）
-        if (error?.response?.status === 404 || error?.error?.status === 404) {
+        const err = error as { response?: { status?: number }; error?: { status?: number } };
+        if (err?.response?.status === 404 || err?.error?.status === 404) {
           stopPolling();
           const notificationInstance = getGlobalNotification();
           if (notificationInstance) {

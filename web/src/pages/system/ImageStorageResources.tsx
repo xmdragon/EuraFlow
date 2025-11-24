@@ -71,7 +71,7 @@ const formatBytes = (bytes: number | null | undefined): string => {
 
 const ImageStorageResources: React.FC = () => {
   const { modal } = App.useApp();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const { canOperate } = usePermission();
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
@@ -109,7 +109,7 @@ const ImageStorageResources: React.FC = () => {
         : 'none';
 
   // ============ 图床统计查询 ============
-  const { data: usageData, isLoading: usageLoading } = useQuery({
+  const { data: usageData, isLoading: _usageLoading } = useQuery({
     queryKey: ['imageStorageUsage', activeProvider],
     queryFn: async () => {
       if (activeProvider === 'cloudinary') {

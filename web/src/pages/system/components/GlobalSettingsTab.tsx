@@ -18,11 +18,9 @@ import {
   Upload,
   Modal,
   Progress,
-  App,
   Tree,
   Spin,
   Dropdown,
-  List,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -32,7 +30,6 @@ import {
   DatabaseOutlined,
   DollarOutlined,
   UploadOutlined,
-  SearchOutlined,
   ReloadOutlined,
   ClockCircleOutlined,
   GlobalOutlined,
@@ -45,11 +42,11 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import { useCopy } from '@/hooks/useCopy';
 import { usePermission } from '@/hooks/usePermission';
-import * as ozonApi from '@/services/ozonApi';
-import { notifySuccess, notifyError, notifyInfo, notifyWarning } from '@/utils/notification';
+import * as ozonApi from '@/services/ozon';
+import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import { isColorAttribute, getColorValue, getTextColor } from '@/utils/colorMapper';
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Paragraph } = Typography;
 const { Option } = Select;
 
 // 定义类目树数据类型
@@ -63,7 +60,6 @@ interface CategoryOption {
 
 const GlobalSettingsTab: React.FC = () => {
   const { isAdmin } = usePermission();
-  const queryClient = useQueryClient();
 
   return (
     <Card>
@@ -145,7 +141,7 @@ const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) =>
       notifySuccess('保存成功', '默认时区已更新');
       queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       notifyError('保存失败', error.message || '更新时区设置失败');
     },
   });
@@ -161,7 +157,7 @@ const TimeCurrencySection: React.FC<TimeCurrencySectionProps> = ({ isAdmin }) =>
       notifySuccess('保存成功', '默认货币已更新');
       queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       notifyError('保存失败', error.message || '更新货币设置失败');
     },
   });
@@ -294,7 +290,7 @@ const ApiRateLimitSection: React.FC<ApiRateLimitSectionProps> = ({ isAdmin }) =>
       notifySuccess('保存成功', 'API限流设置已更新');
       queryClient.invalidateQueries({ queryKey: ['ozon', 'global-settings'] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       notifyError('保存失败', error.message || '更新API限流设置失败');
     },
   });
@@ -381,7 +377,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
   const firstShopId = shopsData?.shops?.[0]?.id || 1; // 取第一个店铺，兜底值为1
 
   // 动态加载类目树（使用文件的generatedAt作为缓存key）
-  const { data: categoryTreeData, isLoading: categoryTreeLoading, refetch: refetchCategoryTree } = useQuery({
+  const { data: categoryTreeData, isLoading: categoryTreeLoading, refetch: _refetchCategoryTree } = useQuery({
     queryKey: ['category-tree'],
     queryFn: async () => {
       // 首次加载时添加时间戳破坏缓存，获取最新的generatedAt
@@ -537,14 +533,14 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
       // 使用新的轮询 Hook 启动后台轮询任务
       startCategorySyncPolling(response.task_id);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       notifyError('同步失败', error.message || '类目同步失败');
       setSyncing(false);
     }
   };
 
   // 同步单个类目特征
-  const handleSyncSingleCategory = async (categoryId: number, categoryName: string) => {
+  const handleSyncSingleCategory = async (categoryId: number, _categoryName: string) => {
     if (syncingCategoryId) {
       notifyWarning('操作提示', '有类目正在同步中，请稍候');
       return;
@@ -573,7 +569,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
       } else {
         notifyError('同步失败', result.error || '未知错误');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       notifyError('同步失败', error.message || '网络错误');
     } finally {
       setSyncingCategoryId(null);
@@ -604,7 +600,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
       // 使用新的轮询 Hook 启动后台轮询任务
       startFeatureSyncPolling(response.task_id);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       notifyError('同步失败', error.message || '特征同步失败');
       setSyncingFeatures(false);
     }
@@ -612,10 +608,10 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
 
   // 转换类目树数据为Tree组件格式
   // 搜索过滤函数 - 返回匹配节点及其所有祖先节点的key
-  const getMatchedKeys = (data: any[], searchValue: string): string[] => {
+  const getMatchedKeys = (data: CategoryOption[], searchValue: string): string[] => {
     const keys = new Set<string>();
 
-    const search = (items: any[], ancestors: string[] = []): boolean => {
+    const search = (items: CategoryOption[], ancestors: string[] = []): boolean => {
       let hasMatch = false;
 
       for (const item of items) {
@@ -654,7 +650,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
     }
   }, [searchValue, categoryTreeData]);
 
-  const convertToTreeData = (data: any[]): any[] => {
+  const convertToTreeData = (data: CategoryOption[]): CategoryOption[] => {
     return data.map((item) => {
       const title = item.label;
       const isMatched = searchValue && title.toLowerCase().includes(searchValue.toLowerCase());
@@ -721,7 +717,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
       dataIndex: 'is_required',
       key: 'is_required',
       width: 100,
-      sorter: (a: any, b: any) => (b.is_required ? 1 : 0) - (a.is_required ? 1 : 0),
+      sorter: (a: { is_required?: boolean }, b: { is_required?: boolean }) => (b.is_required ? 1 : 0) - (a.is_required ? 1 : 0),
       defaultSortOrder: 'ascend' as const,
       render: (is_required: boolean) => (
         is_required ? <span style={{ color: 'red' }}>是</span> : '否'
@@ -732,7 +728,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
       dataIndex: 'guide_values',
       key: 'guide_values',
       width: 120,
-      render: (_: any, record: any) => {
+      render: (_: unknown, record: { name?: string; guide_values?: Array<{ value: string }> }) => {
         if (!record.guide_values || record.guide_values.length === 0) {
           return <span style={{ color: '#999' }}>无</span>;
         }
@@ -740,7 +736,7 @@ const CategoryFeaturesSection: React.FC<CategoryFeaturesSectionProps> = ({ isAdm
         // 检测是否为颜色属性
         const isColor = isColorAttribute(record.name);
 
-        const items: MenuProps['items'] = record.guide_values.map((gv: any, index: number) => {
+        const items: MenuProps['items'] = record.guide_values.map((gv: { value: string }, index: number) => {
           // 如果是颜色属性，尝试获取颜色值
           const colorValue = isColor ? getColorValue(gv.value) : null;
 
@@ -927,18 +923,6 @@ interface CategoryCommissionsSectionProps {
   isAdmin: boolean;
 }
 
-interface Commission {
-  id: number;
-  category_module: string;
-  category_name: string;
-  rfbs_tier1: number;
-  rfbs_tier2: number;
-  rfbs_tier3: number;
-  fbp_tier1: number;
-  fbp_tier2: number;
-  fbp_tier3: number;
-}
-
 const CategoryCommissionsSection: React.FC<CategoryCommissionsSectionProps> = ({ isAdmin }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -978,7 +962,7 @@ const CategoryCommissionsSection: React.FC<CategoryCommissionsSectionProps> = ({
       formData.append('file', file);
       return await ozonApi.importCommissionsCsv(formData);
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: { imported_count: number; skipped_count: number }) => {
       notifySuccess(
         '导入完成',
         `成功导入 ${data.imported_count} 条，跳过 ${data.skipped_count} 条`
@@ -987,7 +971,7 @@ const CategoryCommissionsSection: React.FC<CategoryCommissionsSectionProps> = ({
       setFileList([]);
       queryClient.invalidateQueries({ queryKey: ['ozon', 'category-commissions'] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       notifyError('导入失败', error.message || 'CSV导入失败');
     },
   });

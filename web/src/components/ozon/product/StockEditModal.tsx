@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 库存编辑模态框组件
  * 支持单个商品或批量商品的库存更新
@@ -7,7 +7,7 @@ import { Modal, Form, InputNumber, Select, Button, Space, Spin } from 'antd';
 import React, { useEffect, useState, useCallback } from 'react';
 
 import type { FormValues } from '@/types/common';
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 
 const { Option } = Select;
 
@@ -43,7 +43,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
   shopId,
 }) => {
   const [form] = Form.useForm();
-  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<unknown[]>([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(false);
   const [currentStock, setCurrentStock] = useState<number | null>(null);
 
@@ -95,7 +95,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
           apply_to_all: true,
           ...values,
         },
-      ] as any);
+      ] as unknown);
       return;
     }
 

@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+ 
 /**
  * 价格编辑模态框组件
  * 支持单个商品或批量商品的价格更新
@@ -75,7 +75,7 @@ export const PriceEditModal: React.FC<PriceEditModalProps> = ({
       setPercentageChange(null);
       setReason('');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [visible, selectedProduct, selectedRows]);
 
   // 应用百分比调价

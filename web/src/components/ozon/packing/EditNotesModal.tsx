@@ -6,7 +6,7 @@ import { Modal, Form, Input } from 'antd';
 
 interface EditNotesModalProps {
   visible: boolean;
-  posting: any | null;
+  posting: unknown | null;
   onClose: () => void;
   onSave: () => Promise<void>;
   loading: boolean;
