@@ -499,7 +499,7 @@ class BatchDeleteResponse(BaseModel):
     failed_ids: list[int]
 
 
-@router.post("/batch-delete", response_model=BatchDeleteResponse)
+@router.post("/batch-delete")
 async def batch_delete_records(
     request: BatchDeleteRequest,
     db: AsyncSession = Depends(get_async_session),
