@@ -20,13 +20,12 @@ import {
 import axios from 'axios';
 import React, { useState, useEffect } from 'react';
 
-import * as ozonApi from '@/services/ozonApi';
+import * as ozonApi from '@/services/ozon';
 import { useCurrency } from '@/hooks/useCurrency';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
 
 const { Text } = Typography;
-const { TextArea } = Input;
 
 interface PrepareStockModalProps {
   visible: boolean;
@@ -218,7 +217,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       dataIndex: 'productTitle',
       key: 'productTitle',
       width: 250,
-      render: (_: any, record: ItemPrepareData) => (
+      render: (_: unknown, record: ItemPrepareData) => (
         <Space>
           {record.productImage ? (
             <img
@@ -266,7 +265,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       dataIndex: 'stockAvailable',
       key: 'stockAvailable',
       width: 100,
-      render: (_: any, record: ItemPrepareData) => (
+      render: (_: unknown, record: ItemPrepareData) => (
         <div>
           <Text
             type={record.stockAvailable >= record.orderQuantity ? 'success' : 'danger'}
@@ -282,7 +281,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       dataIndex: 'useStock',
       key: 'useStock',
       width: 80,
-      render: (_: any, record: ItemPrepareData) => (
+      render: (_: unknown, record: ItemPrepareData) => (
         <Checkbox
           checked={record.useStock}
           onChange={(e) => updateItemData(record.sku, 'useStock', e.target.checked)}
@@ -295,7 +294,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       dataIndex: 'purchasePrice',
       key: 'purchasePrice',
       width: 120,
-      render: (_: any, record: ItemPrepareData) => (
+      render: (_: unknown, record: ItemPrepareData) => (
         <InputNumber
           value={record.purchasePrice}
           onChange={(value) => updateItemData(record.sku, 'purchasePrice', value || 0)}
@@ -304,7 +303,6 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
           style={{ width: '100%' }}
           addonBefore={currencySymbol}
           controls={false}
-          disabled={record.useStock && record.stockAvailable >= record.orderQuantity}
         />
       ),
     },
@@ -313,14 +311,13 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       dataIndex: 'sourcePlatform',
       key: 'sourcePlatform',
       width: 150,
-      render: (_: any, record: ItemPrepareData) => (
+      render: (_: unknown, record: ItemPrepareData) => (
         <Select
           mode="multiple"
           value={record.sourcePlatform}
           onChange={(value) => updateItemData(record.sku, 'sourcePlatform', value)}
           style={{ width: '100%' }}
           placeholder="选择平台"
-          disabled={record.useStock && record.stockAvailable >= record.orderQuantity}
         >
           <Select.Option value="1688">1688</Select.Option>
           <Select.Option value="拼多多">拼多多</Select.Option>
@@ -335,7 +332,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       dataIndex: 'notes',
       key: 'notes',
       width: 150,
-      render: (_: any, record: ItemPrepareData) => (
+      render: (_: unknown, record: ItemPrepareData) => (
         <Input
           value={record.notes}
           onChange={(e) => updateItemData(record.sku, 'notes', e.target.value)}
