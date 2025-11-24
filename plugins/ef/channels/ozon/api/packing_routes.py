@@ -900,11 +900,11 @@ async def get_packing_orders(
             OzonPosting.delivery_method_name.like(f"{delivery_method_value}%")
         )
 
-    # 搜索条件：采购信息筛选（基于商品表的purchase_url和suggested_purchase_price）
+    # 搜索条件：采购信息筛选（基于商品表的purchase_url）
     if has_purchase_info and has_purchase_info != 'all':
         if has_purchase_info == 'yes':
-            # 有采购信息：posting的所有商品都有采购信息（purchase_url不为空 AND suggested_purchase_price不为NULL且不为0）
-            # 使用NOT EXISTS子查询：不存在任何商品缺少采购信息
+            # 有采购信息：posting的所有商品都有采购地址（purchase_url不为空）
+            # 使用NOT EXISTS子查询：不存在任何商品缺少采购地址
             subquery = (
                 select(1)
                 .select_from(
@@ -923,10 +923,7 @@ async def get_packing_orders(
                         OzonProduct.id.is_(None),
                         # 或者采购地址为空
                         OzonProduct.purchase_url.is_(None),
-                        OzonProduct.purchase_url == '',
-                        # 或者采购价格为空/为0
-                        OzonProduct.suggested_purchase_price.is_(None),
-                        OzonProduct.suggested_purchase_price == 0
+                        OzonProduct.purchase_url == ''
                     )
                 )
                 .correlate(OzonPosting)
@@ -934,8 +931,8 @@ async def get_packing_orders(
             query = query.where(~exists(subquery))
 
         elif has_purchase_info == 'no':
-            # 无采购信息：posting至少有一个商品缺少采购信息
-            # 使用EXISTS子查询：存在至少一个商品缺少采购信息
+            # 无采购信息：posting至少有一个商品缺少采购地址
+            # 使用EXISTS子查询：存在至少一个商品缺少采购地址
             subquery = (
                 select(1)
                 .select_from(
@@ -954,10 +951,7 @@ async def get_packing_orders(
                         OzonProduct.id.is_(None),
                         # 或者采购地址为空
                         OzonProduct.purchase_url.is_(None),
-                        OzonProduct.purchase_url == '',
-                        # 或者采购价格为空/为0
-                        OzonProduct.suggested_purchase_price.is_(None),
-                        OzonProduct.suggested_purchase_price == 0
+                        OzonProduct.purchase_url == ''
                     )
                 )
                 .correlate(OzonPosting)
@@ -1106,11 +1100,11 @@ async def get_packing_orders(
             OzonPosting.source_platform.contains([source_platform])
         )
 
-    # 采购信息筛选（基于商品表的purchase_url和suggested_purchase_price）
+    # 采购信息筛选（基于商品表的purchase_url）
     if has_purchase_info and has_purchase_info != 'all':
         if has_purchase_info == 'yes':
-            # 有采购信息：posting的所有商品都有采购信息
-            # 使用 NOT EXISTS 子查询：不存在缺少采购信息的商品
+            # 有采购信息：posting的所有商品都有采购地址
+            # 使用 NOT EXISTS 子查询：不存在缺少采购地址的商品
             count_query = count_query.where(
                 ~exists(
                     select(literal_column('1'))
@@ -1128,17 +1122,15 @@ async def get_packing_orders(
                         or_(
                             OzonProduct.id.is_(None),
                             OzonProduct.purchase_url.is_(None),
-                            OzonProduct.purchase_url == '',
-                            OzonProduct.suggested_purchase_price.is_(None),
-                            OzonProduct.suggested_purchase_price == 0
+                            OzonProduct.purchase_url == ''
                         )
                     )
                 )
             )
 
         elif has_purchase_info == 'no':
-            # 无采购信息：posting至少有一个商品缺少采购信息
-            # 使用 EXISTS 子查询：存在缺少采购信息的商品
+            # 无采购信息：posting至少有一个商品缺少采购地址
+            # 使用 EXISTS 子查询：存在缺少采购地址的商品
             count_query = count_query.where(
                 exists(
                     select(literal_column('1'))
@@ -1156,9 +1148,7 @@ async def get_packing_orders(
                         or_(
                             OzonProduct.id.is_(None),
                             OzonProduct.purchase_url.is_(None),
-                            OzonProduct.purchase_url == '',
-                            OzonProduct.suggested_purchase_price.is_(None),
-                            OzonProduct.suggested_purchase_price == 0
+                            OzonProduct.purchase_url == ''
                         )
                     )
                 )
