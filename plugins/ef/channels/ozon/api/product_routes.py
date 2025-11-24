@@ -1045,11 +1045,11 @@ async def import_products(
                     errors.append(f"第{row_num}行：SKU不能为空")
                     continue
 
-                # 查找现有商品
+                # 查找现有商品（使用offer_id作为卖家SKU）
                 existing = await db.execute(
                     select(OzonProduct).where(
                         OzonProduct.shop_id == shop_id,
-                        OzonProduct.sku == sku
+                        OzonProduct.offer_id == sku
                     )
                 )
                 product = existing.scalar_one_or_none()
@@ -1058,7 +1058,6 @@ async def import_products(
                     # 创建新商品
                     product = OzonProduct(
                         shop_id=shop_id,
-                        sku=sku,
                         offer_id=sku,
                         title=row.get('商品名称', '').strip(),
                         price=Decimal(str(row.get('价格', 0))) if row.get('价格') else None,

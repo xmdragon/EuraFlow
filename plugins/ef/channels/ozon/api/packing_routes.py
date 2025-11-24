@@ -1110,57 +1110,59 @@ async def get_packing_orders(
     if has_purchase_info and has_purchase_info != 'all':
         if has_purchase_info == 'yes':
             # 有采购信息：posting的所有商品都有采购信息
-            count_subquery = (
-                select(1)
-                .select_from(
-                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
-                )
-                .outerjoin(
-                    OzonProduct,
-                    and_(
-                        OzonProduct.offer_id == text("product_elem.value->>'offer_id'"),
-                        OzonProduct.shop_id == OzonPosting.shop_id
+            # 使用 NOT EXISTS 子查询：不存在缺少采购信息的商品
+            count_query = count_query.where(
+                ~exists(
+                    select(literal_column('1'))
+                    .select_from(
+                        func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
+                    )
+                    .outerjoin(
+                        OzonProduct,
+                        and_(
+                            OzonProduct.offer_id == literal_column("product_elem.value->>'offer_id'"),
+                            OzonProduct.shop_id == OzonPosting.shop_id
+                        )
+                    )
+                    .where(
+                        or_(
+                            OzonProduct.id.is_(None),
+                            OzonProduct.purchase_url.is_(None),
+                            OzonProduct.purchase_url == '',
+                            OzonProduct.suggested_purchase_price.is_(None),
+                            OzonProduct.suggested_purchase_price == 0
+                        )
                     )
                 )
-                .where(
-                    or_(
-                        OzonProduct.id.is_(None),
-                        OzonProduct.purchase_url.is_(None),
-                        OzonProduct.purchase_url == '',
-                        OzonProduct.suggested_purchase_price.is_(None),
-                        OzonProduct.suggested_purchase_price == 0
-                    )
-                )
-                .correlate(OzonPosting)
             )
-            count_query = count_query.where(~exists(count_subquery))
 
         elif has_purchase_info == 'no':
             # 无采购信息：posting至少有一个商品缺少采购信息
-            count_subquery = (
-                select(1)
-                .select_from(
-                    func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
-                )
-                .outerjoin(
-                    OzonProduct,
-                    and_(
-                        OzonProduct.offer_id == text("product_elem.value->>'offer_id'"),
-                        OzonProduct.shop_id == OzonPosting.shop_id
+            # 使用 EXISTS 子查询：存在缺少采购信息的商品
+            count_query = count_query.where(
+                exists(
+                    select(literal_column('1'))
+                    .select_from(
+                        func.jsonb_array_elements(OzonPosting.raw_payload['products']).alias('product_elem')
+                    )
+                    .outerjoin(
+                        OzonProduct,
+                        and_(
+                            OzonProduct.offer_id == literal_column("product_elem.value->>'offer_id'"),
+                            OzonProduct.shop_id == OzonPosting.shop_id
+                        )
+                    )
+                    .where(
+                        or_(
+                            OzonProduct.id.is_(None),
+                            OzonProduct.purchase_url.is_(None),
+                            OzonProduct.purchase_url == '',
+                            OzonProduct.suggested_purchase_price.is_(None),
+                            OzonProduct.suggested_purchase_price == 0
+                        )
                     )
                 )
-                .where(
-                    or_(
-                        OzonProduct.id.is_(None),
-                        OzonProduct.purchase_url.is_(None),
-                        OzonProduct.purchase_url == '',
-                        OzonProduct.suggested_purchase_price.is_(None),
-                        OzonProduct.suggested_purchase_price == 0
-                    )
-                )
-                .correlate(OzonPosting)
             )
-            count_query = count_query.where(exists(count_subquery))
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()
