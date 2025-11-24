@@ -29,7 +29,7 @@ import PriceEditModal from '@/components/ozon/product/PriceEditModal';
 import ProductFilterBar from '@/components/ozon/product/ProductFilterBar';
 import ProductToolbar from '@/components/ozon/product/ProductToolbar';
 import StockEditModal from '@/components/ozon/product/StockEditModal';
-import { WatermarkApplyModal } from '@/components/ozon/watermark/WatermarkApplyModal';
+import { WatermarkApplyModal, type WatermarkPreview } from '@/components/ozon/watermark/WatermarkApplyModal';
 import PageTitle from '@/components/PageTitle';
 import { getProductTableColumns } from '@/config/ozon/productTableColumns';
 import { useColumnConfig } from '@/hooks/ozon/useColumnConfig';
@@ -82,7 +82,7 @@ const ProductList: React.FC = () => {
   // 水印相关UI状态
   const [watermarkModalVisible, setWatermarkModalVisible] = useState(false);
   const [watermarkStep, setWatermarkStep] = useState<'select' | 'preview'>('select');
-  const [watermarkPreviews, setWatermarkPreviews] = useState<any[]>([]);
+  const [watermarkPreviews, setWatermarkPreviews] = useState<WatermarkPreview[]>([]);
   const [watermarkAnalyzeMode] = useState<'individual' | 'fast'>('individual');
 
   // 图片预览状态

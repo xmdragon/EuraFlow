@@ -18,6 +18,24 @@ import { loggers } from '@/utils/logger';
 
 const { Option } = Select;
 
+// 水印预览图片接口
+export interface WatermarkPreviewImage {
+  image_type: 'primary' | string;
+  original_url: string;
+  url?: string;
+  image_index?: number;
+}
+
+// 水印预览商品接口
+export interface WatermarkPreview {
+  product_id: number;
+  sku: string;
+  title: string;
+  total_images?: number;
+  error?: string;
+  images?: WatermarkPreviewImage[];
+}
+
 export interface WatermarkApplyModalProps {
   visible: boolean;
   onCancel: () => void;
@@ -31,8 +49,8 @@ export interface WatermarkApplyModalProps {
   watermarkConfigs: watermarkApi.WatermarkConfig[];
   watermarkStep: 'select' | 'preview';
   setWatermarkStep: (step: 'select' | 'preview') => void;
-  watermarkPreviews: any[];
-  setWatermarkPreviews: (previews: any[]) => void;
+  watermarkPreviews: WatermarkPreview[];
+  setWatermarkPreviews: (previews: WatermarkPreview[]) => void;
   confirmLoading: boolean;
   previewLoading: boolean;
   watermarkAnalyzeMode: 'individual' | 'fast';
@@ -40,7 +58,7 @@ export interface WatermarkApplyModalProps {
     productIds: number[],
     configId: number,
     analyzeMode: 'individual' | 'fast'
-  ) => Promise<any>;
+  ) => Promise<WatermarkPreview[]>;
 }
 
 /**
@@ -84,7 +102,7 @@ export const WatermarkApplyModal: React.FC<WatermarkApplyModalProps> = ({
       if (preview.product_id === productId) {
         return {
           ...preview,
-          images: preview.images?.map((img: any, idx: number) => {
+          images: preview.images?.map((img, idx: number) => {
             // 使用数组索引进行匹配，确保准确性
             if (idx === imageArrayIndex) {
               return {
@@ -236,7 +254,7 @@ export const WatermarkApplyModal: React.FC<WatermarkApplyModalProps> = ({
                           marginTop: 8,
                         }}
                       >
-                        {preview.images.map((img: any, imgArrayIndex: number) => {
+                        {preview.images.map((img, imgArrayIndex: number) => {
                           // 使用数组索引作为唯一标识，确保每张图片都有独立的状态
                           // 不使用 img.image_index 因为它可能在不同情况下不可靠或重复
                           const imageKey = `${preview.product_id}_${imgArrayIndex}`;
