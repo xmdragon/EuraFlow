@@ -97,3 +97,4 @@ web/public/downloads/labels/*.pdf
 # Temporary CSV files
 *.csv
 !web/src/**/*.csv
+web/dist.tar.gz
