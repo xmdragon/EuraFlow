@@ -368,7 +368,9 @@ class OrderSyncService:
                 operation_status='awaiting_stock'  # 设置初始操作状态
             )
             session.add(posting)
-        
+            # ✅ 立即 flush posting，确保 posting.id 有值（后续代码需要使用 posting.id）
+            await session.flush()
+
         # 更新Posting信息
         posting.status = posting_data.get("status")
         posting.substatus = posting_data.get("substatus")
