@@ -1605,6 +1605,9 @@ class OzonSyncService:
         # 保存原始数据
         posting.raw_payload = posting_data
 
+        # ✅ 先 flush posting，确保 posting.id 有值（_sync_packages 需要 posting.id）
+        await db.flush()
+
         # 查询shop信息（为_sync_packages提供，避免嵌套异步查询）
         shop_result = await db.execute(select(OzonShop).where(OzonShop.id == shop_id))
         shop = shop_result.scalar_one_or_none()
