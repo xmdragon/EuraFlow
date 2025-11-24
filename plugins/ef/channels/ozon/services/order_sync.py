@@ -774,7 +774,8 @@ class OrderSyncService:
                 sync_log.skipped_count = stats.get("skipped", 0)
             
             if error:
-                sync_log.error_message = error
+                # 截断错误消息，防止超过数据库字段长度限制（VARCHAR(2000)）
+                sync_log.error_message = error[:1900] if len(error) > 1900 else error
             
             # 计算耗时
             if sync_log.started_at:
