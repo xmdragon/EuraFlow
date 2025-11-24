@@ -64,6 +64,7 @@ def upload_xiangji_images_to_storage(
             )
         finally:
             loop.close()
+            asyncio.set_event_loop(None)
 
     try:
         result = run_async_in_thread()

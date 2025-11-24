@@ -52,6 +52,9 @@ def run_async_in_celery(coro):
     except Exception as e:
         logger.error(f"Async execution failed: {e}", exc_info=True)
         raise
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
 
 
 def get_sync_db_session():

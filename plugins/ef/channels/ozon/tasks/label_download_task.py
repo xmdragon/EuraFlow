@@ -30,6 +30,7 @@ def download_label_pdf_task(self, posting_number: str, shop_id: int):
         loop.run_until_complete(_download_label_pdf_async(posting_number, shop_id))
     finally:
         loop.close()
+        asyncio.set_event_loop(None)
 
 
 async def _download_label_pdf_async(posting_number: str, shop_id: int):
