@@ -130,7 +130,6 @@ const OrderList: React.FC = () => {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-      refetch();
     },
   });
 
@@ -510,7 +509,6 @@ const OrderList: React.FC = () => {
     onSuccess: () => {
       notifySuccess('同步成功', '订单同步成功');
       queryClient.invalidateQueries({ queryKey: ['ozonOrders'] });
-      refetch();
     },
     onError: (error: Error) => {
       notifyError('同步失败', `同步失败: ${error.message}`);
