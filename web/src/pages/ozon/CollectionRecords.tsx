@@ -66,6 +66,9 @@ const CollectionRecords: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<CollectionRecord | null>(null);
 
+  // 批量选择状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
   // 查询采集记录列表
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['collection-records', selectedShop, currentPage, pageSize],
@@ -100,10 +103,45 @@ const CollectionRecords: React.FC = () => {
         try {
           await axios.delete(`/api/ef/v1/ozon/collection-records/${recordId}`);
           notifySuccess('删除成功');
+          setSelectedRowKeys([]);
           refetch();
         } catch (error) {
           loggers.api.error('Delete collection record failed', { error });
           notifyError('删除失败');
+        }
+      },
+    });
+  };
+
+  // 批量删除记录
+  const handleBatchDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      notifyError('请先选择要删除的记录');
+      return;
+    }
+
+    modal.confirm({
+      title: '批量删除确认',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 条记录吗？删除后将无法恢复。`,
+      onOk: async () => {
+        try {
+          const response = await axios.post('/api/ef/v1/ozon/collection-records/batch-delete', {
+            record_ids: selectedRowKeys,
+          });
+
+          const { deleted_count, failed_count } = response.data.data;
+
+          if (failed_count > 0) {
+            notifyError(`删除完成：成功 ${deleted_count} 条，失败 ${failed_count} 条`);
+          } else {
+            notifySuccess(`成功删除 ${deleted_count} 条记录`);
+          }
+
+          setSelectedRowKeys([]);
+          refetch();
+        } catch (error) {
+          loggers.api.error('Batch delete collection records failed', { error });
+          notifyError('批量删除失败');
         }
       },
     });
@@ -300,6 +338,17 @@ const CollectionRecords: React.FC = () => {
               刷新
             </Button>
           </Form.Item>
+          {canDelete && (
+            <Form.Item>
+              <Button
+                danger
+                disabled={selectedRowKeys.length === 0}
+                onClick={handleBatchDelete}
+              >
+                批量删除 ({selectedRowKeys.length})
+              </Button>
+            </Form.Item>
+          )}
         </Form>
       </Card>
 
@@ -310,6 +359,10 @@ const CollectionRecords: React.FC = () => {
           dataSource={data?.items || []}
           loading={isLoading}
           rowKey="id"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+          }}
           scroll={{ x: true }}
           size="small"
           pagination={{

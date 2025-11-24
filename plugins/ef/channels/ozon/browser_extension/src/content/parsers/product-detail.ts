@@ -40,6 +40,7 @@ export interface ProductDetailData {
     specifications: string;
     spec_details?: Record<string, string>;
     image_url: string;
+    images?: { url: string; is_primary?: boolean }[];  // 变体的附加图片
     price: number;
     original_price?: number;
     available: boolean;
@@ -920,6 +921,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
               specifications: specText,
               spec_details: undefined,
               image_url: coverImage || '',
+              images: baseData.images.length > 0 ? baseData.images : undefined,  // 当前页面的附加图片
               link: link ? link.split('?')[0] : '',
               price: priceNum,
               original_price: originalPriceNum,
@@ -985,6 +987,24 @@ export async function extractProductData(): Promise<ProductDetailData> {
           const variantAspectsData = JSON.parse(variantWidgetStates[variantAspectsKey]);
           const variantAspects = variantAspectsData?.aspects || [];
 
+          // 提取变体的图片列表
+          const variantGalleryKey = Object.keys(variantWidgetStates).find(k => k.includes('webGallery'));
+          const variantImages: { url: string; is_primary?: boolean }[] = [];
+          if (variantGalleryKey) {
+            const variantGalleryData = JSON.parse(variantWidgetStates[variantGalleryKey]);
+            if (variantGalleryData?.images && Array.isArray(variantGalleryData.images)) {
+              variantGalleryData.images.forEach((img: any, index: number) => {
+                if (img.src) {
+                  variantImages.push({
+                    url: img.src,
+                    is_primary: index === 0
+                  });
+                }
+              });
+              console.log(`[EuraFlow] ✅ 从变体页面提取了 ${variantImages.length} 张图片`);
+            }
+          }
+
           console.log(`[EuraFlow] ${variantLink.link} 返回 ${variantAspects.length} 个 aspect`);
 
           // 从最后一个 aspect 提取变体
@@ -1036,6 +1056,7 @@ export async function extractProductData(): Promise<ProductDetailData> {
                 specifications: specText,
                 spec_details: undefined,
                 image_url: coverImage || '',
+                images: variantImages.length > 0 ? variantImages : undefined,  // 添加变体的附加图片
                 link: link ? link.split('?')[0] : '',
                 price: priceNum,
                 original_price: originalPriceNum,

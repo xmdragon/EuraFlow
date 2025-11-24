@@ -485,3 +485,62 @@ async def delete_record(
             "message": "记录已删除"
         }
     }
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+    record_ids: list[int] = Field(..., description="记录ID列表")
+
+
+class BatchDeleteResponse(BaseModel):
+    """批量删除响应"""
+    deleted_count: int
+    failed_count: int
+    failed_ids: list[int]
+
+
+@router.post("/batch-delete", response_model=BatchDeleteResponse)
+async def batch_delete_records(
+    request: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """批量删除采集记录（软删除）
+
+    Args:
+        request: 批量删除请求（包含记录ID列表）
+
+    Returns:
+        批量删除结果统计
+    """
+    deleted_count = 0
+    failed_count = 0
+    failed_ids = []
+
+    for record_id in request.record_ids:
+        try:
+            success = await CollectionRecordService.soft_delete(
+                db=db,
+                record_id=record_id,
+                user_id=current_user.id
+            )
+
+            if success:
+                deleted_count += 1
+            else:
+                failed_count += 1
+                failed_ids.append(record_id)
+
+        except Exception as e:
+            logger.error(f"Failed to delete record {record_id}: {e}")
+            failed_count += 1
+            failed_ids.append(record_id)
+
+    return {
+        "ok": True,
+        "data": {
+            "deleted_count": deleted_count,
+            "failed_count": failed_count,
+            "failed_ids": failed_ids
+        }
+    }
