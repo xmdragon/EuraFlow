@@ -437,39 +437,15 @@ def _initialize_plugins_for_celery():
             task_registry = asyncio.run(async_init())
         except RuntimeError as e:
             if "cannot be called from a running event loop" in str(e):
-                # Celery worker 环境中已有运行中的事件循环（uvloop）
-                # 使用线程隔离来执行异步初始化，避免事件循环冲突
-                logger.warning("Detected running event loop, using thread-isolated initialization")
-                import threading
-                import queue
-
-                result_queue = queue.Queue()
-                exception_queue = queue.Queue()
-
-                def run_in_thread():
-                    try:
-                        # 在新线程中创建独立的事件循环
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            result = loop.run_until_complete(async_init())
-                            result_queue.put(result)
-                        finally:
-                            loop.close()
-                    except Exception as ex:
-                        exception_queue.put(ex)
-
-                thread = threading.Thread(target=run_in_thread, daemon=False)
-                thread.start()
-                thread.join(timeout=60)  # 最多等待60秒
-
-                if not exception_queue.empty():
-                    raise exception_queue.get()
-
-                if not result_queue.empty():
-                    task_registry = result_queue.get()
-                else:
-                    raise RuntimeError("Plugin initialization timed out or failed")
+                # Celery worker 环境中已有运行中的事件循环
+                # 创建新的事件循环来执行初始化
+                logger.warning("Detected running event loop, creating new event loop for plugin initialization")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    task_registry = loop.run_until_complete(async_init())
+                finally:
+                    loop.close()
             else:
                 raise
 
