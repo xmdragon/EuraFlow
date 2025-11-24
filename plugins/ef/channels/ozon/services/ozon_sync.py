@@ -1566,14 +1566,14 @@ class OzonSyncService:
                 shop_id=shop_id,
                 posting_number=posting_number,
                 ozon_posting_number=posting_data.get("posting_number"),
-                status=posting_data.get("status", ""),
+                status=posting_data.get("status") or "awaiting_packaging",  # 设置默认状态（必填）
             )
             db.add(posting)
-            logger.info(f"[DEBUG] Created new posting {posting_number}, status={posting_data.get('status', '')}")
+            logger.info(f"[DEBUG] Created new posting {posting_number}, status={posting.status}")
         else:
             # 更新现有posting
             old_status = posting.status
-            new_status = posting_data.get("status", "")
+            new_status = posting_data.get("status") or posting.status  # 如果 API 没返回状态，保持原状态
             posting.status = new_status
             logger.info(f"[DEBUG] Updating posting {posting_number}: old_status='{old_status}' → new_status='{new_status}'")
 
