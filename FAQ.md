@@ -1113,6 +1113,431 @@ else:
 
 ---
 
+### 如何添加新的 Celery 定时任务（最佳实践 - 避免事件循环冲突）
+
+**问题描述**：
+- 需要添加新的 Celery 定时任务
+- 想避免重复踩坑（事件循环冲突、数据库连接失败等）
+- 希望遵循项目最佳实践
+
+**本章节目标**：
+- ✅ 提供完整的代码模板（可直接复制粘贴）
+- ✅ 明确禁止事项和正确做法
+- ✅ 提供检查清单（Code Review 用）
+- ✅ 避免将来重复犯错
+
+---
+
+#### 禁止事项（❌ 必须避免）
+
+##### ❌ 禁止 1：插件 setup() 中访问数据库
+
+```python
+# ❌ 错误示例
+async def setup(hooks) -> None:
+    from ef_core.database import get_db_manager
+    db_manager = get_db_manager()  # ❌ 创建数据库管理器单例
+
+    async with db_manager.get_session() as db:
+        # ❌ 查询数据库获取配置
+        config = await db.execute(select(Config))
+```
+
+**后果**：
+- 导致数据库管理器单例绑定到错误的事件循环
+- FastAPI 应用启动时数据库连接检查失败
+- 详见 FAQ："Celery 插件初始化时的事件循环冲突导致数据库连接失败"
+
+##### ❌ 禁止 2：在同一任务中多次创建事件循环
+
+```python
+# ❌ 错误示例
+@celery_app.task
+def bad_task():
+    loop1 = asyncio.new_event_loop()
+    loop1.run_until_complete(task1())
+    loop1.close()
+
+    loop2 = asyncio.new_event_loop()  # ❌ 多次创建
+    loop2.run_until_complete(task2())
+    loop2.close()
+```
+
+**后果**：
+- 浪费资源
+- 可能导致事件循环状态混乱
+
+##### ❌ 禁止 3：使用 gevent pool
+
+```bash
+# supervisord.conf
+# ❌ 错误
+command=celery worker --pool=gevent
+```
+
+**后果**：
+- gevent 与 asyncio 冲突
+- 触发 "Future attached to a different loop" 错误
+
+---
+
+#### 正确做法（✅ 标准模板）
+
+##### ✅ 步骤 1：插件 setup() 注册任务（不访问数据库）
+
+```python
+# plugins/ef/xxx/__init__.py
+
+async def setup(hooks) -> None:
+    """
+    插件初始化函数
+
+    ✅ 只注册任务，不访问数据库
+    """
+
+    # 直接注册任务，使用硬编码的默认 cron
+    await hooks.register_cron(
+        name="ef.xxx.my_task",
+        cron="*/30 * * * *",  # 硬编码默认值（每30分钟）
+        task=my_task
+    )
+```
+
+##### ✅ 步骤 2：任务函数使用标准模板
+
+```python
+# plugins/ef/xxx/tasks/my_task.py
+
+from ef_core.tasks.celery_app import celery_app
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
+
+@celery_app.task(bind=True, name="ef.xxx.my_task")
+def my_task(self, **kwargs):
+    """
+    Celery 任务标准模板
+
+    说明：
+    1. 任务函数本身是同步的（def，不是 async def）
+    2. 内部创建独立的事件循环来运行异步逻辑
+    3. 任务结束时正确清理事件循环
+    """
+
+    def run_async():
+        """在独立事件循环中运行异步逻辑"""
+        # 创建新的事件循环
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            # 运行异步逻辑
+            return loop.run_until_complete(async_logic())
+        finally:
+            # 关闭事件循环
+            loop.close()
+            # 清理事件循环引用（重要！）
+            asyncio.set_event_loop(None)
+
+    return run_async()
+
+
+async def async_logic():
+    """异步业务逻辑"""
+    from ef_core.database import get_db_manager
+    from plugins.ef.system.sync_service.models.sync_service import SyncService
+    from sqlalchemy import select
+
+    db_manager = get_db_manager()
+
+    # 第一步：检查任务是否启用
+    async with db_manager.get_session() as db:
+        result = await db.execute(
+            select(SyncService).where(SyncService.service_key == "my_service")
+        )
+        service = result.scalar_one_or_none()
+
+        # 如果任务被禁用，直接返回
+        if service and not service.is_enabled:
+            logger.info("Task ef.xxx.my_task is disabled, skipping")
+            return
+
+    # 第二步：执行任务逻辑
+    async with db_manager.get_session() as db:
+        # 查询业务数据
+        result = await db.execute(select(MyModel))
+        items = result.scalars().all()
+
+        # 处理数据
+        for item in items:
+            await process_item(item)
+
+    logger.info("Task ef.xxx.my_task completed successfully")
+```
+
+##### ✅ 步骤 3：在数据库中创建服务记录（可选）
+
+如果希望支持前端动态开关任务：
+
+```sql
+-- 在 sync_services 表中插入记录
+INSERT INTO sync_services (service_key, service_name, description, is_enabled, schedule_config)
+VALUES ('my_service', '我的定时任务', '任务描述', true, '*/30 * * * *');
+```
+
+---
+
+#### 完整示例：订单同步任务
+
+```python
+# plugins/ef/channels/ozon/__init__.py
+
+async def setup(hooks) -> None:
+    """OZON 插件初始化"""
+
+    # ✅ 正确：注册订单拉取任务
+    await hooks.register_cron(
+        name="ef.ozon.orders.pull",
+        cron="*/5 * * * *",  # 每5分钟
+        task=pull_orders_task
+    )
+
+
+# plugins/ef/channels/ozon/tasks/pull_orders_task.py
+
+from ef_core.tasks.celery_app import celery_app
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
+
+@celery_app.task(bind=True, name="ef.ozon.orders.pull")
+def pull_orders_task(self, **kwargs):
+    """订单拉取任务"""
+
+    def run_async():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(async_pull_orders())
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+    return run_async()
+
+
+async def async_pull_orders():
+    """异步订单拉取逻辑"""
+    from ef_core.database import get_db_manager
+    from plugins.ef.channels.ozon.models.shops import OzonShop
+    from plugins.ef.system.sync_service.models.sync_service import SyncService
+    from sqlalchemy import select
+
+    db_manager = get_db_manager()
+
+    # 检查任务是否启用
+    async with db_manager.get_session() as db:
+        result = await db.execute(
+            select(SyncService).where(SyncService.service_key == "ozon_orders_pull")
+        )
+        service = result.scalar_one_or_none()
+
+        if service and not service.is_enabled:
+            logger.info("Task ef.ozon.orders.pull is disabled, skipping")
+            return
+
+    # 获取所有活跃店铺
+    async with db_manager.get_session() as db:
+        result = await db.execute(
+            select(OzonShop).where(OzonShop.status == "active")
+        )
+        shops = result.scalars().all()
+
+    # 对每个店铺拉取订单
+    for shop in shops:
+        logger.info(f"Pulling orders for shop {shop.shop_name}")
+        await pull_orders_for_shop(shop)
+
+    logger.info("Orders pull completed")
+
+
+async def pull_orders_for_shop(shop):
+    """为单个店铺拉取订单"""
+    # 具体的业务逻辑
+    pass
+```
+
+---
+
+#### 代码审查清单
+
+在添加新任务或 Code Review 时，必须检查：
+
+- [ ] **插件 setup() 规范**
+  - [ ] 不调用 `get_db_manager()`
+  - [ ] 不执行数据库查询
+  - [ ] 使用硬编码的默认 cron 表达式
+
+- [ ] **任务函数规范**
+  - [ ] 任务函数是同步的（`def`，不是 `async def`）
+  - [ ] 使用标准模板（创建独立事件循环）
+  - [ ] 正确清理事件循环（`loop.close()` + `set_event_loop(None)`）
+  - [ ] 任务开始时检查 `is_enabled` 状态
+  - [ ] 任务执行时再查询数据库
+
+- [ ] **Celery Worker 配置**
+  - [ ] 使用 `prefork` pool（不使用 gevent）
+  - [ ] `supervisord.conf` 中的配置正确
+
+- [ ] **错误处理**
+  - [ ] 有完善的日志记录
+  - [ ] 有合理的异常捕获
+
+---
+
+#### 测试验证步骤
+
+##### 1. 本地测试
+
+```bash
+# 1. 重启服务
+./restart.sh
+
+# 2. 检查任务是否成功注册
+supervisorctl tail -100 euraflow:celery_beat stdout | grep "ef.xxx.my_task"
+
+# 3. 检查是否有事件循环错误
+supervisorctl tail -100 euraflow:celery_worker stderr | grep -i "event loop"
+
+# 4. 手动触发任务测试
+./venv/bin/celery -A ef_core.tasks.celery_app call ef.xxx.my_task
+
+# 5. 观察任务执行日志
+supervisorctl tail -f euraflow:celery_worker stdout | grep "ef.xxx.my_task"
+```
+
+##### 2. 验证任务禁用功能
+
+```bash
+# 1. 在数据库中禁用任务
+psql -d euraflow -c "UPDATE sync_services SET is_enabled = false WHERE service_key = 'my_service';"
+
+# 2. 触发任务
+./venv/bin/celery -A ef_core.tasks.celery_app call ef.xxx.my_task
+
+# 3. 确认任务被跳过
+supervisorctl tail -f euraflow:celery_worker stdout | grep "is disabled, skipping"
+```
+
+##### 3. 远程部署验证
+
+```bash
+# 1. 提交代码
+git add . && git commit -m "feat: add new task" && git push
+
+# 2. 远程部署
+ssh ozon "cd /opt/euraflow && git pull && ./restart.sh"
+
+# 3. 检查服务状态
+ssh ozon "supervisorctl status"
+
+# 4. 检查任务是否注册
+ssh ozon "supervisorctl tail -100 euraflow:celery_beat stdout | grep 'ef.xxx.my_task'"
+```
+
+---
+
+#### 常见问题排查
+
+##### 问题 1：任务没有被调度
+
+**现象**：Celery Beat 日志中看不到任务
+
+**排查**：
+```bash
+# 检查任务是否注册
+supervisorctl tail -100 euraflow:celery_beat stdout | grep "Registered task"
+
+# 检查插件初始化日志
+supervisorctl tail -100 euraflow:celery_beat stdout | grep "Plugin"
+```
+
+**可能原因**：
+- 插件 `setup()` 函数中没有调用 `hooks.register_cron()`
+- 任务名称拼写错误
+- 插件初始化失败
+
+##### 问题 2：任务执行报错
+
+**现象**：任务被触发，但执行失败
+
+**排查**：
+```bash
+# 查看 Worker 错误日志
+supervisorctl tail -200 euraflow:celery_worker stderr
+```
+
+**可能原因**：
+- 事件循环没有正确关闭
+- 数据库连接失败
+- 业务逻辑错误
+
+##### 问题 3：数据库连接失败
+
+**现象**：FastAPI 启动失败，报 "Database connection failed"
+
+**排查**：
+```bash
+# 检查插件 setup() 是否访问数据库
+grep -A 20 "async def setup" plugins/ef/xxx/__init__.py | grep "get_db_manager"
+```
+
+**解决方案**：
+- 移除 `setup()` 中的数据库访问代码
+- 改为任务执行时查询数据库
+
+---
+
+#### 外部 API 调用优化（可选）
+
+如果任务中需要调用外部 API，可以考虑改为同步 HTTP 客户端：
+
+```python
+# 当前（异步）
+async def fetch_data():
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=data, timeout=30.0)
+        return response.json()
+
+# 优化（同步）
+def fetch_data():
+    import httpx
+    with httpx.Client() as client:
+        response = client.post(url, json=data, timeout=30.0)
+        return response.json()
+```
+
+**优点**：
+- 代码更简单
+- 减少事件循环开销
+- 避免事件循环冲突风险
+
+**注意**：
+- 仅适用于 Celery 任务（不适用于 FastAPI 路由）
+- 需要逐个任务评估
+
+---
+
+#### 相关文档
+
+- `CLAUDE.md` - 第 22 节："Celery 与 Asyncio 混用规范"
+- `FAQ.md` - "Celery 插件初始化时的事件循环冲突导致数据库连接失败"
+- `FAQ.md` - "Celery 异步任务报错 'Future attached to a different loop'"
+
+---
+
 ### 如何添加新的后台定时任务服务
 
 **问题描述**：
