@@ -134,17 +134,33 @@ class OzonChatService:
                 }
 
     async def get_chat_detail(self, chat_id: str) -> Optional[Dict[str, Any]]:
-        """获取聊天详情"""
+        """获取聊天详情
+
+        Args:
+            chat_id: 聊天ID（全局唯一）
+
+        Returns:
+            聊天详情字典，如果不存在则返回None
+
+        Note:
+            chat_id在数据库中是唯一的，不需要shop_id也能定位聊天
+            如果初始化时提供了shop_id，会验证聊天是否属于该店铺
+        """
         async with self.db_manager.get_session() as session:
-            stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
-            )
+            # 只用chat_id查询（chat_id是全局唯一的）
+            stmt = select(OzonChat).where(OzonChat.chat_id == chat_id)
             chat = await session.scalar(stmt)
 
             if not chat:
+                return None
+
+            # 如果初始化时指定了shop_id，验证聊天是否属于该店铺
+            if self.shop_id is not None and chat.shop_id != self.shop_id:
+                logger.warning(
+                    f"Chat {chat_id} belongs to shop {chat.shop_id}, "
+                    f"but service was initialized with shop_id={self.shop_id}"
+                )
+                # 返回None而不是抛出异常，保持向后兼容
                 return None
 
             return self._chat_to_dict(chat)
@@ -159,7 +175,7 @@ class OzonChatService:
         """获取聊天消息列表
 
         Args:
-            chat_id: 聊天ID
+            chat_id: 聊天ID（全局唯一）
             limit: 每页数量
             offset: 偏移量
             before_message_id: 获取此消息之前的消息
@@ -172,20 +188,26 @@ class OzonChatService:
             }
         """
         async with self.db_manager.get_session() as session:
-            # 验证聊天是否属于此店铺
-            chat_stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
-            )
+            # 先根据chat_id查询聊天（chat_id是全局唯一的）
+            chat_stmt = select(OzonChat).where(OzonChat.chat_id == chat_id)
             chat = await session.scalar(chat_stmt)
             if not chat:
                 return {"items": [], "total": 0, "chat_id": chat_id}
 
+            # 如果初始化时指定了shop_id，验证聊天是否属于该店铺
+            if self.shop_id is not None and chat.shop_id != self.shop_id:
+                logger.warning(
+                    f"Chat {chat_id} belongs to shop {chat.shop_id}, "
+                    f"but service was initialized with shop_id={self.shop_id}"
+                )
+                return {"items": [], "total": 0, "chat_id": chat_id}
+
+            # 使用聊天实际所属的shop_id查询消息
+            actual_shop_id = chat.shop_id
+
             # 构建消息查询条件
             conditions = [
-                OzonChatMessage.shop_id == self.shop_id,
+                OzonChatMessage.shop_id == actual_shop_id,
                 OzonChatMessage.chat_id == chat_id,
                 OzonChatMessage.is_deleted == False
             ]
@@ -229,24 +251,27 @@ class OzonChatService:
         """发送文本消息
 
         Args:
-            chat_id: 聊天ID
+            chat_id: 聊天ID（全局唯一）
             content: 消息内容（中文或俄语）
             api_client: OZON API客户端
 
         Returns:
             发送结果
         """
-        # 验证聊天是否属于此店铺
+        # 根据chat_id查询聊天（chat_id是全局唯一的）
         async with self.db_manager.get_session() as session:
-            stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
-            )
+            stmt = select(OzonChat).where(OzonChat.chat_id == chat_id)
             chat = await session.scalar(stmt)
             if not chat:
-                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+                raise ValueError(f"Chat {chat_id} not found")
+
+            # 如果初始化时指定了shop_id，验证聊天是否属于该店铺
+            if self.shop_id is not None and chat.shop_id != self.shop_id:
+                logger.warning(
+                    f"Chat {chat_id} belongs to shop {chat.shop_id}, "
+                    f"but service was initialized with shop_id={self.shop_id}"
+                )
+                raise ValueError(f"Chat {chat_id} not found")
 
         # 检测语言并翻译（如果是中文或英文等非俄语内容）
         original_content = None
@@ -366,24 +391,27 @@ class OzonChatService:
         """标记聊天为已读
 
         Args:
-            chat_id: 聊天ID
+            chat_id: 聊天ID（全局唯一）
             api_client: OZON API客户端
 
         Returns:
             操作结果
         """
-        # 验证聊天是否属于此店铺，并获取最后一条消息ID
+        # 根据chat_id查询聊天（chat_id是全局唯一的）
         last_message_id = None
         async with self.db_manager.get_session() as session:
-            stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
-            )
+            stmt = select(OzonChat).where(OzonChat.chat_id == chat_id)
             chat = await session.scalar(stmt)
             if not chat:
-                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+                raise ValueError(f"Chat {chat_id} not found")
+
+            # 如果初始化时指定了shop_id，验证聊天是否属于该店铺
+            if self.shop_id is not None and chat.shop_id != self.shop_id:
+                logger.warning(
+                    f"Chat {chat_id} belongs to shop {chat.shop_id}, "
+                    f"but service was initialized with shop_id={self.shop_id}"
+                )
+                raise ValueError(f"Chat {chat_id} not found")
 
             # 获取最后一条消息的ID（按创建时间倒序）
             msg_stmt = (
@@ -452,22 +480,26 @@ class OzonChatService:
         """归档/取消归档聊天
 
         Args:
-            chat_id: 聊天ID
+            chat_id: 聊天ID（全局唯一）
             is_archived: 是否归档
 
         Returns:
             操作结果
         """
         async with self.db_manager.get_session() as session:
-            stmt = select(OzonChat).where(
-                and_(
-                    OzonChat.shop_id == self.shop_id,
-                    OzonChat.chat_id == chat_id
-                )
-            )
+            # 根据chat_id查询聊天（chat_id是全局唯一的）
+            stmt = select(OzonChat).where(OzonChat.chat_id == chat_id)
             chat = await session.scalar(stmt)
             if not chat:
-                raise ValueError(f"Chat {chat_id} not found for shop {self.shop_id}")
+                raise ValueError(f"Chat {chat_id} not found")
+
+            # 如果初始化时指定了shop_id，验证聊天是否属于该店铺
+            if self.shop_id is not None and chat.shop_id != self.shop_id:
+                logger.warning(
+                    f"Chat {chat_id} belongs to shop {chat.shop_id}, "
+                    f"but service was initialized with shop_id={self.shop_id}"
+                )
+                raise ValueError(f"Chat {chat_id} not found")
 
             chat.is_archived = is_archived
             await session.commit()
