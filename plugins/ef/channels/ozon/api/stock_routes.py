@@ -469,7 +469,7 @@ async def check_stock_for_posting(
     - 订单中每个商品的库存信息
     - 是否库存充足
     """
-    from ..models import OzonPosting, OzonOrderItem
+    from ..models import OzonPosting
 
     # 1. 查询订单信息
     posting_query = select(OzonPosting).where(
@@ -486,33 +486,46 @@ async def check_stock_for_posting(
     if shop_ids is not None and posting.shop_id not in shop_ids:
         raise HTTPException(status_code=403, detail="无权限查看该订单")
 
-    # 2. 查询订单商品
-    items_query = select(OzonOrderItem).where(
-        OzonOrderItem.order_id == posting.order_id
-    )
-    items_result = await db.execute(items_query)
-    items = items_result.scalars().all()
+    # 2. 从posting的raw_payload中提取商品信息（而不是从ozon_order_items表）
+    # 因为同一个order可能有多个posting，每个posting包含不同的商品
+    items_data = []
+    if posting.raw_payload and 'products' in posting.raw_payload:
+        items_data = posting.raw_payload['products']
+
+    if not items_data:
+        raise HTTPException(status_code=404, detail=f"订单 {posting_number} 没有商品数据")
 
     # 3. 检查每个商品的库存
     stock_info = []
-    for item in items:
-        # 查询商品信息（获取 ozon_sku 和图片）
-        product_query = select(OzonProduct).where(
-            and_(
-                OzonProduct.shop_id == posting.shop_id,
-                OzonProduct.offer_id == item.offer_id
-            )
-        )
-        product_result = await db.execute(product_query)
-        product = product_result.scalar_one_or_none()
+    for product_data in items_data:
+        # 从raw_payload提取商品信息
+        offer_id = product_data.get('offer_id')
+        ozon_sku_from_payload = product_data.get('sku')  # OZON API返回的SKU
+        product_name = product_data.get('name', '')
+        order_quantity = product_data.get('quantity', 0)
 
-        # 获取商品图片和 ozon_sku
+        # 查询商品信息（获取图片和确认ozon_sku）
+        product = None
         product_image = None
-        ozon_sku = None
-        if product:
-            ozon_sku = str(product.ozon_sku) if product.ozon_sku else None
-            if product.images and isinstance(product.images, dict):
-                product_image = product.images.get("primary")
+        ozon_sku = str(ozon_sku_from_payload) if ozon_sku_from_payload else None
+
+        if offer_id:
+            product_query = select(OzonProduct).where(
+                and_(
+                    OzonProduct.shop_id == posting.shop_id,
+                    OzonProduct.offer_id == offer_id
+                )
+            )
+            product_result = await db.execute(product_query)
+            product = product_result.scalar_one_or_none()
+
+            if product:
+                # 优先使用数据库中的ozon_sku（更准确）
+                if product.ozon_sku:
+                    ozon_sku = str(product.ozon_sku)
+                # 获取商品图片
+                if product.images and isinstance(product.images, dict):
+                    product_image = product.images.get("primary")
 
         # 查询库存（使用 ozon_sku）
         stock_available = 0
@@ -528,12 +541,12 @@ async def check_stock_for_posting(
             stock_available = inventory.qty_available if inventory else 0
 
         stock_info.append(StockCheckResponse(
-            sku=ozon_sku or item.offer_id,  # 优先显示 ozon_sku，否则降级到 offer_id
-            product_title=item.name,
+            sku=ozon_sku or offer_id,  # 优先显示 ozon_sku，否则降级到 offer_id
+            product_title=product_name,
             product_image=product_image,
             stock_available=stock_available,
-            order_quantity=item.quantity,
-            is_sufficient=stock_available >= item.quantity
+            order_quantity=order_quantity,
+            is_sufficient=stock_available >= order_quantity
         ))
 
     return {
