@@ -1171,10 +1171,10 @@ const PackingShipment: React.FC = () => {
 
               {/* 扫描结果 */}
               {scanResults.length > 0 && (
-                <Card
-                  className={styles.scanResultStickyCard}
-                  title={`查询结果 (${scanResults.length})`}
-                  extra={
+                <div className={styles.scanResultWrapper}>
+                  {/* Sticky 标题行 */}
+                  <div className={styles.scanResultStickyHeader}>
+                    <span className={styles.scanResultTitle}>查询结果 ({scanResults.length})</span>
                     <Space>
                       <Space size="small">
                         <Text type="secondary">打印状态:</Text>
@@ -1216,8 +1216,8 @@ const PackingShipment: React.FC = () => {
                         </>
                       )}
                     </Space>
-                  }
-                >
+                  </div>
+                  {/* 表格内容 */}
                   <ScanResultTable
                     scanResults={filteredScanResults}
                     scanSelectedPostings={scanSelectedPostings}
@@ -1235,7 +1235,7 @@ const PackingShipment: React.FC = () => {
                     isPrinting={isPrinting}
                     onCopy={copyToClipboard}
                   />
-                </Card>
+                </div>
               )}
             </Space>
           </div>

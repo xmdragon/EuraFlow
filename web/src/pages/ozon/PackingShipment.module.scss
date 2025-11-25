@@ -418,16 +418,30 @@
   object-fit: contain;
 }
 
-// 扫描结果卡片 - 标题行固定
-.scanResultStickyCard {
-  // Card header 固定在顶部
-  :global(.ant-card-head) {
-    position: sticky;
-    top: 105px; // stickyHeader 高度约 105px (标题 + Tabs + 搜索框)
-    z-index: 50;
-    background: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  }
+// 扫描结果容器
+.scanResultWrapper {
+  width: 100%;
+}
+
+// 扫描结果 Sticky 标题行
+.scanResultStickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+// 扫描结果标题
+.scanResultTitle {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
 }
 
 // 扫描结果表格样式
