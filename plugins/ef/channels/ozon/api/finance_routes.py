@@ -11,7 +11,7 @@ import logging
 from ef_core.database import get_async_session
 from ..models.finance import OzonFinanceTransaction
 from ..models.global_settings import OzonGlobalSetting
-from ..models.orders import OzonPosting, OzonOrder, OzonOrderItem
+from ..models.orders import OzonPosting
 from ..utils.datetime_utils import parse_date_with_timezone, get_global_timezone
 from ..services.finance_translations import translate_operation_type_name
 from pydantic import BaseModel, Field
@@ -239,29 +239,25 @@ async def get_finance_transactions(
                     postings_need_items[pn] = []
                 postings_need_items[pn].append(idx)
 
-        # 批量查询商品信息
+        # 批量查询商品信息（从 posting.raw_payload.products 获取，避免 JOIN）
         if postings_need_items:
-            # 查询这些posting对应的订单商品
             posting_numbers = list(postings_need_items.keys())
-            stmt = (
-                select(OzonPosting, OzonOrderItem)
-                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
-                .join(OzonOrderItem, OzonOrder.id == OzonOrderItem.order_id)
-                .where(OzonPosting.posting_number.in_(posting_numbers))
-            )
+            stmt = select(OzonPosting).where(OzonPosting.posting_number.in_(posting_numbers))
             result = await db.execute(stmt)
-            rows = result.all()
+            postings = result.scalars().all()
 
-            # 按posting_number分组商品信息
+            # 从 raw_payload.products 获取商品信息（无需 JOIN OzonOrder/OzonOrderItem）
             posting_items_map = {}  # {posting_number: {'names': [], 'skus': []}}
-            for posting, order_item in rows:
+            for posting in postings:
                 pn = posting.posting_number
-                if pn not in posting_items_map:
-                    posting_items_map[pn] = {'names': [], 'skus': []}
-                if order_item.name:
-                    posting_items_map[pn]['names'].append(order_item.name)
-                if order_item.ozon_sku:
-                    posting_items_map[pn]['skus'].append(str(order_item.ozon_sku))
+                posting_items_map[pn] = {'names': [], 'skus': []}
+
+                if posting.raw_payload and 'products' in posting.raw_payload:
+                    for product in posting.raw_payload['products']:
+                        if product.get('name'):
+                            posting_items_map[pn]['names'].append(product['name'])
+                        if product.get('sku'):
+                            posting_items_map[pn]['skus'].append(str(product['sku']))
 
             # 填充商品信息到对应的交易记录
             for pn, indices in postings_need_items.items():

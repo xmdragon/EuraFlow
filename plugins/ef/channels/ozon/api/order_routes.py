@@ -100,7 +100,8 @@ async def get_orders(
             # 按全局时区解析日期（用户选择的日期是在其时区的00:00:00）
             start_date = parse_date_with_timezone(date_from, global_timezone)
             if start_date:
-                query = query.where(OzonOrder.ordered_at >= start_date)
+                # 使用 in_process_at 替代 ordered_at（几乎一致，避免 JOIN 排序开销）
+                query = query.where(OzonPosting.in_process_at >= start_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_from: {date_from}, error: {e}")
 
@@ -115,7 +116,8 @@ async def get_orders(
                 if 'T' not in date_to:
                     from datetime import timedelta
                     end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
-                query = query.where(OzonOrder.ordered_at <= end_date)
+                # 使用 in_process_at 替代 ordered_at（几乎一致，避免 JOIN 排序开销）
+                query = query.where(OzonPosting.in_process_at <= end_date)
         except Exception as e:
             logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
 
@@ -145,7 +147,7 @@ async def get_orders(
         try:
             start_date = parse_date_with_timezone(date_from, global_timezone)
             if start_date:
-                count_query = count_query.where(OzonOrder.ordered_at >= start_date)
+                count_query = count_query.where(OzonPosting.in_process_at >= start_date)
         except:
             pass
     if date_to:
@@ -155,7 +157,7 @@ async def get_orders(
                 if 'T' not in date_to:
                     from datetime import timedelta
                     end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
-                count_query = count_query.where(OzonOrder.ordered_at <= end_date)
+                count_query = count_query.where(OzonPosting.in_process_at <= end_date)
         except:
             pass
 
@@ -172,12 +174,12 @@ async def get_orders(
     # 应用权限过滤
     if shop_filter is not True:
         stats_query = stats_query.where(shop_filter)
-    # 应用日期过滤（与主查询保持一致）
+    # 应用日期过滤（与主查询保持一致）- 使用 in_process_at
     if date_from:
         try:
             start_date = parse_date_with_timezone(date_from, global_timezone)
             if start_date:
-                stats_query = stats_query.where(OzonOrder.ordered_at >= start_date)
+                stats_query = stats_query.where(OzonPosting.in_process_at >= start_date)
         except:
             pass
     if date_to:
@@ -187,7 +189,7 @@ async def get_orders(
                 if 'T' not in date_to:
                     from datetime import timedelta
                     end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
-                stats_query = stats_query.where(OzonOrder.ordered_at <= end_date)
+                stats_query = stats_query.where(OzonPosting.in_process_at <= end_date)
         except:
             pass
     stats_query = stats_query.group_by(OzonPosting.status)
@@ -204,12 +206,12 @@ async def get_orders(
     # 应用权限过滤
     if shop_filter is not True:
         discarded_query = discarded_query.where(shop_filter)
-    # 应用日期过滤（与主查询保持一致）
+    # 应用日期过滤（与主查询保持一致）- 使用 in_process_at
     if date_from:
         try:
             start_date = parse_date_with_timezone(date_from, global_timezone)
             if start_date:
-                discarded_query = discarded_query.where(OzonOrder.ordered_at >= start_date)
+                discarded_query = discarded_query.where(OzonPosting.in_process_at >= start_date)
         except:
             pass
     if date_to:
@@ -219,7 +221,7 @@ async def get_orders(
                 if 'T' not in date_to:
                     from datetime import timedelta
                     end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
-                discarded_query = discarded_query.where(OzonOrder.ordered_at <= end_date)
+                discarded_query = discarded_query.where(OzonPosting.in_process_at <= end_date)
         except:
             pass
 
@@ -238,9 +240,9 @@ async def get_orders(
         "cancelled": status_counts.get('cancelled', 0),
     }
 
-    # 页码分页：按订单时间倒序，用Posting.id降序作为稳定排序键
+    # 页码分页：按下单时间倒序（in_process_at ≈ ordered_at，避免 JOIN 排序开销）
     offset = (page - 1) * limit
-    query = query.order_by(OzonOrder.ordered_at.desc(), OzonPosting.id.desc()).offset(offset).limit(limit)
+    query = query.order_by(OzonPosting.in_process_at.desc(), OzonPosting.id.desc()).offset(offset).limit(limit)
 
     # 执行查询，获取Posting列表
     result = await db.execute(query)
