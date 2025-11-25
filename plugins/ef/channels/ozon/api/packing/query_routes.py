@@ -823,15 +823,27 @@ async def search_posting_by_tracking(
             ]
 
             # 添加打印状态过滤条件
+            # 打包流程状态：awaiting_stock -> allocating -> allocated -> tracking_confirmed -> printed
+            # 排除 shipping（运输中）状态
+            packing_statuses = ['awaiting_stock', 'allocating', 'allocated', 'tracking_confirmed']
+
             if print_status == 'printed':
                 # 已打印：operation_status == 'printed'
                 base_conditions.append(OzonPosting.operation_status == 'printed')
             elif print_status == 'unprinted':
-                # 未打印：operation_status != 'printed'（所有还没打印的）
+                # 未打印：打包流程中的状态（不含 printed 和 shipping）
                 base_conditions.append(
                     or_(
                         OzonPosting.operation_status.is_(None),
-                        OzonPosting.operation_status != 'printed'
+                        OzonPosting.operation_status.in_(packing_statuses)
+                    )
+                )
+            else:
+                # 全部：也只显示打包流程中的状态（含 printed，不含 shipping）
+                base_conditions.append(
+                    or_(
+                        OzonPosting.operation_status.is_(None),
+                        OzonPosting.operation_status.in_(packing_statuses + ['printed'])
                     )
                 )
 
