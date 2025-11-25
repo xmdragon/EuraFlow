@@ -1,25 +1,26 @@
 """
 API 耗时日志中间件
 记录每个 API 请求的耗时信息到 logs/api_cost.log
+
+使用原生 ASGI 中间件，避免 BaseHTTPMiddleware 的问题
 """
 import json
-import logging
 import time
+from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Any
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Send, Scope, Message
 
 
-class ApiCostMiddleware(BaseHTTPMiddleware):
-    """API 耗时日志中间件
+class ApiCostMiddleware:
+    """API 耗时日志中间件（原生 ASGI 实现）
 
     记录格式：时间 | 方法 | 路径 | 状态码 | 耗时(ms) | 参数摘要
     """
 
-    def __init__(self, app, log_dir: str = "logs"):
-        super().__init__(app)
+    def __init__(self, app: ASGIApp, log_dir: str = "logs", **kwargs):
+        self.app = app
 
         # 获取项目根目录（ef_core 的上级目录）
         project_root = Path(__file__).parent.parent.parent
@@ -29,101 +30,15 @@ class ApiCostMiddleware(BaseHTTPMiddleware):
         # 确保日志目录存在
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        # 配置专用 logger
-        self.logger = self._setup_logger()
+        # 创建空日志文件（确保文件存在）
+        if not self.log_file.exists():
+            self.log_file.touch()
 
         # 慢请求阈值（毫秒）
         self.slow_threshold_ms = 1000
 
-        # 启动时输出日志路径
-        import sys
-        sys.stderr.write(f"[ApiCostMiddleware] Initialized! Log file: {self.log_file}\n")
-        sys.stderr.flush()
-
-    def _setup_logger(self) -> logging.Logger:
-        """配置专用文件 logger"""
-        logger = logging.getLogger("api_cost")
-        logger.setLevel(logging.INFO)
-
-        # 避免重复添加 handler
-        if logger.handlers:
-            return logger
-
-        # 文件处理器 - 追加模式，每天轮转
-        from logging.handlers import TimedRotatingFileHandler
-
-        file_handler = TimedRotatingFileHandler(
-            self.log_file,
-            when="midnight",
-            interval=1,
-            backupCount=30,  # 保留30天
-            encoding="utf-8"
-        )
-        file_handler.suffix = "%Y-%m-%d"
-
-        # 简洁的日志格式
-        formatter = logging.Formatter(
-            "%(asctime)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
-        )
-        file_handler.setFormatter(formatter)
-
-        logger.addHandler(file_handler)
-
-        # 不传播到父 logger
-        logger.propagate = False
-
-        return logger
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # DEBUG: 记录所有请求
-        path = request.url.path
-        import sys
-        sys.stderr.write(f"[ApiCostMiddleware] Processing: {request.method} {path}\n")
-        sys.stderr.flush()
-
-        # 跳过静态资源和健康检查
-        if self._should_skip(path):
-            return await call_next(request)
-
-        # 记录开始时间
-        start_time = time.perf_counter()
-
-        # 提取请求参数（不读取 body，避免干扰）
-        params_summary = self._extract_query_params(request)
-
-        # 执行请求
-        try:
-            response = await call_next(request)
-
-            # 计算耗时
-            duration_ms = (time.perf_counter() - start_time) * 1000
-
-            # 记录日志
-            self._log_request(
-                method=request.method,
-                path=path,
-                status_code=response.status_code,
-                duration_ms=duration_ms,
-                params=params_summary
-            )
-
-            return response
-        except Exception as e:
-            # 异常情况也记录
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            self._log_request(
-                method=request.method,
-                path=path,
-                status_code=500,
-                duration_ms=duration_ms,
-                params=params_summary
-            )
-            raise
-
-    def _should_skip(self, path: str) -> bool:
-        """判断是否跳过记录"""
-        skip_prefixes = (
+        # 跳过的路径前缀
+        self.skip_prefixes = (
             "/healthz",
             "/docs",
             "/redoc",
@@ -132,26 +47,55 @@ class ApiCostMiddleware(BaseHTTPMiddleware):
             "/static/",
             "/assets/",
         )
-        return path.startswith(skip_prefixes)
 
-    def _extract_query_params(self, request: Request) -> str:
-        """提取查询参数摘要（不读取 body）"""
-        params = {}
+        import sys
+        sys.stderr.write(f"[ApiCostMiddleware] Initialized! Log: {self.log_file}\n")
+        sys.stderr.flush()
 
-        # 查询参数
-        if request.query_params:
-            query_dict = dict(request.query_params)
-            # 截断过长的值
-            for key, value in query_dict.items():
-                if isinstance(value, str) and len(value) > 100:
-                    query_dict[key] = value[:100] + "..."
-            params["q"] = query_dict
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # 只处理 HTTP 请求
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-        # 转换为紧凑字符串
-        if not params:
-            return "-"
+        path = scope["path"]
 
-        return json.dumps(params, ensure_ascii=False, separators=(",", ":"))
+        # 跳过静态资源和健康检查
+        if path.startswith(self.skip_prefixes):
+            await self.app(scope, receive, send)
+            return
+
+        # 记录开始时间
+        start_time = time.perf_counter()
+        method = scope["method"]
+        query_string = scope.get("query_string", b"").decode("utf-8")
+
+        # 存储状态码
+        status_code = 0
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            # 计算耗时
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # 提取查询参数
+            params = f"?{query_string}" if query_string else "-"
+
+            # 记录日志
+            self._log_request(
+                method=method,
+                path=path,
+                status_code=status_code,
+                duration_ms=duration_ms,
+                params=params
+            )
 
     def _log_request(
         self,
@@ -165,16 +109,16 @@ class ApiCostMiddleware(BaseHTTPMiddleware):
         # 标记慢请求
         slow_marker = " [SLOW]" if duration_ms >= self.slow_threshold_ms else ""
 
-        # 格式: 方法 | 路径 | 状态码 | 耗时 | 参数
+        # 格式: 时间 | 方法 | 路径 | 状态码 | 耗时 | 参数
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_message = (
-            f"{method:6s} | {path:60s} | {status_code:3d} | "
+            f"{timestamp} | {method:6s} | {path:60s} | {status_code:3d} | "
             f"{duration_ms:8.2f}ms{slow_marker} | {params}"
         )
 
-        # 直接写文件作为备用方案
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(self.log_file, "a", encoding="utf-8") as f:
-            f.write(f"{timestamp} | {log_message}\n")
-
-        self.logger.info(log_message)
+        # 直接写文件
+        try:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write(f"{log_message}\n")
+        except Exception:
+            pass  # 忽略写入错误，不影响请求处理

@@ -339,6 +339,8 @@ class OzonPosting(Base):
 
     # 反范式化字段（优化统计查询性能）
     order_total_price = Column(Numeric(18, 2), comment="订单总金额（从raw_payload.products计算，避免运行时JSONB解析）")
+    has_tracking_number = Column(Boolean, nullable=False, default=False, server_default='false', comment="是否有追踪号（避免JSONB查询）")
+    has_domestic_tracking = Column(Boolean, nullable=False, default=False, server_default='false', comment="是否有国内单号（避免EXISTS子查询）")
 
     # 标签PDF文件路径
     label_pdf_path = Column(String(500), comment="标签PDF文件路径（70x125mm竖向格式）")
