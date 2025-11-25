@@ -423,7 +423,7 @@
   // Card header 固定在顶部
   :global(.ant-card-head) {
     position: sticky;
-    top: 150px; // stickyHeader 高度约 150px (标题 + Tabs + 搜索框)
+    top: 105px; // stickyHeader 高度约 105px (标题 + Tabs + 搜索框)
     z-index: 50;
     background: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);

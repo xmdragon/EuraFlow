@@ -449,9 +449,9 @@ const ThirdPartyServicesTab: React.FC = () => {
                           <LineChart data={history.data}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="time" tickFormatter={formatXAxis} />
-                            <YAxis tickFormatter={(value) => value.toFixed(4)} />
+                            <YAxis tickFormatter={(value) => Number(value).toFixed(4)} />
                             <Tooltip
-                              formatter={(value) => [`${value.toFixed(6)}`, "汇率"]}
+                              formatter={(value) => [`${Number(value).toFixed(6)}`, "汇率"]}
                             />
                             <Line
                               type="monotone"
