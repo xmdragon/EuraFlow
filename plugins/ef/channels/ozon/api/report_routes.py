@@ -671,7 +671,7 @@ async def get_report_summary(
             OzonShop.shop_name,
             func.coalesce(func.sum(sales_expr), Decimal('0')).label('sales'),
             func.coalesce(func.sum(profit_expr), Decimal('0')).label('profit'),
-        ).join(
+        ).select_from(OzonPosting).join(
             OzonOrder, OzonPosting.order_id == OzonOrder.id
         ).join(
             OzonShop, OzonOrder.shop_id == OzonShop.id
@@ -691,18 +691,19 @@ async def get_report_summary(
 
         # ========== 4. 每日趋势统计（使用 SQL GROUP BY）==========
         # 使用 PostgreSQL 的 AT TIME ZONE 转换时区后按日期分组
+        date_expr = func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone))
         daily_query = select(
-            func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone)).label('date'),
+            date_expr.label('date'),
             func.coalesce(func.sum(sales_expr), Decimal('0')).label('sales'),
             func.coalesce(func.sum(profit_expr), Decimal('0')).label('profit'),
-        ).join(
+        ).select_from(OzonPosting).join(
             OzonOrder, OzonPosting.order_id == OzonOrder.id
         ).where(
             and_(*conditions)
         ).group_by(
-            func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone))
+            date_expr
         ).order_by(
-            func.date(OzonOrder.ordered_at.op('AT TIME ZONE')('UTC').op('AT TIME ZONE')(global_timezone))
+            date_expr
         )
 
         daily_result = await db.execute(daily_query)
@@ -718,6 +719,7 @@ async def get_report_summary(
         # ========== 5. TOP10 商品统计（需要解析 raw_payload）==========
         # 这部分仍需要 Python 处理，但只查询必要字段
         # 使用 PostgreSQL jsonb_array_elements 展开商品数组，在数据库层面聚合
+        # 注意：shop_ids 需要显式转换为 integer[] 类型，避免 NULL 时 asyncpg 无法推断类型
         top_products_sql = text("""
             WITH product_data AS (
                 SELECT
@@ -734,7 +736,7 @@ async def get_report_summary(
                 WHERE o.ordered_at >= :start_date
                   AND o.ordered_at <= :end_date
                   AND p.status = ANY(:statuses)
-                  AND (:shop_ids IS NULL OR o.shop_id = ANY(:shop_ids))
+                  AND (CAST(:shop_ids AS integer[]) IS NULL OR o.shop_id = ANY(CAST(:shop_ids AS integer[])))
             ),
             aggregated AS (
                 SELECT
@@ -783,7 +785,7 @@ async def get_report_summary(
                 WHERE o.ordered_at >= :start_date
                   AND o.ordered_at <= :end_date
                   AND p.status = ANY(:statuses)
-                  AND (:shop_ids IS NULL OR o.shop_id = ANY(:shop_ids))
+                  AND (CAST(:shop_ids AS integer[]) IS NULL OR o.shop_id = ANY(CAST(:shop_ids AS integer[])))
             ),
             aggregated AS (
                 SELECT
