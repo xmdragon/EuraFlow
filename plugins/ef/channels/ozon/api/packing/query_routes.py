@@ -696,6 +696,8 @@ async def get_product_purchase_price_history(
 @router.get("/packing/postings/search-by-tracking")
 async def search_posting_by_tracking(
     tracking_number: str = Query(..., description="追踪号码/国内单号/货件编号"),
+    offset: int = Query(0, ge=0, description="分页偏移量"),
+    limit: int = Query(20, ge=1, le=100, description="每页数量，默认20"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -715,6 +717,7 @@ async def search_posting_by_tracking(
         # 统一转大写，兼容OZON单号和国内单号（Posting Number包含数字和连字符，不受影响）
         search_value = tracking_number.strip().upper()
         postings = []
+        total_count = 0  # 用于分页场景（国内单号可能匹配多个）
 
         # 智能识别单号类型
         if '-' in search_value:
@@ -804,7 +807,7 @@ async def search_posting_by_tracking(
 
         else:
             # 规则3: 纯数字 或 字母开头+数字 → 国内单号（结尾是数字）
-            # 可能匹配多个posting，返回最近7天的结果（限制最多50个）
+            # 可能匹配多个posting，返回最近7天的结果（支持分页）
             # 场景：666666 等内部单号用于标记库存商品，会关联大量 posting
             logger.info(f"识别为国内单号（纯数字或字母开头+数字）: {search_value}")
 
@@ -812,22 +815,35 @@ async def search_posting_by_tracking(
             from datetime import timedelta
             time_threshold = datetime.now(timezone.utc) - timedelta(days=7)
 
-            # 先查询 posting IDs（带时间过滤），再批量加载关联数据
+            # 先查询总数（用于前端显示）
+            count_result = await db.execute(
+                select(func.count(OzonPosting.id))
+                .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
+                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
+                .where(
+                    OzonDomesticTracking.tracking_number == search_value,
+                    OzonOrder.ordered_at >= time_threshold
+                )
+            )
+            total_count = count_result.scalar() or 0
+
+            # 分页查询 posting IDs
             id_result = await db.execute(
                 select(OzonPosting.id)
                 .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
                 .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
                 .where(
                     OzonDomesticTracking.tracking_number == search_value,
-                    OzonOrder.ordered_at >= time_threshold  # 只查询7天内的订单
+                    OzonOrder.ordered_at >= time_threshold
                 )
                 .order_by(OzonOrder.ordered_at.desc())
-                .limit(50)
+                .offset(offset)
+                .limit(limit)
             )
             posting_ids = [row[0] for row in id_result.fetchall()]
 
             if posting_ids:
-                # 只对要返回的 posting 进行 selectinload
+                # 只对当前页的 posting 进行 selectinload
                 result = await db.execute(
                     select(OzonPosting)
                     .options(
@@ -922,11 +938,18 @@ async def search_posting_by_tracking(
         # 按下单时间倒序排序（最新的在前面）
         result_list.sort(key=lambda x: x.get('ordered_at') or '', reverse=True)
 
-        # 返回列表格式（支持多个结果）
-        logger.info(f"国内单号 {search_value} 匹配到 {len(result_list)} 个货件")
+        # 返回列表格式（支持分页和无限滚动）
+        # total_count 在国内单号场景下表示7天内的总匹配数
+        actual_total = total_count if total_count > 0 else len(result_list)
+        has_more = (offset + limit) < actual_total if total_count > 0 else False
+
+        logger.info(f"单号 {search_value} 匹配到 {len(result_list)} 个货件 (总数: {actual_total}, offset: {offset})")
         return {
             "data": result_list,
-            "total": len(result_list),
+            "total": actual_total,
+            "offset": offset,
+            "limit": limit,
+            "has_more": has_more,
             "offer_id_images": offer_id_images
         }
 

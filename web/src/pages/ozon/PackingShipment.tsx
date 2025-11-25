@@ -46,7 +46,7 @@ import DiscardOrderModal from '@/components/ozon/DiscardOrderModal';
 import DomesticTrackingModal from '@/components/ozon/DomesticTrackingModal';
 import OrderDetailModal from '@/components/ozon/OrderDetailModal';
 import OrderCardComponent, { type OrderCard } from '@/components/ozon/packing/OrderCardComponent';
-import PackingSearchBar from '@/components/ozon/packing/PackingSearchBar';
+import PackingSearchBar, { type SearchParams } from '@/components/ozon/packing/PackingSearchBar';
 import PrepareStockModal from '@/components/ozon/PrepareStockModal';
 import PurchasePriceHistoryModal from '@/components/ozon/PurchasePriceHistoryModal';
 import UpdateBusinessInfoModal from '@/components/ozon/UpdateBusinessInfoModal';
@@ -127,7 +127,7 @@ const PackingShipment: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [shipModalVisible, setShipModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
-  const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
+  const [selectedPosting, setSelectedPosting] = useState<ozonApi.PostingWithOrder | null>(null);
 
   // 操作状态Tab（4个状态：等待备货、分配中、已分配、单号确认）
   const [operationStatus, setOperationStatus] = useState<string>('awaiting_stock');
@@ -148,7 +148,7 @@ const PackingShipment: React.FC = () => {
   const [selectedProductName, setSelectedProductName] = useState<string>('');
 
   // 搜索参数状态（只支持 posting_number 搜索）
-  const [searchParams, setSearchParams] = useState<Record<string, string | number | undefined>>({});
+  const [searchParams, setSearchParams] = useState<SearchParams>({});
 
   // 批量打印标签状态
   const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
@@ -655,9 +655,9 @@ const PackingShipment: React.FC = () => {
   // 表格列定义（商品维度 - 4列布局）
 
   // 处理函数
-  const showOrderDetail = (order: ozonApi.Order, posting?: ozonApi.Posting) => {
+  const showOrderDetail = (order: ozonApi.Order, posting?: ozonApi.Posting | ozonApi.PostingWithOrder) => {
     setSelectedOrder(order);
-    setSelectedPosting(posting || null);
+    setSelectedPosting((posting as ozonApi.PostingWithOrder) || null);
     setDetailModalVisible(true);
   };
 
