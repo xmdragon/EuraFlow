@@ -153,8 +153,6 @@ export interface PurchasePriceHistory {
  */
 export interface PurchasePriceHistoryResponse {
   sku: string;
-  product_name: string | null;
-  offer_id: string | null;
   primary_image: string | null;
   product_price: string | null;
   purchase_url: string | null;

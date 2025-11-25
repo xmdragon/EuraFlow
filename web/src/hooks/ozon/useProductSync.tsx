@@ -57,6 +57,7 @@ export const useProductSync = (selectedShop: number | null, refetch: () => void)
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ozonProducts'] });
+      queryClient.invalidateQueries({ queryKey: ['ozonStatistics'] });
       refetch();
     },
   });

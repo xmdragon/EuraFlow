@@ -610,28 +610,26 @@ async def get_product_purchase_price_history(
     from sqlalchemy import and_, desc, cast, String
     from sqlalchemy.dialects.postgresql import JSONB
 
-    # 1. 查询商品名称、采购信息、图片和价格（从products表）
+    # 1. 查询采购信息、图片和价格（从products表）
     product_result = await db.execute(
         select(
-            OzonProduct.title,
-            OzonProduct.offer_id,
             OzonProduct.purchase_url,
             OzonProduct.suggested_purchase_price,
             OzonProduct.purchase_note,
-            OzonProduct.primary_image,
+            OzonProduct.images,  # JSONB: {"primary": "url", "additional": [...]}
             OzonProduct.price
         )
         .where(OzonProduct.ozon_sku == int(sku))
         .limit(1)
     )
     product = product_result.first()
-    product_name = product[0] if product else None
-    offer_id = product[1] if product else None
-    purchase_url = product[2] if product else None
-    suggested_purchase_price = str(product[3]) if product and product[3] else None
-    purchase_note = product[4] if product else None
-    primary_image = product[5] if product else None
-    product_price = str(product[6]) if product and product[6] else None
+    purchase_url = product[0] if product else None
+    suggested_purchase_price = str(product[1]) if product and product[1] else None
+    purchase_note = product[2] if product else None
+    # 从 images JSONB 中提取主图
+    images_data = product[3] if product else None
+    primary_image = images_data.get('primary') if isinstance(images_data, dict) else None
+    product_price = str(product[4]) if product and product[4] else None
 
     # 2. 查询该SKU的进货价格历史（从postings表的raw_payload中匹配）
     # 使用JSONB查询：raw_payload->'products'数组中任意元素的sku字段匹配
@@ -684,8 +682,6 @@ async def get_product_purchase_price_history(
 
     return {
         "sku": sku,
-        "product_name": product_name,
-        "offer_id": offer_id,
         "primary_image": primary_image,
         "product_price": product_price,
         "purchase_url": purchase_url,

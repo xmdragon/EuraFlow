@@ -193,7 +193,6 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
                     size="medium"
                     hoverBehavior="none"
                     sku={sku}
-                    name={data.product_name || undefined}
                   />
                   <div style={{ marginTop: 12, textAlign: 'center' }}>
                     <div style={{ marginBottom: 4 }}>
