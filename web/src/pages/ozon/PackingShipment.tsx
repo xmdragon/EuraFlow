@@ -1189,15 +1189,30 @@ const PackingShipment: React.FC = () => {
                         />
                       </Space>
                       {canOperate && (
-                        <Button
-                          type="primary"
-                          icon={<PrinterOutlined />}
-                          loading={isPrinting}
-                          disabled={scanSelectedPostings.length === 0}
-                          onClick={handleScanBatchPrint}
-                        >
-                          批量打印 ({scanSelectedPostings.length}/{filteredScanResults.length})
-                        </Button>
+                        <>
+                          <Button
+                            type={scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? 'primary' : 'default'}
+                            onClick={() => {
+                              if (scanSelectedPostings.length === filteredScanResults.length) {
+                                setScanSelectedPostings([]);
+                              } else {
+                                setScanSelectedPostings(filteredScanResults.map(p => p.posting_number));
+                              }
+                            }}
+                            disabled={filteredScanResults.length === 0}
+                          >
+                            {scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? '取消全选' : '全选'}
+                          </Button>
+                          <Button
+                            type="primary"
+                            icon={<PrinterOutlined />}
+                            loading={isPrinting}
+                            disabled={scanSelectedPostings.length === 0}
+                            onClick={handleScanBatchPrint}
+                          >
+                            批量打印 ({scanSelectedPostings.length}/{filteredScanResults.length})
+                          </Button>
+                        </>
                       )}
                     </Space>
                   }

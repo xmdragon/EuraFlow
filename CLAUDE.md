@@ -347,28 +347,34 @@ async def setup(hooks) -> None:
 ```
 
 ### 当前定时任务列表
-系统中所有定时任务统一由 Celery Beat 调度：
+系统中所有定时任务统一由 Celery Beat 调度（已优化分散执行，避免整点/半点集中）：
 
 **系统级任务：**
-1. `ef.core.health_check` - 系统健康检查（每5分钟）
-2. `ef.core.cleanup_results` - 清理过期任务结果（每天凌晨2点）
-3. `ef.core.metrics_collection` - 系统指标采集（每5分钟）
+1. `ef.core.health_check` - 系统健康检查（每5分钟 `*/5 * * * *`）
+2. `ef.core.cleanup_results` - 清理过期任务结果（每天凌晨2:00 `0 2 * * *`）
+3. `ef.core.metrics_collection` - 系统指标采集（每10分钟 `*/10 * * * *`）
 
 **OZON 类目同步任务：**
-4. `ef.ozon.category.sync` - OZON 类目树同步（每天凌晨4点）
-5. `ef.ozon.attributes.sync` - OZON 类目特征同步（每周二凌晨4:10）
+4. `ef.ozon.category.sync` - OZON 类目树同步（每周一 21:00 UTC `0 21 * * 1`）
+5. `ef.ozon.attributes.sync` - OZON 类目特征同步（每周一 21:30 UTC `30 21 * * 1`）
 
-**OZON 业务同步任务：**
-6. `ef.ozon.orders.pull` - 订单拉取（每5分钟）
-7. `ef.ozon.inventory.sync` - 库存同步（每30分钟）
-8. `ef.ozon.promotions.sync` - 促销活动同步（每30分钟）
-9. `ef.ozon.promotions.health_check` - 促销系统健康检查（每小时）
-10. `ef.ozon.kuajing84.material_cost` - 跨境巴士物料成本同步（每小时第15分钟）
-11. `ef.ozon.finance.sync` - OZON财务费用同步（每天凌晨3点）
-12. `ef.ozon.finance.transactions` - OZON财务交易同步（每天UTC 22:00）
+**OZON 业务同步任务（已分散执行）：**
+6. `ef.ozon.orders.pull` - 订单拉取（每小时第15和45分钟 `15,45 * * * *`）
+7. `ef.ozon.inventory.sync` - 库存同步（每小时第20和50分钟 `20,50 * * * *`）
+8. `ef.ozon.promotions.sync` - 促销活动同步（每小时第25和55分钟 `25,55 * * * *`）
+9. `ef.ozon.promotions.health_check` - 促销系统健康检查（每小时第2分钟 `2 * * * *`）
+10. `ef.ozon.cancellations.sync` - 取消申请同步（每小时第7分钟 `7 * * * *`）
+11. `ef.ozon.returns.sync` - 退货申请同步（每小时第12分钟 `12 * * * *`）
+12. `ef.ozon.kuajing84.material_cost` - 跨境巴士物料成本同步（每小时第15分钟 `15 * * * *`）
+13. `ef.ozon.finance.sync` - OZON财务费用同步（每天凌晨3:15 `15 3 * * *`）
+14. `ef.ozon.finance.transactions` - OZON财务交易同步（每天UTC 22:00 `0 22 * * *`）
+15. `ef.ozon.labels.prefetch` - 标签预缓存（每5分钟 `*/5 * * * *`）
+16. `ef.ozon.labels.cleanup` - 标签缓存清理（每天凌晨4:00 `0 4 * * *`）
+17. `ef.ozon.drafts.cleanup` - 草稿清理（每天凌晨2:10 `10 2 * * *`）
+18. `ef.ozon.collection.poll_listing_status` - 采集记录上架状态轮询（每10分钟 `*/10 * * * *`）
 
 **其他任务：**
-13. `ef.finance.rates.refresh` - 汇率刷新（每6小时）
+19. `ef.finance.rates.refresh` - 汇率刷新（每小时第18分钟 `18 * * * *`）
 
 ### 查看任务调度状态
 ```bash

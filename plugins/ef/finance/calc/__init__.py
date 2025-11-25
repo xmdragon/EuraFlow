@@ -64,7 +64,7 @@ async def setup(hooks: Any) -> None:
 
         db_manager = get_db_manager()
         async with db_manager.get_session() as db:
-            cron, enabled = await _get_task_schedule(db, "exchange_rate_refresh", "0 */6 * * *")
+            cron, enabled = await _get_task_schedule(db, "exchange_rate_refresh", "18 * * * *")
             if enabled and cron:
                 await hooks.register_cron(
                     name="ef.finance.rates.refresh",
@@ -75,7 +75,7 @@ async def setup(hooks: Any) -> None:
         logger.warning(f"Failed to register rates refresh task: {e}, using default")
         await hooks.register_cron(
             name="ef.finance.rates.refresh",
-            cron="0 */6 * * *",
+            cron="18 * * * *",
             task=refresh_rates_cache
         )
 

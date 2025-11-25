@@ -178,17 +178,17 @@ async def attributes_sync_task(**kwargs):
 async def setup(hooks) -> None:
     """插件初始化函数"""
 
-    # 注册定时任务：拉取订单（每30分钟）
+    # 注册定时任务：拉取订单（每小时第15和45分钟）
     await hooks.register_cron(
         name="ef.ozon.orders.pull",
-        cron="*/30 * * * *",
+        cron="15,45 * * * *",
         task=pull_orders_task
     )
 
-    # 注册定时任务：同步库存（每30分钟）
+    # 注册定时任务：同步库存（每小时第20和50分钟）
     await hooks.register_cron(
         name="ef.ozon.inventory.sync",
-        cron="*/30 * * * *",
+        cron="20,50 * * * *",
         task=sync_inventory_task
     )
 
@@ -606,17 +606,17 @@ async def setup(hooks) -> None:
     try:
         from .tasks.promotion_sync_task import sync_all_promotions, promotion_health_check
 
-        # 注册促销同步任务（每30分钟）
+        # 注册促销同步任务（每小时第25和55分钟）
         await hooks.register_cron(
             name="ef.ozon.promotions.sync",
-            cron="*/30 * * * *",
+            cron="25,55 * * * *",
             task=sync_all_promotions
         )
 
-        # 注册健康检查任务（每小时）
+        # 注册健康检查任务（每小时第2分钟）
         await hooks.register_cron(
             name="ef.ozon.promotions.health_check",
-            cron="0 * * * *",
+            cron="2 * * * *",
             task=promotion_health_check
         )
 
@@ -671,10 +671,10 @@ async def setup(hooks) -> None:
             task=kuajing84_material_cost_task
         )
 
-        # 注册财务费用同步（每天凌晨3点）
+        # 注册财务费用同步（每天凌晨3:15）
         await hooks.register_cron(
             name="ef.ozon.finance.sync",
-            cron="0 3 * * *",
+            cron="15 3 * * *",
             task=ozon_finance_sync_task
         )
 
@@ -731,10 +731,10 @@ async def setup(hooks) -> None:
                 logger.error(f"Draft cleanup failed: {e}", exc_info=True)
                 return {"success": False, "error": str(e)}
 
-        # 注册草稿清理任务（每天凌晨2点执行）
+        # 注册草稿清理任务（每天凌晨2:10执行）
         await hooks.register_cron(
             name="ef.ozon.drafts.cleanup",
-            cron="0 2 * * *",
+            cron="10 2 * * *",
             task=cleanup_drafts_task
         )
 
@@ -791,17 +791,17 @@ async def setup(hooks) -> None:
                 logger.error(f"Returns sync failed: {e}", exc_info=True)
                 return {"success": False, "error": str(e)}
 
-        # 注册取消申请同步任务（每小时执行）
+        # 注册取消申请同步任务（每小时第7分钟执行）
         await hooks.register_cron(
             name="ef.ozon.cancellations.sync",
-            cron="0 */1 * * *",
+            cron="7 * * * *",
             task=cancellations_sync_task
         )
 
-        # 注册退货申请同步任务（每小时执行）
+        # 注册退货申请同步任务（每小时第12分钟执行）
         await hooks.register_cron(
             name="ef.ozon.returns.sync",
-            cron="0 */1 * * *",
+            cron="12 * * * *",
             task=returns_sync_task
         )
 
