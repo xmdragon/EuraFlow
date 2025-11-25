@@ -27,19 +27,11 @@ import {
   Tabs,
 } from "antd";
 import React, { useEffect, useState } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 import styles from "./ThirdPartyServicesTab.module.scss";
 
 import ImageStorageConfigTab from "./ImageStorageConfigTab";
+import RateChart from "./RateChart";
 import TranslationConfigTab from "./TranslationConfigTab";
 import { usePermission } from "@/hooks/usePermission";
 import * as exchangeRateApi from "@/services/exchangeRateApi";
@@ -47,24 +39,6 @@ import * as ozonApi from "@/services/ozon";
 import * as xiangjifanyiApi from "@/services/xiangjifanyiApi";
 import type { FormValues } from "@/types/common";
 import { notifySuccess, notifyError, notifyInfo } from "@/utils/notification";
-import type { RateHistoryPoint } from "@/services/exchangeRateApi";
-
-// 独立的图表组件，避免 recharts 与 React 19 类型冲突
-const RateChart: React.FC<{
-  data: RateHistoryPoint[];
-  formatXAxis: (text: string) => string;
-}> = ({ data, formatXAxis }) => (
-  <ResponsiveContainer width="100%" height={300}>
-    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-    <LineChart data={data as any}>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey="time" tickFormatter={formatXAxis} />
-      <YAxis tickFormatter={(value) => Number(value).toFixed(4)} />
-      <Tooltip formatter={(value) => [`${Number(value).toFixed(6)}`, "汇率"]} />
-      <Line type="monotone" dataKey="rate" stroke="#1890ff" strokeWidth={2} dot={false} />
-    </LineChart>
-  </ResponsiveContainer>
-);
 
 const ThirdPartyServicesTab: React.FC = () => {
   const queryClient = useQueryClient();
