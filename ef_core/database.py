@@ -2,7 +2,11 @@
 EuraFlow 数据库连接和会话管理
 """
 import asyncio
+import logging
+import time
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import (
@@ -12,13 +16,69 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine
 )
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 
 from ef_core.config import get_settings
 from ef_core.utils.logger import get_logger
 from ef_core.models.base import Base
 
 logger = get_logger(__name__)
+
+# 慢查询阈值（毫秒）
+SLOW_QUERY_THRESHOLD_MS = 100
+
+# 慢查询日志记录器
+_slow_query_logger: Optional[logging.Logger] = None
+
+
+def get_slow_query_logger() -> logging.Logger:
+    """获取慢查询日志记录器（单例）"""
+    global _slow_query_logger
+    if _slow_query_logger is None:
+        _slow_query_logger = logging.getLogger("slow_query")
+        _slow_query_logger.setLevel(logging.INFO)
+        _slow_query_logger.propagate = False  # 不传播到根日志
+
+        # 确保 logs 目录存在
+        log_dir = Path(__file__).parent.parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+
+        # 添加文件处理器（10MB 轮转，保留 5 个文件）
+        handler = RotatingFileHandler(
+            log_dir / "slow.log",
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8"
+        )
+        handler.setFormatter(logging.Formatter(
+            "%(asctime)s | %(message)s"
+        ))
+        _slow_query_logger.addHandler(handler)
+
+    return _slow_query_logger
+
+
+def _setup_slow_query_logging(engine):
+    """为同步引擎设置慢查询监控"""
+    @event.listens_for(engine, "before_cursor_execute")
+    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        conn.info.setdefault("query_start_time", []).append(time.perf_counter())
+
+    @event.listens_for(engine, "after_cursor_execute")
+    def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        start_times = conn.info.get("query_start_time", [])
+        if start_times:
+            start_time = start_times.pop()
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            if duration_ms >= SLOW_QUERY_THRESHOLD_MS:
+                slow_logger = get_slow_query_logger()
+                # 截断过长的 SQL 语句
+                sql = statement[:2000] + "..." if len(statement) > 2000 else statement
+                sql = sql.replace("\n", " ").replace("  ", " ")
+                slow_logger.info(
+                    f"duration={duration_ms:.1f}ms | sql={sql} | params={str(parameters)[:500]}"
+                )
 
 
 class DatabaseManager:
@@ -45,8 +105,10 @@ class DatabaseManager:
                 # 异步配置
                 future=True,
             )
-            logger.info("Created async database engine")
-        
+            # 为异步引擎的底层同步引擎启用慢查询监控
+            _setup_slow_query_logging(self._async_engine.sync_engine)
+            logger.info("Created async database engine with slow query logging")
+
         return self._async_engine
     
     def create_sync_engine(self):
@@ -61,8 +123,10 @@ class DatabaseManager:
                 echo=self.settings.api_debug,
                 future=True,
             )
-            logger.info("Created sync database engine")
-        
+            # 启用慢查询监控
+            _setup_slow_query_logging(self._sync_engine)
+            logger.info("Created sync database engine with slow query logging")
+
         return self._sync_engine
     
     def get_async_session_factory(self) -> async_sessionmaker:
