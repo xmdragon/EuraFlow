@@ -192,6 +192,15 @@ async def setup(hooks) -> None:
         task=sync_inventory_task
     )
 
+    # 注册定时任务：标签预缓存（每5分钟）
+    # 预先下载待打印订单的标签PDF，打印时直接读取本地文件
+    from .tasks.label_prefetch_task import prefetch_labels_task
+    await hooks.register_cron(
+        name="ef.ozon.labels.prefetch",
+        cron="*/5 * * * *",
+        task=prefetch_labels_task
+    )
+
     # 订阅事件：发货请求
     await hooks.consume(
         topic="ef.shipments.request",

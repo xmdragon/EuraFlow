@@ -11,6 +11,10 @@ from .label_download_task import (
     download_label_pdf_task
 )
 
+from .label_prefetch_task import (
+    prefetch_labels_task
+)
+
 from .batch_sync_task import (
     batch_sync_category_attributes_task
 )
@@ -48,6 +52,7 @@ __all__ = [
     "sync_all_promotions",
     "promotion_health_check",
     "download_label_pdf_task",
+    "prefetch_labels_task",
     "batch_sync_category_attributes_task",
     "scheduled_category_sync",
     "scheduled_attributes_sync",
