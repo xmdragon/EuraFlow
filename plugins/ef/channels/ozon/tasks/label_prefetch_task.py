@@ -36,6 +36,15 @@ def prefetch_labels_task(self):
         result = loop.run_until_complete(_prefetch_labels_async())
         return result
     finally:
+        # 在关闭事件循环前，清理数据库引擎（避免 "Event loop is closed" 错误）
+        try:
+            db_manager = get_db_manager()
+            if db_manager._async_engine is not None:
+                loop.run_until_complete(db_manager._async_engine.dispose())
+                db_manager._async_engine = None
+                db_manager._async_session_factory = None
+        except Exception:
+            pass  # 忽略清理时的错误
         loop.close()
         asyncio.set_event_loop(None)
 
@@ -216,6 +225,15 @@ def cleanup_labels_task(self):
         result = loop.run_until_complete(_cleanup_labels_async())
         return result
     finally:
+        # 在关闭事件循环前，清理数据库引擎（避免 "Event loop is closed" 错误）
+        try:
+            db_manager = get_db_manager()
+            if db_manager._async_engine is not None:
+                loop.run_until_complete(db_manager._async_engine.dispose())
+                db_manager._async_engine = None
+                db_manager._async_session_factory = None
+        except Exception:
+            pass  # 忽略清理时的错误
         loop.close()
         asyncio.set_event_loop(None)
 
