@@ -411,7 +411,17 @@ class OrderSyncService:
             posting.is_cancelled = False
 
         posting.raw_payload = posting_data
-        
+
+        # 计算并存储 order_total_price（预计算优化，避免统计查询时循环解析 raw_payload）
+        products = posting_data.get("products", [])
+        if products:
+            from decimal import Decimal
+            total_price = sum(
+                Decimal(str(p.get("price", "0"))) * int(p.get("quantity", 0))
+                for p in products
+            )
+            posting.order_total_price = total_price
+
         # 处理订单商品
         await self._process_order_items(session, order, posting_data.get("products", []))
 

@@ -7,7 +7,7 @@ from typing import Optional, List
 
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Numeric,
-    Boolean, DateTime, JSON, ForeignKey, Index, UniqueConstraint
+    Boolean, DateTime, JSON, ForeignKey, Index, UniqueConstraint, text
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -105,7 +105,9 @@ class OzonOrder(Base):
         UniqueConstraint("shop_id", "ozon_order_id", name="uq_ozon_orders_shop_order"),
         Index("idx_ozon_orders_status", "shop_id", "status"),
         Index("idx_ozon_orders_date", "shop_id", "ordered_at"),
-        Index("idx_ozon_orders_sync", "sync_status", "last_sync_at")
+        Index("idx_ozon_orders_sync", "sync_status", "last_sync_at"),
+        # 覆盖索引：优化 posting JOIN order 查询，避免回表
+        Index("idx_ozon_orders_join_cover", "id", "shop_id", "ordered_at", "total_price"),
     )
 
     def to_dict(self, target_posting_number: Optional[str] = None):
@@ -335,6 +337,9 @@ class OzonPosting(Base):
     profit = Column(Numeric(18, 2), comment="利润金额(CNY)")
     profit_rate = Column(Numeric(10, 4), comment="利润比率(%)")
 
+    # 反范式化字段（优化统计查询性能）
+    order_total_price = Column(Numeric(18, 2), comment="订单总金额（从raw_payload.products计算，避免运行时JSONB解析）")
+
     # 标签PDF文件路径
     label_pdf_path = Column(String(500), comment="标签PDF文件路径（70x125mm竖向格式）")
 
@@ -477,7 +482,17 @@ class OzonPosting(Base):
     __table_args__ = (
         Index("idx_ozon_postings_status", "shop_id", "status"),
         Index("idx_ozon_postings_date", "shop_id", "shipment_date"),
-        Index("idx_ozon_postings_warehouse", "warehouse_id", "status")
+        Index("idx_ozon_postings_warehouse", "warehouse_id", "status"),
+        # 优化 JOIN 查询：posting -> order 关联
+        Index("idx_ozon_postings_order_join", "order_id", "in_process_at", "status", "shop_id"),
+        # 优化 in_process_at 范围查询（部分索引，仅索引非空值）
+        Index(
+            "idx_ozon_postings_in_process",
+            "shop_id", "in_process_at", "status",
+            postgresql_where=text("in_process_at IS NOT NULL")
+        ),
+        # 优化按状态+时间的统计查询
+        Index("idx_ozon_postings_status_time", "status", "in_process_at", "shop_id"),
     )
 
 

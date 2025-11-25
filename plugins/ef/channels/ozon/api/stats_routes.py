@@ -188,55 +188,39 @@ async def get_statistics(
             order_filter.append(OzonOrder.shop_id == shop_id)
             posting_filter.append(OzonPosting.shop_id == shop_id)
 
-        # 商品统计 - 使用新的5种状态
-        product_total_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(*product_filter)
+        # 商品统计 - 合并为单次查询（优化：8个COUNT合并为1个）
+        product_stats_result = await db.execute(
+            select(
+                func.count(OzonProduct.id).label('total'),
+                func.count().filter(OzonProduct.status == 'on_sale').label('on_sale'),
+                func.count().filter(OzonProduct.status == 'ready_to_sell').label('ready_to_sell'),
+                func.count().filter(OzonProduct.status == 'error').label('error'),
+                func.count().filter(OzonProduct.status == 'pending_modification').label('pending_modification'),
+                func.count().filter(OzonProduct.status == 'inactive').label('inactive'),
+                func.count().filter(OzonProduct.status == 'archived').label('archived'),
+                func.count().filter(OzonProduct.sync_status == 'success').label('synced'),
+            )
+            .select_from(OzonProduct)
+            .where(*product_filter) if product_filter else select(
+                func.count(OzonProduct.id).label('total'),
+                func.count().filter(OzonProduct.status == 'on_sale').label('on_sale'),
+                func.count().filter(OzonProduct.status == 'ready_to_sell').label('ready_to_sell'),
+                func.count().filter(OzonProduct.status == 'error').label('error'),
+                func.count().filter(OzonProduct.status == 'pending_modification').label('pending_modification'),
+                func.count().filter(OzonProduct.status == 'inactive').label('inactive'),
+                func.count().filter(OzonProduct.status == 'archived').label('archived'),
+                func.count().filter(OzonProduct.sync_status == 'success').label('synced'),
+            ).select_from(OzonProduct)
         )
-        product_total = product_total_result.scalar() or 0
-
-        # 统计各种状态的商品数量
-        product_on_sale_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == 'on_sale', *product_filter)
-        )
-        product_on_sale = product_on_sale_result.scalar() or 0
-
-        product_ready_to_sell_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == 'ready_to_sell', *product_filter)
-        )
-        product_ready_to_sell = product_ready_to_sell_result.scalar() or 0
-
-        product_error_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == 'error', *product_filter)
-        )
-        product_error = product_error_result.scalar() or 0
-
-        product_pending_modification_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == 'pending_modification', *product_filter)
-        )
-        product_pending_modification = product_pending_modification_result.scalar() or 0
-
-        product_inactive_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == 'inactive', *product_filter)
-        )
-        product_inactive = product_inactive_result.scalar() or 0
-
-        product_archived_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(OzonProduct.status == 'archived', *product_filter)
-        )
-        product_archived = product_archived_result.scalar() or 0
-
-        product_synced_result = await db.execute(
-            select(func.count(OzonProduct.id))
-            .where(OzonProduct.sync_status == 'success', *product_filter)
-        )
-        product_synced = product_synced_result.scalar() or 0
+        product_stats = product_stats_result.one()
+        product_total = product_stats.total or 0
+        product_on_sale = product_stats.on_sale or 0
+        product_ready_to_sell = product_stats.ready_to_sell or 0
+        product_error = product_stats.error or 0
+        product_pending_modification = product_stats.pending_modification or 0
+        product_inactive = product_stats.inactive or 0
+        product_archived = product_stats.archived or 0
+        product_synced = product_stats.synced or 0
 
         # 订单统计（全部基于 Posting，使用 OZON 原生状态）
         # Total: 所有 posting（不包括 cancelled）
@@ -333,72 +317,43 @@ async def get_statistics(
         week_start = week_start_tz.astimezone(dt_timezone.utc)
         month_start = month_start_tz.astimezone(dt_timezone.utc)
 
-        # 昨日收入（从raw_payload的products列表计算）
-        # ⚠️ 重要：使用 OzonPosting.in_process_at 而不是 OzonOrder.ordered_at
-        # 原因：与柱状图的查询条件保持一致，确保"昨日销售额"和柱状图的"昨天"数据相同
-        # OZON API不返回total_price，需要从products中计算：price * quantity
-        yesterday_postings_result = await db.execute(
-            select(OzonOrder.raw_payload)
-            .join(OzonPosting, OzonOrder.id == OzonPosting.order_id)
+        # 收入统计 - 优化：使用预计算的 order_total_price 字段，避免 raw_payload 循环计算
+        # 昨日收入（使用 OzonPosting.in_process_at 与柱状图保持一致）
+        yesterday_revenue_result = await db.execute(
+            select(func.coalesce(func.sum(OzonPosting.order_total_price), 0))
             .where(
                 OzonPosting.in_process_at >= yesterday_start,
                 OzonPosting.in_process_at < today_start,
-                OzonPosting.status != 'cancelled',  # 排除已取消的订单
-                OzonPosting.in_process_at.isnot(None),  # 必须有下单时间
+                OzonPosting.status != 'cancelled',
+                OzonPosting.in_process_at.isnot(None),
                 *posting_filter
             )
         )
-        yesterday_orders = yesterday_postings_result.scalars().all()
+        yesterday_revenue = yesterday_revenue_result.scalar() or Decimal('0')
 
-        # 计算昨日总收入（从products列表中计算）
-        yesterday_revenue = Decimal('0')
-        for order_payload in yesterday_orders:
-            if order_payload and 'products' in order_payload:
-                products = order_payload.get('products', [])
-                for product in products:
-                    price = Decimal(str(product.get('price', '0')))
-                    quantity = int(product.get('quantity', 0))
-                    yesterday_revenue += price * quantity
-
-        # 本周收入（从raw_payload的products列表计算）
-        week_orders_result = await db.execute(
-            select(OzonOrder.raw_payload)
+        # 本周收入（基于 posting.in_process_at，与昨日统计保持一致）
+        week_revenue_result = await db.execute(
+            select(func.coalesce(func.sum(OzonPosting.order_total_price), 0))
             .where(
-                OzonOrder.created_at >= week_start,
-                OzonOrder.status.in_(['delivered', 'shipped']),
-                *order_filter
+                OzonPosting.in_process_at >= week_start,
+                OzonPosting.status != 'cancelled',
+                OzonPosting.in_process_at.isnot(None),
+                *posting_filter
             )
         )
-        week_orders = week_orders_result.scalars().all()
+        week_revenue = week_revenue_result.scalar() or Decimal('0')
 
-        week_revenue = Decimal('0')
-        for order_payload in week_orders:
-            if order_payload and 'products' in order_payload:
-                products = order_payload.get('products', [])
-                for product in products:
-                    price = Decimal(str(product.get('price', '0')))
-                    quantity = int(product.get('quantity', 0))
-                    week_revenue += price * quantity
-
-        # 本月收入（从raw_payload的products列表计算）
-        month_orders_result = await db.execute(
-            select(OzonOrder.raw_payload)
+        # 本月收入（基于 posting.in_process_at，与昨日统计保持一致）
+        month_revenue_result = await db.execute(
+            select(func.coalesce(func.sum(OzonPosting.order_total_price), 0))
             .where(
-                OzonOrder.created_at >= month_start,
-                OzonOrder.status.in_(['delivered', 'shipped']),
-                *order_filter
+                OzonPosting.in_process_at >= month_start,
+                OzonPosting.status != 'cancelled',
+                OzonPosting.in_process_at.isnot(None),
+                *posting_filter
             )
         )
-        month_orders = month_orders_result.scalars().all()
-
-        month_revenue = Decimal('0')
-        for order_payload in month_orders:
-            if order_payload and 'products' in order_payload:
-                products = order_payload.get('products', [])
-                for product in products:
-                    price = Decimal(str(product.get('price', '0')))
-                    quantity = int(product.get('quantity', 0))
-                    month_revenue += price * quantity
+        month_revenue = month_revenue_result.scalar() or Decimal('0')
 
         return {
             "products": {
@@ -596,7 +551,7 @@ async def get_daily_revenue_stats(
     Returns:
         每日每个店铺的销售额统计（RUB）
     """
-    from ..models import OzonPosting, OzonShop, OzonOrder
+    from ..models import OzonPosting, OzonShop
     from sqlalchemy import select, and_
     from .permissions import filter_by_shop_permission
 
@@ -639,14 +594,13 @@ async def get_daily_revenue_stats(
             # 如果没有指定店铺但有权限限制，使用权限列表
             posting_filter.append(OzonPosting.shop_id.in_(allowed_shop_ids))
 
-        # 查询posting和order数据（JOIN获取raw_payload）
+        # 查询posting数据（优化：使用预计算的 order_total_price，无需 JOIN order 表）
         stats_result = await db.execute(
             select(
                 OzonPosting.in_process_at,
                 OzonPosting.shop_id,
-                OzonOrder.raw_payload
+                OzonPosting.order_total_price
             )
-            .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
             .where(and_(*posting_filter))
             .order_by(OzonPosting.in_process_at)
         )
@@ -676,14 +630,8 @@ async def get_daily_revenue_stats(
                 daily_stats[date_str] = {}
             shop_name = shops_data.get(row.shop_id, f"店铺{row.shop_id}")
 
-            # 计算该订单的销售额（从raw_payload的products列表计算）
-            order_revenue = Decimal('0')
-            if row.raw_payload and 'products' in row.raw_payload:
-                products = row.raw_payload.get('products', [])
-                for product in products:
-                    price = Decimal(str(product.get('price', '0')))
-                    quantity = int(product.get('quantity', 0))
-                    order_revenue += price * quantity
+            # 使用预计算的 order_total_price（优化：避免 raw_payload 循环计算）
+            order_revenue = row.order_total_price or Decimal('0')
 
             # 累加到店铺的当日销售额
             if shop_name not in daily_stats[date_str]:
