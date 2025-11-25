@@ -303,7 +303,6 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
           style={{ width: '100%' }}
           addonBefore={currencySymbol}
           controls={false}
-          placeholder="0.00"
         />
       ),
     },
