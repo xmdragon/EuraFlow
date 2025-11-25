@@ -195,3 +195,108 @@ async def _prefetch_labels_async() -> Dict[str, Any]:
         "total_failed": total_failed,
         "shop_results": shop_results
     }
+
+
+# 清理任务配置
+CLEANUP_DAYS = 7  # 清理超过7天的标签文件
+
+
+@celery_app.task(bind=True, name="ef.ozon.labels.cleanup")
+def cleanup_labels_task(self):
+    """
+    标签缓存清理定时任务
+
+    清理超过 7 天的标签 PDF 文件，释放磁盘空间。
+    同时清理数据库中对应的 label_pdf_path 字段。
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        result = loop.run_until_complete(_cleanup_labels_async())
+        return result
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
+
+
+async def _cleanup_labels_async() -> Dict[str, Any]:
+    """异步执行标签清理"""
+    import time
+    from datetime import datetime, timezone
+    from sqlalchemy import update
+    from ..models import OzonPosting
+    from ..services.label_service import LabelService
+
+    db_manager = get_db_manager()
+
+    # 强制重新创建异步引擎
+    if db_manager._async_engine is not None:
+        await db_manager._async_engine.dispose()
+        db_manager._async_engine = None
+        db_manager._async_session_factory = None
+
+    label_dir = LabelService.get_label_dir()
+    cutoff_time = time.time() - (CLEANUP_DAYS * 24 * 60 * 60)  # 7天前的时间戳
+
+    files_deleted = 0
+    files_skipped = 0
+    files_failed = 0
+    deleted_posting_numbers = []
+
+    # 1. 扫描并删除过期文件
+    if os.path.exists(label_dir):
+        for filename in os.listdir(label_dir):
+            if not filename.endswith('.pdf'):
+                continue
+
+            filepath = os.path.join(label_dir, filename)
+
+            try:
+                # 检查文件修改时间
+                file_mtime = os.path.getmtime(filepath)
+
+                if file_mtime < cutoff_time:
+                    # 文件超过 7 天，删除
+                    os.remove(filepath)
+                    files_deleted += 1
+
+                    # 提取 posting_number（文件名去掉 .pdf 后缀）
+                    posting_number = filename[:-4]
+                    deleted_posting_numbers.append(posting_number)
+
+                    logger.debug(f"已删除过期标签: {filename}")
+                else:
+                    files_skipped += 1
+
+            except Exception as e:
+                files_failed += 1
+                logger.warning(f"删除标签失败 {filename}: {e}")
+
+    # 2. 清理数据库中对应的 label_pdf_path
+    db_updated = 0
+    if deleted_posting_numbers:
+        async with db_manager.get_session() as db:
+            # 批量更新，清空已删除文件对应的 label_pdf_path
+            result = await db.execute(
+                update(OzonPosting)
+                .where(OzonPosting.posting_number.in_(deleted_posting_numbers))
+                .values(label_pdf_path=None)
+            )
+            db_updated = result.rowcount
+            await db.commit()
+
+    logger.info(
+        f"标签清理完成: 删除 {files_deleted} 个文件, "
+        f"跳过 {files_skipped} 个, 失败 {files_failed} 个, "
+        f"更新数据库 {db_updated} 条"
+    )
+
+    return {
+        "success": True,
+        "files_deleted": files_deleted,
+        "files_skipped": files_skipped,
+        "files_failed": files_failed,
+        "db_updated": db_updated,
+        "cleanup_days": CLEANUP_DAYS
+    }
