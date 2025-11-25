@@ -17,11 +17,13 @@ import {
   Form,
   Input,
   InputNumber,
+  Divider,
 } from 'antd';
 import { EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import { QRCodeSVG } from 'qrcode.react';
 import React, { useState } from 'react';
 
+import ProductImage from '@/components/ozon/ProductImage';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useDateTime } from '@/hooks/useDateTime';
 import authService from '@/services/authService';
@@ -178,125 +180,145 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
       width={900}
       destroyOnClose
     >
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ marginBottom: 8 }}>
-          <Text type="secondary">商品名称: </Text>
-          <Text strong>{data?.product_name || productName || '-'}</Text>
-        </div>
-        <div>
-          <Text type="secondary">商品SKU: </Text>
-          <Text strong copyable={{ text: sku }}>
-            {sku}
-          </Text>
-        </div>
-      </div>
-
-      {/* 采购信息卡片 */}
+      {/* 商品信息和采购信息 - 左右两栏布局 */}
       {data && (
-        <Card
-          title="采购信息"
-          size="small"
-          style={{ marginBottom: 16 }}
-          extra={
-            !isEditing ? (
-              <Button size="small" icon={<EditOutlined />} onClick={handleEdit}>
-                编辑
-              </Button>
-            ) : (
-              <div>
-                <Button
-                  size="small"
-                  icon={<CloseOutlined />}
-                  onClick={handleCancelEdit}
-                  style={{ marginRight: 8 }}
-                >
-                  取消
-                </Button>
-                <Button
-                  size="small"
-                  type="primary"
-                  icon={<SaveOutlined />}
-                  onClick={handleSave}
-                  loading={isSaving}
-                >
-                  保存
-                </Button>
-              </div>
-            )
-          }
-        >
+        <Card size="small" style={{ marginBottom: 16 }}>
           {!isEditing ? (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary">建议采购价: </Text>
-                    <Text strong style={{ fontSize: 16, color: '#f5222d' }}>
-                      {data.suggested_purchase_price
-                        ? `${getCurrencySymbol(userCurrency)} ${parseFloat(data.suggested_purchase_price).toFixed(2)}`
-                        : '-'}
-                    </Text>
-                  </div>
-                  <div style={{ marginBottom: 8 }}>
-                    <Text type="secondary">采购地址: </Text>
-                    {data.purchase_url ? (
-                      <a href={data.purchase_url} target="_blank" rel="noopener noreferrer">
-                        {data.purchase_url.length > 40
-                          ? `${data.purchase_url.substring(0, 40)}...`
-                          : data.purchase_url}
-                      </a>
-                    ) : (
-                      <Text>-</Text>
-                    )}
-                  </div>
-                  <div>
-                    <Text type="secondary">采购备注: </Text>
-                    <Text>{data.purchase_note || '-'}</Text>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  {data.purchase_url && (
-                    <div style={{ textAlign: 'center' }}>
-                      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                        扫码打开采购链接
+            <Row gutter={24}>
+              {/* 左栏：商品信息 */}
+              <Col span={8}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <ProductImage
+                    imageUrl={data.primary_image || undefined}
+                    size="medium"
+                    hoverBehavior="none"
+                    sku={sku}
+                    name={data.product_name || undefined}
+                  />
+                  <div style={{ marginTop: 12, textAlign: 'center' }}>
+                    <div style={{ marginBottom: 4 }}>
+                      <Text type="secondary">SKU: </Text>
+                      <Text strong copyable={{ text: sku }}>
+                        {sku}
                       </Text>
-                      <QRCodeSVG value={data.purchase_url} size={120} />
                     </div>
-                  )}
-                </Col>
-              </Row>
-            </>
+                    <div>
+                      <Text type="secondary">售价: </Text>
+                      <Text strong style={{ color: '#1890ff' }}>
+                        {data.product_price
+                          ? `${getCurrencySymbol(userCurrency)} ${parseFloat(data.product_price).toFixed(2)}`
+                          : '-'}
+                      </Text>
+                    </div>
+                  </div>
+                </div>
+              </Col>
+
+              {/* 右栏：采购信息 */}
+              <Col span={16}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 14 }}>采购信息</Text>
+                  <Button size="small" icon={<EditOutlined />} onClick={handleEdit}>
+                    编辑
+                  </Button>
+                </div>
+                <Row gutter={16}>
+                  <Col span={14}>
+                    <div style={{ marginBottom: 8 }}>
+                      <Text type="secondary">建议采购价: </Text>
+                      <Text strong style={{ fontSize: 16, color: '#f5222d' }}>
+                        {data.suggested_purchase_price
+                          ? `${getCurrencySymbol(userCurrency)} ${parseFloat(data.suggested_purchase_price).toFixed(2)}`
+                          : '-'}
+                      </Text>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <Text type="secondary">采购地址: </Text>
+                      {data.purchase_url ? (
+                        <a href={data.purchase_url} target="_blank" rel="noopener noreferrer">
+                          {data.purchase_url.length > 30
+                            ? `${data.purchase_url.substring(0, 30)}...`
+                            : data.purchase_url}
+                        </a>
+                      ) : (
+                        <Text>-</Text>
+                      )}
+                    </div>
+                    <div>
+                      <Text type="secondary">备注: </Text>
+                      <Text>{data.purchase_note || '-'}</Text>
+                    </div>
+                  </Col>
+                  <Col span={10}>
+                    {data.purchase_url && (
+                      <div style={{ textAlign: 'center' }}>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+                          扫码打开采购链接
+                        </Text>
+                        <QRCodeSVG value={data.purchase_url} size={100} />
+                      </div>
+                    )}
+                  </Col>
+                </Row>
+              </Col>
+            </Row>
           ) : (
-            <Form form={form} layout="vertical">
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="suggested_purchase_price" label="建议采购价">
-                    <InputNumber
-                      style={{ width: '100%' }}
-                      min={0}
-                      formatter={getNumberFormatter(2)}
-                      parser={getNumberParser()}
-                      prefix={getCurrencySymbol(userCurrency)}
-                      placeholder="请输入建议采购价"
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="purchase_url" label="采购地址">
-                    <Input placeholder="https://..." />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="purchase_note" label="采购备注">
-                <Input.TextArea rows={3} placeholder="请输入采购备注（可选）" />
-              </Form.Item>
-            </Form>
+            /* 编辑模式 */
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text strong style={{ fontSize: 14 }}>编辑采购信息</Text>
+                <div>
+                  <Button
+                    size="small"
+                    icon={<CloseOutlined />}
+                    onClick={handleCancelEdit}
+                    style={{ marginRight: 8 }}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    onClick={handleSave}
+                    loading={isSaving}
+                  >
+                    保存
+                  </Button>
+                </div>
+              </div>
+              <Form form={form} layout="vertical">
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item name="suggested_purchase_price" label="建议采购价">
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        formatter={getNumberFormatter(2)}
+                        parser={getNumberParser()}
+                        prefix={getCurrencySymbol(userCurrency)}
+                        placeholder="请输入建议采购价"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="purchase_url" label="采购地址">
+                      <Input placeholder="https://..." />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Form.Item name="purchase_note" label="采购备注">
+                  <Input.TextArea rows={3} placeholder="请输入采购备注（可选）" />
+                </Form.Item>
+              </Form>
+            </div>
           )}
         </Card>
       )}
 
       {/* 进货价格历史 */}
-      <div style={{ marginTop: 16 }}>
+      <Divider style={{ margin: '16px 0 12px' }} />
+      <div style={{ marginBottom: 8 }}>
         <Text strong style={{ fontSize: 14 }}>
           进货价格历史
         </Text>
@@ -315,7 +337,7 @@ const PurchasePriceHistoryModal: React.FC<PurchasePriceHistoryModalProps> = ({
           rowKey="posting_number"
           pagination={false}
           size="small"
-          scroll={{ y: 400 }}
+          scroll={{ y: 300 }}
           style={{ marginTop: 8 }}
         />
       )}

@@ -43,7 +43,7 @@ interface ItemPrepareData {
   stockAvailable: number;
   orderQuantity: number;
   useStock: boolean; // 是否使用库存
-  purchasePrice: number; // 进货价格
+  purchasePrice: number | undefined; // 进货价格
   sourcePlatform: string[]; // 采购平台
   notes: string; // 备注
 }
@@ -103,7 +103,7 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
         stockAvailable: item.stock_available,
         orderQuantity: item.order_quantity,
         useStock: item.is_sufficient, // 库存充足时默认使用库存
-        purchasePrice: item.is_sufficient ? 0 : 0, // 默认0，用户手动填写
+        purchasePrice: item.is_sufficient ? 0 : undefined, // 使用库存时为0，其他留空
         sourcePlatform: item.is_sufficient ? ['库存'] : [],
         notes: '',
       }));
@@ -297,12 +297,13 @@ const PrepareStockModal: React.FC<PrepareStockModalProps> = ({
       render: (_: unknown, record: ItemPrepareData) => (
         <InputNumber
           value={record.purchasePrice}
-          onChange={(value) => updateItemData(record.sku, 'purchasePrice', value || 0)}
+          onChange={(value) => updateItemData(record.sku, 'purchasePrice', value ?? undefined)}
           min={0}
           precision={2}
           style={{ width: '100%' }}
           addonBefore={currencySymbol}
           controls={false}
+          placeholder="0.00"
         />
       ),
     },
