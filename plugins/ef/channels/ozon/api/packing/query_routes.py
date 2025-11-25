@@ -844,12 +844,15 @@ async def search_posting_by_tracking(
 
             if posting_ids:
                 # 只对当前页的 posting 进行 selectinload
+                # 需要加载 order.postings 因为 order.to_dict() 会访问
                 result = await db.execute(
                     select(OzonPosting)
                     .options(
                         selectinload(OzonPosting.packages),
                         selectinload(OzonPosting.domestic_trackings),
-                        selectinload(OzonPosting.order)
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.items),
+                        selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
                     )
                     .where(OzonPosting.id.in_(posting_ids))
                 )

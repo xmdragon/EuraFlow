@@ -526,9 +526,9 @@ export const AttributeField: React.FC<AttributeFieldProps> = ({
           noStyle
         >
           {/* 动态设置输入框样式：flex自适应 + 移除右侧圆角 */}
-          {React.cloneElement(inputControl as React.ReactElement<unknown>, {
+          {React.cloneElement(inputControl as React.ReactElement<{ style?: React.CSSProperties }>, {
             style: {
-              ...((inputControl as React.ReactElement<unknown>).props?.style || {}),
+              ...((inputControl as React.ReactElement<{ style?: React.CSSProperties }>).props?.style || {}),
               // Switch 不需要 flex 拉伸，其他控件使用 flex: 1
               ...(attr.attribute_type !== 'Boolean'
                 ? {
