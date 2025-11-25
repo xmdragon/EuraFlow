@@ -1149,6 +1149,54 @@ const PackingShipment: React.FC = () => {
               />
             );
           }, [operationStatus, statusCounts, addQuickMenu, isInQuickMenu])}
+
+        {/* 扫描结果标题行 - 放在stickyHeader内实现固定 */}
+        {operationStatus === 'scan' && scanResults.length > 0 && (
+          <div className={styles.scanResultStickyHeader}>
+            <span className={styles.scanResultTitle}>查询结果 ({scanResults.length})</span>
+            <Space>
+              <Space size="small">
+                <Text type="secondary">打印状态:</Text>
+                <Select
+                  value={scanPrintStatusFilter}
+                  onChange={setScanPrintStatusFilter}
+                  style={{ width: 120 }}
+                  options={[
+                    { label: '全部', value: 'all' },
+                    { label: '已打印', value: 'printed' },
+                    { label: '未打印', value: 'unprinted' },
+                  ]}
+                />
+              </Space>
+              {canOperate && (
+                <>
+                  <Button
+                    type={scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? 'primary' : 'default'}
+                    onClick={() => {
+                      if (scanSelectedPostings.length === filteredScanResults.length) {
+                        setScanSelectedPostings([]);
+                      } else {
+                        setScanSelectedPostings(filteredScanResults.map(p => p.posting_number));
+                      }
+                    }}
+                    disabled={filteredScanResults.length === 0}
+                  >
+                    {scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? '取消全选' : '全选'}
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<PrinterOutlined />}
+                    loading={isPrinting}
+                    disabled={scanSelectedPostings.length === 0}
+                    onClick={handleScanBatchPrint}
+                  >
+                    批量打印 ({scanSelectedPostings.length}/{filteredScanResults.length})
+                  </Button>
+                </>
+              )}
+            </Space>
+          </div>
+        )}
       </div>
 
       {/* 打包发货列表 */}
@@ -1169,56 +1217,9 @@ const PackingShipment: React.FC = () => {
                 />
               )}
 
-              {/* 扫描结果 */}
+              {/* 扫描结果表格 */}
               {scanResults.length > 0 && (
-                <div className={styles.scanResultWrapper}>
-                  {/* Sticky 标题行 */}
-                  <div className={styles.scanResultStickyHeader}>
-                    <span className={styles.scanResultTitle}>查询结果 ({scanResults.length})</span>
-                    <Space>
-                      <Space size="small">
-                        <Text type="secondary">打印状态:</Text>
-                        <Select
-                          value={scanPrintStatusFilter}
-                          onChange={setScanPrintStatusFilter}
-                          style={{ width: 120 }}
-                          options={[
-                            { label: '全部', value: 'all' },
-                            { label: '已打印', value: 'printed' },
-                            { label: '未打印', value: 'unprinted' },
-                          ]}
-                        />
-                      </Space>
-                      {canOperate && (
-                        <>
-                          <Button
-                            type={scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? 'primary' : 'default'}
-                            onClick={() => {
-                              if (scanSelectedPostings.length === filteredScanResults.length) {
-                                setScanSelectedPostings([]);
-                              } else {
-                                setScanSelectedPostings(filteredScanResults.map(p => p.posting_number));
-                              }
-                            }}
-                            disabled={filteredScanResults.length === 0}
-                          >
-                            {scanSelectedPostings.length === filteredScanResults.length && filteredScanResults.length > 0 ? '取消全选' : '全选'}
-                          </Button>
-                          <Button
-                            type="primary"
-                            icon={<PrinterOutlined />}
-                            loading={isPrinting}
-                            disabled={scanSelectedPostings.length === 0}
-                            onClick={handleScanBatchPrint}
-                          >
-                            批量打印 ({scanSelectedPostings.length}/{filteredScanResults.length})
-                          </Button>
-                        </>
-                      )}
-                    </Space>
-                  </div>
-                  {/* 表格内容 */}
-                  <ScanResultTable
+                <ScanResultTable
                     scanResults={filteredScanResults}
                     scanSelectedPostings={scanSelectedPostings}
                     onSelectedPostingsChange={setScanSelectedPostings}
@@ -1234,8 +1235,7 @@ const PackingShipment: React.FC = () => {
                     canOperate={canOperate}
                     isPrinting={isPrinting}
                     onCopy={copyToClipboard}
-                  />
-                </div>
+                />
               )}
             </Space>
           </div>

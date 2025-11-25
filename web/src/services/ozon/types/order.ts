@@ -138,9 +138,16 @@ export interface Order {
 
 /**
  * 货件与订单的组合类型（用于列表展示）
+ * 后端会将常用的 Order 字段提升到 Posting 级别以便访问
  */
 export interface PostingWithOrder extends Posting {
   order: Order; // 关联的完整订单信息
+  // 从 Order 提升的便捷字段（后端自动填充）
+  shop_id: number;
+  items?: OrderItem[]; // 商品列表（从 order.items 或 posting.products 提取）
+  tracking_number?: string; // 追踪号（从 packages 提取或直接返回）
+  ordered_at?: string; // 下单时间（从 order.ordered_at）
+  delivery_method?: string; // 配送方式（从 order.delivery_method）
 }
 
 /**

@@ -294,7 +294,7 @@ const ScanResultTable: React.FC<ScanResultTableProps> = ({
                     <Text type="secondary">货件: </Text>
                     {onShowDetail ? (
                       <a
-                        onClick={() => onShowDetail(posting.order || posting, posting)}
+                        onClick={() => onShowDetail(posting.order, posting)}
                         style={{
                           color: "#1890ff",
                           cursor: "pointer",
