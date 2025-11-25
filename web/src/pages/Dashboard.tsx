@@ -364,14 +364,16 @@ const Dashboard: React.FC = () => {
     if (path.includes("/ozon/selection")) return "ozon-selection";
     if (path.includes("/ozon/products/create")) return "ozon-products-create";
     if (path.includes("/ozon/products")) return "ozon-products-list";
-    if (path.includes("/ozon/listing")) return "ozon-listing";
+    if (path.includes("/ozon/listing-records")) return "ozon-listing-records";
+    if (path.includes("/ozon/collection-records")) return "ozon-collection-records";
     if (path.includes("/ozon/promotions")) return "ozon-promotions";
     if (path.includes("/ozon/packing")) return "ozon-packing";
     if (path.includes("/ozon/orders")) return "ozon-orders";
     if (path.includes("/ozon/reports")) return "ozon-reports";
-    if (path.includes("/ozon/finance-transactions"))
-      return "ozon-finance-transactions";
-    if (path.includes("/ozon/chat")) return "ozon-chats";
+    if (path.includes("/ozon/cancel-return")) return "ozon-cancel-return";
+    if (path.includes("/ozon/stock")) return "ozon-stock";
+    if (path.includes("/ozon/finance-transactions")) return "ozon-finance-transactions";
+    if (path.includes("/ozon/chats")) return "ozon-chats";
     if (path.includes("/system/logs")) return "system-logs";
     if (path.includes("/system/configuration")) return "system-configuration";
     if (path.includes("/system/watermark")) return "system-watermark";

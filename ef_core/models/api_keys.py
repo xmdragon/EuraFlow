@@ -38,7 +38,7 @@ class APIKey(Base):
         String(255),
         unique=True,
         nullable=False,
-        comment="API Key哈希值（bcrypt）"
+        comment="API Key哈希值（SHA256，64字符hex）"
     )
 
     name: Mapped[str] = mapped_column(

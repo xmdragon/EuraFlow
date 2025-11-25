@@ -7,7 +7,6 @@ import {
   Card,
   Table,
   Select,
-  DatePicker,
   Statistic,
   Row,
   Col,
@@ -15,8 +14,8 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs, { Dayjs } from 'dayjs';
-import React, { useState } from 'react';
+import dayjs from 'dayjs';
+import React, { useState, useMemo } from 'react';
 
 import styles from './FinanceTransactions.module.scss';
 
@@ -29,7 +28,6 @@ import { useDateTime } from '@/hooks/useDateTime';
 import * as ozonApi from '@/services/ozon';
 import { notifyError } from '@/utils/notification';
 
-const { RangePicker } = DatePicker;
 const { Option } = Select;
 const { Text } = Typography;
 
@@ -76,17 +74,90 @@ const ExpandedDetailTable: React.FC<ExpandedDetailTableProps> = ({
   );
 };
 
+// 生成日期周期选项
+interface PeriodOption {
+  label: string;
+  value: string; // 格式: "YYYY-MM-DD|YYYY-MM-DD"
+}
+
+const generatePeriodOptions = (): PeriodOption[] => {
+  const options: PeriodOption[] = [];
+  const today = dayjs();
+  const currentDay = today.date();
+
+  // 确定起始月份和是否包含当月上半月
+  // 如果当前是1-15号：从上个月开始（当月还没数据）
+  // 如果当前是16-月底：从本月上半月开始
+  const includeCurrentFirstHalf = currentDay >= 16;
+  const startMonth = includeCurrentFirstHalf ? 0 : 1;
+
+  // 最近3个月提供半月和整月选项
+  for (let i = startMonth; i < startMonth + 3; i++) {
+    const month = today.subtract(i, 'month');
+    const monthLabel = month.format('YYYY年M月');
+    const monthStart = month.startOf('month');
+    const monthEnd = month.endOf('month');
+    const mid15 = month.date(15);
+    const mid16 = month.date(16);
+
+    // 当月只显示上半月（如果includeCurrentFirstHalf为true且i=0）
+    if (i === 0 && includeCurrentFirstHalf) {
+      options.push({
+        label: `${monthLabel} (1-15日)`,
+        value: `${monthStart.format('YYYY-MM-DD')}|${mid15.format('YYYY-MM-DD')}`,
+      });
+    } else {
+      // 完整月份：上半月、下半月、整月
+      options.push({
+        label: `${monthLabel} (1-15日)`,
+        value: `${monthStart.format('YYYY-MM-DD')}|${mid15.format('YYYY-MM-DD')}`,
+      });
+      options.push({
+        label: `${monthLabel} (16-${monthEnd.date()}日)`,
+        value: `${mid16.format('YYYY-MM-DD')}|${monthEnd.format('YYYY-MM-DD')}`,
+      });
+      options.push({
+        label: monthLabel,
+        value: `${monthStart.format('YYYY-MM-DD')}|${monthEnd.format('YYYY-MM-DD')}`,
+      });
+    }
+  }
+
+  // 更早的月份（往前12个月）只提供整月
+  for (let i = startMonth + 3; i < startMonth + 15; i++) {
+    const month = today.subtract(i, 'month');
+    const monthLabel = month.format('YYYY年M月');
+    const monthStart = month.startOf('month');
+    const monthEnd = month.endOf('month');
+
+    options.push({
+      label: monthLabel,
+      value: `${monthStart.format('YYYY-MM-DD')}|${monthEnd.format('YYYY-MM-DD')}`,
+    });
+  }
+
+  return options;
+};
+
 const FinanceTransactions: React.FC = () => {
   const { formatDate } = useDateTime();
+
+  // 生成周期选项
+  const periodOptions = useMemo(() => generatePeriodOptions(), []);
+
   // 状态管理
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>([
-    dayjs().subtract(45, 'days'),
-    dayjs(),
-  ]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(periodOptions[0]?.value || '');
   const [transactionType, setTransactionType] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+
+  // 从选中的周期解析日期范围
+  const dateRange = useMemo(() => {
+    if (!selectedPeriod) return null;
+    const [dateFrom, dateTo] = selectedPeriod.split('|');
+    return { dateFrom, dateTo };
+  }, [selectedPeriod]);
 
   // 展开的日期行
   const [expandedDates, setExpandedDates] = useState<string[]>([]);
@@ -106,7 +177,7 @@ const FinanceTransactions: React.FC = () => {
     queryKey: [
       'financeTransactionsDailySummary',
       selectedShop,
-      dateRange,
+      selectedPeriod,
       transactionType,
       currentPage,
       pageSize,
@@ -118,9 +189,9 @@ const FinanceTransactions: React.FC = () => {
         page_size: pageSize,
       };
 
-      if (dateRange && dateRange[0] && dateRange[1]) {
-        filter.date_from = dateRange[0].format('YYYY-MM-DD');
-        filter.date_to = dateRange[1].format('YYYY-MM-DD');
+      if (dateRange) {
+        filter.date_from = dateRange.dateFrom;
+        filter.date_to = dateRange.dateTo;
       }
 
       if (transactionType && transactionType !== 'all') {
@@ -134,13 +205,16 @@ const FinanceTransactions: React.FC = () => {
 
   // 查询汇总数据
   const { data: summaryData } = useQuery({
-    queryKey: ['financeTransactionsSummary', selectedShop, dateRange, transactionType],
+    queryKey: ['financeTransactionsSummary', selectedShop, selectedPeriod, transactionType],
     queryFn: async () => {
-      const dateFrom = dateRange?.[0]?.format('YYYY-MM-DD');
-      const dateTo = dateRange?.[1]?.format('YYYY-MM-DD');
       const txType = transactionType !== 'all' ? transactionType : undefined;
 
-      return await ozonApi.getFinanceTransactionsSummary(selectedShop, dateFrom, dateTo, txType);
+      return await ozonApi.getFinanceTransactionsSummary(
+        selectedShop,
+        dateRange?.dateFrom,
+        dateRange?.dateTo,
+        txType
+      );
     },
     staleTime: 60000,
   });
@@ -416,13 +490,14 @@ const FinanceTransactions: React.FC = () => {
               />
             </Col>
             <Col>
-              <RangePicker
-                value={dateRange}
-                onChange={(dates) => {
-                  setDateRange(dates);
+              <Select
+                value={selectedPeriod}
+                onChange={(value) => {
+                  setSelectedPeriod(value);
                   setCurrentPage(1);
                 }}
-                format="YYYY-MM-DD"
+                style={{ minWidth: 200 }}
+                options={periodOptions}
               />
             </Col>
             <Col>

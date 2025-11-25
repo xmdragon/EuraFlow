@@ -1,9 +1,14 @@
 """
 API Key服务层
 处理API Key的生成、验证和管理
+
+安全说明：
+- API Key 使用 SHA256 哈希存储（非 bcrypt）
+- API Key 本身是 40+ 字符随机串，安全性足够
+- SHA256 支持直接查询，验证时间 O(1)
 """
 import secrets
-import bcrypt
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from sqlalchemy import select, and_
@@ -31,18 +36,21 @@ class APIKeyService:
     @staticmethod
     def hash_key(key: str) -> str:
         """
-        哈希API Key（使用bcrypt）
+        哈希API Key（使用SHA256）
+
+        SHA256 是确定性哈希，相同输入产生相同输出，
+        支持直接通过 hash 查询数据库。
         """
-        salt = bcrypt.gensalt()
-        return bcrypt.hashpw(key.encode('utf-8'), salt).decode('utf-8')
+        return hashlib.sha256(key.encode('utf-8')).hexdigest()
 
     @staticmethod
     def verify_key(key: str, key_hash: str) -> bool:
         """
-        验证API Key
+        验证API Key（SHA256 直接比较）
         """
         try:
-            return bcrypt.checkpw(key.encode('utf-8'), key_hash.encode('utf-8'))
+            computed_hash = hashlib.sha256(key.encode('utf-8')).hexdigest()
+            return computed_hash == key_hash
         except Exception as e:
             logger.error(f"API Key验证失败: {e}")
             return False
@@ -116,6 +124,8 @@ class APIKeyService:
         """
         验证API Key并返回关联用户
 
+        使用 SHA256 哈希直接查询数据库，O(1) 复杂度。
+
         Args:
             db: 数据库会话
             key: 原始API Key
@@ -123,43 +133,45 @@ class APIKeyService:
         Returns:
             验证通过返回User对象，否则返回None
         """
-        # 查询所有激活的API Keys
+        # 计算 SHA256 哈希
+        key_hash = self.hash_key(key)
+
+        # 直接通过哈希查询（O(1)，微秒级）
         stmt = select(APIKey).where(
             and_(
+                APIKey.key_hash == key_hash,
                 APIKey.is_active == True,
                 # 检查是否过期
                 (APIKey.expires_at.is_(None) | (APIKey.expires_at > datetime.utcnow()))
             )
         )
         result = await db.execute(stmt)
-        api_keys = result.scalars().all()
+        api_key = result.scalar_one_or_none()
 
-        # 逐个验证哈希
-        for api_key in api_keys:
-            if self.verify_key(key, api_key.key_hash):
-                # 更新最后使用时间
-                api_key.last_used_at = datetime.utcnow()
-                await db.commit()
+        if not api_key:
+            logger.warning("API Key验证失败: 无效的Key")
+            return None
 
-                # 获取关联用户
-                user_stmt = select(User).where(
-                    and_(
-                        User.id == api_key.user_id,
-                        User.is_active == True
-                    )
-                )
-                user_result = await db.execute(user_stmt)
-                user = user_result.scalar_one_or_none()
+        # 更新最后使用时间
+        api_key.last_used_at = datetime.utcnow()
+        await db.commit()
 
-                if user:
-                    logger.info(f"API Key验证成功: key_id={api_key.id}, user_id={user.id}")
-                    return user
-                else:
-                    logger.warning(f"API Key关联用户不存在或未激活: key_id={api_key.id}")
-                    return None
+        # 获取关联用户
+        user_stmt = select(User).where(
+            and_(
+                User.id == api_key.user_id,
+                User.is_active == True
+            )
+        )
+        user_result = await db.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
 
-        logger.warning("API Key验证失败: 无效的Key")
-        return None
+        if user:
+            logger.info(f"API Key验证成功: key_id={api_key.id}, user_id={user.id}")
+            return user
+        else:
+            logger.warning(f"API Key关联用户不存在或未激活: key_id={api_key.id}")
+            return None
 
     async def list_user_keys(
         self,
@@ -287,20 +299,25 @@ class APIKeyService:
         Returns:
             有权限返回True
         """
-        user = await self.validate_api_key(db, key)
-        if not user:
+        # 计算 SHA256 哈希，直接查询
+        key_hash = self.hash_key(key)
+
+        stmt = select(APIKey).where(
+            and_(
+                APIKey.key_hash == key_hash,
+                APIKey.is_active == True,
+                (APIKey.expires_at.is_(None) | (APIKey.expires_at > datetime.utcnow()))
+            )
+        )
+        result = await db.execute(stmt)
+        api_key = result.scalar_one_or_none()
+
+        if not api_key:
             return False
 
-        # 获取API Key的权限
-        stmt = select(APIKey).where(APIKey.user_id == user.id)
-        result = await db.execute(stmt)
-        api_keys = result.scalars().all()
-
-        for api_key in api_keys:
-            if self.verify_key(key, api_key.key_hash):
-                # 检查权限
-                if "*" in api_key.permissions or required_permission in api_key.permissions:
-                    return True
+        # 检查权限
+        if "*" in api_key.permissions or required_permission in api_key.permissions:
+            return True
 
         return False
 
