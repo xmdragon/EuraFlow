@@ -29,8 +29,6 @@ async def get_orders(
     status: Optional[str] = None,
     operation_status: Optional[str] = None,
     posting_number: Optional[str] = None,
-    customer_phone: Optional[str] = None,
-    order_type: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     db: AsyncSession = Depends(get_async_session),
@@ -55,11 +53,9 @@ async def get_orders(
     # 获取全局时区设置（用于日期过滤）
     global_timezone = await get_global_timezone(db)
 
-    # 构建查询：以Posting为主体，JOIN Order获取订单信息
+    # 构建查询：以Posting为主体（无需 JOIN Order，通过 selectinload 延迟加载）
     from sqlalchemy.orm import selectinload
-    query = select(OzonPosting).join(
-        OzonOrder, OzonPosting.order_id == OzonOrder.id
-    ).options(
+    query = select(OzonPosting).options(
         selectinload(OzonPosting.packages),
         selectinload(OzonPosting.order).selectinload(OzonOrder.postings),  # 预加载order及其所有postings
         selectinload(OzonPosting.domestic_trackings)
@@ -89,12 +85,6 @@ async def get_orders(
             # 精确匹配
             query = query.where(OzonPosting.posting_number == posting_number_value)
 
-    if customer_phone:
-        query = query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
-
-    if order_type:
-        query = query.where(OzonOrder.order_type == order_type)
-
     if date_from:
         try:
             # 按全局时区解析日期（用户选择的日期是在其时区的00:00:00）
@@ -121,10 +111,8 @@ async def get_orders(
         except Exception as e:
             logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
 
-    # 执行查询获取总数
-    count_query = select(func.count(OzonPosting.id)).join(
-        OzonOrder, OzonPosting.order_id == OzonOrder.id
-    )
+    # 执行查询获取总数（无需 JOIN）
+    count_query = select(func.count(OzonPosting.id))
 
     # 应用权限过滤条件（与主查询一致）
     if shop_filter is not True:
@@ -139,10 +127,6 @@ async def get_orders(
             count_query = count_query.where(OzonPosting.posting_number.like(posting_number_value))
         else:
             count_query = count_query.where(OzonPosting.posting_number == posting_number_value)
-    if customer_phone:
-        count_query = count_query.where(OzonOrder.customer_phone.ilike(f"%{customer_phone}%"))
-    if order_type:
-        count_query = count_query.where(OzonOrder.order_type == order_type)
     if date_from:
         try:
             start_date = parse_date_with_timezone(date_from, global_timezone)
@@ -165,12 +149,11 @@ async def get_orders(
     total = total_result.scalar()
 
     # 计算全局统计（所有状态，不受当前status筛选影响，但受日期筛选影响）
-    # 应用权限过滤，包含所有状态的统计
-    # 使用 OzonPosting.status（OZON原生状态）而不是 OzonOrder.status（系统映射状态）
+    # 应用权限过滤，包含所有状态的统计（无需 JOIN）
     stats_query = select(
         OzonPosting.status,
         func.count(OzonPosting.id).label('count')
-    ).join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
+    )
     # 应用权限过滤
     if shop_filter is not True:
         stats_query = stats_query.where(shop_filter)
@@ -197,11 +180,8 @@ async def get_orders(
     stats_result = await db.execute(stats_query)
     status_counts = {row.status: row.count for row in stats_result}
 
-    # 查询"已废弃"posting数量（operation_status='cancelled'）
-    # 统计 posting 数量，与其他状态标签保持一致
-    discarded_query = select(func.count(OzonPosting.id)).join(
-        OzonOrder, OzonPosting.order_id == OzonOrder.id
-    )
+    # 查询"已废弃"posting数量（operation_status='cancelled'，无需 JOIN）
+    discarded_query = select(func.count(OzonPosting.id))
     discarded_query = discarded_query.where(OzonPosting.operation_status == 'cancelled')
     # 应用权限过滤
     if shop_filter is not True:

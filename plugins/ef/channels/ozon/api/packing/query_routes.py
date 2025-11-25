@@ -66,11 +66,9 @@ async def get_packing_orders(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
-    # 构建查询：以Posting为主体，JOIN Order获取订单信息
+    # 构建查询：以Posting为主体（无需 JOIN，通过 selectinload 延迟加载）
     from sqlalchemy.orm import selectinload
-    query = select(OzonPosting).join(
-        OzonOrder, OzonPosting.order_id == OzonOrder.id
-    ).options(
+    query = select(OzonPosting).options(
         selectinload(OzonPosting.packages),
         selectinload(OzonPosting.order).selectinload(OzonOrder.postings),  # 预加载order及其所有postings
         selectinload(OzonPosting.domestic_trackings)
@@ -319,10 +317,8 @@ async def get_packing_orders(
         # 其他状态：按下单时间倒序（in_process_at ≈ ordered_at，无需 JOIN）
         query = query.order_by(OzonPosting.in_process_at.desc())
 
-    # 执行查询获取总数（统计Posting数量）
-    count_query = select(func.count(OzonPosting.id)).select_from(OzonPosting).join(
-        OzonOrder, OzonPosting.order_id == OzonOrder.id
-    )
+    # 执行查询获取总数（统计Posting数量，无需 JOIN）
+    count_query = select(func.count(OzonPosting.id))
 
     # 应用权限过滤条件到count查询
     if shop_filter is not True:
