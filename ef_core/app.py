@@ -21,6 +21,7 @@ from ef_core.tasks.registry import get_task_registry
 from ef_core.middleware.auth import AuthMiddleware
 from ef_core.middleware.logging import LoggingMiddleware
 from ef_core.middleware.metrics import MetricsMiddleware
+from ef_core.middleware.api_cost import ApiCostMiddleware
 from ef_core.api import api_router
 
 logger = get_logger(__name__)
@@ -151,7 +152,10 @@ def create_app() -> FastAPI:
     # 指标中间件
     if settings.metrics_enabled:
         app.add_middleware(MetricsMiddleware)
-    
+
+    # API 耗时日志中间件
+    app.add_middleware(ApiCostMiddleware, log_dir="logs")
+
     # 日志中间件
     app.add_middleware(LoggingMiddleware)
     

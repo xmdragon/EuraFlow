@@ -517,23 +517,7 @@ const OrderReport: React.FC = () => {
         </div>
       ),
     },
-    // 4. 商品数量（点击查看详情）
-    {
-      title: "商品",
-      width: 60,
-      align: "center",
-      render: (_, row) => (
-        <Tooltip title="点击查看商品详情">
-          <span
-            style={{ cursor: 'pointer', color: '#1890ff' }}
-            onClick={() => showPostingDetail(row.posting_number)}
-          >
-            {row.product_count} 件
-          </span>
-        </Tooltip>
-      ),
-    },
-    // 5. 订单金额
+    // 4. 订单金额
     {
       title: "订单金额",
       width: 100,
@@ -1409,7 +1393,7 @@ const OrderReport: React.FC = () => {
               <Col span={8}>
                 <Text type="secondary">状态：</Text>
                 <Text strong style={{ color: selectedPostingDetail.is_cancelled ? '#ff4d4f' : '#52c41a' }}>
-                  {statusConfig[selectedPostingDetail.status]?.label || selectedPostingDetail.status}
+                  {statusConfig[selectedPostingDetail.status]?.text || selectedPostingDetail.status}
                 </Text>
               </Col>
               <Col span={8}>

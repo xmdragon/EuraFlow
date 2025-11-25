@@ -713,11 +713,10 @@ async def get_report_summary(
                     p.material_cost,
                     jsonb_array_elements(p.raw_payload->'products') as product
                 FROM ozon_postings p
-                JOIN ozon_orders o ON p.order_id = o.id
-                WHERE o.ordered_at >= :start_date
-                  AND o.ordered_at <= :end_date
+                WHERE p.in_process_at >= :start_date
+                  AND p.in_process_at <= :end_date
                   AND p.status = ANY(:statuses)
-                  AND (CAST(:shop_ids AS integer[]) IS NULL OR o.shop_id = ANY(CAST(:shop_ids AS integer[])))
+                  AND (CAST(:shop_ids AS integer[]) IS NULL OR p.shop_id = ANY(CAST(:shop_ids AS integer[])))
             ),
             aggregated AS (
                 SELECT
@@ -755,18 +754,17 @@ async def get_report_summary(
         )
         top_products_by_sales_raw = top_sales_result.fetchall()
 
-        # 按销量排序的 TOP10
+        # 按销量排序的 TOP10（无需 JOIN ozon_orders）
         top_quantity_sql = text("""
             WITH product_data AS (
                 SELECT
                     p.status,
                     jsonb_array_elements(p.raw_payload->'products') as product
                 FROM ozon_postings p
-                JOIN ozon_orders o ON p.order_id = o.id
-                WHERE o.ordered_at >= :start_date
-                  AND o.ordered_at <= :end_date
+                WHERE p.in_process_at >= :start_date
+                  AND p.in_process_at <= :end_date
                   AND p.status = ANY(:statuses)
-                  AND (CAST(:shop_ids AS integer[]) IS NULL OR o.shop_id = ANY(CAST(:shop_ids AS integer[])))
+                  AND (CAST(:shop_ids AS integer[]) IS NULL OR p.shop_id = ANY(CAST(:shop_ids AS integer[])))
             ),
             aggregated AS (
                 SELECT
