@@ -512,6 +512,10 @@ class OzonWebhookHandler:
                     await session.flush()
                     logger.info(f"Created order from webhook with order_id: {order_id}")
 
+                # 检查是否有追踪号（从 payload 中提取）
+                tracking_number = payload.get("tracking_number")
+                has_tracking = bool(tracking_number and str(tracking_number).strip())
+
                 # 创建Posting
                 posting = OzonPosting(
                     shop_id=self.shop_id,
@@ -522,7 +526,9 @@ class OzonWebhookHandler:
                     shipment_date=parse_datetime(shipment_date) if shipment_date else None,
                     warehouse_id=warehouse_id,
                     in_process_at=parse_datetime(in_process_at) if in_process_at else utcnow(),
-                    raw_payload=payload
+                    raw_payload=payload,
+                    has_tracking_number=has_tracking,  # 反范式化字段
+                    has_domestic_tracking=False  # 新单号无国内单号
                 )
 
                 session.add(posting)

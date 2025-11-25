@@ -371,6 +371,9 @@ async def update_order_extra_info(
                         created_at=utcnow()
                     )
                     db.add(new_tracking)
+                    posting.has_domestic_tracking = True  # 反范式化字段
+                else:
+                    posting.has_domestic_tracking = False  # 删除了所有国内单号
 
         # material_cost - 无时间戳，直接更新
         if "material_cost" in extra_info:

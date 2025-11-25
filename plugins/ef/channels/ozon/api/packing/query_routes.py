@@ -126,20 +126,16 @@ async def get_packing_orders(
         # 支持多种状态，因为订单在不同阶段都可能处于"已分配"状态
         # 排除OZON已取消的订单
         # 排除已废弃的订单（operation_status = 'cancelled'）
+        # 优化：使用反范式化字段替代 JSONB 和 EXISTS 查询
         query = query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
                 OzonPosting.status != 'cancelled',
-                # 有追踪号码
-                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
-                OzonPosting.raw_payload['tracking_number'].astext != '',
+                # 有追踪号码（使用反范式化字段）
+                OzonPosting.has_tracking_number == True,
                 # 无国内单号 OR operation_status='allocated'（后者覆盖删除国内单号的情况）
                 or_(
-                    ~exists(
-                        select(1).where(
-                            OzonDomesticTracking.posting_id == OzonPosting.id
-                        )
-                    ),
+                    OzonPosting.has_domestic_tracking == False,
                     OzonPosting.operation_status == 'allocated'
                 ),
                 # 排除已废弃状态
@@ -353,19 +349,16 @@ async def get_packing_orders(
         )
 
     elif operation_status == 'allocated':
+        # 优化：使用反范式化字段替代 JSONB 和 EXISTS 查询
         count_query = count_query.where(
             and_(
                 OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
                 OzonPosting.status != 'cancelled',
-                OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
-                OzonPosting.raw_payload['tracking_number'].astext != '',
+                # 有追踪号码（使用反范式化字段）
+                OzonPosting.has_tracking_number == True,
                 # 无国内单号 OR operation_status='allocated'（后者覆盖删除国内单号的情况）
                 or_(
-                    ~exists(
-                        select(1).where(
-                            OzonDomesticTracking.posting_id == OzonPosting.id
-                        )
-                    ),
+                    OzonPosting.has_domestic_tracking == False,
                     OzonPosting.operation_status == 'allocated'
                 ),
                 # 排除已废弃状态
@@ -1116,17 +1109,13 @@ async def get_packing_stats(
         stats['allocating'] = result.scalar() or 0
 
         # 3. 已分配：status in ['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver'] AND 有追踪号码 AND (无国内单号 OR operation_status='allocated') AND NOT cancelled
+        # 优化：使用反范式化字段替代 JSONB 和 EXISTS 查询
         count_query = select(func.count(OzonPosting.id)).where(
             OzonPosting.status.in_(['awaiting_packaging', 'awaiting_registration', 'awaiting_deliver']),
             OzonPosting.status != 'cancelled',
-            OzonPosting.raw_payload['tracking_number'].astext.isnot(None),
-            OzonPosting.raw_payload['tracking_number'].astext != '',
+            OzonPosting.has_tracking_number == True,
             or_(
-                ~exists(
-                    select(1).where(
-                        OzonDomesticTracking.posting_id == OzonPosting.id
-                    )
-                ),
+                OzonPosting.has_domestic_tracking == False,
                 OzonPosting.operation_status == 'allocated'
             ),
             OzonPosting.operation_status != 'cancelled',

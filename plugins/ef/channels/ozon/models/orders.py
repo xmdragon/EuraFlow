@@ -419,9 +419,11 @@ class OzonPosting(Base):
         # 去重并过滤空值
         return list(set(filter(None, tracking_numbers)))
 
-    def has_tracking_number(self) -> bool:
+    def check_has_tracking(self) -> bool:
         """
-        判断是否有追踪号码
+        判断是否有追踪号码（从 raw_payload 动态检查）
+
+        注意：优先使用 has_tracking_number 字段（反范式化），避免 JSONB 解析
 
         Returns:
             True如果有任何追踪号码，否则False

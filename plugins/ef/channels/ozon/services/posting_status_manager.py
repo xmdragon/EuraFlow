@@ -106,9 +106,9 @@ class PostingStatusManager:
 
         # 复杂逻辑：awaiting_deliver 根据字段存在性判断
         if ozon_status == "awaiting_deliver":
-            # 根据追踪号码和国内单号判断
-            has_tracking = posting.has_tracking_number()
-            has_domestic = bool(posting.get_domestic_tracking_numbers())
+            # 使用反范式化字段（避免 JSONB 查询和 EXISTS 子查询）
+            has_tracking = posting.has_tracking_number
+            has_domestic = posting.has_domestic_tracking
 
             if not has_tracking:
                 new_status = "allocating"  # 无追踪号码 → 分配中
@@ -199,8 +199,8 @@ class PostingStatusManager:
                     "old_operation_status": old_status,
                     "new_operation_status": new_status,
                     "source": source,
-                    "has_tracking": posting.has_tracking_number(),
-                    "has_domestic": bool(posting.get_domestic_tracking_numbers())
+                    "has_tracking": posting.has_tracking_number,
+                    "has_domestic": posting.has_domestic_tracking
                 }
             )
         else:

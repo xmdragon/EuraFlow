@@ -335,10 +335,11 @@ class PostingOperationsService:
         ]
         self.db.add_all(tracking_records)
 
-        # 6. 更新元数据
+        # 6. 更新元数据和反范式化字段
         if order_notes is not None:
             posting.order_notes = order_notes
         posting.operation_time = utcnow()
+        posting.has_domestic_tracking = True  # 反范式化字段（避免 EXISTS 子查询）
 
         # 7. 更新操作状态为"单号确认"
         posting.operation_status = "tracking_confirmed"

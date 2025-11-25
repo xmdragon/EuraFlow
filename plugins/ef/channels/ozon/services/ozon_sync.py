@@ -1605,6 +1605,10 @@ class OzonSyncService:
         # 保存原始数据
         posting.raw_payload = posting_data
 
+        # 更新 has_tracking_number（反范式化字段，避免 JSONB 查询）
+        tracking_number = posting_data.get("tracking_number")
+        posting.has_tracking_number = bool(tracking_number and tracking_number.strip())
+
         # ✅ 先 flush posting，确保 posting.id 有值（_sync_packages 需要 posting.id）
         await db.flush()
 

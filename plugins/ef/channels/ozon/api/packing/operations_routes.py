@@ -584,7 +584,8 @@ async def update_domestic_tracking(
             )
             db.add(new_tracking)
 
-        # 4. 如果清空了所有国内单号，自动将状态改为"已分配"
+        # 4. 更新反范式化字段和状态
+        posting.has_domestic_tracking = len(valid_numbers) > 0
         if len(valid_numbers) == 0:
             posting.operation_status = "allocated"
             logger.info(f"清空国内单号，将状态改为已分配: {posting_number}")
