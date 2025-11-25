@@ -42,8 +42,9 @@ export const useProductOperations = (selectedShop: number | null) => {
       return `${current} (${progress}%)`;
     },
     formatSuccessMessage: (result) => {
-      const updatedCount = result?.updated_count || result?.updated || 0;
-      const errors = result?.errors || [];
+      const r = result as { updated_count?: number; updated?: number; errors?: unknown[] } | undefined;
+      const updatedCount = r?.updated_count || r?.updated || 0;
+      const errors = r?.errors || [];
       const isSingle = updatedCount === 1 && errors.length === 0;
 
       if (errors.length > 0) {
@@ -85,8 +86,9 @@ export const useProductOperations = (selectedShop: number | null) => {
       return `${current} (${progress}%)`;
     },
     formatSuccessMessage: (result) => {
-      const updatedCount = result?.updated_count || result?.updated || 0;
-      const errors = result?.errors || [];
+      const r = result as { updated_count?: number; updated?: number; errors?: unknown[] } | undefined;
+      const updatedCount = r?.updated_count || r?.updated || 0;
+      const errors = r?.errors || [];
       const isSingle = updatedCount === 1 && errors.length === 0;
 
       if (errors.length > 0) {

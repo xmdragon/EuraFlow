@@ -359,9 +359,10 @@ const ChatDetail: React.FC = () => {
 
     try {
       const response = await ozonApi.downloadChatCsv(Number(shopId), url);
+      const responseData = response as { data: Blob; headers: Record<string, string> };
 
       // 解析CSV
-      const text = await response.data.text();
+      const text = await responseData.data.text();
       const parsedData = parseCsv(text);
 
       setCsvData(parsedData);
@@ -380,17 +381,18 @@ const ChatDetail: React.FC = () => {
   const handleDownloadCsv = async (url: string) => {
     try {
       const response = await ozonApi.downloadChatCsv(Number(shopId), url);
+      const responseData = response as { data: Blob; headers: Record<string, string> };
 
       // 创建下载链接
-      const blob = new Blob([response.data], {
-        type: response.headers['content-type'] || 'text/csv',
+      const blob = new Blob([responseData.data], {
+        type: responseData.headers['content-type'] || 'text/csv',
       });
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
 
       // 从Content-Disposition提取文件名，或使用默认名称
-      const contentDisposition = response.headers['content-disposition'];
+      const contentDisposition = responseData.headers['content-disposition'];
       let filename = 'report.csv';
       if (contentDisposition && contentDisposition.includes('filename=')) {
         filename = contentDisposition.split('filename=')[1].replace(/"/g, '');

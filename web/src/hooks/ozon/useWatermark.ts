@@ -55,15 +55,16 @@ export const useWatermark = (selectedShop: number | null) => {
       return `${info.current || '处理中...'} (${info.percent || 0}%)`;
     },
     formatSuccessMessage: (result) => {
-      if (result.failed > 0) {
+      const r = result as { completed?: number; failed?: number } | undefined;
+      if (r?.failed && r.failed > 0) {
         return {
           title: '水印批处理完成',
-          description: `成功处理 ${result.completed} 个商品，失败 ${result.failed} 个商品`,
+          description: `成功处理 ${r.completed || 0} 个商品，失败 ${r.failed} 个商品`,
         };
       }
       return {
         title: '水印批处理成功',
-        description: `已成功为 ${result.completed} 个商品添加水印`,
+        description: `已成功为 ${r?.completed || 0} 个商品添加水印`,
       };
     },
     onSuccess: () => {

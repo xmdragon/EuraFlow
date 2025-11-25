@@ -95,6 +95,7 @@ const FinanceTransactions: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ozonApi.Order | null>(null);
   const [selectedPosting, setSelectedPosting] = useState<ozonApi.Posting | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   // 货币和状态配置
   const { currency: userCurrency } = useCurrency();

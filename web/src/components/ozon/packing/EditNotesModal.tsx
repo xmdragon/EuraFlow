@@ -3,10 +3,11 @@
  */
 import React from 'react';
 import { Modal, Form, Input } from 'antd';
+import type { PostingWithOrder } from '@/services/ozon/types/order';
 
 interface EditNotesModalProps {
   visible: boolean;
-  posting: unknown | null;
+  posting: PostingWithOrder | null;
   onClose: () => void;
   onSave: () => Promise<void>;
   loading: boolean;

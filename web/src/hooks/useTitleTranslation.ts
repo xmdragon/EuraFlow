@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import type { FormInstance } from 'antd';
 import type { CategoryAttribute, DictionaryValue } from '@/services/ozon';
-import type { ProductVariant } from '@/hooks/useVariantManager';
+import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager';
 import * as productTitleService from '@/services/ozon/productTitleService';
 import { notifySuccess, notifyError, notifyWarning } from '@/utils/notification';
 import type { CategoryOption } from './useCategoryManager';
@@ -16,7 +16,7 @@ export interface UseTitleTranslationProps {
   categoryTree: CategoryOption[];
   categoryAttributes: CategoryAttribute[];
   dictionaryValuesCache: Record<number, DictionaryValue[]>;
-  variantDimensions: Array<{ attribute_id: number }>;
+  variantDimensions: VariantDimension[];
   variants: ProductVariant[];
 }
 

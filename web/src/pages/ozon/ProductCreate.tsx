@@ -40,7 +40,8 @@ import * as draftTemplateApi from '@/services/draftTemplateApi';
 import { useFormAutosave } from '@/hooks/useFormAutosave';
 import { loggers } from '@/utils/logger';
 import { useVariantManager } from '@/hooks/useVariantManager';
-import type { ProductVariant } from '@/hooks/useVariantManager';
+import type { ProductVariant, VariantDimension } from '@/hooks/useVariantManager';
+import type { VideoInfo } from '@/services/ozon/types/listing';
 import { VariantTable } from './components/VariantTable';
 import { useDraftTemplate } from '@/hooks/useDraftTemplate';
 import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
@@ -177,10 +178,13 @@ const ProductCreate: React.FC = () => {
     timeout: 5 * 60 * 1000, // 5分钟超时
     notificationKey: 'product-import',
     initialMessage: '商品导入中',
-    formatSuccessMessage: (result) => ({
-      title: '导入成功',
-      description: `商品已成功导入OZON平台！SKU: ${result.sku || 'N/A'}`,
-    }),
+    formatSuccessMessage: (result) => {
+      const r = result as { sku?: string } | undefined;
+      return {
+        title: '导入成功',
+        description: `商品已成功导入OZON平台！SKU: ${r?.sku || 'N/A'}`,
+      };
+    },
     onSuccess: () => {
       // 刷新商品列表
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -465,15 +469,15 @@ const ProductCreate: React.FC = () => {
     // 恢复视频
     if (data.videos && data.videos.length > 0) {
       videoManager.clearVideos();
-      data.videos.forEach((video) => videoManager.addVideo(video));
+      data.videos.forEach((video) => videoManager.addVideo(video as VideoInfo));
     }
 
     // 恢复变体
     if (data.variantDimensions) {
-      variantManager.setVariantDimensions(data.variantDimensions);
+      variantManager.setVariantDimensions(data.variantDimensions as VariantDimension[]);
     }
     if (data.variants) {
-      variantManager.setVariants(data.variants);
+      variantManager.setVariants(data.variants as ProductVariant[]);
     }
     if (data.hiddenFields) variantManager.setHiddenFields(new Set(data.hiddenFields));
 

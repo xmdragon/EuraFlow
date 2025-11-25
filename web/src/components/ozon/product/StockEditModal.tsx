@@ -17,6 +17,12 @@ export interface WarehouseStock {
   reserved: number;
 }
 
+interface Warehouse {
+  warehouse_id: number;
+  name: string;
+  is_rfbs: boolean;
+}
+
 export interface Product {
   offer_id: string;
   warehouse_stocks?: WarehouseStock[];
@@ -43,7 +49,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
   shopId,
 }) => {
   const [form] = Form.useForm();
-  const [warehouses, setWarehouses] = useState<unknown[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(false);
   const [currentStock, setCurrentStock] = useState<number | null>(null);
 
@@ -95,7 +101,7 @@ export const StockEditModal: React.FC<StockEditModalProps> = ({
           apply_to_all: true,
           ...values,
         },
-      ] as unknown);
+      ]);
       return;
     }
 

@@ -6,6 +6,8 @@
  * 商品图片
  */
 export interface ProductImages {
+  primary?: string;
+  additional?: string[];
   [key: string]: unknown;
 }
 

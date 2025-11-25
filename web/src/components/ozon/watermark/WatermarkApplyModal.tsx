@@ -24,6 +24,9 @@ export interface WatermarkPreviewImage {
   original_url: string;
   url?: string;
   image_index?: number;
+  suggested_position?: string; // 后端建议的水印位置
+  manual_position?: string; // 用户手动选择的位置
+  error?: string; // 图片处理错误信息
 }
 
 // 水印预览商品接口
@@ -64,7 +67,7 @@ export interface WatermarkApplyModalProps {
     productIds: number[],
     configId: number,
     analyzeMode: 'individual' | 'fast'
-  ) => Promise<WatermarkPreview[]>;
+  ) => Promise<{ previews: WatermarkPreview[] }>;
 }
 
 /**

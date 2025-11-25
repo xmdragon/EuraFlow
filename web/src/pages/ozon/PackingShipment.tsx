@@ -27,6 +27,7 @@ import {
   Typography,
   App,
 } from 'antd';
+import type { InputRef } from 'antd';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -182,7 +183,7 @@ const PackingShipment: React.FC = () => {
   const [currentPrintingPostings, setCurrentPrintingPostings] = useState<string[]>([]); // 批量打印的postings
 
   // 扫描输入框的 ref，用于重新聚焦
-  const scanInputRef = React.useRef<HTMLInputElement>(null);
+  const scanInputRef = React.useRef<InputRef>(null);
 
   // 图片预览状态
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
@@ -389,6 +390,9 @@ const PackingShipment: React.FC = () => {
             flattened.push({
               ...posting,
               order: order, // 关联完整的订单信息
+              shop_id: order.shop_id,
+              items: posting.items || order.items,
+              tracking_number: posting.tracking_number || order.tracking_number,
             });
           });
         } else {

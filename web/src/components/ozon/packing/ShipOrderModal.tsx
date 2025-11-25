@@ -5,6 +5,7 @@
 import React from 'react';
 import { Modal, Form, Input, Select, Alert, Button, Space } from 'antd';
 import type { FormInstance } from 'antd';
+import type { Order, PostingWithOrder } from '@/services/ozon/types/order';
 
 import styles from '../../../pages/ozon/PackingShipment.module.scss';
 
@@ -13,8 +14,8 @@ const { Option } = Select;
 interface ShipOrderModalProps {
   visible: boolean;
   form: FormInstance;
-  order: unknown | null;
-  posting: unknown | null;
+  order: Order | null;
+  posting: PostingWithOrder | null;
   onClose: () => void;
   onSubmit: (values: { tracking_number: string; carrier_code: string }) => void;
   loading: boolean;

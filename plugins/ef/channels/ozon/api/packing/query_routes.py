@@ -804,22 +804,42 @@ async def search_posting_by_tracking(
 
         else:
             # 规则3: 纯数字 或 字母开头+数字 → 国内单号（结尾是数字）
-            # 可能匹配多个posting，返回所有结果
+            # 可能匹配多个posting，返回最近7天的结果（限制最多50个）
+            # 场景：666666 等内部单号用于标记库存商品，会关联大量 posting
             logger.info(f"识别为国内单号（纯数字或字母开头+数字）: {search_value}")
-            # 通过关联表查询，返回所有匹配的posting
-            result = await db.execute(
-                select(OzonPosting)
-                .options(
-                    selectinload(OzonPosting.packages),
-                    selectinload(OzonPosting.domestic_trackings),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.postings).selectinload(OzonPosting.packages),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.items),
-                    selectinload(OzonPosting.order).selectinload(OzonOrder.refunds)
-                )
+
+            # 优化：添加7天时间过滤，避免查询大量历史数据
+            from datetime import timedelta
+            time_threshold = datetime.now(timezone.utc) - timedelta(days=7)
+
+            # 先查询 posting IDs（带时间过滤），再批量加载关联数据
+            id_result = await db.execute(
+                select(OzonPosting.id)
                 .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
-                .where(OzonDomesticTracking.tracking_number == search_value)
+                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
+                .where(
+                    OzonDomesticTracking.tracking_number == search_value,
+                    OzonOrder.ordered_at >= time_threshold  # 只查询7天内的订单
+                )
+                .order_by(OzonOrder.ordered_at.desc())
+                .limit(50)
             )
-            postings = result.scalars().all()
+            posting_ids = [row[0] for row in id_result.fetchall()]
+
+            if posting_ids:
+                # 只对要返回的 posting 进行 selectinload
+                result = await db.execute(
+                    select(OzonPosting)
+                    .options(
+                        selectinload(OzonPosting.packages),
+                        selectinload(OzonPosting.domestic_trackings),
+                        selectinload(OzonPosting.order)
+                    )
+                    .where(OzonPosting.id.in_(posting_ids))
+                )
+                postings = result.scalars().all()
+            else:
+                postings = []
 
         if not postings:
             raise HTTPException(status_code=404, detail=f"未找到单号为 {tracking_number} 的货件")

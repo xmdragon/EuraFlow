@@ -538,30 +538,32 @@ export const useProductSelection = (): UseProductSelectionReturn => {
   const handleSearch = (values: Record<string, unknown>) => {
     const params: api.ProductSearchParams = {};
 
-    if (values.brand) params.brand = values.brand;
-    if (values.monthly_sales_min) params.monthly_sales_min = values.monthly_sales_min;
-    if (values.monthly_sales_max) params.monthly_sales_max = values.monthly_sales_max;
-    if (values.weight_max) params.weight_max = values.weight_max;
-    if (values.competitor_count_min) params.competitor_count_min = values.competitor_count_min;
-    if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max;
+    if (values.brand) params.brand = values.brand as string;
+    if (values.monthly_sales_min) params.monthly_sales_min = values.monthly_sales_min as number;
+    if (values.monthly_sales_max) params.monthly_sales_max = values.monthly_sales_max as number;
+    if (values.weight_max) params.weight_max = values.weight_max as number;
+    if (values.competitor_count_min) params.competitor_count_min = values.competitor_count_min as number;
+    if (values.competitor_count_max) params.competitor_count_max = values.competitor_count_max as number;
     if (values.competitor_min_price_min)
-      params.competitor_min_price_min = values.competitor_min_price_min;
+      params.competitor_min_price_min = values.competitor_min_price_min as number;
     if (values.competitor_min_price_max)
-      params.competitor_min_price_max = values.competitor_min_price_max;
+      params.competitor_min_price_max = values.competitor_min_price_max as number;
     if (values.listing_date) {
       // 直接使用日期字符串，不进行时区转换
-      params.listing_date_start = values.listing_date.format('YYYY-MM-DD');
+      const listingDate = values.listing_date as { format: (fmt: string) => string };
+      params.listing_date_start = listingDate.format('YYYY-MM-DD');
     }
-    if (values.sort_by) params.sort_by = values.sort_by;
+    if (values.sort_by) params.sort_by = values.sort_by as api.ProductSearchParams['sort_by'];
 
     if (!searchParams.batch_id) {
       params.is_read = false;
     }
 
     if (rememberFilters) {
+      const listingDate = values.listing_date as { format?: (fmt: string) => string } | undefined;
       const filtersToSave = {
         ...values,
-        listing_date: values.listing_date ? values.listing_date.format('YYYY-MM-DD') : undefined,
+        listing_date: listingDate?.format ? listingDate.format('YYYY-MM-DD') : undefined,
       };
       localStorage.setItem('productSelectionFilters', JSON.stringify(filtersToSave));
     }

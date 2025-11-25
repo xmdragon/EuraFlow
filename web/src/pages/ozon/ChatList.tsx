@@ -275,7 +275,7 @@ const ChatList: React.FC = () => {
       try {
         // 启动异步任务
         const taskResponse = await ozonApi.syncChats(shop.id);
-        const taskId = taskResponse.task_id;
+        const taskId = (taskResponse as { task_id?: string }).task_id;
 
         if (!taskId) {
           results.push({
@@ -370,7 +370,7 @@ const ChatList: React.FC = () => {
         // 这里不需要再做任何处理
       } else {
         // 单店铺模式的结果（异步任务模式）
-        const taskId = data.task_id;
+        const taskId = (data as { task_id?: string }).task_id;
         if (taskId) {
           // 开始轮询任务状态
           pollChatSyncStatus(taskId);

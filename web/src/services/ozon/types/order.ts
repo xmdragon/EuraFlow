@@ -51,6 +51,7 @@ export interface Posting {
   cancelled_at?: string;
   packages?: ShipmentPackage[];
   products?: OrderItem[]; // 该 posting 的商品列表（从 raw_payload 提取）
+  items?: OrderItem[]; // 该 posting 的商品列表（别名，与 products 相同）
   /** @deprecated 使用 domestic_tracking_numbers 代替 */
   domestic_tracking_number?: string; // 国内物流单号（常用字段，提升到 Posting）
   domestic_tracking_numbers?: string[]; // 国内物流单号列表（一对多关系）

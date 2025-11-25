@@ -201,7 +201,8 @@ const CancelReturn: React.FC = () => {
     notificationKey: 'cancellation-sync',
     initialMessage: '取消申请同步进行中',
     onSuccess: (result) => {
-      notifySuccess(`取消申请同步完成：${result.result?.records_synced || 0} 条记录`);
+      const r = result as { result?: { records_synced?: number } } | undefined;
+      notifySuccess(`取消申请同步完成：${r?.result?.records_synced || 0} 条记录`);
       refetchCancellations();
     },
     onFailure: (error) => {
@@ -229,7 +230,8 @@ const CancelReturn: React.FC = () => {
     notificationKey: 'return-sync',
     initialMessage: '退货申请同步进行中',
     onSuccess: (result) => {
-      notifySuccess(`退货申请同步完成：${result.result?.records_synced || 0} 条记录`);
+      const r = result as { result?: { records_synced?: number } } | undefined;
+      notifySuccess(`退货申请同步完成：${r?.result?.records_synced || 0} 条记录`);
       refetchReturns();
     },
     onFailure: (error) => {
@@ -242,14 +244,14 @@ const CancelReturn: React.FC = () => {
     try {
       if (activeTab === 'cancellations') {
         // 启动取消申请同步
-        const response = await ozonApi.syncCancellations(selectedShop);
+        const response = await ozonApi.syncCancellations(selectedShop) as { data: { task_id: string } };
         const taskId = response.data.task_id;
 
         // 开始轮询任务状态
         startCancellationSync(taskId);
       } else {
         // 启动退货申请同步
-        const response = await ozonApi.syncReturns(selectedShop);
+        const response = await ozonApi.syncReturns(selectedShop) as { data: { task_id: string } };
         const taskId = response.data.task_id;
 
         // 开始轮询任务状态

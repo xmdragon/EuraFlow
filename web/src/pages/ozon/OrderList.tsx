@@ -150,7 +150,16 @@ const OrderList: React.FC = () => {
   const [selectedProductName, setSelectedProductName] = useState<string>('');
 
   // 搜索参数状态
-  const [searchParams, setSearchParams] = useState<Record<string, unknown>>({});
+  interface OrderSearchParams {
+    shop_id?: number;
+    posting_number?: string;
+    status?: string;
+    operation_status?: string;
+    date_from?: string;
+    date_to?: string;
+    [key: string]: unknown;
+  }
+  const [searchParams, setSearchParams] = useState<OrderSearchParams>({});
 
   // 批量打印标签状态
   const [selectedPostingNumbers, setSelectedPostingNumbers] = useState<string[]>([]);
@@ -236,6 +245,11 @@ const OrderList: React.FC = () => {
             flattened.push({
               ...posting,
               order: order, // 关联完整的订单信息
+              // 提升常用字段到 posting 级别便于访问
+              shop_id: order.shop_id,
+              items: posting.products || order.items,
+              ordered_at: order.ordered_at,
+              delivery_method: order.delivery_method,
             });
           }
         });
@@ -256,6 +270,11 @@ const OrderList: React.FC = () => {
             packages_count: 1,
             is_cancelled: order.status === 'cancelled',
             order: order,
+            // 提升常用字段到 posting 级别便于访问
+            shop_id: order.shop_id,
+            items: order.items,
+            ordered_at: order.ordered_at,
+            delivery_method: order.delivery_method,
           } as ozonApi.PostingWithOrder);
         }
       }
@@ -824,14 +843,16 @@ const OrderList: React.FC = () => {
           }
         } catch (error: unknown) {
           loggers.ozon.error(`店铺 ${shop.shop_name} 同步失败`, error);
-          notifyWarning('同步失败', `店铺 ${shop.shop_name} 同步失败: ${error.message}`);
+          const errMsg = error instanceof Error ? error.message : '未知错误';
+          notifyWarning('同步失败', `店铺 ${shop.shop_name} 同步失败: ${errMsg}`);
         }
       }
 
       notifySuccess('批量同步完成', `已启动 ${shops.length} 个店铺的订单同步任务`);
     } catch (error: unknown) {
       loggers.ozon.error('批量同步失败', error);
-      notifyError('批量同步失败', error.message);
+      const errMsg = error instanceof Error ? error.message : '未知错误';
+      notifyError('批量同步失败', errMsg);
     } finally {
       setIsBatchSyncing(false);
       setBatchSyncProgress({ current: 0, total: 0, shopName: '' });

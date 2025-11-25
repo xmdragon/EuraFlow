@@ -24,6 +24,13 @@ interface Variant {
   link?: string;
 }
 
+interface ProductDimensions {
+  length?: number;
+  width?: number;
+  height?: number;
+  weight?: number;
+}
+
 interface CollectionRecordData {
   id: number;
   user_id: number;
@@ -42,6 +49,7 @@ interface CollectionRecordData {
     specifications?: Record<string, unknown>;
     variants?: Variant[];
     has_variants?: boolean;
+    dimensions?: ProductDimensions;
     [key: string]: unknown;
   };
   created_at: string;
