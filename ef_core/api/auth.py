@@ -148,6 +148,8 @@ async def get_current_user_flexible(
     获取当前认证用户（支持 JWT Token 或 API Key）
 
     优先检查 API Key (X-API-Key header)，如果不存在则尝试 JWT Token
+
+    性能优化：从 JWT 中读取 shop_ids，避免数据库查询
     """
     # 1. 尝试 API Key 认证
     user = await get_current_user_from_api_key(request, session)
@@ -196,9 +198,15 @@ async def get_current_user_flexible(
                 detail="User not found or inactive"
             )
 
+        # 从 JWT 缓存 shop_ids 到用户对象（避免后续数据库查询）
+        shop_ids_from_jwt = payload.get("shop_ids")
+        if shop_ids_from_jwt is not None:
+            user._cached_shop_ids = shop_ids_from_jwt
+
         # 设置请求状态（供中间件使用）
         request.state.user_id = user.id
         request.state.shop_id = user.primary_shop_id
+        request.state.shop_ids = shop_ids_from_jwt  # None 表示 admin
         request.state.permissions = user.permissions
         request.state.auth_method = "jwt"
 
@@ -219,7 +227,10 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_async_session)
 ) -> User:
-    """获取当前认证用户（JWT Token）"""
+    """获取当前认证用户（JWT Token）
+
+    性能优化：从 JWT 中读取 shop_ids，避免数据库查询
+    """
     auth_service = get_auth_service()
 
     try:
@@ -253,9 +264,15 @@ async def get_current_user(
                 detail="User not found or inactive"
             )
 
+        # 从 JWT 缓存 shop_ids 到用户对象（避免后续数据库查询）
+        shop_ids_from_jwt = payload.get("shop_ids")
+        if shop_ids_from_jwt is not None:
+            user._cached_shop_ids = shop_ids_from_jwt
+
         # 设置请求状态（供中间件使用）
         request.state.user_id = user.id
         request.state.shop_id = user.primary_shop_id
+        request.state.shop_ids = shop_ids_from_jwt  # None 表示 admin
         request.state.permissions = user.permissions
         request.state.auth_method = "jwt"
 

@@ -7,8 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from decimal import Decimal
 import logging
+import json
+import hashlib
+import redis.asyncio as redis
 
 from ef_core.database import get_async_session
+from ef_core.config import get_settings
 from ef_core.models.users import User
 from ef_core.middleware.auth import require_role
 from ef_core.api.auth import get_current_user_flexible
@@ -19,6 +23,23 @@ from .permissions import filter_by_shop_permission, build_shop_filter_condition
 
 router = APIRouter(tags=["ozon-orders"])
 logger = logging.getLogger(__name__)
+
+# Redis 缓存配置
+ORDER_STATS_CACHE_TTL = 1800  # 30分钟
+_redis_client: Optional[redis.Redis] = None
+
+
+async def get_redis_client() -> redis.Redis:
+    """获取 Redis 客户端（懒加载单例）"""
+    global _redis_client
+    if _redis_client is None:
+        settings = get_settings()
+        _redis_client = redis.from_url(
+            settings.redis_url,
+            encoding="utf-8",
+            decode_responses=True
+        )
+    return _redis_client
 
 
 @router.get("/orders")
@@ -285,6 +306,133 @@ async def get_orders(
         "stats": global_stats,  # 全局统计数据
         "offer_id_images": offer_id_images  # 额外返回offer_id图片映射，前端可选使用
     }
+
+
+@router.get("/orders/stats")
+async def get_order_stats(
+    shop_id: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(get_current_user_flexible)
+):
+    """获取订单状态统计（带 Redis 缓存，TTL 30分钟）
+
+    独立的统计 API，前端可与订单列表 API 并行调用以提升性能。
+
+    权限控制：
+    - admin: 可以访问所有店铺的统计
+    - operator/viewer: 只能访问已授权店铺的统计
+
+    缓存策略：
+    - 缓存键基于 shop_id + date_from + date_to + 用户权限
+    - TTL: 30分钟
+    - 订单同步后自动失效（通过版本号或时间）
+    """
+    from datetime import timedelta
+
+    # 权限过滤：根据用户角色过滤店铺
+    try:
+        allowed_shop_ids = await filter_by_shop_permission(current_user, db, shop_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    # 构建缓存键
+    cache_key_parts = [
+        "ef:order_stats",
+        f"shop:{shop_id or 'all'}",
+        f"from:{date_from or 'none'}",
+        f"to:{date_to or 'none'}",
+        f"perm:{','.join(map(str, sorted(allowed_shop_ids))) if allowed_shop_ids else 'admin'}"
+    ]
+    cache_key = hashlib.md5(":".join(cache_key_parts).encode()).hexdigest()
+    cache_key = f"ef:order_stats:{cache_key}"
+
+    # 尝试从缓存获取
+    try:
+        redis_client = await get_redis_client()
+        cached = await redis_client.get(cache_key)
+        if cached:
+            logger.debug(f"订单统计命中缓存: {cache_key}")
+            return json.loads(cached)
+    except Exception as e:
+        logger.warning(f"Redis 缓存读取失败: {e}")
+
+    # 获取全局时区设置（用于日期过滤）
+    global_timezone = await get_global_timezone(db)
+
+    # 构建店铺过滤条件
+    shop_filter = build_shop_filter_condition(OzonPosting, allowed_shop_ids)
+
+    # 解析日期范围
+    start_date = None
+    end_date = None
+    if date_from:
+        try:
+            start_date = parse_date_with_timezone(date_from, global_timezone)
+        except Exception as e:
+            logger.warning(f"Failed to parse date_from: {date_from}, error: {e}")
+
+    if date_to:
+        try:
+            end_date = parse_date_with_timezone(date_to, global_timezone)
+            if end_date and 'T' not in date_to:
+                end_date = end_date + timedelta(hours=23, minutes=59, seconds=59, microseconds=999999)
+        except Exception as e:
+            logger.warning(f"Failed to parse date_to: {date_to}, error: {e}")
+
+    # 计算全局统计（按状态分组）
+    stats_query = select(
+        OzonPosting.status,
+        func.count(OzonPosting.id).label('count')
+    )
+    if shop_filter is not True:
+        stats_query = stats_query.where(shop_filter)
+    if start_date:
+        stats_query = stats_query.where(OzonPosting.in_process_at >= start_date)
+    if end_date:
+        stats_query = stats_query.where(OzonPosting.in_process_at <= end_date)
+    stats_query = stats_query.group_by(OzonPosting.status)
+
+    stats_result = await db.execute(stats_query)
+    status_counts = {row.status: row.count for row in stats_result}
+
+    # 查询"已废弃"posting数量（operation_status='cancelled'）
+    discarded_query = select(func.count(OzonPosting.id))
+    discarded_query = discarded_query.where(OzonPosting.operation_status == 'cancelled')
+    if shop_filter is not True:
+        discarded_query = discarded_query.where(shop_filter)
+    if start_date:
+        discarded_query = discarded_query.where(OzonPosting.in_process_at >= start_date)
+    if end_date:
+        discarded_query = discarded_query.where(OzonPosting.in_process_at <= end_date)
+
+    discarded_result = await db.execute(discarded_query)
+    discarded_count = discarded_result.scalar() or 0
+
+    # 构建统计数据
+    stats = {
+        "total": sum(status_counts.values()),
+        "discarded": discarded_count,
+        "awaiting_packaging": status_counts.get('awaiting_packaging', 0),
+        "awaiting_deliver": status_counts.get('awaiting_deliver', 0),
+        "awaiting_registration": status_counts.get('awaiting_registration', 0),
+        "delivering": status_counts.get('delivering', 0),
+        "delivered": status_counts.get('delivered', 0),
+        "cancelled": status_counts.get('cancelled', 0),
+    }
+
+    result = {"stats": stats, "cached": False}
+
+    # 写入缓存
+    try:
+        result_cached = {"stats": stats, "cached": True}
+        await redis_client.setex(cache_key, ORDER_STATS_CACHE_TTL, json.dumps(result_cached))
+        logger.debug(f"订单统计已缓存: {cache_key}, TTL={ORDER_STATS_CACHE_TTL}s")
+    except Exception as e:
+        logger.warning(f"Redis 缓存写入失败: {e}")
+
+    return result
 
 
 @router.put("/orders/{posting_number}/extra-info")

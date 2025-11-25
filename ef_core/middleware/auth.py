@@ -123,11 +123,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     }
                 )
         
-        # 设置用户信息到请求状态
+        # 设置用户信息到请求状态（包含 shop_ids，避免后续数据库查询）
         request.state.user_id = user_info["user_id"]
         request.state.shop_id = user_info.get("shop_id")
+        request.state.shop_ids = user_info.get("shop_ids")  # None 表示 admin 可访问所有
         request.state.permissions = user_info.get("permissions", [])
-        
+        request.state.role = user_info.get("role", "viewer")
+
         # 继续处理请求
         return await call_next(request)
     
@@ -161,10 +163,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if jti and await auth_service.is_token_revoked(jti):
                 return None
             
-            # 返回用户信息
+            # 返回用户信息（包含 shop_ids）
             return {
                 "user_id": int(payload.get("sub")),
                 "shop_id": payload.get("shop_id"),
+                "shop_ids": payload.get("shop_ids"),  # None 表示 admin 可访问所有
                 "permissions": payload.get("permissions", []),
                 "role": payload.get("role", "viewer")
             }

@@ -7,6 +7,16 @@ from typing import Optional, Tuple
 from zoneinfo import ZoneInfo
 import logging
 import calendar
+import time
+import threading
+
+
+# ========== 全局时区缓存 ==========
+# 缓存结构: {"value": str, "expires_at": float}
+_timezone_cache: Optional[dict] = None
+_timezone_cache_lock = threading.Lock()
+# TTL: 1天 (86400秒)
+TIMEZONE_CACHE_TTL = 86400
 
 
 def utcnow() -> datetime:
@@ -181,9 +191,9 @@ def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
 
 async def get_global_timezone(db) -> str:
     """
-    获取系统全局时区设置
+    获取系统全局时区设置（带内存缓存，TTL 1天）
 
-    从 ozon_global_settings 表读取 default_timezone 配置。
+    优先使用内存缓存，避免每次请求都查询数据库。
 
     Args:
         db: 数据库会话（AsyncSession）
@@ -191,9 +201,20 @@ async def get_global_timezone(db) -> str:
     Returns:
         str: 时区名称（如 "Europe/Moscow"），默认 "UTC"
 
-    Note:
-        此函数需要数据库会话，通常在API路由中调用
+    性能优化:
+        - 使用内存缓存，TTL 1天
+        - 首次请求或缓存过期时查询数据库
+        - 管理员修改时区后调用 invalidate_timezone_cache() 清除缓存
     """
+    global _timezone_cache
+
+    # 检查缓存是否有效
+    with _timezone_cache_lock:
+        if _timezone_cache is not None:
+            if time.time() < _timezone_cache["expires_at"]:
+                return _timezone_cache["value"]
+
+    # 缓存过期或不存在，查询数据库
     from sqlalchemy import select
     from ..models.global_settings import OzonGlobalSetting
 
@@ -204,12 +225,34 @@ async def get_global_timezone(db) -> str:
             select(OzonGlobalSetting).where(OzonGlobalSetting.setting_key == "default_timezone")
         )
         setting = result.scalar_one_or_none()
+        timezone_value = "UTC"
         if setting and setting.setting_value:
-            return setting.setting_value.get("value", "UTC")
-        return "UTC"
+            timezone_value = setting.setting_value.get("value", "UTC")
+
+        # 更新缓存
+        with _timezone_cache_lock:
+            _timezone_cache = {
+                "value": timezone_value,
+                "expires_at": time.time() + TIMEZONE_CACHE_TTL
+            }
+
+        logger.debug(f"Global timezone cached: {timezone_value} (TTL: {TIMEZONE_CACHE_TTL}s)")
+        return timezone_value
     except Exception as e:
         logger.warning(f"Failed to get global timezone: {e}, using UTC as fallback")
         return "UTC"
+
+
+def invalidate_timezone_cache() -> None:
+    """
+    清除全局时区缓存
+
+    在管理员修改系统时区设置后调用此函数，确保下次请求获取最新值。
+    """
+    global _timezone_cache
+    with _timezone_cache_lock:
+        _timezone_cache = None
+    logging.getLogger(__name__).info("Global timezone cache invalidated")
 
 
 def calculate_date_range(

@@ -188,6 +188,11 @@ async def update_global_setting(
     await db.commit()
     await db.refresh(setting)
 
+    # 如果更新的是时区设置，清除时区缓存
+    if setting_key == "default_timezone":
+        from plugins.ef.channels.ozon.utils.datetime_utils import invalidate_timezone_cache
+        invalidate_timezone_cache()
+
     logger.info(
         f"Global setting updated",
         extra={

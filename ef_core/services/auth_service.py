@@ -234,13 +234,16 @@ class AuthService:
                 "updated_at": user.updated_at.isoformat()
             }
 
-            # 创建令牌
+            # 创建令牌（包含店铺权限，避免每次请求查询数据库）
+            # admin 用户 shop_ids 为 None（表示可访问所有店铺）
+            shop_ids = None if user.role == "admin" else [shop.id for shop in user.shops] if user.shops else []
             token_data = {
                 "sub": str(user.id),
                 "username": user.username,
                 "role": user.role,
                 "permissions": user.permissions,
-                "shop_id": user.primary_shop_id
+                "shop_id": user.primary_shop_id,
+                "shop_ids": shop_ids  # 存入 JWT，避免每次查询
             }
         
         access_token = self.create_access_token(token_data)
@@ -278,23 +281,25 @@ class AuthService:
             db_manager = get_db_manager()
             
             async with db_manager.get_session() as session:
-                stmt = select(User).where(User.id == int(user_id))
+                stmt = select(User).where(User.id == int(user_id)).options(selectinload(User.shops))
                 result = await session.execute(stmt)
                 user = result.scalar_one_or_none()
-                
+
                 if not user or not user.is_active:
                     raise UnauthorizedError(
                         code="USER_NOT_FOUND",
                         detail="User not found or inactive"
                     )
-                
-                # 创建新的访问令牌
+
+                # 创建新的访问令牌（包含店铺权限）
+                shop_ids = None if user.role == "admin" else [shop.id for shop in user.shops] if user.shops else []
                 token_data = {
                     "sub": str(user.id),
                     "username": user.username,
                     "role": user.role,
                     "permissions": user.permissions,
-                    "shop_id": user.primary_shop_id
+                    "shop_id": user.primary_shop_id,
+                    "shop_ids": shop_ids
                 }
                 
                 new_access_token = self.create_access_token(token_data)

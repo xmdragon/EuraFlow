@@ -4,6 +4,7 @@ Ozon API 客户端
 """
 
 import asyncio
+import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import hashlib
@@ -12,6 +13,7 @@ import hmac
 import httpx
 
 from ef_core.utils.logger import get_logger
+from ef_core.utils.external_api_timing import log_external_api_timing
 from .rate_limiter import RateLimiter
 
 logger = get_logger(__name__)
@@ -169,7 +171,13 @@ class OzonAPIClient:
                 f"Ozon API request: {method} {endpoint}", extra={"request_id": request_id, "shop_id": self.shop_id}
             )
 
+            # 记录外部 API 调用开始时间
+            api_start = time.perf_counter()
+
             response = await self.client.request(method=method, url=endpoint, json=data, params=params, headers=headers)
+
+            # 记录外部 API 调用耗时
+            api_elapsed_ms = (time.perf_counter() - api_start) * 1000
 
             # 检查响应状态
             if response.status_code == 429:
@@ -196,15 +204,24 @@ class OzonAPIClient:
                 )
                 raise ValueError(f"OZON API返回了无法解码的响应 (UTF-8错误)，可能返回了二进制数据") from e
 
-            # 记录成功
+            # 记录成功（含外部 API 耗时）
             logger.info(
                 f"Ozon API success: {method} {endpoint}",
                 extra={"request_id": request_id, "status_code": response.status_code},
             )
 
+            # 写入外部 API 计时日志
+            log_external_api_timing(
+                "OZON", method, endpoint, api_elapsed_ms,
+                f"shop={self.shop_id}"
+            )
+
             return result
 
         except httpx.HTTPStatusError as e:
+            # 记录外部 API 耗时（即使失败也记录）
+            api_elapsed_ms = (time.perf_counter() - api_start) * 1000
+
             # 安全地获取响应内容（避免二进制PDF解码错误）
             try:
                 response_content = e.response.text
@@ -219,6 +236,12 @@ class OzonAPIClient:
                 extra={"request_id": request_id, "response": response_content},
             )
 
+            # 写入外部 API 计时日志（错误情况）
+            log_external_api_timing(
+                "OZON", method, endpoint, api_elapsed_ms,
+                f"shop={self.shop_id} | ERROR={e.response.status_code}"
+            )
+
             # 尝试解析JSON错误响应（OZON API通常返回JSON格式的错误）
             try:
                 error_json = e.response.json()
@@ -229,6 +252,13 @@ class OzonAPIClient:
                 # 如果不是JSON，继续抛出异常
                 raise
         except Exception as e:
+            # 记录外部 API 耗时（如果已经开始计时）
+            if 'api_start' in locals():
+                api_elapsed_ms = (time.perf_counter() - api_start) * 1000
+                log_external_api_timing(
+                    "OZON", method, endpoint, api_elapsed_ms,
+                    f"shop={self.shop_id} | EXCEPTION={type(e).__name__}"
+                )
             logger.error(f"Ozon API request failed: {str(e)}", extra={"request_id": request_id})
             raise
 
@@ -787,12 +817,18 @@ class OzonAPIClient:
                 extra={"request_id": request_id, "shop_id": self.shop_id}
             )
 
+            # 记录外部 API 调用开始时间
+            api_start = time.perf_counter()
+
             response = await self.client.request(
                 method="POST",
                 url="/v2/posting/fbs/package-label",
                 json=payload,
                 headers=headers
             )
+
+            # 记录外部 API 调用耗时
+            api_elapsed_ms = (time.perf_counter() - api_start) * 1000
 
             response.raise_for_status()
 
@@ -805,6 +841,12 @@ class OzonAPIClient:
                 extra={"request_id": request_id, "pdf_size": len(response.content)}
             )
 
+            # 写入外部 API 计时日志
+            log_external_api_timing(
+                "OZON", "POST", "/v2/posting/fbs/package-label", api_elapsed_ms,
+                f"shop={self.shop_id} | pdf_size={len(response.content)}"
+            )
+
             return {
                 "file_content": pdf_base64,
                 "file_name": "labels.pdf",
@@ -812,6 +854,9 @@ class OzonAPIClient:
             }
 
         except httpx.HTTPStatusError as e:
+            # 记录外部 API 耗时
+            api_elapsed_ms = (time.perf_counter() - api_start) * 1000
+
             # 安全地获取响应内容（避免二进制PDF解码错误）
             try:
                 response_content = e.response.text
@@ -824,8 +869,21 @@ class OzonAPIClient:
                 f"Ozon API error: {e.response.status_code}",
                 extra={"request_id": request_id, "response": response_content},
             )
+
+            # 写入外部 API 计时日志（错误情况）
+            log_external_api_timing(
+                "OZON", "POST", "/v2/posting/fbs/package-label", api_elapsed_ms,
+                f"shop={self.shop_id} | ERROR={e.response.status_code}"
+            )
             raise
         except Exception as e:
+            # 记录外部 API 耗时（如果已经开始计时）
+            if 'api_start' in locals():
+                api_elapsed_ms = (time.perf_counter() - api_start) * 1000
+                log_external_api_timing(
+                    "OZON", "POST", "/v2/posting/fbs/package-label", api_elapsed_ms,
+                    f"shop={self.shop_id} | EXCEPTION={type(e).__name__}"
+                )
             logger.error(f"获取标签失败: {e}", extra={"request_id": request_id})
             raise
 
