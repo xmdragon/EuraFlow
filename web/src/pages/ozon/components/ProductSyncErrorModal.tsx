@@ -94,7 +94,7 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
   });
 
   const renderErrorItem = (error: unknown, index: number) => {
-    const err = error as { texts?: { description?: string; attribute_name?: string }; description?: string; attribute_name?: string; code?: string; level?: string };
+    const err = error as { texts?: { description?: string; attribute_name?: string }; description?: string; attribute_name?: string; code?: string; level?: string; attribute_id?: number; field?: string; message?: string };
     // 获取错误描述（优先使用 texts.description，其次使用 description）
     const description = err.texts?.description || err.description;
     const attributeName = err.texts?.attribute_name || err.attribute_name;
@@ -154,25 +154,25 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
             <div style={{ marginBottom: 4 }}>
               <Text strong>属性名称：</Text>
               <Text>{attributeName}</Text>
-              {error.attribute_id && (
-                <Text type="secondary"> (ID: {error.attribute_id})</Text>
+              {err.attribute_id && (
+                <Text type="secondary"> (ID: {err.attribute_id})</Text>
               )}
             </div>
           )}
 
           {/* 字段 */}
-          {error.field && (
+          {err.field && (
             <div style={{ marginBottom: 4 }}>
               <Text strong>字段：</Text>
-              <Text code>{error.field}</Text>
+              <Text code>{err.field}</Text>
             </div>
           )}
 
           {/* 技术消息（折叠显示） */}
-          {error.message && error.message !== description && (
+          {err.message && err.message !== description && (
             <div style={{ marginTop: 8 }}>
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                技术信息：{error.message}
+                技术信息：{err.message}
               </Text>
             </div>
           )}

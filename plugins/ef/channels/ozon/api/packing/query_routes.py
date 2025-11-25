@@ -698,6 +698,7 @@ async def search_posting_by_tracking(
     tracking_number: str = Query(..., description="追踪号码/国内单号/货件编号"),
     offset: int = Query(0, ge=0, description="分页偏移量"),
     limit: int = Query(20, ge=1, le=100, description="每页数量，默认20"),
+    print_status: Optional[str] = Query(None, description="打印状态过滤：all(全部)/printed(已打印)/unprinted(未打印)"),
     db: AsyncSession = Depends(get_async_session)
 ):
     """
@@ -809,21 +810,33 @@ async def search_posting_by_tracking(
             # 规则3: 纯数字 或 字母开头+数字 → 国内单号（结尾是数字）
             # 可能匹配多个posting，返回最近7天的结果（支持分页）
             # 场景：666666 等内部单号用于标记库存商品，会关联大量 posting
-            logger.info(f"识别为国内单号（纯数字或字母开头+数字）: {search_value}")
+            logger.info(f"识别为国内单号（纯数字或字母开头+数字）: {search_value}, print_status: {print_status}")
 
             # 优化：添加7天时间过滤，避免查询大量历史数据
             from datetime import timedelta
             time_threshold = datetime.now(timezone.utc) - timedelta(days=7)
+
+            # 构建基础过滤条件
+            base_conditions = [
+                OzonDomesticTracking.tracking_number == search_value,
+                OzonOrder.ordered_at >= time_threshold
+            ]
+
+            # 添加打印状态过滤条件
+            if print_status == 'printed':
+                # 已打印：operation_status == 'printed'
+                base_conditions.append(OzonPosting.operation_status == 'printed')
+            elif print_status == 'unprinted':
+                # 未打印：operation_status == 'tracking_confirmed' AND status == 'awaiting_deliver'
+                base_conditions.append(OzonPosting.operation_status == 'tracking_confirmed')
+                base_conditions.append(OzonPosting.status == 'awaiting_deliver')
 
             # 先查询总数（用于前端显示）
             count_result = await db.execute(
                 select(func.count(OzonPosting.id))
                 .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
                 .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
-                .where(
-                    OzonDomesticTracking.tracking_number == search_value,
-                    OzonOrder.ordered_at >= time_threshold
-                )
+                .where(*base_conditions)
             )
             total_count = count_result.scalar() or 0
 
@@ -832,10 +845,7 @@ async def search_posting_by_tracking(
                 select(OzonPosting.id)
                 .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
                 .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
-                .where(
-                    OzonDomesticTracking.tracking_number == search_value,
-                    OzonOrder.ordered_at >= time_threshold
-                )
+                .where(*base_conditions)
                 .order_by(OzonOrder.ordered_at.desc())
                 .offset(offset)
                 .limit(limit)

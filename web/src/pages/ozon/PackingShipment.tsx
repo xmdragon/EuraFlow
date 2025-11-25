@@ -158,6 +158,12 @@ const PackingShipment: React.FC = () => {
   const [scanResults, setScanResults] = useState<ozonApi.PostingWithOrder[]>([]); // 改为数组，支持多个结果
   const [scanError, setScanError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
+  // 扫描结果分页状态
+  const [scanOffset, setScanOffset] = useState(0);
+  const [scanHasMore, setScanHasMore] = useState(false);
+  const [scanTotal, setScanTotal] = useState(0);
+  const [currentScanTrackingNumber, setCurrentScanTrackingNumber] = useState<string>(''); // 当前搜索的单号
+  const [isLoadingScanMore, setIsLoadingScanMore] = useState(false);
   // 扫描结果的批量打印状态
   const [scanSelectedPostings, setScanSelectedPostings] = useState<string[]>([]);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -189,31 +195,9 @@ const PackingShipment: React.FC = () => {
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string>('');
 
-  // 根据打印状态过滤扫描结果
-  const filteredScanResults = useMemo(() => {
-    if (scanPrintStatusFilter === 'all') {
-      return scanResults;
-    }
-
-    return scanResults.filter((posting) => {
-      const isPrinted = (posting.label_print_count || 0) > 0 && posting.operation_status === 'printed';
-
-      if (scanPrintStatusFilter === 'printed') {
-        return isPrinted;
-      } else if (scanPrintStatusFilter === 'unprinted') {
-        // 未打印：仅包含打印之前的订单
-        // - 操作状态：tracking_confirmed（单号确认）
-        // - OZON状态：awaiting_deliver（等待发货）
-        // 排除：运输中(delivering)和发货中(shipping)的订单
-        return (
-          posting.operation_status === 'tracking_confirmed' &&
-          posting.status === 'awaiting_deliver'
-        );
-      }
-
-      return true;
-    });
-  }, [scanResults, scanPrintStatusFilter]);
+  // 打印状态过滤现在由后端处理，前端直接使用 scanResults
+  // 但为了兼容性，我们仍然保留 filteredScanResults 变量名
+  const filteredScanResults = scanResults;
 
   // 固定的行数配置
   const INITIAL_ROWS = 4; // 第一次加载4行
@@ -233,18 +217,6 @@ const PackingShipment: React.FC = () => {
     window.addEventListener('resize', calculateItemsPerRow);
     return () => window.removeEventListener('resize', calculateItemsPerRow);
   }, [calculateItemsPerRow]);
-
-  // 当打印状态过滤条件改变时，清理不在过滤结果中的选中项
-  useEffect(() => {
-    if (scanSelectedPostings.length > 0) {
-      const filteredPostingNumbers = new Set(filteredScanResults.map(p => p.posting_number));
-      const validSelections = scanSelectedPostings.filter(pn => filteredPostingNumbers.has(pn));
-
-      if (validSelections.length !== scanSelectedPostings.length) {
-        setScanSelectedPostings(validSelections);
-      }
-    }
-  }, [scanPrintStatusFilter, filteredScanResults]);
 
   // 从 URL 参数初始化状态（用于通知点击跳转）
   useEffect(() => {
@@ -338,7 +310,7 @@ const PackingShipment: React.FC = () => {
 
       return ozonApi.getPackingOrders(1, pageSize, queryParams);
     },
-    enabled: true, // 支持查询全部店铺（selectedShop=null）
+    enabled: operationStatus !== 'scan', // 扫描标签页不使用此查询，使用 searchPostingByTracking
     refetchOnMount: 'always', // 每次切换标签页都重新请求API，避免缓存导致数据不一致
     // 禁用自动刷新，避免与无限滚动冲突
     // refetchInterval: 60000,
@@ -448,8 +420,6 @@ const PackingShipment: React.FC = () => {
   // 滚动监听：滚动到底部加载下一页
   useEffect(() => {
     const handleScroll = () => {
-      if (isLoadingMore || !hasMoreData) return;
-
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const windowHeight = window.innerHeight;
       const documentHeight = document.documentElement.scrollHeight;
@@ -457,18 +427,28 @@ const PackingShipment: React.FC = () => {
 
       // 滚动到80%时触发加载
       if (scrollPercent > 0.8) {
-        setIsLoadingMore(true);
-        setCurrentPage((prev) => {
-          const next = prev + 1;
-          currentPageRef.current = next; // 同步更新 ref
-          return next;
-        });
+        // 扫描模式使用专用的加载函数
+        if (operationStatus === 'scan') {
+          if (!isLoadingScanMore && scanHasMore && currentScanTrackingNumber) {
+            handleLoadMoreScanResults();
+          }
+        } else {
+          // 非扫描模式使用原有的分页逻辑
+          if (!isLoadingMore && hasMoreData) {
+            setIsLoadingMore(true);
+            setCurrentPage((prev) => {
+              const next = prev + 1;
+              currentPageRef.current = next; // 同步更新 ref
+              return next;
+            });
+          }
+        }
       }
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [isLoadingMore, hasMoreData]);
+  }, [isLoadingMore, hasMoreData, operationStatus, isLoadingScanMore, scanHasMore, currentScanTrackingNumber]);
 
   // 展开订单数据为货件维度（PostingWithOrder 数组）- 使用累积的数据
   const postingsData = React.useMemo<ozonApi.PostingWithOrder[]>(() => {
@@ -775,21 +755,34 @@ const PackingShipment: React.FC = () => {
       return;
     }
 
+    const trackingNumberToSearch = scanTrackingNumber.trim();
+
     setIsScanning(true);
     setScanResults([]);
     setScanError('');
     setScanSelectedPostings([]);
     setScanPrintStatusFilter('all'); // 重置打印状态过滤
+    // 重置分页状态
+    setScanOffset(0);
+    setScanHasMore(false);
+    setScanTotal(0);
+    setCurrentScanTrackingNumber(trackingNumberToSearch); // 保存当前搜索的单号
 
     try {
-      const result = await ozonApi.searchPostingByTracking(scanTrackingNumber.trim());
+      // 首次搜索使用默认的 'all' 打印状态
+      const result = await ozonApi.searchPostingByTracking(trackingNumberToSearch, 0, 20, 'all');
       if (result.data && Array.isArray(result.data) && result.data.length > 0) {
         // API返回数组格式，直接显示表格
         setScanResults(result.data);
+        setScanTotal(result.total || result.data.length);
+        setScanHasMore(result.has_more || false);
+        setScanOffset(result.data.length); // 下次加载从这里开始
         setScanError('');
       } else if (result.data && !Array.isArray(result.data)) {
         // 兼容旧版API（返回单个对象），转为数组
         setScanResults([result.data]);
+        setScanTotal(1);
+        setScanHasMore(false);
         setScanError('');
       } else {
         setScanResults([]);
@@ -806,6 +799,78 @@ const PackingShipment: React.FC = () => {
       setTimeout(() => {
         scanInputRef.current?.focus();
       }, 100);
+    }
+  };
+
+  // 扫描结果加载更多
+  const handleLoadMoreScanResults = async () => {
+    if (!currentScanTrackingNumber || isLoadingScanMore || !scanHasMore) {
+      return;
+    }
+
+    setIsLoadingScanMore(true);
+    try {
+      const result = await ozonApi.searchPostingByTracking(
+        currentScanTrackingNumber,
+        scanOffset,
+        20,
+        scanPrintStatusFilter
+      );
+      if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+        // 追加到现有结果
+        setScanResults((prev) => [...prev, ...result.data]);
+        setScanOffset((prev) => prev + result.data.length);
+        setScanHasMore(result.has_more || false);
+      } else {
+        setScanHasMore(false);
+      }
+    } catch (error) {
+      logger.error('加载更多扫描结果失败', error);
+      notifyError('加载失败', '加载更多结果失败，请重试');
+    } finally {
+      setIsLoadingScanMore(false);
+    }
+  };
+
+  // 切换打印状态过滤时重新查询
+  const handlePrintStatusFilterChange = async (newFilter: 'all' | 'printed' | 'unprinted') => {
+    // 更新过滤状态
+    setScanPrintStatusFilter(newFilter);
+
+    // 如果没有当前搜索的单号，不需要查询
+    if (!currentScanTrackingNumber) {
+      return;
+    }
+
+    // 重置分页状态
+    setScanOffset(0);
+    setScanHasMore(false);
+    setScanTotal(0);
+    setScanSelectedPostings([]);
+    setIsLoadingScanMore(true);
+
+    try {
+      const result = await ozonApi.searchPostingByTracking(
+        currentScanTrackingNumber,
+        0,
+        20,
+        newFilter
+      );
+      if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+        setScanResults(result.data);
+        setScanTotal(result.total || result.data.length);
+        setScanHasMore(result.has_more || false);
+        setScanOffset(result.data.length);
+      } else {
+        setScanResults([]);
+        setScanTotal(0);
+        setScanHasMore(false);
+      }
+    } catch (error) {
+      logger.error('切换打印状态过滤失败', error);
+      notifyError('查询失败', '切换打印状态过滤失败，请重试');
+    } finally {
+      setIsLoadingScanMore(false);
     }
   };
 
@@ -1157,14 +1222,17 @@ const PackingShipment: React.FC = () => {
         {/* 扫描结果标题行 - 放在stickyHeader内实现固定 */}
         {operationStatus === 'scan' && scanResults.length > 0 && (
           <div className={styles.scanResultStickyHeader}>
-            <span className={styles.scanResultTitle}>查询结果 ({scanResults.length})</span>
+            <span className={styles.scanResultTitle}>
+              查询结果 ({scanResults.length}{scanTotal > scanResults.length ? `/${scanTotal}` : ''})
+            </span>
             <Space>
               <Space size="small">
                 <Text type="secondary">打印状态:</Text>
                 <Select
                   value={scanPrintStatusFilter}
-                  onChange={setScanPrintStatusFilter}
+                  onChange={handlePrintStatusFilterChange}
                   style={{ width: 120 }}
+                  loading={isLoadingScanMore}
                   options={[
                     { label: '全部', value: 'all' },
                     { label: '已打印', value: 'printed' },
@@ -1223,23 +1291,36 @@ const PackingShipment: React.FC = () => {
 
               {/* 扫描结果表格 */}
               {scanResults.length > 0 && (
-                <ScanResultTable
-                    scanResults={filteredScanResults}
-                    scanSelectedPostings={scanSelectedPostings}
-                    onSelectedPostingsChange={setScanSelectedPostings}
-                    onPrintSingle={handlePrintSingleLabel}
-                    onOpenEditNotes={handleOpenEditNotes}
-                    onOpenDomesticTracking={(posting) => {
-                      setCurrentPosting(posting);
-                      setDomesticTrackingModalVisible(true);
-                    }}
-                    onShowDetail={showOrderDetail}
-                    onOpenPriceHistory={handleOpenPriceHistoryCallback}
-                    shopNameMap={shopNameMap}
-                    canOperate={canOperate}
-                    isPrinting={isPrinting}
-                    onCopy={copyToClipboard}
-                />
+                <>
+                  <ScanResultTable
+                      scanResults={filteredScanResults}
+                      scanSelectedPostings={scanSelectedPostings}
+                      onSelectedPostingsChange={setScanSelectedPostings}
+                      onPrintSingle={handlePrintSingleLabel}
+                      onOpenEditNotes={handleOpenEditNotes}
+                      onOpenDomesticTracking={(posting) => {
+                        setCurrentPosting(posting);
+                        setDomesticTrackingModalVisible(true);
+                      }}
+                      onShowDetail={showOrderDetail}
+                      onOpenPriceHistory={handleOpenPriceHistoryCallback}
+                      shopNameMap={shopNameMap}
+                      canOperate={canOperate}
+                      isPrinting={isPrinting}
+                      onCopy={copyToClipboard}
+                  />
+                  {/* 扫描结果加载更多提示 */}
+                  {isLoadingScanMore && (
+                    <div className={styles.loadingMore}>
+                      <SyncOutlined spin /> 加载更多...
+                    </div>
+                  )}
+                  {!scanHasMore && scanResults.length > 0 && scanTotal > 20 && (
+                    <div className={styles.loadingMore}>
+                      <Text type="secondary">已加载全部 {scanResults.length} 条结果</Text>
+                    </div>
+                  )}
+                </>
               )}
             </Space>
           </div>

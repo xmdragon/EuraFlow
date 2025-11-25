@@ -10,6 +10,12 @@ import styles from '../ProductCreate.module.scss';
 import { AttributeField } from './AttributeField';
 import type { CategoryAttribute, DictionaryValue } from '@/services/ozon';
 
+interface PromotionAction {
+  action_id: number;
+  title: string;
+  date_end?: string;
+}
+
 export interface CategoryAttributesSectionProps {
   selectedCategory: number | null;
   loadingAttributes: boolean;
@@ -27,7 +33,7 @@ export interface CategoryAttributesSectionProps {
   setOptionalFieldsExpanded: (expanded: boolean) => void;
   autoColorSample: boolean;
   specialFieldDescriptions: Record<string, string>;
-  promotionActions: unknown[] | undefined;
+  promotionActions: PromotionAction[] | undefined;
 }
 
 export const CategoryAttributesSection: React.FC<CategoryAttributesSectionProps> = ({

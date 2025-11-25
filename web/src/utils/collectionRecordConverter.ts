@@ -31,7 +31,8 @@ export function normalizeImages(images: unknown): string[] {
           return img;
         }
         if (img && typeof img === 'object') {
-          return img.url || img.original_url || '';
+          const imgObj = img as { url?: string; original_url?: string };
+          return imgObj.url || imgObj.original_url || '';
         }
         return '';
       })
@@ -62,12 +63,15 @@ export function normalizeVideos(videos: unknown): Array<{url: string; cover?: st
       if (typeof video === 'string') {
         return { url: video, is_cover: false };
       }
-      if (video && typeof video === 'object' && video.url) {
-        return {
-          url: video.url,
-          cover: video.cover,
-          is_cover: video.is_cover || false,
-        };
+      if (video && typeof video === 'object') {
+        const videoObj = video as { url?: string; cover?: string; is_cover?: boolean };
+        if (videoObj.url) {
+          return {
+            url: videoObj.url,
+            cover: videoObj.cover,
+            is_cover: videoObj.is_cover || false,
+          };
+        }
       }
       return null;
     })
@@ -108,9 +112,9 @@ export function convertCollectionRecordToFormData(
   loggers.ozon.info('[CollectionRecord] 转换采集记录数据', {
     recordId: record.id,
     hasVariants: !!productData.variants,
-    variantsCount: productData.variants?.length || 0,
+    variantsCount: Array.isArray(productData.variants) ? productData.variants.length : 0,
     hasImages: !!productData.images,
-    imagesCount: productData.images?.length || 0,
+    imagesCount: Array.isArray(productData.images) ? productData.images.length : 0,
   });
 
   // 处理主商品图片
@@ -173,18 +177,19 @@ export function convertCollectionRecordToFormData(
   }
 
   // 构建表单数据
+  const dimensions = productData.dimensions as { width?: number; height?: number; length?: number; depth?: number; weight?: number } | undefined;
   const formData: FormData = {
     shop_id: shopId,
     // category_id 需要用户手动选择或从采集记录中提取
-    title: productData.title || productData.title_cn || '',
-    description: productData.description || '',
+    title: (productData.title as string) || (productData.title_cn as string) || '',
+    description: (productData.description as string) || '',
     offer_id: `collection_${record.id}_${Date.now()}`, // 生成唯一的 offer_id
-    price: productData.price,
-    old_price: productData.old_price,
-    width: productData.dimensions?.width,
-    height: productData.dimensions?.height,
-    depth: productData.dimensions?.length || productData.dimensions?.depth,
-    weight: productData.dimensions?.weight,
+    price: productData.price as number | undefined,
+    old_price: productData.old_price as number | undefined,
+    width: dimensions?.width,
+    height: dimensions?.height,
+    depth: dimensions?.length || dimensions?.depth,
+    weight: dimensions?.weight,
     dimension_unit: 'mm',
     weight_unit: 'g',
     images: mainImages,

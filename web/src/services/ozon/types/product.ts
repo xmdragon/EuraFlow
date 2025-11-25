@@ -92,8 +92,12 @@ export interface Product {
   last_sync_at?: string;
   sync_status: "pending" | "syncing" | "success" | "failed" | "imported";
   sync_error?: string;
+  purchase_url?: string; // 采购链接
+  suggested_purchase_price?: string; // 建议进货价
+  purchase_note?: string; // 采购备注
   created_at: string;
   updated_at: string;
+  [key: string]: unknown; // 允许额外属性
 }
 
 /**

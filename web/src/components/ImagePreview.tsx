@@ -24,7 +24,7 @@ interface ImagePreviewProps {
   onClose: () => void;
   productInfo?: {
     id: number;
-    sku: string;
+    sku?: string;
     title: string;
   };
   onWatermark?: () => void;

@@ -16,8 +16,8 @@ export interface Product {
   offer_id: string;
   ozon_sku?: number;
   title?: string;
-  price?: number;
-  old_price?: number;
+  price?: number | string;
+  old_price?: number | string;
   currency_code?: string;
   images?: {
     primary?: string;

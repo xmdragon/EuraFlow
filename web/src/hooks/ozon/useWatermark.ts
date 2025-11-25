@@ -9,6 +9,7 @@ import { useAsyncTaskPolling } from '@/hooks/useAsyncTaskPolling';
 import * as watermarkApi from '@/services/watermarkApi';
 import { loggers } from '@/utils/logger';
 import { notifySuccess, notifyError } from '@/utils/notification';
+import type { ImageWatermarkConfig } from '@/components/ozon/watermark/WatermarkApplyModal';
 
 export const useWatermark = (selectedShop: number | null) => {
   const queryClient = useQueryClient();
@@ -107,16 +108,27 @@ export const useWatermark = (selectedShop: number | null) => {
       productIds: number[];
       configId: number;
       analyzeMode?: 'individual' | 'fast';
-      positionOverrides?: Record<string, Record<string, string>>;
+      positionOverrides?: Record<string, Record<string, ImageWatermarkConfig>>;
     }) => {
       if (!selectedShop) throw new Error('请先选择店铺');
+      // Convert ImageWatermarkConfig to string (position only) for API
+      const convertedOverrides = positionOverrides
+        ? Object.fromEntries(
+            Object.entries(positionOverrides).map(([productId, images]) => [
+              productId,
+              Object.fromEntries(
+                Object.entries(images).map(([imageIndex, config]) => [imageIndex, config.position])
+              ),
+            ])
+          )
+        : undefined;
       return watermarkApi.applyWatermarkBatch(
         selectedShop,
         productIds,
         configId,
         false,
         analyzeMode,
-        positionOverrides
+        convertedOverrides
       ); // 强制使用异步模式
     },
     onSuccess: (data) => {

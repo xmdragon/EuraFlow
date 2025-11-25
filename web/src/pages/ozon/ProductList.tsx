@@ -458,7 +458,7 @@ const ProductList: React.FC = () => {
       <PriceEditModal
         visible={priceModalVisible}
         onCancel={() => setPriceModalVisible(false)}
-        onSubmit={(updates) => updatePricesMutation.mutate(updates)}
+        onSubmit={(updates) => updatePricesMutation.mutate(updates as ozonApi.PriceUpdate[])}
         selectedProduct={selectedProduct}
         selectedRows={selectedRows}
         loading={updatePricesMutation.isPending}
@@ -468,7 +468,7 @@ const ProductList: React.FC = () => {
       <StockEditModal
         visible={stockModalVisible}
         onCancel={() => setStockModalVisible(false)}
-        onSubmit={(updates) => updateStocksMutation.mutate(updates)}
+        onSubmit={(updates) => updateStocksMutation.mutate(updates as ozonApi.StockUpdate[])}
         selectedProduct={selectedProduct}
         selectedRows={selectedRows}
         loading={updateStocksMutation.isPending}

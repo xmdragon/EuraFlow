@@ -92,13 +92,23 @@ export const updateOrderExtraInfo = async (
 };
 
 /**
- * 根据追踪号码查询货件
+ * 根据追踪号码查询货件（支持分页和打印状态过滤）
  */
-export const searchPostingByTracking = async (trackingNumber: string) => {
+export const searchPostingByTracking = async (
+  trackingNumber: string,
+  offset: number = 0,
+  limit: number = 20,
+  printStatus?: 'all' | 'printed' | 'unprinted'
+) => {
   const response = await apiClient.get(
     "/ozon/packing/postings/search-by-tracking",
     {
-      params: { tracking_number: trackingNumber },
+      params: {
+        tracking_number: trackingNumber,
+        offset,
+        limit,
+        print_status: printStatus === 'all' ? undefined : printStatus,
+      },
     },
   );
   return response.data;
