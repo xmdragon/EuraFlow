@@ -437,10 +437,11 @@ class OzonWebhookHandler:
 
         Webhook payload包含基本信息，足够创建初始订单：
         - posting_number, products, in_process_at, shipment_date等
-        - 后续会通过API获取完整信息更新
+        - 从本地 OzonProduct 表补全 name 和 price 信息
         """
         try:
             from ..models.orders import OzonOrder, OzonPosting
+            from ..models.products import OzonProduct
 
             posting_number = payload.get("posting_number")
             if not posting_number:
@@ -471,6 +472,14 @@ class OzonWebhookHandler:
                 if existing_posting:
                     logger.info(f"Posting {posting_number} already exists, skipping creation")
                     return existing_posting
+
+                # 从 OzonProduct 表补全 products 中的 name 和 price 信息
+                if products:
+                    enriched_products = await self._enrich_products_from_db(
+                        session, products, OzonProduct
+                    )
+                    # 更新 payload 中的 products
+                    payload = {**payload, "products": enriched_products}
 
                 # 创建或获取Order
                 # 注意：OZON的TYPE_NEW_POSTING webhook可能不包含order_id，使用posting_number作为临时标识
@@ -531,6 +540,106 @@ class OzonWebhookHandler:
         except Exception as e:
             logger.error(f"Failed to create posting from webhook payload: {e}", exc_info=True)
             return None
+
+    async def _enrich_products_from_db(
+        self,
+        session: AsyncSession,
+        products: list,
+        OzonProduct
+    ) -> list:
+        """从 OzonProduct 表补全 products 中的 name 和 price 信息
+
+        Args:
+            session: 数据库会话
+            products: webhook payload 中的 products 列表
+            OzonProduct: OzonProduct 模型类
+
+        Returns:
+            补全了 name 和 price 的 products 列表
+        """
+        if not products:
+            return products
+
+        # 收集所有 sku 和 offer_id 用于批量查询
+        skus = []
+        offer_ids = []
+        for p in products:
+            sku = p.get("sku")
+            offer_id = p.get("offer_id")
+            if sku:
+                skus.append(int(sku))
+            if offer_id:
+                offer_ids.append(str(offer_id))
+
+        if not skus and not offer_ids:
+            logger.debug("No sku or offer_id found in products, skipping enrichment")
+            return products
+
+        # 批量查询 OzonProduct 表
+        from sqlalchemy import or_
+
+        conditions = []
+        if skus:
+            conditions.append(OzonProduct.ozon_sku.in_(skus))
+        if offer_ids:
+            conditions.append(OzonProduct.offer_id.in_(offer_ids))
+
+        query = select(OzonProduct).where(
+            and_(
+                OzonProduct.shop_id == self.shop_id,
+                or_(*conditions)
+            )
+        )
+
+        result = await session.execute(query)
+        db_products = result.scalars().all()
+
+        # 构建查找字典（同时支持 sku 和 offer_id 查找）
+        product_by_sku = {}
+        product_by_offer_id = {}
+        for db_p in db_products:
+            if db_p.ozon_sku:
+                product_by_sku[db_p.ozon_sku] = db_p
+            if db_p.offer_id:
+                product_by_offer_id[db_p.offer_id] = db_p
+
+        # 补全 products 信息
+        enriched_products = []
+        for p in products:
+            enriched = dict(p)  # 复制原始数据
+
+            # 尝试通过 sku 或 offer_id 查找商品
+            db_product = None
+            sku = p.get("sku")
+            offer_id = p.get("offer_id")
+
+            if sku and int(sku) in product_by_sku:
+                db_product = product_by_sku[int(sku)]
+            elif offer_id and offer_id in product_by_offer_id:
+                db_product = product_by_offer_id[offer_id]
+
+            if db_product:
+                # 补全 name（如果缺失）
+                if not enriched.get("name") and db_product.title:
+                    enriched["name"] = db_product.title
+
+                # 补全 price（如果缺失）
+                if not enriched.get("price") and db_product.price is not None:
+                    enriched["price"] = str(db_product.price)
+
+                logger.debug(
+                    f"Enriched product sku={sku} offer_id={offer_id}: "
+                    f"name={enriched.get('name')}, price={enriched.get('price')}"
+                )
+            else:
+                logger.warning(
+                    f"Product not found in DB for enrichment: "
+                    f"sku={sku}, offer_id={offer_id}"
+                )
+
+            enriched_products.append(enriched)
+
+        return enriched_products
 
     async def _update_posting_with_api_data(self, posting_number: str) -> None:
         """后台异步获取OZON API完整数据并更新订单
