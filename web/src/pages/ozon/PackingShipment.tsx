@@ -1172,6 +1172,7 @@ const PackingShipment: React.FC = () => {
               {/* 扫描结果 */}
               {scanResults.length > 0 && (
                 <Card
+                  className={styles.scanResultStickyCard}
                   title={`查询结果 (${scanResults.length})`}
                   extra={
                     <Space>
