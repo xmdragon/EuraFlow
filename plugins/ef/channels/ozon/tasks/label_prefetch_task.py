@@ -196,6 +196,12 @@ async def _prefetch_labels_async() -> Dict[str, Any]:
         f"成功 {total_success}, 跳过 {total_skipped}, 失败 {total_failed}"
     )
 
+    # 在返回前清理数据库引擎，避免事件循环关闭后 asyncpg 尝试清理连接
+    if db_manager._async_engine is not None:
+        await db_manager._async_engine.dispose()
+        db_manager._async_engine = None
+        db_manager._async_session_factory = None
+
     return {
         "success": True,
         "total_processed": total_processed,
@@ -309,6 +315,12 @@ async def _cleanup_labels_async() -> Dict[str, Any]:
         f"跳过 {files_skipped} 个, 失败 {files_failed} 个, "
         f"更新数据库 {db_updated} 条"
     )
+
+    # 在返回前清理数据库引擎，避免事件循环关闭后 asyncpg 尝试清理连接
+    if db_manager._async_engine is not None:
+        await db_manager._async_engine.dispose()
+        db_manager._async_engine = None
+        db_manager._async_session_factory = None
 
     return {
         "success": True,
