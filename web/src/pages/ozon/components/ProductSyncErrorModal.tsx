@@ -1,8 +1,9 @@
-import React from 'react';
-import { Modal, Alert, Empty, Spin, Typography, List, Tag } from 'antd';
-import { ExclamationCircleOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Modal, Alert, Empty, Spin, Typography, List, Tag, Button, Tooltip } from 'antd';
+import { ExclamationCircleOutlined, TranslationOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import * as ozonApi from '@/services/ozon';
+import { translateText } from '@/services/translationApi';
 
 const { Text } = Typography;
 
@@ -65,6 +66,24 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
   productId,
   onClose,
 }) => {
+  // 翻译状态：key 是错误索引，value 是翻译结果
+  const [translations, setTranslations] = useState<Record<number, string>>({});
+  const [translating, setTranslating] = useState<Record<number, boolean>>({});
+
+  const handleTranslate = async (index: number, text: string) => {
+    if (!text || translations[index]) return;
+
+    setTranslating(prev => ({ ...prev, [index]: true }));
+    try {
+      const result = await translateText(text, 'ru', 'zh');
+      setTranslations(prev => ({ ...prev, [index]: result }));
+    } catch (err) {
+      console.error('翻译失败:', err);
+    } finally {
+      setTranslating(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
   const { data, isLoading, error } = useQuery<ApiResponse>({
     queryKey: ['productSyncErrors', productId],
     queryFn: async () => {
@@ -99,10 +118,34 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
           {/* 错误描述（用户友好） */}
           {description && (
             <div style={{ marginBottom: 8, padding: '8px 12px', backgroundColor: '#fff2e8', borderRadius: '4px' }}>
-              <Text strong style={{ color: '#d46b08' }}>错误说明：</Text>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text strong style={{ color: '#d46b08' }}>错误说明：</Text>
+                {!translations[index] && (
+                  <Tooltip title="翻译为中文">
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={translating[index] ? <LoadingOutlined /> : <TranslationOutlined />}
+                      onClick={() => handleTranslate(index, description)}
+                      disabled={translating[index]}
+                      style={{ padding: 0 }}
+                    >
+                      {translating[index] ? '翻译中...' : '翻译'}
+                    </Button>
+                  </Tooltip>
+                )}
+              </div>
               <div style={{ marginTop: 4 }}>
                 <Text>{description}</Text>
               </div>
+              {translations[index] && (
+                <div style={{ marginTop: 8, padding: '6px 10px', backgroundColor: '#e6f7ff', borderRadius: '4px' }}>
+                  <Text strong style={{ color: '#1890ff', fontSize: 12 }}>中文翻译：</Text>
+                  <div style={{ marginTop: 2 }}>
+                    <Text>{translations[index]}</Text>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -242,6 +285,10 @@ const ProductSyncErrorModal: React.FC<ProductSyncErrorModalProps> = ({
       footer={null}
       width={700}
       destroyOnClose
+      afterClose={() => {
+        setTranslations({});
+        setTranslating({});
+      }}
     >
       {renderContent()}
     </Modal>
