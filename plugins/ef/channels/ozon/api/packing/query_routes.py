@@ -827,9 +827,13 @@ async def search_posting_by_tracking(
                 # 已打印：operation_status == 'printed'
                 base_conditions.append(OzonPosting.operation_status == 'printed')
             elif print_status == 'unprinted':
-                # 未打印：operation_status == 'tracking_confirmed' AND status == 'awaiting_deliver'
-                base_conditions.append(OzonPosting.operation_status == 'tracking_confirmed')
-                base_conditions.append(OzonPosting.status == 'awaiting_deliver')
+                # 未打印：operation_status != 'printed'（所有还没打印的）
+                base_conditions.append(
+                    or_(
+                        OzonPosting.operation_status.is_(None),
+                        OzonPosting.operation_status != 'printed'
+                    )
+                )
 
             # 先查询总数（用于前端显示）
             count_result = await db.execute(
