@@ -316,8 +316,8 @@ async def get_packing_orders(
         # 已打印：按标记已打印的时间（operation_time）降序排列
         query = query.order_by(OzonPosting.operation_time.desc())
     else:
-        # 其他状态：按订单创建时间倒序
-        query = query.order_by(OzonOrder.ordered_at.desc())
+        # 其他状态：按下单时间倒序（使用 posting.ordered_at 冗余字段，避免 JOIN 排序）
+        query = query.order_by(OzonPosting.ordered_at.desc())
 
     # 执行查询获取总数（统计Posting数量）
     count_query = select(func.count(OzonPosting.id)).select_from(OzonPosting).join(
@@ -816,10 +816,10 @@ async def search_posting_by_tracking(
             from datetime import timedelta
             time_threshold = datetime.now(timezone.utc) - timedelta(days=7)
 
-            # 构建基础过滤条件
+            # 构建基础过滤条件（使用 posting.ordered_at 避免 JOIN）
             base_conditions = [
                 OzonDomesticTracking.tracking_number == search_value,
-                OzonOrder.ordered_at >= time_threshold
+                OzonPosting.ordered_at >= time_threshold
             ]
 
             # 添加打印状态过滤条件
@@ -847,11 +847,10 @@ async def search_posting_by_tracking(
                     )
                 )
 
-            # 先查询总数（用于前端显示）
+            # 先查询总数（用于前端显示，不需要 JOIN ozon_orders）
             count_result = await db.execute(
                 select(func.count(OzonPosting.id))
                 .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
-                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
                 .where(*base_conditions)
             )
             total_count = count_result.scalar() or 0
@@ -860,9 +859,8 @@ async def search_posting_by_tracking(
             id_result = await db.execute(
                 select(OzonPosting.id)
                 .join(OzonDomesticTracking, OzonDomesticTracking.posting_id == OzonPosting.id)
-                .join(OzonOrder, OzonPosting.order_id == OzonOrder.id)
                 .where(*base_conditions)
-                .order_by(OzonOrder.ordered_at.desc())
+                .order_by(OzonPosting.ordered_at.desc())
                 .offset(offset)
                 .limit(limit)
             )

@@ -1567,6 +1567,7 @@ class OzonSyncService:
                 posting_number=posting_number,
                 ozon_posting_number=posting_data.get("posting_number"),
                 status=posting_data.get("status") or "awaiting_packaging",  # 设置默认状态（必填）
+                ordered_at=order.ordered_at  # 冗余字段，用于排序优化
             )
             db.add(posting)
             logger.info(f"[DEBUG] Created new posting {posting_number}, status={posting.status}")
@@ -1575,6 +1576,9 @@ class OzonSyncService:
             old_status = posting.status
             new_status = posting_data.get("status") or posting.status  # 如果 API 没返回状态，保持原状态
             posting.status = new_status
+            # 更新 ordered_at（如果为空）
+            if not posting.ordered_at and order.ordered_at:
+                posting.ordered_at = order.ordered_at
             logger.info(f"[DEBUG] Updating posting {posting_number}: old_status='{old_status}' → new_status='{new_status}'")
 
         # 更新posting的详细信息

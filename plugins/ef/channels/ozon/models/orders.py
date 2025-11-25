@@ -347,7 +347,8 @@ class OzonPosting(Base):
     label_printed_at = Column(DateTime(timezone=True), comment="标签首次打印时间")
     label_print_count = Column(Integer, nullable=False, default=0, server_default='0', comment="标签打印次数")
 
-    # 时间
+    # 时间（ordered_at 从 ozon_orders 冗余，用于排序优化）
+    ordered_at = Column(DateTime(timezone=True), comment="下单时间（冗余字段，避免 JOIN ozon_orders）")
     in_process_at = Column(DateTime(timezone=True))
     shipped_at = Column(DateTime(timezone=True))
     delivered_at = Column(DateTime(timezone=True))
