@@ -366,16 +366,11 @@ class OrderSyncService:
                 posting_number=posting_number,
                 ozon_posting_number=posting_data.get("posting_number"),
                 status=posting_data.get("status") or "awaiting_packaging",  # 设置初始状态（必填）
-                operation_status='awaiting_stock',  # 设置初始操作状态
-                ordered_at=order.ordered_at  # 冗余字段，用于排序优化
+                operation_status='awaiting_stock'  # 设置初始操作状态
             )
             session.add(posting)
             # ✅ 立即 flush posting，确保 posting.id 有值（后续代码需要使用 posting.id）
             await session.flush()
-        else:
-            # 更新已有 posting 的 ordered_at（如果为空）
-            if not posting.ordered_at and order.ordered_at:
-                posting.ordered_at = order.ordered_at
 
         # 更新Posting信息
         # 如果 API 没返回状态，保持原状态（避免覆盖为 None）
